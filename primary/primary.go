@@ -1,7 +1,6 @@
 package primary
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/ipfs/go-cid"
@@ -20,7 +19,7 @@ type IndexEntry struct {
 type Storage interface {
 	// Get info for CID from primary storage.
 	Get(c cid.Cid) ([]IndexEntry, bool)
-	// Put  info for CID in primary storage.
+	// Put info for CID in primary storage.
 	Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error
 	// Bulk put in primary storage
 	// NOTE: The interface may change if we see some other function
@@ -28,7 +27,7 @@ type Storage interface {
 	PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) error
 }
 
-// wraps a tree with its own lock
+// wraps a tree with its own mutex
 type tree struct {
 	lk   sync.RWMutex
 	tree art.Tree
@@ -42,6 +41,7 @@ type artStorage struct {
 	sizeLimit int
 }
 
+// New creates a new Adaptive Radix Tree storage
 func New(size int) Storage {
 	return &artStorage{
 		primary:   &tree{tree: art.New()},
@@ -50,6 +50,7 @@ func New(size int) Storage {
 	}
 }
 
+// Get info for CID from primary storage.
 func (s *artStorage) Get(c cid.Cid) ([]IndexEntry, bool) {
 	// Keys indexed as multihash
 	k := art.Key(string(c.Hash()))
@@ -62,10 +63,17 @@ func (s *artStorage) Get(c cid.Cid) ([]IndexEntry, bool) {
 		return v.([]IndexEntry), found
 	}
 
-	// Search secondary if not found in the first.
-	s.secondary.lk.RLock()
-	defer s.secondary.lk.RUnlock()
-	v, found = s.secondary.tree.Search(k)
+	if s.secondary != nil {
+		// Search secondary if not found in the first.
+		s.secondary.lk.RLock()
+		defer s.secondary.lk.RUnlock()
+		v, found = s.secondary.tree.Search(k)
+	}
+
+	// If nothing has been found return nil
+	if !found {
+		return nil, false
+	}
 	return v.([]IndexEntry), found
 }
 
@@ -76,7 +84,7 @@ func (s *artStorage) Get(c cid.Cid) ([]IndexEntry, bool) {
 // hit a non-existing key. This is why we aim for updates of empty files in
 // a single accesss, and two for updates over existing keys, instead of
 // two constant accesses and one if the data is duplicated.
-// We may need to revise this design.
+// Happy to revise this design/assumptions
 func (s *artStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
 	in := IndexEntry{provID, pieceID}
 	// Check size of primary storage for eviction purposes.
@@ -85,25 +93,29 @@ func (s *artStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
 	k := art.Key(string(c.Hash()))
 	s.primary.lk.Lock()
 	// NOTE: We store a struct to avoid marshal/unmarshal
-	// overheads. This may be revised.
-	old, updated := s.primary.tree.Insert(k, in)
+	// overheads. Is this a good idea?
+	old, _ := s.primary.tree.Insert(k, []IndexEntry{in})
 	if old != nil {
 		// Check if we updated a duplicate entry.
 		// NOTE: If we end up having a lot of entries for the
 		// same CID we may choose to change IndexEntry to a map[peer.ID]pieceID
-		// to speed-up this lookup
+		// to speed-up this lookup. Don't think is the case right now.
 		if duplicateEntry(in, old.([]IndexEntry)) {
 			// It was a duplicate, restore previous version
-			_, updated = s.primary.tree.Insert(k, old)
+			s.primary.tree.Insert(k, old)
 		} else {
 			// Take previous value and add the new one to the end.
-			_, updated = s.primary.tree.Insert(k, append(old.([]IndexEntry), in))
+			s.primary.tree.Insert(k, append(old.([]IndexEntry), in))
 		}
 	}
 	s.primary.lk.Unlock()
-	if !updated {
-		return fmt.Errorf("error updating cid: %v", c.String())
-	}
+	/*
+		if !updated {
+			return fmt.Errorf("error updating cid: %v", c.String())
+		}*/
+	// NOTE: Insert in the radix-tree used doesn't return any error.
+	// This may change in the future so keeping an error as output in the signature
+	// for now.
 	return nil
 }
 
@@ -116,7 +128,7 @@ func (s *artStorage) PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) erro
 	}
 
 	// We are disregarding the CIDs that couldn't be added from the batch
-	// for now, so we return no errror.
+	// for now, so we return no error.
 	return nil
 }
 
@@ -139,28 +151,29 @@ func duplicateEntry(in IndexEntry, old []IndexEntry) bool {
 // NOTE: Should we add a security margin? Aim for the 0.45 instead
 // of 0.5
 func (s *artStorage) checkSize() {
-	s.fullLock()
-	defer s.fullUnlock()
+	// s.fullLock()
+	// defer s.fullUnlock()
+	s.primary.lk.RLock()
 	if s.primary.tree.Size() >= int(float64(0.5)*float64(s.sizeLimit)) {
+		s.lk.Lock()
 		// Create new tree and make primary = secondary
 		s.secondary = s.primary
 		s.primary = &tree{tree: art.New()}
+		s.lk.Unlock()
 	}
+	s.primary.lk.RUnlock()
 }
 
 // convenient function to lock the storage and its trees for eviction
 func (s *artStorage) fullLock() {
 	s.lk.Lock()
 	s.primary.lk.Lock()
-	// NOTE: We may be able to remove this lock because we are going to
-	// get rid of this tree.
-	s.secondary.lk.Lock()
+	// No need to lock secondary storage. We never write on it
+	// s.secondary.lk.Lock()
 }
 
 // same with unlcok
 func (s *artStorage) fullUnlock() {
 	s.lk.Unlock()
 	s.primary.lk.Lock()
-	// NOTE: Same as above
-	s.secondary.lk.Unlock()
 }
