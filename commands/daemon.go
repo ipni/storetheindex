@@ -40,6 +40,8 @@ func daemonCommand(c *cli.Context) error {
 		log.Infow("node stopped")
 	}()
 
+	<-ctx.Done()
+
 	return err
 
 }

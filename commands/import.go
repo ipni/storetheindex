@@ -2,7 +2,10 @@ package commands
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/adlrocha/indexer-node/importer"
+	"github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
 )
 
@@ -17,7 +20,14 @@ var importCar = &cli.Command{
 	Name:   "car",
 	Usage:  "Import indexer data from car",
 	Flags:  ImportFlags,
-	Action: importCarCmd, //
+	Action: importCarCmd,
+}
+
+var importManifest = &cli.Command{
+	Name:   "manifest",
+	Usage:  "Import manifest of CID aggregator",
+	Flags:  ImportFlags,
+	Action: importManifestCmd,
 }
 var ImportCmd = &cli.Command{
 	Name:  "import",
@@ -25,25 +35,59 @@ var ImportCmd = &cli.Command{
 	Subcommands: []*cli.Command{
 		importCidList,
 		importCar,
+		importManifest,
 	},
 }
 
 func importListCmd(c *cli.Context) error {
+	log.Infow("Starting to import from cidList")
+	ctx, cancel := context.WithCancel(ProcessContext())
+	defer cancel()
+	i := importer.NewCidListImporter(c.String("dir"))
+
+	return importReader(ctx, c, i)
+}
+
+func importCarCmd(c *cli.Context) error {
+	log.Infow("Starting to import from CAR file")
 	_, cancel := context.WithCancel(ProcessContext())
 	defer cancel()
 
-	log.Errorw("Importing from cidList not implemented yet")
+	log.Errorw("Importing from Car not implemented yet")
 
 	return nil
 
 }
 
-func importCarCmd(c *cli.Context) error {
-	_, cancel := context.WithCancel(ProcessContext())
+func importManifestCmd(c *cli.Context) error {
+	log.Infow("Starting to import from Manifest file")
+	ctx, cancel := context.WithCancel(ProcessContext())
 	defer cancel()
+	i := importer.NewManifestImporter(c.String("dir"))
+	return importReader(ctx, c, i)
+}
 
-	log.Errorw("Importing from cidList not implemented yet")
+func importReader(ctx context.Context, c *cli.Context, i importer.Importer) error {
+	prov := c.String("provider")
+	piece := c.String("piece")
 
-	return nil
+	// TODO: Check if prov is Peer.ID and piece is CID
 
+	log.Infof("Reading from provider: %s, and piece %s", prov, piece)
+	cids := make(chan cid.Cid)
+	done := make(chan error)
+	// TODO: Check if a daemon is running before importing.
+
+	go i.Read(ctx, cids, done)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case c := <-cids:
+			// TODO: Process cids and store conveniently
+			fmt.Println(c)
+		case e := <-done:
+			return e
+		}
+	}
 }
