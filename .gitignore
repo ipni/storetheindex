@@ -1,5 +1,4 @@
 indexer-node
 *.car
 *.out
-*.json
-*.json
+*json
