@@ -2,11 +2,9 @@ package commands
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/adlrocha/indexer-node/api/client"
-	"github.com/adlrocha/indexer-node/importer"
-	"github.com/ipfs/go-cid"
+	"github.com/adlrocha/indexer-node/client"
+	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/urfave/cli/v2"
 )
 
@@ -41,12 +39,18 @@ var ImportCmd = &cli.Command{
 }
 
 func importListCmd(c *cli.Context) error {
-	log.Infow("Starting to import from Manifest file")
+	cl := client.New(c)
+	prov := c.String("provider")
+	p, err := peer.IDB58Decode(prov)
+	dir := c.String("dir")
+
+	log.Infow("Starting to import from cidlist file")
 	ctx, cancel := context.WithCancel(ProcessContext())
 	defer cancel()
-	// TODO: Get from context and flag
-	cl := client.NewFromEndpoint("http://localhost:3000")
-	return cl.ImportFromCidList(ctx, "/home/adlrocha/Desktop/main/work/ProtocolLabs/repos/datasystems/indexer-node/cids.out")
+	if err != nil {
+		return err
+	}
+	return cl.ImportFromCidList(ctx, dir, p)
 }
 
 func importCarCmd(c *cli.Context) error {
@@ -61,24 +65,30 @@ func importCarCmd(c *cli.Context) error {
 }
 
 func importManifestCmd(c *cli.Context) error {
+	cl := client.New(c)
+	prov := c.String("provider")
+	p, err := peer.IDB58Decode(prov)
+	dir := c.String("dir")
+
 	log.Infow("Starting to import from Manifest file")
 	ctx, cancel := context.WithCancel(ProcessContext())
 	defer cancel()
-	// TODO: Get from context and flag
-	cl := client.NewFromEndpoint("http://localhost:3000")
-	return cl.ImportFromManifest(ctx, "/home/adlrocha/Desktop/main/work/ProtocolLabs/repos/datasystems/indexer-node/@BatchManifest.ndjson")
+	if err != nil {
+		return err
+	}
+	return cl.ImportFromCidList(ctx, dir, p)
 }
 
+/*
 func importReader(ctx context.Context, c *cli.Context, i importer.Importer) error {
 	prov := c.String("provider")
 	piece := c.String("piece")
 
-	// TODO: Check if prov is Peer.ID and piece is CID
+	// TODO:
 
 	log.Infof("Reading from provider: %s, and piece %s", prov, piece)
 	cids := make(chan cid.Cid)
 	done := make(chan error)
-	// TODO: Check if a daemon is running before importing.
 
 	go i.Read(ctx, cids, done)
 	for {
@@ -93,3 +103,4 @@ func importReader(ctx context.Context, c *cli.Context, i importer.Importer) erro
 		}
 	}
 }
+*/

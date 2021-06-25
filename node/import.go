@@ -1,32 +1,29 @@
-package handle
+package node
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/adlrocha/indexer-node/importer"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
-	logging "github.com/ipfs/go-log/v2"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
-
-var log = logging.Logger("api")
 
 // NOTE: Considering sending a JSON in the body of these handlers
 // to give additional input about the error to the client.
 
-func (a *API) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
+func (n *Node) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: This code is the same for all import handlers.
 	// We probably can take it out to its own function to deduplicate.
 	vars := mux.Vars(r)
 	m := vars["minerid"]
-	miner, err := peer.IDFromString(m)
+	miner, err := peer.IDB58Decode(m)
 	if err != nil {
-		log.Errorw("error decoding miner id into peerID")
+		log.Errorw("error decoding miner id into peerID:", m, err)
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
-	log.Infow("Import manifest for miner: ", m)
+	log.Infow("Import manifest for provider", "miner", m)
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		log.Errorw("error reading file")
@@ -43,9 +40,8 @@ func (a *API) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case c := <-o:
-			// TODO: Put in memory
-			fmt.Println(c)
-		case e := <-d:
+			n.importCallback(c, miner, cid.Cid{})
+		case err := <-d:
 			if err == nil {
 				log.Infow("success importing")
 				w.WriteHeader(http.StatusOK)
@@ -58,16 +54,17 @@ func (a *API) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
+func (n *Node) ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	m := vars["minerid"]
-	miner, err := peer.IDFromString(m)
+	miner, err := peer.IDB58Decode(m)
 	if err != nil {
-		log.Errorw("error decoding miner id into peerID")
+		log.Errorw("error decoding miner id into peerID:", m, err)
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
-	log.Infow("Import manifest for miner: ", m)
+	log.Infow("Import cidlist for provider: ", m)
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		log.Errorw("error reading file")
@@ -84,9 +81,8 @@ func ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case c := <-o:
-			// TODO: Put in memory
-			fmt.Println(c)
-		case e := <-d:
+			n.importCallback(c, miner, cid.Cid{})
+		case err := <-d:
 			if err == nil {
 				log.Infow("success importing")
 				w.WriteHeader(http.StatusOK)
@@ -97,4 +93,21 @@ func ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+func (n *Node) importCallback(c cid.Cid, prov peer.ID, piece cid.Cid) error {
+	// Disregard empty Cids.
+	empty := cid.Cid{}
+	if c == empty {
+		return nil
+	}
+	// NOTE: We disregard errors for now
+	err := n.primary.Put(c, prov, piece)
+	if err != nil {
+		log.Errorw("Error importing cid", "cid", err)
+	} else {
+		// TODO: Change to Debug
+		log.Infow("Imported successfully", "cid", c)
+	}
+	return nil
 }

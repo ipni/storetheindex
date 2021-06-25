@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 
-	"github.com/adlrocha/indexer-node/api"
 	"github.com/adlrocha/indexer-node/persistent"
 	"github.com/adlrocha/indexer-node/primary"
 	logging "github.com/ipfs/go-log/v2"
@@ -15,20 +14,21 @@ var log = logging.Logger("node")
 type Node struct {
 	primary    primary.Storage
 	persistent persistent.Store
-	a          *api.API
+	api        *api
 	doneCh     chan struct{}
 }
 
 func New(ctx context.Context, cctx *cli.Context) (*Node, error) {
+
+	// TODO: Create flag for the size of primary storage
+	e := cctx.String("endpoint")
+
 	var err error
-	// TODO: Configure node
-	// TODO: Initialize stores.
-	// TODO: Initialize APIs.
 	n := new(Node)
 	n.doneCh = make(chan struct{})
 	n.primary = primary.New(1000000)
 	n.persistent = persistent.New()
-	n.a, err = api.NewWithDependencies(":3000")
+	err = n.initAPI(e)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func New(ctx context.Context, cctx *cli.Context) (*Node, error) {
 func (n *Node) Start() error {
 	log.Infow("Started server")
 	// TODO: Start required processes of stores
-	return n.a.Serve()
+	return n.api.Serve()
 
 }
 
@@ -47,5 +47,5 @@ func (n *Node) Shutdown(ctx context.Context) error {
 	defer func() {
 		close(n.doneCh)
 	}()
-	return n.a.Shutdown(ctx)
+	return n.api.Shutdown(ctx)
 }

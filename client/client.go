@@ -10,6 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/urfave/cli/v2"
 )
 
 type Client struct {
@@ -17,7 +20,9 @@ type Client struct {
 	endpoint string
 }
 
-type Success struct {
+func New(c *cli.Context) *Client {
+	endpoint := c.String("endpoint")
+	return NewFromEndpoint(endpoint)
 }
 
 // NewFromEndpoint returns an API client at the given endpoint
@@ -28,12 +33,13 @@ func NewFromEndpoint(endpoint string) *Client {
 			// Most client API calls should use a context.
 			Timeout: time.Minute,
 		},
-		endpoint: endpoint,
+		// TODO: Configure protocol handler dynamically
+		endpoint: "http://" + endpoint,
 	}
 }
 
-func (c *Client) ImportFromManifest(ctx context.Context, dir string) error {
-	req, err := c.newUploadRequest(dir, c.endpoint+"/import/manifest")
+func (c *Client) ImportFromManifest(ctx context.Context, dir string, provID peer.ID) error {
+	req, err := c.newUploadRequest(dir, c.endpoint+"/import/manifest/"+provID.String())
 	if err != nil {
 		return err
 	}
@@ -46,8 +52,10 @@ func (c *Client) ImportFromManifest(ctx context.Context, dir string) error {
 	return nil
 }
 
-func (c *Client) ImportFromCidList(ctx context.Context, dir string) error {
-	req, err := c.newUploadRequest(dir, c.endpoint+"/import/cidlist")
+func (c *Client) ImportFromCidList(ctx context.Context, dir string, provID peer.ID) error {
+	req, err := c.newUploadRequest(dir, c.endpoint+"/import/cidlist/"+provID.String())
+	fmt.Println("Endpoint", c.endpoint+"/import/cidlist/"+provID.String())
+
 	if err != nil {
 		return err
 	}
@@ -74,6 +82,9 @@ func (c *Client) newUploadRequest(dir string, uri string) (*http.Request, error)
 		return nil, err
 	}
 	_, err = io.Copy(part, file)
+	if err != nil {
+		return nil, err
+	}
 
 	err = writer.Close()
 	if err != nil {
@@ -81,6 +92,9 @@ func (c *Client) newUploadRequest(dir string, uri string) (*http.Request, error)
 	}
 
 	req, err := http.NewRequest("POST", uri, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	return req, err
+	return req, nil
 }

@@ -18,8 +18,16 @@ everyone to be able to understand what is implemented and yet to do in
 a first glimpse).
 
 - Simple persistence storage based on Adaptive Radix Trees.
+- Run node (it starts the node's API, and intializes its storage).
+```
+./indexer-node daemon -e 127.0.0.1:3000
+```
 - Commands to read a list of CIDs from a manifest and a cid list.
 ```
 ./indexer-node import manifest --dir <manifest> --providerID <peer.ID> --pieceID <cid>
 ./indexer-node import cidlist --dir <manifest> --providerID <peer.ID> --pieceID <cid>
+
+// Example
+./indexer-node import cidlist --dir ./cid.out --providerID QmcJeseojbPW9hSejUM1sQ1a2QmbrryPK4Z8pWbRUPaYEn -e -e 127.0.0.1:3000
+
 ```

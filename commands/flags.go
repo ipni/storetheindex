@@ -8,7 +8,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 )
 
-var log = logging.Logger("dealbot")
+var log = logging.Logger("indexer-node")
 
 var MockFlags []cli.Flag = []cli.Flag{
 	altsrc.NewStringFlag(&cli.StringFlag{
@@ -18,6 +18,13 @@ var MockFlags []cli.Flag = []cli.Flag{
 	}),
 }
 
+var EndpointFlag = altsrc.NewStringFlag(&cli.StringFlag{
+	Name:     "endpoint",
+	Usage:    "Node API endpoint",
+	Aliases:  []string{"e"},
+	EnvVars:  []string{"NODE_ENDPOINT"},
+	Required: true,
+})
 var DaemonFlags = []cli.Flag{
 	&cli.BoolFlag{
 		Name:    "persistence",
@@ -26,6 +33,7 @@ var DaemonFlags = []cli.Flag{
 		EnvVars: []string{"ENABLE_PERSISTENCE"},
 		Value:   true,
 	},
+	EndpointFlag,
 }
 
 var ImportFlags = []cli.Flag{
@@ -47,4 +55,5 @@ var ImportFlags = []cli.Flag{
 		Aliases:  []string{"pc"},
 		Required: false,
 	},
+	EndpointFlag,
 }
