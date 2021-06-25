@@ -14,7 +14,7 @@ the features that have implemented so far so I don't forget (and for
 everyone to be able to understand what is implemented and yet to do in
 a first glimpse).
 
-- Simple persistence storage based on Adaptive Radix Trees.
+- Simple persistence storage based on https://github.com/gammazero/radixtree
 - Run node (it starts the node's API, and intializes its storage).
 ```
 ./indexer-node daemon -e 127.0.0.1:3000

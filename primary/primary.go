@@ -3,9 +3,9 @@ package primary
 import (
 	"sync"
 
+	"github.com/gammazero/radixtree"
 	"github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p-core/peer"
-	art "github.com/plar/go-adaptive-radix-tree"
 )
 
 // IndexEntry describes the information to be stored for each CID in the indexer.
@@ -30,7 +30,7 @@ type Storage interface {
 // wraps a tree with its own mutex
 type tree struct {
 	lk   sync.RWMutex
-	tree art.Tree
+	tree *radixtree.Bytes
 }
 
 // Adaptive Radix Tree primary storage
@@ -44,7 +44,7 @@ type artStorage struct {
 // New creates a new Adaptive Radix Tree storage
 func New(size int) Storage {
 	return &artStorage{
-		primary:   &tree{tree: art.New()},
+		primary:   &tree{tree: radixtree.New()},
 		secondary: nil,
 		sizeLimit: size,
 	}
@@ -53,11 +53,11 @@ func New(size int) Storage {
 // Get info for CID from primary storage.
 func (s *artStorage) Get(c cid.Cid) ([]IndexEntry, bool) {
 	// Keys indexed as multihash
-	k := art.Key(string(c.Hash()))
+	k := string(c.Hash())
 
 	// Search primary storage
 	s.primary.lk.RLock()
-	v, found := s.primary.tree.Search(k)
+	v, found := s.primary.tree.Get(k)
 	s.primary.lk.RUnlock()
 	if found {
 		return v.([]IndexEntry), found
@@ -67,7 +67,7 @@ func (s *artStorage) Get(c cid.Cid) ([]IndexEntry, bool) {
 		// Search secondary if not found in the first.
 		s.secondary.lk.RLock()
 		defer s.secondary.lk.RUnlock()
-		v, found = s.secondary.tree.Search(k)
+		v, found = s.secondary.tree.Get(k)
 	}
 
 	// If nothing has been found return nil
@@ -79,40 +79,31 @@ func (s *artStorage) Get(c cid.Cid) ([]IndexEntry, bool) {
 
 // Put adds indexEntry info for a CID. Put currently is non-distructive
 // so if a key for a Cid is already set, we update instead of overwriting
-// the value. Updates over existing keys require two accesses to the tree.
-// The implementation is done under the assumption that puts will generally
-// hit a non-existing key. This is why we aim for updates of empty files in
-// a single accesss, and two for updates over existing keys, instead of
-// two constant accesses and one if the data is duplicated.
-// Happy to revise this design/assumptions
+// the value.
 func (s *artStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
 	in := IndexEntry{provID, pieceID}
 	// Check size of primary storage for eviction purposes.
 	s.checkSize()
 	// Get multihash from cid
-	k := art.Key(string(c.Hash()))
+	k := string(c.Hash())
 	s.primary.lk.Lock()
-	// NOTE: We store a struct to avoid marshal/unmarshal
-	// overheads. Is this a good idea?
-	old, _ := s.primary.tree.Insert(k, []IndexEntry{in})
-	if old != nil {
-		// Check if we updated a duplicate entry.
+
+	old, found := s.primary.tree.Get(k)
+	// If found it means there is already a value there.
+	if found {
+		// Check if we are trying to put a duplicate entry
 		// NOTE: If we end up having a lot of entries for the
 		// same CID we may choose to change IndexEntry to a map[peer.ID]pieceID
 		// to speed-up this lookup. Don't think is the case right now.
-		if duplicateEntry(in, old.([]IndexEntry)) {
-			// It was a duplicate, restore previous version
-			s.primary.tree.Insert(k, old)
-		} else {
-			// Take previous value and add the new one to the end.
-			s.primary.tree.Insert(k, append(old.([]IndexEntry), in))
+		if !duplicateEntry(in, old.([]IndexEntry)) {
+			// If not duplicate entry, append to the end
+			s.primary.tree.Put(k, append(old.([]IndexEntry), in))
 		}
+	} else {
+		s.primary.tree.Put(k, []IndexEntry{in})
 	}
 	s.primary.lk.Unlock()
-	/*
-		if !updated {
-			return fmt.Errorf("error updating cid: %v", c.String())
-		}*/
+
 	// NOTE: Insert in the radix-tree used doesn't return any error.
 	// This may change in the future so keeping an error as output in the signature
 	// for now.
@@ -154,11 +145,14 @@ func (s *artStorage) checkSize() {
 	// s.fullLock()
 	// defer s.fullUnlock()
 	s.primary.lk.RLock()
-	if s.primary.tree.Size() >= int(float64(0.5)*float64(s.sizeLimit)) {
+	// TODO: Here we are just looking to the length of the radix tree not the
+	// actual size. This needs to be changed so we check the actual size being
+	// used by the tree.
+	if s.primary.tree.Len() >= int(float64(0.5)*float64(s.sizeLimit)) {
 		s.lk.Lock()
 		// Create new tree and make primary = secondary
 		s.secondary = s.primary
-		s.primary = &tree{tree: art.New()}
+		s.primary = &tree{tree: radixtree.New()}
 		s.lk.Unlock()
 	}
 	s.primary.lk.RUnlock()
