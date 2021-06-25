@@ -8,9 +8,6 @@ This library provides the implementation of an indexer node that can be used
 to index data stored by different data providers (miners and eventually IPFS).
 
 
-## License
-[SPDX-License-Identifier: Apache-2.0 OR MIT](LICENSE.md)
-
 ## Current status 🚧
 This implementation is a work in progress. This section will list
 the features that have implemented so far so I don't forget (and for
@@ -31,3 +28,7 @@ a first glimpse).
 ./indexer-node import cidlist --dir ./cid.out --providerID QmcJeseojbPW9hSejUM1sQ1a2QmbrryPK4Z8pWbRUPaYEn -e -e 127.0.0.1:3000
 
 ```
+
+## License
+[SPDX-License-Identifier: Apache-2.0 OR MIT](LICENSE.md)
+
