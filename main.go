@@ -12,7 +12,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var log = logging.Logger("dealbot")
+var log = logging.Logger("indexer-node")
 
 func main() {
 	// Set up a context that is canceled when the command is interrupted

@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/adlrocha/indexer-node/api/client"
 	"github.com/adlrocha/indexer-node/importer"
 	"github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
 )
 
 var importCidList = &cli.Command{
-	Name:   "cidList",
+	Name:   "cidlist",
 	Usage:  "Import indexer data from cidList",
 	Flags:  ImportFlags,
 	Action: importListCmd,
@@ -40,12 +41,12 @@ var ImportCmd = &cli.Command{
 }
 
 func importListCmd(c *cli.Context) error {
-	log.Infow("Starting to import from cidList")
+	log.Infow("Starting to import from Manifest file")
 	ctx, cancel := context.WithCancel(ProcessContext())
 	defer cancel()
-	i := importer.NewCidListImporter(c.String("dir"))
-
-	return importReader(ctx, c, i)
+	// TODO: Get from context and flag
+	cl := client.NewFromEndpoint("http://localhost:3000")
+	return cl.ImportFromCidList(ctx, "/home/adlrocha/Desktop/main/work/ProtocolLabs/repos/datasystems/indexer-node/cids.out")
 }
 
 func importCarCmd(c *cli.Context) error {
@@ -63,8 +64,9 @@ func importManifestCmd(c *cli.Context) error {
 	log.Infow("Starting to import from Manifest file")
 	ctx, cancel := context.WithCancel(ProcessContext())
 	defer cancel()
-	i := importer.NewManifestImporter(c.String("dir"))
-	return importReader(ctx, c, i)
+	// TODO: Get from context and flag
+	cl := client.NewFromEndpoint("http://localhost:3000")
+	return cl.ImportFromManifest(ctx, "/home/adlrocha/Desktop/main/work/ProtocolLabs/repos/datasystems/indexer-node/@BatchManifest.ndjson")
 }
 
 func importReader(ctx context.Context, c *cli.Context, i importer.Importer) error {

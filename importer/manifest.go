@@ -4,37 +4,43 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"os"
+	"io"
 
 	agg "github.com/filecoin-project/go-dagaggregator-unixfs"
 	"github.com/ipfs/go-cid"
+	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
 // MenifestImporter reads Cids from a manifest of a  CID aggregator
 type ManifestImporter struct {
-	dir string
+	reader io.Reader
+	miner  peer.ID
 }
 
-func NewManifestImporter(dir string) Importer {
-	return ManifestImporter{dir}
+func NewManifestImporter(r io.Reader, miner peer.ID) Importer {
+	return ManifestImporter{r, miner}
 }
 
 func (i ManifestImporter) Read(ctx context.Context, out chan cid.Cid, done chan error) {
 	defer close(out)
 	defer close(done)
-	file, err := os.Open(i.dir)
-	if err != nil {
-		done <- err
-		return
-	}
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanLines)
-	// optionally, resize scanner's capacity for lines over 64K
-	for scanner.Scan() {
+	r := bufio.NewReader(i.reader)
+	var line []byte
+	var err error
+	for {
+		line, err = r.ReadBytes('\n')
+		if err != nil {
+			if err != io.EOF {
+				done <- err
+				return
+			} else {
+				return
+			}
+		}
 		select {
 		case <-ctx.Done():
+			done <- err
 			return
 		default:
 			e := agg.ManifestDagEntry{}
@@ -43,8 +49,7 @@ func (i ManifestImporter) Read(ctx context.Context, out chan cid.Cid, done chan 
 			// buffer to unmarshal, so they have similar performance.
 			// This will change in future versions of Go, evaluate then
 			// if it makes sense to change the implementation.
-			err := json.Unmarshal(scanner.Bytes(), &e)
-			// Disregard lines that can't be unmarshalled
+			err := json.Unmarshal(line, &e)
 			if err != nil {
 				continue
 			}
@@ -61,12 +66,7 @@ func (i ManifestImporter) Read(ctx context.Context, out chan cid.Cid, done chan 
 				out <- c
 
 			}
+
 		}
 	}
-
-	if err := scanner.Err(); err != nil {
-		done <- err
-		return
-	}
-	return
 }

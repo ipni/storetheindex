@@ -13,5 +13,6 @@ type Store interface {
 }
 
 func New() Store {
-	panic("not implemented")
+	// TODO: Not implemented
+	return nil
 }

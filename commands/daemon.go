@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/adlrocha/indexer-node/node"
@@ -19,9 +20,12 @@ func daemonCommand(c *cli.Context) error {
 	ctx, cancel := context.WithCancel(ProcessContext())
 	defer cancel()
 
-	log.Debugw("Starting node as a deamon")
+	log.Infow("Starting node deamon")
 	exiting := make(chan struct{})
-	_, err := node.New(ctx, c)
+	n, err := node.New(ctx, c)
+	if err != nil {
+		return err
+	}
 	defer close(exiting)
 
 	go func() {
@@ -34,14 +38,19 @@ func daemonCommand(c *cli.Context) error {
 
 		log.Infow("shutting down node")
 
-		_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
+		if err := n.Shutdown(ctx); err != nil {
+			log.Fatalw("failed to shut down rpc server", "err", err)
+		}
 		log.Infow("node stopped")
 	}()
 
-	<-ctx.Done()
-
+	err = n.Start()
+	if err == http.ErrServerClosed {
+		err = nil
+	}
 	return err
 
 }

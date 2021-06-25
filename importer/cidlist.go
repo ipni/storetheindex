@@ -3,39 +3,45 @@ package importer
 import (
 	"bufio"
 	"context"
-	"os"
+	"io"
 
 	"github.com/ipfs/go-cid"
+	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
 // CidListImporter reads from a list of CIDs.
 type CidListImporter struct {
-	dir string
+	reader io.Reader
+	miner  peer.ID
 }
 
-func NewCidListImporter(dir string) Importer {
-	return CidListImporter{dir}
+func NewCidListImporter(r io.Reader, miner peer.ID) Importer {
+	return CidListImporter{r, miner}
 }
 
 func (i CidListImporter) Read(ctx context.Context, out chan cid.Cid, done chan error) {
 	defer close(out)
 	defer close(done)
 
-	file, err := os.Open(i.dir)
-	if err != nil {
-		done <- err
-		return
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	// optionally, resize scanner's capacity for lines over 64K
-	for scanner.Scan() {
+	r := bufio.NewReader(i.reader)
+	var line []byte
+	var err error
+	for {
+		line, err = r.ReadBytes('\n')
+		if err != nil {
+			if err != io.EOF {
+				done <- err
+				return
+			} else {
+				return
+			}
+		}
 		select {
 		case <-ctx.Done():
+			done <- err
 			return
 		default:
-			c, err := cid.Decode(scanner.Text())
+			c, err := cid.Decode(string(line))
 			if err != nil {
 				// Disregarding malformed CIDs for now
 				continue
@@ -43,10 +49,4 @@ func (i CidListImporter) Read(ctx context.Context, out chan cid.Cid, done chan e
 			out <- c
 		}
 	}
-
-	if err := scanner.Err(); err != nil {
-		done <- err
-		return
-	}
-	return
 }
