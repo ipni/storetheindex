@@ -25,6 +25,13 @@ var EndpointFlag = altsrc.NewStringFlag(&cli.StringFlag{
 	EnvVars:  []string{"NODE_ENDPOINT"},
 	Required: true,
 })
+
+var DirFlag = &cli.StringFlag{
+	Name:     "dir",
+	Usage:    "Source directory for import",
+	Aliases:  []string{"d"},
+	Required: true,
+}
 var DaemonFlags = []cli.Flag{
 	&cli.BoolFlag{
 		Name:    "persistence",
@@ -38,12 +45,6 @@ var DaemonFlags = []cli.Flag{
 
 var ImportFlags = []cli.Flag{
 	&cli.StringFlag{
-		Name:     "dir",
-		Usage:    "Source directory for import",
-		Aliases:  []string{"d"},
-		Required: true,
-	},
-	&cli.StringFlag{
 		Name:     "provider",
 		Usage:    "Provider of the data imported",
 		Aliases:  []string{"prov"},
@@ -55,5 +56,23 @@ var ImportFlags = []cli.Flag{
 		Aliases:  []string{"pc"},
 		Required: false,
 	},
+	DirFlag,
 	EndpointFlag,
+}
+
+var SyntheticFlags = []cli.Flag{
+	DirFlag,
+	&cli.StringFlag{
+		Name:     "type",
+		Usage:    "Type of synthetic load to generate (manifest, cidlist, car)",
+		Aliases:  []string{"t"},
+		Required: true,
+	},
+	&cli.IntFlag{
+		Name:     "num",
+		Usage:    "Number of entries to generate",
+		Aliases:  []string{"n"},
+		Value:    1000,
+		Required: false,
+	},
 }

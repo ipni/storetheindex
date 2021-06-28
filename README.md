@@ -25,11 +25,18 @@ a first glimpse).
 ./indexer-node import cidlist --dir <manifest> --providerID <peer.ID> --pieceID <cid>
 
 // Example
-./indexer-node import cidlist --dir ./cid.out --providerID QmcJeseojbPW9hSejUM1sQ1a2QmbrryPK4Z8pWbRUPaYEn -e -e 127.0.0.1:3000
+./indexer-node import cidlist --dir ./cid.out --providerID QmcJeseojbPW9hSejUM1sQ1a2QmbrryPK4Z8pWbRUPaYEn -e 127.0.0.1:3000
 ```
-- Simple get command for single CID.
+- Simple get command for single CID (for testing purposes).
 ```
 ./indexer-node get -e 127.0.0.1:3000 bafkreie4qmvnboqqgjp3tijhibgofvuqify2a2pl6ac4xyxd5rfmlvqsf4
+```
+- Synthetic harness to create test data to load in the indexer.
+```
+# Create plain cidlist
+./indexer-node synthetic --dir <out_dir> -t cidlist -n <num_entries>
+# [DagAggregator manifest](https://github.com/filecoin-project/go-dagaggregator-unixfs/blob/wip/aggregator.go#L29-L56).
+./indexer-node synthetic --dir <out_dir> -t manifest -n <num_entries>
 ```
 
 ## License

@@ -76,7 +76,7 @@ func importManifestCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	return cl.ImportFromCidList(ctx, dir, p)
+	return cl.ImportFromManifest(ctx, dir, p)
 }
 
 /*

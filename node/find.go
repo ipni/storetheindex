@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/adlrocha/indexer-node/node/models"
+	"github.com/adlrocha/indexer-node/primary"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
 )
@@ -23,14 +23,8 @@ func (n *Node) GetSingleCidHandler(w http.ResponseWriter, r *http.Request) {
 	log.Infow("Find cid: ", "cid", m)
 	// Get Cid from primary storage
 	i, _ := n.primary.Get(c)
-	out := models.FindResp{
-		Providers: []models.Provider{},
-	}
-	// TODO: This response format is not the right one. Revise this.
-	for _, k := range i {
-		out.Providers = append(out.Providers,
-			models.Provider{ProviderID: k.ProvID, Cids: []cid.Cid{c}})
-	}
+	out := make(map[cid.Cid][]primary.IndexEntry)
+	out[c] = i
 
 	err = writeResponse(w, out)
 	if err != nil {
