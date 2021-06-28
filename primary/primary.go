@@ -9,6 +9,12 @@ import (
 )
 
 // IndexEntry describes the information to be stored for each CID in the indexer.
+// NOTE: Entries are currently appended to a list in the tree value.
+// We will return every provider for a CID,
+// and we assume the same miner will most probably don't store the same CID in two
+// different pieces so there's no need for fast lookup or deduplication.
+// This are early assumptions that may not stick in the future,
+// and we may need to store entries in a map instead of a list.
 type IndexEntry struct {
 	ProvID  peer.ID // ID of the provider of the CID.
 	PieceID cid.Cid // PieceID of the CID where the CID is stored in the provider (may be nil)
@@ -146,7 +152,7 @@ func (s *artStorage) checkSize() {
 	// defer s.fullUnlock()
 	s.primary.lk.RLock()
 	// TODO: Here we are just looking to the length of the radix tree not the
-	// actual size. This needs to be changed so we check the actual size being
+	// actual storage size. This needs to be changed so we check the actual size being
 	// used by the tree.
 	if s.primary.tree.Len() >= int(float64(0.5)*float64(s.sizeLimit)) {
 		s.lk.Lock()
