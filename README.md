@@ -1,4 +1,4 @@
-StoreTheIndexer 🗂️
+StoreTheIndex 🗂️
 =======================
 
 > The first place to go in order to find a CID stored in Filecoin
@@ -29,7 +29,7 @@ a first glimpse).
 ```
 - Simple get command for single CID.
 ```
-
+./indexer-node get -e 127.0.0.1:3000 bafkreie4qmvnboqqgjp3tijhibgofvuqify2a2pl6ac4xyxd5rfmlvqsf4
 ```
 
 ## License
