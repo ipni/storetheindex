@@ -1,4 +1,4 @@
-indexer-node
+StoreTheIndexer 🗂️
 =======================
 
 > The first place to go in order to find a CID stored in Filecoin
@@ -14,7 +14,7 @@ the features that have implemented so far so I don't forget (and for
 everyone to be able to understand what is implemented and yet to do in
 a first glimpse).
 
-- Simple persistence storage based on https://github.com/gammazero/radixtree
+- Simple primary storage based on https://github.com/gammazero/radixtree
 - Run node (it starts the node's API, and intializes its storage).
 ```
 ./indexer-node daemon -e 127.0.0.1:3000
@@ -26,6 +26,9 @@ a first glimpse).
 
 // Example
 ./indexer-node import cidlist --dir ./cid.out --providerID QmcJeseojbPW9hSejUM1sQ1a2QmbrryPK4Z8pWbRUPaYEn -e -e 127.0.0.1:3000
+```
+- Simple get command for single CID.
+```
 
 ```
 

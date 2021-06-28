@@ -38,7 +38,7 @@ func New(ctx context.Context, cctx *cli.Context) (*Node, error) {
 
 func (n *Node) Start() error {
 	log.Infow("Started server")
-	// TODO: Start required processes of stores
+	// TODO: Start required processes for stores
 	return n.api.Serve()
 
 }

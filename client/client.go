@@ -11,9 +11,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ipfs/go-cid"
+	logging "github.com/ipfs/go-log/v2"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/urfave/cli/v2"
 )
+
+var log = logging.Logger("client")
 
 type Client struct {
 	client   *http.Client
@@ -38,6 +42,31 @@ func NewFromEndpoint(endpoint string) *Client {
 	}
 }
 
+// TODO: Use a common function to create requests.
+func (c *Client) Get(ctx context.Context, x cid.Cid) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.endpoint+"/cid/"+x.String(), nil)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	// TODO: This needs to change. Only for debugging and testing for now.
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(b))
+	return nil
+
+}
+
+func (c *Client) GetBatch(ctx context.Context, cids []cid.Cid) {
+	data := []byte("Request here")
+	_, _ = http.NewRequestWithContext(ctx, "POST", c.endpoint+"/cid", bytes.NewBuffer(data))
+	log.Errorw("Batch get of cids not implemented")
+}
+
 func (c *Client) ImportFromManifest(ctx context.Context, dir string, provID peer.ID) error {
 	req, err := c.newUploadRequest(dir, c.endpoint+"/import/manifest/"+provID.String())
 	if err != nil {
@@ -47,14 +76,18 @@ func (c *Client) ImportFromManifest(ctx context.Context, dir string, provID peer
 	if err != nil {
 		return err
 	}
-	fmt.Println("Response from request", resp)
-	// TODO: Handle response and error
+
+	// Handle failed requests
+	// TODO: Send additional context for the error in body and handle it here.
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("importing from manifest failed")
+	}
+	log.Infow("Success")
 	return nil
 }
 
 func (c *Client) ImportFromCidList(ctx context.Context, dir string, provID peer.ID) error {
 	req, err := c.newUploadRequest(dir, c.endpoint+"/import/cidlist/"+provID.String())
-	fmt.Println("Endpoint", c.endpoint+"/import/cidlist/"+provID.String())
 
 	if err != nil {
 		return err
@@ -63,8 +96,12 @@ func (c *Client) ImportFromCidList(ctx context.Context, dir string, provID peer.
 	if err != nil {
 		return err
 	}
-	fmt.Println("Response from request", resp)
-	// TODO: Handle response and error
+
+	// Handle failed requests
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("importing from cidlist failed")
+	}
+	log.Infow("Success")
 	return nil
 }
 

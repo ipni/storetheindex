@@ -31,6 +31,9 @@ func (n *Node) initAPI(listen string) error {
 	r.HandleFunc("/import/manifest/{minerid}", n.ImportManifestHandler).Methods("POST")
 	r.HandleFunc("/import/cidlist/{minerid}", n.ImportCidListHandler).Methods("POST")
 
+	// Client routes
+	r.HandleFunc("/cid/{cid}", n.GetSingleCidHandler).Methods("GET")
+
 	// Admin routes
 	r.HandleFunc("/healthcheck", n.HealthCheckHandler).Methods("GET")
 

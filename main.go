@@ -44,6 +44,7 @@ func main() {
 			commands.MockCmd,
 			commands.DaemonCmd,
 			commands.ImportCmd,
+			commands.GetCmd,
 		},
 		// Before: altsrc.InitInputSourceWithContext(append(appFlags, commands.AllFlags...), altsrc.NewYamlSourceFromFlagFunc("config")),
 	}
