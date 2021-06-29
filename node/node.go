@@ -3,8 +3,9 @@ package node
 import (
 	"context"
 
-	"github.com/adlrocha/indexer-node/persistent"
-	"github.com/adlrocha/indexer-node/primary"
+	"github.com/adlrocha/indexer-node/store"
+	"github.com/adlrocha/indexer-node/store/persistent"
+	"github.com/adlrocha/indexer-node/store/primary"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
 )
@@ -12,8 +13,8 @@ import (
 var log = logging.Logger("node")
 
 type Node struct {
-	primary    primary.Storage
-	persistent persistent.Store
+	primary    store.Storage
+	persistent store.Storage
 	api        *api
 	doneCh     chan struct{}
 }

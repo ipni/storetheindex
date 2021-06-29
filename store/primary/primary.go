@@ -3,35 +3,13 @@ package primary
 import (
 	"sync"
 
+	"github.com/adlrocha/indexer-node/store"
 	"github.com/gammazero/radixtree"
 	"github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
-// IndexEntry describes the information to be stored for each CID in the indexer.
-// NOTE: Entries are currently appended to a list in the tree value.
-// We will return every provider for a CID,
-// and we assume the same miner will most probably don't store the same CID in two
-// different pieces so there's no need for fast lookup or deduplication.
-// This are early assumptions that may not stick in the future,
-// and we may need to store entries in a map instead of a list.
-type IndexEntry struct {
-	ProvID  peer.ID // ID of the provider of the CID.
-	PieceID cid.Cid // PieceID of the CID where the CID is stored in the provider (may be nil)
-}
-
-// Storage is the primary storage of the indexer node. Client queries hit this storage
-// first.
-type Storage interface {
-	// Get info for CID from primary storage.
-	Get(c cid.Cid) ([]IndexEntry, bool)
-	// Put info for CID in primary storage.
-	Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error
-	// Bulk put in primary storage
-	// NOTE: The interface may change if we see some other function
-	// signature more handy for updating process.
-	PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) error
-}
+var _ store.Storage = &rtStorage{}
 
 // wraps a tree with its own mutex
 type tree struct {
@@ -40,7 +18,7 @@ type tree struct {
 }
 
 // Adaptive Radix Tree primary storage
-type artStorage struct {
+type rtStorage struct {
 	lk        sync.Mutex
 	primary   *tree
 	secondary *tree
@@ -48,8 +26,8 @@ type artStorage struct {
 }
 
 // New creates a new Adaptive Radix Tree storage
-func New(size int) Storage {
-	return &artStorage{
+func New(size int) store.Storage {
+	return &rtStorage{
 		primary:   &tree{tree: radixtree.New()},
 		secondary: nil,
 		sizeLimit: size,
@@ -57,7 +35,7 @@ func New(size int) Storage {
 }
 
 // Get info for CID from primary storage.
-func (s *artStorage) Get(c cid.Cid) ([]IndexEntry, bool) {
+func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool) {
 	// Keys indexed as multihash
 	k := string(c.Hash())
 
@@ -66,7 +44,7 @@ func (s *artStorage) Get(c cid.Cid) ([]IndexEntry, bool) {
 	v, found := s.primary.tree.Get(k)
 	s.primary.lk.RUnlock()
 	if found {
-		return v.([]IndexEntry), found
+		return v.([]store.IndexEntry), found
 	}
 
 	if s.secondary != nil {
@@ -80,14 +58,17 @@ func (s *artStorage) Get(c cid.Cid) ([]IndexEntry, bool) {
 	if !found {
 		return nil, false
 	}
-	return v.([]IndexEntry), found
+	return v.([]store.IndexEntry), found
 }
 
 // Put adds indexEntry info for a CID. Put currently is non-distructive
 // so if a key for a Cid is already set, we update instead of overwriting
 // the value.
-func (s *artStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
-	in := IndexEntry{provID, pieceID}
+// NOTE: We are storing indexEntries in a list, as we don't need to perform
+// lookups and we will end up returning all entries. If this assumption
+// changes consider using a map.
+func (s *rtStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
+	in := store.IndexEntry{ProvID: provID, PieceID: pieceID}
 	// Check size of primary storage for eviction purposes.
 	s.checkSize()
 	// Get multihash from cid
@@ -101,12 +82,12 @@ func (s *artStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
 		// NOTE: If we end up having a lot of entries for the
 		// same CID we may choose to change IndexEntry to a map[peer.ID]pieceID
 		// to speed-up this lookup. Don't think is the case right now.
-		if !duplicateEntry(in, old.([]IndexEntry)) {
+		if !duplicateEntry(in, old.([]store.IndexEntry)) {
 			// If not duplicate entry, append to the end
-			s.primary.tree.Put(k, append(old.([]IndexEntry), in))
+			s.primary.tree.Put(k, append(old.([]store.IndexEntry), in))
 		}
 	} else {
-		s.primary.tree.Put(k, []IndexEntry{in})
+		s.primary.tree.Put(k, []store.IndexEntry{in})
 	}
 	s.primary.lk.Unlock()
 
@@ -116,10 +97,10 @@ func (s *artStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
 	return nil
 }
 
-// PutMany puts indexEntry information in several CIDs.
+// PutMany puts store.IndexEntry information in several CIDs.
 // This is usually triggered when a bulk update for a providerID-pieceID
 // arrives.
-func (s *artStorage) PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) error {
+func (s *rtStorage) PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) error {
 	for _, c := range cs {
 		s.Put(c, provID, pieceID)
 	}
@@ -132,7 +113,7 @@ func (s *artStorage) PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) erro
 // Checks if the entry already exists in the index. An entry
 // for the same provider but a different piece is not considered
 // a duplicate entry (at least for now)
-func duplicateEntry(in IndexEntry, old []IndexEntry) bool {
+func duplicateEntry(in store.IndexEntry, old []store.IndexEntry) bool {
 	for _, k := range old {
 		if in.PieceID == k.PieceID &&
 			in.ProvID == k.ProvID {
@@ -147,7 +128,7 @@ func duplicateEntry(in IndexEntry, old []IndexEntry) bool {
 // of the tree
 // NOTE: Should we add a security margin? Aim for the 0.45 instead
 // of 0.5
-func (s *artStorage) checkSize() {
+func (s *rtStorage) checkSize() {
 	// s.fullLock()
 	// defer s.fullUnlock()
 	s.primary.lk.RLock()
@@ -165,7 +146,7 @@ func (s *artStorage) checkSize() {
 }
 
 // convenient function to lock the storage and its trees for eviction
-func (s *artStorage) fullLock() {
+func (s *rtStorage) fullLock() {
 	s.lk.Lock()
 	s.primary.lk.Lock()
 	// No need to lock secondary storage. We never write on it
@@ -173,7 +154,7 @@ func (s *artStorage) fullLock() {
 }
 
 // same with unlcok
-func (s *artStorage) fullUnlock() {
+func (s *rtStorage) fullUnlock() {
 	s.lk.Unlock()
 	s.primary.lk.Lock()
 }
