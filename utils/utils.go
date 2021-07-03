@@ -16,17 +16,17 @@ var pref = cid.Prefix{
 }
 
 func RandomCids(n int) ([]cid.Cid, error) {
-	rand.Seed(time.Now().UnixNano())
-	res := make([]cid.Cid, 0)
+	var prng = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	res := make([]cid.Cid, n)
 	for i := 0; i < n; i++ {
 		b := make([]byte, 10*n)
-		rand.Read(b)
+		prng.Read(b)
 		c, err := pref.Sum(b)
 		if err != nil {
 			return nil, err
 		}
-		res = append(res, c)
+		res[i] = c
 	}
 	return res, nil
-
 }

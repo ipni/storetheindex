@@ -3,7 +3,7 @@ package primary
 import (
 	"sync"
 
-	"github.com/adlrocha/indexer-node/store"
+	"github.com/filecoin-project/storetheindex/store"
 	"github.com/gammazero/radixtree"
 	"github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p-core/peer"
@@ -100,9 +100,12 @@ func (s *rtStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
 // PutMany puts store.IndexEntry information in several CIDs.
 // This is usually triggered when a bulk update for a providerID-pieceID
 // arrives.
-func (s *rtStorage) PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) error {
-	for _, c := range cs {
-		s.Put(c, provID, pieceID)
+func (s *rtStorage) PutMany(cids []cid.Cid, provID peer.ID, pieceID cid.Cid) error {
+	for i := range cids {
+		err := s.Put(cids[i], provID, pieceID)
+		if err != nil {
+			return err
+		}
 	}
 
 	// We are disregarding the CIDs that couldn't be added from the batch
@@ -114,9 +117,9 @@ func (s *rtStorage) PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) error
 // for the same provider but a different piece is not considered
 // a duplicate entry (at least for now)
 func duplicateEntry(in store.IndexEntry, old []store.IndexEntry) bool {
-	for _, k := range old {
-		if in.PieceID == k.PieceID &&
-			in.ProvID == k.ProvID {
+	for i := range old {
+		if in.PieceID == old[i].PieceID &&
+			in.ProvID == old[i].ProvID {
 			return true
 		}
 	}

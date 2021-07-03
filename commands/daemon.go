@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/adlrocha/indexer-node/node"
+	"github.com/filecoin-project/storetheindex/node"
 	"github.com/urfave/cli/v2"
 )
 

@@ -1,8 +1,8 @@
 package models
 
 import (
-	"github.com/adlrocha/indexer-node/primary"
+	"github.com/filecoin-project/storetheindex/store"
 	"github.com/ipfs/go-cid"
 )
 
-type FindResp map[cid.Cid][]primary.IndexEntry
+type FindResp map[cid.Cid][]store.IndexEntry

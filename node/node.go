@@ -3,9 +3,9 @@ package node
 import (
 	"context"
 
-	"github.com/adlrocha/indexer-node/store"
-	"github.com/adlrocha/indexer-node/store/persistent"
-	"github.com/adlrocha/indexer-node/store/primary"
+	"github.com/filecoin-project/storetheindex/store"
+	"github.com/filecoin-project/storetheindex/store/persistent"
+	"github.com/filecoin-project/storetheindex/store/primary"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
 )
@@ -20,16 +20,16 @@ type Node struct {
 }
 
 func New(ctx context.Context, cctx *cli.Context) (*Node, error) {
-
 	// TODO: Create flag for the size of primary storage
 	e := cctx.String("endpoint")
 
-	var err error
-	n := new(Node)
-	n.doneCh = make(chan struct{})
-	n.primary = primary.New(1000000)
-	n.persistent = persistent.New()
-	err = n.initAPI(e)
+	n := &Node{
+		doneCh:     make(chan struct{}),
+		primary:    primary.New(1000000),
+		persistent: persistent.New(),
+	}
+
+	err := n.initAPI(e)
 	if err != nil {
 		return nil, err
 	}
@@ -38,15 +38,13 @@ func New(ctx context.Context, cctx *cli.Context) (*Node, error) {
 }
 
 func (n *Node) Start() error {
-	log.Infow("Started server")
+	log.Info("Started server")
 	// TODO: Start required processes for stores
 	return n.api.Serve()
 
 }
 
 func (n *Node) Shutdown(ctx context.Context) error {
-	defer func() {
-		close(n.doneCh)
-	}()
+	defer close(n.doneCh)
 	return n.api.Shutdown(ctx)
 }

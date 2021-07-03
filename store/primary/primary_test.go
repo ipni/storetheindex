@@ -3,7 +3,7 @@ package primary
 import (
 	"testing"
 
-	"github.com/adlrocha/indexer-node/utils"
+	"github.com/filecoin-project/storetheindex/utils"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 

@@ -3,7 +3,7 @@ package commands
 import (
 	"context"
 
-	"github.com/adlrocha/indexer-node/client"
+	"github.com/filecoin-project/storetheindex/client"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/urfave/cli/v2"
 )
