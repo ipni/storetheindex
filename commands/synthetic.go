@@ -2,6 +2,7 @@ package commands
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -85,7 +86,10 @@ func writeCidFile(dir string, cids []cid.Cid) error {
 	}
 	defer file.Close()
 	for _, c := range cids {
-		file.WriteString(c.String() + "\n")
+		_, err = file.WriteString(c.String() + "\n")
+		if err != nil {
+			return err
+		}
 	}
 	log.Infof("Created cidList successfully")
 	return nil
@@ -110,13 +114,23 @@ func writeManifest(dir string, cids []cid.Cid) error {
 	for _, c := range cids {
 		n := uint64(1)
 		e := agg.ManifestDagEntry{
-			RecordType:    "DagAggregateEntry",
-			DagCid:        c.String(),
-			NormalizedCid: c.String(),
-			NodeCount:     &n,
+			RecordType: "DagAggregateEntry",
+			NodeCount:  &n,
 		}
+		switch c.Version() {
+		case 1:
+			e.DagCidV1 = c.String()
+		case 0:
+			e.DagCidV0 = c.String()
+		default:
+			return errors.New("unsupported cid version")
+		}
+
 		b, _ := json.Marshal(e)
-		file.WriteString(string(b) + "\n")
+		_, err = file.WriteString(string(b) + "\n")
+		if err != nil {
+			return err
+		}
 	}
 	log.Infof("Created Manifest successfully")
 	return nil

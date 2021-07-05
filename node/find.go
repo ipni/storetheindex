@@ -5,26 +5,24 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/adlrocha/indexer-node/store"
+	"github.com/filecoin-project/storetheindex/store"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
 )
 
 func (n *Node) GetSingleCidHandler(w http.ResponseWriter, r *http.Request) {
-
 	vars := mux.Vars(r)
-	m := vars["cid"]
-	c, err := cid.Decode(m)
+	mhCid := vars["cid"]
+	c, err := cid.Decode(mhCid)
 	if err != nil {
-		log.Errorw("error decoding cid:", m, err)
+		log.Errorw("error decoding cid", "cid", mhCid, "err", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	log.Infow("Find cid: ", "cid", m)
+	log.Infow("Find cid", "cid", mhCid)
 	// Get Cid from primary storage
 	i, _ := n.primary.Get(c)
-	out := make(map[cid.Cid][]store.IndexEntry)
-	out[c] = i
+	out := map[cid.Cid][]store.IndexEntry{c: i}
 
 	err = writeResponse(w, out)
 	if err != nil {
@@ -43,7 +41,7 @@ func writeResponse(w http.ResponseWriter, r interface{}) error {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	if _, err := w.Write(body); err != nil {
+	if _, err = w.Write(body); err != nil {
 		return err
 	}
 

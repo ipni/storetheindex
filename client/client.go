@@ -45,6 +45,10 @@ func NewFromEndpoint(endpoint string) *Client {
 // TODO: Use a common function to create requests.
 func (c *Client) Get(ctx context.Context, x cid.Cid) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", c.endpoint+"/cid/"+x.String(), nil)
+	if err != nil {
+		return err
+	}
+
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return err
@@ -88,7 +92,6 @@ func (c *Client) ImportFromManifest(ctx context.Context, dir string, provID peer
 
 func (c *Client) ImportFromCidList(ctx context.Context, dir string, provID peer.ID) error {
 	req, err := c.newUploadRequest(dir, c.endpoint+"/import/cidlist/"+provID.String())
-
 	if err != nil {
 		return err
 	}

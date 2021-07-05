@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/adlrocha/indexer-node/client"
+	"github.com/filecoin-project/storetheindex/client"
 	"github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
 )

@@ -1,4 +1,5 @@
-indexer-node
+storetheindex
+*~
 *.car
 *.out
 *json

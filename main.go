@@ -6,8 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/adlrocha/indexer-node/commands"
 	"github.com/filecoin-project/dealbot/version"
+	"github.com/filecoin-project/storetheindex/commands"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
 )

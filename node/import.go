@@ -3,7 +3,7 @@ package node
 import (
 	"net/http"
 
-	"github.com/adlrocha/indexer-node/importer"
+	"github.com/filecoin-project/storetheindex/importer"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p-core/peer"
@@ -19,7 +19,7 @@ func (n *Node) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 	m := vars["minerid"]
 	miner, err := peer.IDB58Decode(m)
 	if err != nil {
-		log.Errorw("error decoding miner id into peerID:", m, err)
+		log.Errorw("error decoding miner id into peerID", "miner", m, "err", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -32,79 +32,81 @@ func (n *Node) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	o := make(chan cid.Cid)
-	d := make(chan error)
-	i := importer.NewManifestImporter(file, miner)
-	go i.Read(r.Context(), o, d)
+	out := make(chan cid.Cid)
+	errOut := make(chan error, 1)
+	imp := importer.NewManifestImporter(file, miner)
+	go imp.Read(r.Context(), out, errOut)
 
-	for {
-		select {
-		case c := <-o:
-			n.importCallback(c, miner, cid.Cid{})
-		case err := <-d:
-			if err == nil {
-				log.Infow("success importing")
-				w.WriteHeader(http.StatusOK)
-			} else {
-				log.Errorw("error importing", err)
-				w.WriteHeader(http.StatusInternalServerError)
-			}
+	for c := range out {
+		err = n.importCallback(c, cid.Undef, miner)
+		if err != nil {
+			log.Errorw("import callback error", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+	}
+
+	err = <-errOut
+	if err == nil {
+		log.Info("success importing")
+		w.WriteHeader(http.StatusOK)
+	} else {
+		log.Errorw("error importing", "err", err)
+		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
 
 func (n *Node) ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
-
 	vars := mux.Vars(r)
 	m := vars["minerid"]
 	miner, err := peer.IDB58Decode(m)
 	if err != nil {
-		log.Errorw("error decoding miner id into peerID:", m, err)
+		log.Errorw("error decoding miner id into peerID", "miner", m, "err", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	log.Infow("Import cidlist for provider: ", m)
+	log.Infow("Import cidlist for provider", "miner", m)
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		log.Errorw("error reading file")
+		log.Error("error reading file")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	defer file.Close()
 
-	o := make(chan cid.Cid)
-	d := make(chan error)
-	i := importer.NewCidListImporter(file, miner)
-	go i.Read(r.Context(), o, d)
+	out := make(chan cid.Cid)
+	errOut := make(chan error, 1)
+	imp := importer.NewCidListImporter(file, miner)
+	go imp.Read(r.Context(), out, errOut)
 
-	for {
-		select {
-		case c := <-o:
-			n.importCallback(c, miner, cid.Cid{})
-		case err := <-d:
-			if err == nil {
-				log.Infow("success importing")
-				w.WriteHeader(http.StatusOK)
-			} else {
-				log.Errorw("error importing", err)
-				w.WriteHeader(http.StatusInternalServerError)
-			}
+	for c := range out {
+		err = n.importCallback(c, cid.Undef, miner)
+		if err != nil {
+			log.Errorw("import callback error", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	}
+
+	err = <-errOut
+	if err == nil {
+		log.Info("success importing")
+		w.WriteHeader(http.StatusOK)
+	} else {
+		log.Errorw("error importing", "err", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
 
-func (n *Node) importCallback(c cid.Cid, prov peer.ID, piece cid.Cid) error {
+func (n *Node) importCallback(c, piece cid.Cid, prov peer.ID) error {
 	// Disregard empty Cids.
-	empty := cid.Cid{}
-	if c == empty {
+	if c == cid.Undef {
 		return nil
 	}
 	// NOTE: We disregard errors for now
 	err := n.primary.Put(c, prov, piece)
 	if err != nil {
-		log.Errorw("Error importing cid", "cid", err)
+		log.Errorw("Error importing cid", "cid", c, "err", err)
 	} else {
 		// TODO: Change to Debug
 		log.Infow("Imported successfully", "cid", c)

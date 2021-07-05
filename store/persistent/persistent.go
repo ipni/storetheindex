@@ -1,9 +1,9 @@
 package persistent
 
 import (
-	"github.com/adlrocha/indexer-node/store"
-	sth "github.com/hannahhoward/go-storethehash"
+	"github.com/filecoin-project/storetheindex/store"
 	"github.com/ipfs/go-cid"
+	sth "github.com/ipld/go-storethehash"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
