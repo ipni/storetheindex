@@ -68,7 +68,7 @@ func (s *rtStorage) get(k string) ([]store.IndexEntry, bool) {
 	return v.([]store.IndexEntry), found
 }
 
-// Put adds indexEntry info for a CID. Put currently is non-distructive
+// Put adds indexEntry info for a CID. Put currently is non-destructive
 // so if a key for a Cid is already set, we update instead of overwriting
 // the value.
 // NOTE: We are storing indexEntries in a list, as we don't need to perform
@@ -173,6 +173,14 @@ func duplicateEntry(in store.IndexEntry, old []store.IndexEntry) bool {
 	return false
 }
 
+// lockBranch locks a "branch" of the tree so that one lock prevents any other
+// access to the same section of the tree, and this requires using the first
+// bits of the key key. There is an implicit relationship between this locking
+// strategy and how a radix tree works.
+//
+// TODO: If most keys have a common prefix this will cause lock collision and
+// become ineffective.  It may be necessary to hash over multiple tree or use a
+// RWlock over the whole tree.
 func (s *rtStorage) lockBranch(k string) {
 	var idx int
 	if k != "" {
