@@ -9,28 +9,26 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
-var _ store.Storage = &rtStorage{}
+// numLocks is the lock granularity for radixtree. Must be power of two.
+const numLocks = 64
 
-// wraps a tree with its own mutex
-type tree struct {
-	lk   sync.RWMutex
-	tree *radixtree.Bytes
-}
+var _ store.Storage = &rtStorage{}
 
 // Adaptive Radix Tree primary storage
 type rtStorage struct {
-	lk        sync.Mutex
-	primary   *tree
-	secondary *tree
-	sizeLimit int
+	branchLocks []sync.Mutex
+	current     *radixtree.Bytes
+	previous    *radixtree.Bytes
+	sizeLimit   int
 }
 
 // New creates a new Adaptive Radix Tree storage
 func New(size int) store.Storage {
 	return &rtStorage{
-		primary:   &tree{tree: radixtree.New()},
-		secondary: nil,
-		sizeLimit: size,
+		branchLocks: make([]sync.Mutex, numLocks),
+		current:     radixtree.New(),
+		previous:    nil,
+		sizeLimit:   size / 2,
 	}
 }
 
@@ -39,25 +37,34 @@ func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool) {
 	// Keys indexed as multihash
 	k := string(c.Hash())
 
-	// Search primary storage
-	s.primary.lk.RLock()
-	v, found := s.primary.tree.Get(k)
-	s.primary.lk.RUnlock()
+	s.lockBranch(k)
+	defer s.unlockBranch(k)
+
+	return s.get(k)
+}
+
+func (s *rtStorage) get(k string) ([]store.IndexEntry, bool) {
+	// Search current cache
+	v, found := s.current.Get(k)
 	if found {
 		return v.([]store.IndexEntry), found
 	}
 
-	if s.secondary != nil {
-		// Search secondary if not found in the first.
-		s.secondary.lk.RLock()
-		defer s.secondary.lk.RUnlock()
-		v, found = s.secondary.tree.Get(k)
+	if s.previous == nil {
+		return nil, false
 	}
+
+	// Search previous if not found in current
+	v, found = s.previous.Get(k)
 
 	// If nothing has been found return nil
 	if !found {
 		return nil, false
 	}
+
+	// Put the value found in the previous tree into the current one.
+	s.current.Put(k, v)
+
 	return v.([]store.IndexEntry), found
 }
 
@@ -69,47 +76,87 @@ func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool) {
 // changes consider using a map.
 func (s *rtStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
 	in := store.IndexEntry{ProvID: provID, PieceID: pieceID}
-	// Check size of primary storage for eviction purposes.
-	s.checkSize()
+
 	// Get multihash from cid
 	k := string(c.Hash())
-	s.primary.lk.Lock()
 
-	old, found := s.primary.tree.Get(k)
-	// If found it means there is already a value there.
-	if found {
-		// Check if we are trying to put a duplicate entry
-		// NOTE: If we end up having a lot of entries for the
-		// same CID we may choose to change IndexEntry to a map[peer.ID]pieceID
-		// to speed-up this lookup. Don't think is the case right now.
-		if !duplicateEntry(in, old.([]store.IndexEntry)) {
-			// If not duplicate entry, append to the end
-			s.primary.tree.Put(k, append(old.([]store.IndexEntry), in))
-		}
-	} else {
-		s.primary.tree.Put(k, []store.IndexEntry{in})
+	s.lockBranch(k)
+
+	if !s.put(k, in) {
+		s.unlockBranch(k)
+		return nil
 	}
-	s.primary.lk.Unlock()
 
-	// NOTE: Insert in the radix-tree used doesn't return any error.
-	// This may change in the future so keeping an error as output in the signature
-	// for now.
+	if s.current.Len() >= s.sizeLimit {
+		s.unlockBranch(k)
+		s.rotateCache()
+	} else {
+		s.unlockBranch(k)
+	}
+
 	return nil
+}
+
+func (s *rtStorage) put(k string, entry store.IndexEntry) bool {
+	// Get from current or previous cache
+	old, found := s.get(k)
+	// If found it means there is already a value there.
+	// Check if we are trying to put a duplicate entry
+	// NOTE: If we end up having a lot of entries for the
+	// same CID we may choose to change IndexEntry to a map[peer.ID]pieceID
+	// to speed-up this lookup. Don't think is the case right now.
+	if found && duplicateEntry(entry, old) {
+		return false
+	}
+
+	s.current.Put(k, append(old, entry))
+	return true
+}
+
+func (s *rtStorage) rotateCache() {
+	// Acquire all locks
+	for i := range s.branchLocks {
+		s.branchLocks[i].Lock()
+	}
+
+	if s.current.Len() >= s.sizeLimit {
+		s.previous, s.current = s.current, radixtree.New()
+	}
+
+	// Release all locks
+	for i := range s.branchLocks {
+		s.branchLocks[i].Unlock()
+	}
 }
 
 // PutMany puts store.IndexEntry information in several CIDs.
 // This is usually triggered when a bulk update for a providerID-pieceID
 // arrives.
 func (s *rtStorage) PutMany(cids []cid.Cid, provID peer.ID, pieceID cid.Cid) error {
+	in := store.IndexEntry{ProvID: provID, PieceID: pieceID}
+	var addedEntry bool
+
 	for i := range cids {
-		err := s.Put(cids[i], provID, pieceID)
-		if err != nil {
-			return err
+		k := string(cids[i].Hash())
+		s.lockBranch(k)
+
+		if s.put(k, in) {
+			addedEntry = true
+		}
+		s.unlockBranch(k)
+	}
+
+	if addedEntry {
+		// Check if rotation needed
+		s.lockBranch("")
+		if s.current.Len() >= s.sizeLimit {
+			s.unlockBranch("")
+			s.rotateCache()
+		} else {
+			s.unlockBranch("")
 		}
 	}
 
-	// We are disregarding the CIDs that couldn't be added from the batch
-	// for now, so we return no error.
 	return nil
 }
 
@@ -126,38 +173,20 @@ func duplicateEntry(in store.IndexEntry, old []store.IndexEntry) bool {
 	return false
 }
 
-// checksize to see if we need to create a new tree
-// If the size is equal or over sizeLimit create new instance
-// of the tree
-// NOTE: Should we add a security margin? Aim for the 0.45 instead
-// of 0.5
-func (s *rtStorage) checkSize() {
-	// s.fullLock()
-	// defer s.fullUnlock()
-	s.primary.lk.RLock()
-	// TODO: Here we are just looking to the length of the radix tree not the
-	// actual storage size. This needs to be changed so we check the actual size being
-	// used by the tree.
-	if s.primary.tree.Len() >= int(float64(0.5)*float64(s.sizeLimit)) {
-		s.lk.Lock()
-		// Create new tree and make primary = secondary
-		s.secondary = s.primary
-		s.primary = &tree{tree: radixtree.New()}
-		s.lk.Unlock()
+func (s *rtStorage) lockBranch(k string) {
+	var idx int
+	if k != "" {
+		// bitwise modulus requires that s.locks is power of 2
+		idx = int(k[0]) & (len(s.branchLocks) - 1)
 	}
-	s.primary.lk.RUnlock()
+	s.branchLocks[idx].Lock()
 }
 
-// convenient function to lock the storage and its trees for eviction
-func (s *rtStorage) fullLock() {
-	s.lk.Lock()
-	s.primary.lk.Lock()
-	// No need to lock secondary storage. We never write on it
-	// s.secondary.lk.Lock()
-}
-
-// same with unlcok
-func (s *rtStorage) fullUnlock() {
-	s.lk.Unlock()
-	s.primary.lk.Lock()
+func (s *rtStorage) unlockBranch(k string) {
+	var idx int
+	if k != "" {
+		// bitwise modulus requires that s.locks is power of 2
+		idx = int(k[0]) & (len(s.branchLocks) - 1)
+	}
+	s.branchLocks[idx].Unlock()
 }
