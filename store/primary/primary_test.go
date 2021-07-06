@@ -36,7 +36,7 @@ func TestE2E(t *testing.T) {
 		t.Errorf("Got wrong value for single cid")
 	}
 
-	// Put a single CID
+	// Put a batch of CIDs
 	t.Logf("Put/Get a batch of CIDd in primary storage")
 	err = s.PutMany(batch, p, piece)
 	if err != nil {
@@ -74,5 +74,65 @@ func TestE2E(t *testing.T) {
 	_, found = s.Get(noadd)
 	if found {
 		t.Errorf("Error, the key for the cid shouldn't be set")
+	}
+}
+
+func TestRotate(t *testing.T) {
+	const maxSize = 10
+
+	cids, err := utils.RandomCids(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	piece := cids[0]
+	piece2 := cids[1]
+
+	s := New(maxSize * 2)
+	cids, err = utils.RandomCids(maxSize + 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = s.PutMany(cids, p, piece)
+	if err != nil {
+		t.Fatal("Error putting batch of cids: ", err)
+	}
+
+	_, found := s.Get(cids[0])
+	if !found {
+		t.Errorf("Error finding a cid from previous cache")
+	}
+
+	_, found = s.Get(cids[maxSize+2])
+	if !found {
+		t.Errorf("Error finding a cid from new cache")
+	}
+
+	cids2, err := utils.RandomCids(maxSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = s.PutMany(cids2, p, piece2)
+	if err != nil {
+		t.Fatal("Error putting batch of cids: ", err)
+	}
+
+	// Should find this because it was moved to new cache after 1st rotation
+	_, found = s.Get(cids[0])
+	if !found {
+		t.Errorf("Error finding a cid from previous cache")
+	}
+
+	// Should find this because it should be in old cache after 2nd rotation
+	_, found = s.Get(cids[maxSize+2])
+	if !found {
+		t.Errorf("Error finding a cid from new cache")
+	}
+
+	// Should not find this because it was only in old cache after 1st rotation
+	_, found = s.Get(cids[2])
+	if found {
+		t.Errorf("cid should have been rotated out of cache")
 	}
 }
