@@ -13,6 +13,7 @@ import (
 )
 
 const testDataDir = "../../test_data/"
+const testDataExt = ".data"
 
 func BenchmarkSingle10KB(b *testing.B) {
 	benchSingleGet("10KB", b)
@@ -34,7 +35,7 @@ func prepare(s store.Storage, size string, b *testing.B) {
 	out := make(chan cid.Cid)
 	errOut := make(chan error, 1)
 
-	file, err := os.OpenFile(testDataDir+size+".out", os.O_RDONLY, 0644)
+	file, err := os.OpenFile(testDataDir+size+testDataExt, os.O_RDONLY, 0644)
 	if err != nil {
 		b.Fatalf("couldn't find the right input file for %v, try synthetizing from CLI: %v", size, err)
 	}
@@ -61,7 +62,7 @@ func read(s store.Storage, size string, m *metrics, b *testing.B) {
 	out := make(chan cid.Cid)
 	errOut := make(chan error, 1)
 
-	file, err := os.OpenFile(testDataDir+size+".out", os.O_RDONLY, 0644)
+	file, err := os.OpenFile(testDataDir+size+testDataExt, os.O_RDONLY, 0644)
 	if err != nil {
 		b.Fatal(err)
 	}
