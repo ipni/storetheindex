@@ -34,7 +34,7 @@ func (n *Node) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 
 	out := make(chan cid.Cid)
 	errOut := make(chan error, 1)
-	imp := importer.NewManifestImporter(file, miner)
+	imp := importer.NewManifestImporter(file)
 	go imp.Read(r.Context(), out, errOut)
 
 	for c := range out {
@@ -76,7 +76,7 @@ func (n *Node) ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
 
 	out := make(chan cid.Cid)
 	errOut := make(chan error, 1)
-	imp := importer.NewCidListImporter(file, miner)
+	imp := importer.NewCidListImporter(file)
 	go imp.Read(r.Context(), out, errOut)
 
 	for c := range out {

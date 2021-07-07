@@ -8,17 +8,15 @@ import (
 
 	agg "github.com/filecoin-project/go-dagaggregator-unixfs"
 	"github.com/ipfs/go-cid"
-	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
 // MenifestImporter reads Cids from a manifest of a  CID aggregator
 type ManifestImporter struct {
 	reader io.Reader
-	miner  peer.ID
 }
 
-func NewManifestImporter(r io.Reader, miner peer.ID) Importer {
-	return ManifestImporter{r, miner}
+func NewManifestImporter(r io.Reader) Importer {
+	return ManifestImporter{r}
 }
 
 func (i ManifestImporter) Read(ctx context.Context, out chan cid.Cid, errOut chan error) {

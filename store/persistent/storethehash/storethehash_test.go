@@ -1,16 +1,36 @@
-package primary
+package storethehash_test
 
 import (
+	"io/ioutil"
 	"testing"
 
+	"github.com/filecoin-project/storetheindex/store"
+	"github.com/filecoin-project/storetheindex/store/persistent/storethehash"
 	"github.com/filecoin-project/storetheindex/utils"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
-var p peer.ID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
+func initSth() (store.Storage, error) {
+	tmpDir, err := ioutil.TempDir("", "sth")
+	if err != nil {
+		return nil, err
+	}
+	return storethehash.New(tmpDir)
+}
 
 func TestE2E(t *testing.T) {
-	s := New(1000000)
+	// Create new valid peer.ID
+	p, err := peer.IDB58Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Init storage
+	s, err := initSth()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	cids, err := utils.RandomCids(15)
 	if err != nil {
 		t.Fatal(err)
@@ -28,7 +48,10 @@ func TestE2E(t *testing.T) {
 		t.Fatal("Error putting single cid: ", err)
 	}
 
-	i, found, _ := s.Get(single)
+	i, found, err := s.Get(single)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !found {
 		t.Errorf("Error finding single cid")
 	}
@@ -37,13 +60,16 @@ func TestE2E(t *testing.T) {
 	}
 
 	// Put a batch of CIDs
-	t.Logf("Put/Get a batch of CIDd in primary storage")
+	t.Logf("Put/Get a batch of CIDs in primary storage")
 	err = s.PutMany(batch, p, piece)
 	if err != nil {
 		t.Fatal("Error putting batch of cids: ", err)
 	}
 
-	i, found, _ = s.Get(cids[5])
+	i, found, err = s.Get(cids[5])
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !found {
 		t.Errorf("Error finding a cid from the batch")
 	}
@@ -57,8 +83,13 @@ func TestE2E(t *testing.T) {
 	if err != nil {
 		t.Fatal("Error putting single cid: ", err)
 	}
-
-	i, found, _ = s.Get(single)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i, found, err = s.Get(single)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !found {
 		t.Errorf("Error finding a cid from the batch")
 	}
@@ -71,68 +102,40 @@ func TestE2E(t *testing.T) {
 
 	// Get a key that is not set
 	t.Logf("Get non-existing key")
-	_, found, _ = s.Get(noadd)
+	_, found, err = s.Get(noadd)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if found {
 		t.Errorf("Error, the key for the cid shouldn't be set")
 	}
 }
 
-func TestRotate(t *testing.T) {
-	const maxSize = 10
-
-	cids, err := utils.RandomCids(2)
+func TestSize(t *testing.T) {
+	// Init storage
+	p, err := peer.IDB58Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	if err != nil {
 		t.Fatal(err)
 	}
-	piece := cids[0]
-	piece2 := cids[1]
-
-	s := New(maxSize * 2)
-	cids, err = utils.RandomCids(maxSize + 5)
+	s, err := initSth()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = s.PutMany(cids, p, piece)
-	if err != nil {
-		t.Fatal("Error putting batch of cids: ", err)
-	}
-
-	_, found, _ := s.Get(cids[0])
-	if !found {
-		t.Errorf("Error finding a cid from previous cache")
-	}
-
-	_, found, _ = s.Get(cids[maxSize+2])
-	if !found {
-		t.Errorf("Error finding a cid from new cache")
-	}
-
-	cids2, err := utils.RandomCids(maxSize)
+	cids, err := utils.RandomCids(150)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = s.PutMany(cids2, p, piece2)
+	for _, c := range cids {
+		s.Put(c, p, c)
+	}
+
+	size, err := s.Size()
 	if err != nil {
-		t.Fatal("Error putting batch of cids: ", err)
+		t.Fatal(err)
 	}
-
-	// Should find this because it was moved to new cache after 1st rotation
-	_, found, _ = s.Get(cids[0])
-	if !found {
-		t.Errorf("Error finding a cid from previous cache")
-	}
-
-	// Should find this because it should be in old cache after 2nd rotation
-	_, found, _ = s.Get(cids[maxSize+2])
-	if !found {
-		t.Errorf("Error finding a cid from new cache")
-	}
-
-	// Should not find this because it was only in old cache after 1st rotation
-	_, found, _ = s.Get(cids[2])
-	if found {
-		t.Errorf("cid should have been rotated out of cache")
+	if size == int64(0) {
+		t.Error("failed to compute storage size")
 	}
 }

@@ -33,7 +33,7 @@ func New(size int) store.Storage {
 }
 
 // Get info for CID from primary storage.
-func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool) {
+func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool, error) {
 	// Keys indexed as multihash
 	k := string(c.Hash())
 
@@ -43,15 +43,15 @@ func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool) {
 	return s.get(k)
 }
 
-func (s *rtStorage) get(k string) ([]store.IndexEntry, bool) {
+func (s *rtStorage) get(k string) ([]store.IndexEntry, bool, error) {
 	// Search current cache
 	v, found := s.current.Get(k)
 	if found {
-		return v.([]store.IndexEntry), found
+		return v.([]store.IndexEntry), found, nil
 	}
 
 	if s.previous == nil {
-		return nil, false
+		return nil, false, nil
 	}
 
 	// Search previous if not found in current
@@ -59,13 +59,13 @@ func (s *rtStorage) get(k string) ([]store.IndexEntry, bool) {
 
 	// If nothing has been found return nil
 	if !found {
-		return nil, false
+		return nil, false, nil
 	}
 
 	// Put the value found in the previous tree into the current one.
 	s.current.Put(k, v)
 
-	return v.([]store.IndexEntry), found
+	return v.([]store.IndexEntry), found, nil
 }
 
 // Put adds indexEntry info for a CID. Put currently is non-destructive
@@ -99,13 +99,13 @@ func (s *rtStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
 
 func (s *rtStorage) put(k string, entry store.IndexEntry) bool {
 	// Get from current or previous cache
-	old, found := s.get(k)
+	old, found, _ := s.get(k)
 	// If found it means there is already a value there.
 	// Check if we are trying to put a duplicate entry
 	// NOTE: If we end up having a lot of entries for the
 	// same CID we may choose to change IndexEntry to a map[peer.ID]pieceID
 	// to speed-up this lookup. Don't think is the case right now.
-	if found && duplicateEntry(entry, old) {
+	if found && store.DuplicateEntry(entry, old) {
 		return false
 	}
 
@@ -160,19 +160,6 @@ func (s *rtStorage) PutMany(cids []cid.Cid, provID peer.ID, pieceID cid.Cid) err
 	return nil
 }
 
-// Checks if the entry already exists in the index. An entry
-// for the same provider but a different piece is not considered
-// a duplicate entry (at least for now)
-func duplicateEntry(in store.IndexEntry, old []store.IndexEntry) bool {
-	for i := range old {
-		if in.PieceID == old[i].PieceID &&
-			in.ProvID == old[i].ProvID {
-			return true
-		}
-	}
-	return false
-}
-
 // lockBranch locks a "branch" of the tree so that one lock prevents any other
 // access to the same section of the tree, and this requires using the first
 // bits of the key key. There is an implicit relationship between this locking
@@ -197,4 +184,10 @@ func (s *rtStorage) unlockBranch(k string) {
 		idx = int(k[0]) & (len(s.branchLocks) - 1)
 	}
 	s.branchLocks[idx].Unlock()
+}
+
+func (s *rtStorage) Close() {}
+
+func (s *rtStorage) Size() (int64, error) {
+	panic("size for primary not implemented")
 }

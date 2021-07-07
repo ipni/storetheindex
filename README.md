@@ -17,26 +17,26 @@ a first glimpse).
 - Simple primary storage based on https://github.com/gammazero/radixtree
 - Run node (it starts the node's API, and intializes its storage).
 ```
-./indexer-node daemon -e 127.0.0.1:3000
+./storetheindex daemon -e 127.0.0.1:3000
 ```
 - Commands to read a list of CIDs from a manifest and a cid list.
 ```
-./indexer-node import manifest --dir <manifest> --providerID <peer.ID> --pieceID <cid>
-./indexer-node import cidlist --dir <manifest> --providerID <peer.ID> --pieceID <cid>
+./storetheindex import manifest --dir <manifest> --providerID <peer.ID> --pieceID <cid>
+./storetheindex import cidlist --dir <manifest> --providerID <peer.ID> --pieceID <cid>
 
 // Example
-./indexer-node import cidlist --dir ./cid.out --providerID QmcJeseojbPW9hSejUM1sQ1a2QmbrryPK4Z8pWbRUPaYEn -e 127.0.0.1:3000
+./storetheindex import cidlist --dir ./cid.out --providerID QmcJeseojbPW9hSejUM1sQ1a2QmbrryPK4Z8pWbRUPaYEn -e 127.0.0.1:3000
 ```
 - Simple get command for single CID (for testing purposes).
 ```
-./indexer-node get -e 127.0.0.1:3000 bafkreie4qmvnboqqgjp3tijhibgofvuqify2a2pl6ac4xyxd5rfmlvqsf4
+./storetheindex get -e 127.0.0.1:3000 bafkreie4qmvnboqqgjp3tijhibgofvuqify2a2pl6ac4xyxd5rfmlvqsf4
 ```
 - Synthetic harness to create test data to load in the indexer.
 ```
 # Create plain cidlist
-./indexer-node synthetic --dir <out_dir> -t cidlist -n <num_entries>
+./storetheindex synthetic --dir <out_dir> -t cidlist -n <num_entries> -s <size_cids>
 # [DagAggregator manifest](https://github.com/filecoin-project/go-dagaggregator-unixfs/blob/wip/aggregator.go#L29-L56).
-./indexer-node synthetic --dir <out_dir> -t manifest -n <num_entries>
+./storetheindex synthetic --dir <out_dir> -t manifest -n <num_entries> -s <size_cids>
 ```
 
 ## License
