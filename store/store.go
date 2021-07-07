@@ -24,4 +24,6 @@ type Storage interface {
 	// NOTE: The interface may change if we see some other function
 	// signature more handy for updating process.
 	PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) error
+	// Remove info for CID
+	Remove(c cid.Cid, provID peer.ID, pieceID cid.Cid) bool
 }

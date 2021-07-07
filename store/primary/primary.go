@@ -9,26 +9,41 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
-// numLocks is the lock granularity for radixtree. Must be power of two.
-const numLocks = 64
+// concurrrency is the lock granularity for radixtree. Must be power of two.
+const concurrency = 16
 
 var _ store.Storage = &rtStorage{}
 
+// syncCache is a rotatable cache. Multiples instances may be used to decrease
+// concurrent access collision.
+type syncCache struct {
+	current   *radixtree.Bytes
+	previous  *radixtree.Bytes
+	mutex     sync.Mutex
+	rotations int
+}
+
 // Adaptive Radix Tree primary storage
 type rtStorage struct {
-	branchLocks []sync.Mutex
-	current     *radixtree.Bytes
-	previous    *radixtree.Bytes
-	sizeLimit   int
+	cacheSet   []*syncCache
+	rotateSize int
 }
 
 // New creates a new Adaptive Radix Tree storage
 func New(size int) store.Storage {
+	cacheSetSize := concurrency
+	if size < 256 {
+		cacheSetSize = 1
+	}
+	cacheSet := make([]*syncCache, cacheSetSize)
+	for i := range cacheSet {
+		cacheSet[i] = &syncCache{
+			current: radixtree.New(),
+		}
+	}
 	return &rtStorage{
-		branchLocks: make([]sync.Mutex, numLocks),
-		current:     radixtree.New(),
-		previous:    nil,
-		sizeLimit:   size / 2,
+		cacheSet:   cacheSet,
+		rotateSize: size / (cacheSetSize * 2),
 	}
 }
 
@@ -37,35 +52,11 @@ func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool) {
 	// Keys indexed as multihash
 	k := string(c.Hash())
 
-	s.lockBranch(k)
-	defer s.unlockBranch(k)
+	cache := s.getCache(k)
+	cache.lock()
+	defer cache.unlock()
 
-	return s.get(k)
-}
-
-func (s *rtStorage) get(k string) ([]store.IndexEntry, bool) {
-	// Search current cache
-	v, found := s.current.Get(k)
-	if found {
-		return v.([]store.IndexEntry), found
-	}
-
-	if s.previous == nil {
-		return nil, false
-	}
-
-	// Search previous if not found in current
-	v, found = s.previous.Get(k)
-
-	// If nothing has been found return nil
-	if !found {
-		return nil, false
-	}
-
-	// Put the value found in the previous tree into the current one.
-	s.current.Put(k, v)
-
-	return v.([]store.IndexEntry), found
+	return cache.get(k)
 }
 
 // Put adds indexEntry info for a CID. Put currently is non-destructive
@@ -79,27 +70,100 @@ func (s *rtStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
 
 	// Get multihash from cid
 	k := string(c.Hash())
+	cache := s.getCache(k)
 
-	s.lockBranch(k)
-
-	if !s.put(k, in) {
-		s.unlockBranch(k)
-		return nil
+	cache.lock()
+	if cache.put(k, in) && cache.current.Len() > s.rotateSize {
+		// Only rotate one cache at a time. This may leave older entries in
+		// other caches, but if CIDs are dirstributed evenly over the cache set
+		// then over time all members should be rotated the same amount on
+		// average.  This is done so that it is not necessary to lock all
+		// caches in order to perform a rotation.  This also means that items
+		// age out more incrementally.
+		cache.rotate()
 	}
+	cache.unlock()
 
-	if s.current.Len() >= s.sizeLimit {
-		s.unlockBranch(k)
-		s.rotateCache()
-	} else {
-		s.unlockBranch(k)
+	return nil
+}
+
+// PutMany puts store.IndexEntry information in several CIDs.
+// This is usually triggered when a bulk update for a providerID-pieceID
+// arrives.
+func (s *rtStorage) PutMany(cids []cid.Cid, provID peer.ID, pieceID cid.Cid) error {
+	in := store.IndexEntry{ProvID: provID, PieceID: pieceID}
+
+	for i := range cids {
+		k := string(cids[i].Hash())
+		cache := s.getCache(k)
+		cache.lock()
+		if cache.put(k, in) && cache.current.Len() > s.rotateSize {
+			cache.rotate()
+		}
+		cache.unlock()
 	}
 
 	return nil
 }
 
-func (s *rtStorage) put(k string, entry store.IndexEntry) bool {
+func (s *rtStorage) Remove(c cid.Cid, provID peer.ID, pieceID cid.Cid) bool {
+	in := store.IndexEntry{ProvID: provID, PieceID: pieceID}
+
+	// Get multihash from cid
+	k := string(c.Hash())
+
+	cache := s.getCache(k)
+	cache.lock()
+	defer cache.unlock()
+
+	return cache.remove(k, in)
+}
+
+// getCache returns the cache that stores the given key.  This function must
+// evenly distribute keys over the set of caches.
+func (s *rtStorage) getCache(k string) *syncCache {
+	var idx int
+	if k != "" {
+		// Use last bits of key for good distribution
+		//
+		// bitwise modulus requires that size of cache set is power of 2
+		idx = int(k[len(k)-1]) & (len(s.cacheSet) - 1)
+	}
+	return s.cacheSet[idx]
+}
+
+func (c *syncCache) lock()     { c.mutex.Lock() }
+func (c *syncCache) unlock()   { c.mutex.Unlock() }
+func (c *syncCache) size() int { return c.current.Len() + c.previous.Len() }
+
+func (c *syncCache) get(k string) ([]store.IndexEntry, bool) {
+	// Search current cache
+	v, found := c.current.Get(k)
+	if found {
+		return v.([]store.IndexEntry), found
+	}
+
+	if c.previous == nil {
+		return nil, false
+	}
+
+	// Search previous if not found in current
+	v, found = c.previous.Get(k)
+
+	// If nothing has been found return nil
+	if !found {
+		return nil, false
+	}
+
+	// Put the value found in the previous tree into the current one.
+	c.current.Put(k, v)
+
+	return v.([]store.IndexEntry), found
+}
+
+func (c *syncCache) put(k string, entry store.IndexEntry) bool {
 	// Get from current or previous cache
-	old, found := s.get(k)
+	old, found := c.get(k)
 	// If found it means there is already a value there.
 	// Check if we are trying to put a duplicate entry
 	// NOTE: If we end up having a lot of entries for the
@@ -109,55 +173,53 @@ func (s *rtStorage) put(k string, entry store.IndexEntry) bool {
 		return false
 	}
 
-	s.current.Put(k, append(old, entry))
+	c.current.Put(k, append(old, entry))
 	return true
 }
 
-func (s *rtStorage) rotateCache() {
-	// Acquire all locks
-	for i := range s.branchLocks {
-		s.branchLocks[i].Lock()
+func (c *syncCache) remove(k string, entry store.IndexEntry) bool {
+	removed := removeEntry(c.current, k, entry)
+	if removeEntry(c.previous, k, entry) {
+		removed = true
 	}
-
-	if s.current.Len() >= s.sizeLimit {
-		s.previous, s.current = s.current, radixtree.New()
-	}
-
-	// Release all locks
-	for i := range s.branchLocks {
-		s.branchLocks[i].Unlock()
-	}
+	return removed
 }
 
-// PutMany puts store.IndexEntry information in several CIDs.
-// This is usually triggered when a bulk update for a providerID-pieceID
-// arrives.
-func (s *rtStorage) PutMany(cids []cid.Cid, provID peer.ID, pieceID cid.Cid) error {
-	in := store.IndexEntry{ProvID: provID, PieceID: pieceID}
-	var addedEntry bool
-
-	for i := range cids {
-		k := string(cids[i].Hash())
-		s.lockBranch(k)
-
-		if s.put(k, in) {
-			addedEntry = true
-		}
-		s.unlockBranch(k)
+func removeEntry(cache *radixtree.Bytes, k string, entry store.IndexEntry) bool {
+	// Get from current cache
+	v, found := cache.Get(k)
+	if !found {
+		return false
 	}
 
-	if addedEntry {
-		// Check if rotation needed
-		s.lockBranch("")
-		if s.current.Len() >= s.sizeLimit {
-			s.unlockBranch("")
-			s.rotateCache()
-		} else {
-			s.unlockBranch("")
+	values := v.([]store.IndexEntry)
+	for i := range values {
+		if entry.PieceID == values[i].PieceID &&
+			entry.ProvID == values[i].ProvID {
+			if len(values) == 1 {
+				cache.Delete(k)
+			} else {
+				values[i] = values[len(values)-1]
+				values[len(values)-1] = store.IndexEntry{}
+				cache.Put(k, values[:len(values)-1])
+			}
+			return true
 		}
 	}
+	return false
+}
 
-	return nil
+func (c *syncCache) removeAll(k string) bool {
+	removed := c.current.Delete(k)
+	if c.previous.Delete(k) {
+		removed = true
+	}
+	return removed
+}
+
+func (c *syncCache) rotate() {
+	c.previous, c.current = c.current, radixtree.New()
+	c.rotations++
 }
 
 // Checks if the entry already exists in the index. An entry
@@ -171,30 +233,4 @@ func duplicateEntry(in store.IndexEntry, old []store.IndexEntry) bool {
 		}
 	}
 	return false
-}
-
-// lockBranch locks a "branch" of the tree so that one lock prevents any other
-// access to the same section of the tree, and this requires using the first
-// bits of the key key. There is an implicit relationship between this locking
-// strategy and how a radix tree works.
-//
-// TODO: If most keys have a common prefix this will cause lock collision and
-// become ineffective.  It may be necessary to hash over multiple tree or use a
-// RWlock over the whole tree.
-func (s *rtStorage) lockBranch(k string) {
-	var idx int
-	if k != "" {
-		// bitwise modulus requires that s.locks is power of 2
-		idx = int(k[0]) & (len(s.branchLocks) - 1)
-	}
-	s.branchLocks[idx].Lock()
-}
-
-func (s *rtStorage) unlockBranch(k string) {
-	var idx int
-	if k != "" {
-		// bitwise modulus requires that s.locks is power of 2
-		idx = int(k[0]) & (len(s.branchLocks) - 1)
-	}
-	s.branchLocks[idx].Unlock()
 }

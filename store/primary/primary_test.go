@@ -37,7 +37,7 @@ func TestE2E(t *testing.T) {
 	}
 
 	// Put a batch of CIDs
-	t.Logf("Put/Get a batch of CIDd in primary storage")
+	t.Logf("Put/Get a batch of CIDs in primary storage")
 	err = s.PutMany(batch, p, piece)
 	if err != nil {
 		t.Fatal("Error putting batch of cids: ", err)
