@@ -52,7 +52,7 @@ func New(size int) *rtStorage {
 	}
 }
 
-func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool) {
+func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool, error) {
 	// Keys indexed as multihash
 	k := cidToKey(c)
 
@@ -60,10 +60,19 @@ func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool) {
 	cache.lock()
 	defer cache.unlock()
 
-	return cache.get(k)
+	ents, found := cache.get(k)
+	return ents, found, nil
 }
 
-func (s *rtStorage) Put(c cid.Cid, providerID peer.ID, pieceID cid.Cid) bool {
+func (s *rtStorage) Put(c cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
+	s.PutCheck(c, providerID, pieceID)
+	return nil
+}
+
+// PutCheck stores a provider-piece entry for a CID if the entry is not already
+// stored.  New entries are added to the entries that are already there.
+// Returns true if a new entry was added to the cache.
+func (s *rtStorage) PutCheck(c cid.Cid, providerID peer.ID, pieceID cid.Cid) bool {
 	in := store.IndexEntry{ProvID: providerID, PieceID: pieceID}
 	k := cidToKey(c)
 
@@ -84,7 +93,14 @@ func (s *rtStorage) Put(c cid.Cid, providerID peer.ID, pieceID cid.Cid) bool {
 	return stored
 }
 
-func (s *rtStorage) PutMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) int {
+func (s *rtStorage) PutMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
+	s.PutManyCount(cids, providerID, pieceID)
+	return nil
+}
+
+// PutManyCount stores the provider-piece entry for multiple CIDs.  Returns the
+// number of new entries stored.
+func (s *rtStorage) PutManyCount(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) int {
 	var stored int
 	in := store.IndexEntry{ProvID: providerID, PieceID: pieceID}
 
@@ -104,7 +120,14 @@ func (s *rtStorage) PutMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid)
 	return stored
 }
 
-func (s *rtStorage) Remove(c cid.Cid, providerID peer.ID, pieceID cid.Cid) bool {
+func (s *rtStorage) Remove(c cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
+	s.RemoveCheck(c, providerID, pieceID)
+	return nil
+}
+
+// RemoveCheck removes a provider-piece entry for a CID.  Returns true if an
+// entry was removed from cache.
+func (s *rtStorage) RemoveCheck(c cid.Cid, providerID peer.ID, pieceID cid.Cid) bool {
 	in := store.IndexEntry{ProvID: providerID, PieceID: pieceID}
 	k := cidToKey(c)
 
@@ -115,7 +138,14 @@ func (s *rtStorage) Remove(c cid.Cid, providerID peer.ID, pieceID cid.Cid) bool 
 	return cache.remove(k, in)
 }
 
-func (s *rtStorage) RemoveMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) int {
+func (s *rtStorage) RemoveMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
+	s.RemoveManyCount(cids, providerID, pieceID)
+	return nil
+}
+
+// RemoveManyCount removes a provider-piece entry from multiple CIDs.  Returns
+// the number of entries removed.
+func (s *rtStorage) RemoveManyCount(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) int {
 	var removed int
 	in := store.IndexEntry{ProvID: providerID, PieceID: pieceID}
 
@@ -132,7 +162,14 @@ func (s *rtStorage) RemoveMany(cids []cid.Cid, providerID peer.ID, pieceID cid.C
 	return removed
 }
 
-func (s *rtStorage) RemoveProvider(providerID peer.ID) int {
+func (s *rtStorage) RemoveProvider(providerID peer.ID) error {
+	s.RemoveProvider(providerID)
+	return nil
+}
+
+// RemoveProvider removes all enrties for specified provider.  Returns the
+// total number of entries reomved from the cache.
+func (s *rtStorage) RemoveProviderCount(providerID peer.ID) int {
 	var count int
 	for _, cache := range s.cacheSet {
 		cache.lock()
@@ -142,14 +179,14 @@ func (s *rtStorage) RemoveProvider(providerID peer.ID) int {
 	return count
 }
 
-func (s *rtStorage) Size() int {
-	var size int
+func (s *rtStorage) CidCount() int {
+	var count int
 	for _, cache := range s.cacheSet {
 		cache.lock()
-		size += cache.size()
+		count += cache.cidCount()
 		cache.unlock()
 	}
-	return size
+	return count
 }
 
 // getCache returns the cache that stores the given key.  This function must
@@ -167,7 +204,7 @@ func (s *rtStorage) getCache(k string) *syncCache {
 
 func (c *syncCache) lock()   { c.mutex.Lock() }
 func (c *syncCache) unlock() { c.mutex.Unlock() }
-func (c *syncCache) size() int {
+func (c *syncCache) cidCount() int {
 	size := c.current.Len()
 	if c.previous != nil {
 		size += c.previous.Len()
@@ -194,8 +231,9 @@ func (c *syncCache) get(k string) ([]store.IndexEntry, bool) {
 		return nil, false
 	}
 
-	// Put the value found in the previous tree into the current one.
+	// Move the value found in the previous tree into the current one.
 	c.current.Put(k, v)
+	c.previous.Delete(k)
 
 	return v.([]store.IndexEntry), found
 }

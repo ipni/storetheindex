@@ -21,7 +21,7 @@ func (n *Node) GetSingleCidHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Infow("Find cid", "cid", mhCid)
 	// Get Cid from primary storage
-	i, _ := n.primary.Get(c)
+	i, _, _ := n.primary.Get(c)
 	out := map[cid.Cid][]store.IndexEntry{c: i}
 
 	err = writeResponse(w, out)
