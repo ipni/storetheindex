@@ -24,11 +24,7 @@ func TestPutGetRemove(t *testing.T) {
 
 	// Put a single CID
 	t.Log("Put/Get a single CID in primary storage")
-	ok, err := s.Put(single, p, piece)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
+	if !s.PutCheck(single, p, piece) {
 		t.Fatal("Did not put new single cid")
 	}
 	ents, found, err := s.Get(single)
@@ -43,20 +39,12 @@ func TestPutGetRemove(t *testing.T) {
 	}
 
 	t.Log("Put existing CID provider-piece entry")
-	ok, err = s.Put(single, p, piece)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ok {
+	if s.PutCheck(single, p, piece) {
 		t.Fatal("should not have put new entry")
 	}
 
 	t.Log("Put existing CID and provider with new piece entry")
-	ok, err = s.Put(single, p, otherPiece)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
+	if !s.PutCheck(single, p, otherPiece) {
 		t.Fatal("should have put new entry")
 	}
 
@@ -77,10 +65,7 @@ func TestPutGetRemove(t *testing.T) {
 
 	// Put a batch of CIDs
 	t.Log("Put/Get a batch of CIDs in primary storage")
-	count, err := s.PutMany(batch, p, piece)
-	if err != nil {
-		t.Fatal(err)
-	}
+	count := s.PutManyCount(batch, p, piece)
 	if count == 0 {
 		t.Fatal("Did not put batch of cids")
 	}
@@ -108,11 +93,7 @@ func TestPutGetRemove(t *testing.T) {
 	}
 
 	t.Log("Remove entry for CID")
-	ok, err = s.Remove(single, p, otherPiece)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
+	if !s.RemoveCheck(single, p, otherPiece) {
 		t.Fatal("should have removed entry")
 	}
 
@@ -132,11 +113,7 @@ func TestPutGetRemove(t *testing.T) {
 	}
 
 	t.Log("Remove only entry for CID")
-	ok, err = s.Remove(single, p, piece)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
+	if !s.RemoveCheck(single, p, piece) {
 		t.Fatal("should have removed entry")
 	}
 	_, found, err = s.Get(single)
@@ -147,21 +124,14 @@ func TestPutGetRemove(t *testing.T) {
 		t.Fatal("Should not have found CID with no entries")
 	}
 	t.Log("Remove entry for non-existent CID")
-	ok, err = s.Remove(single, p, piece)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ok {
+	if s.RemoveCheck(single, p, piece) {
 		t.Fatal("should not have removed non-existent entry")
 	}
 
 	cidCount := s.CidCount()
 	t.Log("Remove provider")
-	removed, err := s.RemoveProvider(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if removed < int64(cidCount) {
+	removed := s.RemoveProviderCount(p)
+	if removed < cidCount {
 		t.Fatalf("should have removed at least %d entries, only removed %d", cidCount, removed)
 	}
 	if s.CidCount() != 0 {
@@ -185,11 +155,7 @@ func TestRotate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	count, err := s.PutMany(cids, p, piece)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count == 0 {
+	if s.PutManyCount(cids, p, piece) == 0 {
 		t.Fatal("did not put batch of cids")
 	}
 
@@ -214,11 +180,7 @@ func TestRotate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	count, err = s.PutMany(cids2, p, piece2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count == 0 {
+	if s.PutManyCount(cids2, p, piece2) == 0 {
 		t.Fatal("did not put batch of cids")
 	}
 
