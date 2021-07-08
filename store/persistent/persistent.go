@@ -24,9 +24,23 @@ func New() store.Storage {
 func (s *sthStorage) Get(c cid.Cid) ([]store.IndexEntry, bool) {
 	panic("Not implemented")
 }
-func (s *sthStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
+
+func (s *sthStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) bool {
 	panic("Not implemented")
 }
-func (s *sthStorage) PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) error {
+
+func (s *sthStorage) PutMany(cids []cid.Cid, provID peer.ID, pieceID cid.Cid) int {
+	panic("Not implemented")
+}
+
+func (s *sthStorage) Remove(c cid.Cid, provID peer.ID, pieceID cid.Cid) bool {
+	panic("Not implemented")
+}
+
+func (s *sthStorage) RemoveMany(cids []cid.Cid, provID peer.ID, pieceID cid.Cid) int {
+	panic("Not implemented")
+}
+
+func (s *sthStorage) RemoveProvider(providerID peer.ID) int {
 	panic("Not implemented")
 }
