@@ -1,6 +1,7 @@
 package node
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/filecoin-project/storetheindex/importer"
@@ -106,10 +107,10 @@ func (n *Node) importCallback(c, piece cid.Cid, prov peer.ID) error {
 	// NOTE: We disregard errors for now
 	err := n.primary.Put(c, prov, piece)
 	if err != nil {
-		log.Errorw("Error importing cid", "cid", c, "err", err)
-	} else {
-		// TODO: Change to Debug
-		log.Infow("Imported successfully", "cid", c)
+		log.Errorw("primary storage Put returned error", "err", err, "cid", c)
+		return errors.New("failed to store in primary storage")
 	}
+	// TODO: Change to Debug
+	log.Infow("Imported successfully", "cid", c)
 	return nil
 }
