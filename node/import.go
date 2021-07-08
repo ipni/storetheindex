@@ -104,12 +104,8 @@ func (n *Node) importCallback(c, piece cid.Cid, prov peer.ID) error {
 		return nil
 	}
 	// NOTE: We disregard errors for now
-	err := n.primary.Put(c, prov, piece)
-	if err != nil {
-		log.Errorw("Error importing cid", "cid", c, "err", err)
-	} else {
-		// TODO: Change to Debug
-		log.Infow("Imported successfully", "cid", c)
-	}
+	isNew := n.primary.Put(c, prov, piece)
+	// TODO: Change to Debug
+	log.Infow("Imported successfully", "new", isNew, "cid", c)
 	return nil
 }

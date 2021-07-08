@@ -16,14 +16,21 @@ type IndexEntry struct {
 // same interface. This may change in the future if we want to discern between
 // them more easily, or if we want to introduce additional features to either of them.
 type Storage interface {
-	// Get info for CID from primary storage.
+	// Get retrieves provider-piece info for a CID
 	Get(c cid.Cid) ([]IndexEntry, bool)
-	// Put info for CID in primary storage.
-	Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error
-	// Bulk put in primary storage
-	// NOTE: The interface may change if we see some other function
-	// signature more handy for updating process.
-	PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) error
-	// Remove info for CID
-	Remove(c cid.Cid, provID peer.ID, pieceID cid.Cid) bool
+	// Put stores a provider-piece entry for a CID if the entry is
+	// not already stored.  New entries are added to the entries that are already
+	// there.  Returns true if a new entry was added to the cache.
+	Put(c cid.Cid, providerID peer.ID, pieceID cid.Cid) bool
+	// PutMany stores the provider-piece entry for multiple CIDs.  Returns the
+	// number of new entries stored.
+	PutMany(cs []cid.Cid, providerID peer.ID, pieceID cid.Cid) int
+	// Remove removes a provider-piece entry for a CID
+	Remove(c cid.Cid, providerID peer.ID, pieceID cid.Cid) bool
+	// RemoveMany removes a provider-piece entry from multiple CIDs.  Returns
+	// the number of entries removed.
+	RemoveMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) int
+	// RemoveProvider removes all enrties for specified provider.  This is used
+	// when a provider is no longer indexed by the indexer.
+	RemoveProvider(providerID peer.ID) int
 }
