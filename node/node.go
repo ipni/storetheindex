@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/filecoin-project/storetheindex/store"
-	"github.com/filecoin-project/storetheindex/store/persistent"
 	"github.com/filecoin-project/storetheindex/store/primary"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
@@ -24,9 +23,10 @@ func New(ctx context.Context, cctx *cli.Context) (*Node, error) {
 	e := cctx.String("endpoint")
 
 	n := &Node{
-		doneCh:     make(chan struct{}),
-		primary:    primary.New(1000000),
-		persistent: persistent.New(),
+		doneCh:  make(chan struct{}),
+		primary: primary.New(1000000),
+		// TODO: Initialize persistence
+		// persistent: storethehash.New()...
 	}
 
 	err := n.initAPI(e)

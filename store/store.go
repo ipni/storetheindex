@@ -1,6 +1,8 @@
 package store
 
 import (
+	"encoding/json"
+
 	"github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
@@ -30,4 +32,29 @@ type Storage interface {
 	// RemoveProvider removes all enrties for specified provider.  This is used
 	// when a provider is no longer indexed by the indexer.
 	RemoveProvider(providerID peer.ID) error
+	// Size returns the total storage capacity being used
+	Size() (int64, error)
+}
+
+// StorageFlusher implements a storage interface with Flush capabilities
+// to be used with persistence storage that require commitment of changes
+// on-disk.
+type StorageFlusher interface {
+	Storage
+	// Flush commits changes to storage
+	Flush() error
+}
+
+// Marshal serializes IndexEntry list for storage
+// TODO: Switch from JSON to a more efficient serialization
+// format once we figure out the right data structure?
+func Marshal(li []IndexEntry) ([]byte, error) {
+	return json.Marshal(&li)
+}
+
+// Unmarshal serialized IndexEntry list
+func Unmarshal(b []byte) ([]IndexEntry, error) {
+	li := []IndexEntry{}
+	err := json.Unmarshal(b, &li)
+	return li, err
 }

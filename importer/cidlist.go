@@ -6,17 +6,15 @@ import (
 	"io"
 
 	"github.com/ipfs/go-cid"
-	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
 // CidListImporter reads from a list of CIDs.
 type CidListImporter struct {
 	reader io.Reader
-	miner  peer.ID
 }
 
-func NewCidListImporter(r io.Reader, miner peer.ID) Importer {
-	return CidListImporter{r, miner}
+func NewCidListImporter(r io.Reader) Importer {
+	return CidListImporter{r}
 }
 
 func (i CidListImporter) Read(ctx context.Context, out chan cid.Cid, done chan error) {

@@ -168,7 +168,7 @@ func (s *rtStorage) RemoveProvider(providerID peer.ID) error {
 }
 
 // RemoveProvider removes all enrties for specified provider.  Returns the
-// total number of entries reomved from the cache.
+// total number of entries removed from the cache.
 func (s *rtStorage) RemoveProviderCount(providerID peer.ID) int {
 	var count int
 	for _, cache := range s.cacheSet {
@@ -327,6 +327,10 @@ func removeProviderEntry(tree *radixtree.Bytes, providerID peer.ID) int {
 	}
 
 	return count
+}
+
+func (c *rtStorage) Size() (int64, error) {
+	panic("not implemented")
 }
 
 // Checks if the entry already exists in the index. An entry
