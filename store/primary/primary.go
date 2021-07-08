@@ -168,7 +168,7 @@ func (s *rtStorage) RemoveProvider(providerID peer.ID) error {
 }
 
 // RemoveProvider removes all enrties for specified provider.  Returns the
-// total number of entries reomved from the cache.
+// total number of entries removed from the cache.
 func (s *rtStorage) RemoveProviderCount(providerID peer.ID) int {
 	var count int
 	for _, cache := range s.cacheSet {
@@ -248,7 +248,7 @@ func (c *syncCache) put(k string, entry store.IndexEntry) bool {
 	// NOTE: If we end up having a lot of entries for the
 	// same CID we may choose to change IndexEntry to a map[peer.ID]pieceID
 	// to speed-up this lookup. Don't think is the case right now.
-	if found && store.DuplicateEntry(entry, old) {
+	if found && duplicateEntry(entry, old) {
 		return false
 	}
 

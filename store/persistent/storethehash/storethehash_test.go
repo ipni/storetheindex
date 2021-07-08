@@ -10,7 +10,7 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
-func initSth() (store.Storage, error) {
+func initSth() (store.StorageFlusher, error) {
 	tmpDir, err := ioutil.TempDir("", "sth")
 	if err != nil {
 		return nil, err
@@ -20,7 +20,7 @@ func initSth() (store.Storage, error) {
 
 func TestE2E(t *testing.T) {
 	// Create new valid peer.ID
-	p, err := peer.IDB58Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
+	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestE2E(t *testing.T) {
 
 func TestSize(t *testing.T) {
 	// Init storage
-	p, err := peer.IDB58Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
+	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	if err != nil {
 		t.Fatal(err)
 	}

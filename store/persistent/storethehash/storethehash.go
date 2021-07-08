@@ -13,7 +13,7 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
-var _ store.Storage = &sthStorage{}
+var _ store.StorageFlusher = &sthStorage{}
 
 // TODO: Benchmark and fine-tune for better performance.
 const DefaultIndexSizeBits = uint8(24)
@@ -25,7 +25,7 @@ type sthStorage struct {
 	store *sth.Store
 }
 
-func New(dir string) (store.Storage, error) {
+func New(dir string) (*sthStorage, error) {
 	// NOTE: Using a single file to store index and data.
 	// This may change in the future, and we may choose to set
 	// a max. size to files. Having several files for storage
@@ -47,7 +47,6 @@ func New(dir string) (store.Storage, error) {
 
 func (s *sthStorage) Get(c cid.Cid) ([]store.IndexEntry, bool, error) {
 	return s.get(c.Bytes())
-
 }
 
 func (s *sthStorage) get(k []byte) ([]store.IndexEntry, bool, error) {
@@ -84,7 +83,7 @@ func (s *sthStorage) put(k []byte, in store.IndexEntry) error {
 	}
 	// If found it means there is already a value there.
 	// Check if we are trying to put a duplicate entry
-	if found && store.DuplicateEntry(in, old) {
+	if found && duplicateEntry(in, old) {
 		return nil
 	}
 
@@ -110,11 +109,14 @@ func (s *sthStorage) PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) erro
 	return nil
 }
 
-func (s *sthStorage) Close() {
+func (s *sthStorage) Flush() error {
 	s.store.Flush()
+	return s.store.Err()
 }
 
 func (s *sthStorage) Size() (int64, error) {
+	// NOTE: Should we flush to commit all changes before returning the
+	// size?
 	size := int64(0)
 	fi, err := os.Stat(filepath.Join(s.dir, "storethehash.data"))
 	if err != nil {
@@ -133,4 +135,31 @@ func (s *sthStorage) Size() (int64, error) {
 	size += fi.Size()
 	return size, nil
 
+}
+func (s *sthStorage) Remove(c cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
+	panic("not implemented")
+}
+
+// RemoveMany removes a provider-piece entry from multiple CIDs
+func (s *sthStorage) RemoveMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
+	panic("not implemented")
+}
+
+// RemoveProvider removes all enrties for specified provider.  This is used
+// when a provider is no longer indexed by the indexer.
+func (s *sthStorage) RemoveProvider(providerID peer.ID) error {
+	panic("not implemented")
+}
+
+// DuplicateEntry checks if the entry already exists in the index. An entry
+// for the same provider but a different piece is not considered
+// a duplicate entry (at least for now)
+func duplicateEntry(in store.IndexEntry, old []store.IndexEntry) bool {
+	for i := range old {
+		if in.PieceID == old[i].PieceID &&
+			in.ProvID == old[i].ProvID {
+			return true
+		}
+	}
+	return false
 }

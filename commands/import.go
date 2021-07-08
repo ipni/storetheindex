@@ -41,7 +41,7 @@ var ImportCmd = &cli.Command{
 func importListCmd(c *cli.Context) error {
 	cl := client.New(c)
 	prov := c.String("provider")
-	p, err := peer.IDB58Decode(prov)
+	p, err := peer.Decode(prov)
 	dir := c.String("dir")
 
 	log.Infow("Starting to import from cidlist file")
@@ -67,7 +67,7 @@ func importCarCmd(c *cli.Context) error {
 func importManifestCmd(c *cli.Context) error {
 	cl := client.New(c)
 	prov := c.String("provider")
-	p, err := peer.IDB58Decode(prov)
+	p, err := peer.Decode(prov)
 	dir := c.String("dir")
 
 	log.Infow("Starting to import from Manifest file")

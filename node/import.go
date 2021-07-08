@@ -18,7 +18,7 @@ func (n *Node) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 	// We probably can take it out to its own function to deduplicate.
 	vars := mux.Vars(r)
 	m := vars["minerid"]
-	miner, err := peer.IDB58Decode(m)
+	miner, err := peer.Decode(m)
 	if err != nil {
 		log.Errorw("error decoding miner id into peerID", "miner", m, "err", err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -60,7 +60,7 @@ func (n *Node) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 func (n *Node) ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	m := vars["minerid"]
-	miner, err := peer.IDB58Decode(m)
+	miner, err := peer.Decode(m)
 	if err != nil {
 		log.Errorw("error decoding miner id into peerID", "miner", m, "err", err)
 		w.WriteHeader(http.StatusBadRequest)

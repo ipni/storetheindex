@@ -41,7 +41,7 @@ func prepare(s store.Storage, size string, b *testing.B) {
 	}
 	defer file.Close()
 
-	p, _ := peer.IDB58Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
+	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	imp := importer.NewCidListImporter(file)
 
 	go imp.Read(context.Background(), out, errOut)
@@ -97,7 +97,10 @@ func benchSingleGet(size string, b *testing.B) {
 	m := initMetrics()
 	prepare(s, size, b)
 	read(s, size, m, b)
-	s.Close()
+	err = s.Flush()
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	memSize, _ := s.Size()
 	b.ReportMetric(float64(memSize)/1000000, "MB")

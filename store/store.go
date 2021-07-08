@@ -36,6 +36,15 @@ type Storage interface {
 	Size() (int64, error)
 }
 
+// StorageFlusher implements a storage interface with Flush capabilities
+// to be used with persistence storage that require commitment of changes
+// on-disk.
+type StorageFlusher interface {
+	Storage
+	// Flush commits changes to storage
+	Flush() error
+}
+
 // Marshal serializes IndexEntry list for storage
 // TODO: Switch from JSON to a more efficient serialization
 // format once we figure out the right data structure?
@@ -48,17 +57,4 @@ func Unmarshal(b []byte) ([]IndexEntry, error) {
 	li := []IndexEntry{}
 	err := json.Unmarshal(b, &li)
 	return li, err
-}
-
-// DuplicateEntry checks if the entry already exists in the index. An entry
-// for the same provider but a different piece is not considered
-// a duplicate entry (at least for now)
-func DuplicateEntry(in IndexEntry, old []IndexEntry) bool {
-	for i := range old {
-		if in.PieceID == old[i].PieceID &&
-			in.ProvID == old[i].ProvID {
-			return true
-		}
-	}
-	return false
 }
