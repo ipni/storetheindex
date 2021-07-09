@@ -7,7 +7,8 @@ import (
 )
 
 // concurrrency is the lock granularity for radixtree. Must be power of two.
-const concurrency = 8
+// This can be adjusted, but testing seems to indicate 16 is a good balance.
+const concurrency = 16
 
 var _ store.Storage = &rtStorage{}
 
@@ -61,6 +62,12 @@ func (s *rtStorage) Put(c cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
 // PutCheck stores a provider-piece entry for a CID if the entry is not already
 // stored.  New entries are added to the entries that are already there.
 // Returns true if a new entry was added to the cache.
+//
+// Only rotate one cache at a time. This may leave older entries in other
+// caches, but if CIDs are dirstributed evenly over the cache set then over
+// time all members should be rotated the same amount on average.  This is done
+// so that it is not necessary to lock all caches in order to perform a
+// rotation.  This also means that items age out more incrementally.
 func (s *rtStorage) PutCheck(c cid.Cid, providerID peer.ID, pieceID cid.Cid) bool {
 	in := store.IndexEntry{ProvID: providerID, PieceID: pieceID}
 	k := cidToKey(c)
@@ -75,30 +82,38 @@ func (s *rtStorage) PutMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid)
 }
 
 // PutManyCount stores the provider-piece entry for multiple CIDs.  Returns the
-// number of new entries stored.
+// number of new entries stored.  A new entry is counted whenever an IndexEntry
+// is added to the list of entries for a CID, whether or not that CID was
+// already in the cache.
 func (s *rtStorage) PutManyCount(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) int {
-	in := store.IndexEntry{ProvID: providerID, PieceID: pieceID}
 	var stored int
-
+	var reuseEnt *store.IndexEntry
 	interns := make(map[*syncCache]*store.IndexEntry, len(s.cacheSet))
 
-	// This seems to be about where it becomes faster to use putMany concurrently
 	for i := range cids {
 		k := cidToKey(cids[i])
 		cache := s.getCache(k)
 		ent, ok := interns[cache]
 		if !ok {
-			// TODO: this needs to be revisited
+			// Intern the entry once for this cache to avoid repeared lookups
+			// on every call to cache.put().  If the entry is not already
+			// interned for the cache, then reuse an entry that is already
+			// interned elsewhere.
 			cache.mutex.Lock()
-			ent = cache.internEntry(in)
+			if reuseEnt == nil {
+				ent = cache.internEntry(&store.IndexEntry{ProvID: providerID, PieceID: pieceID})
+				reuseEnt = ent
+			} else {
+				ent = cache.internEntry(reuseEnt)
+			}
 			cache.mutex.Unlock()
 			interns[cache] = ent
 		}
 		if cache.putInterned(k, ent, s.rotateSize) {
 			stored++
 		}
-
 	}
+
 	return stored
 }
 
@@ -160,26 +175,25 @@ func (s *rtStorage) RemoveProviderCount(providerID peer.ID) int {
 	return total
 }
 
-func (s *rtStorage) CidCount() int {
-	countChan := make(chan int)
+func (s *rtStorage) Stats() CacheStats {
+	statsChan := make(chan CacheStats)
 	for _, cache := range s.cacheSet {
-		go func(c *syncCache) {
-			countChan <- c.cidCount()
+		go func(cache *syncCache) {
+			statsChan <- cache.stats()
 		}(cache)
 	}
-	var total int
-	for i := 0; i < len(s.cacheSet); i++ {
-		total += <-countChan
-	}
-	return total
-}
 
-func (s *rtStorage) RotationCount() int {
-	var total int
-	for _, cache := range s.cacheSet {
-		total += cache.rotationCount()
+	var totalStats CacheStats
+	for i := 0; i < len(s.cacheSet); i++ {
+		stats := <-statsChan
+		totalStats.Cids += stats.Cids
+		totalStats.Values += stats.Values
+		totalStats.UniqueValues += stats.UniqueValues
+		totalStats.InternedValues += stats.InternedValues
+		totalStats.Rotations += stats.Rotations
 	}
-	return total
+
+	return totalStats
 }
 
 // getCache returns the cache that stores the given key.  This function must

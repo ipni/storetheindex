@@ -11,14 +11,27 @@ import (
 // syncCache is a rotatable cache. Multiples instances may be used to decrease
 // concurrent access collision.
 type syncCache struct {
-	current   *radixtree.Bytes
-	previous  *radixtree.Bytes
-	curEnts   *radixtree.Bytes
-	prevEnts  *radixtree.Bytes
+	// CID -> IndexEntry
+	current  *radixtree.Bytes
+	previous *radixtree.Bytes
+
+	// IndexEntery interning
+	curEnts  *radixtree.Bytes
+	prevEnts *radixtree.Bytes
+
 	mutex     sync.Mutex
 	rotations int
 }
 
+type CacheStats struct {
+	Cids           int
+	Values         int
+	UniqueValues   int
+	InternedValues int
+	Rotations      int
+}
+
+// newSyncCache created a new syncCache instance
 func newSyncCache() *syncCache {
 	return &syncCache{
 		current: radixtree.New(),
@@ -26,21 +39,50 @@ func newSyncCache() *syncCache {
 	}
 }
 
-func (c *syncCache) cidCount() int {
+// stats returns the following:
+//   - Number of CIDs stored in cache
+//   - Number of IntexEentry values for all CIDs
+//   - Number of unique IndexEntry values
+//   - Number of interned IndexEntry values
+//   - Number of cache rotations
+//
+// The number of unique and interred IndexEntry objects will be the same unless
+// items have been removed from cache.
+func (c *syncCache) stats() CacheStats {
+	unique := make(map[*store.IndexEntry]struct{})
+	var cidCount, valCount, interned int
+
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	size := c.current.Len()
-	if c.previous != nil {
-		size += c.previous.Len()
+	walkFunc := func(k string, v interface{}) bool {
+		values := v.([]*store.IndexEntry)
+		valCount += len(values)
+		for _, val := range values {
+			unique[val] = struct{}{}
+		}
+		return false
 	}
-	return size
-}
 
-func (c *syncCache) rotationCount() int {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	return c.rotations
+	cidCount = c.current.Len()
+	c.current.Walk("", walkFunc)
+	if c.previous != nil {
+		cidCount += c.previous.Len()
+		c.previous.Walk("", walkFunc)
+	}
+
+	interned = c.curEnts.Len()
+	if c.prevEnts != nil {
+		interned += c.prevEnts.Len()
+	}
+
+	return CacheStats{
+		Cids:           cidCount,
+		Values:         valCount,
+		UniqueValues:   len(unique),
+		InternedValues: interned,
+		Rotations:      c.rotations,
+	}
 }
 
 func (c *syncCache) get(k string) ([]*store.IndexEntry, bool) {
@@ -67,12 +109,12 @@ func (c *syncCache) getNoLock(k string) ([]*store.IndexEntry, bool) {
 		// cache to keep using the same pointers as the va used in the cache
 		// values that get pulled forward.
 		values := v.([]*store.IndexEntry)
-		for _, val := range values {
-			c.internEntry(*val)
+		for i, val := range values {
+			values[i] = c.internEntry(val)
 		}
 
 		// Move the value found in the previous tree into the current one.
-		c.current.Put(k, v)
+		c.current.Put(k, values)
 		c.previous.Delete(k)
 	}
 	return v.([]*store.IndexEntry), true
@@ -86,26 +128,16 @@ func (c *syncCache) put(k string, entry store.IndexEntry, rotateSize int) bool {
 
 	// Get from current or previous cache
 	old, found := c.getNoLock(k)
-	// If found it means there is already a value there.
-	// Check if we are trying to put a duplicate entry
-	// NOTE: If we end up having a lot of entries for the
-	// same CID we may choose to change IndexEntry to a map[peer.ID]pieceID
-	// to speed-up this lookup. Don't think is the case right now.
+	// If found values(s) then check the value to put is already there.
 	if found && duplicateEntry(entry, old) {
 		return false
 	}
 
 	if c.current.Len() >= rotateSize {
-		// Only rotate one cache at a time. This may leave older entries in
-		// other caches, but if CIDs are dirstributed evenly over the cache set
-		// then over time all members should be rotated the same amount on
-		// average.  This is done so that it is not necessary to lock all
-		// caches in order to perform a rotation.  This also means that items
-		// age out more incrementally.
 		c.rotate()
 	}
 
-	c.current.Put(k, append(old, c.internEntry(entry)))
+	c.current.Put(k, append(old, c.internEntry(&entry)))
 	return true
 }
 
@@ -139,7 +171,7 @@ func (c *syncCache) putMany(keys []string, entry store.IndexEntry, rotateSize in
 			continue
 		}
 		if ent == nil {
-			ent = c.internEntry(entry)
+			ent = c.internEntry(&entry)
 		}
 		c.current.Put(k, append(old, ent))
 		count++
@@ -184,8 +216,8 @@ func (c *syncCache) rotate() {
 	c.rotations++
 }
 
-func (c *syncCache) internEntry(entry store.IndexEntry) *store.IndexEntry {
-	k := entry.ProvID.String() + cidToKey(entry.PieceID)
+func (c *syncCache) internEntry(entry *store.IndexEntry) *store.IndexEntry {
+	k := string(entry.ProvID) + cidToKey(entry.PieceID)
 	v, found := c.curEnts.Get(k)
 	if !found {
 		if c.prevEnts != nil {
@@ -198,9 +230,8 @@ func (c *syncCache) internEntry(entry store.IndexEntry) *store.IndexEntry {
 			}
 		}
 		// Intern new entry
-		newEntry := &entry
-		c.curEnts.Put(k, newEntry)
-		return newEntry
+		c.curEnts.Put(k, entry)
+		return entry
 	}
 	// Found existing interned entry
 	return v.(*store.IndexEntry)
@@ -258,9 +289,8 @@ func removeProviderEntries(tree *radixtree.Bytes, providerID peer.ID) int {
 }
 
 func removeProviderInterns(tree *radixtree.Bytes, providerID peer.ID) {
-	// tree.DeletePrefix(providerID.String())
 	var deletes []string
-	tree.Walk(providerID.String(), func(k string, v interface{}) bool {
+	tree.Walk(string(providerID), func(k string, v interface{}) bool {
 		deletes = append(deletes, k)
 		return false
 	})

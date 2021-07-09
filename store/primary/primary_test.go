@@ -131,13 +131,14 @@ func TestPutGetRemove(t *testing.T) {
 		t.Fatal("should not have removed non-existent entry")
 	}
 
-	cidCount := s.CidCount()
+	stats := s.Stats()
 	t.Log("Remove provider")
 	removed := s.RemoveProviderCount(p)
-	if removed < cidCount {
-		t.Fatalf("should have removed at least %d entries, only removed %d", cidCount, removed)
+	if removed < stats.Cids {
+		t.Fatalf("should have removed at least %d entries, only removed %d", stats.Cids, removed)
 	}
-	if s.CidCount() != 0 {
+	stats = s.Stats()
+	if stats.Cids != 0 {
 		t.Fatal("should have 0 size after removing only provider")
 	}
 }
@@ -236,14 +237,43 @@ func TestMem1024K(t *testing.T) {
 	runtime.GC()
 	runtime.ReadMemStats(&m)
 	t.Log("Alloc after GC: ", m.Alloc)
-	t.Log("Items in cache:", s.CidCount())
-	t.Log("Rotations:", s.RotationCount())
+	stats := s.Stats()
+	t.Log("Rotations:", stats.Rotations)
+	t.Log("Items in cache:", stats.Cids)
+	t.Log("Values:", stats.Values)
+	t.Log("Unique Values:", stats.UniqueValues)
+	t.Log("Interned Values:", stats.InternedValues)
 }
 
-func skipUnlessMemUse(t *testing.T) {
-	if os.Getenv("TEST_MEM_USE") == "" {
-		t.SkipNow()
+func TestMemSingle1024K(t *testing.T) {
+	skipUnlessMemUse(t)
+
+	cids, err := utils.RandomCids(1)
+	if err != nil {
+		panic(err)
 	}
+	piece := cids[0]
+
+	s := New(1024 * 1064)
+	for i := 0; i < 1024; i++ {
+		cids, _ = utils.RandomCids(1024)
+		for j := range cids {
+			s.PutCheck(cids[j], p, piece)
+		}
+	}
+
+	m := runtime.MemStats{}
+	runtime.ReadMemStats(&m)
+	t.Log("Alloc before GC:", m.Alloc)
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	t.Log("Alloc after GC: ", m.Alloc)
+	stats := s.Stats()
+	t.Log("Rotations:", stats.Rotations)
+	t.Log("Items in cache:", stats.Cids)
+	t.Log("Values:", stats.Values)
+	t.Log("Unique Values:", stats.UniqueValues)
+	t.Log("Interned Values:", stats.InternedValues)
 }
 
 func BenchmarkPut(b *testing.B) {
@@ -331,5 +361,11 @@ func BenchmarkGet(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+func skipUnlessMemUse(t *testing.T) {
+	if os.Getenv("TEST_MEM_USE") == "" {
+		t.SkipNow()
 	}
 }
