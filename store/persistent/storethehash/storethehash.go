@@ -137,30 +137,42 @@ func (s *sthStorage) Size() (int64, error) {
 
 }
 func (s *sthStorage) Remove(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
+	_, err := s.remove(c, provID, pieceID)
+	return err
+}
+
+func (s *sthStorage) remove(c cid.Cid, provID peer.ID, pieceID cid.Cid) (bool, error) {
 	in := store.IndexEntry{ProvID: provID, PieceID: pieceID}
 	k := c.Bytes()
 	old, found, err := s.get(k)
 	if err != nil {
-		return err
+		return false, err
 	}
 	// If found it means there is a value for the cid
 	// check if there is something to remove.
 	if found {
-		_, err := s.removeEntry(k, in, old)
-		return err
+		return s.removeEntry(k, in, old)
 	}
-	return nil
-	// panic("not implemented")
+	return false, nil
 }
 
-// RemoveMany removes a provider-piece entry from multiple CIDs
-func (s *sthStorage) RemoveMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
-	panic("not implemented")
+func (s *sthStorage) RemoveMany(cids []cid.Cid, provID peer.ID, pieceID cid.Cid) error {
+	for i := range cids {
+		_, err := s.remove(cids[i], provID, pieceID)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RemoveProvider removes all enrties for specified provider.  This is used
 // when a provider is no longer indexed by the indexer.
 func (s *sthStorage) RemoveProvider(providerID peer.ID) error {
+	// NOTE: There is no straightforward way of implementing this
+	// batch remove. We can either regenerate the index from
+	// the original data, or iterate through the whole the whole primary storage
+	// inspecting all entries for the provider in cids.
 	panic("not implemented")
 }
 
