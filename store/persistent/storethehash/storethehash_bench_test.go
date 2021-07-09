@@ -31,6 +31,34 @@ func BenchmarkSingle1GB(b *testing.B) {
 	benchSingleGet("1GB", b)
 }
 
+func BenchmarkParallel10KB(b *testing.B) {
+	benchSingleGet("10KB", b)
+}
+
+func BenchmarkParallel10MB(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			BenchmarkSingle10MB(b)
+		}
+	})
+}
+
+func BenchmarkParallel100MB(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			BenchmarkSingle100MB(b)
+		}
+	})
+}
+
+func BenchmarkParallel1GB(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			BenchmarkSingle100MB(b)
+		}
+	})
+}
+
 func prepare(s store.Storage, size string, b *testing.B) {
 	out := make(chan cid.Cid)
 	errOut := make(chan error, 1)
