@@ -40,6 +40,7 @@ func TestE2E(t *testing.T) {
 	single := cids[1]
 	noadd := cids[2]
 	batch := cids[3:]
+	remove := cids[3]
 
 	// Put a single CID
 	t.Logf("Put/Get a single CID in primary storage")
@@ -114,12 +115,12 @@ func TestE2E(t *testing.T) {
 
 	// Put a single CID
 	t.Logf("Remove key")
-	err = s.Remove(single, p, piece)
+	err = s.Remove(remove, p, piece)
 	if err != nil {
 		t.Fatal("Error putting single cid: ", err)
 	}
 
-	_, found, err = s.Get(single)
+	i, found, err = s.Get(remove)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +128,21 @@ func TestE2E(t *testing.T) {
 		t.Errorf("cid should have been removed")
 	}
 
-	// TODO: Test removing a an entry from the key
+	// Remove an entry from the key
+	err = s.Remove(single, p, piece)
+	if err != nil {
+		t.Fatal("Error putting single cid: ", err)
+	}
+	i, found, err = s.Get(single)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found {
+		t.Errorf("cid should still have one entry")
+	}
+	if len(i) != 1 {
+		t.Errorf("wrong number of entries after remove")
+	}
 
 }
 
