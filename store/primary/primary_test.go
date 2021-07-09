@@ -1,6 +1,9 @@
 package primary
 
 import (
+	"fmt"
+	"os"
+	"runtime"
 	"testing"
 
 	"github.com/filecoin-project/storetheindex/utils"
@@ -209,5 +212,124 @@ func TestRotate(t *testing.T) {
 	}
 	if found {
 		t.Error("cid should have been rotated out of cache")
+	}
+}
+
+func TestMem1024K(t *testing.T) {
+	skipUnlessMemUse(t)
+
+	cids, err := utils.RandomCids(1)
+	if err != nil {
+		panic(err)
+	}
+	piece := cids[0]
+
+	s := New(1024 * 1064)
+	for i := 0; i < 1024; i++ {
+		cids, _ = utils.RandomCids(1024)
+		s.PutManyCount(cids, p, piece)
+	}
+
+	m := runtime.MemStats{}
+	runtime.ReadMemStats(&m)
+	t.Log("Alloc before GC:", m.Alloc)
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	t.Log("Alloc after GC: ", m.Alloc)
+	t.Log("Items in cache:", s.CidCount())
+	t.Log("Rotations:", s.RotationCount())
+}
+
+func skipUnlessMemUse(t *testing.T) {
+	if os.Getenv("TEST_MEM_USE") == "" {
+		t.SkipNow()
+	}
+}
+
+func BenchmarkPut(b *testing.B) {
+	cids, err := utils.RandomCids(1)
+	if err != nil {
+		panic(err)
+	}
+	piece := cids[0]
+
+	cids, _ = utils.RandomCids(10240)
+
+	b.Run("Put single", func(b *testing.B) {
+		s := New(8192)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			err = s.Put(cids[i%len(cids)], p, piece)
+			if err != nil {
+				panic(err)
+			}
+		}
+	})
+
+	for testCount := 1024; testCount < len(cids); testCount *= 2 {
+		b.Run(fmt.Sprint("Put", testCount), func(b *testing.B) {
+			s := New(8192)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				for j := 0; j < testCount; j++ {
+					err = s.Put(cids[j], p, piece)
+					if err != nil {
+						panic(err)
+					}
+				}
+			}
+		})
+
+		b.Run(fmt.Sprint("PutMany", testCount), func(b *testing.B) {
+			s := New(8192)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				err = s.PutMany(cids[:testCount], p, piece)
+				if err != nil {
+					panic(err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkGet(b *testing.B) {
+	cids, err := utils.RandomCids(1)
+	if err != nil {
+		panic(err)
+	}
+	piece := cids[0]
+
+	s := New(8192)
+	cids, _ = utils.RandomCids(4096)
+	s.PutMany(cids, p, piece)
+
+	b.Run("Get single", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, ok, _ := s.Get(cids[i%len(cids)])
+			if !ok {
+				panic("missing cid")
+			}
+		}
+	})
+
+	for testCount := 1024; testCount < 10240; testCount *= 2 {
+		b.Run(fmt.Sprint("Get", testCount), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				for j := 0; j < testCount; j++ {
+					_, ok, _ := s.Get(cids[j%len(cids)])
+					if !ok {
+						panic("missing cid")
+					}
+				}
+			}
+		})
 	}
 }
