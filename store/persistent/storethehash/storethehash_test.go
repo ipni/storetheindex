@@ -109,6 +109,26 @@ func TestE2E(t *testing.T) {
 	if found {
 		t.Errorf("Error, the key for the cid shouldn't be set")
 	}
+
+	// Remove a key
+
+	// Put a single CID
+	t.Logf("Remove key")
+	err = s.Remove(single, p, piece)
+	if err != nil {
+		t.Fatal("Error putting single cid: ", err)
+	}
+
+	_, found, err = s.Get(single)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found {
+		t.Errorf("cid should have been removed")
+	}
+
+	// TODO: Test removing a an entry from the key
+
 }
 
 func TestSize(t *testing.T) {

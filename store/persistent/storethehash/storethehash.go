@@ -136,8 +136,21 @@ func (s *sthStorage) Size() (int64, error) {
 	return size, nil
 
 }
-func (s *sthStorage) Remove(c cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
-	panic("not implemented")
+func (s *sthStorage) Remove(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
+	in := store.IndexEntry{ProvID: provID, PieceID: pieceID}
+	k := c.Bytes()
+	old, found, err := s.get(k)
+	if err != nil {
+		return err
+	}
+	// If found it means there is a value for the cid
+	// check if there is something to remove.
+	if found {
+		_, err := s.removeEntry(k, in, old)
+		return err
+	}
+	return nil
+	// panic("not implemented")
 }
 
 // RemoveMany removes a provider-piece entry from multiple CIDs
@@ -162,4 +175,28 @@ func duplicateEntry(in store.IndexEntry, old []store.IndexEntry) bool {
 		}
 	}
 	return false
+}
+
+func (s *sthStorage) removeEntry(k []byte, entry store.IndexEntry, stored []store.IndexEntry) (bool, error) {
+	for i := range stored {
+		if entry.PieceID == stored[i].PieceID &&
+			entry.ProvID == stored[i].ProvID {
+			// It is the only value, remove the entry
+			if len(stored) == 1 {
+				return s.store.Remove(k)
+			} else {
+				stored[i] = stored[len(stored)-1]
+				stored[len(stored)-1] = store.IndexEntry{}
+				b, err := store.Marshal(stored[:len(stored)-1])
+				if err != nil {
+					return false, err
+				}
+				if err := s.store.Put(k, b); err != nil {
+					return false, err
+				}
+			}
+			return true, nil
+		}
+	}
+	return false, nil
 }
