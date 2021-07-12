@@ -16,41 +16,6 @@ import (
 const testDataDir = "../../test_data/"
 const testDataExt = ".data"
 
-/*
-func BenchmarkSingle10KB(b *testing.B) {
-	benchSingleGet("10KB", b)
-}
-
-func BenchmarkSingle10MB(b *testing.B) {
-	benchSingleGet("10MB", b)
-}
-
-func BenchmarkSingle100MB(b *testing.B) {
-	benchSingleGet("100MB", b)
-}
-
-func BenchmarkSingle1GB(b *testing.B) {
-	benchSingleGet("1GB", b)
-}
-
-func BenchmarkParallel10KB(b *testing.B) {
-	benchParallelGet("10KB", b)
-}
-
-func BenchmarkParallel10MB(b *testing.B) {
-	benchParallelGet("10MB", b)
-}
-
-func BenchmarkParallel100MB(b *testing.B) {
-	benchParallelGet("100MB", b)
-}
-
-func BenchmarkParallel1GB(b *testing.B) {
-
-	benchParallelGet("1GB", b)
-}
-*/
-
 func prepare(s store.Storage, size string, b *testing.B) {
 	out := make(chan cid.Cid)
 	errOut := make(chan error, 1)
