@@ -197,16 +197,17 @@ func (s *sthStorage) removeEntry(k []byte, entry store.IndexEntry, stored []stor
 			// It is the only value, remove the entry
 			if len(stored) == 1 {
 				return s.store.Remove(k)
-			} else {
-				stored[i] = stored[len(stored)-1]
-				stored[len(stored)-1] = store.IndexEntry{}
-				b, err := store.Marshal(stored[:len(stored)-1])
-				if err != nil {
-					return false, err
-				}
-				if err := s.store.Put(k, b); err != nil {
-					return false, err
-				}
+			}
+
+			// else remove from entry and put updated structure
+			stored[i] = stored[len(stored)-1]
+			stored[len(stored)-1] = store.IndexEntry{}
+			b, err := store.Marshal(stored[:len(stored)-1])
+			if err != nil {
+				return false, err
+			}
+			if err := s.store.Put(k, b); err != nil {
+				return false, err
 			}
 			return true, nil
 		}
