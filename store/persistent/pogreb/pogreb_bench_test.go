@@ -1,4 +1,4 @@
-package storethehash_test
+package pogreb_test
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ const testDataDir = "../../test_data/"
 const testDataExt = ".data"
 
 func initBenchStore(b *testing.B) store.StorageFlusher {
-	s, err := initSth()
+	s, err := initPogreb()
 	if err != nil {
 		b.Fatal(err)
 	}

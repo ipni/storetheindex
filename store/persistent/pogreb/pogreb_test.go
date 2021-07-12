@@ -1,4 +1,4 @@
-package storethehash_test
+package pogreb_test
 
 import (
 	"io/ioutil"
@@ -6,19 +6,19 @@ import (
 
 	"github.com/filecoin-project/storetheindex/store"
 	"github.com/filecoin-project/storetheindex/store/persistent"
-	"github.com/filecoin-project/storetheindex/store/persistent/storethehash"
+	"github.com/filecoin-project/storetheindex/store/persistent/pogreb"
 )
 
-func initSth() (store.StorageFlusher, error) {
+func initPogreb() (store.StorageFlusher, error) {
 	tmpDir, err := ioutil.TempDir("", "sth")
 	if err != nil {
 		return nil, err
 	}
-	return storethehash.New(tmpDir)
+	return pogreb.New(tmpDir)
 }
 
 func TestE2E(t *testing.T) {
-	s, err := initSth()
+	s, err := initPogreb()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestE2E(t *testing.T) {
 }
 
 func TestSize(t *testing.T) {
-	s, err := initSth()
+	s, err := initPogreb()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestSize(t *testing.T) {
 }
 
 func TestRemoveMany(t *testing.T) {
-	s, err := initSth()
+	s, err := initPogreb()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,6 +3,7 @@ module github.com/filecoin-project/storetheindex
 go 1.16
 
 require (
+	github.com/akrylysov/pogreb v0.10.1
 	github.com/filecoin-project/dealbot v0.0.15
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.1.0
 	github.com/gammazero/radixtree v0.2.3
