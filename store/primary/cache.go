@@ -170,15 +170,16 @@ func (c *syncCache) putMany(keys []string, entry store.IndexEntry, rotateSize in
 		if found && duplicateEntry(entry, old) {
 			continue
 		}
+
+		if c.current.Len() > rotateSize {
+			c.rotate()
+		}
+
 		if ent == nil {
 			ent = c.internEntry(&entry)
 		}
 		c.current.Put(k, append(old, ent))
 		count++
-	}
-
-	if c.current.Len() > rotateSize {
-		c.rotate()
 	}
 
 	return count
