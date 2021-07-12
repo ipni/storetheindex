@@ -1,34 +1,21 @@
 package primary
 
 import (
-	"sync"
-
 	"github.com/filecoin-project/storetheindex/store"
-	"github.com/gammazero/radixtree"
 	"github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
 // concurrrency is the lock granularity for radixtree. Must be power of two.
+// This can be adjusted, but testing seems to indicate 16 is a good balance.
 const concurrency = 16
 
 var _ store.Storage = &rtStorage{}
-
-// syncCache is a rotatable cache. Multiples instances may be used to decrease
-// concurrent access collision.
-type syncCache struct {
-	current   *radixtree.Bytes
-	previous  *radixtree.Bytes
-	mutex     sync.Mutex
-	rotations int
-}
 
 // rtStorage is Adaptive Radix Tree based primary storage
 type rtStorage struct {
 	cacheSet   []*syncCache
 	rotateSize int
-
-	//providerPieces *radixtree.Bytes
 }
 
 // cidToKey gets the multihash from a CID to be used as a cache key
@@ -42,9 +29,7 @@ func New(size int) *rtStorage {
 	}
 	cacheSet := make([]*syncCache, cacheSetSize)
 	for i := range cacheSet {
-		cacheSet[i] = &syncCache{
-			current: radixtree.New(),
-		}
+		cacheSet[i] = newSyncCache()
 	}
 	return &rtStorage{
 		cacheSet:   cacheSet,
@@ -55,13 +40,18 @@ func New(size int) *rtStorage {
 func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool, error) {
 	// Keys indexed as multihash
 	k := cidToKey(c)
-
 	cache := s.getCache(k)
-	cache.lock()
-	defer cache.unlock()
 
 	ents, found := cache.get(k)
-	return ents, found, nil
+	if !found {
+		return nil, false, nil
+	}
+
+	ret := make([]store.IndexEntry, len(ents))
+	for i, v := range ents {
+		ret[i] = *v
+	}
+	return ret, true, nil
 }
 
 func (s *rtStorage) Put(c cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
@@ -72,25 +62,18 @@ func (s *rtStorage) Put(c cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
 // PutCheck stores a provider-piece entry for a CID if the entry is not already
 // stored.  New entries are added to the entries that are already there.
 // Returns true if a new entry was added to the cache.
+//
+// Only rotate one cache at a time. This may leave older entries in other
+// caches, but if CIDs are dirstributed evenly over the cache set then over
+// time all members should be rotated the same amount on average.  This is done
+// so that it is not necessary to lock all caches in order to perform a
+// rotation.  This also means that items age out more incrementally.
 func (s *rtStorage) PutCheck(c cid.Cid, providerID peer.ID, pieceID cid.Cid) bool {
 	in := store.IndexEntry{ProvID: providerID, PieceID: pieceID}
 	k := cidToKey(c)
 
 	cache := s.getCache(k)
-	cache.lock()
-	stored := cache.put(k, in)
-	if stored && cache.current.Len() > s.rotateSize {
-		// Only rotate one cache at a time. This may leave older entries in
-		// other caches, but if CIDs are dirstributed evenly over the cache set
-		// then over time all members should be rotated the same amount on
-		// average.  This is done so that it is not necessary to lock all
-		// caches in order to perform a rotation.  This also means that items
-		// age out more incrementally.
-		cache.rotate()
-	}
-	cache.unlock()
-
-	return stored
+	return cache.put(k, in, s.rotateSize)
 }
 
 func (s *rtStorage) PutMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
@@ -99,22 +82,36 @@ func (s *rtStorage) PutMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid)
 }
 
 // PutManyCount stores the provider-piece entry for multiple CIDs.  Returns the
-// number of new entries stored.
+// number of new entries stored.  A new entry is counted whenever an IndexEntry
+// is added to the list of entries for a CID, whether or not that CID was
+// already in the cache.
 func (s *rtStorage) PutManyCount(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) int {
 	var stored int
-	in := store.IndexEntry{ProvID: providerID, PieceID: pieceID}
+	var reuseEnt *store.IndexEntry
+	interns := make(map[*syncCache]*store.IndexEntry, len(s.cacheSet))
 
 	for i := range cids {
 		k := cidToKey(cids[i])
 		cache := s.getCache(k)
-		cache.lock()
-		if cache.put(k, in) {
-			stored++
-			if cache.current.Len() > s.rotateSize {
-				cache.rotate()
+		ent, ok := interns[cache]
+		if !ok {
+			// Intern the entry once for this cache to avoid repeared lookups
+			// on every call to cache.put().  If the entry is not already
+			// interned for the cache, then reuse an entry that is already
+			// interned elsewhere.
+			cache.mutex.Lock()
+			if reuseEnt == nil {
+				ent = cache.internEntry(&store.IndexEntry{ProvID: providerID, PieceID: pieceID})
+				reuseEnt = ent
+			} else {
+				ent = cache.internEntry(reuseEnt)
 			}
+			cache.mutex.Unlock()
+			interns[cache] = ent
 		}
-		cache.unlock()
+		if cache.putInterned(k, ent, s.rotateSize) {
+			stored++
+		}
 	}
 
 	return stored
@@ -132,9 +129,6 @@ func (s *rtStorage) RemoveCheck(c cid.Cid, providerID peer.ID, pieceID cid.Cid) 
 	k := cidToKey(c)
 
 	cache := s.getCache(k)
-	cache.lock()
-	defer cache.unlock()
-
 	return cache.remove(k, in)
 }
 
@@ -152,41 +146,54 @@ func (s *rtStorage) RemoveManyCount(cids []cid.Cid, providerID peer.ID, pieceID 
 	for i := range cids {
 		k := cidToKey(cids[i])
 		cache := s.getCache(k)
-		cache.lock()
 		if cache.remove(k, in) {
 			removed++
 		}
-		cache.unlock()
 	}
 
 	return removed
 }
 
 func (s *rtStorage) RemoveProvider(providerID peer.ID) error {
-	s.RemoveProvider(providerID)
+	s.RemoveProviderCount(providerID)
 	return nil
 }
 
 // RemoveProvider removes all enrties for specified provider.  Returns the
 // total number of entries removed from the cache.
 func (s *rtStorage) RemoveProviderCount(providerID peer.ID) int {
-	var count int
+	countChan := make(chan int)
 	for _, cache := range s.cacheSet {
-		cache.lock()
-		count += cache.removeProvider(providerID)
-		cache.unlock()
+		go func(c *syncCache) {
+			countChan <- c.removeProvider(providerID)
+		}(cache)
 	}
-	return count
+	var total int
+	for i := 0; i < len(s.cacheSet); i++ {
+		total += <-countChan
+	}
+	return total
 }
 
-func (s *rtStorage) CidCount() int {
-	var count int
+func (s *rtStorage) Stats() CacheStats {
+	statsChan := make(chan CacheStats)
 	for _, cache := range s.cacheSet {
-		cache.lock()
-		count += cache.cidCount()
-		cache.unlock()
+		go func(cache *syncCache) {
+			statsChan <- cache.stats()
+		}(cache)
 	}
-	return count
+
+	var totalStats CacheStats
+	for i := 0; i < len(s.cacheSet); i++ {
+		stats := <-statsChan
+		totalStats.Cids += stats.Cids
+		totalStats.Values += stats.Values
+		totalStats.UniqueValues += stats.UniqueValues
+		totalStats.InternedValues += stats.InternedValues
+		totalStats.Rotations += stats.Rotations
+	}
+
+	return totalStats
 }
 
 // getCache returns the cache that stores the given key.  This function must
@@ -202,146 +209,6 @@ func (s *rtStorage) getCache(k string) *syncCache {
 	return s.cacheSet[idx]
 }
 
-func (c *syncCache) lock()   { c.mutex.Lock() }
-func (c *syncCache) unlock() { c.mutex.Unlock() }
-func (c *syncCache) cidCount() int {
-	size := c.current.Len()
-	if c.previous != nil {
-		size += c.previous.Len()
-	}
-	return size
-}
-
-func (c *syncCache) get(k string) ([]store.IndexEntry, bool) {
-	// Search current cache
-	v, found := c.current.Get(k)
-	if found {
-		return v.([]store.IndexEntry), found
-	}
-
-	if c.previous == nil {
-		return nil, false
-	}
-
-	// Search previous if not found in current
-	v, found = c.previous.Get(k)
-
-	// If nothing has been found return nil
-	if !found {
-		return nil, false
-	}
-
-	// Move the value found in the previous tree into the current one.
-	c.current.Put(k, v)
-	c.previous.Delete(k)
-
-	return v.([]store.IndexEntry), found
-}
-
-// put stores an entry in the cache if the entry is not already stored.
-// Returns true if a new entry was added to the cache.
-func (c *syncCache) put(k string, entry store.IndexEntry) bool {
-	// Get from current or previous cache
-	old, found := c.get(k)
-	// If found it means there is already a value there.
-	// Check if we are trying to put a duplicate entry
-	// NOTE: If we end up having a lot of entries for the
-	// same CID we may choose to change IndexEntry to a map[peer.ID]pieceID
-	// to speed-up this lookup. Don't think is the case right now.
-	if found && duplicateEntry(entry, old) {
-		return false
-	}
-
-	c.current.Put(k, append(old, entry))
-	return true
-}
-
-func (c *syncCache) remove(k string, entry store.IndexEntry) bool {
-	removed := removeEntry(c.current, k, entry)
-	if c.previous != nil && removeEntry(c.previous, k, entry) {
-		removed = true
-	}
-	return removed
-}
-
-func (c *syncCache) removeProvider(providerID peer.ID) int {
-	count := removeProviderEntry(c.current, providerID)
-	if c.previous != nil {
-		count += removeProviderEntry(c.previous, providerID)
-	}
-	return count
-}
-
-func (c *syncCache) rotate() {
-	c.previous, c.current = c.current, radixtree.New()
-	c.rotations++
-}
-
-func removeEntry(tree *radixtree.Bytes, k string, entry store.IndexEntry) bool {
-	// Get from current cache
-	v, found := tree.Get(k)
-	if !found {
-		return false
-	}
-
-	values := v.([]store.IndexEntry)
-	for i := range values {
-		if entry.PieceID == values[i].PieceID &&
-			entry.ProvID == values[i].ProvID {
-			if len(values) == 1 {
-				tree.Delete(k)
-			} else {
-				values[i] = values[len(values)-1]
-				values[len(values)-1] = store.IndexEntry{}
-				tree.Put(k, values[:len(values)-1])
-			}
-			return true
-		}
-	}
-	return false
-}
-
-func removeProviderEntry(tree *radixtree.Bytes, providerID peer.ID) int {
-	var count int
-	var deletes []string
-
-	tree.Walk("", func(k string, v interface{}) bool {
-		values := v.([]store.IndexEntry)
-		for i := range values {
-			if providerID == values[i].ProvID {
-				count++
-				if len(values) == 1 {
-					deletes = append(deletes, k)
-				} else {
-					values[i] = values[len(values)-1]
-					values[len(values)-1] = store.IndexEntry{}
-					tree.Put(k, values[:len(values)-1])
-				}
-			}
-		}
-		return false
-	})
-
-	for _, k := range deletes {
-		tree.Delete(k)
-	}
-
-	return count
-}
-
 func (c *rtStorage) Size() (int64, error) {
 	panic("not implemented")
-}
-
-// Checks if the entry already exists in the index. An entry
-// for the same provider but a different piece is not considered
-// a duplicate entry (at least for now)
-func duplicateEntry(in store.IndexEntry, old []store.IndexEntry) bool {
-	for i := range old {
-		if in.PieceID == old[i].PieceID &&
-			in.ProvID == old[i].ProvID {
-			return true
-		}
-	}
-	return false
 }

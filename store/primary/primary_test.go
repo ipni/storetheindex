@@ -1,6 +1,9 @@
 package primary
 
 import (
+	"fmt"
+	"os"
+	"runtime"
 	"testing"
 
 	"github.com/filecoin-project/storetheindex/utils"
@@ -128,13 +131,14 @@ func TestPutGetRemove(t *testing.T) {
 		t.Fatal("should not have removed non-existent entry")
 	}
 
-	cidCount := s.CidCount()
+	stats := s.Stats()
 	t.Log("Remove provider")
 	removed := s.RemoveProviderCount(p)
-	if removed < cidCount {
-		t.Fatalf("should have removed at least %d entries, only removed %d", cidCount, removed)
+	if removed < stats.Cids {
+		t.Fatalf("should have removed at least %d entries, only removed %d", stats.Cids, removed)
 	}
-	if s.CidCount() != 0 {
+	stats = s.Stats()
+	if stats.Cids != 0 {
 		t.Fatal("should have 0 size after removing only provider")
 	}
 }
@@ -209,5 +213,159 @@ func TestRotate(t *testing.T) {
 	}
 	if found {
 		t.Error("cid should have been rotated out of cache")
+	}
+}
+
+func TestMem1024K(t *testing.T) {
+	skipUnlessMemUse(t)
+
+	cids, err := utils.RandomCids(1)
+	if err != nil {
+		panic(err)
+	}
+	piece := cids[0]
+
+	s := New(1024 * 1064)
+	for i := 0; i < 1024; i++ {
+		cids, _ = utils.RandomCids(1024)
+		s.PutManyCount(cids, p, piece)
+	}
+
+	m := runtime.MemStats{}
+	runtime.ReadMemStats(&m)
+	t.Log("Alloc before GC:", m.Alloc)
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	t.Log("Alloc after GC: ", m.Alloc)
+	stats := s.Stats()
+	t.Log("Rotations:", stats.Rotations)
+	t.Log("Items in cache:", stats.Cids)
+	t.Log("Values:", stats.Values)
+	t.Log("Unique Values:", stats.UniqueValues)
+	t.Log("Interned Values:", stats.InternedValues)
+}
+
+func TestMemSingle1024K(t *testing.T) {
+	skipUnlessMemUse(t)
+
+	cids, err := utils.RandomCids(1)
+	if err != nil {
+		panic(err)
+	}
+	piece := cids[0]
+
+	s := New(1024 * 1064)
+	for i := 0; i < 1024; i++ {
+		cids, _ = utils.RandomCids(1024)
+		for j := range cids {
+			s.PutCheck(cids[j], p, piece)
+		}
+	}
+
+	m := runtime.MemStats{}
+	runtime.ReadMemStats(&m)
+	t.Log("Alloc before GC:", m.Alloc)
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	t.Log("Alloc after GC: ", m.Alloc)
+	stats := s.Stats()
+	t.Log("Rotations:", stats.Rotations)
+	t.Log("Items in cache:", stats.Cids)
+	t.Log("Values:", stats.Values)
+	t.Log("Unique Values:", stats.UniqueValues)
+	t.Log("Interned Values:", stats.InternedValues)
+}
+
+func BenchmarkPut(b *testing.B) {
+	cids, err := utils.RandomCids(1)
+	if err != nil {
+		panic(err)
+	}
+	piece := cids[0]
+
+	cids, _ = utils.RandomCids(10240)
+
+	b.Run("Put single", func(b *testing.B) {
+		s := New(8192)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			err = s.Put(cids[i%len(cids)], p, piece)
+			if err != nil {
+				panic(err)
+			}
+		}
+	})
+
+	for testCount := 1024; testCount < len(cids); testCount *= 2 {
+		b.Run(fmt.Sprint("Put", testCount), func(b *testing.B) {
+			s := New(8192)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				for j := 0; j < testCount; j++ {
+					err = s.Put(cids[j], p, piece)
+					if err != nil {
+						panic(err)
+					}
+				}
+			}
+		})
+
+		b.Run(fmt.Sprint("PutMany", testCount), func(b *testing.B) {
+			s := New(8192)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				err = s.PutMany(cids[:testCount], p, piece)
+				if err != nil {
+					panic(err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkGet(b *testing.B) {
+	cids, err := utils.RandomCids(1)
+	if err != nil {
+		panic(err)
+	}
+	piece := cids[0]
+
+	s := New(8192)
+	cids, _ = utils.RandomCids(4096)
+	s.PutMany(cids, p, piece)
+
+	b.Run("Get single", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, ok, _ := s.Get(cids[i%len(cids)])
+			if !ok {
+				panic("missing cid")
+			}
+		}
+	})
+
+	for testCount := 1024; testCount < 10240; testCount *= 2 {
+		b.Run(fmt.Sprint("Get", testCount), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				for j := 0; j < testCount; j++ {
+					_, ok, _ := s.Get(cids[j%len(cids)])
+					if !ok {
+						panic("missing cid")
+					}
+				}
+			}
+		})
+	}
+}
+
+func skipUnlessMemUse(t *testing.T) {
+	if os.Getenv("TEST_MEM_USE") == "" {
+		t.SkipNow()
 	}
 }
