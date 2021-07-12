@@ -173,6 +173,7 @@ func (s *sthStorage) RemoveProvider(providerID peer.ID) error {
 	// batch remove. We can either regenerate the index from
 	// the original data, or iterate through the whole the whole primary storage
 	// inspecting all entries for the provider in cids.
+	// Deferring to the future
 	panic("not implemented")
 }
 
