@@ -54,12 +54,12 @@ func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool, error) {
 	return ret, true, nil
 }
 
-func (s *rtStorage) Put(c cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
-	s.PutCheck(c, providerID, pieceID)
+func (s *rtStorage) Put(c cid.Cid, entry store.IndexEntry) error {
+	s.PutCheck(c, entry)
 	return nil
 }
 
-// PutCheck stores a provider-piece entry for a CID if the entry is not already
+// PutCheck stores an IndexEntry for a CID if the entry is not already
 // stored.  New entries are added to the entries that are already there.
 // Returns true if a new entry was added to the cache.
 //
@@ -68,25 +68,27 @@ func (s *rtStorage) Put(c cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
 // time all members should be rotated the same amount on average.  This is done
 // so that it is not necessary to lock all caches in order to perform a
 // rotation.  This also means that items age out more incrementally.
-func (s *rtStorage) PutCheck(c cid.Cid, providerID peer.ID, pieceID cid.Cid) bool {
-	in := store.IndexEntry{ProvID: providerID, PieceID: pieceID}
+func (s *rtStorage) PutCheck(c cid.Cid, entry store.IndexEntry) bool {
 	k := cidToKey(c)
 
 	cache := s.getCache(k)
-	return cache.put(k, in, s.rotateSize)
+	return cache.put(k, entry, s.rotateSize)
 }
 
-func (s *rtStorage) PutMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
-	s.PutManyCount(cids, providerID, pieceID)
+func (s *rtStorage) PutMany(cids []cid.Cid, entry store.IndexEntry) error {
+	s.PutManyCount(cids, entry)
 	return nil
 }
 
-// PutManyCount stores the provider-piece entry for multiple CIDs.  Returns the
+// PutManyCount stores an IndexEntry for multiple CIDs.  Returns the
 // number of new entries stored.  A new entry is counted whenever an IndexEntry
 // is added to the list of entries for a CID, whether or not that CID was
 // already in the cache.
-func (s *rtStorage) PutManyCount(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) int {
-	var stored int
+//
+// This is more efficient than using Put to store individual values, becase
+// PutMany allows the same IndexEntry to be reues across all sub-caches.
+func (s *rtStorage) PutManyCount(cids []cid.Cid, entry store.IndexEntry) uint64 {
+	var stored uint64
 	var reuseEnt *store.IndexEntry
 	interns := make(map[*syncCache]*store.IndexEntry, len(s.cacheSet))
 
@@ -101,7 +103,7 @@ func (s *rtStorage) PutManyCount(cids []cid.Cid, providerID peer.ID, pieceID cid
 			// interned elsewhere.
 			cache.mutex.Lock()
 			if reuseEnt == nil {
-				ent = cache.internEntry(&store.IndexEntry{ProvID: providerID, PieceID: pieceID})
+				ent = cache.internEntry(&entry)
 				reuseEnt = ent
 			} else {
 				ent = cache.internEntry(reuseEnt)
@@ -117,36 +119,34 @@ func (s *rtStorage) PutManyCount(cids []cid.Cid, providerID peer.ID, pieceID cid
 	return stored
 }
 
-func (s *rtStorage) Remove(c cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
-	s.RemoveCheck(c, providerID, pieceID)
+func (s *rtStorage) Remove(c cid.Cid, entry store.IndexEntry) error {
+	s.RemoveCheck(c, entry)
 	return nil
 }
 
-// RemoveCheck removes a provider-piece entry for a CID.  Returns true if an
+// RemoveCheck removes an IndexEntry for a CID.  Returns true if an
 // entry was removed from cache.
-func (s *rtStorage) RemoveCheck(c cid.Cid, providerID peer.ID, pieceID cid.Cid) bool {
-	in := store.IndexEntry{ProvID: providerID, PieceID: pieceID}
+func (s *rtStorage) RemoveCheck(c cid.Cid, entry store.IndexEntry) bool {
 	k := cidToKey(c)
 
 	cache := s.getCache(k)
-	return cache.remove(k, in)
+	return cache.remove(k, &entry)
 }
 
-func (s *rtStorage) RemoveMany(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) error {
-	s.RemoveManyCount(cids, providerID, pieceID)
+func (s *rtStorage) RemoveMany(cids []cid.Cid, entry store.IndexEntry) error {
+	s.RemoveManyCount(cids, entry)
 	return nil
 }
 
-// RemoveManyCount removes a provider-piece entry from multiple CIDs.  Returns
+// RemoveManyCount removes an IndexEntry from multiple CIDs.  Returns
 // the number of entries removed.
-func (s *rtStorage) RemoveManyCount(cids []cid.Cid, providerID peer.ID, pieceID cid.Cid) int {
-	var removed int
-	in := store.IndexEntry{ProvID: providerID, PieceID: pieceID}
+func (s *rtStorage) RemoveManyCount(cids []cid.Cid, entry store.IndexEntry) uint64 {
+	var removed uint64
 
 	for i := range cids {
 		k := cidToKey(cids[i])
 		cache := s.getCache(k)
-		if cache.remove(k, in) {
+		if cache.remove(k, &entry) {
 			removed++
 		}
 	}
@@ -161,14 +161,14 @@ func (s *rtStorage) RemoveProvider(providerID peer.ID) error {
 
 // RemoveProvider removes all enrties for specified provider.  Returns the
 // total number of entries removed from the cache.
-func (s *rtStorage) RemoveProviderCount(providerID peer.ID) int {
-	countChan := make(chan int)
+func (s *rtStorage) RemoveProviderCount(providerID peer.ID) uint64 {
+	countChan := make(chan uint64)
 	for _, cache := range s.cacheSet {
 		go func(c *syncCache) {
-			countChan <- c.removeProvider(providerID)
+			countChan <- uint64(c.removeProvider(providerID))
 		}(cache)
 	}
-	var total int
+	var total uint64
 	for i := 0; i < len(s.cacheSet); i++ {
 		total += <-countChan
 	}

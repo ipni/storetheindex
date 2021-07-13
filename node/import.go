@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/storetheindex/importer"
+	"github.com/filecoin-project/storetheindex/store"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p-core/peer"
@@ -38,8 +39,9 @@ func (n *Node) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 	imp := importer.NewManifestImporter(file)
 	go imp.Read(r.Context(), out, errOut)
 
+	entry := store.MakeIndexEntry(miner, 0, nil)
 	for c := range out {
-		err = n.importCallback(c, cid.Undef, miner)
+		err = n.importCallback(c, entry)
 		if err != nil {
 			log.Errorw("import callback error", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -80,8 +82,9 @@ func (n *Node) ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
 	imp := importer.NewCidListImporter(file)
 	go imp.Read(r.Context(), out, errOut)
 
+	entry := store.MakeIndexEntry(miner, 0, nil)
 	for c := range out {
-		err = n.importCallback(c, cid.Undef, miner)
+		err = n.importCallback(c, entry)
 		if err != nil {
 			log.Errorw("import callback error", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -99,13 +102,13 @@ func (n *Node) ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (n *Node) importCallback(c, piece cid.Cid, prov peer.ID) error {
+func (n *Node) importCallback(c cid.Cid, entry store.IndexEntry) error {
 	// Disregard empty Cids.
 	if c == cid.Undef {
 		return nil
 	}
 	// NOTE: We disregard errors for now
-	err := n.primary.Put(c, prov, piece)
+	err := n.primary.Put(c, entry)
 	if err != nil {
 		log.Errorw("primary storage Put returned error", "err", err, "cid", c)
 		return errors.New("failed to store in primary storage")

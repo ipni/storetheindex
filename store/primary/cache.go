@@ -20,15 +20,15 @@ type syncCache struct {
 	prevEnts *radixtree.Bytes
 
 	mutex     sync.Mutex
-	rotations int
+	rotations uint64
 }
 
 type CacheStats struct {
-	Cids           int
-	Values         int
-	UniqueValues   int
-	InternedValues int
-	Rotations      int
+	Cids           uint64
+	Values         uint64
+	UniqueValues   uint64
+	InternedValues uint64
+	Rotations      uint64
 }
 
 // newSyncCache created a new syncCache instance
@@ -50,36 +50,36 @@ func newSyncCache() *syncCache {
 // items have been removed from cache.
 func (c *syncCache) stats() CacheStats {
 	unique := make(map[*store.IndexEntry]struct{})
-	var cidCount, valCount, interned int
+	var cidCount, valCount, interned uint64
 
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	walkFunc := func(k string, v interface{}) bool {
 		values := v.([]*store.IndexEntry)
-		valCount += len(values)
+		valCount += uint64(len(values))
 		for _, val := range values {
 			unique[val] = struct{}{}
 		}
 		return false
 	}
 
-	cidCount = c.current.Len()
+	cidCount = uint64(c.current.Len())
 	c.current.Walk("", walkFunc)
 	if c.previous != nil {
-		cidCount += c.previous.Len()
+		cidCount += uint64(c.previous.Len())
 		c.previous.Walk("", walkFunc)
 	}
 
-	interned = c.curEnts.Len()
+	interned = uint64(c.curEnts.Len())
 	if c.prevEnts != nil {
-		interned += c.prevEnts.Len()
+		interned += uint64(c.prevEnts.Len())
 	}
 
 	return CacheStats{
 		Cids:           cidCount,
 		Values:         valCount,
-		UniqueValues:   len(unique),
+		UniqueValues:   uint64(len(unique)),
 		InternedValues: interned,
 		Rotations:      c.rotations,
 	}
@@ -129,7 +129,7 @@ func (c *syncCache) put(k string, entry store.IndexEntry, rotateSize int) bool {
 	// Get from current or previous cache
 	old, found := c.getNoLock(k)
 	// If found values(s) then check the value to put is already there.
-	if found && duplicateEntry(entry, old) {
+	if found && duplicateEntry(&entry, old) {
 		return false
 	}
 
@@ -146,7 +146,7 @@ func (c *syncCache) putInterned(k string, ent *store.IndexEntry, rotateSize int)
 	defer c.mutex.Unlock()
 
 	old, found := c.getNoLock(k)
-	if found && duplicateEntry(*ent, old) {
+	if found && duplicateEntry(ent, old) {
 		return false
 	}
 
@@ -167,7 +167,7 @@ func (c *syncCache) putMany(keys []string, entry store.IndexEntry, rotateSize in
 
 	for _, k := range keys {
 		old, found := c.getNoLock(k)
-		if found && duplicateEntry(entry, old) {
+		if found && duplicateEntry(&entry, old) {
 			continue
 		}
 
@@ -185,7 +185,7 @@ func (c *syncCache) putMany(keys []string, entry store.IndexEntry, rotateSize in
 	return count
 }
 
-func (c *syncCache) remove(k string, entry store.IndexEntry) bool {
+func (c *syncCache) remove(k string, entry *store.IndexEntry) bool {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -218,7 +218,7 @@ func (c *syncCache) rotate() {
 }
 
 func (c *syncCache) internEntry(entry *store.IndexEntry) *store.IndexEntry {
-	k := string(entry.ProvID) + cidToKey(entry.PieceID)
+	k := string(entry.ProviderID) + string(entry.Metadata)
 	v, found := c.curEnts.Get(k)
 	if !found {
 		if c.prevEnts != nil {
@@ -238,7 +238,7 @@ func (c *syncCache) internEntry(entry *store.IndexEntry) *store.IndexEntry {
 	return v.(*store.IndexEntry)
 }
 
-func removeEntry(tree *radixtree.Bytes, k string, entry store.IndexEntry) bool {
+func removeEntry(tree *radixtree.Bytes, k string, entry *store.IndexEntry) bool {
 	// Get from current cache
 	v, found := tree.Get(k)
 	if !found {
@@ -247,7 +247,7 @@ func removeEntry(tree *radixtree.Bytes, k string, entry store.IndexEntry) bool {
 
 	values := v.([]*store.IndexEntry)
 	for i, v := range values {
-		if v.ProvID == entry.ProvID && v.PieceID == entry.PieceID {
+		if v == entry || v.Equal(*entry) {
 			if len(values) == 1 {
 				tree.Delete(k)
 			} else {
@@ -268,7 +268,7 @@ func removeProviderEntries(tree *radixtree.Bytes, providerID peer.ID) int {
 	tree.Walk("", func(k string, v interface{}) bool {
 		values := v.([]*store.IndexEntry)
 		for i := range values {
-			if providerID == values[i].ProvID {
+			if providerID == values[i].ProviderID {
 				count++
 				if len(values) == 1 {
 					deletes = append(deletes, k)
@@ -301,11 +301,11 @@ func removeProviderInterns(tree *radixtree.Bytes, providerID peer.ID) {
 }
 
 // Checks if the entry already exists in the index. An entry
-// for the same provider but a different piece is not considered
-// a duplicate entry (at least for now)
-func duplicateEntry(newEnt store.IndexEntry, oldEnts []*store.IndexEntry) bool {
+// for the same provider but with different metadata is not considered
+// a duplicate entry.
+func duplicateEntry(newEnt *store.IndexEntry, oldEnts []*store.IndexEntry) bool {
 	for _, oldEnt := range oldEnts {
-		if newEnt.PieceID == oldEnt.PieceID && newEnt.ProvID == oldEnt.ProvID {
+		if newEnt == oldEnt || newEnt.Equal(*oldEnt) {
 			return true
 		}
 	}
