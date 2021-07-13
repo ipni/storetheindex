@@ -10,7 +10,7 @@ require (
 	github.com/gorilla/mux v1.7.4
 	github.com/ipfs/go-cid v0.0.7
 	github.com/ipfs/go-log/v2 v2.2.0
-	github.com/ipld/go-storethehash v0.0.0-20210708185310-2f630d316596
+	github.com/ipld/go-storethehash v0.0.0-20210713070316-1ea50cc878b8
 	github.com/klauspost/cpuid/v2 v2.0.7 // indirect
 	github.com/lib/pq v1.9.0
 	github.com/libp2p/go-libp2p-core v0.7.0
