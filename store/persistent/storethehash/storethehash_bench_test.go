@@ -3,6 +3,7 @@ package storethehash_test
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +30,22 @@ func BenchmarkSingle100MB(b *testing.B) {
 
 func BenchmarkSingle1GB(b *testing.B) {
 	benchSingleGet("1GB", b)
+}
+
+func BenchmarkParallel10KB(b *testing.B) {
+	benchParallelGet("10KB", b)
+}
+
+func BenchmarkParallel10MB(b *testing.B) {
+	benchParallelGet("10MB", b)
+}
+
+func BenchmarkParallel100MB(b *testing.B) {
+	benchParallelGet("100MB", b)
+}
+
+func BenchmarkParallel1GB(b *testing.B) {
+	benchParallelGet("1GB", b)
 }
 
 func prepare(s store.Storage, size string, b *testing.B) {
@@ -102,9 +119,21 @@ func benchSingleGet(size string, b *testing.B) {
 		b.Fatal(err)
 	}
 
-	memSize, _ := s.Size()
-	b.ReportMetric(float64(memSize)/1000000, "MB")
-	b.ReportMetric(m.getTime.avg()/1000, "ms/op")
+	report(s, m, b)
+}
+
+func benchParallelGet(size string, b *testing.B) {
+	var wg sync.WaitGroup
+
+	wg.Add(20)
+	for i := 0; i < 20; i++ {
+		go func(wg *sync.WaitGroup) {
+			defer wg.Done()
+			benchSingleGet(size, b)
+
+		}(&wg)
+	}
+	wg.Wait()
 }
 
 type metric struct {
@@ -129,4 +158,14 @@ func initMetrics() *metrics {
 	return &metrics{
 		getTime: &metric{},
 	}
+}
+
+func report(s store.StorageFlusher, m *metrics, b *testing.B) {
+	memSize, _ := s.Size()
+	avgT := m.getTime.avg() / 1000
+	sizeMB := float64(memSize) / 1000000
+	b.Log("Memory size (MB):", sizeMB)
+	b.Log("Avg time per get (ms):", avgT)
+
+	// TODO: Report to file to process results.
 }

@@ -40,6 +40,7 @@ func TestE2E(t *testing.T) {
 	single := cids[1]
 	noadd := cids[2]
 	batch := cids[3:]
+	remove := cids[3]
 
 	// Put a single CID
 	t.Logf("Put/Get a single CID in primary storage")
@@ -109,6 +110,38 @@ func TestE2E(t *testing.T) {
 	if found {
 		t.Errorf("Error, the key for the cid shouldn't be set")
 	}
+
+	// Remove a key
+	t.Logf("Remove key")
+	err = s.Remove(remove, p, piece)
+	if err != nil {
+		t.Fatal("Error putting single cid: ", err)
+	}
+
+	i, found, err = s.Get(remove)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found {
+		t.Errorf("cid should have been removed")
+	}
+
+	// Remove an entry from the key
+	err = s.Remove(single, p, piece)
+	if err != nil {
+		t.Fatal("Error putting single cid: ", err)
+	}
+	i, found, err = s.Get(single)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found {
+		t.Errorf("cid should still have one entry")
+	}
+	if len(i) != 1 {
+		t.Errorf("wrong number of entries after remove")
+	}
+
 }
 
 func TestSize(t *testing.T) {
@@ -138,4 +171,52 @@ func TestSize(t *testing.T) {
 	if size == int64(0) {
 		t.Error("failed to compute storage size")
 	}
+}
+
+func TestRemoveMany(t *testing.T) {
+	// Create new valid peer.ID
+	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Init storage
+	s, err := initSth()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cids, err := utils.RandomCids(15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	piece := cids[0]
+	batch := cids[1:]
+
+	// Put a batch of CIDs
+	t.Logf("Put/Get a batch of CIDs in primary storage")
+	err = s.PutMany(batch, p, piece)
+	if err != nil {
+		t.Fatal("Error putting batch of cids: ", err)
+	}
+
+	// Put a single CID
+	t.Logf("Remove key")
+	err = s.RemoveMany(cids[2:], p, piece)
+	if err != nil {
+		t.Fatal("Error putting single cid: ", err)
+	}
+
+	i, found, err := s.Get(cids[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found {
+		t.Errorf("cid should not have been removed")
+	}
+	if len(i) != 1 {
+		t.Errorf("wrong number of cids removed")
+	}
+
 }
