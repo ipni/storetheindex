@@ -51,9 +51,9 @@ var ImportFlags = []cli.Flag{
 		Required: true,
 	},
 	&cli.StringFlag{
-		Name:     "piece",
-		Usage:    "Piece ID where the CIDs are sealed at provider",
-		Aliases:  []string{"pc"},
+		Name:     "metadata",
+		Usage:    "Bytes of opaque metadata corresponding to protocol 0",
+		Aliases:  []string{"m"},
 		Required: false,
 	},
 	DirFlag,

@@ -66,9 +66,8 @@ func (s *sthStorage) get(k []byte) ([]store.IndexEntry, bool, error) {
 
 }
 
-func (s *sthStorage) Put(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
-	in := store.IndexEntry{ProvID: provID, PieceID: pieceID}
-	return s.put(c.Bytes(), in)
+func (s *sthStorage) Put(c cid.Cid, entry store.IndexEntry) error {
+	return s.put(c.Bytes(), entry)
 }
 
 func (s *sthStorage) put(k []byte, in store.IndexEntry) error {
@@ -96,10 +95,9 @@ func (s *sthStorage) put(k []byte, in store.IndexEntry) error {
 	return s.store.Put(k, b)
 }
 
-func (s *sthStorage) PutMany(cs []cid.Cid, provID peer.ID, pieceID cid.Cid) error {
-	in := store.IndexEntry{ProvID: provID, PieceID: pieceID}
+func (s *sthStorage) PutMany(cs []cid.Cid, entry store.IndexEntry) error {
 	for _, c := range cs {
-		err := s.put(c.Bytes(), in)
+		err := s.put(c.Bytes(), entry)
 		if err != nil {
 			// TODO: Log error but don't return. Errors for a single
 			// CID shouldn't stop from putting the rest.
@@ -136,13 +134,12 @@ func (s *sthStorage) Size() (int64, error) {
 	return size, nil
 
 }
-func (s *sthStorage) Remove(c cid.Cid, provID peer.ID, pieceID cid.Cid) error {
-	_, err := s.remove(c, provID, pieceID)
+func (s *sthStorage) Remove(c cid.Cid, entry store.IndexEntry) error {
+	_, err := s.remove(c, entry)
 	return err
 }
 
-func (s *sthStorage) remove(c cid.Cid, provID peer.ID, pieceID cid.Cid) (bool, error) {
-	in := store.IndexEntry{ProvID: provID, PieceID: pieceID}
+func (s *sthStorage) remove(c cid.Cid, entry store.IndexEntry) (bool, error) {
 	k := c.Bytes()
 	old, found, err := s.get(k)
 	if err != nil {
@@ -151,14 +148,14 @@ func (s *sthStorage) remove(c cid.Cid, provID peer.ID, pieceID cid.Cid) (bool, e
 	// If found it means there is a value for the cid
 	// check if there is something to remove.
 	if found {
-		return s.removeEntry(k, in, old)
+		return s.removeEntry(k, entry, old)
 	}
 	return false, nil
 }
 
-func (s *sthStorage) RemoveMany(cids []cid.Cid, provID peer.ID, pieceID cid.Cid) error {
+func (s *sthStorage) RemoveMany(cids []cid.Cid, entry store.IndexEntry) error {
 	for i := range cids {
-		_, err := s.remove(cids[i], provID, pieceID)
+		_, err := s.remove(cids[i], entry)
 		if err != nil {
 			return err
 		}
@@ -178,12 +175,11 @@ func (s *sthStorage) RemoveProvider(providerID peer.ID) error {
 }
 
 // DuplicateEntry checks if the entry already exists in the index. An entry
-// for the same provider but a different piece is not considered
-// a duplicate entry (at least for now)
+// for the same provider but different metadata is not considered
+// a duplicate entry.
 func duplicateEntry(in store.IndexEntry, old []store.IndexEntry) bool {
 	for i := range old {
-		if in.PieceID == old[i].PieceID &&
-			in.ProvID == old[i].ProvID {
+		if in.Equal(old[i]) {
 			return true
 		}
 	}
@@ -192,8 +188,7 @@ func duplicateEntry(in store.IndexEntry, old []store.IndexEntry) bool {
 
 func (s *sthStorage) removeEntry(k []byte, entry store.IndexEntry, stored []store.IndexEntry) (bool, error) {
 	for i := range stored {
-		if entry.PieceID == stored[i].PieceID &&
-			entry.ProvID == stored[i].ProvID {
+		if entry.Equal(stored[i]) {
 			// It is the only value, remove the entry
 			if len(stored) == 1 {
 				return s.store.Remove(k)

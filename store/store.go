@@ -59,18 +59,17 @@ func encodeMetadata(protocol uint64, data []byte) []byte {
 // same interface. This may change in the future if we want to discern between
 // them more easily, or if we want to introduce additional features to either of them.
 type Storage interface {
-	// Get retrieves provider-piece info for a CID
+	// Get retrieves a slice of IndexEntry for a CID
 	Get(c cid.Cid) ([]IndexEntry, bool, error)
-	// Put stores a provider-piece entry for a CID if the entry is not already
-	// stored.  New entries are added to the entries that are already there.
+	// Put stores an additional IndexEntry for a CID if the entry is not already stored
 	Put(c cid.Cid, entry IndexEntry) error
-	// PutMany stores the provider-piece entry for multiple CIDs
+	// PutMany stores an IndexEntry for multiple CIDs
 	PutMany(cs []cid.Cid, entry IndexEntry) error
-	// Remove removes a provider-piece entry for a CID
+	// Remove removes an IndexEntry for a CID
 	Remove(c cid.Cid, entry IndexEntry) error
-	// RemoveMany removes a provider-piece entry from multiple CIDs
+	// RemoveMany removes an IndexEntry from multiple CIDs
 	RemoveMany(cids []cid.Cid, entry IndexEntry) error
-	// RemoveProvider removes all enrties for specified provider.  This is used
+	// RemoveProvider removes all entries for specified provider.  This is used
 	// when a provider is no longer indexed by the indexer.
 	RemoveProvider(providerID peer.ID) error
 	// Size returns the total storage capacity being used

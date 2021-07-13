@@ -20,15 +20,17 @@ func E2ETest(t *testing.T, s store.StorageFlusher) {
 		t.Fatal(err)
 	}
 
-	piece := cids[0]
-	single := cids[1]
-	noadd := cids[2]
-	batch := cids[3:]
-	remove := cids[3]
+	entry1 := store.MakeIndexEntry(p, protocolID, cids[0].Bytes())
+	entry2 := store.MakeIndexEntry(p, protocolID, cids[1].Bytes())
+
+	single := cids[2]
+	noadd := cids[3]
+	batch := cids[4:]
+	remove := cids[4]
 
 	// Put a single CID
 	t.Logf("Put/Get a single CID in primary storage")
-	err = s.Put(single, p, piece)
+	err = s.Put(single, entry1)
 	if err != nil {
 		t.Fatal("Error putting single cid: ", err)
 	}
@@ -40,13 +42,13 @@ func E2ETest(t *testing.T, s store.StorageFlusher) {
 	if !found {
 		t.Errorf("Error finding single cid")
 	}
-	if i[0].PieceID != piece || i[0].ProvID != p {
+	if !i[0].Equal(entry1) {
 		t.Errorf("Got wrong value for single cid")
 	}
 
 	// Put a batch of CIDs
 	t.Logf("Put/Get a batch of CIDs in primary storage")
-	err = s.PutMany(batch, p, piece)
+	err = s.PutMany(batch, entry1)
 	if err != nil {
 		t.Fatal("Error putting batch of cids: ", err)
 	}
@@ -58,13 +60,13 @@ func E2ETest(t *testing.T, s store.StorageFlusher) {
 	if !found {
 		t.Errorf("Error finding a cid from the batch")
 	}
-	if i[0].PieceID != piece || i[0].ProvID != p {
+	if !i[0].Equal(entry1) {
 		t.Errorf("Got wrong value for single cid")
 	}
 
 	// Put on an existing key
 	t.Logf("Put/Get on existing key")
-	err = s.Put(single, p, noadd)
+	err = s.Put(single, entry2)
 	if err != nil {
 		t.Fatal("Error putting single cid: ", err)
 	}
@@ -81,7 +83,7 @@ func E2ETest(t *testing.T, s store.StorageFlusher) {
 	if len(i) != 2 {
 		t.Fatal("Update over existing key not correct")
 	}
-	if i[1].PieceID != noadd || i[1].ProvID != p {
+	if !i[1].Equal(entry2) {
 		t.Errorf("Got wrong value for single cid")
 	}
 
@@ -97,12 +99,12 @@ func E2ETest(t *testing.T, s store.StorageFlusher) {
 
 	// Remove a key
 	t.Logf("Remove key")
-	err = s.Remove(remove, p, piece)
+	err = s.Remove(remove, entry1)
 	if err != nil {
 		t.Fatal("Error putting single cid: ", err)
 	}
 
-	i, found, err = s.Get(remove)
+	_, found, err = s.Get(remove)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +113,7 @@ func E2ETest(t *testing.T, s store.StorageFlusher) {
 	}
 
 	// Remove an entry from the key
-	err = s.Remove(single, p, piece)
+	err = s.Remove(single, entry1)
 	if err != nil {
 		t.Fatal("Error putting single cid: ", err)
 	}
@@ -135,13 +137,14 @@ func SizeTest(t *testing.T, s store.StorageFlusher) {
 		t.Fatal(err)
 	}
 
-	cids, err := utils.RandomCids(150)
+	cids, err := utils.RandomCids(151)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, c := range cids {
-		s.Put(c, p, c)
+	entry := store.MakeIndexEntry(p, protocolID, cids[0].Bytes())
+	for _, c := range cids[1:] {
+		s.Put(c, entry)
 	}
 
 	size, err := s.Size()
@@ -165,19 +168,19 @@ func RemoveManyTest(t *testing.T, s store.StorageFlusher) {
 		t.Fatal(err)
 	}
 
-	piece := cids[0]
+	entry := store.MakeIndexEntry(p, protocolID, cids[0].Bytes())
 	batch := cids[1:]
 
 	// Put a batch of CIDs
 	t.Logf("Put/Get a batch of CIDs in primary storage")
-	err = s.PutMany(batch, p, piece)
+	err = s.PutMany(batch, entry)
 	if err != nil {
 		t.Fatal("Error putting batch of cids: ", err)
 	}
 
 	// Put a single CID
 	t.Logf("Remove key")
-	err = s.RemoveMany(cids[2:], p, piece)
+	err = s.RemoveMany(cids[2:], entry)
 	if err != nil {
 		t.Fatal("Error putting single cid: ", err)
 	}

@@ -21,8 +21,8 @@ a first glimpse).
 ```
 - Commands to read a list of CIDs from a manifest and a cid list.
 ```
-./storetheindex import manifest --dir <manifest> --providerID <peer.ID> --pieceID <cid>
-./storetheindex import cidlist --dir <manifest> --providerID <peer.ID> --pieceID <cid>
+./storetheindex import manifest --dir <manifest> --providerID <peer.ID> --metadata <bytes>
+./storetheindex import cidlist --dir <manifest> --providerID <peer.ID> --metadata <bytes>
 
 // Example
 ./storetheindex import cidlist --dir ./cid.out --providerID QmcJeseojbPW9hSejUM1sQ1a2QmbrryPK4Z8pWbRUPaYEn -e 127.0.0.1:3000
