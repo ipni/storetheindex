@@ -82,11 +82,11 @@ func importManifestCmd(c *cli.Context) error {
 /*
 func importReader(ctx context.Context, c *cli.Context, i importer.Importer) error {
 	prov := c.String("provider")
-	piece := c.String("piece")
+	metadata := c.String("metadata")
 
 	// TODO:
 
-	log.Infof("Reading from provider: %s, and piece %s", prov, piece)
+	log.Infof("Reading from provider: %s, and metadata %s", prov, metadata)
 	cids := make(chan cid.Cid)
 	done := make(chan error)
 

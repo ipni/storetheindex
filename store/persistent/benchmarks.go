@@ -13,8 +13,12 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
-const testDataDir = "../../test_data/"
-const testDataExt = ".data"
+const (
+	testDataDir = "../../test_data/"
+	testDataExt = ".data"
+	// protocol ID for IndexEntry metadata
+	protocolID = 0
+)
 
 func prepare(s store.Storage, size string, b *testing.B) {
 	out := make(chan cid.Cid)
@@ -30,8 +34,10 @@ func prepare(s store.Storage, size string, b *testing.B) {
 	imp := importer.NewCidListImporter(file)
 
 	go imp.Read(context.Background(), out, errOut)
+
 	for c := range out {
-		err = s.Put(c, p, c)
+		entry := store.MakeIndexEntry(p, protocolID, c.Bytes())
+		err = s.Put(c, entry)
 		if err != nil {
 			b.Fatal(err)
 		}
