@@ -1,6 +1,6 @@
 module github.com/filecoin-project/storetheindex
 
-go 1.16
+go 1.15
 
 require (
 	github.com/akrylysov/pogreb v0.10.1
