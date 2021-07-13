@@ -44,6 +44,26 @@ func (n *Node) GetSingleCidHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+
+		// Store the data that was found in persistent storage in primary storage
+		if found && n.primary != nil {
+			// TODO: Implement this:
+			//err = n.primary.MapEntries(c, entries)
+			//if err != nil {
+			//	log.Errorw("failed to store data in cache", "err", err)
+			//	// Do not return an error here, since the requested was handled
+			//}
+
+			// TODO: Remove this when above is implemented
+			for i := range entries {
+				err = n.primary.Put(c, entries[i])
+				if err != nil {
+					log.Errorw("failed to store data in cache", "err", err)
+					// Do not return an error here, since the requested was handled
+					break
+				}
+			}
+		}
 	}
 
 	if !found {
