@@ -88,6 +88,13 @@ func (s *rtStorage) PutMany(cids []cid.Cid, entry store.IndexEntry) error {
 // This is more efficient than using Put to store individual values, becase
 // PutMany allows the same IndexEntry to be reues across all sub-caches.
 func (s *rtStorage) PutManyCount(cids []cid.Cid, entry store.IndexEntry) uint64 {
+	if len(s.cacheSet) == 1 {
+		keys := make([]string, len(cids))
+		for i := range cids {
+			keys[i] = cidToKey(cids[i])
+		}
+		return uint64(s.cacheSet[0].putMany(keys, entry, s.rotateSize))
+	}
 	var stored uint64
 	var reuseEnt *store.IndexEntry
 	interns := make(map[*syncCache]*store.IndexEntry, len(s.cacheSet))

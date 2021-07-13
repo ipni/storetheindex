@@ -15,6 +15,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.0.7 // indirect
 	github.com/lib/pq v1.9.0
 	github.com/libp2p/go-libp2p-core v0.7.0
+	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-multihash v0.0.15
 	github.com/multiformats/go-varint v0.0.6
 	github.com/polydawn/refmt v0.0.0-20201211092308-30ac6d18308e // indirect

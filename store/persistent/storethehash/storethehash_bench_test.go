@@ -7,9 +7,6 @@ import (
 	"github.com/filecoin-project/storetheindex/store/persistent"
 )
 
-const testDataDir = "../../test_data/"
-const testDataExt = ".data"
-
 func initBenchStore(b *testing.B) store.StorageFlusher {
 	s, err := initSth()
 	if err != nil {

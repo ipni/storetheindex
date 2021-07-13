@@ -32,13 +32,28 @@ var DirFlag = &cli.StringFlag{
 	Aliases:  []string{"d"},
 	Required: true,
 }
+
 var DaemonFlags = []cli.Flag{
-	&cli.BoolFlag{
-		Name:    "persistence",
-		Usage:   "Enable persistence storage",
-		Aliases: []string{"p"},
-		EnvVars: []string{"ENABLE_PERSISTENCE"},
-		Value:   true,
+	&cli.Int64Flag{
+		Name:     "cachesize",
+		Usage:    "Maximum number of CIDs that cache can hold",
+		Aliases:  []string{"c"},
+		EnvVars:  []string{"CACHE_SIZE"},
+		Value:    100000,
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "storage",
+		Usage:    "Type of persistent storage (none, sth, pogreb)",
+		Aliases:  []string{"s"},
+		EnvVars:  []string{"STORAGE_TYPE"},
+		Required: true,
+	},
+	&cli.StringFlag{
+		Name:     "dir",
+		Usage:    "Directory for persistent storage, default: ~/.storetheindex",
+		Aliases:  []string{"d"},
+		Required: false,
 	},
 	EndpointFlag,
 }

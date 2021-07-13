@@ -144,7 +144,10 @@ func SizeTest(t *testing.T, s store.StorageFlusher) {
 
 	entry := store.MakeIndexEntry(p, protocolID, cids[0].Bytes())
 	for _, c := range cids[1:] {
-		s.Put(c, entry)
+		err = s.Put(c, entry)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	size, err := s.Size()
