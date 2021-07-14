@@ -234,7 +234,10 @@ func TestMemoryUse(t *testing.T) {
 			s := New(1202 * count)
 			for i := 0; i < count; i++ {
 				cids, _ = utils.RandomCids(1024)
-				s.PutMany(cids, entry)
+				err = s.PutMany(cids, entry)
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 			cids = nil
 			runtime.GC()
@@ -351,7 +354,7 @@ func BenchmarkGet(b *testing.B) {
 
 	s := New(8192)
 	cids, _ = utils.RandomCids(4096)
-	s.PutMany(cids, entry)
+	s.PutManyCount(cids, entry)
 
 	b.Run("Get single", func(b *testing.B) {
 		b.ReportAllocs()

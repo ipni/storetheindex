@@ -8,7 +8,7 @@ import (
 	mh "github.com/multiformats/go-multihash"
 )
 
-var pref = cid.Prefix{
+var prefix = cid.Prefix{
 	Version:  1,
 	Codec:    cid.Raw,
 	MhType:   mh.SHA2_256,
@@ -22,7 +22,7 @@ func RandomCids(n int) ([]cid.Cid, error) {
 	for i := 0; i < n; i++ {
 		b := make([]byte, 10*n)
 		prng.Read(b)
-		c, err := pref.Sum(b)
+		c, err := prefix.Sum(b)
 		if err != nil {
 			return nil, err
 		}

@@ -3,11 +3,16 @@ package commands
 import (
 	"context"
 	"net/http"
+	"os"
+	"os/signal"
 	"time"
 
 	"github.com/filecoin-project/storetheindex/node"
 	"github.com/urfave/cli/v2"
 )
+
+// shutdownTimeout is the duration that a graceful shutdown has to complete
+const shutdownTimeout = 5 * time.Second
 
 var DaemonCmd = &cli.Command{
 	Name:   "daemon",
@@ -17,28 +22,21 @@ var DaemonCmd = &cli.Command{
 }
 
 func daemonCommand(c *cli.Context) error {
-	ctx, cancel := context.WithCancel(ProcessContext())
-	defer cancel()
-
 	log.Infow("Starting node deamon")
-	exiting := make(chan struct{})
-	n, err := node.New(ctx, c)
+	n, err := node.New(c)
 	if err != nil {
 		return err
 	}
-	defer close(exiting)
 
 	go func() {
-		select {
-		case <-ctx.Done():
-		case <-exiting:
-			// no need to shutdown in this case.
-			return
-		}
+		// Wait for SIGINT (CTRL-c), then close server and exit.
+		sigint := make(chan os.Signal, 1)
+		signal.Notify(sigint, os.Interrupt)
+		<-sigint
 
 		log.Infow("shutting down node")
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 
 		if err := n.Shutdown(ctx); err != nil {
@@ -52,5 +50,4 @@ func daemonCommand(c *cli.Context) error {
 		err = nil
 	}
 	return err
-
 }

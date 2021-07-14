@@ -2,6 +2,7 @@ package pogreb_test
 
 import (
 	"io/ioutil"
+	"runtime"
 	"testing"
 
 	"github.com/filecoin-project/storetheindex/store"
@@ -18,6 +19,8 @@ func initPogreb() (store.StorageFlusher, error) {
 }
 
 func TestE2E(t *testing.T) {
+	skipIf32bit(t)
+
 	s, err := initPogreb()
 	if err != nil {
 		t.Fatal(err)
@@ -26,6 +29,8 @@ func TestE2E(t *testing.T) {
 }
 
 func TestSize(t *testing.T) {
+	skipIf32bit(t)
+
 	s, err := initPogreb()
 	if err != nil {
 		t.Fatal(err)
@@ -34,9 +39,17 @@ func TestSize(t *testing.T) {
 }
 
 func TestRemoveMany(t *testing.T) {
+	skipIf32bit(t)
+
 	s, err := initPogreb()
 	if err != nil {
 		t.Fatal(err)
 	}
 	persistent.RemoveManyTest(t, s)
+}
+
+func skipIf32bit(t *testing.T) {
+	if runtime.GOARCH == "386" {
+		t.Skip("Pogreb cannot use GOARCH=386")
+	}
 }
