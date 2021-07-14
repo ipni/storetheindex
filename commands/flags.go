@@ -58,6 +58,10 @@ var DaemonFlags = []cli.Flag{
 	EndpointFlag,
 }
 
+var ClientCmdFlags = []cli.Flag{
+	EndpointFlag,
+}
+
 var ImportFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:     "provider",
@@ -87,13 +91,11 @@ var SyntheticFlags = []cli.Flag{
 		Name:     "num",
 		Usage:    "Number of entries to generate",
 		Aliases:  []string{"n"},
-		Value:    1000,
 		Required: false,
 	},
 	&cli.Int64Flag{
 		Name:     "size",
 		Usage:    "Total size of the CIDs to generate",
 		Aliases:  []string{"s"},
-		Value:    10000,
 		Required: false,
 	}}

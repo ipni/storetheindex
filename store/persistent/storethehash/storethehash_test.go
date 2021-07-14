@@ -9,7 +9,7 @@ import (
 	"github.com/filecoin-project/storetheindex/store/persistent/storethehash"
 )
 
-func initSth() (store.StorageFlusher, error) {
+func initSth() (store.PersistentStorage, error) {
 	tmpDir, err := ioutil.TempDir("", "sth")
 	if err != nil {
 		return nil, err

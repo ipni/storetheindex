@@ -108,7 +108,7 @@ func (n *Node) importCallback(c cid.Cid, entry store.IndexEntry) error {
 		return nil
 	}
 	// NOTE: We disregard errors for now
-	err := n.primary.Put(c, entry)
+	_, err := n.storage.Put(c, entry)
 	if err != nil {
 		log.Errorw("primary storage Put returned error", "err", err, "cid", c)
 		return errors.New("failed to store in primary storage")

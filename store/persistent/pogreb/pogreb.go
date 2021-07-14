@@ -18,7 +18,7 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
-var _ store.StorageFlusher = &pStorage{}
+var _ store.PersistentStorage = &pStorage{}
 
 const DefaultSyncInterval = time.Second
 
@@ -58,33 +58,37 @@ func (s *pStorage) get(k []byte) ([]store.IndexEntry, bool, error) {
 
 }
 
-func (s *pStorage) Put(c cid.Cid, entry store.IndexEntry) error {
+func (s *pStorage) Put(c cid.Cid, entry store.IndexEntry) (bool, error) {
 	return s.put(c.Bytes(), entry)
 }
 
-func (s *pStorage) put(k []byte, in store.IndexEntry) error {
+func (s *pStorage) put(k []byte, in store.IndexEntry) (bool, error) {
 	old, found, err := s.get(k)
 	if err != nil {
-		return err
+		return false, err
 	}
 	// If found it means there is already a value there.
 	// Check if we are trying to put a duplicate entry
 	if found && duplicateEntry(in, old) {
-		return nil
+		return false, nil
 	}
 
 	li := append(old, in)
 	b, err := store.Marshal(li)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return s.store.Put(k, b)
+	err = s.store.Put(k, b)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *pStorage) PutMany(cs []cid.Cid, entry store.IndexEntry) error {
 	for _, c := range cs {
-		err := s.put(c.Bytes(), entry)
+		_, err := s.put(c.Bytes(), entry)
 		if err != nil {
 			// TODO: Log error but don't return. Errors for a single
 			// CID shouldn't stop from putting the rest.
@@ -113,9 +117,8 @@ func (s *pStorage) Size() (int64, error) {
 
 }
 
-func (s *pStorage) Remove(c cid.Cid, entry store.IndexEntry) error {
-	_, err := s.remove(c, entry)
-	return err
+func (s *pStorage) Remove(c cid.Cid, entry store.IndexEntry) (bool, error) {
+	return s.remove(c, entry)
 }
 
 func (s *pStorage) remove(c cid.Cid, entry store.IndexEntry) (bool, error) {

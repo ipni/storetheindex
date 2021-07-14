@@ -309,7 +309,7 @@ func BenchmarkPut(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			err = s.Put(cids[i%len(cids)], entry)
+			_, err = s.Put(cids[i%len(cids)], entry)
 			if err != nil {
 				panic(err)
 			}
@@ -323,7 +323,7 @@ func BenchmarkPut(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				for j := 0; j < testCount; j++ {
-					err = s.Put(cids[j], entry)
+					_, err = s.Put(cids[j], entry)
 					if err != nil {
 						panic(err)
 					}
