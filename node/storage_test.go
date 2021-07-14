@@ -80,6 +80,9 @@ func TestPassthrough(t *testing.T) {
 
 	// Remove should apply to both storages
 	_, err = s.Remove(single, entry1)
+	if err != nil {
+		t.Fatal(err)
+	}
 	persv, _, _ = s.persistent.Get(single)
 	primv, _, _ = s.primary.Get(single)
 	if len(primv) != 1 || len(persv) != 1 {
@@ -288,7 +291,7 @@ func SizeTest(t *testing.T) {
 		t.Error("failed to compute storage size")
 	}
 	s = initStorage(t, true, false)
-	size, err = s.Size()
+	_, err = s.Size()
 	if err == nil {
 		t.Fatal("should return an error when no persistence configured")
 	}

@@ -23,13 +23,9 @@ func NewStorage(primary store.Storage, persistent store.PersistentStorage) *node
 
 // Get retrieves IndexEntries for a CID
 func (ns *nodeStorage) Get(c cid.Cid) ([]store.IndexEntry, bool, error) {
-	v := []store.IndexEntry{}
-	var found bool
-	var err error
-
 	if ns.primary != nil {
 		// Check if CID in primary storage
-		v, found, err = ns.primary.Get(c)
+		v, found, err := ns.primary.Get(c)
 
 		if ns.persistent != nil && (!found || err != nil) {
 			v, found, err = ns.persistent.Get(c)
