@@ -1,6 +1,7 @@
 package node
 
 import (
+	"io/ioutil"
 	"testing"
 
 	"github.com/filecoin-project/storetheindex/store"
@@ -13,10 +14,12 @@ import (
 const protocolID = 0
 
 func initStorage(t *testing.T, withPrimary bool, withPersist bool) *nodeStorage {
-	tmpDir := t.TempDir()
+	tmpDir, err := ioutil.TempDir("", "sth")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var prim store.Storage
 	var persistent store.PersistentStorage
-	var err error
 
 	if withPersist {
 		persistent, err = storethehash.New(tmpDir)

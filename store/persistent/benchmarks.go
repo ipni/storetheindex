@@ -128,12 +128,10 @@ func BenchCidGet(s store.PersistentStorage, b *testing.B) {
 		b.Run(fmt.Sprint("Get", testCount), func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				for j := 0; j < testCount; j++ {
-					_, ok, _ := s.Get(cids[j%len(cids)])
-					if !ok {
-						panic("missing cid")
-					}
+			for i := 0; i < b.N*testCount; i++ {
+				_, ok, _ := s.Get(cids[i%len(cids)])
+				if !ok {
+					panic("missing cid")
 				}
 			}
 		})
