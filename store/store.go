@@ -62,11 +62,11 @@ type Storage interface {
 	// Get retrieves a slice of IndexEntry for a CID
 	Get(c cid.Cid) ([]IndexEntry, bool, error)
 	// Put stores an additional IndexEntry for a CID if the entry is not already stored
-	Put(c cid.Cid, entry IndexEntry) error
+	Put(c cid.Cid, entry IndexEntry) (bool, error)
 	// PutMany stores an IndexEntry for multiple CIDs
 	PutMany(cs []cid.Cid, entry IndexEntry) error
 	// Remove removes an IndexEntry for a CID
-	Remove(c cid.Cid, entry IndexEntry) error
+	Remove(c cid.Cid, entry IndexEntry) (bool, error)
 	// RemoveMany removes an IndexEntry from multiple CIDs
 	RemoveMany(cids []cid.Cid, entry IndexEntry) error
 	// RemoveProvider removes all entries for specified provider.  This is used
@@ -76,10 +76,10 @@ type Storage interface {
 	Size() (int64, error)
 }
 
-// StorageFlusher implements a storage interface with Flush capabilities
+// PersistentStorage implements a storage interface with Flush capabilities
 // to be used with persistence storage that require commitment of changes
 // on-disk.
-type StorageFlusher interface {
+type PersistentStorage interface {
 	Storage
 	// Flush commits changes to storage
 	Flush() error

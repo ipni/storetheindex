@@ -17,15 +17,17 @@ a first glimpse).
 - Simple primary storage based on https://github.com/gammazero/radixtree
 - Run node (it starts the node's API, and intializes its storage).
 ```
-./storetheindex daemon -e 127.0.0.1:3000
+./storetheindex daemon --storage <persistent_backend> -e <endpoint> --dir <persistent_dir>
+# Example
+./storetheindex daemon --storage sth -e 127.0.0.1:3000 --dir /tmp/
 ```
 - Commands to read a list of CIDs from a manifest and a cid list.
 ```
-./storetheindex import manifest --dir <manifest> --providerID <peer.ID> --metadata <bytes>
-./storetheindex import cidlist --dir <manifest> --providerID <peer.ID> --metadata <bytes>
+./storetheindex import manifest --dir <manifest> --provider <peer.ID> --metadata <bytes>
+./storetheindex import cidlist --dir <manifest> --provider <peer.ID> --metadata <bytes>
 
 // Example
-./storetheindex import cidlist --dir ./cid.out --providerID QmcJeseojbPW9hSejUM1sQ1a2QmbrryPK4Z8pWbRUPaYEn -e 127.0.0.1:3000
+./storetheindex import cidlist --dir ./cid.out --provider QmcJeseojbPW9hSejUM1sQ1a2QmbrryPK4Z8pWbRUPaYEn -e 127.0.0.1:3000
 ```
 - Simple get command for single CID (for testing purposes).
 ```

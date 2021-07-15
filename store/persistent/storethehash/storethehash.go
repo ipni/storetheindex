@@ -13,7 +13,7 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
-var _ store.StorageFlusher = &sthStorage{}
+var _ store.PersistentStorage = &sthStorage{}
 
 // TODO: Benchmark and fine-tune for better performance.
 const DefaultIndexSizeBits = uint8(24)
@@ -66,11 +66,11 @@ func (s *sthStorage) get(k []byte) ([]store.IndexEntry, bool, error) {
 
 }
 
-func (s *sthStorage) Put(c cid.Cid, entry store.IndexEntry) error {
+func (s *sthStorage) Put(c cid.Cid, entry store.IndexEntry) (bool, error) {
 	return s.put(c.Bytes(), entry)
 }
 
-func (s *sthStorage) put(k []byte, in store.IndexEntry) error {
+func (s *sthStorage) put(k []byte, in store.IndexEntry) (bool, error) {
 	// NOTE: The implementation of Put in storethehash already
 	// performs a first lookup to check the type of update that
 	// needs to be done over the key. We can probably save this
@@ -78,26 +78,30 @@ func (s *sthStorage) put(k []byte, in store.IndexEntry) error {
 	// low-level
 	old, found, err := s.get(k)
 	if err != nil {
-		return err
+		return false, err
 	}
 	// If found it means there is already a value there.
 	// Check if we are trying to put a duplicate entry
 	if found && duplicateEntry(in, old) {
-		return nil
+		return false, nil
 	}
 
 	li := append(old, in)
 	b, err := store.Marshal(li)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return s.store.Put(k, b)
+	err = s.store.Put(k, b)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *sthStorage) PutMany(cs []cid.Cid, entry store.IndexEntry) error {
 	for _, c := range cs {
-		err := s.put(c.Bytes(), entry)
+		_, err := s.put(c.Bytes(), entry)
 		if err != nil {
 			// TODO: Log error but don't return. Errors for a single
 			// CID shouldn't stop from putting the rest.
@@ -134,9 +138,8 @@ func (s *sthStorage) Size() (int64, error) {
 	return size, nil
 
 }
-func (s *sthStorage) Remove(c cid.Cid, entry store.IndexEntry) error {
-	_, err := s.remove(c, entry)
-	return err
+func (s *sthStorage) Remove(c cid.Cid, entry store.IndexEntry) (bool, error) {
+	return s.remove(c, entry)
 }
 
 func (s *sthStorage) remove(c cid.Cid, entry store.IndexEntry) (bool, error) {

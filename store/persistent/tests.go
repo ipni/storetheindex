@@ -8,7 +8,7 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
-func E2ETest(t *testing.T, s store.StorageFlusher) {
+func E2ETest(t *testing.T, s store.PersistentStorage) {
 	// Create new valid peer.ID
 	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	if err != nil {
@@ -30,7 +30,7 @@ func E2ETest(t *testing.T, s store.StorageFlusher) {
 
 	// Put a single CID
 	t.Logf("Put/Get a single CID in primary storage")
-	err = s.Put(single, entry1)
+	_, err = s.Put(single, entry1)
 	if err != nil {
 		t.Fatal("Error putting single cid: ", err)
 	}
@@ -66,7 +66,7 @@ func E2ETest(t *testing.T, s store.StorageFlusher) {
 
 	// Put on an existing key
 	t.Logf("Put/Get on existing key")
-	err = s.Put(single, entry2)
+	_, err = s.Put(single, entry2)
 	if err != nil {
 		t.Fatal("Error putting single cid: ", err)
 	}
@@ -99,7 +99,7 @@ func E2ETest(t *testing.T, s store.StorageFlusher) {
 
 	// Remove a key
 	t.Logf("Remove key")
-	err = s.Remove(remove, entry1)
+	_, err = s.Remove(remove, entry1)
 	if err != nil {
 		t.Fatal("Error putting single cid: ", err)
 	}
@@ -113,7 +113,7 @@ func E2ETest(t *testing.T, s store.StorageFlusher) {
 	}
 
 	// Remove an entry from the key
-	err = s.Remove(single, entry1)
+	_, err = s.Remove(single, entry1)
 	if err != nil {
 		t.Fatal("Error putting single cid: ", err)
 	}
@@ -130,7 +130,7 @@ func E2ETest(t *testing.T, s store.StorageFlusher) {
 
 }
 
-func SizeTest(t *testing.T, s store.StorageFlusher) {
+func SizeTest(t *testing.T, s store.PersistentStorage) {
 	// Init storage
 	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	if err != nil {
@@ -144,7 +144,7 @@ func SizeTest(t *testing.T, s store.StorageFlusher) {
 
 	entry := store.MakeIndexEntry(p, protocolID, cids[0].Bytes())
 	for _, c := range cids[1:] {
-		err = s.Put(c, entry)
+		_, err = s.Put(c, entry)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -159,7 +159,7 @@ func SizeTest(t *testing.T, s store.StorageFlusher) {
 	}
 }
 
-func RemoveManyTest(t *testing.T, s store.StorageFlusher) {
+func RemoveManyTest(t *testing.T, s store.PersistentStorage) {
 	// Create new valid peer.ID
 	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	if err != nil {

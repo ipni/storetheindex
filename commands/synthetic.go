@@ -43,8 +43,7 @@ func genCidList(dir string, num int64, size int64) error {
 		return writeCidFileOfSize(dir, size)
 	}
 	if num != 0 {
-		cids, _ := utils.RandomCids(int(num))
-		return writeCidFile(dir, cids)
+		return writeCidFile(dir, num)
 	}
 
 	return errors.New("no size or number of cids provided to command")
@@ -57,33 +56,34 @@ func genManifest(dir string, num int64, size int64) error {
 		return writeManifestOfSize(dir, size)
 	}
 	if num != 0 {
-		cids, _ := utils.RandomCids(int(num))
-		return writeManifest(dir, cids)
+		return writeManifest(dir, num)
 	}
 	return errors.New("no size or number of cids provided to command")
 }
 
 // writeCidFile creates a file and appends a list of cids.
-// If the file already exists it appends to it to benefit
-// from previous runs (this can make us save time).
-func writeCidFile(dir string, cids []cid.Cid) error {
-	// file, err := os.Create(dir)
+func writeCidFile(dir string, num int64) error {
 	file, err := os.OpenFile(dir,
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
 	w := bufio.NewWriter(file)
-
-	for _, c := range cids {
-		if _, err = w.WriteString(c.String()); err != nil {
-			return err
+	curr := int64(0)
+	for curr < num {
+		cids, _ := utils.RandomCids(10)
+		for i := range cids {
+			if _, err = w.WriteString(cids[i].String()); err != nil {
+				return err
+			}
+			if _, err = w.WriteString("\n"); err != nil {
+				return err
+			}
 		}
-		if _, err = w.WriteString("\n"); err != nil {
-			return err
-		}
+		curr += 10
+		progressCids(curr)
 	}
 
 	if err = w.Flush(); err != nil {
@@ -107,8 +107,8 @@ func writeCidFileOfSize(dir string, size int64) error {
 
 	curr := int64(0)
 	for curr < size {
-		// Generate CIDs in batches of 1000
-		cids, _ := utils.RandomCids(1000)
+		// Generate CIDs in batches of 100
+		cids, _ := utils.RandomCids(100)
 		for _, c := range cids {
 			curr += int64(len(c.Bytes()))
 
@@ -118,7 +118,7 @@ func writeCidFileOfSize(dir string, size int64) error {
 			if _, err = w.WriteString("\n"); err != nil {
 				return err
 			}
-			progress(curr)
+			progressBytes(curr)
 		}
 
 	}
@@ -132,12 +132,9 @@ func writeCidFileOfSize(dir string, size int64) error {
 }
 
 // writeManifest appends new entries to existing manifest
-// If the file already exists it appends to it to benefit
-// from previous runs (this can make us save time).
-func writeManifest(dir string, cids []cid.Cid) error {
-	// file, err := os.Create(dir)
+func writeManifest(dir string, num int64) error {
 	file, err := os.OpenFile(dir,
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
@@ -145,17 +142,19 @@ func writeManifest(dir string, cids []cid.Cid) error {
 
 	w := bufio.NewWriter(file)
 
-	for _, c := range cids {
-		b, err := manifestEntry(c)
-		if err != nil {
-			return err
+	curr := int64(0)
+	for curr < num {
+		cids, _ := utils.RandomCids(10)
+		for i := range cids {
+			if _, err = w.WriteString(cids[i].String()); err != nil {
+				return err
+			}
+			if _, err = w.WriteString("\n"); err != nil {
+				return err
+			}
 		}
-		if _, err = w.WriteString(string(b)); err != nil {
-			return err
-		}
-		if _, err = w.WriteString("\n"); err != nil {
-			return err
-		}
+		curr += 10
+		progressCids(curr)
 	}
 
 	if err = w.Flush(); err != nil {
@@ -179,8 +178,8 @@ func writeManifestOfSize(dir string, size int64) error {
 
 	curr := int64(0)
 	for curr < size {
-		// Generate CIDs in batches of 1000
-		cids, _ := utils.RandomCids(1000)
+		// Generate CIDs in batches of 100
+		cids, _ := utils.RandomCids(100)
 		for _, c := range cids {
 			curr += int64(len(c.Bytes()))
 			b, err := manifestEntry(c)
@@ -194,7 +193,7 @@ func writeManifestOfSize(dir string, size int64) error {
 			if _, err = w.WriteString("\n"); err != nil {
 				return err
 			}
-			progress(curr)
+			progressBytes(curr)
 		}
 
 	}
@@ -229,8 +228,14 @@ func manifestEntry(c cid.Cid) ([]byte, error) {
 	return json.Marshal(e)
 }
 
-func progress(n int64) {
+func progressBytes(n int64) {
 	if n%50000 == 0 {
 		log.Infof("Generated %dB so far", n)
+	}
+}
+
+func progressCids(n int64) {
+	if n%1000 == 0 {
+		log.Infof("Generated %d cids so far", n)
 	}
 }

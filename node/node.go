@@ -21,25 +21,26 @@ var log = logging.Logger("node")
 const defaultStorageDir = ".storetheindex"
 
 type Node struct {
-	primary    store.Storage
-	persistent store.Storage
-	api        *api
+	storage store.Storage
+	api     *api
 }
 
 func New(cctx *cli.Context) (*Node, error) {
 	n := new(Node)
+	var prim store.Storage
+	var pers store.PersistentStorage
 
 	cacheSize := int(cctx.Int64("cachesize"))
 	if cacheSize != 0 {
-		n.primary = primary.New(cacheSize)
-		log.Infow("cachee enabled", "size", cacheSize)
+		prim = primary.New(cacheSize)
+		log.Infow("cache enabled", "size", cacheSize)
 	} else {
-		log.Info("cachee disabled")
+		log.Info("cache disabled")
 	}
 
-	switch storageType := cctx.String("storge"); storageType {
+	switch storageType := cctx.String("storage"); storageType {
 	case "none":
-		if n.primary == nil {
+		if prim == nil {
 			return nil, errors.New("cache and storage cannot both be disabled")
 		}
 		log.Info("persistent storage disabled")
@@ -51,9 +52,9 @@ func New(cctx *cli.Context) (*Node, error) {
 		}
 
 		if storageType == "sth" {
-			n.persistent, err = storethehash.New(storageDir)
+			pers, err = storethehash.New(storageDir)
 		} else {
-			n.persistent, err = pogreb.New(storageDir)
+			pers, err = pogreb.New(storageDir)
 		}
 		if err != nil {
 			return nil, err
@@ -65,6 +66,7 @@ func New(cctx *cli.Context) (*Node, error) {
 		return nil, fmt.Errorf("unrecognized storage type: %s", storageType)
 	}
 
+	n.storage = NewStorage(prim, pers)
 	err := n.initAPI(cctx.String("endpoint"))
 	if err != nil {
 		return nil, err

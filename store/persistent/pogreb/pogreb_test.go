@@ -10,7 +10,7 @@ import (
 	"github.com/filecoin-project/storetheindex/store/persistent/pogreb"
 )
 
-func initPogreb() (store.StorageFlusher, error) {
+func initPogreb() (store.PersistentStorage, error) {
 	tmpDir, err := ioutil.TempDir("", "sth")
 	if err != nil {
 		return nil, err

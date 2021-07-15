@@ -54,9 +54,8 @@ func (s *rtStorage) Get(c cid.Cid) ([]store.IndexEntry, bool, error) {
 	return ret, true, nil
 }
 
-func (s *rtStorage) Put(c cid.Cid, entry store.IndexEntry) error {
-	s.PutCheck(c, entry)
-	return nil
+func (s *rtStorage) Put(c cid.Cid, entry store.IndexEntry) (bool, error) {
+	return s.PutCheck(c, entry), nil
 }
 
 // PutCheck stores an IndexEntry for a CID if the entry is not already
@@ -126,9 +125,8 @@ func (s *rtStorage) PutManyCount(cids []cid.Cid, entry store.IndexEntry) uint64 
 	return stored
 }
 
-func (s *rtStorage) Remove(c cid.Cid, entry store.IndexEntry) error {
-	s.RemoveCheck(c, entry)
-	return nil
+func (s *rtStorage) Remove(c cid.Cid, entry store.IndexEntry) (bool, error) {
+	return s.RemoveCheck(c, entry), nil
 }
 
 // RemoveCheck removes an IndexEntry for a CID.  Returns true if an
