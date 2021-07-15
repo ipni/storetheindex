@@ -26,17 +26,28 @@ func (ns *nodeStorage) Get(c cid.Cid) ([]store.IndexEntry, bool, error) {
 	if ns.primary != nil {
 		// Check if CID in primary storage
 		v, found, err := ns.primary.Get(c)
+		if err != nil {
+			return nil, false, err
+		}
 
-		if ns.persistent != nil && (!found || err != nil) {
+		if !found && ns.persistent != nil {
 			v, found, err = ns.persistent.Get(c)
+			if err != nil {
+				return nil, false, err
+			}
 			// TODO: What about adding a CacheStorage interface that includes
 			// putEntries(cid, []IndexEntry) function
 			// so we don't need to loop through IndexEntry to move from
 			// one storage to another?
-			if found && err == nil {
+			if found {
 				// Move from persistent to cache
 				for i := range v {
-					ns.primary.Put(c, v[i])
+					_, err := ns.primary.Put(c, v[i])
+					if err != nil {
+						// Only log error since request has been satisified
+						log.Errorw("failed to put entry into primary storage", "err", err)
+						break
+					}
 				}
 			}
 		}
@@ -54,29 +65,36 @@ func (ns *nodeStorage) Put(c cid.Cid, entry store.IndexEntry) (bool, error) {
 }
 
 func (ns *nodeStorage) put(c cid.Cid, entry store.IndexEntry) (bool, error) {
-	var ok bool
-	var err error
-	// If there is persistent storage we put in persistent storage
-	if ns.persistent != nil {
-		ok, err = ns.persistent.Put(c, entry)
-		if err != nil {
-			return false, err
-		}
-	} else {
-		// If not we put in primary storage right away
+	// If there's only primary storage put right away
+	if ns.persistent == nil {
 		return ns.primary.Put(c, entry)
 	}
 
-	// If we have both, we need to check if there is an entry for
-	// the cid in primary and update it accordingly to keep both
-	// storages consistent
+	// If both check first if cid already in cache
 	if ns.primary != nil {
-		_, found, _ := ns.primary.Get(c)
-		if found && ok {
-			return ns.primary.Put(c, entry)
+		v, found, err := ns.primary.Get(c)
+		if err != nil {
+			return false, err
+		}
+		// If found, check if entry already exists in cache as if this
+		// is the case there's no need to put anything new.
+		if found {
+			for i := range v {
+				// If exists, no put needed here nor in persistent
+				if v[i].Equal(entry) {
+					return false, nil
+				}
+			}
+			// Put in primary
+			_, err := ns.primary.Put(c, entry)
+			if err != nil {
+				log.Errorw("failed to put entry into primary storage", "err", err)
+			}
 		}
 	}
-	return ok, err
+
+	// If persistent and not in cache we always put
+	return ns.persistent.Put(c, entry)
 }
 
 // PutMany stores entry for multiple CIDs
