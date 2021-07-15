@@ -112,7 +112,7 @@ func BenchCidGet(s store.PersistentStorage, b *testing.B) {
 	s.PutMany(cids, entry)
 
 	// Bench average time for a single get
-	b.Run(fmt.Sprint("Get single"), func(b *testing.B) {
+	b.Run("Get single", func(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
