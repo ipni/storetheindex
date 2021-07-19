@@ -42,6 +42,7 @@ func New(dir string) (*sthStorage, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.Start()
 	return &sthStorage{dir: dir, store: s}, nil
 }
 
@@ -211,4 +212,11 @@ func (s *sthStorage) removeEntry(k []byte, entry store.IndexEntry, stored []stor
 		}
 	}
 	return false, nil
+}
+
+// Close stops all storage-related routines, and flushes
+// pending data
+// NOTE: Add it to storage interface?
+func (s *sthStorage) Close() error {
+	return s.store.Close()
 }
