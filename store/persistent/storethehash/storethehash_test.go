@@ -2,6 +2,7 @@ package storethehash_test
 
 import (
 	"io/ioutil"
+	"runtime"
 	"testing"
 	"time"
 
@@ -45,6 +46,9 @@ func TestRemoveMany(t *testing.T) {
 }
 
 func TestPeriodicFlush(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
 	// Init storage
 	tmpDir, err := ioutil.TempDir("", "sth")
 	if err != nil {
