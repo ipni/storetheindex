@@ -102,6 +102,10 @@ func (s *pStorage) Flush() error {
 	return s.store.Sync()
 }
 
+func (s *pStorage) Close() error {
+	return s.store.Close()
+}
+
 func (s *pStorage) Size() (int64, error) {
 	var size int64
 	err := filepath.Walk(s.dir, func(_ string, info os.FileInfo, err error) error {

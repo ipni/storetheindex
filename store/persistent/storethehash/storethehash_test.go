@@ -80,7 +80,6 @@ func TestPeriodicFlush(t *testing.T) {
 
 	// Sleep for 2 sync Intervals to ensure that data is flushed
 	time.Sleep(2 * storethehash.DefaultSyncInterval)
-	s.Close()
 
 	// Regenerate new storage from primary
 	s2, err := storethehash.New(tmpDir)

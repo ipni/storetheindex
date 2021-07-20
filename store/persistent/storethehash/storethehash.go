@@ -216,7 +216,6 @@ func (s *sthStorage) removeEntry(k []byte, entry store.IndexEntry, stored []stor
 
 // Close stops all storage-related routines, and flushes
 // pending data
-// NOTE: Add it to storage interface?
 func (s *sthStorage) Close() error {
 	return s.store.Close()
 }
