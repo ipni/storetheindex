@@ -15,12 +15,9 @@ a = 2.  # Zipf parameter (feel free to change it)
 
 # Read from a list of imported cids
 def read_cids(filepath):
-    file1 = open(filepath, 'r')
-    lines = file1.readlines()
-    cids = []
-    for line in lines:
-        cids.append(line.strip())
-    return cids
+    with open (filepath) as file1:
+        lines = file1.readlines()
+        return [line.strip() for line in lines]
 
 # Choosing a random CID from the list of imported ones
 def random_sample(cids, is_zipf=True):
@@ -33,7 +30,6 @@ def random_sample(cids, is_zipf=True):
 # Importing CIDs to request
 cids = read_cids("cids.data")
 print("Reading CIDs complete!")
-
 
 # Test case
 class IndexUser(HttpUser):
