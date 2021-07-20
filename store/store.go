@@ -83,6 +83,8 @@ type PersistentStorage interface {
 	Storage
 	// Flush commits changes to storage
 	Flush() error
+	// Close gracefully closes the database flushing all pending data from memory
+	Close() error
 }
 
 // Marshal serializes IndexEntry list for storage
