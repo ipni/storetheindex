@@ -7,10 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/filecoin-project/storetheindex/store"
-	"github.com/filecoin-project/storetheindex/store/persistent/pogreb"
-	"github.com/filecoin-project/storetheindex/store/persistent/storethehash"
-	"github.com/filecoin-project/storetheindex/store/primary"
+	core "github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/go-indexer-core/store"
+	"github.com/filecoin-project/go-indexer-core/store/persistent/pogreb"
+	"github.com/filecoin-project/go-indexer-core/store/persistent/storethehash"
+	"github.com/filecoin-project/go-indexer-core/store/primary"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
@@ -66,7 +67,7 @@ func New(cctx *cli.Context) (*Node, error) {
 		return nil, fmt.Errorf("unrecognized storage type: %s", storageType)
 	}
 
-	n.storage = NewStorage(prim, pers)
+	n.storage = core.NewStorage(prim, pers)
 	err := n.initAPI(cctx.String("endpoint"))
 	if err != nil {
 		return nil, err

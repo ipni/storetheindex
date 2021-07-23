@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/filecoin-project/go-indexer-core/store"
 	"github.com/filecoin-project/storetheindex/importer"
-	"github.com/filecoin-project/storetheindex/store"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p-core/peer"
