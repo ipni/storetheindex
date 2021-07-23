@@ -1,7 +1,7 @@
 package models
 
 import (
-	"github.com/filecoin-project/storetheindex/store"
+	"github.com/filecoin-project/go-indexer-core/store"
 	"github.com/ipfs/go-cid"
 )
 
