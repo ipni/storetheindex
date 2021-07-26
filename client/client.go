@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -55,7 +56,7 @@ func (c *Client) Get(ctx context.Context, x cid.Cid) error {
 	}
 	// TODO: This needs to change. Only for debugging and testing for now.
 	defer resp.Body.Close()
-	b, err := io.ReadAll(resp.Body)
+	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
