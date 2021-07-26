@@ -241,7 +241,6 @@ github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5Kwzbycv
 github.com/fatih/color v1.8.0/go.mod h1:3l45GVGkyrnYNl9HoIjnp2NnNWvh6hLAqD8yTfGjnw8=
 github.com/fatih/color v1.9.0/go.mod h1:eQcE1qtQxscV5RaZvpXrrb8Drkc3/DdQ+uUYCNjL+zU=
 github.com/fd/go-nat v1.0.0/go.mod h1:BTBu/CKvMmOMUPkKVef1pngt2WFH/lg7E6yQnulfp6E=
-github.com/filecoin-project/dealbot v0.0.15 h1:NENcPwX/DjMooV1CSSmtCvptE88dx9F5Dhv+3dar5N8=
 github.com/filecoin-project/dealbot v0.0.15/go.mod h1:bHQOu1z/Gi68jymJsoRDlO2UkRZU3s1szspDpnJzzbM=
 github.com/filecoin-project/filecoin-ffi v0.30.4-0.20200716204036-cddc56607e1d/go.mod h1:XE4rWG1P7zWPaC11Pkn1CVR20stqN52MnMkIrF4q6ZU=
 github.com/filecoin-project/filecoin-ffi v0.30.4-0.20200910194244-f640612a1a1f/go.mod h1:+If3s2VxyjZn+KGGZIoRXBDSFQ9xL404JBJGf4WhEj0=
