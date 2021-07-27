@@ -10,26 +10,13 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
-// MenifestImporter reads Cids from a manifest of a  CID aggregator
-type ManifestImporter struct {
-	reader io.Reader
-}
-
-func NewManifestImporter(r io.Reader) Importer {
-	return ManifestImporter{r}
-}
-
-func (i ManifestImporter) Read(ctx context.Context, out chan cid.Cid, errOut chan error) {
+// ReadMenifest reads Cids from a manifest of a CID aggregator and outputs them
+// on a channel.
+func ReadManifest(ctx context.Context, in io.Reader, out chan cid.Cid, errOut chan error) {
 	defer close(errOut)
 
-	scanner := bufio.NewScanner(i.reader)
+	scanner := bufio.NewScanner(in)
 	for scanner.Scan() {
-		if ctx.Err() != nil {
-			close(out) // close out first in case errOut not buffered
-			errOut <- ctx.Err()
-			return
-		}
-
 		e := agg.ManifestDagEntry{}
 		// In its current implementation, there is no performance benefit
 		// from using json.Unmarshal v.s. json.Decode, as Decode uses a
@@ -45,15 +32,23 @@ func (i ManifestImporter) Read(ctx context.Context, out chan cid.Cid, errOut cha
 			// Using original CID and not the normalized Cid. We could choose
 			// to read both (althoug it is not needed)
 			c, err := cid.Decode(e.DagCidV1)
-			// There shouldn't be malformed CIDs, if there are just
-			// disregard them
 			if err != nil {
 				c, err = cid.Decode(e.DagCidV0)
 				if err != nil {
-					continue
+					continue // ignore malformet CIDs
 				}
 			}
-			out <- c
+			select {
+			case out <- c:
+			case <-ctx.Done():
+				close(out) // close out first in case errOut not buffered
+				errOut <- ctx.Err()
+				return
+			}
+		} else if ctx.Err() != nil {
+			close(out) // close out first in case errOut not buffered
+			errOut <- ctx.Err()
+			return
 		}
 	}
 	// Close out first in case errOut is not buffered, to let the caller's

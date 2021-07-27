@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/filecoin-project/go-indexer-core/store"
+	"github.com/filecoin-project/go-indexer-core/entry"
 	"github.com/filecoin-project/storetheindex/importer"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
@@ -36,10 +36,9 @@ func (n *Node) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 
 	out := make(chan cid.Cid)
 	errOut := make(chan error, 1)
-	imp := importer.NewManifestImporter(file)
-	go imp.Read(r.Context(), out, errOut)
+	go importer.ReadCids(r.Context(), file, out, errOut)
 
-	entry := store.MakeIndexEntry(miner, 0, nil)
+	entry := entry.MakeValue(miner, 0, nil)
 	for c := range out {
 		err = n.importCallback(c, entry)
 		if err != nil {
@@ -79,12 +78,11 @@ func (n *Node) ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
 
 	out := make(chan cid.Cid)
 	errOut := make(chan error, 1)
-	imp := importer.NewCidListImporter(file)
-	go imp.Read(r.Context(), out, errOut)
+	go importer.ReadCids(r.Context(), file, out, errOut)
 
-	entry := store.MakeIndexEntry(miner, 0, nil)
+	value := entry.MakeValue(miner, 0, nil)
 	for c := range out {
-		err = n.importCallback(c, entry)
+		err = n.importCallback(c, value)
 		if err != nil {
 			log.Errorw("import callback error", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -102,16 +100,16 @@ func (n *Node) ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (n *Node) importCallback(c cid.Cid, entry store.IndexEntry) error {
+func (n *Node) importCallback(c cid.Cid, value entry.Value) error {
 	// Disregard empty Cids.
 	if c == cid.Undef {
 		return nil
 	}
 	// NOTE: We disregard errors for now
-	_, err := n.storage.Put(c, entry)
+	_, err := n.indexer.Put(c, value)
 	if err != nil {
-		log.Errorw("primary storage Put returned error", "err", err, "cid", c)
-		return errors.New("failed to store in primary storage")
+		log.Errorw("indexer Put returned error", "err", err, "cid", c)
+		return errors.New("failed to store in indexer")
 	}
 	// TODO: Change to Debug
 	log.Infow("Imported successfully", "cid", c)

@@ -8,10 +8,11 @@ import (
 	"path/filepath"
 
 	core "github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/go-indexer-core/cache"
+	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/store"
-	"github.com/filecoin-project/go-indexer-core/store/persistent/pogreb"
-	"github.com/filecoin-project/go-indexer-core/store/persistent/storethehash"
-	"github.com/filecoin-project/go-indexer-core/store/primary"
+	"github.com/filecoin-project/go-indexer-core/store/pogreb"
+	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
@@ -22,53 +23,44 @@ var log = logging.Logger("node")
 const defaultStorageDir = ".storetheindex"
 
 type Node struct {
-	storage store.Storage
+	indexer *core.Engine
 	api     *api
 }
 
 func New(cctx *cli.Context) (*Node, error) {
 	n := new(Node)
-	var prim store.Storage
-	var pers store.PersistentStorage
+	var resultCache cache.Interface
+	var valueStore store.Interface
 
 	cacheSize := int(cctx.Int64("cachesize"))
 	if cacheSize != 0 {
-		prim = primary.New(cacheSize)
-		log.Infow("cache enabled", "size", cacheSize)
+		resultCache = radixcache.New(cacheSize)
+		log.Infow("result cache enabled", "size", cacheSize)
 	} else {
-		log.Info("cache disabled")
+		log.Info("result cache disabled")
 	}
 
-	switch storageType := cctx.String("storage"); storageType {
-	case "none":
-		if prim == nil {
-			return nil, errors.New("cache and storage cannot both be disabled")
-		}
-		log.Info("persistent storage disabled")
+	storageDir, err := checkStorageDir(cctx.String("dir"))
+	if err != nil {
+		return nil, err
+	}
 
-	case "sth", "prgreb":
-		storageDir, err := checkStorageDir(cctx.String("dir"))
-		if err != nil {
-			return nil, err
-		}
-
-		if storageType == "sth" {
-			pers, err = storethehash.New(storageDir)
-		} else {
-			pers, err = pogreb.New(storageDir)
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		log.Infow("Persistent storage enabled", "type", storageType, "dir", storageDir)
-
+	storageType := cctx.String("storage")
+	switch storageType {
+	case "sth":
+		valueStore, err = storethehash.New(storageDir)
+	case "prgreb":
+		valueStore, err = pogreb.New(storageDir)
 	default:
-		return nil, fmt.Errorf("unrecognized storage type: %s", storageType)
+		err = fmt.Errorf("unrecognized storage type: %s", storageType)
 	}
+	if err != nil {
+		return nil, err
+	}
+	log.Infow("Value storage initialized", "type", storageType, "dir", storageDir)
 
-	n.storage = core.NewStorage(prim, pers)
-	err := n.initAPI(cctx.String("endpoint"))
+	n.indexer = core.NewEngine(resultCache, valueStore)
+	err = n.initAPI(cctx.String("endpoint"))
 	if err != nil {
 		return nil, err
 	}
