@@ -8,43 +8,32 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
-// CidListImporter reads from a list of CIDs.
-type CidListImporter struct {
-	reader io.Reader
-}
-
-func NewCidListImporter(r io.Reader) Importer {
-	return CidListImporter{r}
-}
-
-func (i CidListImporter) Read(ctx context.Context, out chan cid.Cid, done chan error) {
+// ReadCids reads cids from an io.Reader and outputs them on a channel.
+// Malformed cids are ignored.  ReadCids is meant to be called in a separate
+// goroutine. It exits when EOF on in io.Reader or when context caceled.
+func ReadCids(ctx context.Context, in io.Reader, out chan cid.Cid, done chan error) {
 	defer close(out)
 	defer close(done)
 
-	r := bufio.NewReader(i.reader)
-	var line []byte
-	var err error
+	r := bufio.NewReader(in)
 	for {
-		line, err = r.ReadBytes('\n')
+		line, err := r.ReadString('\n')
 		if err != nil {
 			if err != io.EOF {
 				done <- err
-				return
-			} else {
-				return
 			}
+			return
+		}
+		c, err := cid.Decode(line)
+		if err != nil {
+			// Ignore malformed CIDs
+			continue
 		}
 		select {
+		case out <- c:
 		case <-ctx.Done():
-			done <- err
+			done <- ctx.Err()
 			return
-		default:
-			c, err := cid.Decode(string(line))
-			if err != nil {
-				// Disregarding malformed CIDs for now
-				continue
-			}
-			out <- c
 		}
 	}
 }

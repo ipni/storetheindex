@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/filecoin-project/go-indexer-core/store"
+	"github.com/filecoin-project/go-indexer-core/entry"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
 )
@@ -22,8 +22,8 @@ func (n *Node) GetSingleCidHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Infow("Find cid", "cid", mhCid)
 
-	// Lookup CID in storage
-	v, found, err := n.storage.Get(c)
+	// Lookup CID in indexer
+	v, found, err := n.indexer.Get(c)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -35,7 +35,7 @@ func (n *Node) GetSingleCidHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out := map[cid.Cid][]store.IndexEntry{c: v}
+	out := map[cid.Cid][]entry.Value{c: v}
 	err = writeResponse(w, out)
 	if err != nil {
 		fmt.Println(err)
