@@ -13,7 +13,10 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store"
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	httpserver "github.com/filecoin-project/storetheindex/client/http/server"
+	p2pserver "github.com/filecoin-project/storetheindex/client/libp2p/server"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/libp2p/go-libp2p"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 )
@@ -22,12 +25,15 @@ var log = logging.Logger("node")
 
 const defaultStorageDir = ".storetheindex"
 
+// Node wraps an indexer node engine and process
 type Node struct {
 	indexer *core.Engine
-	api     *api
+	httpAPI *httpserver.Server
+	p2pAPI  *p2pserver.Server
 }
 
-func New(cctx *cli.Context) (*Node, error) {
+// New creates a new Node process from CLI
+func New(ctx context.Context, cctx *cli.Context) (*Node, error) {
 	n := new(Node)
 	var resultCache cache.Interface
 	var valueStore store.Interface
@@ -60,23 +66,44 @@ func New(cctx *cli.Context) (*Node, error) {
 	log.Infow("Value storage initialized", "type", storageType, "dir", storageDir)
 
 	n.indexer = core.NewEngine(resultCache, valueStore)
-	err = n.initAPI(cctx.String("endpoint"))
+	log.Infow("Indexer engine initialized")
+	n.httpAPI, err = httpserver.New(cctx.String("endpoint"), n.indexer)
 	if err != nil {
 		return nil, err
+	}
+	log.Infow("Client http API initialized")
+	p2pEnabled := cctx.Bool("enablep2p")
+	if p2pEnabled {
+		// NOTE: We are creating a new flat libp2p host here because no other
+		// process in the indexer node needs a libp2p host. In the future, when
+		// the indexer node starts using other libp2p protocols to interact with
+		// miners and other indexers, we may need to initialize it before and
+		// use it here so we have a single libp2p host giving service to the whole indexer.
+		h, err := libp2p.New(ctx)
+		if err != nil {
+			return nil, err
+		}
+		n.p2pAPI, err = p2pserver.New(ctx, h, n.indexer)
+		if err != nil {
+			return nil, err
+		}
+		log.Infow("Client libp2p API initialized")
 	}
 
 	return n, nil
 }
 
+// Start node process
 func (n *Node) Start() error {
 	log.Info("Started server")
-	// TODO: Start required processes for stores
-	return n.api.Serve()
+	// NOTE: Start required processes for stores
+	return n.httpAPI.Start()
 
 }
 
+// Shutdown node process
 func (n *Node) Shutdown(ctx context.Context) error {
-	return n.api.Shutdown(ctx)
+	return n.httpAPI.Shutdown(ctx)
 }
 
 func checkStorageDir(dir string) (string, error) {

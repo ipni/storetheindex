@@ -22,8 +22,11 @@ var DaemonCmd = &cli.Command{
 }
 
 func daemonCommand(c *cli.Context) error {
+	ctx, cancel := context.WithCancel(ProcessContext())
+	defer cancel()
+
 	log.Infow("Starting node deamon")
-	n, err := node.New(c)
+	n, err := node.New(ctx, c)
 	if err != nil {
 		return err
 	}

@@ -55,11 +55,25 @@ var DaemonFlags = []cli.Flag{
 		Aliases:  []string{"d"},
 		Required: false,
 	},
+	&cli.BoolFlag{
+		Name:     "enablep2p",
+		Usage:    "Enable libp2p client api for indexer",
+		Aliases:  []string{"p2p"},
+		Value:    false,
+		Required: false,
+	},
 	EndpointFlag,
 }
 
 var ClientCmdFlags = []cli.Flag{
 	EndpointFlag,
+	&cli.StringFlag{
+		Name:     "protocol",
+		Usage:    "Protocol to query the indexer (http, libp2p currently supported)",
+		Aliases:  []string{"proto"},
+		Value:    "http",
+		Required: false,
+	},
 }
 
 var ImportFlags = []cli.Flag{

@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/filecoin-project/go-indexer-core/entry"
 	"github.com/ipfs/go-cid"
 	mh "github.com/multiformats/go-multihash"
 )
@@ -29,4 +30,37 @@ func RandomCids(n int) ([]cid.Cid, error) {
 		res[i] = c
 	}
 	return res, nil
+}
+
+func EqualCids(e1, e2 []cid.Cid) bool {
+	if len(e1) != len(e2) {
+		return false
+	}
+	for i := range e1 {
+		if !e1[i].Equals(e2[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func EqualEntries(e1, e2 []entry.Value) bool {
+	if len(e1) != len(e2) {
+		return false
+	}
+	for i := range e1 {
+		if !HasEntry(e2, e1[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func HasEntry(entries []entry.Value, e entry.Value) bool {
+	for i := range entries {
+		if entries[i].Equal(e) {
+			return true
+		}
+	}
+	return false
 }

@@ -1,4 +1,4 @@
-package node
+package httpserver
 
 import (
 	"errors"
@@ -11,10 +11,7 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
-// NOTE: Considering sending a JSON in the body of these handlers
-// to give additional input about the error to the client.
-
-func (n *Node) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: This code is the same for all import handlers.
 	// We probably can take it out to its own function to deduplicate.
 	vars := mux.Vars(r)
@@ -36,11 +33,11 @@ func (n *Node) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 
 	out := make(chan cid.Cid)
 	errOut := make(chan error, 1)
-	go importer.ReadCids(r.Context(), file, out, errOut)
+	go importer.ReadManifest(r.Context(), file, out, errOut)
 
 	entry := entry.MakeValue(miner, 0, nil)
 	for c := range out {
-		err = n.importCallback(c, entry)
+		err = s.importCallback(c, entry)
 		if err != nil {
 			log.Errorw("import callback error", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -58,7 +55,7 @@ func (n *Node) ImportManifestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (n *Node) ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	m := vars["minerid"]
 	miner, err := peer.Decode(m)
@@ -82,7 +79,7 @@ func (n *Node) ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
 
 	value := entry.MakeValue(miner, 0, nil)
 	for c := range out {
-		err = n.importCallback(c, value)
+		err = s.importCallback(c, value)
 		if err != nil {
 			log.Errorw("import callback error", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -100,13 +97,13 @@ func (n *Node) ImportCidListHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (n *Node) importCallback(c cid.Cid, value entry.Value) error {
+func (s *Server) importCallback(c cid.Cid, value entry.Value) error {
 	// Disregard empty Cids.
 	if c == cid.Undef {
 		return nil
 	}
 	// NOTE: We disregard errors for now
-	_, err := n.indexer.Put(c, value)
+	_, err := s.engine.Put(c, value)
 	if err != nil {
 		log.Errorw("indexer Put returned error", "err", err, "cid", c)
 		return errors.New("failed to store in indexer")

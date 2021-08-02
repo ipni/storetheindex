@@ -3,7 +3,7 @@ package commands
 import (
 	"context"
 
-	"github.com/filecoin-project/storetheindex/client"
+	httpclient "github.com/filecoin-project/storetheindex/client/http/client"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/urfave/cli/v2"
 )
@@ -38,11 +38,18 @@ var ImportCmd = &cli.Command{
 	},
 }
 
-func importListCmd(c *cli.Context) error {
-	cl := client.New(c)
-	prov := c.String("provider")
+func importListCmd(cctx *cli.Context) error {
+	// NOTE: Importing manually from CLI only supported for http protocol
+	// for now. This feature is mainly for testing purposes
+	endpoint := cctx.String("endpoint")
+	cl, err := httpclient.New()
+	if err != nil {
+		return err
+	}
+	end := httpclient.NewEndpoint(endpoint)
+	prov := cctx.String("provider")
 	p, err := peer.Decode(prov)
-	dir := c.String("dir")
+	dir := cctx.String("dir")
 
 	log.Infow("Starting to import from cidlist file")
 	ctx, cancel := context.WithCancel(ProcessContext())
@@ -50,7 +57,7 @@ func importListCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	return cl.ImportFromCidList(ctx, dir, p)
+	return cl.ImportFromCidList(ctx, dir, p, end)
 }
 
 func importCarCmd(c *cli.Context) error {
@@ -64,43 +71,22 @@ func importCarCmd(c *cli.Context) error {
 
 }
 
-func importManifestCmd(c *cli.Context) error {
-	cl := client.New(c)
-	prov := c.String("provider")
+func importManifestCmd(cctx *cli.Context) error {
+	endpoint := cctx.String("endpoint")
+	cl, err := httpclient.New()
+	if err != nil {
+		return err
+	}
+	end := httpclient.NewEndpoint(endpoint)
+	prov := cctx.String("provider")
 	p, err := peer.Decode(prov)
-	dir := c.String("dir")
+	dir := cctx.String("dir")
 
-	log.Infow("Starting to import from Manifest file")
+	log.Infow("Starting to import from manifest file")
 	ctx, cancel := context.WithCancel(ProcessContext())
 	defer cancel()
 	if err != nil {
 		return err
 	}
-	return cl.ImportFromManifest(ctx, dir, p)
+	return cl.ImportFromManifest(ctx, dir, p, end)
 }
-
-/*
-func importReader(ctx context.Context, c *cli.Context, i importer.Importer) error {
-	prov := c.String("provider")
-	metadata := c.String("metadata")
-
-	// TODO:
-
-	log.Infof("Reading from provider: %s, and metadata %s", prov, metadata)
-	cids := make(chan cid.Cid)
-	done := make(chan error)
-
-	go i.Read(ctx, cids, done)
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case c := <-cids:
-			// TODO: Process cids and store conveniently
-			fmt.Println(c)
-		case e := <-done:
-			return e
-		}
-	}
-}
-*/
