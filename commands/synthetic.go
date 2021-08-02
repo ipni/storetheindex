@@ -147,6 +147,9 @@ func writeManifest(dir string, num int64) error {
 		cids, _ := utils.RandomCids(10)
 		for i := range cids {
 			b, err := manifestEntry(cids[i])
+			if err != nil {
+				return err
+			}
 			if _, err = w.Write(b); err != nil {
 				return err
 			}
