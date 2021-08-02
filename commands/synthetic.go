@@ -146,7 +146,8 @@ func writeManifest(dir string, num int64) error {
 	for curr < num {
 		cids, _ := utils.RandomCids(10)
 		for i := range cids {
-			if _, err = w.WriteString(cids[i].String()); err != nil {
+			b, err := manifestEntry(cids[i])
+			if _, err = w.Write(b); err != nil {
 				return err
 			}
 			if _, err = w.WriteString("\n"); err != nil {
@@ -187,7 +188,7 @@ func writeManifestOfSize(dir string, size int64) error {
 				return err
 			}
 
-			if _, err = w.WriteString(string(b)); err != nil {
+			if _, err = w.Write(b); err != nil {
 				return err
 			}
 			if _, err = w.WriteString("\n"); err != nil {
