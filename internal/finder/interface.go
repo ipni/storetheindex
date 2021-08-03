@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/filecoin-project/storetheindex/api/v1/finder/models"
-	"github.com/filecoin-project/storetheindex/internal/net"
+	"github.com/filecoin-project/storetheindex/server/net"
 	"github.com/ipfs/go-cid"
 )
 

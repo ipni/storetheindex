@@ -7,7 +7,7 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v1/finder/models"
 	pb "github.com/filecoin-project/storetheindex/api/v1/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/finder"
-	"github.com/filecoin-project/storetheindex/internal/net"
+	"github.com/filecoin-project/storetheindex/server/net"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p-core/host"

@@ -3,7 +3,7 @@ package net_test
 import (
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/internal/net"
+	"github.com/filecoin-project/storetheindex/server/net"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 

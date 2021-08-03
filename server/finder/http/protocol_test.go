@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
+	httpclient "github.com/filecoin-project/storetheindex/client/http"
 	"github.com/filecoin-project/storetheindex/internal/finder"
-	httpserver "github.com/filecoin-project/storetheindex/internal/finder/http"
-	"github.com/filecoin-project/storetheindex/internal/finder/test"
-	httpclient "github.com/filecoin-project/storetheindex/resources/client/http"
+	httpserver "github.com/filecoin-project/storetheindex/server/finder/http"
+	"github.com/filecoin-project/storetheindex/server/finder/test"
 )
 
 func setupServer(ctx context.Context, ind *indexer.Engine, t *testing.T) *httpserver.Server {

@@ -6,7 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/filecoin-project/storetheindex/internal/command"
+	"github.com/filecoin-project/storetheindex/command"
 	"github.com/filecoin-project/storetheindex/internal/version"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"

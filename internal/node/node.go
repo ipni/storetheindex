@@ -13,9 +13,9 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store"
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
-	adminserver "github.com/filecoin-project/storetheindex/internal/admin"
-	httpfinderserver "github.com/filecoin-project/storetheindex/internal/finder/http"
-	p2pfinderserver "github.com/filecoin-project/storetheindex/internal/finder/libp2p"
+	adminserver "github.com/filecoin-project/storetheindex/server/admin"
+	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
+	p2pfinderserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	"github.com/mitchellh/go-homedir"
@@ -107,12 +107,9 @@ func (n *Node) Start() error {
 	// potential errors in finderAPI. Sticking to this
 	// until we wrap up the refactor
 	log.Info("Starting daemon servers")
-	if n.finderAPI != nil {
-		go n.finderAPI.Start()
-	}
+	go n.finderAPI.Start()
 
 	return n.adminAPI.Start()
-
 }
 
 // Shutdown node process

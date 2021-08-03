@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
+	p2pclient "github.com/filecoin-project/storetheindex/client/libp2p"
 	"github.com/filecoin-project/storetheindex/internal/finder"
-	p2pserver "github.com/filecoin-project/storetheindex/internal/finder/libp2p"
-	"github.com/filecoin-project/storetheindex/internal/finder/test"
-	p2pclient "github.com/filecoin-project/storetheindex/resources/client/libp2p"
+	p2pserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
+	"github.com/filecoin-project/storetheindex/server/finder/test"
 	"github.com/libp2p/go-libp2p-core/host"
 	swarmt "github.com/libp2p/go-libp2p-swarm/testing"
 	bhost "github.com/libp2p/go-libp2p/p2p/host/basic"

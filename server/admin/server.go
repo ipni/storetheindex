@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
-	indnet "github.com/filecoin-project/storetheindex/internal/net"
-	httphandler "github.com/filecoin-project/storetheindex/resources/handler/http"
+	httphandler "github.com/filecoin-project/storetheindex/server/handler/http"
+	indnet "github.com/filecoin-project/storetheindex/server/net"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )

@@ -9,10 +9,10 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/urfave/cli/v2"
 
+	httpclient "github.com/filecoin-project/storetheindex/client/http"
+	p2pclient "github.com/filecoin-project/storetheindex/client/libp2p"
 	"github.com/filecoin-project/storetheindex/internal/finder"
-	"github.com/filecoin-project/storetheindex/internal/net"
-	httpclient "github.com/filecoin-project/storetheindex/resources/client/http"
-	p2pclient "github.com/filecoin-project/storetheindex/resources/client/libp2p"
+	"github.com/filecoin-project/storetheindex/server/net"
 )
 
 var GetCmd = &cli.Command{

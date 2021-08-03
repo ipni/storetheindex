@@ -3,8 +3,8 @@ package command
 import (
 	"context"
 
-	"github.com/filecoin-project/storetheindex/internal/net"
-	httpclient "github.com/filecoin-project/storetheindex/resources/client/http"
+	httpclient "github.com/filecoin-project/storetheindex/client/http"
+	"github.com/filecoin-project/storetheindex/server/net"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/urfave/cli/v2"
 )

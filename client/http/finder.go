@@ -15,7 +15,7 @@ import (
 
 	"github.com/filecoin-project/storetheindex/api/v1/finder/models"
 	"github.com/filecoin-project/storetheindex/internal/finder"
-	"github.com/filecoin-project/storetheindex/internal/net"
+	"github.com/filecoin-project/storetheindex/server/net"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	peer "github.com/libp2p/go-libp2p-core/peer"
