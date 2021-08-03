@@ -2,7 +2,7 @@ package command
 
 import (
 	"context"
-	"net/http"
+	"fmt"
 	"os"
 	"os/signal"
 	"time"
@@ -21,36 +21,47 @@ var DaemonCmd = &cli.Command{
 	Action: daemonCommand,
 }
 
-func daemonCommand(c *cli.Context) error {
-	ctx, cancel := context.WithCancel(ProcessContext())
-	defer cancel()
+func daemonCommand(cctx *cli.Context) error {
+	// TODO: get these from config file
+	cacheSize := int(cctx.Int64("cachesize"))
+	dir := cctx.String("dir")
+	storeType := cctx.String("storage")
+	finderAddr := cctx.String("finder_ep")
+	adminAddr := cctx.String("admin_ep")
+	p2pEnabled := cctx.Bool("enablep2p")
 
 	log.Infow("Starting node deamon")
-	n, err := node.New(ctx, c)
+	n, err := node.New(cacheSize, dir, storeType, finderAddr, adminAddr, p2pEnabled)
 	if err != nil {
 		return err
 	}
 
+	n.Start()
+
+	// Wait for SIGINT (CTRL-c), then close server and exit.
+	sigint := make(chan os.Signal, 1)
+	signal.Notify(sigint, os.Interrupt)
+	<-sigint
+
+	log.Infow("shutting down node")
+
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
 	go func() {
-		// Wait for SIGINT (CTRL-c), then close server and exit.
-		sigint := make(chan os.Signal, 1)
-		signal.Notify(sigint, os.Interrupt)
-		<-sigint
-
-		log.Infow("shutting down node")
-
-		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-
-		if err := n.Shutdown(ctx); err != nil {
-			log.Fatalw("failed to shut down rpc server", "err", err)
+		select {
+		case <-ctx.Done():
+			fmt.Println("Timed out on shutdown, terminating...")
+		case <-sigint:
+			fmt.Println("Received another interrupt before graceful shutdown, terminating...")
 		}
-		log.Infow("node stopped")
+		os.Exit(-1)
 	}()
 
-	err = n.Start()
-	if err == http.ErrServerClosed {
-		err = nil
+	if err := n.Shutdown(ctx); err != nil {
+		log.Fatalw("failed to shut down rpc server", "err", err)
+		return err
 	}
-	return err
+	log.Infow("node stopped")
+	return nil
 }

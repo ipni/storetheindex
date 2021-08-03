@@ -19,7 +19,6 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	"github.com/mitchellh/go-homedir"
-	"github.com/urfave/cli/v2"
 )
 
 var log = logging.Logger("node")
@@ -32,15 +31,16 @@ type Node struct {
 	finderAPI *httpfinderserver.Server
 	adminAPI  *adminserver.Server
 	p2pAPI    *p2pfinderserver.Server
+
+	cancelP2pFinder context.CancelFunc
 }
 
 // New creates a new Node process from CLI
-func New(ctx context.Context, cctx *cli.Context) (*Node, error) {
+func New(cacheSize int, dir, storeType, finderAddr, adminAddr string, p2pEnabled bool) (*Node, error) {
 	n := new(Node)
 	var resultCache cache.Interface
 	var valueStore store.Interface
 
-	cacheSize := int(cctx.Int64("cachesize"))
 	if cacheSize != 0 {
 		resultCache = radixcache.New(cacheSize)
 		log.Infow("result cache enabled", "size", cacheSize)
@@ -48,52 +48,57 @@ func New(ctx context.Context, cctx *cli.Context) (*Node, error) {
 		log.Info("result cache disabled")
 	}
 
-	storageDir, err := checkStorageDir(cctx.String("dir"))
+	storageDir, err := checkStorageDir(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	storageType := cctx.String("storage")
-	switch storageType {
+	switch storeType {
 	case "sth":
 		valueStore, err = storethehash.New(storageDir)
 	case "prgreb":
 		valueStore, err = pogreb.New(storageDir)
 	default:
-		err = fmt.Errorf("unrecognized storage type: %s", storageType)
+		err = fmt.Errorf("unrecognized store type: %s", storeType)
 	}
 	if err != nil {
 		return nil, err
 	}
-	log.Infow("Value storage initialized", "type", storageType, "dir", storageDir)
+	log.Infow("Value storage initialized", "type", storeType, "dir", storageDir)
 
 	n.indexer = core.NewEngine(resultCache, valueStore)
 	log.Infow("Indexer engine initialized")
-	n.finderAPI, err = httpfinderserver.New(cctx.String("finder_ep"), n.indexer)
+	n.finderAPI, err = httpfinderserver.New(finderAddr, n.indexer)
 	if err != nil {
 		return nil, err
 	}
 	log.Infow("Admin API initialized")
-	n.adminAPI, err = adminserver.New(cctx.String("admin_ep"), n.indexer)
+	n.adminAPI, err = adminserver.New(adminAddr, n.indexer)
 	if err != nil {
 		return nil, err
 	}
 	log.Infow("Client finder API initialized")
-	p2pEnabled := cctx.Bool("enablep2p")
+
 	if p2pEnabled {
+		ctx, cancel := context.WithCancel(context.Background())
+
 		// NOTE: We are creating a new flat libp2p host here because no other
 		// process in the indexer node needs a libp2p host. In the future, when
 		// the indexer node starts using other libp2p protocols to interact with
 		// miners and other indexers, we may need to initialize it before and
 		// use it here so we have a single libp2p host giving service to the whole indexer.
-		h, err := libp2p.New(ctx)
+		p2pHost, err := libp2p.New(ctx)
 		if err != nil {
+			cancel()
 			return nil, err
 		}
-		n.p2pAPI, err = p2pfinderserver.New(ctx, h, n.indexer)
+
+		n.p2pAPI, err = p2pfinderserver.New(ctx, p2pHost, n.indexer)
 		if err != nil {
+			cancel()
 			return nil, err
 		}
+		n.cancelP2pFinder = cancel
 		log.Infow("Client libp2p API initialized")
 	}
 
@@ -101,19 +106,21 @@ func New(ctx context.Context, cctx *cli.Context) (*Node, error) {
 }
 
 // Start node process
-func (n *Node) Start() error {
+func (n *Node) Start() {
 
 	// TODO: Handle server startups smarter so we catch
 	// potential errors in finderAPI. Sticking to this
 	// until we wrap up the refactor
 	log.Info("Starting daemon servers")
 	go n.finderAPI.Start()
-
-	return n.adminAPI.Start()
+	go n.adminAPI.Start()
 }
 
 // Shutdown node process
 func (n *Node) Shutdown(ctx context.Context) error {
+	if n.p2pAPI != nil {
+		n.cancelP2pFinder()
+	}
 	if err := n.adminAPI.Shutdown(ctx); err != nil {
 		return err
 	}
