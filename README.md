@@ -17,21 +17,21 @@ a first glimpse).
 - Simple primary storage based on https://github.com/gammazero/radixtree
 - Run node (it starts the node's API, and intializes its storage).
 ```
-./storetheindex daemon --storage <persistent_backend> -e <endpoint> --dir <persistent_dir>
+./storetheindex daemon --storage <persistent_backend> -fep <finder_endpoint> -aep <admin_endpoint> --dir <persistent_dir> 
 # Example
-./storetheindex daemon --storage sth -e 127.0.0.1:3000 --dir /tmp/
+./storetheindex daemon --storage sth -fep 127.0.0.1:3000 -aep 127.0.0.1:3000 --dir /tmp/
 ```
 - Commands to read a list of CIDs from a manifest and a cid list.
 ```
-./storetheindex import manifest --dir <manifest> --provider <peer.ID> --metadata <bytes>
-./storetheindex import cidlist --dir <manifest> --provider <peer.ID> --metadata <bytes>
+./storetheindex import manifest --dir <manifest> --provider <peer.ID> --metadata <bytes> -aep <admin_endpoint>
+./storetheindex import cidlist --dir <manifest> --provider <peer.ID> --metadata <bytes> -aep <admin_endpoint>
 
 // Example
-./storetheindex import cidlist --dir ./cid.out --provider QmcJeseojbPW9hSejUM1sQ1a2QmbrryPK4Z8pWbRUPaYEn -e 127.0.0.1:3000
+./storetheindex import cidlist --dir ./cid.out --provider QmcJeseojbPW9hSejUM1sQ1a2QmbrryPK4Z8pWbRUPaYEn -aep http://127.0.0.1:3000
 ```
 - Simple get command for single CID (for testing purposes).
 ```
-./storetheindex get -e 127.0.0.1:3000 bafkreie4qmvnboqqgjp3tijhibgofvuqify2a2pl6ac4xyxd5rfmlvqsf4
+./storetheindex get -fep http://127.0.0.1:3000 -proto http bafkreie4qmvnboqqgjp3tijhibgofvuqify2a2pl6ac4xyxd5rfmlvqsf4
 ```
 - Synthetic harness to create test data to load in the indexer.
 ```

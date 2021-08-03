@@ -6,8 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/filecoin-project/storetheindex/commands"
-	"github.com/filecoin-project/storetheindex/version"
+	"github.com/filecoin-project/storetheindex/command"
+	"github.com/filecoin-project/storetheindex/internal/version"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
 )
@@ -34,18 +34,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	appFlags := commands.MockFlags
 	app := &cli.App{
 		Name:    "indexer",
 		Usage:   "Indexer Node: Filecoin's data indexer",
 		Version: version.String(),
-		Flags:   appFlags,
 		Commands: []*cli.Command{
-			commands.MockCmd,
-			commands.DaemonCmd,
-			commands.ImportCmd,
-			commands.GetCmd,
-			commands.SyntheticCmd,
+			command.DaemonCmd,
+			command.ImportCmd,
+			command.GetCmd,
+			command.SyntheticCmd,
 		},
 		// Before: altsrc.InitInputSourceWithContext(append(appFlags, commands.AllFlags...), altsrc.NewYamlSourceFromFlagFunc("config")),
 	}
