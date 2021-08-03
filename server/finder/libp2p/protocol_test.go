@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
-	p2pclient "github.com/filecoin-project/storetheindex/client/libp2p"
+	p2pclient "github.com/filecoin-project/storetheindex/api/v1/client/libp2p"
 	"github.com/filecoin-project/storetheindex/internal/finder"
 	p2pserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
 	"github.com/filecoin-project/storetheindex/server/finder/test"

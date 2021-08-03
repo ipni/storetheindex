@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
-	httpclient "github.com/filecoin-project/storetheindex/client/http"
+	httpclient "github.com/filecoin-project/storetheindex/api/v1/client/http"
 	"github.com/filecoin-project/storetheindex/internal/finder"
 	httpserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	"github.com/filecoin-project/storetheindex/server/finder/test"
