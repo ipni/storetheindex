@@ -4,11 +4,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
-
-	logging "github.com/ipfs/go-log/v2"
 )
-
-var log = logging.Logger("indexer-node")
 
 var FinderEndpointFlag = altsrc.NewStringFlag(&cli.StringFlag{
 	Name:     "finder_ep",
@@ -49,7 +45,8 @@ var DaemonFlags = []cli.Flag{
 		Usage:    "Type of persistent storage (none, sth, pogreb)",
 		Aliases:  []string{"s"},
 		EnvVars:  []string{"STORAGE_TYPE"},
-		Required: true,
+		Value:    "sth",
+		Required: false,
 	},
 	&cli.StringFlag{
 		Name:     "dir",

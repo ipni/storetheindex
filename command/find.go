@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p"
@@ -15,6 +16,8 @@ import (
 	"github.com/filecoin-project/storetheindex/server/net"
 )
 
+const getTimeout = 15 * time.Second
+
 var GetCmd = &cli.Command{
 	Name:   "get",
 	Usage:  "Get single Cid from idexer",
@@ -23,9 +26,6 @@ var GetCmd = &cli.Command{
 }
 
 func getCidCmd(cctx *cli.Context) error {
-	ctx, cancel := context.WithCancel(ProcessContext())
-	defer cancel()
-
 	protocol := cctx.String("protocol")
 	endpoint := cctx.String("finder_ep")
 	var err error
@@ -35,8 +35,15 @@ func getCidCmd(cctx *cli.Context) error {
 	switch protocol {
 	case "http":
 		cl, err = httpclient.New()
+		if err != nil {
+			return err
+		}
+
 		end = net.NewHTTPEndpoint(endpoint)
 	case "libp2p":
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		end, err = net.NewP2PEndpoint(endpoint)
 		if err != nil {
 			return err
@@ -51,11 +58,11 @@ func getCidCmd(cctx *cli.Context) error {
 			return err
 		}
 		cl, err = p2pclient.New(ctx, host)
+		if err != nil {
+			return err
+		}
 	default:
-		err = fmt.Errorf("unrecognized protocol type for client interaction: %s", protocol)
-	}
-	if err != nil {
-		return err
+		return fmt.Errorf("unrecognized protocol type for client interaction: %s", protocol)
 	}
 
 	cget := cctx.Args().Get(0)
@@ -69,6 +76,9 @@ func getCidCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), getTimeout)
+	defer cancel()
 
 	resp, err := cl.Get(ctx, ccid, end)
 	log.Info("Response: %v", resp)
