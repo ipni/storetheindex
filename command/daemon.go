@@ -53,6 +53,10 @@ func daemonCommand(cctx *cli.Context) error {
 		return fmt.Errorf("cannot load config file: %w", err)
 	}
 
+	if cfg.Datastore.Type != "levelds" {
+		return fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Datastore.Type)
+	}
+
 	// Create value store
 	valueStorePath, err := config.Path("", cfg.Indexer.ValueStoreDir)
 	if err != nil {
@@ -82,17 +86,17 @@ func daemonCommand(cctx *cli.Context) error {
 	indexerCore := core.NewEngine(resultCache, valueStore)
 	log.Infow("Indexer engine initialized")
 
-	// Create datastore
 	/*
+		// Create datastore
 		dataStorePath, err := config.Path("", cfg.Datastore.Dir)
 		if err != nil {
 			return err
 		}
 		err = checkWritable(dataStorePath)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		dstore, err := leveldb.NewDatastore(dataStorePath)
+		dstore, err := leveldb.NewDatastore(dataStorePath, nil)
 		if err != nil {
 			return err
 		}

@@ -47,7 +47,7 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 
 		Providers: Providers{
 			Policy:       defaultPolicy,
-			Except:       []string{identity.PeerID},
+			Trust:        []string{identity.PeerID},
 			PollInterval: defaultPollInterval,
 		},
 	}
