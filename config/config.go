@@ -12,10 +12,11 @@ import (
 
 // Config is used to load storetheindex config files
 type Config struct {
-	Identity  Identity  // local node's peer identity
-	Datastore Datastore // local node's storage
-	Addresses Addresses // local node's addresses
-	Discovery Discovery // local node's discovery mechanisms
+	Identity  Identity  // peer identity
+	Datastore Datastore // non-index data storage
+	Addresses Addresses // addresses to listen on
+	Discovery Discovery // provider discovery configuration
+	Indexer   Indexer   // indexer code configuration
 }
 
 const (

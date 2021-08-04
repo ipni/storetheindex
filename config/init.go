@@ -43,6 +43,11 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 		},
 
 		Identity: identity,
+
+		Indexer: Indexer{
+			StoreType: defaultStoreType,
+			CacheSize: defaultCacheSize,
+		},
 	}
 
 	return conf, nil

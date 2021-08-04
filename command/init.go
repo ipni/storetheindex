@@ -12,6 +12,7 @@ import (
 var InitCmd = &cli.Command{
 	Name:   "init",
 	Usage:  "Initialize indexer node config file and identity",
+	Flags:  InitFlags,
 	Action: initCommand,
 }
 
@@ -39,6 +40,16 @@ func initCommand(cctx *cli.Context) error {
 	cfg, err := config.Init(os.Stderr)
 	if err != nil {
 		return err
+	}
+
+	store := cctx.String("store")
+	switch store {
+	case "":
+		// Use config default
+	case "sth", "pogreb":
+		cfg.Indexer.StoreType = store
+	default:
+		return fmt.Errorf("unrecognized store type: %s", store)
 	}
 
 	return cfg.Save(configFile)
