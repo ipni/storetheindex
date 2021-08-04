@@ -40,8 +40,9 @@ func main() {
 		Version: version.String(),
 		Commands: []*cli.Command{
 			command.DaemonCmd,
-			command.ImportCmd,
 			command.GetCmd,
+			command.ImportCmd,
+			command.InitCmd,
 			command.SyntheticCmd,
 		},
 		// Before: altsrc.InitInputSourceWithContext(append(appFlags, commands.AllFlags...), altsrc.NewYamlSourceFromFlagFunc("config")),

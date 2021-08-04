@@ -93,6 +93,15 @@ var ImportFlags = []cli.Flag{
 	AdminEndpointFlag,
 }
 
+var InitFlags = []cli.Flag{
+	&cli.StringFlag{
+		Name:     "store",
+		Usage:    "Type of value store (sth, pogreb). Default is \"sth\"",
+		Aliases:  []string{"s"},
+		Required: false,
+	},
+}
+
 var SyntheticFlags = []cli.Flag{
 	DirFlag,
 	&cli.StringFlag{
@@ -112,4 +121,5 @@ var SyntheticFlags = []cli.Flag{
 		Usage:    "Total size of the CIDs to generate",
 		Aliases:  []string{"s"},
 		Required: false,
-	}}
+	},
+}
