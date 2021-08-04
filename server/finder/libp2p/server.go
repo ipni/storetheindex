@@ -8,7 +8,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core"
 	pb "github.com/filecoin-project/storetheindex/api/v1/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/finder"
-	p2phandler "github.com/filecoin-project/storetheindex/server/handler/libp2p"
+	p2phandler "github.com/filecoin-project/storetheindex/server/finder/libp2p/handler"
 	"github.com/filecoin-project/storetheindex/server/net"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/host"
