@@ -25,11 +25,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-const (
-	dataStoreDir  = "datastore"
-	dataStoreType = "levelds"
-)
-
 // shutdownTimeout is the duration that a graceful shutdown has to complete
 const shutdownTimeout = 5 * time.Second
 
@@ -140,6 +135,7 @@ func daemonCommand(cctx *cli.Context) error {
 	// Create libp2p host
 	if !cfg.Addresses.DisableP2P && !cctx.Bool("disablep2p") {
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		privKey, err := cfg.Identity.DecodePrivateKey("")
 		if err != nil {
@@ -152,13 +148,11 @@ func daemonCommand(cctx *cli.Context) error {
 			libp2p.Identity(privKey),
 		)
 		if err != nil {
-			cancel()
 			return err
 		}
 
 		p2pAPI, err = p2pfinderserver.New(ctx, p2pHost, indexerCore)
 		if err != nil {
-			cancel()
 			return err
 		}
 		cancelP2pFinder = cancel
