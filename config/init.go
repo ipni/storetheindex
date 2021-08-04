@@ -23,30 +23,26 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 	conf := &Config{
 		// setup the node's default addresses.
 		Addresses: Addresses{
-			Admin:     "/ip4/0.0.0.0/tcp/3001",
-			Discovery: "/ip4/0.0.0.0/tcp/3002",
-			Ingest:    "/ip4/0.0.0.0/tcp/3003",
-			Finder:    "/ip4/0.0.0.0/tcp/3000",
-		},
-
-		Datastore: Datastore{
-			Spec: map[string]interface{}{
-				"type": "levelds",
-				"path": "datastore",
-			},
+			Admin:  defaultAdminAddr,
+			Finder: defaultFinderAddr,
+			Ingest: defaultIngestAddr,
 		},
 
 		Discovery: Discovery{
-			// Default gossip pub-sub router
-			//Router: defaultSubscribeAddr,
-			TrustLocalClients: true,
+			Topic: defaultTopic,
 		},
 
 		Identity: identity,
 
 		Indexer: Indexer{
-			StoreType: defaultStoreType,
 			CacheSize: defaultCacheSize,
+			StoreType: defaultStoreType,
+		},
+
+		Providers: Providers{
+			Policy:       defaultPolicy,
+			Except:       []string{identity.PeerID},
+			PollInterval: defaultPollInterval,
 		},
 	}
 
