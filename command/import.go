@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	httpclient "github.com/filecoin-project/storetheindex/api/v1/client/http"
 	"github.com/filecoin-project/storetheindex/server/net"
@@ -50,26 +51,21 @@ func importListCmd(cctx *cli.Context) error {
 	end := net.NewHTTPEndpoint(endpoint)
 	prov := cctx.String("provider")
 	p, err := peer.Decode(prov)
-	dir := cctx.String("dir")
-
-	log.Infow("Starting to import from cidlist file")
-	ctx, cancel := context.WithCancel(ProcessContext())
-	defer cancel()
 	if err != nil {
 		return err
 	}
-	return cl.ImportFromCidList(ctx, dir, p, end)
+	dir := cctx.String("dir")
+
+	log.Infow("Starting to import from cidlist file")
+	// TODO: Should there be a timeout?  Since this may take a long time, it
+	// would make sense that the request should complete immediately with a
+	// redirect to a URL where the status can be polled for.
+	return cl.ImportFromCidList(context.Background(), dir, p, end)
 }
 
 func importCarCmd(c *cli.Context) error {
-	log.Infow("Starting to import from CAR file")
-	_, cancel := context.WithCancel(ProcessContext())
-	defer cancel()
-
-	log.Errorw("Importing from Car not implemented yet")
-
-	return nil
-
+	//log.Infow("Starting to import from CAR file")
+	return errors.New("importing from car not implemented yet")
 }
 
 func importManifestCmd(cctx *cli.Context) error {
@@ -81,13 +77,14 @@ func importManifestCmd(cctx *cli.Context) error {
 	end := net.NewHTTPEndpoint(endpoint)
 	prov := cctx.String("provider")
 	p, err := peer.Decode(prov)
-	dir := cctx.String("dir")
-
-	log.Infow("Starting to import from manifest file")
-	ctx, cancel := context.WithCancel(ProcessContext())
-	defer cancel()
 	if err != nil {
 		return err
 	}
-	return cl.ImportFromManifest(ctx, dir, p, end)
+	dir := cctx.String("dir")
+
+	log.Infow("Starting to import from manifest file")
+	// TODO: Should there be a timeout?  Since this may take a long time, it
+	// would make sense that the request should complete immediately with a
+	// redirect to a URL where the status can be polled for.
+	return cl.ImportFromManifest(context.Background(), dir, p, end)
 }

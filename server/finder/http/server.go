@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
-	httphandler "github.com/filecoin-project/storetheindex/server/handler/http"
+	"github.com/filecoin-project/storetheindex/server/finder/handler"
 	indnet "github.com/filecoin-project/storetheindex/server/net"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
@@ -25,7 +25,7 @@ func (s *Server) Endpoint() indnet.Endpoint {
 	return indnet.HTTPEndpoint("http://" + s.l.Addr().String())
 }
 
-func New(listen string, e *indexer.Engine, options ...ServerOption) (*Server, error) {
+func New(listen string, engine *indexer.Engine, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
@@ -43,11 +43,13 @@ func New(listen string, e *indexer.Engine, options ...ServerOption) (*Server, er
 		WriteTimeout: cfg.apiWriteTimeout,
 		ReadTimeout:  cfg.apiReadTimeout,
 	}
-	s := &Server{server, l, e}
+	s := &Server{server, l, engine}
+
+	findHandler := handler.New(engine)
 
 	// Client routes
-	r.HandleFunc("/cid/{cid}", httphandler.GetSingleCidHandler(e)).Methods("GET")
-	r.HandleFunc("/cid", httphandler.GetBatchCidHandler(e)).Methods("POST")
+	r.HandleFunc("/cid/{cid}", findHandler.GetSingleCidHandler).Methods("GET")
+	r.HandleFunc("/cid", findHandler.GetBatchCidHandler).Methods("POST")
 
 	return s, nil
 }
