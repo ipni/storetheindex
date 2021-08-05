@@ -105,7 +105,7 @@ func GetCidDataTest(ctx context.Context, t *testing.T, c finder.Interface, s fin
 func checkResponse(r *models.Response, cids []cid.Cid, e []entry.Value, t *testing.T) {
 	// Check if everything was returned.
 	if len(r.Cids) != len(cids) {
-		t.Fatalf("number of entries send in responses not correct, expected %d, got %d", len(cids), len(r.Cids))
+		t.Fatalf("number of entries send in responses not correct, expected %d got %d", len(cids), len(r.Cids))
 	}
 	for i := range r.Cids {
 		// Check if cid in list of cids
@@ -117,6 +117,10 @@ func checkResponse(r *models.Response, cids []cid.Cid, e []entry.Value, t *testi
 		if !utils.EqualEntries(r.Cids[i].Entries, e) {
 			t.Fatal("wrong entry included for a cid")
 		}
+	}
+	// If there are any CID responses, thern there should be a provider
+	if len(r.Cids) != 0 && len(r.Providers) != 1 {
+		t.Fatalf("wrong number of provider, expected 1 got %d", len(r.Providers))
 	}
 }
 
