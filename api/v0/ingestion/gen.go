@@ -70,7 +70,7 @@ func main() {
 		// ID is a multihash of IndexID+Provider+Previous
 		schema.SpawnStructField("ID", "Bytes", false, false),
 		schema.SpawnStructField("IndexID", "Link_Index", false, false),
-		schema.SpawnStructField("Previous", "Link_Advertisement", false, false),
+		schema.SpawnStructField("Previous", "Link_Advertisement", true, false),
 		schema.SpawnStructField("Provider", "String", false, false),
 		schema.SpawnStructField("Signature", "Bytes", true, false),
 		schema.SpawnStructField("GraphSupport", "Bool", false, false),
