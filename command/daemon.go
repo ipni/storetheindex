@@ -14,6 +14,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/providers"
 	adminserver "github.com/filecoin-project/storetheindex/server/admin"
 	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	p2pfinderserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
@@ -82,6 +83,9 @@ func daemonCommand(cctx *cli.Context) error {
 		log.Info("result cache disabled")
 	}
 
+	// Create registry
+	registry := providers.NewRegistry()
+
 	// Create indexer core
 	indexerCore := core.NewEngine(resultCache, valueStore)
 	log.Infow("Indexer engine initialized")
@@ -126,7 +130,7 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	finderAPI, err := httpfinderserver.New(finderAddr.String(), indexerCore)
+	finderAPI, err := httpfinderserver.New(finderAddr.String(), indexerCore, registry)
 	if err != nil {
 		return err
 	}
@@ -155,7 +159,7 @@ func daemonCommand(cctx *cli.Context) error {
 			return err
 		}
 
-		p2pAPI, err = p2pfinderserver.New(ctx, p2pHost, indexerCore)
+		p2pAPI, err = p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
 		if err != nil {
 			return err
 		}

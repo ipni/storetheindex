@@ -5,7 +5,8 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v1/finder/models"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
+	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
@@ -14,16 +15,18 @@ import (
 var log = logging.Logger("find_handler")
 
 type FindHandler struct {
-	engine *indexer.Engine
+	engine   *indexer.Engine
+	registry *providers.Registry
 }
 
-func New(engine *indexer.Engine) *FindHandler {
+func New(engine *indexer.Engine, registry *providers.Registry) *FindHandler {
 	return &FindHandler{
-		engine: engine,
+		engine:   engine,
+		registry: registry,
 	}
 }
 
-func (h *FindHandler) GetSingleCidHandler(w http.ResponseWriter, r *http.Request) {
+func (h *FindHandler) GetSingleCid(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	mhCid := vars["cid"]
 	c, err := cid.Decode(mhCid)
@@ -35,7 +38,7 @@ func (h *FindHandler) GetSingleCidHandler(w http.ResponseWriter, r *http.Request
 	h.getCids(w, []cid.Cid{c})
 }
 
-func (h *FindHandler) GetBatchCidHandler(w http.ResponseWriter, r *http.Request) {
+func (h *FindHandler) GetBatchCid(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
@@ -61,22 +64,14 @@ func writeResponse(w http.ResponseWriter, body []byte) error {
 }
 
 func (h *FindHandler) getCids(w http.ResponseWriter, cids []cid.Cid) {
-	log.Debugw("Find cids", "cids", cids)
-
-	resp, err := models.PopulateResp(h.engine, cids)
+	response, err := models.PopulateResponse(h.engine, h.registry, cids)
 	if err != nil {
-		log.Errorw("failed generating response", "cids", cids, "err", err)
+		log.Errorw("query failed", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	// If Cids not found
-	if len(resp.Cids) == 0 {
-		log.Infof("cid %v not found")
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-	rb, err := models.MarshalResp(resp)
+	rb, err := models.MarshalResp(response)
 	if err != nil {
 		log.Errorw("failed marshalling response", "cid", cids, "err", err)
 		w.WriteHeader(http.StatusInternalServerError)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/go-indexer-core/entry"
+	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
@@ -87,37 +88,52 @@ func UnmarshalResp(b []byte) (*Response, error) {
 	return r, err
 }
 
-// PopulateResp reads from indexer engine to populate a response from a list of CIDs.
-func PopulateResp(e *indexer.Engine, cids []cid.Cid) (*Response, error) {
-	out := Response{
-		Cids:      make([]CidData, len(cids)),
-		Providers: make([]ProviderData, 0),
-	}
-	num := 0
+// PopulateResponse reads from indexer engine to populate a response from a
+// list of CIDs.
+//
+// TODO: This should be relocated to a place common to all finder handlers, but
+// not under /api/
+func PopulateResponse(engine *indexer.Engine, registry *providers.Registry, cids []cid.Cid) (*Response, error) {
+	cidResults := make([]CidData, len(cids))
+	var providerResults []ProviderData
+	providerSeen := map[peer.ID]struct{}{}
 
 	for i := range cids {
-		v, f, err := e.Get(cids[i])
+		values, found, err := engine.Get(cids[i])
 		if err != nil {
-			// If error and the request is not for a batch, continue without
-			// sending an error as if the errored CID wasn't found
-			if len(cids) < 1 {
-				return nil, err
-			}
+			return nil, fmt.Errorf("failed to query cid %q: %s", cids[i], err)
+		}
+		// Output a response for this CID if it was found or not.
+		cidResults[i].Cid = cids[i]
+		if !found {
 			continue
 		}
-		// If found add to response
-		if f {
-			out.Cids[i] = CidData{Cid: cids[i], Entries: v}
-			num++
+
+		// Add the found values to cid response
+		cidResults[i].Entries = values
+
+		// Lookup provider info for each unique provider
+		for j := range values {
+			provID := values[j].ProviderID
+			if _, found = providerSeen[provID]; found {
+				continue
+			}
+			providerSeen[provID] = struct{}{}
+
+			pinfo, found := registry.ProviderInfo(provID)
+			if !found {
+				//log.Errorw("no info for provider", "provider_id", provID)
+				continue
+			}
+
+			providerResults = append(providerResults, ProviderData{provID, pinfo.Addresses})
 		}
-		// TODO: Add multiaddr of the providers included in the entry
-		// if no information has been added yet. This feature is not
-		// supported yet, we haven't decided how to (and from where) to
-		// get this data.
 	}
 
-	out.Cids = out.Cids[:num]
-	return &out, nil
+	return &Response{
+		Cids:      cidResults,
+		Providers: providerResults,
+	}, nil
 }
 
 // PrettyPrint a response for CLI output

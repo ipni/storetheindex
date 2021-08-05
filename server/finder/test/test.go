@@ -12,7 +12,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/go-indexer-core/store/test"
-	"github.com/filecoin-project/storetheindex/api/v1/finder/models"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
 	"github.com/filecoin-project/storetheindex/internal/finder"
 	"github.com/filecoin-project/storetheindex/internal/utils"
 	"github.com/ipfs/go-cid"
