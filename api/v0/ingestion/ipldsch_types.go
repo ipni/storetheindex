@@ -5,6 +5,7 @@ package ingestion
 import (
 	ipld "github.com/ipld/go-ipld-prime"
 )
+
 var _ ipld.Node = nil // suppress errors when this dependency is not referenced
 // Type is a struct embeding a NodePrototype/Type for every Node implementation in this package.
 // One of its major uses is to start the construction of a value.
@@ -19,38 +20,38 @@ var _ ipld.Node = nil // suppress errors when this dependency is not referenced
 var Type typeSlab
 
 type typeSlab struct {
-	Advertisement       _Advertisement__Prototype
-	Advertisement__Repr _Advertisement__ReprPrototype
-	Any       _Any__Prototype
-	Any__Repr _Any__ReprPrototype
-	Bool       _Bool__Prototype
-	Bool__Repr _Bool__ReprPrototype
-	Bytes       _Bytes__Prototype
-	Bytes__Repr _Bytes__ReprPrototype
-	Entry       _Entry__Prototype
-	Entry__Repr _Entry__ReprPrototype
-	Float       _Float__Prototype
-	Float__Repr _Float__ReprPrototype
-	Index       _Index__Prototype
-	Index__Repr _Index__ReprPrototype
-	Int       _Int__Prototype
-	Int__Repr _Int__ReprPrototype
-	Link       _Link__Prototype
-	Link__Repr _Link__ReprPrototype
+	Advertisement            _Advertisement__Prototype
+	Advertisement__Repr      _Advertisement__ReprPrototype
+	Any                      _Any__Prototype
+	Any__Repr                _Any__ReprPrototype
+	Bool                     _Bool__Prototype
+	Bool__Repr               _Bool__ReprPrototype
+	Bytes                    _Bytes__Prototype
+	Bytes__Repr              _Bytes__ReprPrototype
+	Entry                    _Entry__Prototype
+	Entry__Repr              _Entry__ReprPrototype
+	Float                    _Float__Prototype
+	Float__Repr              _Float__ReprPrototype
+	Index                    _Index__Prototype
+	Index__Repr              _Index__ReprPrototype
+	Int                      _Int__Prototype
+	Int__Repr                _Int__ReprPrototype
+	Link                     _Link__Prototype
+	Link__Repr               _Link__ReprPrototype
 	Link_Advertisement       _Link_Advertisement__Prototype
 	Link_Advertisement__Repr _Link_Advertisement__ReprPrototype
-	Link_Index       _Link_Index__Prototype
-	Link_Index__Repr _Link_Index__ReprPrototype
-	List       _List__Prototype
-	List__Repr _List__ReprPrototype
-	List_Entry       _List_Entry__Prototype
-	List_Entry__Repr _List_Entry__ReprPrototype
-	List_String       _List_String__Prototype
-	List_String__Repr _List_String__ReprPrototype
-	Map       _Map__Prototype
-	Map__Repr _Map__ReprPrototype
-	String       _String__Prototype
-	String__Repr _String__ReprPrototype
+	Link_Index               _Link_Index__Prototype
+	Link_Index__Repr         _Link_Index__ReprPrototype
+	List                     _List__Prototype
+	List__Repr               _List__ReprPrototype
+	List_Entry               _List_Entry__Prototype
+	List_Entry__Repr         _List_Entry__ReprPrototype
+	List_String              _List_String__Prototype
+	List_String__Repr        _List_String__ReprPrototype
+	Map                      _Map__Prototype
+	Map__Repr                _Map__ReprPrototype
+	String                   _String__Prototype
+	String__Repr             _String__ReprPrototype
 }
 
 // --- type definitions follow ---
@@ -58,11 +59,11 @@ type typeSlab struct {
 // Advertisement matches the IPLD Schema type "Advertisement".  It has Struct type-kind, and may be interrogated like map kind.
 type Advertisement = *_Advertisement
 type _Advertisement struct {
-	ID _Bytes
-	IndexID _Link_Index
-	Previous _Link_Advertisement
-	Provider _String
-	Signature _Bytes__Maybe
+	ID           _Bytes
+	IndexID      _Link_Index
+	Previous     _Link_Advertisement
+	Provider     _String
+	Signature    _Bytes__Maybe
 	GraphSupport _Bool
 }
 
@@ -74,14 +75,15 @@ type _Any struct {
 type _Any__iface interface {
 	_Any__member()
 }
-func (_Bool) _Any__member() {}
-func (_Int) _Any__member() {}
-func (_Float) _Any__member() {}
+
+func (_Bool) _Any__member()   {}
+func (_Int) _Any__member()    {}
+func (_Float) _Any__member()  {}
 func (_String) _Any__member() {}
-func (_Bytes) _Any__member() {}
-func (_Map) _Any__member() {}
-func (_List) _Any__member() {}
-func (_Link) _Any__member() {}
+func (_Bytes) _Any__member()  {}
+func (_Map) _Any__member()    {}
+func (_List) _Any__member()   {}
+func (_Link) _Any__member()   {}
 
 // Bool matches the IPLD Schema type "Bool".  It has bool kind.
 type Bool = *_Bool
@@ -94,8 +96,8 @@ type _Bytes struct{ x []byte }
 // Entry matches the IPLD Schema type "Entry".  It has Struct type-kind, and may be interrogated like map kind.
 type Entry = *_Entry
 type _Entry struct {
-	RmCids _List_String__Maybe
-	Cids _List_String__Maybe
+	RmCids   _List_String__Maybe
+	Cids     _List_String__Maybe
 	Metadata _Bytes__Maybe
 }
 
@@ -107,7 +109,7 @@ type _Float struct{ x float64 }
 type Index = *_Index
 type _Index struct {
 	Previous _Link_Index
-	Entries _List_Entry
+	Entries  _List_Entry
 }
 
 // Int matches the IPLD Schema type "Int".  It has int kind.
@@ -158,4 +160,3 @@ type _Map__entry struct {
 // String matches the IPLD Schema type "String".  It has string kind.
 type String = *_String
 type _String struct{ x string }
-

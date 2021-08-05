@@ -8,7 +8,6 @@ import (
 	"github.com/ipld/go-ipld-prime/schema"
 )
 
-
 func (n _Advertisement) FieldID() Bytes {
 	return &n.ID
 }
@@ -27,6 +26,7 @@ func (n _Advertisement) FieldSignature() MaybeBytes {
 func (n _Advertisement) FieldGraphSupport() Bool {
 	return &n.GraphSupport
 }
+
 type _Advertisement__Maybe struct {
 	m schema.Maybe
 	v Advertisement
@@ -44,14 +44,14 @@ func (m MaybeAdvertisement) Exists() bool {
 }
 func (m MaybeAdvertisement) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeAdvertisement) Must() Advertisement {
@@ -60,16 +60,18 @@ func (m MaybeAdvertisement) Must() Advertisement {
 	}
 	return m.v
 }
+
 var (
-	fieldName__Advertisement_ID = _String{"ID"}
-	fieldName__Advertisement_IndexID = _String{"IndexID"}
-	fieldName__Advertisement_Previous = _String{"Previous"}
-	fieldName__Advertisement_Provider = _String{"Provider"}
-	fieldName__Advertisement_Signature = _String{"Signature"}
+	fieldName__Advertisement_ID           = _String{"ID"}
+	fieldName__Advertisement_IndexID      = _String{"IndexID"}
+	fieldName__Advertisement_Previous     = _String{"Previous"}
+	fieldName__Advertisement_Provider     = _String{"Provider"}
+	fieldName__Advertisement_Signature    = _String{"Signature"}
 	fieldName__Advertisement_GraphSupport = _String{"GraphSupport"}
 )
 var _ ipld.Node = (Advertisement)(&_Advertisement{})
 var _ schema.TypedNode = (Advertisement)(&_Advertisement{})
+
 func (Advertisement) Kind() ipld.Kind {
 	return ipld.Kind_Map
 }
@@ -112,8 +114,8 @@ func (n Advertisement) MapIterator() ipld.MapIterator {
 }
 
 type _Advertisement__MapItr struct {
-	n Advertisement
-	idx  int
+	n   Advertisement
+	idx int
 }
 
 func (itr *_Advertisement__MapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
@@ -186,6 +188,7 @@ func (Advertisement) AsLink() (ipld.Link, error) {
 func (Advertisement) Prototype() ipld.NodePrototype {
 	return _Advertisement__Prototype{}
 }
+
 type _Advertisement__Prototype struct{}
 
 func (_Advertisement__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -193,9 +196,11 @@ func (_Advertisement__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Advertisement__Builder struct {
 	_Advertisement__Assembler
 }
+
 func (nb *_Advertisement__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -207,21 +212,22 @@ func (nb *_Advertisement__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _Advertisement__Builder{_Advertisement__Assembler{w: &w, m: &m}}
 }
-type _Advertisement__Assembler struct {
-	w *_Advertisement
-	m *schema.Maybe
-	state maState
-	s int
-	f int
 
-	cm schema.Maybe
-	ca_ID _Bytes__Assembler
-	ca_IndexID _Link_Index__Assembler
-	ca_Previous _Link_Advertisement__Assembler
-	ca_Provider _String__Assembler
-	ca_Signature _Bytes__Assembler
+type _Advertisement__Assembler struct {
+	w     *_Advertisement
+	m     *schema.Maybe
+	state maState
+	s     int
+	f     int
+
+	cm              schema.Maybe
+	ca_ID           _Bytes__Assembler
+	ca_IndexID      _Link_Index__Assembler
+	ca_Previous     _Link_Advertisement__Assembler
+	ca_Provider     _String__Assembler
+	ca_Signature    _Bytes__Assembler
 	ca_GraphSupport _Bool__Assembler
-	}
+}
 
 func (na *_Advertisement__Assembler) reset() {
 	na.state = maState_initial
@@ -235,14 +241,15 @@ func (na *_Advertisement__Assembler) reset() {
 }
 
 var (
-	fieldBit__Advertisement_ID = 1 << 0
-	fieldBit__Advertisement_IndexID = 1 << 1
-	fieldBit__Advertisement_Previous = 1 << 2
-	fieldBit__Advertisement_Provider = 1 << 3
-	fieldBit__Advertisement_Signature = 1 << 4
+	fieldBit__Advertisement_ID           = 1 << 0
+	fieldBit__Advertisement_IndexID      = 1 << 1
+	fieldBit__Advertisement_Previous     = 1 << 2
+	fieldBit__Advertisement_Provider     = 1 << 3
+	fieldBit__Advertisement_Signature    = 1 << 4
 	fieldBit__Advertisement_GraphSupport = 1 << 5
-	fieldBits__Advertisement_sufficient = 0 + 1 << 0 + 1 << 1 + 1 << 2 + 1 << 3 + 1 << 5
+	fieldBits__Advertisement_sufficient  = 0 + 1<<0 + 1<<1 + 1<<2 + 1<<3 + 1<<5
 )
+
 func (na *_Advertisement__Assembler) BeginMap(int64) (ipld.MapAssembler, error) {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
@@ -414,7 +421,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 	}
 	switch k {
 	case "ID":
-		if ma.s & fieldBit__Advertisement_ID != 0 {
+		if ma.s&fieldBit__Advertisement_ID != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_ID}
 		}
 		ma.s += fieldBit__Advertisement_ID
@@ -424,7 +431,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		ma.ca_ID.m = &ma.cm
 		return &ma.ca_ID, nil
 	case "IndexID":
-		if ma.s & fieldBit__Advertisement_IndexID != 0 {
+		if ma.s&fieldBit__Advertisement_IndexID != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_IndexID}
 		}
 		ma.s += fieldBit__Advertisement_IndexID
@@ -434,7 +441,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID, nil
 	case "Previous":
-		if ma.s & fieldBit__Advertisement_Previous != 0 {
+		if ma.s&fieldBit__Advertisement_Previous != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Previous}
 		}
 		ma.s += fieldBit__Advertisement_Previous
@@ -444,7 +451,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		ma.ca_Previous.m = &ma.cm
 		return &ma.ca_Previous, nil
 	case "Provider":
-		if ma.s & fieldBit__Advertisement_Provider != 0 {
+		if ma.s&fieldBit__Advertisement_Provider != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Provider}
 		}
 		ma.s += fieldBit__Advertisement_Provider
@@ -454,7 +461,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider, nil
 	case "Signature":
-		if ma.s & fieldBit__Advertisement_Signature != 0 {
+		if ma.s&fieldBit__Advertisement_Signature != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Signature}
 		}
 		ma.s += fieldBit__Advertisement_Signature
@@ -464,7 +471,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		ma.ca_Signature.m = &ma.w.Signature.m
 		return &ma.ca_Signature, nil
 	case "GraphSupport":
-		if ma.s & fieldBit__Advertisement_GraphSupport != 0 {
+		if ma.s&fieldBit__Advertisement_GraphSupport != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_GraphSupport}
 		}
 		ma.s += fieldBit__Advertisement_GraphSupport
@@ -474,7 +481,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		ma.ca_GraphSupport.m = &ma.cm
 		return &ma.ca_GraphSupport, nil
 	default:
-		return nil, ipld.ErrInvalidKey{TypeName:"ingestion.Advertisement", Key:&_String{k}}
+		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement", Key: &_String{k}}
 	}
 }
 func (ma *_Advertisement__Assembler) AssembleKey() ipld.NodeAssembler {
@@ -553,21 +560,21 @@ func (ma *_Advertisement__Assembler) Finish() error {
 	case maState_finished:
 		panic("invalid state: Finish cannot be called on an assembler that's already finished")
 	}
-	if ma.s & fieldBits__Advertisement_sufficient != fieldBits__Advertisement_sufficient {
+	if ma.s&fieldBits__Advertisement_sufficient != fieldBits__Advertisement_sufficient {
 		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s & fieldBit__Advertisement_ID == 0 {
+		if ma.s&fieldBit__Advertisement_ID == 0 {
 			err.Missing = append(err.Missing, "ID")
 		}
-		if ma.s & fieldBit__Advertisement_IndexID == 0 {
+		if ma.s&fieldBit__Advertisement_IndexID == 0 {
 			err.Missing = append(err.Missing, "IndexID")
 		}
-		if ma.s & fieldBit__Advertisement_Previous == 0 {
+		if ma.s&fieldBit__Advertisement_Previous == 0 {
 			err.Missing = append(err.Missing, "Previous")
 		}
-		if ma.s & fieldBit__Advertisement_Provider == 0 {
+		if ma.s&fieldBit__Advertisement_Provider == 0 {
 			err.Missing = append(err.Missing, "Provider")
 		}
-		if ma.s & fieldBit__Advertisement_GraphSupport == 0 {
+		if ma.s&fieldBit__Advertisement_GraphSupport == 0 {
 			err.Missing = append(err.Missing, "GraphSupport")
 		}
 		return err
@@ -582,7 +589,9 @@ func (ma *_Advertisement__Assembler) KeyPrototype() ipld.NodePrototype {
 func (ma *_Advertisement__Assembler) ValuePrototype(k string) ipld.NodePrototype {
 	panic("todo structbuilder mapassembler valueprototype")
 }
+
 type _Advertisement__KeyAssembler _Advertisement__Assembler
+
 func (_Advertisement__KeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
 	return mixins.StringAssembler{"ingestion.Advertisement.KeyAssembler"}.BeginMap(0)
 }
@@ -607,49 +616,49 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 	}
 	switch k {
 	case "ID":
-		if ka.s & fieldBit__Advertisement_ID != 0 {
+		if ka.s&fieldBit__Advertisement_ID != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_ID}
 		}
 		ka.s += fieldBit__Advertisement_ID
 		ka.state = maState_expectValue
 		ka.f = 0
 	case "IndexID":
-		if ka.s & fieldBit__Advertisement_IndexID != 0 {
+		if ka.s&fieldBit__Advertisement_IndexID != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_IndexID}
 		}
 		ka.s += fieldBit__Advertisement_IndexID
 		ka.state = maState_expectValue
 		ka.f = 1
 	case "Previous":
-		if ka.s & fieldBit__Advertisement_Previous != 0 {
+		if ka.s&fieldBit__Advertisement_Previous != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Previous}
 		}
 		ka.s += fieldBit__Advertisement_Previous
 		ka.state = maState_expectValue
 		ka.f = 2
 	case "Provider":
-		if ka.s & fieldBit__Advertisement_Provider != 0 {
+		if ka.s&fieldBit__Advertisement_Provider != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Provider}
 		}
 		ka.s += fieldBit__Advertisement_Provider
 		ka.state = maState_expectValue
 		ka.f = 3
 	case "Signature":
-		if ka.s & fieldBit__Advertisement_Signature != 0 {
+		if ka.s&fieldBit__Advertisement_Signature != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Signature}
 		}
 		ka.s += fieldBit__Advertisement_Signature
 		ka.state = maState_expectValue
 		ka.f = 4
 	case "GraphSupport":
-		if ka.s & fieldBit__Advertisement_GraphSupport != 0 {
+		if ka.s&fieldBit__Advertisement_GraphSupport != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_GraphSupport}
 		}
 		ka.s += fieldBit__Advertisement_GraphSupport
 		ka.state = maState_expectValue
 		ka.f = 5
 	default:
-		return ipld.ErrInvalidKey{TypeName:"ingestion.Advertisement", Key:&_String{k}}
+		return ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement", Key: &_String{k}}
 	}
 	return nil
 }
@@ -675,16 +684,19 @@ func (Advertisement) Type() schema.Type {
 func (n Advertisement) Representation() ipld.Node {
 	return (*_Advertisement__Repr)(n)
 }
+
 type _Advertisement__Repr _Advertisement
+
 var (
-	fieldName__Advertisement_ID_serial = _String{"ID"}
-	fieldName__Advertisement_IndexID_serial = _String{"IndexID"}
-	fieldName__Advertisement_Previous_serial = _String{"Previous"}
-	fieldName__Advertisement_Provider_serial = _String{"Provider"}
-	fieldName__Advertisement_Signature_serial = _String{"Signature"}
+	fieldName__Advertisement_ID_serial           = _String{"ID"}
+	fieldName__Advertisement_IndexID_serial      = _String{"IndexID"}
+	fieldName__Advertisement_Previous_serial     = _String{"Previous"}
+	fieldName__Advertisement_Provider_serial     = _String{"Provider"}
+	fieldName__Advertisement_Signature_serial    = _String{"Signature"}
 	fieldName__Advertisement_GraphSupport_serial = _String{"GraphSupport"}
 )
 var _ ipld.Node = &_Advertisement__Repr{}
+
 func (_Advertisement__Repr) Kind() ipld.Kind {
 	return ipld.Kind_Map
 }
@@ -729,11 +741,11 @@ func (n *_Advertisement__Repr) MapIterator() ipld.MapIterator {
 type _Advertisement__ReprMapItr struct {
 	n   *_Advertisement__Repr
 	idx int
-	
 }
 
 func (itr *_Advertisement__ReprMapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
-advance:if itr.idx >= 6 {
+advance:
+	if itr.idx >= 6 {
 		return nil, nil, ipld.ErrIteratorOverread{}
 	}
 	switch itr.idx {
@@ -805,6 +817,7 @@ func (_Advertisement__Repr) AsLink() (ipld.Link, error) {
 func (_Advertisement__Repr) Prototype() ipld.NodePrototype {
 	return _Advertisement__ReprPrototype{}
 }
+
 type _Advertisement__ReprPrototype struct{}
 
 func (_Advertisement__ReprPrototype) NewBuilder() ipld.NodeBuilder {
@@ -812,9 +825,11 @@ func (_Advertisement__ReprPrototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Advertisement__ReprBuilder struct {
 	_Advertisement__ReprAssembler
 }
+
 func (nb *_Advertisement__ReprBuilder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -826,21 +841,22 @@ func (nb *_Advertisement__ReprBuilder) Reset() {
 	var m schema.Maybe
 	*nb = _Advertisement__ReprBuilder{_Advertisement__ReprAssembler{w: &w, m: &m}}
 }
-type _Advertisement__ReprAssembler struct {
-	w *_Advertisement
-	m *schema.Maybe
-	state maState
-	s int
-	f int
 
-	cm schema.Maybe
-	ca_ID _Bytes__ReprAssembler
-	ca_IndexID _Link_Index__ReprAssembler
-	ca_Previous _Link_Advertisement__ReprAssembler
-	ca_Provider _String__ReprAssembler
-	ca_Signature _Bytes__ReprAssembler
+type _Advertisement__ReprAssembler struct {
+	w     *_Advertisement
+	m     *schema.Maybe
+	state maState
+	s     int
+	f     int
+
+	cm              schema.Maybe
+	ca_ID           _Bytes__ReprAssembler
+	ca_IndexID      _Link_Index__ReprAssembler
+	ca_Previous     _Link_Advertisement__ReprAssembler
+	ca_Provider     _String__ReprAssembler
+	ca_Signature    _Bytes__ReprAssembler
 	ca_GraphSupport _Bool__ReprAssembler
-	}
+}
 
 func (na *_Advertisement__ReprAssembler) reset() {
 	na.state = maState_initial
@@ -945,7 +961,8 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 	switch ma.f {
 	case 0:
 		switch ma.cm {
-		case schema.Maybe_Value:ma.cm = schema.Maybe_Absent
+		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -953,7 +970,8 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 		}
 	case 1:
 		switch ma.cm {
-		case schema.Maybe_Value:ma.cm = schema.Maybe_Absent
+		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -961,7 +979,8 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 		}
 	case 2:
 		switch ma.cm {
-		case schema.Maybe_Value:ma.cm = schema.Maybe_Absent
+		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -969,7 +988,8 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 		}
 	case 3:
 		switch ma.cm {
-		case schema.Maybe_Value:ma.cm = schema.Maybe_Absent
+		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -986,7 +1006,8 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 		}
 	case 5:
 		switch ma.cm {
-		case schema.Maybe_Value:ma.cm = schema.Maybe_Absent
+		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -1013,7 +1034,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 	}
 	switch k {
 	case "ID":
-		if ma.s & fieldBit__Advertisement_ID != 0 {
+		if ma.s&fieldBit__Advertisement_ID != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_ID_serial}
 		}
 		ma.s += fieldBit__Advertisement_ID
@@ -1023,7 +1044,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		ma.ca_ID.m = &ma.cm
 		return &ma.ca_ID, nil
 	case "IndexID":
-		if ma.s & fieldBit__Advertisement_IndexID != 0 {
+		if ma.s&fieldBit__Advertisement_IndexID != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_IndexID_serial}
 		}
 		ma.s += fieldBit__Advertisement_IndexID
@@ -1033,7 +1054,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID, nil
 	case "Previous":
-		if ma.s & fieldBit__Advertisement_Previous != 0 {
+		if ma.s&fieldBit__Advertisement_Previous != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Previous_serial}
 		}
 		ma.s += fieldBit__Advertisement_Previous
@@ -1043,7 +1064,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		ma.ca_Previous.m = &ma.cm
 		return &ma.ca_Previous, nil
 	case "Provider":
-		if ma.s & fieldBit__Advertisement_Provider != 0 {
+		if ma.s&fieldBit__Advertisement_Provider != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Provider_serial}
 		}
 		ma.s += fieldBit__Advertisement_Provider
@@ -1053,7 +1074,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider, nil
 	case "Signature":
-		if ma.s & fieldBit__Advertisement_Signature != 0 {
+		if ma.s&fieldBit__Advertisement_Signature != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Signature_serial}
 		}
 		ma.s += fieldBit__Advertisement_Signature
@@ -1061,10 +1082,10 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		ma.f = 4
 		ma.ca_Signature.w = ma.w.Signature.v
 		ma.ca_Signature.m = &ma.w.Signature.m
-		
+
 		return &ma.ca_Signature, nil
 	case "GraphSupport":
-		if ma.s & fieldBit__Advertisement_GraphSupport != 0 {
+		if ma.s&fieldBit__Advertisement_GraphSupport != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_GraphSupport_serial}
 		}
 		ma.s += fieldBit__Advertisement_GraphSupport
@@ -1074,7 +1095,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		ma.ca_GraphSupport.m = &ma.cm
 		return &ma.ca_GraphSupport, nil
 	default:
-		return nil, ipld.ErrInvalidKey{TypeName:"ingestion.Advertisement.Repr", Key:&_String{k}}
+		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement.Repr", Key: &_String{k}}
 	}
 }
 func (ma *_Advertisement__ReprAssembler) AssembleKey() ipld.NodeAssembler {
@@ -1129,7 +1150,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleValue() ipld.NodeAssembler {
 	case 4:
 		ma.ca_Signature.w = ma.w.Signature.v
 		ma.ca_Signature.m = &ma.w.Signature.m
-		
+
 		return &ma.ca_Signature
 	case 5:
 		ma.ca_GraphSupport.w = &ma.w.GraphSupport
@@ -1154,21 +1175,21 @@ func (ma *_Advertisement__ReprAssembler) Finish() error {
 	case maState_finished:
 		panic("invalid state: Finish cannot be called on an assembler that's already finished")
 	}
-	if ma.s & fieldBits__Advertisement_sufficient != fieldBits__Advertisement_sufficient {
+	if ma.s&fieldBits__Advertisement_sufficient != fieldBits__Advertisement_sufficient {
 		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s & fieldBit__Advertisement_ID == 0 {
+		if ma.s&fieldBit__Advertisement_ID == 0 {
 			err.Missing = append(err.Missing, "ID")
 		}
-		if ma.s & fieldBit__Advertisement_IndexID == 0 {
+		if ma.s&fieldBit__Advertisement_IndexID == 0 {
 			err.Missing = append(err.Missing, "IndexID")
 		}
-		if ma.s & fieldBit__Advertisement_Previous == 0 {
+		if ma.s&fieldBit__Advertisement_Previous == 0 {
 			err.Missing = append(err.Missing, "Previous")
 		}
-		if ma.s & fieldBit__Advertisement_Provider == 0 {
+		if ma.s&fieldBit__Advertisement_Provider == 0 {
 			err.Missing = append(err.Missing, "Provider")
 		}
-		if ma.s & fieldBit__Advertisement_GraphSupport == 0 {
+		if ma.s&fieldBit__Advertisement_GraphSupport == 0 {
 			err.Missing = append(err.Missing, "GraphSupport")
 		}
 		return err
@@ -1183,7 +1204,9 @@ func (ma *_Advertisement__ReprAssembler) KeyPrototype() ipld.NodePrototype {
 func (ma *_Advertisement__ReprAssembler) ValuePrototype(k string) ipld.NodePrototype {
 	panic("todo structbuilder mapassembler repr valueprototype")
 }
+
 type _Advertisement__ReprKeyAssembler _Advertisement__ReprAssembler
+
 func (_Advertisement__ReprKeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
 	return mixins.StringAssembler{"ingestion.Advertisement.Repr.KeyAssembler"}.BeginMap(0)
 }
@@ -1208,49 +1231,49 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 	}
 	switch k {
 	case "ID":
-		if ka.s & fieldBit__Advertisement_ID != 0 {
+		if ka.s&fieldBit__Advertisement_ID != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_ID_serial}
 		}
 		ka.s += fieldBit__Advertisement_ID
 		ka.state = maState_expectValue
 		ka.f = 0
 	case "IndexID":
-		if ka.s & fieldBit__Advertisement_IndexID != 0 {
+		if ka.s&fieldBit__Advertisement_IndexID != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_IndexID_serial}
 		}
 		ka.s += fieldBit__Advertisement_IndexID
 		ka.state = maState_expectValue
 		ka.f = 1
 	case "Previous":
-		if ka.s & fieldBit__Advertisement_Previous != 0 {
+		if ka.s&fieldBit__Advertisement_Previous != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Previous_serial}
 		}
 		ka.s += fieldBit__Advertisement_Previous
 		ka.state = maState_expectValue
 		ka.f = 2
 	case "Provider":
-		if ka.s & fieldBit__Advertisement_Provider != 0 {
+		if ka.s&fieldBit__Advertisement_Provider != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Provider_serial}
 		}
 		ka.s += fieldBit__Advertisement_Provider
 		ka.state = maState_expectValue
 		ka.f = 3
 	case "Signature":
-		if ka.s & fieldBit__Advertisement_Signature != 0 {
+		if ka.s&fieldBit__Advertisement_Signature != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Signature_serial}
 		}
 		ka.s += fieldBit__Advertisement_Signature
 		ka.state = maState_expectValue
 		ka.f = 4
 	case "GraphSupport":
-		if ka.s & fieldBit__Advertisement_GraphSupport != 0 {
+		if ka.s&fieldBit__Advertisement_GraphSupport != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_GraphSupport_serial}
 		}
 		ka.s += fieldBit__Advertisement_GraphSupport
 		ka.state = maState_expectValue
 		ka.f = 5
 	default:
-		return ipld.ErrInvalidKey{TypeName:"ingestion.Advertisement.Repr", Key:&_String{k}}
+		return ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement.Repr", Key: &_String{k}}
 	}
 	return nil
 }
@@ -1274,6 +1297,7 @@ func (_Advertisement__ReprKeyAssembler) Prototype() ipld.NodePrototype {
 func (n _Any) AsInterface() _Any__iface {
 	return n.x
 }
+
 type _Any__Maybe struct {
 	m schema.Maybe
 	v Any
@@ -1291,14 +1315,14 @@ func (m MaybeAny) Exists() bool {
 }
 func (m MaybeAny) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeAny) Must() Any {
@@ -1307,18 +1331,20 @@ func (m MaybeAny) Must() Any {
 	}
 	return m.v
 }
+
 var (
-	memberName__Any_Bool = _String{"Bool"}
-	memberName__Any_Int = _String{"Int"}
-	memberName__Any_Float = _String{"Float"}
+	memberName__Any_Bool   = _String{"Bool"}
+	memberName__Any_Int    = _String{"Int"}
+	memberName__Any_Float  = _String{"Float"}
 	memberName__Any_String = _String{"String"}
-	memberName__Any_Bytes = _String{"Bytes"}
-	memberName__Any_Map = _String{"Map"}
-	memberName__Any_List = _String{"List"}
-	memberName__Any_Link = _String{"Link"}
+	memberName__Any_Bytes  = _String{"Bytes"}
+	memberName__Any_Map    = _String{"Map"}
+	memberName__Any_List   = _String{"List"}
+	memberName__Any_Link   = _String{"Link"}
 )
 var _ ipld.Node = (Any)(&_Any{})
 var _ schema.TypedNode = (Any)(&_Any{})
+
 func (Any) Kind() ipld.Kind {
 	return ipld.Kind_Map
 }
@@ -1394,7 +1420,7 @@ func (n Any) MapIterator() ipld.MapIterator {
 }
 
 type _Any__MapItr struct {
-	n Any
+	n    Any
 	done bool
 }
 
@@ -1462,6 +1488,7 @@ func (Any) AsLink() (ipld.Link, error) {
 func (Any) Prototype() ipld.NodePrototype {
 	return _Any__Prototype{}
 }
+
 type _Any__Prototype struct{}
 
 func (_Any__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -1469,9 +1496,11 @@ func (_Any__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Any__Builder struct {
 	_Any__Assembler
 }
+
 func (nb *_Any__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -1483,29 +1512,31 @@ func (nb *_Any__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _Any__Builder{_Any__Assembler{w: &w, m: &m}}
 }
+
 type _Any__Assembler struct {
-	w *_Any
-	m *schema.Maybe
+	w     *_Any
+	m     *schema.Maybe
 	state maState
 
-	cm schema.Maybe
+	cm  schema.Maybe
 	ca1 *_Bool__Assembler
-	
+
 	ca2 *_Int__Assembler
-	
+
 	ca3 *_Float__Assembler
-	
+
 	ca4 *_String__Assembler
-	
+
 	ca5 *_Bytes__Assembler
-	
+
 	ca6 *_Map__Assembler
-	
+
 	ca7 *_List__Assembler
-	
+
 	ca8 *_Link__Assembler
-	ca uint
+	ca  uint
 }
+
 func (na *_Any__Assembler) reset() {
 	na.state = maState_initial
 	switch na.ca {
@@ -1513,25 +1544,25 @@ func (na *_Any__Assembler) reset() {
 		return
 	case 1:
 		na.ca1.reset()
-	
+
 	case 2:
 		na.ca2.reset()
-	
+
 	case 3:
 		na.ca3.reset()
-	
+
 	case 4:
 		na.ca4.reset()
-	
+
 	case 5:
 		na.ca5.reset()
-	
+
 	case 6:
 		na.ca6.reset()
-	
+
 	case 7:
 		na.ca7.reset()
-	
+
 	case 8:
 		na.ca8.reset()
 	default:
@@ -1631,7 +1662,8 @@ func (_Any__Assembler) Prototype() ipld.NodePrototype {
 }
 func (ma *_Any__Assembler) valueFinishTidy() bool {
 	switch ma.cm {
-	case schema.Maybe_Value:ma.state = maState_initial
+	case schema.Maybe_Value:
+		ma.state = maState_initial
 		return true
 	default:
 		return false
@@ -1653,7 +1685,7 @@ func (ma *_Any__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error) {
 		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
 	}
 	if ma.ca != 0 {
-		return nil, schema.ErrNotUnionStructure{TypeName:"ingestion.Any", Detail: "cannot add another entry -- a union can only contain one thing!"}
+		return nil, schema.ErrNotUnionStructure{TypeName: "ingestion.Any", Detail: "cannot add another entry -- a union can only contain one thing!"}
 	}
 	switch k {
 	case "Bool":
@@ -1745,7 +1777,7 @@ func (ma *_Any__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error) {
 		ma.ca8.m = &ma.cm
 		return ma.ca8, nil
 	default:
-		return nil, ipld.ErrInvalidKey{TypeName:"ingestion.Any", Key:&_String{k}}
+		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Any", Key: &_String{k}}
 	}
 }
 func (ma *_Any__Assembler) AssembleKey() ipld.NodeAssembler {
@@ -1873,7 +1905,7 @@ func (ma *_Any__Assembler) Finish() error {
 		panic("invalid state: Finish cannot be called on an assembler that's already finished")
 	}
 	if ma.ca == 0 {
-		return schema.ErrNotUnionStructure{TypeName:"ingestion.Any", Detail: "a union must have exactly one entry (not none)!"}
+		return schema.ErrNotUnionStructure{TypeName: "ingestion.Any", Detail: "a union must have exactly one entry (not none)!"}
 	}
 	ma.state = maState_finished
 	*ma.m = schema.Maybe_Value
@@ -1904,7 +1936,9 @@ func (ma *_Any__Assembler) ValuePrototype(k string) ipld.NodePrototype {
 		return nil
 	}
 }
+
 type _Any__KeyAssembler _Any__Assembler
+
 func (_Any__KeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
 	return mixins.StringAssembler{"ingestion.Any.KeyAssembler"}.BeginMap(0)
 }
@@ -1928,7 +1962,7 @@ func (ka *_Any__KeyAssembler) AssignString(k string) error {
 		panic("misuse: KeyAssembler held beyond its valid lifetime")
 	}
 	if ka.ca != 0 {
-		return schema.ErrNotUnionStructure{TypeName:"ingestion.Any", Detail: "cannot add another entry -- a union can only contain one thing!"}
+		return schema.ErrNotUnionStructure{TypeName: "ingestion.Any", Detail: "cannot add another entry -- a union can only contain one thing!"}
 	}
 	switch k {
 	case "Bool":
@@ -1964,7 +1998,7 @@ func (ka *_Any__KeyAssembler) AssignString(k string) error {
 		ka.state = maState_expectValue
 		return nil
 	default:
-		return ipld.ErrInvalidKey{TypeName:"ingestion.Any", Key:&_String{k}} // TODO: error quality: ErrInvalidUnionDiscriminant ?
+		return ipld.ErrInvalidKey{TypeName: "ingestion.Any", Key: &_String{k}} // TODO: error quality: ErrInvalidUnionDiscriminant ?
 	}
 	return nil
 }
@@ -1990,8 +2024,11 @@ func (Any) Type() schema.Type {
 func (n Any) Representation() ipld.Node {
 	return (*_Any__Repr)(n)
 }
+
 type _Any__Repr _Any
+
 var _ ipld.Node = &_Any__Repr{}
+
 func (n *_Any__Repr) Kind() ipld.Kind {
 	switch n.x.(type) {
 	case Bool:
@@ -2133,6 +2170,7 @@ func (n *_Any__Repr) AsLink() (ipld.Link, error) {
 func (_Any__Repr) Prototype() ipld.NodePrototype {
 	return _Any__ReprPrototype{}
 }
+
 type _Any__ReprPrototype struct{}
 
 func (_Any__ReprPrototype) NewBuilder() ipld.NodeBuilder {
@@ -2140,9 +2178,11 @@ func (_Any__ReprPrototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Any__ReprBuilder struct {
 	_Any__ReprAssembler
 }
+
 func (nb *_Any__ReprBuilder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -2154,9 +2194,10 @@ func (nb *_Any__ReprBuilder) Reset() {
 	var m schema.Maybe
 	*nb = _Any__ReprBuilder{_Any__ReprAssembler{w: &w, m: &m}}
 }
+
 type _Any__ReprAssembler struct {
-	w *_Any
-	m *schema.Maybe
+	w   *_Any
+	m   *schema.Maybe
 	ca1 *_Bool__ReprAssembler
 	ca2 *_Int__ReprAssembler
 	ca3 *_Float__ReprAssembler
@@ -2165,8 +2206,9 @@ type _Any__ReprAssembler struct {
 	ca6 *_Map__ReprAssembler
 	ca7 *_List__ReprAssembler
 	ca8 *_Link__ReprAssembler
-	ca uint
+	ca  uint
 }
+
 func (na *_Any__ReprAssembler) reset() {
 	switch na.ca {
 	case 0:
@@ -2234,16 +2276,16 @@ func (na *_Any__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, er
 	return na.ca7.BeginList(sizeHint)
 	return nil, schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "BeginList called but is not valid for any of the kinds that are valid members of this union"}
 }
-func (na *_Any__ReprAssembler) AssignNull() error  {
+func (na *_Any__ReprAssembler) AssignNull() error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
 		panic("invalid state: cannot assign into assembler that's already working on a larger structure!")
 	}
-	return  schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignNull called but is not valid for any of the kinds that are valid members of this union"}
+	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignNull called but is not valid for any of the kinds that are valid members of this union"}
 }
-func (na *_Any__ReprAssembler) AssignBool(v bool) error  {
+func (na *_Any__ReprAssembler) AssignBool(v bool) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
@@ -2262,9 +2304,9 @@ func (na *_Any__ReprAssembler) AssignBool(v bool) error  {
 	na.ca1.w = x
 	na.ca1.m = na.m
 	return na.ca1.AssignBool(v)
-	return  schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignBool called but is not valid for any of the kinds that are valid members of this union"}
+	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignBool called but is not valid for any of the kinds that are valid members of this union"}
 }
-func (na *_Any__ReprAssembler) AssignInt(v int64) error  {
+func (na *_Any__ReprAssembler) AssignInt(v int64) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
@@ -2283,9 +2325,9 @@ func (na *_Any__ReprAssembler) AssignInt(v int64) error  {
 	na.ca2.w = x
 	na.ca2.m = na.m
 	return na.ca2.AssignInt(v)
-	return  schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignInt called but is not valid for any of the kinds that are valid members of this union"}
+	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignInt called but is not valid for any of the kinds that are valid members of this union"}
 }
-func (na *_Any__ReprAssembler) AssignFloat(v float64) error  {
+func (na *_Any__ReprAssembler) AssignFloat(v float64) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
@@ -2304,9 +2346,9 @@ func (na *_Any__ReprAssembler) AssignFloat(v float64) error  {
 	na.ca3.w = x
 	na.ca3.m = na.m
 	return na.ca3.AssignFloat(v)
-	return  schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignFloat called but is not valid for any of the kinds that are valid members of this union"}
+	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignFloat called but is not valid for any of the kinds that are valid members of this union"}
 }
-func (na *_Any__ReprAssembler) AssignString(v string) error  {
+func (na *_Any__ReprAssembler) AssignString(v string) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
@@ -2325,9 +2367,9 @@ func (na *_Any__ReprAssembler) AssignString(v string) error  {
 	na.ca4.w = x
 	na.ca4.m = na.m
 	return na.ca4.AssignString(v)
-	return  schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignString called but is not valid for any of the kinds that are valid members of this union"}
+	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignString called but is not valid for any of the kinds that are valid members of this union"}
 }
-func (na *_Any__ReprAssembler) AssignBytes(v []byte) error  {
+func (na *_Any__ReprAssembler) AssignBytes(v []byte) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
@@ -2346,9 +2388,9 @@ func (na *_Any__ReprAssembler) AssignBytes(v []byte) error  {
 	na.ca5.w = x
 	na.ca5.m = na.m
 	return na.ca5.AssignBytes(v)
-	return  schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignBytes called but is not valid for any of the kinds that are valid members of this union"}
+	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignBytes called but is not valid for any of the kinds that are valid members of this union"}
 }
-func (na *_Any__ReprAssembler) AssignLink(v ipld.Link) error  {
+func (na *_Any__ReprAssembler) AssignLink(v ipld.Link) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
@@ -2367,7 +2409,7 @@ func (na *_Any__ReprAssembler) AssignLink(v ipld.Link) error  {
 	na.ca8.w = x
 	na.ca8.m = na.m
 	return na.ca8.AssignLink(v)
-	return  schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignLink called but is not valid for any of the kinds that are valid members of this union"}
+	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignLink called but is not valid for any of the kinds that are valid members of this union"}
 }
 func (na *_Any__ReprAssembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -2458,6 +2500,7 @@ func (_Bool__Prototype) FromBool(v bool) (Bool, error) {
 	n := _Bool{v}
 	return &n, nil
 }
+
 type _Bool__Maybe struct {
 	m schema.Maybe
 	v Bool
@@ -2475,14 +2518,14 @@ func (m MaybeBool) Exists() bool {
 }
 func (m MaybeBool) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeBool) Must() Bool {
@@ -2491,8 +2534,10 @@ func (m MaybeBool) Must() Bool {
 	}
 	return m.v
 }
+
 var _ ipld.Node = (Bool)(&_Bool{})
 var _ schema.TypedNode = (Bool)(&_Bool{})
+
 func (Bool) Kind() ipld.Kind {
 	return ipld.Kind_Bool
 }
@@ -2544,6 +2589,7 @@ func (Bool) AsLink() (ipld.Link, error) {
 func (Bool) Prototype() ipld.NodePrototype {
 	return _Bool__Prototype{}
 }
+
 type _Bool__Prototype struct{}
 
 func (_Bool__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -2551,9 +2597,11 @@ func (_Bool__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Bool__Builder struct {
 	_Bool__Assembler
 }
+
 func (nb *_Bool__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -2565,6 +2613,7 @@ func (nb *_Bool__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _Bool__Builder{_Bool__Assembler{w: &w, m: &m}}
 }
+
 type _Bool__Assembler struct {
 	w *_Bool
 	m *schema.Maybe
@@ -2649,8 +2698,11 @@ func (Bool) Type() schema.Type {
 func (n Bool) Representation() ipld.Node {
 	return (*_Bool__Repr)(n)
 }
+
 type _Bool__Repr = _Bool
+
 var _ ipld.Node = &_Bool__Repr{}
+
 type _Bool__ReprPrototype = _Bool__Prototype
 type _Bool__ReprAssembler = _Bool__Assembler
 
@@ -2661,6 +2713,7 @@ func (_Bytes__Prototype) FromBytes(v []byte) (Bytes, error) {
 	n := _Bytes{v}
 	return &n, nil
 }
+
 type _Bytes__Maybe struct {
 	m schema.Maybe
 	v Bytes
@@ -2678,14 +2731,14 @@ func (m MaybeBytes) Exists() bool {
 }
 func (m MaybeBytes) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeBytes) Must() Bytes {
@@ -2694,8 +2747,10 @@ func (m MaybeBytes) Must() Bytes {
 	}
 	return m.v
 }
+
 var _ ipld.Node = (Bytes)(&_Bytes{})
 var _ schema.TypedNode = (Bytes)(&_Bytes{})
+
 func (Bytes) Kind() ipld.Kind {
 	return ipld.Kind_Bytes
 }
@@ -2747,6 +2802,7 @@ func (Bytes) AsLink() (ipld.Link, error) {
 func (Bytes) Prototype() ipld.NodePrototype {
 	return _Bytes__Prototype{}
 }
+
 type _Bytes__Prototype struct{}
 
 func (_Bytes__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -2754,9 +2810,11 @@ func (_Bytes__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Bytes__Builder struct {
 	_Bytes__Assembler
 }
+
 func (nb *_Bytes__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -2768,6 +2826,7 @@ func (nb *_Bytes__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _Bytes__Builder{_Bytes__Assembler{w: &w, m: &m}}
 }
+
 type _Bytes__Assembler struct {
 	w *_Bytes
 	m *schema.Maybe
@@ -2852,11 +2911,13 @@ func (Bytes) Type() schema.Type {
 func (n Bytes) Representation() ipld.Node {
 	return (*_Bytes__Repr)(n)
 }
+
 type _Bytes__Repr = _Bytes
+
 var _ ipld.Node = &_Bytes__Repr{}
+
 type _Bytes__ReprPrototype = _Bytes__Prototype
 type _Bytes__ReprAssembler = _Bytes__Assembler
-
 
 func (n _Entry) FieldRmCids() MaybeList_String {
 	return &n.RmCids
@@ -2867,6 +2928,7 @@ func (n _Entry) FieldCids() MaybeList_String {
 func (n _Entry) FieldMetadata() MaybeBytes {
 	return &n.Metadata
 }
+
 type _Entry__Maybe struct {
 	m schema.Maybe
 	v Entry
@@ -2884,14 +2946,14 @@ func (m MaybeEntry) Exists() bool {
 }
 func (m MaybeEntry) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeEntry) Must() Entry {
@@ -2900,13 +2962,15 @@ func (m MaybeEntry) Must() Entry {
 	}
 	return m.v
 }
+
 var (
-	fieldName__Entry_RmCids = _String{"RmCids"}
-	fieldName__Entry_Cids = _String{"Cids"}
+	fieldName__Entry_RmCids   = _String{"RmCids"}
+	fieldName__Entry_Cids     = _String{"Cids"}
 	fieldName__Entry_Metadata = _String{"Metadata"}
 )
 var _ ipld.Node = (Entry)(&_Entry{})
 var _ schema.TypedNode = (Entry)(&_Entry{})
+
 func (Entry) Kind() ipld.Kind {
 	return ipld.Kind_Map
 }
@@ -2958,8 +3022,8 @@ func (n Entry) MapIterator() ipld.MapIterator {
 }
 
 type _Entry__MapItr struct {
-	n Entry
-	idx  int
+	n   Entry
+	idx int
 }
 
 func (itr *_Entry__MapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
@@ -3043,6 +3107,7 @@ func (Entry) AsLink() (ipld.Link, error) {
 func (Entry) Prototype() ipld.NodePrototype {
 	return _Entry__Prototype{}
 }
+
 type _Entry__Prototype struct{}
 
 func (_Entry__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -3050,9 +3115,11 @@ func (_Entry__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Entry__Builder struct {
 	_Entry__Assembler
 }
+
 func (nb *_Entry__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -3064,18 +3131,19 @@ func (nb *_Entry__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _Entry__Builder{_Entry__Assembler{w: &w, m: &m}}
 }
-type _Entry__Assembler struct {
-	w *_Entry
-	m *schema.Maybe
-	state maState
-	s int
-	f int
 
-	cm schema.Maybe
-	ca_RmCids _List_String__Assembler
-	ca_Cids _List_String__Assembler
+type _Entry__Assembler struct {
+	w     *_Entry
+	m     *schema.Maybe
+	state maState
+	s     int
+	f     int
+
+	cm          schema.Maybe
+	ca_RmCids   _List_String__Assembler
+	ca_Cids     _List_String__Assembler
 	ca_Metadata _Bytes__Assembler
-	}
+}
 
 func (na *_Entry__Assembler) reset() {
 	na.state = maState_initial
@@ -3086,11 +3154,12 @@ func (na *_Entry__Assembler) reset() {
 }
 
 var (
-	fieldBit__Entry_RmCids = 1 << 0
-	fieldBit__Entry_Cids = 1 << 1
-	fieldBit__Entry_Metadata = 1 << 2
+	fieldBit__Entry_RmCids      = 1 << 0
+	fieldBit__Entry_Cids        = 1 << 1
+	fieldBit__Entry_Metadata    = 1 << 2
 	fieldBits__Entry_sufficient = 0
 )
+
 func (na *_Entry__Assembler) BeginMap(int64) (ipld.MapAssembler, error) {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
@@ -3239,7 +3308,7 @@ func (ma *_Entry__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error)
 	}
 	switch k {
 	case "RmCids":
-		if ma.s & fieldBit__Entry_RmCids != 0 {
+		if ma.s&fieldBit__Entry_RmCids != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Entry_RmCids}
 		}
 		ma.s += fieldBit__Entry_RmCids
@@ -3250,7 +3319,7 @@ func (ma *_Entry__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error)
 		ma.w.RmCids.m = allowNull
 		return &ma.ca_RmCids, nil
 	case "Cids":
-		if ma.s & fieldBit__Entry_Cids != 0 {
+		if ma.s&fieldBit__Entry_Cids != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Entry_Cids}
 		}
 		ma.s += fieldBit__Entry_Cids
@@ -3261,7 +3330,7 @@ func (ma *_Entry__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error)
 		ma.w.Cids.m = allowNull
 		return &ma.ca_Cids, nil
 	case "Metadata":
-		if ma.s & fieldBit__Entry_Metadata != 0 {
+		if ma.s&fieldBit__Entry_Metadata != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Entry_Metadata}
 		}
 		ma.s += fieldBit__Entry_Metadata
@@ -3272,7 +3341,7 @@ func (ma *_Entry__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error)
 		ma.w.Metadata.m = allowNull
 		return &ma.ca_Metadata, nil
 	default:
-		return nil, ipld.ErrInvalidKey{TypeName:"ingestion.Entry", Key:&_String{k}}
+		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Entry", Key: &_String{k}}
 	}
 }
 func (ma *_Entry__Assembler) AssembleKey() ipld.NodeAssembler {
@@ -3342,7 +3411,7 @@ func (ma *_Entry__Assembler) Finish() error {
 	case maState_finished:
 		panic("invalid state: Finish cannot be called on an assembler that's already finished")
 	}
-	if ma.s & fieldBits__Entry_sufficient != fieldBits__Entry_sufficient {
+	if ma.s&fieldBits__Entry_sufficient != fieldBits__Entry_sufficient {
 		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
 		return err
 	}
@@ -3356,7 +3425,9 @@ func (ma *_Entry__Assembler) KeyPrototype() ipld.NodePrototype {
 func (ma *_Entry__Assembler) ValuePrototype(k string) ipld.NodePrototype {
 	panic("todo structbuilder mapassembler valueprototype")
 }
+
 type _Entry__KeyAssembler _Entry__Assembler
+
 func (_Entry__KeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
 	return mixins.StringAssembler{"ingestion.Entry.KeyAssembler"}.BeginMap(0)
 }
@@ -3381,28 +3452,28 @@ func (ka *_Entry__KeyAssembler) AssignString(k string) error {
 	}
 	switch k {
 	case "RmCids":
-		if ka.s & fieldBit__Entry_RmCids != 0 {
+		if ka.s&fieldBit__Entry_RmCids != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Entry_RmCids}
 		}
 		ka.s += fieldBit__Entry_RmCids
 		ka.state = maState_expectValue
 		ka.f = 0
 	case "Cids":
-		if ka.s & fieldBit__Entry_Cids != 0 {
+		if ka.s&fieldBit__Entry_Cids != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Entry_Cids}
 		}
 		ka.s += fieldBit__Entry_Cids
 		ka.state = maState_expectValue
 		ka.f = 1
 	case "Metadata":
-		if ka.s & fieldBit__Entry_Metadata != 0 {
+		if ka.s&fieldBit__Entry_Metadata != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Entry_Metadata}
 		}
 		ka.s += fieldBit__Entry_Metadata
 		ka.state = maState_expectValue
 		ka.f = 2
 	default:
-		return ipld.ErrInvalidKey{TypeName:"ingestion.Entry", Key:&_String{k}}
+		return ipld.ErrInvalidKey{TypeName: "ingestion.Entry", Key: &_String{k}}
 	}
 	return nil
 }
@@ -3428,13 +3499,16 @@ func (Entry) Type() schema.Type {
 func (n Entry) Representation() ipld.Node {
 	return (*_Entry__Repr)(n)
 }
+
 type _Entry__Repr _Entry
+
 var (
-	fieldName__Entry_RmCids_serial = _String{"RmCids"}
-	fieldName__Entry_Cids_serial = _String{"Cids"}
+	fieldName__Entry_RmCids_serial   = _String{"RmCids"}
+	fieldName__Entry_Cids_serial     = _String{"Cids"}
 	fieldName__Entry_Metadata_serial = _String{"Metadata"}
 )
 var _ ipld.Node = &_Entry__Repr{}
+
 func (_Entry__Repr) Kind() ipld.Kind {
 	return ipld.Kind_Map
 }
@@ -3509,7 +3583,8 @@ type _Entry__ReprMapItr struct {
 }
 
 func (itr *_Entry__ReprMapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
-advance:if itr.idx >= 3 {
+advance:
+	if itr.idx >= 3 {
 		return nil, nil, ipld.ErrIteratorOverread{}
 	}
 	switch itr.idx {
@@ -3598,6 +3673,7 @@ func (_Entry__Repr) AsLink() (ipld.Link, error) {
 func (_Entry__Repr) Prototype() ipld.NodePrototype {
 	return _Entry__ReprPrototype{}
 }
+
 type _Entry__ReprPrototype struct{}
 
 func (_Entry__ReprPrototype) NewBuilder() ipld.NodeBuilder {
@@ -3605,9 +3681,11 @@ func (_Entry__ReprPrototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Entry__ReprBuilder struct {
 	_Entry__ReprAssembler
 }
+
 func (nb *_Entry__ReprBuilder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -3619,18 +3697,19 @@ func (nb *_Entry__ReprBuilder) Reset() {
 	var m schema.Maybe
 	*nb = _Entry__ReprBuilder{_Entry__ReprAssembler{w: &w, m: &m}}
 }
-type _Entry__ReprAssembler struct {
-	w *_Entry
-	m *schema.Maybe
-	state maState
-	s int
-	f int
 
-	cm schema.Maybe
-	ca_RmCids _List_String__ReprAssembler
-	ca_Cids _List_String__ReprAssembler
+type _Entry__ReprAssembler struct {
+	w     *_Entry
+	m     *schema.Maybe
+	state maState
+	s     int
+	f     int
+
+	cm          schema.Maybe
+	ca_RmCids   _List_String__ReprAssembler
+	ca_Cids     _List_String__ReprAssembler
 	ca_Metadata _Bytes__ReprAssembler
-	}
+}
 
 func (na *_Entry__ReprAssembler) reset() {
 	na.state = maState_initial
@@ -3787,7 +3866,7 @@ func (ma *_Entry__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssembler, er
 	}
 	switch k {
 	case "RmCids":
-		if ma.s & fieldBit__Entry_RmCids != 0 {
+		if ma.s&fieldBit__Entry_RmCids != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Entry_RmCids_serial}
 		}
 		ma.s += fieldBit__Entry_RmCids
@@ -3798,7 +3877,7 @@ func (ma *_Entry__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssembler, er
 		ma.w.RmCids.m = allowNull
 		return &ma.ca_RmCids, nil
 	case "Cids":
-		if ma.s & fieldBit__Entry_Cids != 0 {
+		if ma.s&fieldBit__Entry_Cids != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Entry_Cids_serial}
 		}
 		ma.s += fieldBit__Entry_Cids
@@ -3809,7 +3888,7 @@ func (ma *_Entry__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssembler, er
 		ma.w.Cids.m = allowNull
 		return &ma.ca_Cids, nil
 	case "Metadata":
-		if ma.s & fieldBit__Entry_Metadata != 0 {
+		if ma.s&fieldBit__Entry_Metadata != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Entry_Metadata_serial}
 		}
 		ma.s += fieldBit__Entry_Metadata
@@ -3820,7 +3899,7 @@ func (ma *_Entry__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssembler, er
 		ma.w.Metadata.m = allowNull
 		return &ma.ca_Metadata, nil
 	default:
-		return nil, ipld.ErrInvalidKey{TypeName:"ingestion.Entry.Repr", Key:&_String{k}}
+		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Entry.Repr", Key: &_String{k}}
 	}
 }
 func (ma *_Entry__ReprAssembler) AssembleKey() ipld.NodeAssembler {
@@ -3890,7 +3969,7 @@ func (ma *_Entry__ReprAssembler) Finish() error {
 	case maState_finished:
 		panic("invalid state: Finish cannot be called on an assembler that's already finished")
 	}
-	if ma.s & fieldBits__Entry_sufficient != fieldBits__Entry_sufficient {
+	if ma.s&fieldBits__Entry_sufficient != fieldBits__Entry_sufficient {
 		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
 		return err
 	}
@@ -3904,7 +3983,9 @@ func (ma *_Entry__ReprAssembler) KeyPrototype() ipld.NodePrototype {
 func (ma *_Entry__ReprAssembler) ValuePrototype(k string) ipld.NodePrototype {
 	panic("todo structbuilder mapassembler repr valueprototype")
 }
+
 type _Entry__ReprKeyAssembler _Entry__ReprAssembler
+
 func (_Entry__ReprKeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
 	return mixins.StringAssembler{"ingestion.Entry.Repr.KeyAssembler"}.BeginMap(0)
 }
@@ -3929,28 +4010,28 @@ func (ka *_Entry__ReprKeyAssembler) AssignString(k string) error {
 	}
 	switch k {
 	case "RmCids":
-		if ka.s & fieldBit__Entry_RmCids != 0 {
+		if ka.s&fieldBit__Entry_RmCids != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Entry_RmCids_serial}
 		}
 		ka.s += fieldBit__Entry_RmCids
 		ka.state = maState_expectValue
 		ka.f = 0
 	case "Cids":
-		if ka.s & fieldBit__Entry_Cids != 0 {
+		if ka.s&fieldBit__Entry_Cids != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Entry_Cids_serial}
 		}
 		ka.s += fieldBit__Entry_Cids
 		ka.state = maState_expectValue
 		ka.f = 1
 	case "Metadata":
-		if ka.s & fieldBit__Entry_Metadata != 0 {
+		if ka.s&fieldBit__Entry_Metadata != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Entry_Metadata_serial}
 		}
 		ka.s += fieldBit__Entry_Metadata
 		ka.state = maState_expectValue
 		ka.f = 2
 	default:
-		return ipld.ErrInvalidKey{TypeName:"ingestion.Entry.Repr", Key:&_String{k}}
+		return ipld.ErrInvalidKey{TypeName: "ingestion.Entry.Repr", Key: &_String{k}}
 	}
 	return nil
 }
@@ -3978,6 +4059,7 @@ func (_Float__Prototype) FromFloat(v float64) (Float, error) {
 	n := _Float{v}
 	return &n, nil
 }
+
 type _Float__Maybe struct {
 	m schema.Maybe
 	v Float
@@ -3995,14 +4077,14 @@ func (m MaybeFloat) Exists() bool {
 }
 func (m MaybeFloat) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeFloat) Must() Float {
@@ -4011,8 +4093,10 @@ func (m MaybeFloat) Must() Float {
 	}
 	return m.v
 }
+
 var _ ipld.Node = (Float)(&_Float{})
 var _ schema.TypedNode = (Float)(&_Float{})
+
 func (Float) Kind() ipld.Kind {
 	return ipld.Kind_Float
 }
@@ -4064,6 +4148,7 @@ func (Float) AsLink() (ipld.Link, error) {
 func (Float) Prototype() ipld.NodePrototype {
 	return _Float__Prototype{}
 }
+
 type _Float__Prototype struct{}
 
 func (_Float__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -4071,9 +4156,11 @@ func (_Float__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Float__Builder struct {
 	_Float__Assembler
 }
+
 func (nb *_Float__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -4085,6 +4172,7 @@ func (nb *_Float__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _Float__Builder{_Float__Assembler{w: &w, m: &m}}
 }
+
 type _Float__Assembler struct {
 	w *_Float
 	m *schema.Maybe
@@ -4169,11 +4257,13 @@ func (Float) Type() schema.Type {
 func (n Float) Representation() ipld.Node {
 	return (*_Float__Repr)(n)
 }
+
 type _Float__Repr = _Float
+
 var _ ipld.Node = &_Float__Repr{}
+
 type _Float__ReprPrototype = _Float__Prototype
 type _Float__ReprAssembler = _Float__Assembler
-
 
 func (n _Index) FieldPrevious() Link_Index {
 	return &n.Previous
@@ -4181,6 +4271,7 @@ func (n _Index) FieldPrevious() Link_Index {
 func (n _Index) FieldEntries() List_Entry {
 	return &n.Entries
 }
+
 type _Index__Maybe struct {
 	m schema.Maybe
 	v Index
@@ -4198,14 +4289,14 @@ func (m MaybeIndex) Exists() bool {
 }
 func (m MaybeIndex) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeIndex) Must() Index {
@@ -4214,12 +4305,14 @@ func (m MaybeIndex) Must() Index {
 	}
 	return m.v
 }
+
 var (
 	fieldName__Index_Previous = _String{"Previous"}
-	fieldName__Index_Entries = _String{"Entries"}
+	fieldName__Index_Entries  = _String{"Entries"}
 )
 var _ ipld.Node = (Index)(&_Index{})
 var _ schema.TypedNode = (Index)(&_Index{})
+
 func (Index) Kind() ipld.Kind {
 	return ipld.Kind_Map
 }
@@ -4251,8 +4344,8 @@ func (n Index) MapIterator() ipld.MapIterator {
 }
 
 type _Index__MapItr struct {
-	n Index
-	idx  int
+	n   Index
+	idx int
 }
 
 func (itr *_Index__MapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
@@ -4309,6 +4402,7 @@ func (Index) AsLink() (ipld.Link, error) {
 func (Index) Prototype() ipld.NodePrototype {
 	return _Index__Prototype{}
 }
+
 type _Index__Prototype struct{}
 
 func (_Index__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -4316,9 +4410,11 @@ func (_Index__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Index__Builder struct {
 	_Index__Assembler
 }
+
 func (nb *_Index__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -4330,17 +4426,18 @@ func (nb *_Index__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _Index__Builder{_Index__Assembler{w: &w, m: &m}}
 }
-type _Index__Assembler struct {
-	w *_Index
-	m *schema.Maybe
-	state maState
-	s int
-	f int
 
-	cm schema.Maybe
+type _Index__Assembler struct {
+	w     *_Index
+	m     *schema.Maybe
+	state maState
+	s     int
+	f     int
+
+	cm          schema.Maybe
 	ca_Previous _Link_Index__Assembler
-	ca_Entries _List_Entry__Assembler
-	}
+	ca_Entries  _List_Entry__Assembler
+}
 
 func (na *_Index__Assembler) reset() {
 	na.state = maState_initial
@@ -4350,10 +4447,11 @@ func (na *_Index__Assembler) reset() {
 }
 
 var (
-	fieldBit__Index_Previous = 1 << 0
-	fieldBit__Index_Entries = 1 << 1
-	fieldBits__Index_sufficient = 0 + 1 << 0 + 1 << 1
+	fieldBit__Index_Previous    = 1 << 0
+	fieldBit__Index_Entries     = 1 << 1
+	fieldBits__Index_sufficient = 0 + 1<<0 + 1<<1
 )
+
 func (na *_Index__Assembler) BeginMap(int64) (ipld.MapAssembler, error) {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
@@ -4486,7 +4584,7 @@ func (ma *_Index__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error)
 	}
 	switch k {
 	case "Previous":
-		if ma.s & fieldBit__Index_Previous != 0 {
+		if ma.s&fieldBit__Index_Previous != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Index_Previous}
 		}
 		ma.s += fieldBit__Index_Previous
@@ -4496,7 +4594,7 @@ func (ma *_Index__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error)
 		ma.ca_Previous.m = &ma.cm
 		return &ma.ca_Previous, nil
 	case "Entries":
-		if ma.s & fieldBit__Index_Entries != 0 {
+		if ma.s&fieldBit__Index_Entries != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Index_Entries}
 		}
 		ma.s += fieldBit__Index_Entries
@@ -4506,7 +4604,7 @@ func (ma *_Index__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error)
 		ma.ca_Entries.m = &ma.cm
 		return &ma.ca_Entries, nil
 	default:
-		return nil, ipld.ErrInvalidKey{TypeName:"ingestion.Index", Key:&_String{k}}
+		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Index", Key: &_String{k}}
 	}
 }
 func (ma *_Index__Assembler) AssembleKey() ipld.NodeAssembler {
@@ -4569,12 +4667,12 @@ func (ma *_Index__Assembler) Finish() error {
 	case maState_finished:
 		panic("invalid state: Finish cannot be called on an assembler that's already finished")
 	}
-	if ma.s & fieldBits__Index_sufficient != fieldBits__Index_sufficient {
+	if ma.s&fieldBits__Index_sufficient != fieldBits__Index_sufficient {
 		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s & fieldBit__Index_Previous == 0 {
+		if ma.s&fieldBit__Index_Previous == 0 {
 			err.Missing = append(err.Missing, "Previous")
 		}
-		if ma.s & fieldBit__Index_Entries == 0 {
+		if ma.s&fieldBit__Index_Entries == 0 {
 			err.Missing = append(err.Missing, "Entries")
 		}
 		return err
@@ -4589,7 +4687,9 @@ func (ma *_Index__Assembler) KeyPrototype() ipld.NodePrototype {
 func (ma *_Index__Assembler) ValuePrototype(k string) ipld.NodePrototype {
 	panic("todo structbuilder mapassembler valueprototype")
 }
+
 type _Index__KeyAssembler _Index__Assembler
+
 func (_Index__KeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
 	return mixins.StringAssembler{"ingestion.Index.KeyAssembler"}.BeginMap(0)
 }
@@ -4614,21 +4714,21 @@ func (ka *_Index__KeyAssembler) AssignString(k string) error {
 	}
 	switch k {
 	case "Previous":
-		if ka.s & fieldBit__Index_Previous != 0 {
+		if ka.s&fieldBit__Index_Previous != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Index_Previous}
 		}
 		ka.s += fieldBit__Index_Previous
 		ka.state = maState_expectValue
 		ka.f = 0
 	case "Entries":
-		if ka.s & fieldBit__Index_Entries != 0 {
+		if ka.s&fieldBit__Index_Entries != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Index_Entries}
 		}
 		ka.s += fieldBit__Index_Entries
 		ka.state = maState_expectValue
 		ka.f = 1
 	default:
-		return ipld.ErrInvalidKey{TypeName:"ingestion.Index", Key:&_String{k}}
+		return ipld.ErrInvalidKey{TypeName: "ingestion.Index", Key: &_String{k}}
 	}
 	return nil
 }
@@ -4654,12 +4754,15 @@ func (Index) Type() schema.Type {
 func (n Index) Representation() ipld.Node {
 	return (*_Index__Repr)(n)
 }
+
 type _Index__Repr _Index
+
 var (
 	fieldName__Index_Previous_serial = _String{"Previous"}
-	fieldName__Index_Entries_serial = _String{"Entries"}
+	fieldName__Index_Entries_serial  = _String{"Entries"}
 )
 var _ ipld.Node = &_Index__Repr{}
+
 func (_Index__Repr) Kind() ipld.Kind {
 	return ipld.Kind_Map
 }
@@ -4693,11 +4796,10 @@ func (n *_Index__Repr) MapIterator() ipld.MapIterator {
 type _Index__ReprMapItr struct {
 	n   *_Index__Repr
 	idx int
-	
 }
 
 func (itr *_Index__ReprMapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
-if itr.idx >= 2 {
+	if itr.idx >= 2 {
 		return nil, nil, ipld.ErrIteratorOverread{}
 	}
 	switch itr.idx {
@@ -4750,6 +4852,7 @@ func (_Index__Repr) AsLink() (ipld.Link, error) {
 func (_Index__Repr) Prototype() ipld.NodePrototype {
 	return _Index__ReprPrototype{}
 }
+
 type _Index__ReprPrototype struct{}
 
 func (_Index__ReprPrototype) NewBuilder() ipld.NodeBuilder {
@@ -4757,9 +4860,11 @@ func (_Index__ReprPrototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Index__ReprBuilder struct {
 	_Index__ReprAssembler
 }
+
 func (nb *_Index__ReprBuilder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -4771,17 +4876,18 @@ func (nb *_Index__ReprBuilder) Reset() {
 	var m schema.Maybe
 	*nb = _Index__ReprBuilder{_Index__ReprAssembler{w: &w, m: &m}}
 }
-type _Index__ReprAssembler struct {
-	w *_Index
-	m *schema.Maybe
-	state maState
-	s int
-	f int
 
-	cm schema.Maybe
+type _Index__ReprAssembler struct {
+	w     *_Index
+	m     *schema.Maybe
+	state maState
+	s     int
+	f     int
+
+	cm          schema.Maybe
 	ca_Previous _Link_Index__ReprAssembler
-	ca_Entries _List_Entry__ReprAssembler
-	}
+	ca_Entries  _List_Entry__ReprAssembler
+}
 
 func (na *_Index__ReprAssembler) reset() {
 	na.state = maState_initial
@@ -4882,7 +4988,8 @@ func (ma *_Index__ReprAssembler) valueFinishTidy() bool {
 	switch ma.f {
 	case 0:
 		switch ma.cm {
-		case schema.Maybe_Value:ma.cm = schema.Maybe_Absent
+		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -4890,7 +4997,8 @@ func (ma *_Index__ReprAssembler) valueFinishTidy() bool {
 		}
 	case 1:
 		switch ma.cm {
-		case schema.Maybe_Value:ma.cm = schema.Maybe_Absent
+		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -4917,7 +5025,7 @@ func (ma *_Index__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssembler, er
 	}
 	switch k {
 	case "Previous":
-		if ma.s & fieldBit__Index_Previous != 0 {
+		if ma.s&fieldBit__Index_Previous != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Index_Previous_serial}
 		}
 		ma.s += fieldBit__Index_Previous
@@ -4927,7 +5035,7 @@ func (ma *_Index__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssembler, er
 		ma.ca_Previous.m = &ma.cm
 		return &ma.ca_Previous, nil
 	case "Entries":
-		if ma.s & fieldBit__Index_Entries != 0 {
+		if ma.s&fieldBit__Index_Entries != 0 {
 			return nil, ipld.ErrRepeatedMapKey{&fieldName__Index_Entries_serial}
 		}
 		ma.s += fieldBit__Index_Entries
@@ -4937,7 +5045,7 @@ func (ma *_Index__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssembler, er
 		ma.ca_Entries.m = &ma.cm
 		return &ma.ca_Entries, nil
 	default:
-		return nil, ipld.ErrInvalidKey{TypeName:"ingestion.Index.Repr", Key:&_String{k}}
+		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Index.Repr", Key: &_String{k}}
 	}
 }
 func (ma *_Index__ReprAssembler) AssembleKey() ipld.NodeAssembler {
@@ -5000,12 +5108,12 @@ func (ma *_Index__ReprAssembler) Finish() error {
 	case maState_finished:
 		panic("invalid state: Finish cannot be called on an assembler that's already finished")
 	}
-	if ma.s & fieldBits__Index_sufficient != fieldBits__Index_sufficient {
+	if ma.s&fieldBits__Index_sufficient != fieldBits__Index_sufficient {
 		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s & fieldBit__Index_Previous == 0 {
+		if ma.s&fieldBit__Index_Previous == 0 {
 			err.Missing = append(err.Missing, "Previous")
 		}
-		if ma.s & fieldBit__Index_Entries == 0 {
+		if ma.s&fieldBit__Index_Entries == 0 {
 			err.Missing = append(err.Missing, "Entries")
 		}
 		return err
@@ -5020,7 +5128,9 @@ func (ma *_Index__ReprAssembler) KeyPrototype() ipld.NodePrototype {
 func (ma *_Index__ReprAssembler) ValuePrototype(k string) ipld.NodePrototype {
 	panic("todo structbuilder mapassembler repr valueprototype")
 }
+
 type _Index__ReprKeyAssembler _Index__ReprAssembler
+
 func (_Index__ReprKeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
 	return mixins.StringAssembler{"ingestion.Index.Repr.KeyAssembler"}.BeginMap(0)
 }
@@ -5045,21 +5155,21 @@ func (ka *_Index__ReprKeyAssembler) AssignString(k string) error {
 	}
 	switch k {
 	case "Previous":
-		if ka.s & fieldBit__Index_Previous != 0 {
+		if ka.s&fieldBit__Index_Previous != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Index_Previous_serial}
 		}
 		ka.s += fieldBit__Index_Previous
 		ka.state = maState_expectValue
 		ka.f = 0
 	case "Entries":
-		if ka.s & fieldBit__Index_Entries != 0 {
+		if ka.s&fieldBit__Index_Entries != 0 {
 			return ipld.ErrRepeatedMapKey{&fieldName__Index_Entries_serial}
 		}
 		ka.s += fieldBit__Index_Entries
 		ka.state = maState_expectValue
 		ka.f = 1
 	default:
-		return ipld.ErrInvalidKey{TypeName:"ingestion.Index.Repr", Key:&_String{k}}
+		return ipld.ErrInvalidKey{TypeName: "ingestion.Index.Repr", Key: &_String{k}}
 	}
 	return nil
 }
@@ -5087,6 +5197,7 @@ func (_Int__Prototype) FromInt(v int64) (Int, error) {
 	n := _Int{v}
 	return &n, nil
 }
+
 type _Int__Maybe struct {
 	m schema.Maybe
 	v Int
@@ -5104,14 +5215,14 @@ func (m MaybeInt) Exists() bool {
 }
 func (m MaybeInt) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeInt) Must() Int {
@@ -5120,8 +5231,10 @@ func (m MaybeInt) Must() Int {
 	}
 	return m.v
 }
+
 var _ ipld.Node = (Int)(&_Int{})
 var _ schema.TypedNode = (Int)(&_Int{})
+
 func (Int) Kind() ipld.Kind {
 	return ipld.Kind_Int
 }
@@ -5173,6 +5286,7 @@ func (Int) AsLink() (ipld.Link, error) {
 func (Int) Prototype() ipld.NodePrototype {
 	return _Int__Prototype{}
 }
+
 type _Int__Prototype struct{}
 
 func (_Int__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -5180,9 +5294,11 @@ func (_Int__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Int__Builder struct {
 	_Int__Assembler
 }
+
 func (nb *_Int__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -5194,6 +5310,7 @@ func (nb *_Int__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _Int__Builder{_Int__Assembler{w: &w, m: &m}}
 }
+
 type _Int__Assembler struct {
 	w *_Int
 	m *schema.Maybe
@@ -5278,8 +5395,11 @@ func (Int) Type() schema.Type {
 func (n Int) Representation() ipld.Node {
 	return (*_Int__Repr)(n)
 }
+
 type _Int__Repr = _Int
+
 var _ ipld.Node = &_Int__Repr{}
+
 type _Int__ReprPrototype = _Int__Prototype
 type _Int__ReprAssembler = _Int__Assembler
 
@@ -5290,6 +5410,7 @@ func (_Link__Prototype) FromLink(v ipld.Link) (Link, error) {
 	n := _Link{v}
 	return &n, nil
 }
+
 type _Link__Maybe struct {
 	m schema.Maybe
 	v Link
@@ -5307,14 +5428,14 @@ func (m MaybeLink) Exists() bool {
 }
 func (m MaybeLink) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeLink) Must() Link {
@@ -5323,8 +5444,10 @@ func (m MaybeLink) Must() Link {
 	}
 	return m.v
 }
+
 var _ ipld.Node = (Link)(&_Link{})
 var _ schema.TypedNode = (Link)(&_Link{})
+
 func (Link) Kind() ipld.Kind {
 	return ipld.Kind_Link
 }
@@ -5376,6 +5499,7 @@ func (n Link) AsLink() (ipld.Link, error) {
 func (Link) Prototype() ipld.NodePrototype {
 	return _Link__Prototype{}
 }
+
 type _Link__Prototype struct{}
 
 func (_Link__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -5383,9 +5507,11 @@ func (_Link__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Link__Builder struct {
 	_Link__Assembler
 }
+
 func (nb *_Link__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -5397,6 +5523,7 @@ func (nb *_Link__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _Link__Builder{_Link__Assembler{w: &w, m: &m}}
 }
+
 type _Link__Assembler struct {
 	w *_Link
 	m *schema.Maybe
@@ -5481,8 +5608,11 @@ func (Link) Type() schema.Type {
 func (n Link) Representation() ipld.Node {
 	return (*_Link__Repr)(n)
 }
+
 type _Link__Repr = _Link
+
 var _ ipld.Node = &_Link__Repr{}
+
 type _Link__ReprPrototype = _Link__Prototype
 type _Link__ReprAssembler = _Link__Assembler
 
@@ -5493,6 +5623,7 @@ func (_Link_Advertisement__Prototype) FromLink(v ipld.Link) (Link_Advertisement,
 	n := _Link_Advertisement{v}
 	return &n, nil
 }
+
 type _Link_Advertisement__Maybe struct {
 	m schema.Maybe
 	v Link_Advertisement
@@ -5510,14 +5641,14 @@ func (m MaybeLink_Advertisement) Exists() bool {
 }
 func (m MaybeLink_Advertisement) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeLink_Advertisement) Must() Link_Advertisement {
@@ -5526,8 +5657,10 @@ func (m MaybeLink_Advertisement) Must() Link_Advertisement {
 	}
 	return m.v
 }
+
 var _ ipld.Node = (Link_Advertisement)(&_Link_Advertisement{})
 var _ schema.TypedNode = (Link_Advertisement)(&_Link_Advertisement{})
+
 func (Link_Advertisement) Kind() ipld.Kind {
 	return ipld.Kind_Link
 }
@@ -5579,6 +5712,7 @@ func (n Link_Advertisement) AsLink() (ipld.Link, error) {
 func (Link_Advertisement) Prototype() ipld.NodePrototype {
 	return _Link_Advertisement__Prototype{}
 }
+
 type _Link_Advertisement__Prototype struct{}
 
 func (_Link_Advertisement__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -5586,9 +5720,11 @@ func (_Link_Advertisement__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Link_Advertisement__Builder struct {
 	_Link_Advertisement__Assembler
 }
+
 func (nb *_Link_Advertisement__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -5600,6 +5736,7 @@ func (nb *_Link_Advertisement__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _Link_Advertisement__Builder{_Link_Advertisement__Assembler{w: &w, m: &m}}
 }
+
 type _Link_Advertisement__Assembler struct {
 	w *_Link_Advertisement
 	m *schema.Maybe
@@ -5687,8 +5824,11 @@ func (Link_Advertisement) LinkTargetNodePrototype() ipld.NodePrototype {
 func (n Link_Advertisement) Representation() ipld.Node {
 	return (*_Link_Advertisement__Repr)(n)
 }
+
 type _Link_Advertisement__Repr = _Link_Advertisement
+
 var _ ipld.Node = &_Link_Advertisement__Repr{}
+
 type _Link_Advertisement__ReprPrototype = _Link_Advertisement__Prototype
 type _Link_Advertisement__ReprAssembler = _Link_Advertisement__Assembler
 
@@ -5699,6 +5839,7 @@ func (_Link_Index__Prototype) FromLink(v ipld.Link) (Link_Index, error) {
 	n := _Link_Index{v}
 	return &n, nil
 }
+
 type _Link_Index__Maybe struct {
 	m schema.Maybe
 	v Link_Index
@@ -5716,14 +5857,14 @@ func (m MaybeLink_Index) Exists() bool {
 }
 func (m MaybeLink_Index) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeLink_Index) Must() Link_Index {
@@ -5732,8 +5873,10 @@ func (m MaybeLink_Index) Must() Link_Index {
 	}
 	return m.v
 }
+
 var _ ipld.Node = (Link_Index)(&_Link_Index{})
 var _ schema.TypedNode = (Link_Index)(&_Link_Index{})
+
 func (Link_Index) Kind() ipld.Kind {
 	return ipld.Kind_Link
 }
@@ -5785,6 +5928,7 @@ func (n Link_Index) AsLink() (ipld.Link, error) {
 func (Link_Index) Prototype() ipld.NodePrototype {
 	return _Link_Index__Prototype{}
 }
+
 type _Link_Index__Prototype struct{}
 
 func (_Link_Index__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -5792,9 +5936,11 @@ func (_Link_Index__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Link_Index__Builder struct {
 	_Link_Index__Assembler
 }
+
 func (nb *_Link_Index__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -5806,6 +5952,7 @@ func (nb *_Link_Index__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _Link_Index__Builder{_Link_Index__Assembler{w: &w, m: &m}}
 }
+
 type _Link_Index__Assembler struct {
 	w *_Link_Index
 	m *schema.Maybe
@@ -5893,8 +6040,11 @@ func (Link_Index) LinkTargetNodePrototype() ipld.NodePrototype {
 func (n Link_Index) Representation() ipld.Node {
 	return (*_Link_Index__Repr)(n)
 }
+
 type _Link_Index__Repr = _Link_Index
+
 var _ ipld.Node = &_Link_Index__Repr{}
+
 type _Link_Index__ReprPrototype = _Link_Index__Prototype
 type _Link_Index__ReprAssembler = _Link_Index__Assembler
 
@@ -5916,14 +6066,15 @@ func (n *_List) LookupMaybe(idx int64) MaybeAny {
 	return v
 }
 
-var _List__valueAbsent = _Any__Maybe{m:schema.Maybe_Absent}
+var _List__valueAbsent = _Any__Maybe{m: schema.Maybe_Absent}
+
 func (n List) Iterator() *List__Itr {
 	return &List__Itr{n, 0}
 }
 
 type List__Itr struct {
-	n List
-	idx  int
+	n   List
+	idx int
 }
 
 func (itr *List__Itr) Next() (idx int64, v MaybeAny) {
@@ -5956,14 +6107,14 @@ func (m MaybeList) Exists() bool {
 }
 func (m MaybeList) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeList) Must() List {
@@ -5972,8 +6123,10 @@ func (m MaybeList) Must() List {
 	}
 	return m.v
 }
+
 var _ ipld.Node = (List)(&_List{})
 var _ schema.TypedNode = (List)(&_List{})
+
 func (List) Kind() ipld.Kind {
 	return ipld.Kind_List
 }
@@ -6012,8 +6165,8 @@ func (n List) ListIterator() ipld.ListIterator {
 }
 
 type _List__ListItr struct {
-	n List
-	idx  int
+	n   List
+	idx int
 }
 
 func (itr *_List__ListItr) Next() (idx int64, v ipld.Node, _ error) {
@@ -6065,6 +6218,7 @@ func (List) AsLink() (ipld.Link, error) {
 func (List) Prototype() ipld.NodePrototype {
 	return _List__Prototype{}
 }
+
 type _List__Prototype struct{}
 
 func (_List__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -6072,9 +6226,11 @@ func (_List__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _List__Builder struct {
 	_List__Assembler
 }
+
 func (nb *_List__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -6086,12 +6242,12 @@ func (nb *_List__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _List__Builder{_List__Assembler{w: &w, m: &m}}
 }
+
 type _List__Assembler struct {
-	w *_List
-	m *schema.Maybe
+	w     *_List
+	m     *schema.Maybe
 	state laState
 
-	
 	va _Any__Assembler
 }
 
@@ -6248,8 +6404,11 @@ func (List) Type() schema.Type {
 func (n List) Representation() ipld.Node {
 	return (*_List__Repr)(n)
 }
+
 type _List__Repr _List
+
 var _ ipld.Node = &_List__Repr{}
+
 func (_List__Repr) Kind() ipld.Kind {
 	return ipld.Kind_List
 }
@@ -6327,6 +6486,7 @@ func (_List__Repr) AsLink() (ipld.Link, error) {
 func (_List__Repr) Prototype() ipld.NodePrototype {
 	return _List__ReprPrototype{}
 }
+
 type _List__ReprPrototype struct{}
 
 func (_List__ReprPrototype) NewBuilder() ipld.NodeBuilder {
@@ -6334,9 +6494,11 @@ func (_List__ReprPrototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _List__ReprBuilder struct {
 	_List__ReprAssembler
 }
+
 func (nb *_List__ReprBuilder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -6348,12 +6510,12 @@ func (nb *_List__ReprBuilder) Reset() {
 	var m schema.Maybe
 	*nb = _List__ReprBuilder{_List__ReprAssembler{w: &w, m: &m}}
 }
+
 type _List__ReprAssembler struct {
-	w *_List
-	m *schema.Maybe
+	w     *_List
+	m     *schema.Maybe
 	state laState
 
-	
 	va _Any__ReprAssembler
 }
 
@@ -6523,14 +6685,15 @@ func (n *_List_Entry) LookupMaybe(idx int64) MaybeEntry {
 	}
 }
 
-var _List_Entry__valueAbsent = _Entry__Maybe{m:schema.Maybe_Absent}
+var _List_Entry__valueAbsent = _Entry__Maybe{m: schema.Maybe_Absent}
+
 func (n List_Entry) Iterator() *List_Entry__Itr {
 	return &List_Entry__Itr{n, 0}
 }
 
 type List_Entry__Itr struct {
-	n List_Entry
-	idx  int
+	n   List_Entry
+	idx int
 }
 
 func (itr *List_Entry__Itr) Next() (idx int64, v Entry) {
@@ -6563,14 +6726,14 @@ func (m MaybeList_Entry) Exists() bool {
 }
 func (m MaybeList_Entry) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeList_Entry) Must() List_Entry {
@@ -6579,8 +6742,10 @@ func (m MaybeList_Entry) Must() List_Entry {
 	}
 	return m.v
 }
+
 var _ ipld.Node = (List_Entry)(&_List_Entry{})
 var _ schema.TypedNode = (List_Entry)(&_List_Entry{})
+
 func (List_Entry) Kind() ipld.Kind {
 	return ipld.Kind_List
 }
@@ -6616,8 +6781,8 @@ func (n List_Entry) ListIterator() ipld.ListIterator {
 }
 
 type _List_Entry__ListItr struct {
-	n List_Entry
-	idx  int
+	n   List_Entry
+	idx int
 }
 
 func (itr *_List_Entry__ListItr) Next() (idx int64, v ipld.Node, _ error) {
@@ -6664,6 +6829,7 @@ func (List_Entry) AsLink() (ipld.Link, error) {
 func (List_Entry) Prototype() ipld.NodePrototype {
 	return _List_Entry__Prototype{}
 }
+
 type _List_Entry__Prototype struct{}
 
 func (_List_Entry__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -6671,9 +6837,11 @@ func (_List_Entry__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _List_Entry__Builder struct {
 	_List_Entry__Assembler
 }
+
 func (nb *_List_Entry__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -6685,9 +6853,10 @@ func (nb *_List_Entry__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _List_Entry__Builder{_List_Entry__Assembler{w: &w, m: &m}}
 }
+
 type _List_Entry__Assembler struct {
-	w *_List_Entry
-	m *schema.Maybe
+	w     *_List_Entry
+	m     *schema.Maybe
 	state laState
 
 	cm schema.Maybe
@@ -6844,8 +7013,11 @@ func (List_Entry) Type() schema.Type {
 func (n List_Entry) Representation() ipld.Node {
 	return (*_List_Entry__Repr)(n)
 }
+
 type _List_Entry__Repr _List_Entry
+
 var _ ipld.Node = &_List_Entry__Repr{}
+
 func (_List_Entry__Repr) Kind() ipld.Kind {
 	return ipld.Kind_List
 }
@@ -6923,6 +7095,7 @@ func (_List_Entry__Repr) AsLink() (ipld.Link, error) {
 func (_List_Entry__Repr) Prototype() ipld.NodePrototype {
 	return _List_Entry__ReprPrototype{}
 }
+
 type _List_Entry__ReprPrototype struct{}
 
 func (_List_Entry__ReprPrototype) NewBuilder() ipld.NodeBuilder {
@@ -6930,9 +7103,11 @@ func (_List_Entry__ReprPrototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _List_Entry__ReprBuilder struct {
 	_List_Entry__ReprAssembler
 }
+
 func (nb *_List_Entry__ReprBuilder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -6944,9 +7119,10 @@ func (nb *_List_Entry__ReprBuilder) Reset() {
 	var m schema.Maybe
 	*nb = _List_Entry__ReprBuilder{_List_Entry__ReprAssembler{w: &w, m: &m}}
 }
+
 type _List_Entry__ReprAssembler struct {
-	w *_List_Entry
-	m *schema.Maybe
+	w     *_List_Entry
+	m     *schema.Maybe
 	state laState
 
 	cm schema.Maybe
@@ -7116,14 +7292,15 @@ func (n *_List_String) LookupMaybe(idx int64) MaybeString {
 	}
 }
 
-var _List_String__valueAbsent = _String__Maybe{m:schema.Maybe_Absent}
+var _List_String__valueAbsent = _String__Maybe{m: schema.Maybe_Absent}
+
 func (n List_String) Iterator() *List_String__Itr {
 	return &List_String__Itr{n, 0}
 }
 
 type List_String__Itr struct {
-	n List_String
-	idx  int
+	n   List_String
+	idx int
 }
 
 func (itr *List_String__Itr) Next() (idx int64, v String) {
@@ -7156,14 +7333,14 @@ func (m MaybeList_String) Exists() bool {
 }
 func (m MaybeList_String) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeList_String) Must() List_String {
@@ -7172,8 +7349,10 @@ func (m MaybeList_String) Must() List_String {
 	}
 	return m.v
 }
+
 var _ ipld.Node = (List_String)(&_List_String{})
 var _ schema.TypedNode = (List_String)(&_List_String{})
+
 func (List_String) Kind() ipld.Kind {
 	return ipld.Kind_List
 }
@@ -7209,8 +7388,8 @@ func (n List_String) ListIterator() ipld.ListIterator {
 }
 
 type _List_String__ListItr struct {
-	n List_String
-	idx  int
+	n   List_String
+	idx int
 }
 
 func (itr *_List_String__ListItr) Next() (idx int64, v ipld.Node, _ error) {
@@ -7257,6 +7436,7 @@ func (List_String) AsLink() (ipld.Link, error) {
 func (List_String) Prototype() ipld.NodePrototype {
 	return _List_String__Prototype{}
 }
+
 type _List_String__Prototype struct{}
 
 func (_List_String__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -7264,9 +7444,11 @@ func (_List_String__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _List_String__Builder struct {
 	_List_String__Assembler
 }
+
 func (nb *_List_String__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -7278,9 +7460,10 @@ func (nb *_List_String__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _List_String__Builder{_List_String__Assembler{w: &w, m: &m}}
 }
+
 type _List_String__Assembler struct {
-	w *_List_String
-	m *schema.Maybe
+	w     *_List_String
+	m     *schema.Maybe
 	state laState
 
 	cm schema.Maybe
@@ -7437,8 +7620,11 @@ func (List_String) Type() schema.Type {
 func (n List_String) Representation() ipld.Node {
 	return (*_List_String__Repr)(n)
 }
+
 type _List_String__Repr _List_String
+
 var _ ipld.Node = &_List_String__Repr{}
+
 func (_List_String__Repr) Kind() ipld.Kind {
 	return ipld.Kind_List
 }
@@ -7516,6 +7702,7 @@ func (_List_String__Repr) AsLink() (ipld.Link, error) {
 func (_List_String__Repr) Prototype() ipld.NodePrototype {
 	return _List_String__ReprPrototype{}
 }
+
 type _List_String__ReprPrototype struct{}
 
 func (_List_String__ReprPrototype) NewBuilder() ipld.NodeBuilder {
@@ -7523,9 +7710,11 @@ func (_List_String__ReprPrototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _List_String__ReprBuilder struct {
 	_List_String__ReprAssembler
 }
+
 func (nb *_List_String__ReprBuilder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -7537,9 +7726,10 @@ func (nb *_List_String__ReprBuilder) Reset() {
 	var m schema.Maybe
 	*nb = _List_String__ReprBuilder{_List_String__ReprAssembler{w: &w, m: &m}}
 }
+
 type _List_String__ReprAssembler struct {
-	w *_List_String
-	m *schema.Maybe
+	w     *_List_String
+	m     *schema.Maybe
 	state laState
 
 	cm schema.Maybe
@@ -7709,14 +7899,15 @@ func (n *_Map) LookupMaybe(k String) MaybeAny {
 	return v
 }
 
-var _Map__valueAbsent = _Any__Maybe{m:schema.Maybe_Absent}
+var _Map__valueAbsent = _Any__Maybe{m: schema.Maybe_Absent}
+
 func (n Map) Iterator() *Map__Itr {
 	return &Map__Itr{n, 0}
 }
 
 type Map__Itr struct {
-	n Map
-	idx  int
+	n   Map
+	idx int
 }
 
 func (itr *Map__Itr) Next() (k String, v MaybeAny) {
@@ -7750,14 +7941,14 @@ func (m MaybeMap) Exists() bool {
 }
 func (m MaybeMap) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeMap) Must() Map {
@@ -7766,8 +7957,10 @@ func (m MaybeMap) Must() Map {
 	}
 	return m.v
 }
+
 var _ ipld.Node = (Map)(&_Map{})
 var _ schema.TypedNode = (Map)(&_Map{})
+
 func (Map) Kind() ipld.Kind {
 	return ipld.Kind_Map
 }
@@ -7811,8 +8004,8 @@ func (n Map) MapIterator() ipld.MapIterator {
 }
 
 type _Map__MapItr struct {
-	n Map
-	idx  int
+	n   Map
+	idx int
 }
 
 func (itr *_Map__MapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
@@ -7867,6 +8060,7 @@ func (Map) AsLink() (ipld.Link, error) {
 func (Map) Prototype() ipld.NodePrototype {
 	return _Map__Prototype{}
 }
+
 type _Map__Prototype struct{}
 
 func (_Map__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -7874,9 +8068,11 @@ func (_Map__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Map__Builder struct {
 	_Map__Assembler
 }
+
 func (nb *_Map__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -7888,9 +8084,10 @@ func (nb *_Map__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _Map__Builder{_Map__Assembler{w: &w, m: &m}}
 }
+
 type _Map__Assembler struct {
-	w *_Map
-	m *schema.Maybe
+	w     *_Map
+	m     *schema.Maybe
 	state maState
 
 	cm schema.Maybe
@@ -8132,8 +8329,11 @@ func (Map) Type() schema.Type {
 func (n Map) Representation() ipld.Node {
 	return (*_Map__Repr)(n)
 }
+
 type _Map__Repr _Map
+
 var _ ipld.Node = &_Map__Repr{}
+
 func (_Map__Repr) Kind() ipld.Kind {
 	return ipld.Kind_Map
 }
@@ -8207,6 +8407,7 @@ func (_Map__Repr) AsLink() (ipld.Link, error) {
 func (_Map__Repr) Prototype() ipld.NodePrototype {
 	return _Map__ReprPrototype{}
 }
+
 type _Map__ReprPrototype struct{}
 
 func (_Map__ReprPrototype) NewBuilder() ipld.NodeBuilder {
@@ -8214,9 +8415,11 @@ func (_Map__ReprPrototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _Map__ReprBuilder struct {
 	_Map__ReprAssembler
 }
+
 func (nb *_Map__ReprBuilder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -8228,9 +8431,10 @@ func (nb *_Map__ReprBuilder) Reset() {
 	var m schema.Maybe
 	*nb = _Map__ReprBuilder{_Map__ReprAssembler{w: &w, m: &m}}
 }
+
 type _Map__ReprAssembler struct {
-	w *_Map
-	m *schema.Maybe
+	w     *_Map
+	m     *schema.Maybe
 	state maState
 
 	cm schema.Maybe
@@ -8478,6 +8682,7 @@ func (_String__Prototype) FromString(v string) (String, error) {
 	n := _String{v}
 	return &n, nil
 }
+
 type _String__Maybe struct {
 	m schema.Maybe
 	v String
@@ -8495,14 +8700,14 @@ func (m MaybeString) Exists() bool {
 }
 func (m MaybeString) AsNode() ipld.Node {
 	switch m.m {
-		case schema.Maybe_Absent:
-			return ipld.Absent
-		case schema.Maybe_Null:
-			return ipld.Null
-		case schema.Maybe_Value:
-			return m.v
-		default:
-			panic("unreachable")
+	case schema.Maybe_Absent:
+		return ipld.Absent
+	case schema.Maybe_Null:
+		return ipld.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
 	}
 }
 func (m MaybeString) Must() String {
@@ -8511,8 +8716,10 @@ func (m MaybeString) Must() String {
 	}
 	return m.v
 }
+
 var _ ipld.Node = (String)(&_String{})
 var _ schema.TypedNode = (String)(&_String{})
+
 func (String) Kind() ipld.Kind {
 	return ipld.Kind_String
 }
@@ -8564,6 +8771,7 @@ func (String) AsLink() (ipld.Link, error) {
 func (String) Prototype() ipld.NodePrototype {
 	return _String__Prototype{}
 }
+
 type _String__Prototype struct{}
 
 func (_String__Prototype) NewBuilder() ipld.NodeBuilder {
@@ -8571,9 +8779,11 @@ func (_String__Prototype) NewBuilder() ipld.NodeBuilder {
 	nb.Reset()
 	return &nb
 }
+
 type _String__Builder struct {
 	_String__Assembler
 }
+
 func (nb *_String__Builder) Build() ipld.Node {
 	if *nb.m != schema.Maybe_Value {
 		panic("invalid state: cannot call Build on an assembler that's not finished")
@@ -8585,6 +8795,7 @@ func (nb *_String__Builder) Reset() {
 	var m schema.Maybe
 	*nb = _String__Builder{_String__Assembler{w: &w, m: &m}}
 }
+
 type _String__Assembler struct {
 	w *_String
 	m *schema.Maybe
@@ -8669,8 +8880,10 @@ func (String) Type() schema.Type {
 func (n String) Representation() ipld.Node {
 	return (*_String__Repr)(n)
 }
+
 type _String__Repr = _String
+
 var _ ipld.Node = &_String__Repr{}
+
 type _String__ReprPrototype = _String__Prototype
 type _String__ReprAssembler = _String__Assembler
-
