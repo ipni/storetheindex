@@ -6,23 +6,31 @@ import (
 	"github.com/urfave/cli/v2/altsrc"
 )
 
-var FinderEndpointFlag = altsrc.NewStringFlag(&cli.StringFlag{
-	Name:     "finder_ep",
-	Usage:    "Finder HTTP API endpoint",
+var FinderAddrFlag = altsrc.NewStringFlag(&cli.StringFlag{
+	Name:     "finderaddr",
+	Usage:    "Finder HTTP API address",
 	Aliases:  []string{"fep"},
-	EnvVars:  []string{"FINDER_ENDPOINT"},
+	EnvVars:  []string{"FINDER_ADDRESS"},
 	Required: false,
 	Value:    "127.0.0.0:3000",
 })
 
-var AdminEndpointFlag = altsrc.NewStringFlag(&cli.StringFlag{
-	Name:     "admin_ep",
-	Usage:    "Admin HTTP API endpoint",
+var AdminAddrFlag = altsrc.NewStringFlag(&cli.StringFlag{
+	Name:     "adminaddr",
+	Usage:    "Admin HTTP API address",
 	Aliases:  []string{"aep"},
-	EnvVars:  []string{"ADMIN_ENDPOINT"},
+	EnvVars:  []string{"ADMIN_ARRDESS"},
 	Required: false,
 	Value:    "127.0.0.0:3001",
 })
+
+var CacheSizeFlag = &cli.Int64Flag{
+	Name:     "cachesize",
+	Usage:    "Maximum number of CIDs that cache can hold, 0 to disable cache",
+	Aliases:  []string{"c"},
+	Required: false,
+	Value:    -1,
+}
 
 var DirFlag = &cli.StringFlag{
 	Name:     "dir",
@@ -32,41 +40,18 @@ var DirFlag = &cli.StringFlag{
 }
 
 var DaemonFlags = []cli.Flag{
-	&cli.Int64Flag{
-		Name:     "cachesize",
-		Usage:    "Maximum number of CIDs that cache can hold",
-		Aliases:  []string{"c"},
-		EnvVars:  []string{"CACHE_SIZE"},
-		Value:    100000,
-		Required: false,
-	},
-	&cli.StringFlag{
-		Name:     "storage",
-		Usage:    "Type of persistent storage (none, sth, pogreb)",
-		Aliases:  []string{"s"},
-		EnvVars:  []string{"STORAGE_TYPE"},
-		Value:    "sth",
-		Required: false,
-	},
-	&cli.StringFlag{
-		Name:     "dir",
-		Usage:    "Directory for persistent storage, default: ~/.storetheindex",
-		Aliases:  []string{"d"},
-		Required: false,
-	},
+	CacheSizeFlag,
 	&cli.BoolFlag{
-		Name:     "enablep2p",
-		Usage:    "Enable libp2p client api for indexer",
-		Aliases:  []string{"p2p"},
+		Name:     "disablep2p",
+		Usage:    "Disable libp2p client api for indexer",
+		Aliases:  []string{"nop2p"},
 		Value:    false,
 		Required: false,
 	},
-	FinderEndpointFlag,
-	AdminEndpointFlag,
 }
 
 var ClientCmdFlags = []cli.Flag{
-	FinderEndpointFlag,
+	FinderAddrFlag,
 	&cli.StringFlag{
 		Name:     "protocol",
 		Usage:    "Protocol to query the indexer (http, libp2p currently supported)",
@@ -90,14 +75,25 @@ var ImportFlags = []cli.Flag{
 		Required: false,
 	},
 	DirFlag,
-	AdminEndpointFlag,
+	AdminAddrFlag,
 }
 
 var InitFlags = []cli.Flag{
+	CacheSizeFlag,
 	&cli.StringFlag{
 		Name:     "store",
 		Usage:    "Type of value store (sth, pogreb). Default is \"sth\"",
 		Aliases:  []string{"s"},
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "adminaddr",
+		Usage:    "Admin HTTP API listen address",
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "finderaddr",
+		Usage:    "Finder HTTP API listen address",
 		Required: false,
 	},
 }

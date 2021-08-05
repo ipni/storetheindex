@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/filecoin-project/storetheindex/api/v1/finder/models"
-	pb "github.com/filecoin-project/storetheindex/api/v1/finder/pb"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
+	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/finder"
 	"github.com/filecoin-project/storetheindex/server/net"
 	"github.com/ipfs/go-cid"

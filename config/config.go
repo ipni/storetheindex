@@ -14,6 +14,7 @@ import (
 type Config struct {
 	Identity  Identity  // peer identity
 	Addresses Addresses // addresses to listen on
+	Datastore Datastore
 	Discovery Discovery // provider pubsub peers
 	Indexer   Indexer   // indexer code configuration
 	Providers Providers // provider allow/block policy
@@ -70,8 +71,16 @@ func PathRoot() (string, error) {
 }
 
 // Load reads the json-serialized config at the specified path
-func Load(filename string) (*Config, error) {
-	f, err := os.Open(filename)
+func Load(filePath string) (*Config, error) {
+	var err error
+	if filePath == "" {
+		filePath, err = Filename("")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	f, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			err = ErrNotInitialized
@@ -88,13 +97,21 @@ func Load(filename string) (*Config, error) {
 }
 
 // Save writes the json-serialized config to the specified path
-func (c *Config) Save(filename string) error {
-	err := os.MkdirAll(filepath.Dir(filename), 0755)
+func (c *Config) Save(filePath string) error {
+	var err error
+	if filePath == "" {
+		filePath, err = Filename("")
+		if err != nil {
+			return err
+		}
+	}
+
+	err = os.MkdirAll(filepath.Dir(filePath), 0755)
 	if err != nil {
 		return err
 	}
 
-	f, err := os.Create(filename)
+	f, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
@@ -106,4 +123,13 @@ func (c *Config) Save(filename string) error {
 	}
 	_, err = f.Write(buf)
 	return err
+}
+
+// String returns a pretty-printed json config
+func (c *Config) String() string {
+	b, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }

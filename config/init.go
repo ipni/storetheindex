@@ -28,6 +28,11 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 			Ingest: defaultIngestAddr,
 		},
 
+		Datastore: Datastore{
+			Type: defaultDatastoreType,
+			Dir:  defaultDatastoreDir,
+		},
+
 		Discovery: Discovery{
 			Topic: defaultTopic,
 		},
@@ -35,13 +40,14 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 		Identity: identity,
 
 		Indexer: Indexer{
-			CacheSize: defaultCacheSize,
-			StoreType: defaultStoreType,
+			CacheSize:      defaultCacheSize,
+			ValueStoreDir:  defaultValueStoreDir,
+			ValueStoreType: defaultValueStoreType,
 		},
 
 		Providers: Providers{
 			Policy:       defaultPolicy,
-			Except:       []string{identity.PeerID},
+			Trust:        []string{identity.PeerID},
 			PollInterval: defaultPollInterval,
 		},
 	}

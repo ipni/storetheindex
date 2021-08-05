@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/filecoin-project/storetheindex/api/v1/finder/pb"
+	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/filecoin-project/storetheindex/server/net"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
