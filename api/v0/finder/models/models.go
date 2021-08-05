@@ -94,7 +94,7 @@ func UnmarshalResp(b []byte) (*Response, error) {
 // TODO: This should be relocated to a place common to all finder handlers, but
 // not under /api/
 func PopulateResponse(engine *indexer.Engine, registry *providers.Registry, cids []cid.Cid) (*Response, error) {
-	cidResults := make([]CidData, len(cids))
+	cidResults := make([]CidData, 0, len(cids))
 	var providerResults []ProviderData
 	providerSeen := map[peer.ID]struct{}{}
 
@@ -103,14 +103,11 @@ func PopulateResponse(engine *indexer.Engine, registry *providers.Registry, cids
 		if err != nil {
 			return nil, fmt.Errorf("failed to query cid %q: %s", cids[i], err)
 		}
-		// Output a response for this CID if it was found or not.
-		cidResults[i].Cid = cids[i]
 		if !found {
 			continue
 		}
-
-		// Add the found values to cid response
-		cidResults[i].Entries = values
+		// Add the response to the list of CID responses
+		cidResults = append(cidResults, CidData{Cid: cids[i], Entries: values})
 
 		// Lookup provider info for each unique provider
 		for j := range values {

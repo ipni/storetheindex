@@ -48,7 +48,7 @@ func TestGetCidData(t *testing.T) {
 		close(errChan)
 	}()
 
-	test.GetCidDataTest(ctx, t, c, s, ind)
+	test.GetCidDataTest(ctx, t, c, s, ind, reg)
 
 	err := s.Shutdown(ctx)
 	if err != nil {

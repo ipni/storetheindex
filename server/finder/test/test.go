@@ -18,6 +18,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/utils"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
+	ma "github.com/multiformats/go-multiaddr"
 )
 
 //InitIndex initialize a new indexer engine.
@@ -52,7 +53,7 @@ func PopulateIndex(ind *indexer.Engine, cids []cid.Cid, e entry.Value, t *testin
 	}
 }
 
-func GetCidDataTest(ctx context.Context, t *testing.T, c finder.Interface, s finder.Server, ind *indexer.Engine) {
+func GetCidDataTest(ctx context.Context, t *testing.T, c finder.Interface, s finder.Server, ind *indexer.Engine, reg *providers.Registry) {
 	// Generate some CIDs and populate indexer
 	cids, err := test.RandomCids(15)
 	if err != nil {
@@ -61,6 +62,9 @@ func GetCidDataTest(ctx context.Context, t *testing.T, c finder.Interface, s fin
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	e := entry.MakeValue(p, 0, cids[0].Bytes())
 	PopulateIndex(ind, cids[:10], e, t)
+
+	a, _ := ma.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	reg.AddProviderAddress(p, a)
 
 	// Get single CID
 	resp, err := c.Get(ctx, cids[0], s.Endpoint())
@@ -101,7 +105,7 @@ func GetCidDataTest(ctx context.Context, t *testing.T, c finder.Interface, s fin
 func checkResponse(r *models.Response, cids []cid.Cid, e []entry.Value, t *testing.T) {
 	// Check if everything was returned.
 	if len(r.Cids) != len(cids) {
-		t.Fatal("number of entries send in responses not correct")
+		t.Fatalf("number of entries send in responses not correct, expected %d, got %d", len(cids), len(r.Cids))
 	}
 	for i := range r.Cids {
 		// Check if cid in list of cids

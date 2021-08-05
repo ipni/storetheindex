@@ -71,6 +71,12 @@ func (h *FindHandler) getCids(w http.ResponseWriter, cids []cid.Cid) {
 		return
 	}
 
+	// If no info for any Cids, then 404
+	if len(response.Cids) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
 	rb, err := models.MarshalResp(response)
 	if err != nil {
 		log.Errorw("failed marshalling response", "cid", cids, "err", err)
