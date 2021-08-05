@@ -4,15 +4,16 @@ import (
 	"context"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v1/finder/models"
-	pb "github.com/filecoin-project/storetheindex/api/v1/finder/pb"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
+	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
+	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 // FinderHandlerFunc
 type FinderHandlerFunc func(context.Context, peer.ID, *pb.Message) (*pb.Message, error)
 
-func HandleFinderGet(engine *indexer.Engine) FinderHandlerFunc {
+func HandleFinderGet(engine *indexer.Engine, registry *providers.Registry) FinderHandlerFunc {
 	return func(ctx context.Context, p peer.ID, msg *pb.Message) (*pb.Message, error) {
 
 		req, err := models.UnmarshalReq(msg.GetData())
@@ -20,7 +21,7 @@ func HandleFinderGet(engine *indexer.Engine) FinderHandlerFunc {
 			return nil, err
 		}
 
-		r, err := models.PopulateResp(engine, req.Cids)
+		r, err := models.PopulateResponse(engine, registry, req.Cids)
 		if err != nil {
 			return nil, err
 		}

@@ -6,14 +6,15 @@ import (
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
-	httpclient "github.com/filecoin-project/storetheindex/api/v1/client/http"
+	httpclient "github.com/filecoin-project/storetheindex/api/v0/client/http"
 	"github.com/filecoin-project/storetheindex/internal/finder"
+	"github.com/filecoin-project/storetheindex/internal/providers"
 	httpserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	"github.com/filecoin-project/storetheindex/server/finder/test"
 )
 
-func setupServer(ctx context.Context, ind *indexer.Engine, t *testing.T) *httpserver.Server {
-	s, err := httpserver.New("127.0.0.1:0", ind)
+func setupServer(ctx context.Context, ind *indexer.Engine, reg *providers.Registry, t *testing.T) *httpserver.Server {
+	s, err := httpserver.New("127.0.0.1:0", ind, reg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,8 +35,9 @@ func TestGetCidData(t *testing.T) {
 
 	// Initialize everything
 	ind := test.InitIndex(t, true)
+	reg := test.InitRegistry(t)
 	c := setupClient(ctx, t)
-	s := setupServer(ctx, ind, t)
+	s := setupServer(ctx, ind, reg, t)
 	// Start server
 	errChan := make(chan error, 1)
 	go func() {
@@ -46,7 +48,7 @@ func TestGetCidData(t *testing.T) {
 		close(errChan)
 	}()
 
-	test.GetCidDataTest(ctx, t, c, s, ind)
+	test.GetCidDataTest(ctx, t, c, s, ind, reg)
 
 	err := s.Shutdown(ctx)
 	if err != nil {

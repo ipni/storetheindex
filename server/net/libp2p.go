@@ -5,7 +5,7 @@ import (
 	"io"
 	"sync"
 
-	pb "github.com/filecoin-project/storetheindex/api/v1/finder/pb"
+	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/libp2p/go-msgio/protoio"
 )
 

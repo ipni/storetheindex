@@ -3,7 +3,7 @@ package finder
 import (
 	"context"
 
-	"github.com/filecoin-project/storetheindex/api/v1/finder/models"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
 	"github.com/filecoin-project/storetheindex/server/net"
 	"github.com/ipfs/go-cid"
 )

@@ -6,8 +6,9 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-indexer-core"
-	pb "github.com/filecoin-project/storetheindex/api/v1/finder/pb"
+	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/finder"
+	"github.com/filecoin-project/storetheindex/internal/providers"
 	p2phandler "github.com/filecoin-project/storetheindex/server/finder/libp2p/handler"
 	"github.com/filecoin-project/storetheindex/server/net"
 	logging "github.com/ipfs/go-log/v2"
@@ -31,6 +32,7 @@ type Server struct {
 	self      peer.ID
 	engine    *indexer.Engine
 	protocols []protocol.ID
+	registry  *providers.Registry
 }
 
 func (s *Server) setProtocolHandler(h network.StreamHandler) {
@@ -46,7 +48,7 @@ func (s *Server) Endpoint() net.Endpoint {
 }
 
 // New creates a new libp2p server
-func New(ctx context.Context, h host.Host, e *indexer.Engine, options ...ServerOption) (*Server, error) {
+func New(ctx context.Context, h host.Host, e *indexer.Engine, reg *providers.Registry, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
@@ -59,6 +61,7 @@ func New(ctx context.Context, h host.Host, e *indexer.Engine, options ...ServerO
 		self:      h.ID(),
 		engine:    e,
 		protocols: protocols,
+		registry:  reg,
 	}
 
 	s.setProtocolHandler(s.handleNewStream)
@@ -70,7 +73,7 @@ func (s *Server) handlerForMsgType(t pb.Message_MessageType) p2phandler.FinderHa
 	switch t {
 	case pb.Message_GET:
 		log.Debug("Handle new GET message")
-		return p2phandler.HandleFinderGet(s.engine)
+		return p2phandler.HandleFinderGet(s.engine, s.registry)
 	}
 	// NOTE: add here the processing of additional message types
 	// that want to be supported over this protocol.
