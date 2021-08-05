@@ -118,7 +118,7 @@ func checkResponse(r *models.Response, cids []cid.Cid, e []entry.Value, t *testi
 			t.Fatal("wrong entry included for a cid")
 		}
 	}
-	// If there are any CID responses, thern there should be a provider
+	// If there are any CID responses, then there should be a provider
 	if len(r.Cids) != 0 && len(r.Providers) != 1 {
 		t.Fatalf("wrong number of provider, expected 1 got %d", len(r.Providers))
 	}
