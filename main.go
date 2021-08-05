@@ -28,6 +28,8 @@ func main() {
 			cancel()
 		case <-ctx.Done():
 		}
+		// Allow any forther SIGTERM or SIGING to kill process
+		signal.Stop(interrupt)
 	}()
 
 	if err := logging.SetLogLevel("*", "info"); err != nil {
@@ -45,7 +47,6 @@ func main() {
 			command.InitCmd,
 			command.SyntheticCmd,
 		},
-		// Before: altsrc.InitInputSourceWithContext(append(appFlags, commands.AllFlags...), altsrc.NewYamlSourceFromFlagFunc("config")),
 	}
 
 	if err := app.RunContext(ctx, os.Args); err != nil {

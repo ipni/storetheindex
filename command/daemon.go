@@ -5,11 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/signal"
-	"path/filepath"
 	"time"
-
-	"github.com/urfave/cli/v2"
 
 	core "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/go-indexer-core/cache"
@@ -17,15 +13,17 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store"
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	"github.com/filecoin-project/storetheindex/config"
 	adminserver "github.com/filecoin-project/storetheindex/server/admin"
 	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	p2pfinderserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
+	//"github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
-	"github.com/mitchellh/go-homedir"
+	ma "github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
+	"github.com/urfave/cli/v2"
 )
-
-const defaultStorageDir = ".storetheindex"
 
 // shutdownTimeout is the duration that a graceful shutdown has to complete
 const shutdownTimeout = 5 * time.Second
@@ -45,71 +43,124 @@ var DaemonCmd = &cli.Command{
 }
 
 func daemonCommand(cctx *cli.Context) error {
-	// TODO: get from config file
-	storeDir := cctx.String("dir")
-	storeType := cctx.String("storage")
-	valueStore, err := createValueStore(storeDir, storeType)
+	cfg, err := config.Load("")
+	if err != nil {
+		if err == config.ErrNotInitialized {
+			fmt.Fprintln(os.Stderr, "storetheindex is not initialized")
+			fmt.Fprintln(os.Stderr, "To initialize, run the command: ./storetheindex init")
+			os.Exit(1)
+		}
+		return fmt.Errorf("cannot load config file: %w", err)
+	}
+
+	if cfg.Datastore.Type != "levelds" {
+		return fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Datastore.Type)
+	}
+
+	// Create value store
+	valueStorePath, err := config.Path("", cfg.Indexer.ValueStoreDir)
 	if err != nil {
 		return err
 	}
-	log.Infow("Value storage initialized", "type", storeType, "dir", storeDir)
+	valueStoreType := cfg.Indexer.ValueStoreType
+	valueStore, err := createValueStore(valueStorePath, valueStoreType)
+	if err != nil {
+		return err
+	}
+	log.Infow("Value storage initialized", "type", valueStoreType, "path", valueStorePath)
 
+	// Create result cache
 	var resultCache cache.Interface
-	// TODO: get from config file
 	cacheSize := int(cctx.Int64("cachesize"))
-	if cacheSize != 0 {
+	if cacheSize < 0 {
+		cacheSize = cfg.Indexer.CacheSize
+	}
+	if cacheSize > 0 {
 		resultCache = radixcache.New(cacheSize)
 		log.Infow("result cache enabled", "size", cacheSize)
 	} else {
 		log.Info("result cache disabled")
 	}
 
+	// Create indexer core
 	indexerCore := core.NewEngine(resultCache, valueStore)
 	log.Infow("Indexer engine initialized")
 
-	// TODO: get from config file
-	finderAddr := cctx.String("finder_ep")
-	finderAPI, err := httpfinderserver.New(finderAddr, indexerCore)
-	if err != nil {
-		return err
-	}
-	log.Infow("Admin API initialized")
+	/*
+		// Create datastore
+		dataStorePath, err := config.Path("", cfg.Datastore.Dir)
+		if err != nil {
+			return err
+		}
+		err = checkWritable(dataStorePath)
+		if err != nil {
+			return err
+		}
+		dstore, err := leveldb.NewDatastore(dataStorePath, nil)
+		if err != nil {
+			return err
+		}
+	*/
 
-	adminAddr := cctx.String("admin_ep")
-	adminAPI, err := adminserver.New(adminAddr, indexerCore)
+	// Create admin HTTP server
+	maddr, err := ma.NewMultiaddr(cfg.Addresses.Admin)
+	if err != nil {
+		return fmt.Errorf("bad admin address in config %s: %s", cfg.Addresses.Admin, err)
+	}
+	adminAddr, err := manet.ToNetAddr(maddr)
 	if err != nil {
 		return err
 	}
-	log.Infow("Client finder API initialized")
+	adminAPI, err := adminserver.New(adminAddr.String(), indexerCore)
+	if err != nil {
+		return err
+	}
+	log.Infow("Admin API initialized", "address", adminAddr)
+
+	// Create finder HTTP server
+	maddr, err = ma.NewMultiaddr(cfg.Addresses.Finder)
+	if err != nil {
+		return fmt.Errorf("bad finder address in config %s: %s", cfg.Addresses.Finder, err)
+	}
+	finderAddr, err := manet.ToNetAddr(maddr)
+	if err != nil {
+		return err
+	}
+	finderAPI, err := httpfinderserver.New(finderAddr.String(), indexerCore)
+	if err != nil {
+		return err
+	}
+	log.Infow("Client finder API initialized", "address", finderAddr)
 
 	var (
 		p2pAPI          *p2pfinderserver.Server
 		cancelP2pFinder context.CancelFunc
 	)
-
-	// TODO: get from config file
-	p2pEnabled := cctx.Bool("enablep2p")
-	if p2pEnabled {
+	// Create libp2p host
+	if !cfg.Addresses.DisableP2P && !cctx.Bool("disablep2p") {
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-		// NOTE: We are creating a new flat libp2p host here because no other
-		// process in the indexer node needs a libp2p host. In the future, when
-		// the indexer node starts using other libp2p protocols to interact with
-		// miners and other indexers, we may need to initialize it before and
-		// use it here so we have a single libp2p host giving service to the whole indexer.
-		p2pHost, err := libp2p.New(ctx)
+		privKey, err := cfg.Identity.DecodePrivateKey("")
 		if err != nil {
-			cancel()
+			return err
+		}
+		// TODO: Do we want to the libp2p host to listen on any particular
+		// addresss and port?
+		p2pHost, err := libp2p.New(ctx,
+			// Use the keypair generated during init
+			libp2p.Identity(privKey),
+		)
+		if err != nil {
 			return err
 		}
 
 		p2pAPI, err = p2pfinderserver.New(ctx, p2pHost, indexerCore)
 		if err != nil {
-			cancel()
 			return err
 		}
 		cancelP2pFinder = cancel
-		log.Infow("Client libp2p API initialized")
+		log.Infow("Client libp2p API initialized", "host_id", p2pHost.ID())
 	}
 
 	log.Info("Starting daemon servers")
@@ -122,11 +173,9 @@ func daemonCommand(cctx *cli.Context) error {
 	}()
 
 	var finalErr error
-	// Wait for SIGINT (CTRL-c), then close server and exit.
-	sigint := make(chan os.Signal, 1)
-	signal.Notify(sigint, os.Interrupt)
 	select {
-	case <-sigint:
+	case <-cctx.Done():
+		// Command was canceled (ctrl-c)
 	case err = <-errChan:
 		log.Errorw("Failed to start server", "err", err)
 		finalErr = ErrDaemonStart
@@ -138,13 +187,12 @@ func daemonCommand(cctx *cli.Context) error {
 	defer cancel()
 
 	go func() {
-		select {
-		case <-ctx.Done():
+		// Wait for context to be canceled.  If timeout, then exit with error.
+		<-ctx.Done()
+		if ctx.Err() == context.DeadlineExceeded {
 			fmt.Println("Timed out on shutdown, terminating...")
-		case <-sigint:
-			fmt.Println("Received another interrupt before graceful shutdown, terminating...")
+			os.Exit(-1)
 		}
-		os.Exit(-1)
 	}()
 
 	if p2pAPI != nil {
@@ -164,13 +212,14 @@ func daemonCommand(cctx *cli.Context) error {
 		log.Errorw("Error closing value store", "err", err)
 		finalErr = ErrDaemonStop
 	}
+	cancel()
 
 	log.Infow("node stopped")
 	return finalErr
 }
 
 func createValueStore(dir, storeType string) (store.Interface, error) {
-	dir, err := checkStorageDir(dir)
+	err := checkWritable(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -183,45 +232,4 @@ func createValueStore(dir, storeType string) (store.Interface, error) {
 	}
 
 	return nil, fmt.Errorf("unrecognized store type: %s", storeType)
-}
-
-func checkStorageDir(dir string) (string, error) {
-	var err error
-	if dir != "" {
-		dir, err = homedir.Expand(dir)
-		if err != nil {
-			return "", err
-		}
-	} else {
-		home, err := homedir.Dir()
-		if err != nil {
-			return "", err
-		}
-		if home == "" {
-			return "", errors.New("could not determine storage directory, home dir not set")
-		}
-
-		dir = filepath.Join(home, defaultStorageDir)
-	}
-
-	if err = checkMkDir(dir); err != nil {
-		return "", err
-	}
-
-	return dir, nil
-}
-
-// checkMkDir checks that the directory exists, and if not, creates it
-func checkMkDir(dir string) error {
-	_, err := os.Stat(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			if err = os.Mkdir(dir, 0644); err != nil {
-				return err
-			}
-			return nil
-		}
-		return err
-	}
-	return nil
 }

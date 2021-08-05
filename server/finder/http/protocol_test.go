@@ -2,6 +2,7 @@ package httpfinderserver_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
@@ -36,8 +37,23 @@ func TestGetCidData(t *testing.T) {
 	c := setupClient(ctx, t)
 	s := setupServer(ctx, ind, t)
 	// Start server
-	go s.Start()
-	defer s.Shutdown(ctx)
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
 
 	test.GetCidDataTest(ctx, t, c, s, ind)
+
+	err := s.Shutdown(ctx)
+	if err != nil {
+		t.Error("shutdown error:", err)
+	}
+	err = <-errChan
+	if err != nil {
+		t.Fatal(err)
+	}
 }
