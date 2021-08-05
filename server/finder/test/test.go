@@ -14,6 +14,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store/test"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
 	"github.com/filecoin-project/storetheindex/internal/finder"
+	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/filecoin-project/storetheindex/internal/utils"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -36,6 +37,11 @@ func InitIndex(t *testing.T, withCache bool) *indexer.Engine {
 		resultCache = radixcache.New(100000)
 	}
 	return indexer.NewEngine(resultCache, valueStore)
+}
+
+// InitRegistry initializes a new registry
+func InitRegistry(t *testing.T) *providers.Registry {
+	return providers.NewRegistry()
 }
 
 // PopulateIndex with some CIDs
