@@ -3,6 +3,7 @@ package providers
 import (
 	"sync"
 
+	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -14,6 +15,7 @@ type Registry struct {
 
 type ProviderInfo struct {
 	Addresses []ma.Multiaddr
+	LastIndex cid.Cid
 }
 
 func NewRegistry() *Registry {
