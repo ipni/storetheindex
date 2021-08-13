@@ -6,9 +6,9 @@ import (
 )
 
 type DiscoverRequest struct {
-	FilecoinAddr string
-	Nonce        []byte
-	Signature    []byte
+	DiscoveryAddr string
+	Nonce         []byte
+	Signature     []byte
 }
 
 type RegisterRequest struct {

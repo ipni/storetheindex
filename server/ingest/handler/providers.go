@@ -88,7 +88,7 @@ func (h *Handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.registry.Discover(discoReq.FilecoinAddr, discoReq.Nonce, discoReq.Signature, false)
+	err = h.registry.Discover(discoReq.DiscoveryAddr, discoReq.Nonce, discoReq.Signature, false)
 	if err != nil {
 		log.Errorw("cannot process discovery request", "err", err)
 		w.WriteHeader(http.StatusBadRequest)

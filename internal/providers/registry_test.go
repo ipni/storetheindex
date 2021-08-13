@@ -20,8 +20,8 @@ const (
 	exceptID  = "12D3KooWK7CTS7cyWi51PeNE3cTjS2F2kDCZaQVU4A5xBmb9J1do"
 	trustedID = "12D3KooWSG3JuvEjRkSxt93ADTjQxqe4ExbBwSkQ9Zyk1WfBaZJF"
 
-	minerFcAddr = "stitest999999"
-	minerAddr   = "/ip4/127.0.0.1/tcp/9999"
+	minerDiscoAddr = "stitest999999"
+	minerAddr      = "/ip4/127.0.0.1/tcp/9999"
 )
 
 var providersCfg = config.Providers{
@@ -65,7 +65,7 @@ func (m *mockDiscovery) Discover(ctx context.Context, filecoinAddr string, signa
 func TestNewRegistryDiscovery(t *testing.T) {
 	mockDisco := newMockDiscovery(t, exceptID)
 
-	r, err := NewRegistry(providersCfg, mockDisco, nil)
+	r, err := NewRegistry(providersCfg, nil, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,20 +101,20 @@ func TestNewRegistryDiscovery(t *testing.T) {
 func TestDiscoveryAllowed(t *testing.T) {
 	mockDisco := newMockDiscovery(t, exceptID)
 
-	r, err := NewRegistry(providersCfg, mockDisco, nil)
+	r, err := NewRegistry(providersCfg, nil, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer r.Close()
 	t.Log("created new registry")
 
-	err = r.Discover(minerFcAddr, nil, nil, true)
+	err = r.Discover(minerDiscoAddr, nil, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log("discovered mock miner", minerFcAddr)
+	t.Log("discovered mock miner", minerDiscoAddr)
 
-	info := r.ProviderInfoByAddr(minerFcAddr)
+	info := r.ProviderInfoByAddr(minerDiscoAddr)
 	if info == nil {
 		t.Error("did not get provider info for miner")
 	}
@@ -157,19 +157,19 @@ func TestDiscoveryBlocked(t *testing.T) {
 
 	mockDisco := newMockDiscovery(t, exceptID)
 
-	r, err := NewRegistry(providersCfg, mockDisco, nil)
+	r, err := NewRegistry(providersCfg, nil, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer r.Close()
 	t.Log("created new registry")
 
-	err = r.Discover(minerFcAddr, nil, nil, true)
+	err = r.Discover(minerDiscoAddr, nil, nil, true)
 	if err != ErrNotAllowed {
 		t.Fatal("expected error:", ErrNotAllowed)
 	}
 
-	into := r.ProviderInfoByAddr(minerFcAddr)
+	into := r.ProviderInfoByAddr(minerDiscoAddr)
 	if into != nil {
 		t.Error("should not have found provider info for miner")
 	}
