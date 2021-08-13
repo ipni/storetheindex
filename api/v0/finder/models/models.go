@@ -16,16 +16,16 @@ type Request struct {
 	Cids []cid.Cid
 }
 
-// CidData aggregates all entries for a single CID.
-type CidData struct {
+// CidResult aggregates all entries for a single CID.
+type CidResult struct {
 	Cid     cid.Cid
 	Entries []entry.Value
 }
 
 // Response used to answer client queries/requests
 type Response struct {
-	Cids      []CidData
-	Providers []peer.AddrInfo
+	CidResults []CidResult
+	Providers  []peer.AddrInfo
 	// NOTE: This feature is not enabled yet.
 	// Signature []byte	// Providers signature.
 }
@@ -65,7 +65,7 @@ func UnmarshalResp(b []byte) (*Response, error) {
 // TODO: This should be relocated to a place common to all finder handlers, but
 // not under /api/
 func PopulateResponse(engine *indexer.Engine, registry *providers.Registry, cids []cid.Cid) (*Response, error) {
-	cidResults := make([]CidData, 0, len(cids))
+	cidResults := make([]CidResult, 0, len(cids))
 	var providerResults []peer.AddrInfo
 	providerSeen := map[peer.ID]struct{}{}
 
@@ -78,7 +78,7 @@ func PopulateResponse(engine *indexer.Engine, registry *providers.Registry, cids
 			continue
 		}
 		// Add the response to the list of CID responses
-		cidResults = append(cidResults, CidData{Cid: cids[i], Entries: values})
+		cidResults = append(cidResults, CidResult{Cid: cids[i], Entries: values})
 
 		// Lookup provider info for each unique provider
 		for j := range values {
@@ -99,15 +99,15 @@ func PopulateResponse(engine *indexer.Engine, registry *providers.Registry, cids
 	}
 
 	return &Response{
-		Cids:      cidResults,
-		Providers: providerResults,
+		CidResults: cidResults,
+		Providers:  providerResults,
 	}, nil
 }
 
 // PrettyPrint a response for CLI output
 func (r *Response) PrettyPrint() {
-	for i := range r.Cids {
-		fmt.Println("Cid:", r.Cids[i].Cid)
-		fmt.Println("Entries:", r.Cids[i].Entries)
+	for i := range r.CidResults {
+		fmt.Println("Cid:", r.CidResults[i].Cid)
+		fmt.Println("Entries:", r.CidResults[i].Entries)
 	}
 }

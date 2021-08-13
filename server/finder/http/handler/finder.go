@@ -73,7 +73,7 @@ func (h *Finder) getCids(w http.ResponseWriter, cids []cid.Cid) {
 	}
 
 	// If no info for any Cids, then 404
-	if len(response.Cids) == 0 {
+	if len(response.CidResults) == 0 {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
