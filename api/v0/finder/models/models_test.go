@@ -40,7 +40,7 @@ func TestMarshal(t *testing.T) {
 	t.Log("e2e marshalling response")
 	resp := &Response{
 		Cids:      make([]CidData, 0),
-		Providers: make([]ProviderData, 0),
+		Providers: make([]peer.AddrInfo, 0),
 	}
 
 	for i := range cids {
@@ -51,7 +51,7 @@ func TestMarshal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp.Providers = append(resp.Providers, ProviderData{Provider: p, Addrs: []ma.Multiaddr{m1}})
+	resp.Providers = append(resp.Providers, peer.AddrInfo{ID: p, Addrs: []ma.Multiaddr{m1}})
 
 	b, err = MarshalResp(resp)
 	if err != nil {

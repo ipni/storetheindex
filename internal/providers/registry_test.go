@@ -28,8 +28,8 @@ var providersCfg = config.Providers{
 	Policy:         "block",
 	Except:         []string{exceptID},
 	Trust:          []string{trustedID},
-	PollInterval:   config.Duration(time.Second),
-	RediscoverWait: config.Duration(time.Second),
+	PollInterval:   config.Duration(time.Minute),
+	RediscoverWait: config.Duration(time.Minute),
 }
 
 func newMockDiscovery(t *testing.T, providerID string) *mockDiscovery {
