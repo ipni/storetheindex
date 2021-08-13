@@ -84,9 +84,6 @@ func daemonCommand(cctx *cli.Context) error {
 		log.Info("result cache disabled")
 	}
 
-	// Create registry
-	registry := providers.NewRegistry()
-
 	// Create indexer core
 	indexerCore := core.NewEngine(resultCache, valueStore)
 	log.Infow("Indexer engine initialized")
@@ -106,6 +103,14 @@ func daemonCommand(cctx *cli.Context) error {
 			return err
 		}
 	*/
+
+	// Create registry
+	// TODO: replace discovery interface with lotus
+	// TODO: replace dstore interface with leveldb
+	registry, err := providers.NewRegistry(cfg.Providers, nil, nil)
+	if err != nil {
+		return fmt.Errorf("cannot create provider registry: %s", err)
+	}
 
 	// Create admin HTTP server
 	maddr, err := ma.NewMultiaddr(cfg.Addresses.Admin)

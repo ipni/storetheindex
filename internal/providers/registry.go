@@ -273,6 +273,10 @@ func (r *Registry) syncNeedDiscover(fcAddr string) error {
 }
 
 func (r *Registry) discover(fcAddr string, signature, signed []byte) (*discovery.Discovered, error) {
+	if r.discovery == nil {
+		return nil, errors.New("miner discovery not available")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), r.policy.DiscoveryTimeout())
 	defer cancel()
 

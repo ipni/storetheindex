@@ -51,13 +51,14 @@ func New(listen string, engine *indexer.Engine, registry *providers.Registry, op
 	r.HandleFunc("/ingestion/content", h.IndexContent).Methods("POST")
 	r.HandleFunc("/ingestion/advertisement", h.Advertise).Methods("PUT")
 
+	// Discovery
+	r.HandleFunc("/discover", h.DiscoverProvider).Methods("POST")
+
 	// Provider routes
 	r.HandleFunc("/providers", h.ListProviders).Methods("GET")
 	r.HandleFunc("/providers/{providerid}", h.GetProvider).Methods("GET")
-	r.HandleFunc("/providers/{providerid}", h.DiscoverProvider).Methods("POST")
-	r.HandleFunc("/providers/{providerid}", h.UpdateProvider).Methods("PUT")
-	r.HandleFunc("/providers/{providerid}", h.RemoveProvider).Methods("DELETE")
-	r.HandleFunc("/providers/{providerid}/lastindex", h.LastIndex).Methods("GET")
+	r.HandleFunc("/providers", h.RegisterProvider).Methods("POST")
+	r.HandleFunc("/providers/{providerid}", h.UnregisterProvider).Methods("DELETE")
 	return s, nil
 }
 

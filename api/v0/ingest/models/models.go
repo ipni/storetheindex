@@ -1,38 +1,38 @@
 package models
 
 import (
-	"encoding/json"
-
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
-	ma "github.com/multiformats/go-multiaddr"
 )
 
-// MultiaddrSlice is a list of muliaddr.
-type MultiaddrSlice []ma.Multiaddr
+type DiscoverRequest struct {
+	FilecoinAddr string
+	Nonce        []byte
+	Signature    []byte
+}
 
-// UnmarshalJSON for MultiaddrSlice
-func (m *MultiaddrSlice) UnmarshalJSON(raw []byte) (err error) {
-	var temp []string
-	if err := json.Unmarshal(raw, &temp); err != nil {
-		return err
-	}
+type RegisterRequest struct {
+	AddrInfo  peer.AddrInfo
+	Nonce     []byte
+	Signature []byte
+}
 
-	res := make([]ma.Multiaddr, len(temp))
-	for i, str := range temp {
-		res[i], err = ma.NewMultiaddr(str)
-		if err != nil {
-			return err
-		}
-	}
-	*m = res
-	return nil
+// IgenstRequest is a request to store a single CID.  This is intentionally
+// limited to one CID as bulk CID ingestion should be done via advertisement
+// ingestion method.
+type IngestRequest struct {
+	Cid       cid.Cid
+	Provider  peer.ID
+	Protocol  int
+	Metadata  []byte
+	Nonce     []byte
+	Signature []byte
 }
 
 // ProviderData aggregates provider-related data that wants to
 // be added in a response
-type ProviderData struct {
-	Provider  peer.ID
-	Addrs     MultiaddrSlice
-	LastIndex cid.Cid `json:"omitempty"`
+type ProviderInfo struct {
+	AddrInfo      peer.AddrInfo
+	LastIndex     cid.Cid `json:"omitempty"`
+	LastIndexTime string  `json:"omitempty"`
 }
