@@ -25,11 +25,11 @@ type Registry struct {
 	providers map[peer.ID]*ProviderInfo
 	policy    *policy.Policy
 
-	discovery    discovery.Discovery
-	discoTimes   map[string]time.Time
-	closeOnce    sync.Once
-	closed       chan struct{}
-	pendingDisco int
+	discovery  discovery.Discovery
+	discoTimes map[string]time.Time
+	closeOnce  sync.Once
+	closed     chan struct{}
+	discoWait  sync.WaitGroup
 
 	dstore datastore.Datastore
 }
@@ -86,19 +86,9 @@ func NewRegistry(providerCfg config.Providers, dstore datastore.Datastore, disco
 func (r *Registry) Close() error {
 	var err error
 	r.closeOnce.Do(func() {
-		// Wait for any pending discoveries to complete
-		doneChan := make(chan bool)
-		for {
-			r.actions <- func() {
-				doneChan <- r.pendingDisco == 0
-			}
-			done := <-doneChan
-			if done {
-				break
-			}
-			time.Sleep(200 * time.Millisecond)
-		}
-
+		// Wait for any pending discoveries to complete, then stop the main run
+		// goroutine
+		r.discoWait.Wait()
 		close(r.actions)
 
 		if r.dstore != nil {
@@ -230,15 +220,14 @@ func (r *Registry) syncStartDiscover(discoAddr string, signature, signed []byte,
 
 	// Mark discovery as in progress
 	r.discoTimes[discoAddr] = time.Time{}
-
-	r.pendingDisco++
+	r.discoWait.Add(1)
 
 	// Do discovery asynchronously; do not block other discovery requests
 	go func() {
 		discoData, discoErr := r.discover(discoAddr, signed, signature)
 		r.actions <- func() {
 			r.syncEndDiscover(discoAddr, discoData, discoErr, errCh)
-			r.pendingDisco--
+			r.discoWait.Done()
 		}
 	}()
 }
