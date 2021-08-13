@@ -277,8 +277,13 @@ func (r *Registry) discover(fcAddr string, signature, signed []byte) (*discovery
 		return nil, errors.New("miner discovery not available")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), r.policy.DiscoveryTimeout())
-	defer cancel()
+	ctx := context.Background()
+	discoTimeout := r.policy.DiscoveryTimeout()
+	if discoTimeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, discoTimeout)
+		defer cancel()
+	}
 
 	discoData, err := r.discovery.Discover(ctx, fcAddr, signature, signed)
 	if err != nil {
