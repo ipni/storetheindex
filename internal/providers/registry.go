@@ -28,16 +28,19 @@ var log = logging.Logger("providers")
 // Registry stores information about discovered providers
 type Registry struct {
 	actions   chan func()
+	closed    chan struct{}
+	closeOnce sync.Once
+	dstore    datastore.Datastore
 	providers map[peer.ID]*ProviderInfo
-	policy    *policy.Policy
 
 	discovery  discovery.Discovery
-	discoTimes map[string]time.Time
-	closeOnce  sync.Once
-	closed     chan struct{}
 	discoWait  sync.WaitGroup
+	discoTimes map[string]time.Time
+	policy     *policy.Policy
 
-	dstore datastore.Datastore
+	discoveryTimeout time.Duration
+	pollInterval     time.Duration
+	rediscoverWait   time.Duration
 }
 
 // ProviderInfo is an immutable data sturcture that holds information about a
@@ -60,9 +63,9 @@ type ProviderInfo struct {
 // interface.
 //
 // TODO: It is probably necessary to have multiple discovery interfaces
-func NewRegistry(providerCfg config.Providers, dstore datastore.Datastore, disco discovery.Discovery) (*Registry, error) {
+func NewRegistry(cfg config.Discovery, dstore datastore.Datastore, disco discovery.Discovery) (*Registry, error) {
 	// Create policy from config
-	providerPolicy, err := policy.New(providerCfg)
+	discoPolicy, err := policy.New(cfg.Policy)
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +73,12 @@ func NewRegistry(providerCfg config.Providers, dstore datastore.Datastore, disco
 	r := &Registry{
 		actions:   make(chan func()),
 		closed:    make(chan struct{}),
-		policy:    providerPolicy,
+		policy:    discoPolicy,
 		providers: map[peer.ID]*ProviderInfo{},
+
+		pollInterval:     time.Duration(cfg.PollInterval),
+		rediscoverWait:   time.Duration(cfg.RediscoverWait),
+		discoveryTimeout: time.Duration(cfg.Timeout),
 
 		discovery:  disco,
 		discoTimes: map[string]time.Time{},
@@ -274,7 +281,7 @@ func (r *Registry) syncNeedDiscover(discoAddr string) error {
 		}
 
 		// Check if last discovery completed too recently
-		if !r.policy.CanRediscover(completed) {
+		if r.rediscoverWait != 0 && time.Since(completed) < r.rediscoverWait {
 			return ErrTooSoon
 		}
 	}
@@ -339,7 +346,7 @@ func (r *Registry) discover(discoAddr string, signature, signed []byte) (*discov
 	}
 
 	ctx := context.Background()
-	discoTimeout := r.policy.DiscoveryTimeout()
+	discoTimeout := r.discoveryTimeout
 	if discoTimeout != 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, discoTimeout)

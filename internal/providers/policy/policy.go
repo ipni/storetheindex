@@ -4,25 +4,21 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 type Policy struct {
-	defaultAllow     bool
-	except           map[peer.ID]struct{}
-	trust            map[peer.ID]struct{}
-	pollInterval     time.Duration
-	discoveryTimeout time.Duration
-	rediscoverWait   time.Duration
+	defaultAllow bool
+	except       map[peer.ID]struct{}
+	trust        map[peer.ID]struct{}
 }
 
-func New(cfg config.Providers) (*Policy, error) {
+func New(cfg config.Policy) (*Policy, error) {
 	policy := new(Policy)
 
-	switch strings.ToLower(cfg.Policy) {
+	switch strings.ToLower(cfg.Action) {
 	case "block":
 	case "allow":
 		policy.defaultAllow = true
@@ -58,10 +54,6 @@ func New(cfg config.Providers) (*Policy, error) {
 		return nil, errors.New("policy does not allow any providers")
 	}
 
-	policy.pollInterval = time.Duration(cfg.PollInterval)
-	policy.discoveryTimeout = time.Duration(cfg.DiscoveryTimeout)
-	policy.rediscoverWait = time.Duration(cfg.RediscoverWait)
-
 	return policy, nil
 }
 
@@ -81,18 +73,4 @@ func (p *Policy) Allowed(providerID peer.ID) bool {
 		return !ok
 	}
 	return ok
-}
-func (p *Policy) CanRediscover(lastDiscovery time.Time) bool {
-	if p.rediscoverWait == 0 {
-		return true
-	}
-	return time.Since(lastDiscovery) > p.rediscoverWait
-}
-
-func (p *Policy) PollInterval() time.Duration {
-	return p.pollInterval
-}
-
-func (p *Policy) DiscoveryTimeout() time.Duration {
-	return p.discoveryTimeout
 }

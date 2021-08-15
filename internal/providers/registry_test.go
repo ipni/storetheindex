@@ -27,10 +27,12 @@ const (
 	minerAddr2     = "/ip4/127.0.0.2/tcp/9999"
 )
 
-var providersCfg = config.Providers{
-	Policy:         "block",
-	Except:         []string{exceptID},
-	Trust:          []string{trustedID, trustedID2},
+var discoveryCfg = config.Discovery{
+	Policy: config.Policy{
+		Action: "block",
+		Except: []string{exceptID},
+		Trust:  []string{trustedID, trustedID2},
+	},
 	PollInterval:   config.Duration(time.Minute),
 	RediscoverWait: config.Duration(time.Minute),
 }
@@ -68,7 +70,7 @@ func (m *mockDiscovery) Discover(ctx context.Context, filecoinAddr string, signa
 func TestNewRegistryDiscovery(t *testing.T) {
 	mockDisco := newMockDiscovery(t, exceptID)
 
-	r, err := NewRegistry(providersCfg, nil, mockDisco)
+	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +106,7 @@ func TestNewRegistryDiscovery(t *testing.T) {
 func TestDiscoveryAllowed(t *testing.T) {
 	mockDisco := newMockDiscovery(t, exceptID)
 
-	r, err := NewRegistry(providersCfg, nil, mockDisco)
+	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,14 +155,14 @@ func TestDiscoveryAllowed(t *testing.T) {
 }
 
 func TestDiscoveryBlocked(t *testing.T) {
-	providersCfg.Policy = "allow"
+	discoveryCfg.Policy.Action = "allow"
 	defer func() {
-		providersCfg.Policy = "block"
+		discoveryCfg.Policy.Action = "block"
 	}()
 
 	mockDisco := newMockDiscovery(t, exceptID)
 
-	r, err := NewRegistry(providersCfg, nil, mockDisco)
+	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +218,7 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewRegistry(providersCfg, dstore, mockDisco)
+	r, err := NewRegistry(discoveryCfg, dstore, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +248,7 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err = NewRegistry(providersCfg, dstore, mockDisco)
+	r, err = NewRegistry(discoveryCfg, dstore, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
