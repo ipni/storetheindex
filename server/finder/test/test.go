@@ -46,13 +46,15 @@ func InitIndex(t *testing.T, withCache bool) *indexer.Engine {
 
 // InitRegistry initializes a new registry
 func InitRegistry(t *testing.T) *providers.Registry {
-	var providersCfg = config.Providers{
-		Policy:         "block",
-		Trust:          []string{providerID},
+	var discoveryCfg = config.Discovery{
+		Policy: config.Policy{
+			Action: "block",
+			Trust:  []string{providerID},
+		},
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),
 	}
-	reg, err := providers.NewRegistry(providersCfg, nil, nil)
+	reg, err := providers.NewRegistry(discoveryCfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

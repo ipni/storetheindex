@@ -2,7 +2,6 @@ package policy
 
 import (
 	"testing"
-	"time"
 
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -31,66 +30,64 @@ func init() {
 }
 
 func TestNewPolicy(t *testing.T) {
-	providersCfg := config.Providers{
-		Policy:         "block",
-		Except:         []string{exceptIDStr},
-		Trust:          []string{trustedIDStr},
-		PollInterval:   config.Duration(time.Second),
-		RediscoverWait: config.Duration(time.Second),
+	policyCfg := config.Policy{
+		Action: "block",
+		Except: []string{exceptIDStr},
+		Trust:  []string{trustedIDStr},
 	}
 
-	_, err := New(providersCfg)
+	_, err := New(policyCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	providersCfg.Policy = "allow"
-	_, err = New(providersCfg)
+	policyCfg.Action = "allow"
+	_, err = New(policyCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	providersCfg.Policy = "foo"
-	_, err = New(providersCfg)
+	policyCfg.Action = "foo"
+	_, err = New(policyCfg)
 	if err == nil {
-		t.Fatal("expected error with bad Policy")
+		t.Fatal("expected error with bad Action")
 	}
 
-	providersCfg.Policy = "block"
-	providersCfg.Trust = append(providersCfg.Trust, "bad ID")
-	_, err = New(providersCfg)
+	policyCfg.Action = "block"
+	policyCfg.Trust = append(policyCfg.Trust, "bad ID")
+	_, err = New(policyCfg)
 	if err == nil {
 		t.Error("expected error with bad trust ID")
 	}
 
-	providersCfg.Trust = nil
-	providersCfg.Except = append(providersCfg.Except, "bad ID")
-	_, err = New(providersCfg)
+	policyCfg.Trust = nil
+	policyCfg.Except = append(policyCfg.Except, "bad ID")
+	_, err = New(policyCfg)
 	if err == nil {
 		t.Error("expected error with bad except ID")
 	}
 
-	providersCfg.Except = nil
-	_, err = New(providersCfg)
+	policyCfg.Except = nil
+	_, err = New(policyCfg)
 	if err == nil {
 		t.Error("expected error with inaccessible policy")
 	}
 
-	providersCfg.Policy = "allow"
-	_, err = New(providersCfg)
+	policyCfg.Action = "allow"
+	_, err = New(policyCfg)
 	if err != nil {
 		t.Error(err)
 	}
 }
 
 func TestPolicyAccess(t *testing.T) {
-	providersCfg := config.Providers{
-		Policy: "block",
+	policyCfg := config.Policy{
+		Action: "block",
 		Except: []string{exceptIDStr},
 		Trust:  []string{trustedIDStr},
 	}
 
-	p, err := New(providersCfg)
+	p, err := New(policyCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,8 +109,8 @@ func TestPolicyAccess(t *testing.T) {
 		t.Error("peer ID should be allowed")
 	}
 
-	providersCfg.Policy = "allow"
-	p, err = New(providersCfg)
+	policyCfg.Action = "allow"
+	p, err = New(policyCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
