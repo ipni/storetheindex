@@ -39,19 +39,19 @@ func TestMarshal(t *testing.T) {
 	// Masrhal response and check e2e
 	t.Log("e2e marshalling response")
 	resp := &Response{
-		Cids:      make([]CidData, 0),
-		Providers: make([]ProviderData, 0),
+		CidResults: make([]CidResult, 0),
+		Providers:  make([]peer.AddrInfo, 0),
 	}
 
 	for i := range cids {
-		resp.Cids = append(resp.Cids, CidData{cids[i], []entry.Value{e}})
+		resp.CidResults = append(resp.CidResults, CidResult{cids[i], []entry.Value{e}})
 	}
 	m1, err := ma.NewMultiaddr("/ip4/127.0.0.1/udp/1234")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp.Providers = append(resp.Providers, ProviderData{Provider: p, Addrs: []ma.Multiaddr{m1}})
+	resp.Providers = append(resp.Providers, peer.AddrInfo{ID: p, Addrs: []ma.Multiaddr{m1}})
 
 	b, err = MarshalResp(resp)
 	if err != nil {
@@ -62,13 +62,13 @@ func TestMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !EqualCidData(resp.Cids, r2.Cids) {
+	if !EqualCidResult(resp.CidResults, r2.CidResults) {
 		t.Fatal("failed marshal/unmarshaling response")
 	}
 
 }
 
-func EqualCidData(e1, e2 []CidData) bool {
+func EqualCidResult(e1, e2 []CidResult) bool {
 	if len(e1) != len(e2) {
 		return false
 	}

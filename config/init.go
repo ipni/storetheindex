@@ -46,9 +46,11 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 		},
 
 		Providers: Providers{
-			Policy:       defaultPolicy,
-			Trust:        []string{identity.PeerID},
-			PollInterval: defaultPollInterval,
+			Policy:           defaultPolicy,
+			Trust:            []string{identity.PeerID},
+			PollInterval:     defaultPollInterval,
+			DiscoveryTimeout: defaultDiscoveryTimeout,
+			RediscoverWait:   defaultRediscoverWait,
 		},
 	}
 
