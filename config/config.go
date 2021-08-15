@@ -14,10 +14,9 @@ import (
 type Config struct {
 	Identity  Identity  // peer identity
 	Addresses Addresses // addresses to listen on
-	Datastore Datastore
+	Datastore Datastore // datastore config
 	Discovery Discovery // provider pubsub peers
 	Indexer   Indexer   // indexer code configuration
-	Providers Providers // provider allow/block policy
 }
 
 const (

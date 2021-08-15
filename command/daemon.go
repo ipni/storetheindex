@@ -107,7 +107,7 @@ func daemonCommand(cctx *cli.Context) error {
 	// Create registry
 	// TODO: replace dstore interface with leveldb
 	// TODO: replace discovery interface with lotus
-	registry, err := providers.NewRegistry(cfg.Providers, nil, nil)
+	registry, err := providers.NewRegistry(cfg.Discovery, nil, nil)
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}

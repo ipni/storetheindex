@@ -34,7 +34,14 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 		},
 
 		Discovery: Discovery{
-			Topic: defaultTopic,
+			Policy: Policy{
+				Action: defaultAction,
+				Trust:  []string{identity.PeerID},
+			},
+			PollInterval:   defaultPollInterval,
+			RediscoverWait: defaultRediscoverWait,
+			Timeout:        defaultDiscoveryTimeout,
+			Topic:          defaultTopic,
 		},
 
 		Identity: identity,
@@ -43,14 +50,6 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 			CacheSize:      defaultCacheSize,
 			ValueStoreDir:  defaultValueStoreDir,
 			ValueStoreType: defaultValueStoreType,
-		},
-
-		Providers: Providers{
-			Policy:           defaultPolicy,
-			Trust:            []string{identity.PeerID},
-			PollInterval:     defaultPollInterval,
-			DiscoveryTimeout: defaultDiscoveryTimeout,
-			RediscoverWait:   defaultRediscoverWait,
 		},
 	}
 
