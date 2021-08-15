@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"sync"
 	"time"
 
@@ -13,8 +14,13 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/providers/policy"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
+)
+
+const (
+	providersKeyPath = "/providers"
 )
 
 var log = logging.Logger("providers")
@@ -259,19 +265,6 @@ func (r *Registry) syncRegister(info *ProviderInfo, errCh chan<- error) {
 	close(errCh)
 }
 
-func (r *Registry) syncPersistProvider(info *ProviderInfo) error {
-	if r.dstore == nil {
-		return nil
-	}
-	value, err := json.Marshal(info)
-	if err != nil {
-		return err
-	}
-	dsKey := datastore.NewKey(info.AddrInfo.ID.String())
-
-	return r.dstore.Put(dsKey, value)
-}
-
 func (r *Registry) syncNeedDiscover(discoAddr string) error {
 	completed, ok := r.discoTimes[discoAddr]
 	if ok {
@@ -284,6 +277,58 @@ func (r *Registry) syncNeedDiscover(discoAddr string) error {
 		if !r.policy.CanRediscover(completed) {
 			return ErrTooSoon
 		}
+	}
+	return nil
+}
+
+func (r *Registry) syncPersistProvider(info *ProviderInfo) error {
+	if r.dstore == nil {
+		return nil
+	}
+	value, err := json.Marshal(info)
+	if err != nil {
+		return err
+	}
+
+	idStr := info.AddrInfo.ID.String()
+	dsKey := datastore.NewKey(path.Join(providersKeyPath, idStr))
+
+	return r.dstore.Put(dsKey, value)
+}
+
+func (r *Registry) loadPersistedProviders() error {
+	if r.dstore == nil {
+		return nil
+	}
+
+	// Load all providers from the datastore.
+	q := query.Query{
+		Prefix: providersKeyPath,
+	}
+	results, err := r.dstore.Query(q)
+	if err != nil {
+		return err
+	}
+	defer results.Close()
+
+	for result := range results.Next() {
+		if result.Error != nil {
+			return fmt.Errorf("cannot read provider data: %v", result.Error)
+		}
+		ent := result.Entry
+
+		peerID, err := peer.Decode(path.Base(ent.Key))
+		if err != nil {
+			return fmt.Errorf("cannot decode provider ID: %s", err)
+		}
+
+		pinfo := new(ProviderInfo)
+		err = json.Unmarshal(ent.Value, pinfo)
+		if err != nil {
+			return err
+		}
+
+		r.providers[peerID] = pinfo
 	}
 	return nil
 }
@@ -330,12 +375,4 @@ func VerifySignature(peerID peer.ID, signature, data []byte) (bool, error) {
 	}
 
 	return pubKey.Verify(data, signature)
-}
-
-func (r *Registry) loadPersistedProviders() error {
-	// TODO: implement
-	if r.dstore == nil {
-		return nil
-	}
-	return nil
 }

@@ -19,10 +19,10 @@ import (
 	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	p2pfinderserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
 	ingestserver "github.com/filecoin-project/storetheindex/server/ingest"
-	//"github.com/ipfs/go-ds-leveldb"
+	"github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
-	ma "github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/urfave/cli/v2"
 )
@@ -88,32 +88,29 @@ func daemonCommand(cctx *cli.Context) error {
 	indexerCore := core.NewEngine(resultCache, valueStore)
 	log.Infow("Indexer engine initialized")
 
-	/*
-		// Create datastore
-		dataStorePath, err := config.Path("", cfg.Datastore.Dir)
-		if err != nil {
-			return err
-		}
-		err = checkWritable(dataStorePath)
-		if err != nil {
-			return err
-		}
-		dstore, err := leveldb.NewDatastore(dataStorePath, nil)
-		if err != nil {
-			return err
-		}
-	*/
+	// Create datastore
+	dataStorePath, err := config.Path("", cfg.Datastore.Dir)
+	if err != nil {
+		return err
+	}
+	err = checkWritable(dataStorePath)
+	if err != nil {
+		return err
+	}
+	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
+	if err != nil {
+		return err
+	}
 
 	// Create registry
-	// TODO: replace dstore interface with leveldb
 	// TODO: replace discovery interface with lotus
-	registry, err := providers.NewRegistry(cfg.Providers, nil, nil)
+	registry, err := providers.NewRegistry(cfg.Providers, dstore, nil)
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}
 
 	// Create admin HTTP server
-	maddr, err := ma.NewMultiaddr(cfg.Addresses.Admin)
+	maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Admin)
 	if err != nil {
 		return fmt.Errorf("bad admin address in config %s: %s", cfg.Addresses.Admin, err)
 	}
@@ -128,7 +125,7 @@ func daemonCommand(cctx *cli.Context) error {
 	log.Infow("admin server initialized", "address", adminAddr)
 
 	// Create finder HTTP server
-	maddr, err = ma.NewMultiaddr(cfg.Addresses.Finder)
+	maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Finder)
 	if err != nil {
 		return fmt.Errorf("bad finder address in config %s: %s", cfg.Addresses.Finder, err)
 	}
@@ -143,7 +140,7 @@ func daemonCommand(cctx *cli.Context) error {
 	log.Infow("finder server initialized", "address", finderAddr)
 
 	// Create ingest HTTP server
-	maddr, err = ma.NewMultiaddr(cfg.Addresses.Ingest)
+	maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Ingest)
 	if err != nil {
 		return fmt.Errorf("bad ingest address in config %s: %s", cfg.Addresses.Ingest, err)
 	}
