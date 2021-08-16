@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/filecoin-project/go-indexer-core"
+	indexer "github.com/filecoin-project/go-indexer-core"
 	p2pclient "github.com/filecoin-project/storetheindex/api/v0/client/libp2p"
 	"github.com/filecoin-project/storetheindex/internal/finder"
 	"github.com/filecoin-project/storetheindex/internal/providers"
@@ -15,7 +15,7 @@ import (
 	bhost "github.com/libp2p/go-libp2p/p2p/host/basic"
 )
 
-func setupServer(ctx context.Context, ind *indexer.Engine, reg *providers.Registry, t *testing.T) (*p2pserver.Server, host.Host) {
+func setupServer(ctx context.Context, ind indexer.Interface, reg *providers.Registry, t *testing.T) (*p2pserver.Server, host.Host) {
 	h := bhost.New(swarmt.GenSwarm(t, ctx, swarmt.OptDisableReuseport))
 	s, err := p2pserver.New(ctx, h, ind, reg)
 	if err != nil {

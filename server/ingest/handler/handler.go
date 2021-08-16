@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/filecoin-project/go-indexer-core"
+	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	logging "github.com/ipfs/go-log/v2"
 )
@@ -11,13 +11,13 @@ import (
 var log = logging.Logger("ingestion_handler")
 
 type Handler struct {
-	engine   *indexer.Engine
+	indexer  indexer.Interface
 	registry *providers.Registry
 }
 
-func New(engine *indexer.Engine, registry *providers.Registry) *Handler {
+func New(indexer indexer.Interface, registry *providers.Registry) *Handler {
 	return &Handler{
-		engine:   engine,
+		indexer:  indexer,
 		registry: registry,
 	}
 }

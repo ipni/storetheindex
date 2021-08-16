@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/filecoin-project/go-indexer-core/entry"
+	"github.com/filecoin-project/go-indexer-core"
 	"github.com/ipfs/go-cid"
 	mh "github.com/multiformats/go-multihash"
 )
@@ -44,21 +44,21 @@ func EqualCids(e1, e2 []cid.Cid) bool {
 	return true
 }
 
-func EqualEntries(e1, e2 []entry.Value) bool {
-	if len(e1) != len(e2) {
+func EqualValues(vals1, vals2 []indexer.Value) bool {
+	if len(vals1) != len(vals2) {
 		return false
 	}
-	for i := range e1 {
-		if !HasEntry(e2, e1[i]) {
+	for i := range vals1 {
+		if !HasValue(vals2, vals1[i]) {
 			return false
 		}
 	}
 	return true
 }
 
-func HasEntry(entries []entry.Value, e entry.Value) bool {
-	for i := range entries {
-		if entries[i].Equal(e) {
+func HasValue(values []indexer.Value, v indexer.Value) bool {
+	for i := range values {
+		if values[i].Equal(v) {
 			return true
 		}
 	}

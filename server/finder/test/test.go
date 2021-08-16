@@ -9,7 +9,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/go-indexer-core/cache"
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
-	"github.com/filecoin-project/go-indexer-core/entry"
+	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/go-indexer-core/store/test"
@@ -20,13 +20,13 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/utils"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
-	ma "github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multiaddr"
 )
 
 const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
 
 //InitIndex initialize a new indexer engine.
-func InitIndex(t *testing.T, withCache bool) *indexer.Engine {
+func InitIndex(t *testing.T, withCache bool) indexer.Interface {
 	tmpDir, err := ioutil.TempDir("", "sth")
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +41,7 @@ func InitIndex(t *testing.T, withCache bool) *indexer.Engine {
 	if withCache {
 		resultCache = radixcache.New(100000)
 	}
-	return indexer.NewEngine(resultCache, valueStore)
+	return engine.New(resultCache, valueStore)
 }
 
 // InitRegistry initializes a new registry
@@ -62,28 +62,28 @@ func InitRegistry(t *testing.T) *providers.Registry {
 }
 
 // PopulateIndex with some CIDs
-func PopulateIndex(ind *indexer.Engine, cids []cid.Cid, e entry.Value, t *testing.T) {
-	err := ind.PutMany(cids, e)
+func PopulateIndex(ind indexer.Interface, cids []cid.Cid, v indexer.Value, t *testing.T) {
+	err := ind.PutMany(cids, v)
 	if err != nil {
 		t.Fatal("Error putting cids: ", err)
 	}
 }
 
-func GetCidDataTest(ctx context.Context, t *testing.T, c finder.Interface, s finder.Server, ind *indexer.Engine, reg *providers.Registry) {
+func GetCidDataTest(ctx context.Context, t *testing.T, c finder.Interface, s finder.Server, ind indexer.Interface, reg *providers.Registry) {
 	// Generate some CIDs and populate indexer
 	cids, err := test.RandomCids(15)
 	if err != nil {
 		t.Fatal(err)
 	}
 	p, _ := peer.Decode(providerID)
-	e := entry.MakeValue(p, 0, cids[0].Bytes())
-	PopulateIndex(ind, cids[:10], e, t)
+	v := indexer.MakeValue(p, 0, cids[0].Bytes())
+	PopulateIndex(ind, cids[:10], v, t)
 
-	a, _ := ma.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	info := &providers.ProviderInfo{
 		AddrInfo: peer.AddrInfo{
 			ID:    p,
-			Addrs: []ma.Multiaddr{a},
+			Addrs: []multiaddr.Multiaddr{a},
 		},
 	}
 	err = reg.Register(info)
@@ -96,41 +96,41 @@ func GetCidDataTest(ctx context.Context, t *testing.T, c finder.Interface, s fin
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkResponse(resp, []cid.Cid{cids[0]}, []entry.Value{e}, t)
+	checkResponse(resp, []cid.Cid{cids[0]}, []indexer.Value{v}, t)
 
 	// Get a batch of CIDs
 	resp, err = c.GetBatch(ctx, cids[:10], s.Endpoint())
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkResponse(resp, cids[:10], []entry.Value{e}, t)
+	checkResponse(resp, cids[:10], []indexer.Value{v}, t)
 
 	// Get a batch of CIDs where only a subset is in the index
 	resp, err = c.GetBatch(ctx, cids, s.Endpoint())
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkResponse(resp, cids[:10], []entry.Value{e}, t)
+	checkResponse(resp, cids[:10], []indexer.Value{v}, t)
 
 	// Get empty batch
 	_, err = c.GetBatch(ctx, []cid.Cid{}, s.Endpoint())
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkResponse(&models.Response{}, []cid.Cid{}, []entry.Value{}, t)
+	checkResponse(&models.Response{}, []cid.Cid{}, []indexer.Value{}, t)
 
 	// Get batch with no cids in request
 	_, err = c.GetBatch(ctx, cids[10:], s.Endpoint())
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkResponse(&models.Response{}, []cid.Cid{}, []entry.Value{}, t)
+	checkResponse(&models.Response{}, []cid.Cid{}, []indexer.Value{}, t)
 }
 
-func checkResponse(r *models.Response, cids []cid.Cid, e []entry.Value, t *testing.T) {
+func checkResponse(r *models.Response, cids []cid.Cid, v []indexer.Value, t *testing.T) {
 	// Check if everything was returned.
 	if len(r.CidResults) != len(cids) {
-		t.Fatalf("number of entries send in responses not correct, expected %d got %d", len(cids), len(r.CidResults))
+		t.Fatalf("number of values send in responses not correct, expected %d got %d", len(cids), len(r.CidResults))
 	}
 	for i := range r.CidResults {
 		// Check if cid in list of cids
@@ -138,9 +138,9 @@ func checkResponse(r *models.Response, cids []cid.Cid, e []entry.Value, t *testi
 			t.Fatal("cid not found in response")
 		}
 
-		// Check if same entry
-		if !utils.EqualEntries(r.CidResults[i].Entries, e) {
-			t.Fatal("wrong entry included for a cid")
+		// Check if same value
+		if !utils.EqualValues(r.CidResults[i].Values, v) {
+			t.Fatal("wrong value included for a cid")
 		}
 	}
 	// If there are any CID responses, then there should be a provider

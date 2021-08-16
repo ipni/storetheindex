@@ -1,7 +1,12 @@
 package models
 
 import (
+	"bytes"
+
+	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/internal/signature"
 	"github.com/ipfs/go-cid"
+	ic "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -22,9 +27,7 @@ type RegisterRequest struct {
 // ingestion method.
 type IngestRequest struct {
 	Cid       cid.Cid
-	Provider  peer.ID
-	Protocol  int
-	Metadata  []byte
+	Value     indexer.Value
 	Nonce     []byte
 	Signature []byte
 }
@@ -35,4 +38,51 @@ type ProviderInfo struct {
 	AddrInfo      peer.AddrInfo
 	LastIndex     cid.Cid
 	LastIndexTime string `json:"omitempty"`
+}
+
+func (r *RegisterRequest) Sign(privKey ic.PrivKey) error {
+	var err error
+	r.Nonce, err = signature.Nonce()
+	if err != nil {
+		return err
+	}
+	r.Signature, err = privKey.Sign(r.signedData())
+	return err
+}
+
+func (r *RegisterRequest) VerifySignature() error {
+	return signature.Verify(r.AddrInfo.ID, r.signedData(), r.Signature)
+}
+
+func (r *RegisterRequest) signedData() []byte {
+	var buf bytes.Buffer
+	for _, a := range r.AddrInfo.Addrs {
+		buf.Write(a.Bytes())
+	}
+	buf.Write(r.Nonce)
+	return buf.Bytes()
+}
+
+func (r *IngestRequest) Sign(privKey ic.PrivKey) error {
+	var err error
+	r.Nonce, err = signature.Nonce()
+	if err != nil {
+		return err
+	}
+	r.Signature, err = privKey.Sign(r.signedData())
+	return err
+}
+
+func (r *IngestRequest) VerifySignature() error {
+	return signature.Verify(r.Value.ProviderID, r.signedData(), r.Signature)
+}
+
+func (r *IngestRequest) signedData() []byte {
+	data := make([]byte, r.Cid.ByteLen()+len(r.Value.Metadata)+len(r.Nonce))
+	copy(data, r.Cid.Bytes())
+	offset := r.Cid.ByteLen()
+	copy(data[offset:], r.Value.Metadata)
+	offset += len(r.Value.Metadata)
+	copy(data[offset:], r.Nonce)
+	return data
 }

@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
-	github.com/filecoin-project/go-indexer-core v0.0.0-20210730054841-13ede93e8530
+	github.com/filecoin-project/go-indexer-core v0.0.0-20210816132949-bbccdebb905f
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.4
 	github.com/ipfs/go-cid v0.0.7

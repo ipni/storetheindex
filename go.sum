@@ -123,8 +123,8 @@ github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0 h1:h6nObyd44KVZNCUdfhPATclKw5Ci3QkOTTpTBCGTfXA=
 github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0/go.mod h1:WTuJWgBQY0omnQqa8kRPT9O0Uj5wQOgslVMUuTeHdJ8=
-github.com/filecoin-project/go-indexer-core v0.0.0-20210730054841-13ede93e8530 h1:M/ztqeLYgvcqk6VB5FCPJqzdnMNuGLeLdPKrVVa8twQ=
-github.com/filecoin-project/go-indexer-core v0.0.0-20210730054841-13ede93e8530/go.mod h1:oGmf25CxT/ph4bzskRF2kE5zs/tyGKUQOlZPocKwJqA=
+github.com/filecoin-project/go-indexer-core v0.0.0-20210816132949-bbccdebb905f h1:Jp5Wfb3Fsjd/4yce1QHtqpZK8V7iagbqnz8T0XdJkm0=
+github.com/filecoin-project/go-indexer-core v0.0.0-20210816132949-bbccdebb905f/go.mod h1:oGmf25CxT/ph4bzskRF2kE5zs/tyGKUQOlZPocKwJqA=
 github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568/go.mod h1:xEzjJPgXI435gkrCt3MPfRiAkVrwSbHsst4LCFVfpJc=
 github.com/flynn/noise v1.0.0 h1:DlTHqmzmvcEiKj+4RYo/imoswx/4r6iBlCMfVtrMXpQ=
 github.com/flynn/noise v1.0.0/go.mod h1:xbMo+0i6+IGbYdJhF31t2eR1BIU0CYc12+BNAKwUTag=

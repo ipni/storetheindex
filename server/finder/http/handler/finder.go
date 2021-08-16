@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/filecoin-project/go-indexer-core"
+	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/gorilla/mux"
@@ -16,13 +16,13 @@ var log = logging.Logger("find_handler")
 
 // Finder handles requests for the finder resource
 type Finder struct {
-	engine   *indexer.Engine
+	indexer  indexer.Interface
 	registry *providers.Registry
 }
 
-func NewFinder(engine *indexer.Engine, registry *providers.Registry) *Finder {
+func NewFinder(indexer indexer.Interface, registry *providers.Registry) *Finder {
 	return &Finder{
-		engine:   engine,
+		indexer:  indexer,
 		registry: registry,
 	}
 }
@@ -65,7 +65,7 @@ func writeResponse(w http.ResponseWriter, body []byte) error {
 }
 
 func (h *Finder) getCids(w http.ResponseWriter, cids []cid.Cid) {
-	response, err := models.PopulateResponse(h.engine, h.registry, cids)
+	response, err := models.PopulateResponse(h.indexer, h.registry, cids)
 	if err != nil {
 		log.Errorw("query failed", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)

@@ -365,21 +365,3 @@ func (r *Registry) discover(discoAddr string, signature, signed []byte) (*discov
 
 	return discoData, nil
 }
-
-// VerifySignature verifies the signature over the given data using the public
-// key from the given peerID
-func VerifySignature(peerID peer.ID, signature, data []byte) (bool, error) {
-	if len(signature) == 0 {
-		return false, errors.New("empty signature")
-	}
-	if len(data) == 0 {
-		return false, errors.New("no data to sign")
-	}
-
-	pubKey, err := peerID.ExtractPublicKey()
-	if err != nil {
-		return false, err
-	}
-
-	return pubKey.Verify(data, signature)
-}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/go-indexer-core/entry"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -16,10 +15,10 @@ type Request struct {
 	Cids []cid.Cid
 }
 
-// CidResult aggregates all entries for a single CID.
+// CidResult aggregates all values for a single CID.
 type CidResult struct {
-	Cid     cid.Cid
-	Entries []entry.Value
+	Cid    cid.Cid
+	Values []indexer.Value
 }
 
 // Response used to answer client queries/requests
@@ -59,18 +58,18 @@ func UnmarshalResp(b []byte) (*Response, error) {
 	return r, err
 }
 
-// PopulateResponse reads from indexer engine to populate a response from a
+// PopulateResponse reads from indexer core to populate a response from a
 // list of CIDs.
 //
 // TODO: This should be relocated to a place common to all finder handlers, but
 // not under /api/
-func PopulateResponse(engine *indexer.Engine, registry *providers.Registry, cids []cid.Cid) (*Response, error) {
+func PopulateResponse(indexer indexer.Interface, registry *providers.Registry, cids []cid.Cid) (*Response, error) {
 	cidResults := make([]CidResult, 0, len(cids))
 	var providerResults []peer.AddrInfo
 	providerSeen := map[peer.ID]struct{}{}
 
 	for i := range cids {
-		values, found, err := engine.Get(cids[i])
+		values, found, err := indexer.Get(cids[i])
 		if err != nil {
 			return nil, fmt.Errorf("failed to query cid %q: %s", cids[i], err)
 		}
@@ -78,7 +77,7 @@ func PopulateResponse(engine *indexer.Engine, registry *providers.Registry, cids
 			continue
 		}
 		// Add the response to the list of CID responses
-		cidResults = append(cidResults, CidResult{Cid: cids[i], Entries: values})
+		cidResults = append(cidResults, CidResult{Cid: cids[i], Values: values})
 
 		// Lookup provider info for each unique provider
 		for j := range values {
@@ -108,6 +107,6 @@ func PopulateResponse(engine *indexer.Engine, registry *providers.Registry, cids
 func (r *Response) PrettyPrint() {
 	for i := range r.CidResults {
 		fmt.Println("Cid:", r.CidResults[i].Cid)
-		fmt.Println("Entries:", r.CidResults[i].Entries)
+		fmt.Println("Values:", r.CidResults[i].Values)
 	}
 }
