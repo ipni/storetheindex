@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 
-	"github.com/filecoin-project/go-indexer-core"
+	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/providers"
@@ -12,16 +12,16 @@ import (
 
 // Finder handles requests for the finder resource
 type Finder struct {
-	engine   *indexer.Engine
+	indexer  indexer.Interface
 	registry *providers.Registry
 }
 
 // HandlerFunc is the function signature required by handlers in this package
 type HandlerFunc func(context.Context, peer.ID, *pb.Message) (*pb.Message, error)
 
-func NewFinder(engine *indexer.Engine, registry *providers.Registry) *Finder {
+func NewFinder(indexer indexer.Interface, registry *providers.Registry) *Finder {
 	return &Finder{
-		engine:   engine,
+		indexer:  indexer,
 		registry: registry,
 	}
 }
@@ -32,7 +32,7 @@ func (h *Finder) Get(ctx context.Context, p peer.ID, msg *pb.Message) (*pb.Messa
 		return nil, err
 	}
 
-	r, err := models.PopulateResponse(h.engine, h.registry, req.Cids)
+	r, err := models.PopulateResponse(h.indexer, h.registry, req.Cids)
 	if err != nil {
 		return nil, err
 	}

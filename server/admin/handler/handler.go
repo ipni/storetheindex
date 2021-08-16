@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/go-indexer-core/entry"
 	"github.com/filecoin-project/storetheindex/internal/importer"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
@@ -16,12 +15,12 @@ import (
 var log = logging.Logger("admin_handler")
 
 type AdminHandler struct {
-	engine *indexer.Engine
+	indexer indexer.Interface
 }
 
-func New(engine *indexer.Engine) *AdminHandler {
+func New(indexer indexer.Interface) *AdminHandler {
 	return &AdminHandler{
-		engine: engine,
+		indexer: indexer,
 	}
 }
 
@@ -49,9 +48,9 @@ func (h *AdminHandler) ImportManifest(w http.ResponseWriter, r *http.Request) {
 	errOut := make(chan error, 1)
 	go importer.ReadManifest(r.Context(), file, out, errOut)
 
-	entry := entry.MakeValue(miner, 0, nil)
+	value := indexer.MakeValue(miner, 0, nil)
 	for c := range out {
-		err = h.importCallback(c, entry)
+		err = h.importCallback(c, value)
 		if err != nil {
 			log.Errorw("import callback error", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -91,7 +90,7 @@ func (h *AdminHandler) ImportCidList(w http.ResponseWriter, r *http.Request) {
 	errOut := make(chan error, 1)
 	go importer.ReadCids(r.Context(), file, out, errOut)
 
-	value := entry.MakeValue(miner, 0, nil)
+	value := indexer.MakeValue(miner, 0, nil)
 	for c := range out {
 		err = h.importCallback(c, value)
 		if err != nil {
@@ -111,13 +110,13 @@ func (h *AdminHandler) ImportCidList(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *AdminHandler) importCallback(c cid.Cid, value entry.Value) error {
+func (h *AdminHandler) importCallback(c cid.Cid, value indexer.Value) error {
 	// Disregard empty Cids.
 	if c == cid.Undef {
 		return nil
 	}
 	// NOTE: We disregard errors for now
-	_, err := h.engine.Put(c, value)
+	_, err := h.indexer.Put(c, value)
 	if err != nil {
 		log.Errorw("indexer Put returned error", "err", err, "cid", c)
 		return errors.New("failed to store in indexer")
@@ -129,7 +128,7 @@ func (h *AdminHandler) importCallback(c cid.Cid, value entry.Value) error {
 
 func (h *AdminHandler) HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	// TODO: Report on engine health?
+	// TODO: Report on indexer core health?
 	_, err := w.Write([]byte("\"OK\""))
 	if err != nil {
 		log.Errorw("cannot write HealthCheck response:", err)

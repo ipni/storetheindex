@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
-	core "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/go-indexer-core/cache"
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
+	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store"
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
@@ -85,7 +85,7 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create indexer core
-	indexerCore := core.NewEngine(resultCache, valueStore)
+	indexerCore := engine.New(resultCache, valueStore)
 	log.Infow("Indexer engine initialized")
 
 	// Create datastore

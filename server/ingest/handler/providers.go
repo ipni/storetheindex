@@ -115,20 +115,9 @@ func (h *Handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var data []byte
-	for _, a := range regReq.AddrInfo.Addrs {
-		data = append(data, a.Bytes()...)
-	}
-	data = append(data, regReq.Nonce...)
-	providerID := regReq.AddrInfo.ID
-	ok, err := providers.VerifySignature(providerID, regReq.Signature, data)
+	err = regReq.VerifySignature()
 	if err != nil {
-		log.Errorw("could not verify provider signature", "err", err, "provider", providerID)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if !ok {
-		log.Errorw("invalid provider signature", "err", err, "provider", providerID)
+		log.Errorw("signature not verified", "err", err, "provider", regReq.AddrInfo.ID)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -143,7 +132,7 @@ func (h *Handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Debugw("registered provider", "provider", providerID)
+	log.Debugw("registered provider", "provider", regReq.AddrInfo.ID)
 	w.WriteHeader(http.StatusOK)
 }
 

@@ -3,7 +3,7 @@ package models
 import (
 	"testing"
 
-	"github.com/filecoin-project/go-indexer-core/entry"
+	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/go-indexer-core/store/test"
 	"github.com/filecoin-project/storetheindex/internal/utils"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -18,7 +18,7 @@ func TestMarshal(t *testing.T) {
 		t.Fatal(err)
 	}
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
-	e := entry.MakeValue(p, 0, cids[0].Bytes())
+	v := indexer.MakeValue(p, 0, cids[0].Bytes())
 
 	// Masrhal request and check e2e
 	t.Log("e2e marshalling request")
@@ -44,7 +44,7 @@ func TestMarshal(t *testing.T) {
 	}
 
 	for i := range cids {
-		resp.CidResults = append(resp.CidResults, CidResult{cids[i], []entry.Value{e}})
+		resp.CidResults = append(resp.CidResults, CidResult{cids[i], []indexer.Value{v}})
 	}
 	m1, err := ma.NewMultiaddr("/ip4/127.0.0.1/udp/1234")
 	if err != nil {
@@ -68,12 +68,12 @@ func TestMarshal(t *testing.T) {
 
 }
 
-func EqualCidResult(e1, e2 []CidResult) bool {
-	if len(e1) != len(e2) {
+func EqualCidResult(res1, res2 []CidResult) bool {
+	if len(res1) != len(res2) {
 		return false
 	}
-	for i := range e1 {
-		if e1[i].Cid == e2[i].Cid && !utils.EqualEntries(e1[i].Entries, e2[i].Entries) {
+	for i := range res1 {
+		if res1[i].Cid == res2[i].Cid && !utils.EqualValues(res1[i].Values, res2[i].Values) {
 			return false
 		}
 	}

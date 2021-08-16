@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/filecoin-project/go-indexer-core"
+	indexer "github.com/filecoin-project/go-indexer-core"
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/finder"
 	"github.com/filecoin-project/storetheindex/internal/providers"
@@ -38,7 +38,7 @@ func (s *Server) Endpoint() net.Endpoint {
 }
 
 // New creates a new libp2p server
-func New(ctx context.Context, h host.Host, engine *indexer.Engine, registry *providers.Registry, options ...ServerOption) (*Server, error) {
+func New(ctx context.Context, h host.Host, indexer indexer.Interface, registry *providers.Registry, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func New(ctx context.Context, h host.Host, engine *indexer.Engine, registry *pro
 
 	s := &Server{
 		ctx:           ctx,
-		finderHandler: handler.NewFinder(engine, registry),
+		finderHandler: handler.NewFinder(indexer, registry),
 		host:          h,
 		self:          h.ID(),
 	}

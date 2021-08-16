@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/filecoin-project/go-indexer-core"
+	indexer "github.com/filecoin-project/go-indexer-core"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/client/http"
 	"github.com/filecoin-project/storetheindex/internal/finder"
 	"github.com/filecoin-project/storetheindex/internal/providers"
@@ -13,7 +13,7 @@ import (
 	"github.com/filecoin-project/storetheindex/server/finder/test"
 )
 
-func setupServer(ctx context.Context, ind *indexer.Engine, reg *providers.Registry, t *testing.T) *httpserver.Server {
+func setupServer(ctx context.Context, ind indexer.Interface, reg *providers.Registry, t *testing.T) *httpserver.Server {
 	s, err := httpserver.New("127.0.0.1:0", ind, reg)
 	if err != nil {
 		t.Fatal(err)

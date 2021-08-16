@@ -5,7 +5,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/filecoin-project/go-indexer-core"
+	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/filecoin-project/storetheindex/server/ingest/handler"
 	indnet "github.com/filecoin-project/storetheindex/server/net"
@@ -25,7 +25,7 @@ func (s *Server) Endpoint() indnet.Endpoint {
 	return indnet.HTTPEndpoint("http://" + s.l.Addr().String())
 }
 
-func New(listen string, engine *indexer.Engine, registry *providers.Registry, options ...ServerOption) (*Server, error) {
+func New(listen string, indexer indexer.Interface, registry *providers.Registry, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func New(listen string, engine *indexer.Engine, registry *providers.Registry, op
 	}
 	s := &Server{server, l}
 
-	h := handler.New(engine, registry)
+	h := handler.New(indexer, registry)
 
 	// Advertisement routes
 	r.HandleFunc("/ingestion/content", h.IndexContent).Methods("POST")

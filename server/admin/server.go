@@ -5,7 +5,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/filecoin-project/go-indexer-core"
+	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/server/admin/handler"
 	indnet "github.com/filecoin-project/storetheindex/server/net"
 	"github.com/gorilla/mux"
@@ -17,7 +17,6 @@ var log = logging.Logger("adminserver")
 type Server struct {
 	server *http.Server
 	l      net.Listener
-	engine *indexer.Engine
 }
 
 // Endpoint returns the endpoint of the protocol server.
@@ -25,7 +24,7 @@ func (s *Server) Endpoint() indnet.Endpoint {
 	return indnet.HTTPEndpoint("http://" + s.l.Addr().String())
 }
 
-func New(listen string, engine *indexer.Engine, options ...ServerOption) (*Server, error) {
+func New(listen string, indexer indexer.Interface, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
@@ -43,9 +42,9 @@ func New(listen string, engine *indexer.Engine, options ...ServerOption) (*Serve
 		WriteTimeout: cfg.apiWriteTimeout,
 		ReadTimeout:  cfg.apiReadTimeout,
 	}
-	s := &Server{server, l, engine}
+	s := &Server{server, l}
 
-	adminHandler := handler.New(engine)
+	adminHandler := handler.New(indexer)
 
 	// Set protocol handlers
 	// Import routes
