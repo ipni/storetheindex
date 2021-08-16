@@ -1,4 +1,4 @@
 package v0
 
-//go:generate go run ingestion/gen.go ingestion/
-//go:generate gofmt -w ingestion/ipldsch_minima.go ingestion/ipldsch_satisfaction.go ingestion/ipldsch_types.go
+//go:generate go run ingest/schema/gen.go ingest/schema
+//go:generate gofmt -w ingest/schema/ipldsch_minima.go ingest/schema/ipldsch_satisfaction.go ingest/schema/ipldsch_types.go

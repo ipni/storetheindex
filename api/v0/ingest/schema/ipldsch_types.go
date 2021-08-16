@@ -61,7 +61,7 @@ type Advertisement = *_Advertisement
 type _Advertisement struct {
 	ID           _Bytes
 	IndexID      _Link_Index
-	Previous     _Link_Advertisement
+	Previous     _Link_Advertisement__Maybe
 	Provider     _String
 	Signature    _Bytes__Maybe
 	GraphSupport _Bool
