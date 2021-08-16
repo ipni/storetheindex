@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -26,6 +27,8 @@ func main() {
 		select {
 		case <-interrupt:
 			cancel()
+			fmt.Println("Received interrupt signal, shutting down...")
+			fmt.Println("(Hit ctrl-c again to force-shutdown the daemon.)")
 		case <-ctx.Done():
 		}
 		// Allow any forther SIGTERM or SIGING to kill process

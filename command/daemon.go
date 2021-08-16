@@ -18,10 +18,11 @@ import (
 	adminserver "github.com/filecoin-project/storetheindex/server/admin"
 	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	p2pfinderserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
-	//"github.com/ipfs/go-ds-leveldb"
+	ingestserver "github.com/filecoin-project/storetheindex/server/ingest"
+	"github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
-	ma "github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/urfave/cli/v2"
 )
@@ -83,31 +84,33 @@ func daemonCommand(cctx *cli.Context) error {
 		log.Info("result cache disabled")
 	}
 
-	// Create registry
-	registry := providers.NewRegistry()
-
 	// Create indexer core
 	indexerCore := core.NewEngine(resultCache, valueStore)
 	log.Infow("Indexer engine initialized")
 
-	/*
-		// Create datastore
-		dataStorePath, err := config.Path("", cfg.Datastore.Dir)
-		if err != nil {
-			return err
-		}
-		err = checkWritable(dataStorePath)
-		if err != nil {
-			return err
-		}
-		dstore, err := leveldb.NewDatastore(dataStorePath, nil)
-		if err != nil {
-			return err
-		}
-	*/
+	// Create datastore
+	dataStorePath, err := config.Path("", cfg.Datastore.Dir)
+	if err != nil {
+		return err
+	}
+	err = checkWritable(dataStorePath)
+	if err != nil {
+		return err
+	}
+	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
+	if err != nil {
+		return err
+	}
+
+	// Create registry
+	// TODO: replace discovery interface with lotus
+	registry, err := providers.NewRegistry(cfg.Discovery, dstore, nil)
+	if err != nil {
+		return fmt.Errorf("cannot create provider registry: %s", err)
+	}
 
 	// Create admin HTTP server
-	maddr, err := ma.NewMultiaddr(cfg.Addresses.Admin)
+	maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Admin)
 	if err != nil {
 		return fmt.Errorf("bad admin address in config %s: %s", cfg.Addresses.Admin, err)
 	}
@@ -115,14 +118,14 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	adminAPI, err := adminserver.New(adminAddr.String(), indexerCore)
+	adminSvr, err := adminserver.New(adminAddr.String(), indexerCore)
 	if err != nil {
 		return err
 	}
-	log.Infow("Admin API initialized", "address", adminAddr)
+	log.Infow("admin server initialized", "address", adminAddr)
 
 	// Create finder HTTP server
-	maddr, err = ma.NewMultiaddr(cfg.Addresses.Finder)
+	maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Finder)
 	if err != nil {
 		return fmt.Errorf("bad finder address in config %s: %s", cfg.Addresses.Finder, err)
 	}
@@ -130,17 +133,32 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	finderAPI, err := httpfinderserver.New(finderAddr.String(), indexerCore, registry)
+	finderSvr, err := httpfinderserver.New(finderAddr.String(), indexerCore, registry)
 	if err != nil {
 		return err
 	}
-	log.Infow("Client finder API initialized", "address", finderAddr)
+	log.Infow("finder server initialized", "address", finderAddr)
+
+	// Create ingest HTTP server
+	maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Ingest)
+	if err != nil {
+		return fmt.Errorf("bad ingest address in config %s: %s", cfg.Addresses.Ingest, err)
+	}
+	ingestAddr, err := manet.ToNetAddr(maddr)
+	if err != nil {
+		return err
+	}
+	ingestSvr, err := ingestserver.New(ingestAddr.String(), indexerCore, registry)
+	if err != nil {
+		return err
+	}
+	log.Infow("ingest server initialized", "address", finderAddr)
 
 	var (
-		p2pAPI          *p2pfinderserver.Server
+		p2pSvr          *p2pfinderserver.Server
 		cancelP2pFinder context.CancelFunc
 	)
-	// Create libp2p host
+	// Create libp2p host and finder libp2p server
 	if !cfg.Addresses.DisableP2P && !cctx.Bool("disablep2p") {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -159,21 +177,24 @@ func daemonCommand(cctx *cli.Context) error {
 			return err
 		}
 
-		p2pAPI, err = p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
+		p2pSvr, err = p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
 		if err != nil {
 			return err
 		}
 		cancelP2pFinder = cancel
-		log.Infow("Client libp2p API initialized", "host_id", p2pHost.ID())
+		log.Infow("Finder libp2p server  initialized", "host_id", p2pHost.ID())
 	}
 
 	log.Info("Starting daemon servers")
-	errChan := make(chan error, 2)
+	errChan := make(chan error, 3)
 	go func() {
-		errChan <- finderAPI.Start()
+		errChan <- adminSvr.Start()
 	}()
 	go func() {
-		errChan <- adminAPI.Start()
+		errChan <- finderSvr.Start()
+	}()
+	go func() {
+		errChan <- ingestSvr.Start()
 	}()
 
 	var finalErr error
@@ -199,16 +220,20 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 	}()
 
-	if p2pAPI != nil {
+	if p2pSvr != nil {
 		cancelP2pFinder()
 	}
 
-	if err = adminAPI.Shutdown(ctx); err != nil {
-		log.Errorw("Error shutting down admin api", "err", err)
+	if err = ingestSvr.Shutdown(ctx); err != nil {
+		log.Errorw("Error shutting down ingest server", "err", err)
 		finalErr = ErrDaemonStop
 	}
-	if err = finderAPI.Shutdown(ctx); err != nil {
-		log.Errorw("Error shutting down finder api", "err", err)
+	if err = finderSvr.Shutdown(ctx); err != nil {
+		log.Errorw("Error shutting down finder server", "err", err)
+		finalErr = ErrDaemonStop
+	}
+	if err = adminSvr.Shutdown(ctx); err != nil {
+		log.Errorw("Error shutting down admin server", "err", err)
 		finalErr = ErrDaemonStop
 	}
 

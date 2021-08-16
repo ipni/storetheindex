@@ -6,9 +6,10 @@ require (
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.0.0-20210730054841-13ede93e8530
 	github.com/gogo/protobuf v1.3.2
-	github.com/gorilla/mux v1.7.3
+	github.com/gorilla/mux v1.7.4
 	github.com/ipfs/go-cid v0.0.7
-	github.com/ipfs/go-log v1.0.5
+	github.com/ipfs/go-datastore v0.4.5
+	github.com/ipfs/go-ds-leveldb v0.4.2
 	github.com/ipfs/go-log/v2 v2.2.0
 	github.com/ipld/go-ipld-prime v0.7.0
 	github.com/lib/pq v1.10.2

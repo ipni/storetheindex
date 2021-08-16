@@ -9,52 +9,23 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
-	ma "github.com/multiformats/go-multiaddr"
 )
-
-// MultiaddrSlice is a list of muliaddr.
-type MultiaddrSlice []ma.Multiaddr
-
-// UnmarshalJSON for MultiaddrSlice
-func (m *MultiaddrSlice) UnmarshalJSON(raw []byte) (err error) {
-	var temp []string
-	if err := json.Unmarshal(raw, &temp); err != nil {
-		return err
-	}
-
-	res := make([]ma.Multiaddr, len(temp))
-	for i, str := range temp {
-		res[i], err = ma.NewMultiaddr(str)
-		if err != nil {
-			return err
-		}
-	}
-	*m = res
-	return nil
-}
 
 // Request is the client request send by end user clients
 type Request struct {
 	Cids []cid.Cid
 }
 
-// ProviderData aggregates provider-related data that wants to
-// be added in a response
-type ProviderData struct {
-	Provider peer.ID
-	Addrs    MultiaddrSlice
-}
-
-// CidData aggregates all entries for a single CID.
-type CidData struct {
+// CidResult aggregates all entries for a single CID.
+type CidResult struct {
 	Cid     cid.Cid
 	Entries []entry.Value
 }
 
 // Response used to answer client queries/requests
 type Response struct {
-	Cids      []CidData
-	Providers []ProviderData
+	CidResults []CidResult
+	Providers  []peer.AddrInfo
 	// NOTE: This feature is not enabled yet.
 	// Signature []byte	// Providers signature.
 }
@@ -94,8 +65,8 @@ func UnmarshalResp(b []byte) (*Response, error) {
 // TODO: This should be relocated to a place common to all finder handlers, but
 // not under /api/
 func PopulateResponse(engine *indexer.Engine, registry *providers.Registry, cids []cid.Cid) (*Response, error) {
-	cidResults := make([]CidData, 0, len(cids))
-	var providerResults []ProviderData
+	cidResults := make([]CidResult, 0, len(cids))
+	var providerResults []peer.AddrInfo
 	providerSeen := map[peer.ID]struct{}{}
 
 	for i := range cids {
@@ -107,7 +78,7 @@ func PopulateResponse(engine *indexer.Engine, registry *providers.Registry, cids
 			continue
 		}
 		// Add the response to the list of CID responses
-		cidResults = append(cidResults, CidData{Cid: cids[i], Entries: values})
+		cidResults = append(cidResults, CidResult{Cid: cids[i], Entries: values})
 
 		// Lookup provider info for each unique provider
 		for j := range values {
@@ -117,26 +88,26 @@ func PopulateResponse(engine *indexer.Engine, registry *providers.Registry, cids
 			}
 			providerSeen[provID] = struct{}{}
 
-			pinfo, found := registry.ProviderInfo(provID)
-			if !found {
+			pinfo := registry.ProviderInfo(provID)
+			if pinfo == nil {
 				//log.Errorw("no info for provider", "provider_id", provID)
 				continue
 			}
 
-			providerResults = append(providerResults, ProviderData{provID, pinfo.Addresses})
+			providerResults = append(providerResults, pinfo.AddrInfo)
 		}
 	}
 
 	return &Response{
-		Cids:      cidResults,
-		Providers: providerResults,
+		CidResults: cidResults,
+		Providers:  providerResults,
 	}, nil
 }
 
 // PrettyPrint a response for CLI output
 func (r *Response) PrettyPrint() {
-	for i := range r.Cids {
-		fmt.Println("Cid:", r.Cids[i].Cid)
-		fmt.Println("Entries:", r.Cids[i].Entries)
+	for i := range r.CidResults {
+		fmt.Println("Cid:", r.CidResults[i].Cid)
+		fmt.Println("Entries:", r.CidResults[i].Entries)
 	}
 }

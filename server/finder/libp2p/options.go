@@ -10,7 +10,7 @@ import (
 
 // Protocol ID
 const (
-	pid protocol.ID = "/indexer/client/0.0.1"
+	pid0 protocol.ID = "/indexer/client/0.0.1"
 )
 
 // Options is a structure containing all the options that can be used when constructing p2pserver

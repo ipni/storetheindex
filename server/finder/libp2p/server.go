@@ -9,13 +9,12 @@ import (
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/finder"
 	"github.com/filecoin-project/storetheindex/internal/providers"
-	p2phandler "github.com/filecoin-project/storetheindex/server/finder/libp2p/handler"
+	"github.com/filecoin-project/storetheindex/server/finder/libp2p/handler"
 	"github.com/filecoin-project/storetheindex/server/net"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/libp2p/go-msgio"
 )
 
@@ -27,19 +26,10 @@ var log = logging.Logger("p2pserver")
 
 // Server handles client requests over libp2p
 type Server struct {
-	ctx       context.Context
-	host      host.Host
-	self      peer.ID
-	engine    *indexer.Engine
-	protocols []protocol.ID
-	registry  *providers.Registry
-}
-
-func (s *Server) setProtocolHandler(h network.StreamHandler) {
-	// For every announced protocol set this new handler.
-	for _, p := range s.protocols {
-		s.host.SetStreamHandler(p, h)
-	}
+	ctx           context.Context
+	finderHandler *handler.Finder
+	host          host.Host
+	self          peer.ID
 }
 
 // Endpoint returns the endpoint of the protocol server.
@@ -48,32 +38,30 @@ func (s *Server) Endpoint() net.Endpoint {
 }
 
 // New creates a new libp2p server
-func New(ctx context.Context, h host.Host, e *indexer.Engine, reg *providers.Registry, options ...ServerOption) (*Server, error) {
+func New(ctx context.Context, h host.Host, engine *indexer.Engine, registry *providers.Registry, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
 	}
-	protocols := []protocol.ID{pid}
 
 	s := &Server{
-		ctx:       ctx,
-		host:      h,
-		self:      h.ID(),
-		engine:    e,
-		protocols: protocols,
-		registry:  reg,
+		ctx:           ctx,
+		finderHandler: handler.NewFinder(engine, registry),
+		host:          h,
+		self:          h.ID(),
 	}
 
-	s.setProtocolHandler(s.handleNewStream)
+	// Set handler for each announced protocol
+	h.SetStreamHandler(pid0, s.handleNewStream)
 
 	return s, nil
 }
 
-func (s *Server) handlerForMsgType(t pb.Message_MessageType) p2phandler.FinderHandlerFunc {
+func (s *Server) handlerForMsgType(t pb.Message_MessageType) handler.HandlerFunc {
 	switch t {
 	case pb.Message_GET:
 		log.Debug("Handle new GET message")
-		return p2phandler.HandleFinderGet(s.engine, s.registry)
+		return s.finderHandler.Get
 	}
 	// NOTE: add here the processing of additional message types
 	// that want to be supported over this protocol.

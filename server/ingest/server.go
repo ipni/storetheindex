@@ -1,4 +1,4 @@
-package httpfinderserver
+package ingestserver
 
 import (
 	"context"
@@ -7,13 +7,13 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/providers"
-	"github.com/filecoin-project/storetheindex/server/finder/http/handler"
+	"github.com/filecoin-project/storetheindex/server/ingest/handler"
 	indnet "github.com/filecoin-project/storetheindex/server/net"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )
 
-var log = logging.Logger("findserver")
+var log = logging.Logger("ingestion_server")
 
 type Server struct {
 	server *http.Server
@@ -45,13 +45,20 @@ func New(listen string, engine *indexer.Engine, registry *providers.Registry, op
 	}
 	s := &Server{server, l}
 
-	// Resource handlers
-	h := handler.NewFinder(engine, registry)
+	h := handler.New(engine, registry)
 
-	// Client routes
-	r.HandleFunc("/cid/{cid}", h.GetSingleCid).Methods("GET")
-	r.HandleFunc("/cid", h.GetBatchCid).Methods("POST")
+	// Advertisement routes
+	r.HandleFunc("/ingestion/content", h.IndexContent).Methods("POST")
+	r.HandleFunc("/ingestion/advertisement", h.Advertise).Methods("PUT")
 
+	// Discovery
+	r.HandleFunc("/discover", h.DiscoverProvider).Methods("POST")
+
+	// Provider routes
+	r.HandleFunc("/providers", h.ListProviders).Methods("GET")
+	r.HandleFunc("/providers/{providerid}", h.GetProvider).Methods("GET")
+	r.HandleFunc("/providers", h.RegisterProvider).Methods("POST")
+	r.HandleFunc("/providers/{providerid}", h.UnregisterProvider).Methods("DELETE")
 	return s, nil
 }
 
