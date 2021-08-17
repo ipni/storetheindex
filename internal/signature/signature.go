@@ -8,6 +8,8 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
+const NonceLen = 16
+
 // VerifySignature verifies the signature over the given data using the public
 // key from the given peerID
 func Verify(peerID peer.ID, data, signature []byte) error {
@@ -36,9 +38,9 @@ func Verify(peerID peer.ID, data, signature []byte) error {
 	return nil
 }
 
-// Nonce generates 16 random bytes
+// Nonce generates NonceLen random bytes
 func Nonce() ([]byte, error) {
-	b := make([]byte, 16)
+	b := make([]byte, NonceLen)
 	_, err := rand.Read(b)
 	if err != nil {
 		return nil, fmt.Errorf("could not create nonce: %s", err)

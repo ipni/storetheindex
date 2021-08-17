@@ -3,7 +3,7 @@ LABEL maintainer="Andrew Gillis <andrew.gillis@protocol.ai>"
 
 # Install deps
 RUN apt-get update && apt-get install -y \
-  ca-certificates
+    ca-certificates
 
 ENV SRC_DIR /storetheindex
 
@@ -20,22 +20,24 @@ RUN go build
 
 # Get su-exec, a very minimal tool for dropping privileges,
 # and tini, a very minimal init daemon for containers
-ENV SUEXEC_VERSION v0.2
-ENV TINI_VERSION v0.19.0
+ENV \
+    SUEXEC_VERSION=v0.2 \
+    TINI_VERSION=v0.19.0
+    
 RUN set -eux; \
     dpkgArch="$(dpkg --print-architecture)"; \
     case "${dpkgArch##*-}" in \
         "amd64" | "armhf" | "arm64") tiniArch="tini-static-$dpkgArch" ;;\
         *) echo >&2 "unsupported architecture: ${dpkgArch}"; exit 1 ;; \
     esac; \
-  cd /tmp \
-  && git clone https://github.com/ncopa/su-exec.git \
-  && cd su-exec \
-  && git checkout -q $SUEXEC_VERSION \
-  && make su-exec-static \
-  && cd /tmp \
-  && wget -q -O tini https://github.com/krallin/tini/releases/download/$TINI_VERSION/$tiniArch \
-  && chmod +x tini
+    cd /tmp \
+    && git clone https://github.com/ncopa/su-exec.git \
+    && cd su-exec \
+    && git checkout -q $SUEXEC_VERSION \
+    && make su-exec-static \
+    && cd /tmp \
+    && wget -q -O tini https://github.com/krallin/tini/releases/download/$TINI_VERSION/$tiniArch \
+    && chmod +x tini
 
 # Create the target image
 FROM busybox:1.31-glibc
@@ -47,7 +49,7 @@ COPY --from=builder storetheindex/storetheindex /usr/local/bin/storetheindex
 COPY --from=builder storetheindex/scripts/start_storetheindex /usr/local/bin/start_storetheindex
 COPY --from=builder /tmp/su-exec/su-exec-static /sbin/su-exec
 COPY --from=builder /tmp/tini /sbin/tini
-COPY --from=0 /etc/ssl/certs /etc/ssl/certs
+COPY --from=builder /etc/ssl/certs /etc/ssl/certs
 
 # Set permissions on storetheindex
 RUN chmod 0755 /usr/local/bin/storetheindex
@@ -62,11 +64,14 @@ EXPOSE 3000
 # Ingest interface
 EXPOSE 3001
 
+ENV \
+    STORETHEINDEX_LOTUS_GATEWAY="wss://api.chain.love" \
+    STORETHEINDEX_PATH="/data/storetheindex"
+
 # Create the repo directory and switch to a non-privileged user.
-ENV STORETHEINDEX_PATH /data/storetheindex
 RUN mkdir -p $STORETHEINDEX_PATH \
-  && adduser -D -h $STORETHEINDEX_PATH -u 1000 -G users storetheindex \
-  && chown storetheindex:users $STORETHEINDEX_PATH
+    && adduser -D -h $STORETHEINDEX_PATH -u 1000 -G users storetheindex \
+    && chown storetheindex:users $STORETHEINDEX_PATH
 
 # Expose the repo as a volume.
 # start_storetheindex initializes a repo if none is mounted.

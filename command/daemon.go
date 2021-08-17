@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/filecoin-project/go-indexer-core/cache"
@@ -14,6 +15,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/lotus"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	adminserver "github.com/filecoin-project/storetheindex/server/admin"
 	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
@@ -102,9 +104,28 @@ func daemonCommand(cctx *cli.Context) error {
 		return err
 	}
 
+	var lotusDiscovery *lotus.Discovery
+	gw := cfg.Discovery.LotusGateway
+	if gw != "" {
+		log.Infow("discovery using lotus", "gateway", gw)
+		ctx := context.Background()
+		pfx := config.LotusPathPrefix
+		// Create lotus client
+		if strings.HasPrefix(gw, "/") {
+			lotusDiscovery, err = lotus.SetupLocal(ctx, gw)
+		} else if strings.HasPrefix(gw, pfx) {
+			lotusDiscovery, err = lotus.SetupLocal(ctx, gw[len(pfx):])
+		} else {
+			lotusDiscovery, err = lotus.SetupGateway(ctx, gw)
+		}
+		if err != nil {
+			return fmt.Errorf("cannot create lotus client: %s", err)
+		}
+		defer lotusDiscovery.Close()
+	}
+
 	// Create registry
-	// TODO: replace discovery interface with lotus
-	registry, err := providers.NewRegistry(cfg.Discovery, dstore, nil)
+	registry, err := providers.NewRegistry(cfg.Discovery, dstore, lotusDiscovery)
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}

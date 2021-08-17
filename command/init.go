@@ -19,35 +19,6 @@ var InitCmd = &cli.Command{
 func initCommand(cctx *cli.Context) error {
 	log.Info("Initializing indexer config file")
 
-	// First read and validate flag values
-	adminAddr := cctx.String("adminaddr")
-	if adminAddr != "" {
-		_, err := multiaddr.NewMultiaddr(adminAddr)
-		if err != nil {
-			return fmt.Errorf("bad admiaddr: %s", err)
-		}
-	}
-
-	finderAddr := cctx.String("finderaddr")
-	if finderAddr != "" {
-		_, err := multiaddr.NewMultiaddr(finderAddr)
-		if err != nil {
-			return fmt.Errorf("bad finderaddr: %s", err)
-		}
-	}
-
-	cacheSize := int(cctx.Int64("cachesize"))
-
-	storeType := cctx.String("store")
-	switch storeType {
-	case "":
-		// Use config default
-	case "sth", "pogreb":
-		// These are good
-	default:
-		return fmt.Errorf("unrecognized store type: %s", storeType)
-	}
-
 	// Check that the config root exists and it writable.
 	configRoot, err := config.PathRoot()
 	if err != nil {
@@ -73,17 +44,52 @@ func initCommand(cctx *cli.Context) error {
 	}
 
 	// Use values from flags to override defaults
+	cacheSize := int(cctx.Int64("cachesize"))
 	if cacheSize >= 0 {
 		cfg.Indexer.CacheSize = cacheSize
 	}
-	if storeType != "" {
+
+	storeType := cctx.String("store")
+	switch storeType {
+	case "":
+		// Use config default
+	case "sth", "pogreb":
+		// These are good
 		cfg.Indexer.ValueStoreType = storeType
+	default:
+		return fmt.Errorf("unrecognized store type: %s", storeType)
 	}
+
+	adminAddr := cctx.String("listen-admin")
 	if adminAddr != "" {
+		_, err := multiaddr.NewMultiaddr(adminAddr)
+		if err != nil {
+			return fmt.Errorf("bad listen-admin: %s", err)
+		}
 		cfg.Addresses.Admin = adminAddr
 	}
+
+	finderAddr := cctx.String("listen-finder")
 	if finderAddr != "" {
+		_, err := multiaddr.NewMultiaddr(finderAddr)
+		if err != nil {
+			return fmt.Errorf("bad listen-finder: %s", err)
+		}
 		cfg.Addresses.Finder = finderAddr
+	}
+
+	ingestAddr := cctx.String("listen-ingest")
+	if ingestAddr != "" {
+		_, err := multiaddr.NewMultiaddr(ingestAddr)
+		if err != nil {
+			return fmt.Errorf("bad listen-ingest: %s", err)
+		}
+		cfg.Addresses.Ingest = ingestAddr
+	}
+
+	lotusGateway := cctx.String("lotus-gateway")
+	if lotusGateway != "" {
+		cfg.Discovery.LotusGateway = lotusGateway
 	}
 
 	return cfg.Save(configFile)

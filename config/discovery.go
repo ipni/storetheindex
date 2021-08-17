@@ -6,7 +6,11 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
+// LotusPathPrefix designates the LotusGateway as a filesystem path
+const LotusPathPrefix = "file://"
+
 const (
+	defaultLotusGateway     = "wss://api.chain.love"
 	defaultPollInterval     = Duration(24 * time.Hour)
 	defaultRediscoverWait   = Duration(5 * time.Minute)
 	defaultDiscoveryTimeout = Duration(2 * time.Minute)
@@ -19,6 +23,10 @@ const (
 type Discovery struct {
 	// Bootstrap is a Set of nodes to try to connect to at startup
 	Bootstrap []string
+	// LotusGateway is the address for a lotus gateway, used to collect chain
+	// information. If this starts with a "/" or "file://" then LotusGateway is
+	// interpreted as a path to a lotus node on the local filesystem.
+	LotusGateway string
 	// Peers lists nodes to attempt to stay connected with
 	Peers []peer.AddrInfo
 	// Policy configures which providers are allowed and blocked

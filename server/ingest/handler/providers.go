@@ -88,7 +88,14 @@ func (h *Handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.registry.Discover(discoReq.DiscoveryAddr, discoReq.Nonce, discoReq.Signature, false)
+	err = discoReq.VerifySignature()
+	if err != nil {
+		log.Errorw("signature not verified", "err", err, "provider", discoReq.ProviderID, "discover_addr", discoReq.DiscoveryAddr)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err = h.registry.Discover(discoReq.ProviderID, discoReq.DiscoveryAddr, discoReq.Nonce, discoReq.Signature, false)
 	if err != nil {
 		log.Errorw("cannot process discovery request", "err", err)
 		w.WriteHeader(http.StatusBadRequest)

@@ -84,16 +84,31 @@ var InitFlags = []cli.Flag{
 		Name:     "store",
 		Usage:    "Type of value store (sth, pogreb). Default is \"sth\"",
 		Aliases:  []string{"s"},
+		EnvVars:  []string{"STORETHEINDEX_VALUE_STORE"},
 		Required: false,
 	},
 	&cli.StringFlag{
-		Name:     "adminaddr",
+		Name:     "listen-admin",
 		Usage:    "Admin HTTP API listen address",
+		EnvVars:  []string{"STORETHEINDEX_LISTEN_ADMIN"},
 		Required: false,
 	},
 	&cli.StringFlag{
-		Name:     "finderaddr",
+		Name:     "listen-finder",
 		Usage:    "Finder HTTP API listen address",
+		EnvVars:  []string{"STORETHEINDEX_LISTEN_FINDER"},
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "listen-ingest",
+		Usage:    "Ingestion and discovery HTTP API listen address",
+		EnvVars:  []string{"STORETHEINDEX_LISTEN_INGEST"},
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "lotus-gateway",
+		Usage:    "Address for a lotus gateway to collect chain information",
+		EnvVars:  []string{"STORETHEINDEX_LOTUS_GATEWAY"},
 		Required: false,
 	},
 }

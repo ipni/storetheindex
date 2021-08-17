@@ -34,6 +34,7 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 		},
 
 		Discovery: Discovery{
+			LotusGateway: defaultLotusGateway,
 			Policy: Policy{
 				Action: defaultAction,
 				Trust:  []string{identity.PeerID},

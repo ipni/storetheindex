@@ -14,7 +14,7 @@ const (
 
 // Discovery is the interface that supplies functionality to discover providers
 type Discovery interface {
-	Discover(ctx context.Context, filecoinAddr string, signature, signed []byte) (*Discovered, error)
+	Discover(ctx context.Context, peerID peer.ID, discoveryAddr string, signature, signed []byte) (*Discovered, error)
 }
 
 // Discovered holds information about a provider that is discovered
