@@ -59,7 +59,7 @@ func newMockDiscovery(t *testing.T, providerID string) *mockDiscovery {
 	}
 }
 
-func (m *mockDiscovery) Discover(ctx context.Context, filecoinAddr string, signature, signed []byte) (*discovery.Discovered, error) {
+func (m *mockDiscovery) Discover(ctx context.Context, peerID peer.ID, filecoinAddr string, signature, signed []byte) (*discovery.Discovered, error) {
 	if filecoinAddr == "bad1234" {
 		return nil, errors.New("unknown miner")
 	}
@@ -113,7 +113,12 @@ func TestDiscoveryAllowed(t *testing.T) {
 	defer r.Close()
 	t.Log("created new registry")
 
-	err = r.Discover(minerDiscoAddr, nil, nil, true)
+	peerID, err := peer.Decode(exceptID)
+	if err != nil {
+		t.Fatal("bad provider ID:", err)
+	}
+
+	err = r.Discover(peerID, minerDiscoAddr, nil, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,11 +129,6 @@ func TestDiscoveryAllowed(t *testing.T) {
 		t.Error("did not get provider info for miner")
 	}
 	t.Log("got provider info for miner")
-
-	peerID, err := peer.Decode(exceptID)
-	if err != nil {
-		t.Fatal("bad provider ID:", err)
-	}
 
 	if info.AddrInfo.ID != peerID {
 		t.Error("did not get correct porvider id")
@@ -169,7 +169,8 @@ func TestDiscoveryBlocked(t *testing.T) {
 	defer r.Close()
 	t.Log("created new registry")
 
-	err = r.Discover(minerDiscoAddr, nil, nil, true)
+	var peerID peer.ID
+	err = r.Discover(peerID, minerDiscoAddr, nil, nil, true)
 	if err != ErrNotAllowed {
 		t.Fatal("expected error:", ErrNotAllowed)
 	}
