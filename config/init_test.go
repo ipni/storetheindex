@@ -3,7 +3,7 @@ package config
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"path/filepath"
 	"testing"
 
@@ -11,7 +11,7 @@ import (
 )
 
 func TestCreateIdentity(t *testing.T) {
-	id, err := CreateIdentity(ioutil.Discard)
+	id, err := CreateIdentity(io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestCreateIdentity(t *testing.T) {
 }
 
 func TestMarshalUnmarshal(t *testing.T) {
-	cfg, err := Init(ioutil.Discard)
+	cfg, err := Init(io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestSaveLoad(t *testing.T) {
 		t.Fatal("wrong root dir", cfgFile)
 	}
 
-	cfg, err := Init(ioutil.Discard)
+	cfg, err := Init(io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}

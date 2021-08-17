@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -74,7 +74,7 @@ func (h *Handler) GetProvider(w http.ResponseWriter, r *http.Request) {
 
 // POST /discover
 func (h *Handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -108,7 +108,7 @@ func (h *Handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 
 // POST /providers
 func (h *Handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
