@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/filecoin-project/go-indexer-core/cache"
@@ -105,19 +104,10 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	var lotusDiscovery *lotus.Discovery
-	gw := cfg.Discovery.LotusGateway
-	if gw != "" {
-		log.Infow("discovery using lotus", "gateway", gw)
-		ctx := context.Background()
-		pfx := config.LotusPathPrefix
+	if cfg.Discovery.LotusGateway != "" {
+		log.Infow("discovery using lotus", "gateway", cfg.Discovery.LotusGateway)
 		// Create lotus client
-		if strings.HasPrefix(gw, "/") {
-			lotusDiscovery, err = lotus.SetupLocal(ctx, gw)
-		} else if strings.HasPrefix(gw, pfx) {
-			lotusDiscovery, err = lotus.SetupLocal(ctx, gw[len(pfx):])
-		} else {
-			lotusDiscovery, err = lotus.SetupGateway(ctx, gw)
-		}
+		lotusDiscovery, err = lotus.SetupGateway(context.Background(), cfg.Discovery.LotusGateway)
 		if err != nil {
 			return fmt.Errorf("cannot create lotus client: %s", err)
 		}
