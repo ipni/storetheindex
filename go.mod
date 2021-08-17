@@ -1,6 +1,6 @@
 module github.com/filecoin-project/storetheindex
 
-go 1.15
+go 1.16
 
 require (
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
