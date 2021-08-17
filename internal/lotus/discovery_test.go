@@ -20,7 +20,7 @@ func TestDiscovery(t *testing.T) {
 	}
 
 	var peerID peer.ID
-	discovered, err := disco.Discover(ctx, peerID, testMinerAddr, nil, nil)
+	_, err = disco.Discover(ctx, peerID, testMinerAddr, nil, nil)
 	if err == nil {
 		t.Fatal("expected provider id mismatch error")
 	}
@@ -30,7 +30,7 @@ func TestDiscovery(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	discovered, err = disco.Discover(ctx, peerID, testMinerAddr, nil, nil)
+	discovered, err := disco.Discover(ctx, peerID, testMinerAddr, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

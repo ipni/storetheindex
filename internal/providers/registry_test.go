@@ -126,7 +126,7 @@ func TestDiscoveryAllowed(t *testing.T) {
 
 	info := r.ProviderInfoByAddr(minerDiscoAddr)
 	if info == nil {
-		t.Error("did not get provider info for miner")
+		t.Fatal("did not get provider info for miner")
 	}
 	t.Log("got provider info for miner")
 
