@@ -56,7 +56,6 @@ func SetupLocal(ctx context.Context, repoPath string) (*Discovery, error) {
 		Token: token,
 	}
 
-	//return openFillNode(ctx, apiInfo)
 	return openGateway(ctx, apiInfo)
 }
 
@@ -80,28 +79,3 @@ func openGateway(ctx context.Context, apiInfo cliutil.APIInfo) (*Discovery, erro
 		closer: closer,
 	}, nil
 }
-
-// Enable this if FullNode access is ever needed
-/*
-func openFullNode(ctx context.Context, apiInfo cliutil.APIInfo) (*Discovery, error) {
-	addr, err := apiInfo.DialArgs("v1")
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse listen address: %w", err)
-	}
-
-	node, jsoncloser, err := client.NewFullNodeRPCV1(ctx, addr, apiInfo.AuthHeader())
-	if err != nil {
-		return nil, nil, err
-	}
-
-	closer := &nodeCloser{
-		apiCloser:  apiCloser,
-		jsonCloser: jsoncloser,
-	}
-
-	return &Discovery{
-		node:   node,
-		closer: closer,
-	}, nil
-}
-*/
