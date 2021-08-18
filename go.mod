@@ -7,11 +7,11 @@ require (
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.0.0-20210816132949-bbccdebb905f
 	github.com/filecoin-project/go-jsonrpc v0.1.4-0.20210217175800-45ea43ac2bec
-	github.com/filecoin-project/lotus v1.9.1-0.20210607161144-fadc79a4875b
+	github.com/filecoin-project/lotus v1.11.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.4
-	github.com/ipfs/go-cid v0.0.7
-	github.com/ipfs/go-datastore v0.4.5
+	github.com/ipfs/go-cid v0.1.0
+	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-ds-leveldb v0.4.2
 	github.com/ipfs/go-log/v2 v2.3.0
 	github.com/ipld/go-ipld-prime v0.7.0
@@ -26,4 +26,4 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 )
 
-replace github.com/filecoin-project/filecoin-ffi => github.com/hannahhoward/ffi-stub v0.1.1-0.20210611194822-18d26dc20744
+replace github.com/filecoin-project/filecoin-ffi => github.com/filecoin-project/ffi-stub v0.2.0
