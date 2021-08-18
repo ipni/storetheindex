@@ -10,8 +10,8 @@ require (
 	github.com/filecoin-project/lotus v1.11.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.4
-	github.com/ipfs/go-cid v0.0.7
-	github.com/ipfs/go-datastore v0.4.5
+	github.com/ipfs/go-cid v0.1.0
+	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-ds-leveldb v0.4.2
 	github.com/ipfs/go-log/v2 v2.3.0
 	github.com/ipld/go-ipld-prime v0.7.0
