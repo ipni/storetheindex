@@ -2,7 +2,7 @@ package handler
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
@@ -32,7 +32,7 @@ func (h *Handler) Advertise(w http.ResponseWriter, r *http.Request) {
 
 // POST /ingestion
 func (h *Handler) IndexContent(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)

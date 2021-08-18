@@ -133,10 +133,10 @@ func (r *Registry) run() {
 // TODO: To support multiple discovery methods (lotus, IPFS, etc.) there need
 // to be information that is part of, or in addition to, the discoveryAddr to
 // indicate where/how discovery is done.
-func (r *Registry) Discover(discoveryAddr string, signature, signed []byte, sync bool) error {
+func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, signature, signed []byte, sync bool) error {
 	errCh := make(chan error, 1)
 	r.actions <- func() {
-		r.syncStartDiscover(discoveryAddr, signature, signed, errCh)
+		r.syncStartDiscover(peerID, discoveryAddr, signature, signed, errCh)
 	}
 	if sync {
 		return <-errCh
@@ -224,7 +224,7 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	return infos
 }
 
-func (r *Registry) syncStartDiscover(discoAddr string, signature, signed []byte, errCh chan<- error) {
+func (r *Registry) syncStartDiscover(peerID peer.ID, discoAddr string, signature, signed []byte, errCh chan<- error) {
 	err := r.syncNeedDiscover(discoAddr)
 	if err != nil {
 		r.syncEndDiscover(discoAddr, nil, err, errCh)
@@ -237,7 +237,7 @@ func (r *Registry) syncStartDiscover(discoAddr string, signature, signed []byte,
 
 	// Do discovery asynchronously; do not block other discovery requests
 	go func() {
-		discoData, discoErr := r.discover(discoAddr, signed, signature)
+		discoData, discoErr := r.discover(peerID, discoAddr, signed, signature)
 		r.actions <- func() {
 			r.syncEndDiscover(discoAddr, discoData, discoErr, errCh)
 			r.discoWait.Done()
@@ -340,7 +340,7 @@ func (r *Registry) loadPersistedProviders() error {
 	return nil
 }
 
-func (r *Registry) discover(discoAddr string, signature, signed []byte) (*discovery.Discovered, error) {
+func (r *Registry) discover(peerID peer.ID, discoAddr string, signature, signed []byte) (*discovery.Discovered, error) {
 	if r.discovery == nil {
 		return nil, errors.New("miner discovery not available")
 	}
@@ -353,7 +353,7 @@ func (r *Registry) discover(discoAddr string, signature, signed []byte) (*discov
 		defer cancel()
 	}
 
-	discoData, err := r.discovery.Discover(ctx, discoAddr, signature, signed)
+	discoData, err := r.discovery.Discover(ctx, peerID, discoAddr, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot discover provider: %s", err)
 	}
