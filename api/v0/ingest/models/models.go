@@ -11,6 +11,7 @@ import (
 )
 
 type DiscoverRequest struct {
+	ProviderID    peer.ID
 	DiscoveryAddr string
 	Nonce         []byte
 	Signature     []byte
@@ -38,6 +39,27 @@ type ProviderInfo struct {
 	AddrInfo      peer.AddrInfo
 	LastIndex     cid.Cid
 	LastIndexTime string `json:"omitempty"`
+}
+
+func (r *DiscoverRequest) Sign(privKey ic.PrivKey) error {
+	var err error
+	r.Nonce, err = signature.Nonce()
+	if err != nil {
+		return err
+	}
+	r.Signature, err = privKey.Sign(r.signedData())
+	return err
+}
+
+func (r *DiscoverRequest) VerifySignature() error {
+	return signature.Verify(r.ProviderID, r.signedData(), r.Signature)
+}
+
+func (r *DiscoverRequest) signedData() []byte {
+	buf := bytes.NewBuffer(make([]byte, len(r.DiscoveryAddr)+len(r.Nonce)))
+	buf.WriteString(r.DiscoveryAddr)
+	buf.Write(r.Nonce)
+	return buf.Bytes()
 }
 
 func (r *RegisterRequest) Sign(privKey ic.PrivKey) error {
@@ -78,11 +100,9 @@ func (r *IngestRequest) VerifySignature() error {
 }
 
 func (r *IngestRequest) signedData() []byte {
-	data := make([]byte, r.Cid.ByteLen()+len(r.Value.Metadata)+len(r.Nonce))
-	copy(data, r.Cid.Bytes())
-	offset := r.Cid.ByteLen()
-	copy(data[offset:], r.Value.Metadata)
-	offset += len(r.Value.Metadata)
-	copy(data[offset:], r.Nonce)
-	return data
+	buf := bytes.NewBuffer(make([]byte, r.Cid.ByteLen()+len(r.Value.Metadata)+len(r.Nonce)))
+	buf.Write(r.Cid.Bytes())
+	buf.Write(r.Value.Metadata)
+	buf.Write(r.Nonce)
+	return buf.Bytes()
 }

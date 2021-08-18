@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -74,7 +74,7 @@ func (h *Handler) GetProvider(w http.ResponseWriter, r *http.Request) {
 
 // POST /discover
 func (h *Handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -88,7 +88,14 @@ func (h *Handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.registry.Discover(discoReq.DiscoveryAddr, discoReq.Nonce, discoReq.Signature, false)
+	err = discoReq.VerifySignature()
+	if err != nil {
+		log.Errorw("signature not verified", "err", err, "provider", discoReq.ProviderID, "discover_addr", discoReq.DiscoveryAddr)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err = h.registry.Discover(discoReq.ProviderID, discoReq.DiscoveryAddr, discoReq.Nonce, discoReq.Signature, false)
 	if err != nil {
 		log.Errorw("cannot process discovery request", "err", err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -101,7 +108,7 @@ func (h *Handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 
 // POST /providers
 func (h *Handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)

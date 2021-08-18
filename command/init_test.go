@@ -26,22 +26,29 @@ func TestInit(t *testing.T) {
 	}
 
 	badAddr := "ip3/127.0.0.1/tcp/9999"
-	err := app.RunContext(ctx, []string{"storetheindex", "init", "-adminaddr", badAddr})
+	err := app.RunContext(ctx, []string{"storetheindex", "init", "-listen-admin", badAddr})
 	if err == nil {
 		log.Fatal("expected error")
 	}
 
-	err = app.RunContext(ctx, []string{"storetheindex", "init", "-finderaddr", badAddr})
+	err = app.RunContext(ctx, []string{"storetheindex", "init", "-listen-finder", badAddr})
+	if err == nil {
+		log.Fatal("expected error")
+	}
+
+	err = app.RunContext(ctx, []string{"storetheindex", "init", "-listen-ingest", badAddr})
 	if err == nil {
 		log.Fatal("expected error")
 	}
 
 	goodAddr := "/ip4/127.0.0.1/tcp/7777"
+	goodAddr2 := "/ip4/127.0.0.1/tcp/17171"
 	storeType := "pogreb"
 	cacheSize := 2701
 	args := []string{
 		"storetheindex", "init",
-		"-finderaddr", goodAddr,
+		"-listen-finder", goodAddr,
+		"-listen-ingest", goodAddr2,
 		"-cachesize", fmt.Sprint(cacheSize),
 		"-store", storeType,
 	}
@@ -57,6 +64,9 @@ func TestInit(t *testing.T) {
 
 	if cfg.Addresses.Finder != goodAddr {
 		t.Error("finder listen address was not configured")
+	}
+	if cfg.Addresses.Ingest != goodAddr2 {
+		t.Error("ingest listen address was not configured")
 	}
 	if cfg.Indexer.CacheSize != cacheSize {
 		t.Error("cache size was tno configured")

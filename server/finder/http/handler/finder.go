@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
@@ -40,7 +40,7 @@ func (h *Finder) GetSingleCid(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Finder) GetBatchCid(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)

@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"io/ioutil"
 	"testing"
 	"time"
 
@@ -10,7 +9,6 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache"
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
-	"github.com/filecoin-project/go-indexer-core/store"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/go-indexer-core/store/test"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
@@ -27,17 +25,11 @@ const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
 
 //InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
-	tmpDir, err := ioutil.TempDir("", "sth")
+	valueStore, err := storethehash.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	var resultCache cache.Interface
-	var valueStore store.Interface
-
-	valueStore, err = storethehash.New(tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
 	if withCache {
 		resultCache = radixcache.New(100000)
 	}
