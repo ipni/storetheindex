@@ -44,15 +44,18 @@ func registerCommand(cctx *cli.Context) error {
 		return fmt.Errorf("could not decode private key: %s", err)
 	}
 
-	maddr, err := multiaddr.NewMultiaddr(cctx.String("provider-addr"))
-	if err != nil {
-		return fmt.Errorf("bad provider address: %s", err)
+	maddrs := make([]multiaddr.Multiaddr, len(cctx.StringSlice("provider-addr")))
+	for i, m := range cctx.StringSlice("provider-addr") {
+		maddrs[i], err = multiaddr.NewMultiaddr(m)
+		if err != nil {
+			return fmt.Errorf("bad provider address: %s", err)
+		}
 	}
 
 	regReq := &models.RegisterRequest{
 		AddrInfo: peer.AddrInfo{
 			ID:    providerID,
-			Addrs: []multiaddr.Multiaddr{maddr},
+			Addrs: maddrs,
 		},
 	}
 

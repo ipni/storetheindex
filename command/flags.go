@@ -26,7 +26,6 @@ var AdminAddrFlag = altsrc.NewStringFlag(&cli.StringFlag{
 var CacheSizeFlag = &cli.Int64Flag{
 	Name:     "cachesize",
 	Usage:    "Maximum number of CIDs that cache can hold, 0 to disable cache",
-	Aliases:  []string{"c"},
 	Required: false,
 	Value:    -1,
 }
@@ -120,13 +119,14 @@ var RegisterFlags = []cli.Flag{
 	},
 	&cli.StringFlag{
 		Name:     "indexer-addr",
-		Usage:    "Address:port of indexer to register with",
+		Usage:    "Indexer address:port to register at",
 		Required: false,
 		Value:    "localhos:3001",
 	},
-	&cli.StringFlag{
+	&cli.StringSliceFlag{
 		Name:     "provider-addr",
 		Usage:    "Provider address as multiaddr string, example: \"/ip4/127.0.0.1/tcp/3333\"",
+		Aliases:  []string{"pa"},
 		Required: true,
 	},
 }
