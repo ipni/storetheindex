@@ -69,7 +69,6 @@ func (p *ProviderInfo) dsKey() datastore.Key {
 //
 // TODO: It is probably necessary to have multiple discovery interfaces
 func NewRegistry(cfg config.Discovery, dstore datastore.Datastore, disco discovery.Discovery) (*Registry, error) {
-	cfg.Policy.Trust = append(cfg.Policy.Trust, "12D3KooWSG3JuvEjRkSxt93ADTjQxqe4ExbBwSkQ9Zyk1WfBaZJF")
 	// Create policy from config
 	discoPolicy, err := policy.New(cfg.Policy)
 	if err != nil {

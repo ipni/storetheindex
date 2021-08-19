@@ -20,7 +20,7 @@ import (
 
 var RegisterCmd = &cli.Command{
 	Name:   "register",
-	Usage:  "Register trusted provider with indexer",
+	Usage:  "Register a trusted provider with an indexer",
 	Flags:  RegisterFlags,
 	Action: registerCommand,
 }
