@@ -1,7 +1,6 @@
 package command
 
 import (
-	_ "github.com/lib/pq"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 )
@@ -110,6 +109,25 @@ var InitFlags = []cli.Flag{
 		Usage:    "Address for a lotus gateway to collect chain information",
 		EnvVars:  []string{"STORETHEINDEX_LOTUS_GATEWAY"},
 		Required: false,
+	},
+}
+
+var RegisterFlags = []cli.Flag{
+	&cli.StringFlag{
+		Name:     "config",
+		Usage:    "Config file containing provider's peer ID and private key",
+		Required: true,
+	},
+	&cli.StringFlag{
+		Name:     "indexer-addr",
+		Usage:    "Address:port of indexer to register with",
+		Required: false,
+		Value:    "localhos:3001",
+	},
+	&cli.StringFlag{
+		Name:     "provider-addr",
+		Usage:    "Provider address as multiaddr string, example: \"/ip4/127.0.0.1/tcp/3333\"",
+		Required: true,
 	},
 }
 
