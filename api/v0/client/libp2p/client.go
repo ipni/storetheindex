@@ -33,11 +33,10 @@ func newClient(ctx context.Context, h host.Host, peerID peer.ID, options ...Clie
 
 	// Start a client
 	return &p2pclient{
-		ctx:       ctx,
-		host:      h,
-		self:      h.ID(),
-		peerID:    peerID,
-		protocols: protocols,
+		ctx:    ctx,
+		host:   h,
+		self:   h.ID(),
+		peerID: peerID,
 
 		senderManager: &messageSender{
 			host:      h,
