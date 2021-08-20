@@ -17,13 +17,13 @@ var InitCmd = &cli.Command{
 }
 
 func initCommand(cctx *cli.Context) error {
-	log.Info("Initializing indexer config file")
-
 	// Check that the config root exists and it writable.
 	configRoot, err := config.PathRoot()
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("Initializing indexer node at", configRoot)
 
 	if err = checkWritable(configRoot); err != nil {
 		return err

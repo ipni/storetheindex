@@ -8,21 +8,15 @@ import (
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/filecoin-project/storetheindex/server/ingest/handler"
-	indnet "github.com/filecoin-project/storetheindex/server/net"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )
 
-var log = logging.Logger("ingestion_server")
+var log = logging.Logger("ingestserver")
 
 type Server struct {
 	server *http.Server
 	l      net.Listener
-}
-
-// Endpoint returns the endpoint of the protocol server.
-func (s *Server) Endpoint() indnet.Endpoint {
-	return indnet.HTTPEndpoint("http://" + s.l.Addr().String())
 }
 
 func New(listen string, indexer indexer.Interface, registry *providers.Registry, options ...ServerOption) (*Server, error) {

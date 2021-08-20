@@ -48,11 +48,13 @@ func main() {
 			command.GetCmd,
 			command.ImportCmd,
 			command.InitCmd,
+			command.RegisterCmd,
 			command.SyntheticCmd,
 		},
 	}
 
 	if err := app.RunContext(ctx, os.Args); err != nil {
-		log.Fatal(err)
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }

@@ -15,19 +15,19 @@ import (
 var log = logging.Logger("find_handler")
 
 // Finder handles requests for the finder resource
-type Finder struct {
+type Handler struct {
 	indexer  indexer.Interface
 	registry *providers.Registry
 }
 
-func NewFinder(indexer indexer.Interface, registry *providers.Registry) *Finder {
-	return &Finder{
+func New(indexer indexer.Interface, registry *providers.Registry) *Handler {
+	return &Handler{
 		indexer:  indexer,
 		registry: registry,
 	}
 }
 
-func (h *Finder) GetSingleCid(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetSingleCid(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	mhCid := vars["cid"]
 	c, err := cid.Decode(mhCid)
@@ -39,7 +39,7 @@ func (h *Finder) GetSingleCid(w http.ResponseWriter, r *http.Request) {
 	h.getCids(w, []cid.Cid{c})
 }
 
-func (h *Finder) GetBatchCid(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetBatchCid(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
@@ -64,7 +64,7 @@ func writeResponse(w http.ResponseWriter, body []byte) error {
 	return nil
 }
 
-func (h *Finder) getCids(w http.ResponseWriter, cids []cid.Cid) {
+func (h *Handler) getCids(w http.ResponseWriter, cids []cid.Cid) {
 	response, err := models.PopulateResponse(h.indexer, h.registry, cids)
 	if err != nil {
 		log.Errorw("query failed", "err", err)

@@ -1,4 +1,4 @@
-package net
+package p2putil
 
 import (
 	"bufio"
@@ -27,8 +27,8 @@ var writerPool = sync.Pool{
 	},
 }
 
-// WriteFinderMsg handles sending messages through the wire.
-func WriteFinderMsg(w io.Writer, mes *pb.Message) error {
+// WriteMsg handles sending messages through the wire.
+func WriteMsg(w io.Writer, mes *pb.Message) error {
 	bw := writerPool.Get().(*bufferedDelimitedWriter)
 	bw.Reset(w)
 	err := bw.WriteMsg(mes)

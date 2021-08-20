@@ -7,10 +7,9 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
-	"github.com/filecoin-project/storetheindex/internal/finder"
+	"github.com/filecoin-project/storetheindex/internal/p2putil"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/filecoin-project/storetheindex/server/finder/libp2p/handler"
-	"github.com/filecoin-project/storetheindex/server/net"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -19,8 +18,7 @@ import (
 )
 
 // Idle time before the stream is closed
-var streamIdleTimeout = 1 * time.Minute
-var _ finder.Server = &Server{}
+const streamIdleTimeout = 1 * time.Minute
 
 var log = logging.Logger("p2pserver")
 
@@ -32,9 +30,9 @@ type Server struct {
 	self          peer.ID
 }
 
-// Endpoint returns the endpoint of the protocol server.
-func (s *Server) Endpoint() net.Endpoint {
-	return net.P2PEndpoint(s.host.ID())
+// ID returns the peer.ID of the protocol server.
+func (s *Server) ID() peer.ID {
+	return s.host.ID()
 }
 
 // New creates a new libp2p server
@@ -120,7 +118,7 @@ func (s *Server) handleNewMessages(stream network.Stream) bool {
 		}
 
 		// send out response msg
-		err = net.WriteFinderMsg(stream, resp)
+		err = p2putil.WriteMsg(stream, resp)
 		if err != nil {
 			return false
 		}

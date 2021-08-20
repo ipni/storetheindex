@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	ErrInitialized    = errors.New("already initialized")
+	ErrInitialized    = errors.New("configuration file already exists")
 	ErrNotInitialized = errors.New("not initialized")
 )
 
