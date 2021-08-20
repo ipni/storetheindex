@@ -5,22 +5,13 @@ import (
 	"github.com/urfave/cli/v2/altsrc"
 )
 
-var FinderAddrFlag = altsrc.NewStringFlag(&cli.StringFlag{
-	Name:     "finderaddr",
-	Usage:    "Finder HTTP API address",
-	Aliases:  []string{"fep"},
-	EnvVars:  []string{"FINDER_ADDRESS"},
+var IndexerHostFlag = altsrc.NewStringFlag(&cli.StringFlag{
+	Name:     "indexer",
+	Usage:    "Host or host:port of indexer to use",
+	Aliases:  []string{"i"},
+	EnvVars:  []string{"INDEXER_HOST"},
 	Required: false,
-	Value:    "127.0.0.0:3000",
-})
-
-var AdminAddrFlag = altsrc.NewStringFlag(&cli.StringFlag{
-	Name:     "adminaddr",
-	Usage:    "Admin HTTP API address",
-	Aliases:  []string{"aep"},
-	EnvVars:  []string{"ADMIN_ARRDESS"},
-	Required: false,
-	Value:    "127.0.0.0:3001",
+	Value:    "localhost",
 })
 
 var CacheSizeFlag = &cli.Int64Flag{
@@ -49,11 +40,10 @@ var DaemonFlags = []cli.Flag{
 }
 
 var ClientCmdFlags = []cli.Flag{
-	FinderAddrFlag,
+	IndexerHostFlag,
 	&cli.StringFlag{
 		Name:     "protocol",
 		Usage:    "Protocol to query the indexer (http, libp2p currently supported)",
-		Aliases:  []string{"proto"},
 		Value:    "http",
 		Required: false,
 	},
@@ -73,7 +63,7 @@ var ImportFlags = []cli.Flag{
 		Required: false,
 	},
 	DirFlag,
-	AdminAddrFlag,
+	IndexerHostFlag,
 }
 
 var InitFlags = []cli.Flag{
@@ -117,12 +107,7 @@ var RegisterFlags = []cli.Flag{
 		Usage:    "Config file containing provider's peer ID and private key",
 		Required: true,
 	},
-	&cli.StringFlag{
-		Name:     "indexer-host",
-		Usage:    "Host or host:port of indexer to register at",
-		Required: false,
-		Value:    "localhost",
-	},
+	IndexerHostFlag,
 	&cli.StringSliceFlag{
 		Name:     "provider-addr",
 		Usage:    "Provider address as multiaddr string, example: \"/ip4/127.0.0.1/tcp/3333\"",

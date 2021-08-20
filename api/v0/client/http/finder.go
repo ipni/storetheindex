@@ -17,31 +17,31 @@ import (
 )
 
 const (
-	finderResource = "finder"
+	finderResource = "cid"
 	finderPort     = 3001
 )
 
-// FinderClient is an http client for the indexer finder API
-type FinderClient struct {
+// Finder is an http client for the indexer finder API
+type Finder struct {
 	c       *http.Client
 	baseURL string
 }
 
 // NewFinder creates a new finder client
-func NewFinder(baseURL string, options ...ClientOption) (*FinderClient, error) {
+func NewFinder(baseURL string, options ...ClientOption) (*Finder, error) {
 	u, c, err := newClient(baseURL, finderResource, finderPort, options...)
 	if err != nil {
 		return nil, err
 	}
-	return &FinderClient{
+	return &Finder{
 		c:       c,
 		baseURL: u.String(),
 	}, nil
 }
 
 // Get indexeer entries for a CID
-func (cl *FinderClient) Get(ctx context.Context, c cid.Cid) (*models.Response, error) {
-	u := cl.baseURL + path.Join("/cid", c.String())
+func (cl *Finder) Get(ctx context.Context, c cid.Cid) (*models.Response, error) {
+	u := cl.baseURL + "/" + c.String()
 	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
@@ -51,19 +51,20 @@ func (cl *FinderClient) Get(ctx context.Context, c cid.Cid) (*models.Response, e
 }
 
 // GetBatch of indexeer entries for a CIDs
-func (cl *FinderClient) GetBatch(ctx context.Context, cs []cid.Cid) (*models.Response, error) {
+func (cl *Finder) GetBatch(ctx context.Context, cs []cid.Cid) (*models.Response, error) {
 	data, err := models.MarshalReq(&models.Request{Cids: cs})
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", cl.baseURL+"/cid", bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", cl.baseURL, bytes.NewBuffer(data))
 	if err != nil {
 		return nil, err
 	}
 	return cl.sendRequest(req)
 }
 
-func (cl *FinderClient) sendRequest(req *http.Request) (*models.Response, error) {
+func (cl *Finder) sendRequest(req *http.Request) (*models.Response, error) {
+	req.Header.Set("Content-Type", "application/json")
 	resp, err := cl.c.Do(req)
 	if err != nil {
 		return nil, err
@@ -87,7 +88,7 @@ func (cl *FinderClient) sendRequest(req *http.Request) (*models.Response, error)
 }
 
 // ImportFromManifest process entries from manifest and imports it in the indexer
-func (cl *FinderClient) ImportFromManifest(ctx context.Context, dir string, provID peer.ID) error {
+func (cl *Finder) ImportFromManifest(ctx context.Context, dir string, provID peer.ID) error {
 	u := cl.baseURL + path.Join("/import", "manifest", provID.String())
 	req, err := cl.newUploadRequest(dir, u)
 	if err != nil {
@@ -107,7 +108,7 @@ func (cl *FinderClient) ImportFromManifest(ctx context.Context, dir string, prov
 }
 
 // ImportFromCidList process entries from a cidlist and imprts it in the indexer
-func (cl *FinderClient) ImportFromCidList(ctx context.Context, dir string, provID peer.ID) error {
+func (cl *Finder) ImportFromCidList(ctx context.Context, dir string, provID peer.ID) error {
 	u := cl.baseURL + path.Join("/import", "cidlist", provID.String())
 	req, err := cl.newUploadRequest(dir, u)
 	if err != nil {
@@ -126,7 +127,7 @@ func (cl *FinderClient) ImportFromCidList(ctx context.Context, dir string, provI
 	return nil
 }
 
-func (cl *FinderClient) newUploadRequest(dir string, uri string) (*http.Request, error) {
+func (cl *Finder) newUploadRequest(dir string, uri string) (*http.Request, error) {
 	file, err := os.Open(dir)
 	if err != nil {
 		return nil, err

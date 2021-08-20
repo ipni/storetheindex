@@ -2,13 +2,13 @@ package httpfinderserver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/filecoin-project/storetheindex/server/finder/http/handler"
-	indnet "github.com/filecoin-project/storetheindex/server/net"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )
@@ -20,14 +20,13 @@ type Server struct {
 	l      net.Listener
 }
 
-// Endpoint returns the endpoint of the protocol server.
-func (s *Server) Endpoint() indnet.Endpoint {
-	return indnet.HTTPEndpoint("http://" + s.l.Addr().String())
+func (s *Server) URL() string {
+	return fmt.Sprint("http://", s.l.Addr().String())
 }
 
 func New(listen string, indexer indexer.Interface, registry *providers.Registry, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
-	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
+	if err := cfg.apply(options...); err != nil {
 		return nil, err
 	}
 	var err error
@@ -46,7 +45,7 @@ func New(listen string, indexer indexer.Interface, registry *providers.Registry,
 	s := &Server{server, l}
 
 	// Resource handlers
-	h := handler.NewFinder(indexer, registry)
+	h := handler.New(indexer, registry)
 
 	// Client routes
 	r.HandleFunc("/cid/{cid}", h.GetSingleCid).Methods("GET")
@@ -56,7 +55,7 @@ func New(listen string, indexer indexer.Interface, registry *providers.Registry,
 }
 
 func (s *Server) Start() error {
-	log.Infow("api listening", "addr", s.l.Addr())
+	log.Infow("finder listening", "addr", s.l.Addr())
 	return s.server.Serve(s.l)
 }
 

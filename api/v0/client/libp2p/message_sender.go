@@ -7,7 +7,7 @@ import (
 	"time"
 
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
-	"github.com/filecoin-project/storetheindex/server/net"
+	"github.com/filecoin-project/storetheindex/internal/p2putil"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -31,7 +31,6 @@ type messageSender struct {
 
 // SendRequest sends out a request
 func (m *messageSender) SendRequest(ctx context.Context, p peer.ID, pmes *pb.Message) (*pb.Message, error) {
-
 	ms, err := m.messageSenderForPeer(ctx, p)
 	if err != nil {
 		log.Debugw("request failed to open message sender", "error", err, "to", p)
@@ -48,7 +47,6 @@ func (m *messageSender) SendRequest(ctx context.Context, p peer.ID, pmes *pb.Mes
 
 // SendMessage sends out a message
 func (m *messageSender) SendMessage(ctx context.Context, p peer.ID, pmes *pb.Message) error {
-
 	ms, err := m.messageSenderForPeer(ctx, p)
 	if err != nil {
 		log.Debugw("message failed to open message sender", "error", err, "to", p)
@@ -199,7 +197,7 @@ func (ms *peerMessageSender) SendRequest(ctx context.Context, pmes *pb.Message) 
 }
 
 func (ms *peerMessageSender) writeMsg(pmes *pb.Message) error {
-	return net.WriteFinderMsg(ms.s, pmes)
+	return p2putil.WriteMsg(ms.s, pmes)
 }
 
 func (ms *peerMessageSender) ctxReadMsg(ctx context.Context, mes *pb.Message) error {

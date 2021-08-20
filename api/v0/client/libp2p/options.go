@@ -21,6 +21,11 @@ type ClientOption func(*clientConfig) error
 
 // apply applies the given options to this Option
 func (c *clientConfig) apply(opts ...ClientOption) error {
+	err := clientDefaults(c)
+	if err != nil {
+		// Failure of default option should panic
+		panic("default option failed: " + err.Error())
+	}
 	for i, opt := range opts {
 		if err := opt(c); err != nil {
 			return fmt.Errorf("p2pclient option %d failed: %s", i, err)
