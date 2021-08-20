@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	adSignatureCodec  = "/indexer/ingest/adSginature"
+	adSignatureCodec  = "/indexer/ingest/adSignature"
 	adSignatureDomain = "indexer"
 )
 
