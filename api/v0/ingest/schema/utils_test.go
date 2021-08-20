@@ -47,7 +47,7 @@ func genIndexAndAdv(t *testing.T, lsys ipld.LinkSystem,
 	if err != nil {
 		t.Fatal(err)
 	}
-	adv, advLnk, err := NewAdvertisement(lsys, priv, nil, indexLnk, p.String(), true)
+	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String(), true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestChainAdvertisements(t *testing.T) {
 		t.Error("previous should be nil, it's the genesis", index.Previous.v)
 	}
 	// Genesis advertisement
-	adv, _, err := NewAdvertisement(lsys, priv, nil, indexLnk, p.String(), true)
+	adv, _, err := NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String(), true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestChainAdvertisements(t *testing.T) {
 		t.Error("index2 should be pointing to genesis", index2.FieldPrevious().v.x, indexLnk.x)
 	}
 	// Genesis advertisement
-	adv2, _, err := NewAdvertisement(lsys, priv, adv.FieldID().x, indexLnk2, p.String(), true)
+	adv2, _, err := NewAdvertisementWithLink(lsys, priv, adv.FieldID().x, indexLnk2, p.String(), true)
 	if err != nil {
 		t.Fatal(err)
 	}

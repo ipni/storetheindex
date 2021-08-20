@@ -31,6 +31,16 @@ func cidsToString(cids []cid.Cid) []_String {
 	return out
 }
 
+// LinkAdvFromCid creates a link advertisement from a CID
+func LinkAdvFromCid(c cid.Cid) Link_Advertisement {
+	return &_Link_Advertisement{x: cidlink.Link{Cid: c}}
+}
+
+// LinkIndexFromCid creates a link omdex from a CID
+func LinkIndexFromCid(c cid.Cid) Link_Index {
+	return &_Link_Index{x: cidlink.Link{Cid: c}}
+}
+
 // LinkContextKey used to propagate link info through the linkSystem context
 type LinkContextKey string
 
@@ -97,37 +107,78 @@ func NewIndexFromEntries(
 	return newIndex(lsys, *entries, previousIndex)
 }
 
-// NewAdvertisement creates a new advertisement from an index link.
+// NewAdvertisement creates a new advertisement without link to
+// let developerse choose the linking strategy they want to follow
 func NewAdvertisement(
+	signKey crypto.PrivKey,
+	previousAdvID []byte,
+	indexID Link_Index,
+	provider string, graphSupport bool) (Advertisement, error) {
+
+	// Create advertisement
+	return newAdvertisement(signKey, previousAdvID, indexID, provider, graphSupport)
+
+}
+
+// NewAdvertisementWithLink creates a new advertisement from an index
+// with its corresponsing link.
+func NewAdvertisementWithLink(
 	lsys ipld.LinkSystem,
 	signKey crypto.PrivKey,
 	previousAdvID []byte,
 	indexID Link_Index,
 	provider string, graphSupport bool) (Advertisement, Link_Advertisement, error) {
 
-	advID, err := genAdvertisementID(indexID, provider, previousAdvID)
+	// Create advertisement
+	adv, err := newAdvertisement(signKey, previousAdvID, indexID, provider, graphSupport)
 	if err != nil {
 		return nil, nil, err
 	}
-	sig, err := signAdvertisement(signKey, advID)
+	// Generate link
+	lnk, err := AdvertisementLink(lsys, adv)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	adv := _Advertisement{
+	return adv, lnk, nil
+}
+
+// AdvertisementLink generates a new link from an advertisemenet using a specific
+// linkSystem
+func AdvertisementLink(lsys ipld.LinkSystem, adv Advertisement) (Link_Advertisement, error) {
+	lnk, err := lsys.Store(ipld.LinkContext{
+		Ctx: context.WithValue(context.Background(), IsIndexKey, LinkContextValue(false))},
+		linkproto, adv)
+	if err != nil {
+		return nil, err
+	}
+
+	return &_Link_Advertisement{lnk}, nil
+}
+
+// NewAdvertisementWithLink creates a new advertisement from an index
+// with its corresponsing link.
+func newAdvertisement(
+	signKey crypto.PrivKey,
+	previousAdvID []byte,
+	indexID Link_Index,
+	provider string, graphSupport bool) (Advertisement, error) {
+
+	advID, err := genAdvertisementID(indexID, provider, previousAdvID)
+	if err != nil {
+		return nil, err
+	}
+	sig, err := signAdvertisement(signKey, advID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &_Advertisement{
 		ID:           _Bytes{x: advID},
 		IndexID:      *indexID,
 		Signature:    _Bytes{x: sig},
 		PreviousID:   _Bytes{x: previousAdvID},
 		Provider:     _String{x: provider},
 		GraphSupport: _Bool{x: graphSupport},
-	}
-	lnk, err := lsys.Store(ipld.LinkContext{
-		Ctx: context.WithValue(context.Background(), IsIndexKey, LinkContextValue(false))},
-		linkproto, &adv)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return &adv, &_Link_Advertisement{lnk}, nil
+	}, nil
 }
