@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/client/http"
-	"github.com/filecoin-project/storetheindex/server/net"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/urfave/cli/v2"
 )
@@ -43,12 +42,10 @@ var ImportCmd = &cli.Command{
 func importListCmd(cctx *cli.Context) error {
 	// NOTE: Importing manually from CLI only supported for http protocol
 	// for now. This feature is mainly for testing purposes
-	endpoint := cctx.String("admin_ep")
-	cl, err := httpclient.New()
+	cl, err := httpclient.NewFinder(cctx.String("admin_ep"))
 	if err != nil {
 		return err
 	}
-	end := net.NewHTTPEndpoint(endpoint)
 	prov := cctx.String("provider")
 	p, err := peer.Decode(prov)
 	if err != nil {
@@ -60,7 +57,7 @@ func importListCmd(cctx *cli.Context) error {
 	// TODO: Should there be a timeout?  Since this may take a long time, it
 	// would make sense that the request should complete immediately with a
 	// redirect to a URL where the status can be polled for.
-	return cl.ImportFromCidList(context.Background(), dir, p, end)
+	return cl.ImportFromCidList(context.Background(), dir, p)
 }
 
 func importCarCmd(c *cli.Context) error {
@@ -69,12 +66,10 @@ func importCarCmd(c *cli.Context) error {
 }
 
 func importManifestCmd(cctx *cli.Context) error {
-	endpoint := cctx.String("admin_ep")
-	cl, err := httpclient.New()
+	cl, err := httpclient.NewFinder(cctx.String("admin_ep"))
 	if err != nil {
 		return err
 	}
-	end := net.NewHTTPEndpoint(endpoint)
 	prov := cctx.String("provider")
 	p, err := peer.Decode(prov)
 	if err != nil {
@@ -86,5 +81,5 @@ func importManifestCmd(cctx *cli.Context) error {
 	// TODO: Should there be a timeout?  Since this may take a long time, it
 	// would make sense that the request should complete immediately with a
 	// redirect to a URL where the status can be polled for.
-	return cl.ImportFromManifest(context.Background(), dir, p, end)
+	return cl.ImportFromManifest(context.Background(), dir, p)
 }

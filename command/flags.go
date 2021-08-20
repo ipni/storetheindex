@@ -118,10 +118,10 @@ var RegisterFlags = []cli.Flag{
 		Required: true,
 	},
 	&cli.StringFlag{
-		Name:     "indexer-addr",
-		Usage:    "Indexer address:port to register at",
+		Name:     "indexer-host",
+		Usage:    "Host or host:port of indexer to register at",
 		Required: false,
-		Value:    "localhos:3001",
+		Value:    "localhost",
 	},
 	&cli.StringSliceFlag{
 		Name:     "provider-addr",
