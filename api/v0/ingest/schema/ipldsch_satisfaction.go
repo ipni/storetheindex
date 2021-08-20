@@ -14,13 +14,13 @@ func (n _Advertisement) FieldID() Bytes {
 func (n _Advertisement) FieldIndexID() Link_Index {
 	return &n.IndexID
 }
-func (n _Advertisement) FieldPrevious() MaybeLink_Advertisement {
-	return &n.Previous
+func (n _Advertisement) FieldPreviousID() Bytes {
+	return &n.PreviousID
 }
 func (n _Advertisement) FieldProvider() String {
 	return &n.Provider
 }
-func (n _Advertisement) FieldSignature() MaybeBytes {
+func (n _Advertisement) FieldSignature() Bytes {
 	return &n.Signature
 }
 func (n _Advertisement) FieldGraphSupport() Bool {
@@ -64,7 +64,7 @@ func (m MaybeAdvertisement) Must() Advertisement {
 var (
 	fieldName__Advertisement_ID           = _String{"ID"}
 	fieldName__Advertisement_IndexID      = _String{"IndexID"}
-	fieldName__Advertisement_Previous     = _String{"Previous"}
+	fieldName__Advertisement_PreviousID   = _String{"PreviousID"}
 	fieldName__Advertisement_Provider     = _String{"Provider"}
 	fieldName__Advertisement_Signature    = _String{"Signature"}
 	fieldName__Advertisement_GraphSupport = _String{"GraphSupport"}
@@ -81,18 +81,12 @@ func (n Advertisement) LookupByString(key string) (ipld.Node, error) {
 		return &n.ID, nil
 	case "IndexID":
 		return &n.IndexID, nil
-	case "Previous":
-		if n.Previous.m == schema.Maybe_Absent {
-			return ipld.Absent, nil
-		}
-		return n.Previous.v, nil
+	case "PreviousID":
+		return &n.PreviousID, nil
 	case "Provider":
 		return &n.Provider, nil
 	case "Signature":
-		if n.Signature.m == schema.Maybe_Absent {
-			return ipld.Absent, nil
-		}
-		return n.Signature.v, nil
+		return &n.Signature, nil
 	case "GraphSupport":
 		return &n.GraphSupport, nil
 	default:
@@ -107,7 +101,7 @@ func (n Advertisement) LookupByNode(key ipld.Node) (ipld.Node, error) {
 	return n.LookupByString(ks)
 }
 func (Advertisement) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Map{"ingestion.Advertisement"}.LookupByIndex(0)
+	return mixins.Map{TypeName: "ingestion.Advertisement"}.LookupByIndex(0)
 }
 func (n Advertisement) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
 	return n.LookupByString(seg.String())
@@ -133,22 +127,14 @@ func (itr *_Advertisement__MapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
 		k = &fieldName__Advertisement_IndexID
 		v = &itr.n.IndexID
 	case 2:
-		k = &fieldName__Advertisement_Previous
-		if itr.n.Previous.m == schema.Maybe_Absent {
-			v = ipld.Absent
-			break
-		}
-		v = itr.n.Previous.v
+		k = &fieldName__Advertisement_PreviousID
+		v = &itr.n.PreviousID
 	case 3:
 		k = &fieldName__Advertisement_Provider
 		v = &itr.n.Provider
 	case 4:
 		k = &fieldName__Advertisement_Signature
-		if itr.n.Signature.m == schema.Maybe_Absent {
-			v = ipld.Absent
-			break
-		}
-		v = itr.n.Signature.v
+		v = &itr.n.Signature
 	case 5:
 		k = &fieldName__Advertisement_GraphSupport
 		v = &itr.n.GraphSupport
@@ -175,22 +161,22 @@ func (Advertisement) IsNull() bool {
 	return false
 }
 func (Advertisement) AsBool() (bool, error) {
-	return mixins.Map{"ingestion.Advertisement"}.AsBool()
+	return mixins.Map{TypeName: "ingestion.Advertisement"}.AsBool()
 }
 func (Advertisement) AsInt() (int64, error) {
-	return mixins.Map{"ingestion.Advertisement"}.AsInt()
+	return mixins.Map{TypeName: "ingestion.Advertisement"}.AsInt()
 }
 func (Advertisement) AsFloat() (float64, error) {
-	return mixins.Map{"ingestion.Advertisement"}.AsFloat()
+	return mixins.Map{TypeName: "ingestion.Advertisement"}.AsFloat()
 }
 func (Advertisement) AsString() (string, error) {
-	return mixins.Map{"ingestion.Advertisement"}.AsString()
+	return mixins.Map{TypeName: "ingestion.Advertisement"}.AsString()
 }
 func (Advertisement) AsBytes() ([]byte, error) {
-	return mixins.Map{"ingestion.Advertisement"}.AsBytes()
+	return mixins.Map{TypeName: "ingestion.Advertisement"}.AsBytes()
 }
 func (Advertisement) AsLink() (ipld.Link, error) {
-	return mixins.Map{"ingestion.Advertisement"}.AsLink()
+	return mixins.Map{TypeName: "ingestion.Advertisement"}.AsLink()
 }
 func (Advertisement) Prototype() ipld.NodePrototype {
 	return _Advertisement__Prototype{}
@@ -230,7 +216,7 @@ type _Advertisement__Assembler struct {
 	cm              schema.Maybe
 	ca_ID           _Bytes__Assembler
 	ca_IndexID      _Link_Index__Assembler
-	ca_Previous     _Link_Advertisement__Assembler
+	ca_PreviousID   _Bytes__Assembler
 	ca_Provider     _String__Assembler
 	ca_Signature    _Bytes__Assembler
 	ca_GraphSupport _Bool__Assembler
@@ -241,7 +227,7 @@ func (na *_Advertisement__Assembler) reset() {
 	na.s = 0
 	na.ca_ID.reset()
 	na.ca_IndexID.reset()
-	na.ca_Previous.reset()
+	na.ca_PreviousID.reset()
 	na.ca_Provider.reset()
 	na.ca_Signature.reset()
 	na.ca_GraphSupport.reset()
@@ -250,11 +236,11 @@ func (na *_Advertisement__Assembler) reset() {
 var (
 	fieldBit__Advertisement_ID           = 1 << 0
 	fieldBit__Advertisement_IndexID      = 1 << 1
-	fieldBit__Advertisement_Previous     = 1 << 2
+	fieldBit__Advertisement_PreviousID   = 1 << 2
 	fieldBit__Advertisement_Provider     = 1 << 3
 	fieldBit__Advertisement_Signature    = 1 << 4
 	fieldBit__Advertisement_GraphSupport = 1 << 5
-	fieldBits__Advertisement_sufficient  = 0 + 1<<0 + 1<<1 + 1<<3 + 1<<5
+	fieldBits__Advertisement_sufficient  = 0 + 1<<0 + 1<<1 + 1<<2 + 1<<3 + 1<<4 + 1<<5
 )
 
 func (na *_Advertisement__Assembler) BeginMap(int64) (ipld.MapAssembler, error) {
@@ -271,7 +257,7 @@ func (na *_Advertisement__Assembler) BeginMap(int64) (ipld.MapAssembler, error) 
 	return na, nil
 }
 func (_Advertisement__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.MapAssembler{"ingestion.Advertisement"}.BeginList(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement"}.BeginList(0)
 }
 func (na *_Advertisement__Assembler) AssignNull() error {
 	switch *na.m {
@@ -279,7 +265,7 @@ func (na *_Advertisement__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.MapAssembler{"ingestion.Advertisement"}.AssignNull()
+		return mixins.MapAssembler{TypeName: "ingestion.Advertisement"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -288,22 +274,22 @@ func (na *_Advertisement__Assembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_Advertisement__Assembler) AssignBool(bool) error {
-	return mixins.MapAssembler{"ingestion.Advertisement"}.AssignBool(false)
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement"}.AssignBool(false)
 }
 func (_Advertisement__Assembler) AssignInt(int64) error {
-	return mixins.MapAssembler{"ingestion.Advertisement"}.AssignInt(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement"}.AssignInt(0)
 }
 func (_Advertisement__Assembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{"ingestion.Advertisement"}.AssignFloat(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement"}.AssignFloat(0)
 }
 func (_Advertisement__Assembler) AssignString(string) error {
-	return mixins.MapAssembler{"ingestion.Advertisement"}.AssignString("")
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement"}.AssignString("")
 }
 func (_Advertisement__Assembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{"ingestion.Advertisement"}.AssignBytes(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement"}.AssignBytes(nil)
 }
 func (_Advertisement__Assembler) AssignLink(ipld.Link) error {
-	return mixins.MapAssembler{"ingestion.Advertisement"}.AssignLink(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement"}.AssignLink(nil)
 }
 func (na *_Advertisement__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -369,9 +355,10 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 			return false
 		}
 	case 2:
-		switch ma.w.Previous.m {
+		switch ma.cm {
 		case schema.Maybe_Value:
-			ma.w.Previous.v = ma.ca_Previous.w
+			ma.ca_PreviousID.w = nil
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -388,9 +375,10 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 			return false
 		}
 	case 4:
-		switch ma.w.Signature.m {
+		switch ma.cm {
 		case schema.Maybe_Value:
-			ma.w.Signature.v = ma.ca_Signature.w
+			ma.ca_Signature.w = nil
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -428,7 +416,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 	switch k {
 	case "ID":
 		if ma.s&fieldBit__Advertisement_ID != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_ID}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ID}
 		}
 		ma.s += fieldBit__Advertisement_ID
 		ma.state = maState_midValue
@@ -438,7 +426,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		return &ma.ca_ID, nil
 	case "IndexID":
 		if ma.s&fieldBit__Advertisement_IndexID != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_IndexID}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID}
 		}
 		ma.s += fieldBit__Advertisement_IndexID
 		ma.state = maState_midValue
@@ -446,19 +434,19 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		ma.ca_IndexID.w = &ma.w.IndexID
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID, nil
-	case "Previous":
-		if ma.s&fieldBit__Advertisement_Previous != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Previous}
+	case "PreviousID":
+		if ma.s&fieldBit__Advertisement_PreviousID != 0 {
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID}
 		}
-		ma.s += fieldBit__Advertisement_Previous
+		ma.s += fieldBit__Advertisement_PreviousID
 		ma.state = maState_midValue
 		ma.f = 2
-		ma.ca_Previous.w = ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-		return &ma.ca_Previous, nil
+		ma.ca_PreviousID.w = &ma.w.PreviousID
+		ma.ca_PreviousID.m = &ma.cm
+		return &ma.ca_PreviousID, nil
 	case "Provider":
 		if ma.s&fieldBit__Advertisement_Provider != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Provider}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Provider}
 		}
 		ma.s += fieldBit__Advertisement_Provider
 		ma.state = maState_midValue
@@ -468,17 +456,17 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		return &ma.ca_Provider, nil
 	case "Signature":
 		if ma.s&fieldBit__Advertisement_Signature != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Signature}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Signature}
 		}
 		ma.s += fieldBit__Advertisement_Signature
 		ma.state = maState_midValue
 		ma.f = 4
-		ma.ca_Signature.w = ma.w.Signature.v
-		ma.ca_Signature.m = &ma.w.Signature.m
+		ma.ca_Signature.w = &ma.w.Signature
+		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature, nil
 	case "GraphSupport":
 		if ma.s&fieldBit__Advertisement_GraphSupport != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_GraphSupport}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_GraphSupport}
 		}
 		ma.s += fieldBit__Advertisement_GraphSupport
 		ma.state = maState_midValue
@@ -486,9 +474,8 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		ma.ca_GraphSupport.w = &ma.w.GraphSupport
 		ma.ca_GraphSupport.m = &ma.cm
 		return &ma.ca_GraphSupport, nil
-	default:
-		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement", Key: &_String{k}}
 	}
+	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement", Key: &_String{k}}
 }
 func (ma *_Advertisement__Assembler) AssembleKey() ipld.NodeAssembler {
 	switch ma.state {
@@ -532,16 +519,16 @@ func (ma *_Advertisement__Assembler) AssembleValue() ipld.NodeAssembler {
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID
 	case 2:
-		ma.ca_Previous.w = ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-		return &ma.ca_Previous
+		ma.ca_PreviousID.w = &ma.w.PreviousID
+		ma.ca_PreviousID.m = &ma.cm
+		return &ma.ca_PreviousID
 	case 3:
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider
 	case 4:
-		ma.ca_Signature.w = ma.w.Signature.v
-		ma.ca_Signature.m = &ma.w.Signature.m
+		ma.ca_Signature.w = &ma.w.Signature
+		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature
 	case 5:
 		ma.ca_GraphSupport.w = &ma.w.GraphSupport
@@ -574,8 +561,14 @@ func (ma *_Advertisement__Assembler) Finish() error {
 		if ma.s&fieldBit__Advertisement_IndexID == 0 {
 			err.Missing = append(err.Missing, "IndexID")
 		}
+		if ma.s&fieldBit__Advertisement_PreviousID == 0 {
+			err.Missing = append(err.Missing, "PreviousID")
+		}
 		if ma.s&fieldBit__Advertisement_Provider == 0 {
 			err.Missing = append(err.Missing, "Provider")
+		}
+		if ma.s&fieldBit__Advertisement_Signature == 0 {
+			err.Missing = append(err.Missing, "Signature")
 		}
 		if ma.s&fieldBit__Advertisement_GraphSupport == 0 {
 			err.Missing = append(err.Missing, "GraphSupport")
@@ -596,22 +589,22 @@ func (ma *_Advertisement__Assembler) ValuePrototype(k string) ipld.NodePrototype
 type _Advertisement__KeyAssembler _Advertisement__Assembler
 
 func (_Advertisement__KeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Advertisement.KeyAssembler"}.BeginMap(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.BeginMap(0)
 }
 func (_Advertisement__KeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Advertisement.KeyAssembler"}.BeginList(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.BeginList(0)
 }
 func (na *_Advertisement__KeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{"ingestion.Advertisement.KeyAssembler"}.AssignNull()
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.AssignNull()
 }
 func (_Advertisement__KeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{"ingestion.Advertisement.KeyAssembler"}.AssignBool(false)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.AssignBool(false)
 }
 func (_Advertisement__KeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{"ingestion.Advertisement.KeyAssembler"}.AssignInt(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.AssignInt(0)
 }
 func (_Advertisement__KeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{"ingestion.Advertisement.KeyAssembler"}.AssignFloat(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.AssignFloat(0)
 }
 func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 	if ka.state != maState_midKey {
@@ -620,56 +613,61 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 	switch k {
 	case "ID":
 		if ka.s&fieldBit__Advertisement_ID != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_ID}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ID}
 		}
 		ka.s += fieldBit__Advertisement_ID
 		ka.state = maState_expectValue
 		ka.f = 0
+		return nil
 	case "IndexID":
 		if ka.s&fieldBit__Advertisement_IndexID != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_IndexID}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID}
 		}
 		ka.s += fieldBit__Advertisement_IndexID
 		ka.state = maState_expectValue
 		ka.f = 1
-	case "Previous":
-		if ka.s&fieldBit__Advertisement_Previous != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Previous}
+		return nil
+	case "PreviousID":
+		if ka.s&fieldBit__Advertisement_PreviousID != 0 {
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID}
 		}
-		ka.s += fieldBit__Advertisement_Previous
+		ka.s += fieldBit__Advertisement_PreviousID
 		ka.state = maState_expectValue
 		ka.f = 2
+		return nil
 	case "Provider":
 		if ka.s&fieldBit__Advertisement_Provider != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Provider}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Provider}
 		}
 		ka.s += fieldBit__Advertisement_Provider
 		ka.state = maState_expectValue
 		ka.f = 3
+		return nil
 	case "Signature":
 		if ka.s&fieldBit__Advertisement_Signature != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Signature}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Signature}
 		}
 		ka.s += fieldBit__Advertisement_Signature
 		ka.state = maState_expectValue
 		ka.f = 4
+		return nil
 	case "GraphSupport":
 		if ka.s&fieldBit__Advertisement_GraphSupport != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_GraphSupport}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_GraphSupport}
 		}
 		ka.s += fieldBit__Advertisement_GraphSupport
 		ka.state = maState_expectValue
 		ka.f = 5
+		return nil
 	default:
 		return ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement", Key: &_String{k}}
 	}
-	return nil
 }
 func (_Advertisement__KeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{"ingestion.Advertisement.KeyAssembler"}.AssignBytes(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.AssignBytes(nil)
 }
 func (_Advertisement__KeyAssembler) AssignLink(ipld.Link) error {
-	return mixins.StringAssembler{"ingestion.Advertisement.KeyAssembler"}.AssignLink(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Advertisement__KeyAssembler) AssignNode(v ipld.Node) error {
 	if v2, err := v.AsString(); err != nil {
@@ -693,7 +691,7 @@ type _Advertisement__Repr _Advertisement
 var (
 	fieldName__Advertisement_ID_serial           = _String{"ID"}
 	fieldName__Advertisement_IndexID_serial      = _String{"IndexID"}
-	fieldName__Advertisement_Previous_serial     = _String{"Previous"}
+	fieldName__Advertisement_PreviousID_serial   = _String{"PreviousID"}
 	fieldName__Advertisement_Provider_serial     = _String{"Provider"}
 	fieldName__Advertisement_Signature_serial    = _String{"Signature"}
 	fieldName__Advertisement_GraphSupport_serial = _String{"GraphSupport"}
@@ -709,18 +707,12 @@ func (n *_Advertisement__Repr) LookupByString(key string) (ipld.Node, error) {
 		return n.ID.Representation(), nil
 	case "IndexID":
 		return n.IndexID.Representation(), nil
-	case "Previous":
-		if n.Previous.m == schema.Maybe_Absent {
-			return ipld.Absent, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
-		}
-		return n.Previous.v.Representation(), nil
+	case "PreviousID":
+		return n.PreviousID.Representation(), nil
 	case "Provider":
 		return n.Provider.Representation(), nil
 	case "Signature":
-		if n.Signature.m == schema.Maybe_Absent {
-			return ipld.Absent, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
-		}
-		return n.Signature.v.Representation(), nil
+		return n.Signature.Representation(), nil
 	case "GraphSupport":
 		return n.GraphSupport.Representation(), nil
 	default:
@@ -735,7 +727,7 @@ func (n *_Advertisement__Repr) LookupByNode(key ipld.Node) (ipld.Node, error) {
 	return n.LookupByString(ks)
 }
 func (_Advertisement__Repr) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Map{"ingestion.Advertisement.Repr"}.LookupByIndex(0)
+	return mixins.Map{TypeName: "ingestion.Advertisement.Repr"}.LookupByIndex(0)
 }
 func (n _Advertisement__Repr) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
 	return n.LookupByString(seg.String())
@@ -750,7 +742,6 @@ type _Advertisement__ReprMapItr struct {
 }
 
 func (itr *_Advertisement__ReprMapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
-advance:
 	if itr.idx >= 6 {
 		return nil, nil, ipld.ErrIteratorOverread{}
 	}
@@ -762,22 +753,14 @@ advance:
 		k = &fieldName__Advertisement_IndexID_serial
 		v = itr.n.IndexID.Representation()
 	case 2:
-		k = &fieldName__Advertisement_Previous_serial
-		if itr.n.Previous.m == schema.Maybe_Absent {
-			itr.idx++
-			goto advance
-		}
-		v = itr.n.Previous.v.Representation()
+		k = &fieldName__Advertisement_PreviousID_serial
+		v = itr.n.PreviousID.Representation()
 	case 3:
 		k = &fieldName__Advertisement_Provider_serial
 		v = itr.n.Provider.Representation()
 	case 4:
 		k = &fieldName__Advertisement_Signature_serial
-		if itr.n.Signature.m == schema.Maybe_Absent {
-			itr.idx++
-			goto advance
-		}
-		v = itr.n.Signature.v.Representation()
+		v = itr.n.Signature.Representation()
 	case 5:
 		k = &fieldName__Advertisement_GraphSupport_serial
 		v = itr.n.GraphSupport.Representation()
@@ -795,12 +778,6 @@ func (_Advertisement__Repr) ListIterator() ipld.ListIterator {
 }
 func (rn *_Advertisement__Repr) Length() int64 {
 	l := 6
-	if rn.Previous.m == schema.Maybe_Absent {
-		l--
-	}
-	if rn.Signature.m == schema.Maybe_Absent {
-		l--
-	}
 	return int64(l)
 }
 func (_Advertisement__Repr) IsAbsent() bool {
@@ -810,22 +787,22 @@ func (_Advertisement__Repr) IsNull() bool {
 	return false
 }
 func (_Advertisement__Repr) AsBool() (bool, error) {
-	return mixins.Map{"ingestion.Advertisement.Repr"}.AsBool()
+	return mixins.Map{TypeName: "ingestion.Advertisement.Repr"}.AsBool()
 }
 func (_Advertisement__Repr) AsInt() (int64, error) {
-	return mixins.Map{"ingestion.Advertisement.Repr"}.AsInt()
+	return mixins.Map{TypeName: "ingestion.Advertisement.Repr"}.AsInt()
 }
 func (_Advertisement__Repr) AsFloat() (float64, error) {
-	return mixins.Map{"ingestion.Advertisement.Repr"}.AsFloat()
+	return mixins.Map{TypeName: "ingestion.Advertisement.Repr"}.AsFloat()
 }
 func (_Advertisement__Repr) AsString() (string, error) {
-	return mixins.Map{"ingestion.Advertisement.Repr"}.AsString()
+	return mixins.Map{TypeName: "ingestion.Advertisement.Repr"}.AsString()
 }
 func (_Advertisement__Repr) AsBytes() ([]byte, error) {
-	return mixins.Map{"ingestion.Advertisement.Repr"}.AsBytes()
+	return mixins.Map{TypeName: "ingestion.Advertisement.Repr"}.AsBytes()
 }
 func (_Advertisement__Repr) AsLink() (ipld.Link, error) {
-	return mixins.Map{"ingestion.Advertisement.Repr"}.AsLink()
+	return mixins.Map{TypeName: "ingestion.Advertisement.Repr"}.AsLink()
 }
 func (_Advertisement__Repr) Prototype() ipld.NodePrototype {
 	return _Advertisement__ReprPrototype{}
@@ -865,7 +842,7 @@ type _Advertisement__ReprAssembler struct {
 	cm              schema.Maybe
 	ca_ID           _Bytes__ReprAssembler
 	ca_IndexID      _Link_Index__ReprAssembler
-	ca_Previous     _Link_Advertisement__ReprAssembler
+	ca_PreviousID   _Bytes__ReprAssembler
 	ca_Provider     _String__ReprAssembler
 	ca_Signature    _Bytes__ReprAssembler
 	ca_GraphSupport _Bool__ReprAssembler
@@ -876,7 +853,7 @@ func (na *_Advertisement__ReprAssembler) reset() {
 	na.s = 0
 	na.ca_ID.reset()
 	na.ca_IndexID.reset()
-	na.ca_Previous.reset()
+	na.ca_PreviousID.reset()
 	na.ca_Provider.reset()
 	na.ca_Signature.reset()
 	na.ca_GraphSupport.reset()
@@ -895,7 +872,7 @@ func (na *_Advertisement__ReprAssembler) BeginMap(int64) (ipld.MapAssembler, err
 	return na, nil
 }
 func (_Advertisement__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.MapAssembler{"ingestion.Advertisement.Repr"}.BeginList(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement.Repr"}.BeginList(0)
 }
 func (na *_Advertisement__ReprAssembler) AssignNull() error {
 	switch *na.m {
@@ -903,7 +880,7 @@ func (na *_Advertisement__ReprAssembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.MapAssembler{"ingestion.Advertisement.Repr.Repr"}.AssignNull()
+		return mixins.MapAssembler{TypeName: "ingestion.Advertisement.Repr.Repr"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -912,22 +889,22 @@ func (na *_Advertisement__ReprAssembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_Advertisement__ReprAssembler) AssignBool(bool) error {
-	return mixins.MapAssembler{"ingestion.Advertisement.Repr"}.AssignBool(false)
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement.Repr"}.AssignBool(false)
 }
 func (_Advertisement__ReprAssembler) AssignInt(int64) error {
-	return mixins.MapAssembler{"ingestion.Advertisement.Repr"}.AssignInt(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement.Repr"}.AssignInt(0)
 }
 func (_Advertisement__ReprAssembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{"ingestion.Advertisement.Repr"}.AssignFloat(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement.Repr"}.AssignFloat(0)
 }
 func (_Advertisement__ReprAssembler) AssignString(string) error {
-	return mixins.MapAssembler{"ingestion.Advertisement.Repr"}.AssignString("")
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement.Repr"}.AssignString("")
 }
 func (_Advertisement__ReprAssembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{"ingestion.Advertisement.Repr"}.AssignBytes(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement.Repr"}.AssignBytes(nil)
 }
 func (_Advertisement__ReprAssembler) AssignLink(ipld.Link) error {
-	return mixins.MapAssembler{"ingestion.Advertisement.Repr"}.AssignLink(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Advertisement.Repr"}.AssignLink(nil)
 }
 func (na *_Advertisement__ReprAssembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -991,9 +968,9 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 			return false
 		}
 	case 2:
-		switch ma.w.Previous.m {
+		switch ma.cm {
 		case schema.Maybe_Value:
-			ma.w.Previous.v = ma.ca_Previous.w
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -1009,9 +986,9 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 			return false
 		}
 	case 4:
-		switch ma.w.Signature.m {
+		switch ma.cm {
 		case schema.Maybe_Value:
-			ma.w.Signature.v = ma.ca_Signature.w
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -1048,7 +1025,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 	switch k {
 	case "ID":
 		if ma.s&fieldBit__Advertisement_ID != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_ID_serial}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ID_serial}
 		}
 		ma.s += fieldBit__Advertisement_ID
 		ma.state = maState_midValue
@@ -1058,7 +1035,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		return &ma.ca_ID, nil
 	case "IndexID":
 		if ma.s&fieldBit__Advertisement_IndexID != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_IndexID_serial}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID_serial}
 		}
 		ma.s += fieldBit__Advertisement_IndexID
 		ma.state = maState_midValue
@@ -1066,20 +1043,19 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		ma.ca_IndexID.w = &ma.w.IndexID
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID, nil
-	case "Previous":
-		if ma.s&fieldBit__Advertisement_Previous != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Previous_serial}
+	case "PreviousID":
+		if ma.s&fieldBit__Advertisement_PreviousID != 0 {
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID_serial}
 		}
-		ma.s += fieldBit__Advertisement_Previous
+		ma.s += fieldBit__Advertisement_PreviousID
 		ma.state = maState_midValue
 		ma.f = 2
-		ma.ca_Previous.w = ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-
-		return &ma.ca_Previous, nil
+		ma.ca_PreviousID.w = &ma.w.PreviousID
+		ma.ca_PreviousID.m = &ma.cm
+		return &ma.ca_PreviousID, nil
 	case "Provider":
 		if ma.s&fieldBit__Advertisement_Provider != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Provider_serial}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Provider_serial}
 		}
 		ma.s += fieldBit__Advertisement_Provider
 		ma.state = maState_midValue
@@ -1089,18 +1065,17 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		return &ma.ca_Provider, nil
 	case "Signature":
 		if ma.s&fieldBit__Advertisement_Signature != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Signature_serial}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Signature_serial}
 		}
 		ma.s += fieldBit__Advertisement_Signature
 		ma.state = maState_midValue
 		ma.f = 4
-		ma.ca_Signature.w = ma.w.Signature.v
-		ma.ca_Signature.m = &ma.w.Signature.m
-
+		ma.ca_Signature.w = &ma.w.Signature
+		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature, nil
 	case "GraphSupport":
 		if ma.s&fieldBit__Advertisement_GraphSupport != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Advertisement_GraphSupport_serial}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_GraphSupport_serial}
 		}
 		ma.s += fieldBit__Advertisement_GraphSupport
 		ma.state = maState_midValue
@@ -1109,8 +1084,8 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		ma.ca_GraphSupport.m = &ma.cm
 		return &ma.ca_GraphSupport, nil
 	default:
-		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement.Repr", Key: &_String{k}}
 	}
+	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement.Repr", Key: &_String{k}}
 }
 func (ma *_Advertisement__ReprAssembler) AssembleKey() ipld.NodeAssembler {
 	switch ma.state {
@@ -1154,18 +1129,16 @@ func (ma *_Advertisement__ReprAssembler) AssembleValue() ipld.NodeAssembler {
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID
 	case 2:
-		ma.ca_Previous.w = ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-
-		return &ma.ca_Previous
+		ma.ca_PreviousID.w = &ma.w.PreviousID
+		ma.ca_PreviousID.m = &ma.cm
+		return &ma.ca_PreviousID
 	case 3:
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider
 	case 4:
-		ma.ca_Signature.w = ma.w.Signature.v
-		ma.ca_Signature.m = &ma.w.Signature.m
-
+		ma.ca_Signature.w = &ma.w.Signature
+		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature
 	case 5:
 		ma.ca_GraphSupport.w = &ma.w.GraphSupport
@@ -1198,8 +1171,14 @@ func (ma *_Advertisement__ReprAssembler) Finish() error {
 		if ma.s&fieldBit__Advertisement_IndexID == 0 {
 			err.Missing = append(err.Missing, "IndexID")
 		}
+		if ma.s&fieldBit__Advertisement_PreviousID == 0 {
+			err.Missing = append(err.Missing, "PreviousID")
+		}
 		if ma.s&fieldBit__Advertisement_Provider == 0 {
 			err.Missing = append(err.Missing, "Provider")
+		}
+		if ma.s&fieldBit__Advertisement_Signature == 0 {
+			err.Missing = append(err.Missing, "Signature")
 		}
 		if ma.s&fieldBit__Advertisement_GraphSupport == 0 {
 			err.Missing = append(err.Missing, "GraphSupport")
@@ -1220,22 +1199,22 @@ func (ma *_Advertisement__ReprAssembler) ValuePrototype(k string) ipld.NodeProto
 type _Advertisement__ReprKeyAssembler _Advertisement__ReprAssembler
 
 func (_Advertisement__ReprKeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Advertisement.Repr.KeyAssembler"}.BeginMap(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.BeginMap(0)
 }
 func (_Advertisement__ReprKeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Advertisement.Repr.KeyAssembler"}.BeginList(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.BeginList(0)
 }
 func (na *_Advertisement__ReprKeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{"ingestion.Advertisement.Repr.KeyAssembler"}.AssignNull()
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.AssignNull()
 }
 func (_Advertisement__ReprKeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{"ingestion.Advertisement.Repr.KeyAssembler"}.AssignBool(false)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.AssignBool(false)
 }
 func (_Advertisement__ReprKeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{"ingestion.Advertisement.Repr.KeyAssembler"}.AssignInt(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.AssignInt(0)
 }
 func (_Advertisement__ReprKeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{"ingestion.Advertisement.Repr.KeyAssembler"}.AssignFloat(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.AssignFloat(0)
 }
 func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 	if ka.state != maState_midKey {
@@ -1244,56 +1223,60 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 	switch k {
 	case "ID":
 		if ka.s&fieldBit__Advertisement_ID != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_ID_serial}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ID_serial}
 		}
 		ka.s += fieldBit__Advertisement_ID
 		ka.state = maState_expectValue
 		ka.f = 0
+		return nil
 	case "IndexID":
 		if ka.s&fieldBit__Advertisement_IndexID != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_IndexID_serial}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID_serial}
 		}
 		ka.s += fieldBit__Advertisement_IndexID
 		ka.state = maState_expectValue
 		ka.f = 1
-	case "Previous":
-		if ka.s&fieldBit__Advertisement_Previous != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Previous_serial}
+		return nil
+	case "PreviousID":
+		if ka.s&fieldBit__Advertisement_PreviousID != 0 {
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID_serial}
 		}
-		ka.s += fieldBit__Advertisement_Previous
+		ka.s += fieldBit__Advertisement_PreviousID
 		ka.state = maState_expectValue
 		ka.f = 2
+		return nil
 	case "Provider":
 		if ka.s&fieldBit__Advertisement_Provider != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Provider_serial}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Provider_serial}
 		}
 		ka.s += fieldBit__Advertisement_Provider
 		ka.state = maState_expectValue
 		ka.f = 3
+		return nil
 	case "Signature":
 		if ka.s&fieldBit__Advertisement_Signature != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_Signature_serial}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Signature_serial}
 		}
 		ka.s += fieldBit__Advertisement_Signature
 		ka.state = maState_expectValue
 		ka.f = 4
+		return nil
 	case "GraphSupport":
 		if ka.s&fieldBit__Advertisement_GraphSupport != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Advertisement_GraphSupport_serial}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_GraphSupport_serial}
 		}
 		ka.s += fieldBit__Advertisement_GraphSupport
 		ka.state = maState_expectValue
 		ka.f = 5
-	default:
-		return ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement.Repr", Key: &_String{k}}
+		return nil
 	}
-	return nil
+	return ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement.Repr", Key: &_String{k}}
 }
 func (_Advertisement__ReprKeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{"ingestion.Advertisement.Repr.KeyAssembler"}.AssignBytes(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.AssignBytes(nil)
 }
 func (_Advertisement__ReprKeyAssembler) AssignLink(ipld.Link) error {
-	return mixins.StringAssembler{"ingestion.Advertisement.Repr.KeyAssembler"}.AssignLink(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Advertisement__ReprKeyAssembler) AssignNode(v ipld.Node) error {
 	if v2, err := v.AsString(); err != nil {
@@ -1366,49 +1349,49 @@ func (n Any) LookupByString(key string) (ipld.Node, error) {
 		if n2, ok := n.x.(Bool); ok {
 			return n2, nil
 		} else {
-			return nil, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
+			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
 		}
 	case "Int":
 		if n2, ok := n.x.(Int); ok {
 			return n2, nil
 		} else {
-			return nil, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
+			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
 		}
 	case "Float":
 		if n2, ok := n.x.(Float); ok {
 			return n2, nil
 		} else {
-			return nil, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
+			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
 		}
 	case "String":
 		if n2, ok := n.x.(String); ok {
 			return n2, nil
 		} else {
-			return nil, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
+			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
 		}
 	case "Bytes":
 		if n2, ok := n.x.(Bytes); ok {
 			return n2, nil
 		} else {
-			return nil, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
+			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
 		}
 	case "Map":
 		if n2, ok := n.x.(Map); ok {
 			return n2, nil
 		} else {
-			return nil, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
+			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
 		}
 	case "List":
 		if n2, ok := n.x.(List); ok {
 			return n2, nil
 		} else {
-			return nil, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
+			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
 		}
 	case "Link":
 		if n2, ok := n.x.(Link); ok {
 			return n2, nil
 		} else {
-			return nil, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
+			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
 		}
 	default:
 		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: ipld.PathSegmentOfString(key)}
@@ -1422,7 +1405,7 @@ func (n Any) LookupByNode(key ipld.Node) (ipld.Node, error) {
 	return n.LookupByString(ks)
 }
 func (Any) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Map{"ingestion.Any"}.LookupByIndex(0)
+	return mixins.Map{TypeName: "ingestion.Any"}.LookupByIndex(0)
 }
 func (n Any) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
 	return n.LookupByString(seg.String())
@@ -1480,22 +1463,22 @@ func (Any) IsNull() bool {
 	return false
 }
 func (Any) AsBool() (bool, error) {
-	return mixins.Map{"ingestion.Any"}.AsBool()
+	return mixins.Map{TypeName: "ingestion.Any"}.AsBool()
 }
 func (Any) AsInt() (int64, error) {
-	return mixins.Map{"ingestion.Any"}.AsInt()
+	return mixins.Map{TypeName: "ingestion.Any"}.AsInt()
 }
 func (Any) AsFloat() (float64, error) {
-	return mixins.Map{"ingestion.Any"}.AsFloat()
+	return mixins.Map{TypeName: "ingestion.Any"}.AsFloat()
 }
 func (Any) AsString() (string, error) {
-	return mixins.Map{"ingestion.Any"}.AsString()
+	return mixins.Map{TypeName: "ingestion.Any"}.AsString()
 }
 func (Any) AsBytes() ([]byte, error) {
-	return mixins.Map{"ingestion.Any"}.AsBytes()
+	return mixins.Map{TypeName: "ingestion.Any"}.AsBytes()
 }
 func (Any) AsLink() (ipld.Link, error) {
-	return mixins.Map{"ingestion.Any"}.AsLink()
+	return mixins.Map{TypeName: "ingestion.Any"}.AsLink()
 }
 func (Any) Prototype() ipld.NodePrototype {
 	return _Any__Prototype{}
@@ -1597,7 +1580,7 @@ func (na *_Any__Assembler) BeginMap(int64) (ipld.MapAssembler, error) {
 	return na, nil
 }
 func (_Any__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.MapAssembler{"ingestion.Any"}.BeginList(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Any"}.BeginList(0)
 }
 func (na *_Any__Assembler) AssignNull() error {
 	switch *na.m {
@@ -1605,7 +1588,7 @@ func (na *_Any__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.MapAssembler{"ingestion.Any"}.AssignNull()
+		return mixins.MapAssembler{TypeName: "ingestion.Any"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -1614,22 +1597,22 @@ func (na *_Any__Assembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_Any__Assembler) AssignBool(bool) error {
-	return mixins.MapAssembler{"ingestion.Any"}.AssignBool(false)
+	return mixins.MapAssembler{TypeName: "ingestion.Any"}.AssignBool(false)
 }
 func (_Any__Assembler) AssignInt(int64) error {
-	return mixins.MapAssembler{"ingestion.Any"}.AssignInt(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Any"}.AssignInt(0)
 }
 func (_Any__Assembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{"ingestion.Any"}.AssignFloat(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Any"}.AssignFloat(0)
 }
 func (_Any__Assembler) AssignString(string) error {
-	return mixins.MapAssembler{"ingestion.Any"}.AssignString("")
+	return mixins.MapAssembler{TypeName: "ingestion.Any"}.AssignString("")
 }
 func (_Any__Assembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{"ingestion.Any"}.AssignBytes(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Any"}.AssignBytes(nil)
 }
 func (_Any__Assembler) AssignLink(ipld.Link) error {
-	return mixins.MapAssembler{"ingestion.Any"}.AssignLink(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Any"}.AssignLink(nil)
 }
 func (na *_Any__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -1788,9 +1771,8 @@ func (ma *_Any__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error) {
 		ma.ca8.w = x
 		ma.ca8.m = &ma.cm
 		return ma.ca8, nil
-	default:
-		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Any", Key: &_String{k}}
 	}
+	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Any", Key: &_String{k}}
 }
 func (ma *_Any__Assembler) AssembleKey() ipld.NodeAssembler {
 	switch ma.state {
@@ -1952,22 +1934,22 @@ func (ma *_Any__Assembler) ValuePrototype(k string) ipld.NodePrototype {
 type _Any__KeyAssembler _Any__Assembler
 
 func (_Any__KeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Any.KeyAssembler"}.BeginMap(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.BeginMap(0)
 }
 func (_Any__KeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Any.KeyAssembler"}.BeginList(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.BeginList(0)
 }
 func (na *_Any__KeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{"ingestion.Any.KeyAssembler"}.AssignNull()
+	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.AssignNull()
 }
 func (_Any__KeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{"ingestion.Any.KeyAssembler"}.AssignBool(false)
+	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.AssignBool(false)
 }
 func (_Any__KeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{"ingestion.Any.KeyAssembler"}.AssignInt(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.AssignInt(0)
 }
 func (_Any__KeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{"ingestion.Any.KeyAssembler"}.AssignFloat(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.AssignFloat(0)
 }
 func (ka *_Any__KeyAssembler) AssignString(k string) error {
 	if ka.state != maState_midKey {
@@ -2009,16 +1991,14 @@ func (ka *_Any__KeyAssembler) AssignString(k string) error {
 		ka.ca = 8
 		ka.state = maState_expectValue
 		return nil
-	default:
-		return ipld.ErrInvalidKey{TypeName: "ingestion.Any", Key: &_String{k}} // TODO: error quality: ErrInvalidUnionDiscriminant ?
 	}
-	return nil
+	return ipld.ErrInvalidKey{TypeName: "ingestion.Any", Key: &_String{k}} // TODO: error quality: ErrInvalidUnionDiscriminant ?
 }
 func (_Any__KeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{"ingestion.Any.KeyAssembler"}.AssignBytes(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.AssignBytes(nil)
 }
 func (_Any__KeyAssembler) AssignLink(ipld.Link) error {
-	return mixins.StringAssembler{"ingestion.Any.KeyAssembler"}.AssignLink(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Any__KeyAssembler) AssignNode(v ipld.Node) error {
 	if v2, err := v.AsString(); err != nil {
@@ -2265,7 +2245,6 @@ func (na *_Any__ReprAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, erro
 	na.ca6.w = x
 	na.ca6.m = na.m
 	return na.ca6.BeginMap(sizeHint)
-	return nil, schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "BeginMap called but is not valid for any of the kinds that are valid members of this union"}
 }
 func (na *_Any__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
 	switch *na.m {
@@ -2286,7 +2265,6 @@ func (na *_Any__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, er
 	na.ca7.w = x
 	na.ca7.m = na.m
 	return na.ca7.BeginList(sizeHint)
-	return nil, schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "BeginList called but is not valid for any of the kinds that are valid members of this union"}
 }
 func (na *_Any__ReprAssembler) AssignNull() error {
 	switch *na.m {
@@ -2316,7 +2294,6 @@ func (na *_Any__ReprAssembler) AssignBool(v bool) error {
 	na.ca1.w = x
 	na.ca1.m = na.m
 	return na.ca1.AssignBool(v)
-	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignBool called but is not valid for any of the kinds that are valid members of this union"}
 }
 func (na *_Any__ReprAssembler) AssignInt(v int64) error {
 	switch *na.m {
@@ -2337,7 +2314,6 @@ func (na *_Any__ReprAssembler) AssignInt(v int64) error {
 	na.ca2.w = x
 	na.ca2.m = na.m
 	return na.ca2.AssignInt(v)
-	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignInt called but is not valid for any of the kinds that are valid members of this union"}
 }
 func (na *_Any__ReprAssembler) AssignFloat(v float64) error {
 	switch *na.m {
@@ -2358,7 +2334,6 @@ func (na *_Any__ReprAssembler) AssignFloat(v float64) error {
 	na.ca3.w = x
 	na.ca3.m = na.m
 	return na.ca3.AssignFloat(v)
-	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignFloat called but is not valid for any of the kinds that are valid members of this union"}
 }
 func (na *_Any__ReprAssembler) AssignString(v string) error {
 	switch *na.m {
@@ -2379,7 +2354,6 @@ func (na *_Any__ReprAssembler) AssignString(v string) error {
 	na.ca4.w = x
 	na.ca4.m = na.m
 	return na.ca4.AssignString(v)
-	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignString called but is not valid for any of the kinds that are valid members of this union"}
 }
 func (na *_Any__ReprAssembler) AssignBytes(v []byte) error {
 	switch *na.m {
@@ -2400,7 +2374,6 @@ func (na *_Any__ReprAssembler) AssignBytes(v []byte) error {
 	na.ca5.w = x
 	na.ca5.m = na.m
 	return na.ca5.AssignBytes(v)
-	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignBytes called but is not valid for any of the kinds that are valid members of this union"}
 }
 func (na *_Any__ReprAssembler) AssignLink(v ipld.Link) error {
 	switch *na.m {
@@ -2421,7 +2394,6 @@ func (na *_Any__ReprAssembler) AssignLink(v ipld.Link) error {
 	na.ca8.w = x
 	na.ca8.m = na.m
 	return na.ca8.AssignLink(v)
-	return schema.ErrNotUnionStructure{TypeName: "ingestion.Any.Repr", Detail: "AssignLink called but is not valid for any of the kinds that are valid members of this union"}
 }
 func (na *_Any__ReprAssembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -2515,7 +2487,7 @@ func (_Bool__Prototype) FromBool(v bool) (Bool, error) {
 
 type _Bool__Maybe struct {
 	m schema.Maybe
-	v Bool
+	v _Bool
 }
 type MaybeBool = *_Bool__Maybe
 
@@ -2535,7 +2507,7 @@ func (m MaybeBool) AsNode() ipld.Node {
 	case schema.Maybe_Null:
 		return ipld.Null
 	case schema.Maybe_Value:
-		return m.v
+		return &m.v
 	default:
 		panic("unreachable")
 	}
@@ -2544,7 +2516,7 @@ func (m MaybeBool) Must() Bool {
 	if !m.Exists() {
 		panic("unbox of a maybe rejected")
 	}
-	return m.v
+	return &m.v
 }
 
 var _ ipld.Node = (Bool)(&_Bool{})
@@ -2554,16 +2526,16 @@ func (Bool) Kind() ipld.Kind {
 	return ipld.Kind_Bool
 }
 func (Bool) LookupByString(string) (ipld.Node, error) {
-	return mixins.Bool{"ingestion.Bool"}.LookupByString("")
+	return mixins.Bool{TypeName: "ingestion.Bool"}.LookupByString("")
 }
 func (Bool) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Bool{"ingestion.Bool"}.LookupByNode(nil)
+	return mixins.Bool{TypeName: "ingestion.Bool"}.LookupByNode(nil)
 }
 func (Bool) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Bool{"ingestion.Bool"}.LookupByIndex(0)
+	return mixins.Bool{TypeName: "ingestion.Bool"}.LookupByIndex(0)
 }
 func (Bool) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-	return mixins.Bool{"ingestion.Bool"}.LookupBySegment(seg)
+	return mixins.Bool{TypeName: "ingestion.Bool"}.LookupBySegment(seg)
 }
 func (Bool) MapIterator() ipld.MapIterator {
 	return nil
@@ -2584,19 +2556,19 @@ func (n Bool) AsBool() (bool, error) {
 	return n.x, nil
 }
 func (Bool) AsInt() (int64, error) {
-	return mixins.Bool{"ingestion.Bool"}.AsInt()
+	return mixins.Bool{TypeName: "ingestion.Bool"}.AsInt()
 }
 func (Bool) AsFloat() (float64, error) {
-	return mixins.Bool{"ingestion.Bool"}.AsFloat()
+	return mixins.Bool{TypeName: "ingestion.Bool"}.AsFloat()
 }
 func (Bool) AsString() (string, error) {
-	return mixins.Bool{"ingestion.Bool"}.AsString()
+	return mixins.Bool{TypeName: "ingestion.Bool"}.AsString()
 }
 func (Bool) AsBytes() ([]byte, error) {
-	return mixins.Bool{"ingestion.Bool"}.AsBytes()
+	return mixins.Bool{TypeName: "ingestion.Bool"}.AsBytes()
 }
 func (Bool) AsLink() (ipld.Link, error) {
-	return mixins.Bool{"ingestion.Bool"}.AsLink()
+	return mixins.Bool{TypeName: "ingestion.Bool"}.AsLink()
 }
 func (Bool) Prototype() ipld.NodePrototype {
 	return _Bool__Prototype{}
@@ -2633,10 +2605,10 @@ type _Bool__Assembler struct {
 
 func (na *_Bool__Assembler) reset() {}
 func (_Bool__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.BoolAssembler{"ingestion.Bool"}.BeginMap(0)
+	return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.BeginMap(0)
 }
 func (_Bool__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.BoolAssembler{"ingestion.Bool"}.BeginList(0)
+	return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.BeginList(0)
 }
 func (na *_Bool__Assembler) AssignNull() error {
 	switch *na.m {
@@ -2644,7 +2616,7 @@ func (na *_Bool__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.BoolAssembler{"ingestion.Bool"}.AssignNull()
+		return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
@@ -2655,27 +2627,24 @@ func (na *_Bool__Assembler) AssignBool(v bool) error {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
-	if na.w == nil {
-		na.w = &_Bool{}
-	}
 	na.w.x = v
 	*na.m = schema.Maybe_Value
 	return nil
 }
 func (_Bool__Assembler) AssignInt(int64) error {
-	return mixins.BoolAssembler{"ingestion.Bool"}.AssignInt(0)
+	return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.AssignInt(0)
 }
 func (_Bool__Assembler) AssignFloat(float64) error {
-	return mixins.BoolAssembler{"ingestion.Bool"}.AssignFloat(0)
+	return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.AssignFloat(0)
 }
 func (_Bool__Assembler) AssignString(string) error {
-	return mixins.BoolAssembler{"ingestion.Bool"}.AssignString("")
+	return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.AssignString("")
 }
 func (_Bool__Assembler) AssignBytes([]byte) error {
-	return mixins.BoolAssembler{"ingestion.Bool"}.AssignBytes(nil)
+	return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.AssignBytes(nil)
 }
 func (_Bool__Assembler) AssignLink(ipld.Link) error {
-	return mixins.BoolAssembler{"ingestion.Bool"}.AssignLink(nil)
+	return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.AssignLink(nil)
 }
 func (na *_Bool__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -2685,11 +2654,6 @@ func (na *_Bool__Assembler) AssignNode(v ipld.Node) error {
 		switch *na.m {
 		case schema.Maybe_Value, schema.Maybe_Null:
 			panic("invalid state: cannot assign into assembler that's already finished")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -2728,7 +2692,7 @@ func (_Bytes__Prototype) FromBytes(v []byte) (Bytes, error) {
 
 type _Bytes__Maybe struct {
 	m schema.Maybe
-	v Bytes
+	v _Bytes
 }
 type MaybeBytes = *_Bytes__Maybe
 
@@ -2748,7 +2712,7 @@ func (m MaybeBytes) AsNode() ipld.Node {
 	case schema.Maybe_Null:
 		return ipld.Null
 	case schema.Maybe_Value:
-		return m.v
+		return &m.v
 	default:
 		panic("unreachable")
 	}
@@ -2757,7 +2721,7 @@ func (m MaybeBytes) Must() Bytes {
 	if !m.Exists() {
 		panic("unbox of a maybe rejected")
 	}
-	return m.v
+	return &m.v
 }
 
 var _ ipld.Node = (Bytes)(&_Bytes{})
@@ -2767,16 +2731,16 @@ func (Bytes) Kind() ipld.Kind {
 	return ipld.Kind_Bytes
 }
 func (Bytes) LookupByString(string) (ipld.Node, error) {
-	return mixins.Bytes{"ingestion.Bytes"}.LookupByString("")
+	return mixins.Bytes{TypeName: "ingestion.Bytes"}.LookupByString("")
 }
 func (Bytes) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Bytes{"ingestion.Bytes"}.LookupByNode(nil)
+	return mixins.Bytes{TypeName: "ingestion.Bytes"}.LookupByNode(nil)
 }
 func (Bytes) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Bytes{"ingestion.Bytes"}.LookupByIndex(0)
+	return mixins.Bytes{TypeName: "ingestion.Bytes"}.LookupByIndex(0)
 }
 func (Bytes) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-	return mixins.Bytes{"ingestion.Bytes"}.LookupBySegment(seg)
+	return mixins.Bytes{TypeName: "ingestion.Bytes"}.LookupBySegment(seg)
 }
 func (Bytes) MapIterator() ipld.MapIterator {
 	return nil
@@ -2794,22 +2758,22 @@ func (Bytes) IsNull() bool {
 	return false
 }
 func (Bytes) AsBool() (bool, error) {
-	return mixins.Bytes{"ingestion.Bytes"}.AsBool()
+	return mixins.Bytes{TypeName: "ingestion.Bytes"}.AsBool()
 }
 func (Bytes) AsInt() (int64, error) {
-	return mixins.Bytes{"ingestion.Bytes"}.AsInt()
+	return mixins.Bytes{TypeName: "ingestion.Bytes"}.AsInt()
 }
 func (Bytes) AsFloat() (float64, error) {
-	return mixins.Bytes{"ingestion.Bytes"}.AsFloat()
+	return mixins.Bytes{TypeName: "ingestion.Bytes"}.AsFloat()
 }
 func (Bytes) AsString() (string, error) {
-	return mixins.Bytes{"ingestion.Bytes"}.AsString()
+	return mixins.Bytes{TypeName: "ingestion.Bytes"}.AsString()
 }
 func (n Bytes) AsBytes() ([]byte, error) {
 	return n.x, nil
 }
 func (Bytes) AsLink() (ipld.Link, error) {
-	return mixins.Bytes{"ingestion.Bytes"}.AsLink()
+	return mixins.Bytes{TypeName: "ingestion.Bytes"}.AsLink()
 }
 func (Bytes) Prototype() ipld.NodePrototype {
 	return _Bytes__Prototype{}
@@ -2846,10 +2810,10 @@ type _Bytes__Assembler struct {
 
 func (na *_Bytes__Assembler) reset() {}
 func (_Bytes__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.BytesAssembler{"ingestion.Bytes"}.BeginMap(0)
+	return mixins.BytesAssembler{TypeName: "ingestion.Bytes"}.BeginMap(0)
 }
 func (_Bytes__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.BytesAssembler{"ingestion.Bytes"}.BeginList(0)
+	return mixins.BytesAssembler{TypeName: "ingestion.Bytes"}.BeginList(0)
 }
 func (na *_Bytes__Assembler) AssignNull() error {
 	switch *na.m {
@@ -2857,38 +2821,35 @@ func (na *_Bytes__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.BytesAssembler{"ingestion.Bytes"}.AssignNull()
+		return mixins.BytesAssembler{TypeName: "ingestion.Bytes"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
 	panic("unreachable")
 }
 func (_Bytes__Assembler) AssignBool(bool) error {
-	return mixins.BytesAssembler{"ingestion.Bytes"}.AssignBool(false)
+	return mixins.BytesAssembler{TypeName: "ingestion.Bytes"}.AssignBool(false)
 }
 func (_Bytes__Assembler) AssignInt(int64) error {
-	return mixins.BytesAssembler{"ingestion.Bytes"}.AssignInt(0)
+	return mixins.BytesAssembler{TypeName: "ingestion.Bytes"}.AssignInt(0)
 }
 func (_Bytes__Assembler) AssignFloat(float64) error {
-	return mixins.BytesAssembler{"ingestion.Bytes"}.AssignFloat(0)
+	return mixins.BytesAssembler{TypeName: "ingestion.Bytes"}.AssignFloat(0)
 }
 func (_Bytes__Assembler) AssignString(string) error {
-	return mixins.BytesAssembler{"ingestion.Bytes"}.AssignString("")
+	return mixins.BytesAssembler{TypeName: "ingestion.Bytes"}.AssignString("")
 }
 func (na *_Bytes__Assembler) AssignBytes(v []byte) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
-	if na.w == nil {
-		na.w = &_Bytes{}
-	}
 	na.w.x = v
 	*na.m = schema.Maybe_Value
 	return nil
 }
 func (_Bytes__Assembler) AssignLink(ipld.Link) error {
-	return mixins.BytesAssembler{"ingestion.Bytes"}.AssignLink(nil)
+	return mixins.BytesAssembler{TypeName: "ingestion.Bytes"}.AssignLink(nil)
 }
 func (na *_Bytes__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -2898,11 +2859,6 @@ func (na *_Bytes__Assembler) AssignNode(v ipld.Node) error {
 		switch *na.m {
 		case schema.Maybe_Value, schema.Maybe_Null:
 			panic("invalid state: cannot assign into assembler that's already finished")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -2995,7 +2951,7 @@ func (n Entry) LookupByString(key string) (ipld.Node, error) {
 		if n.RmCids.m == schema.Maybe_Null {
 			return ipld.Null, nil
 		}
-		return n.RmCids.v, nil
+		return &n.RmCids.v, nil
 	case "Cids":
 		if n.Cids.m == schema.Maybe_Absent {
 			return ipld.Absent, nil
@@ -3003,7 +2959,7 @@ func (n Entry) LookupByString(key string) (ipld.Node, error) {
 		if n.Cids.m == schema.Maybe_Null {
 			return ipld.Null, nil
 		}
-		return n.Cids.v, nil
+		return &n.Cids.v, nil
 	case "Metadata":
 		if n.Metadata.m == schema.Maybe_Absent {
 			return ipld.Absent, nil
@@ -3011,7 +2967,7 @@ func (n Entry) LookupByString(key string) (ipld.Node, error) {
 		if n.Metadata.m == schema.Maybe_Null {
 			return ipld.Null, nil
 		}
-		return n.Metadata.v, nil
+		return &n.Metadata.v, nil
 	default:
 		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: ipld.PathSegmentOfString(key)}
 	}
@@ -3024,7 +2980,7 @@ func (n Entry) LookupByNode(key ipld.Node) (ipld.Node, error) {
 	return n.LookupByString(ks)
 }
 func (Entry) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Map{"ingestion.Entry"}.LookupByIndex(0)
+	return mixins.Map{TypeName: "ingestion.Entry"}.LookupByIndex(0)
 }
 func (n Entry) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
 	return n.LookupByString(seg.String())
@@ -3053,7 +3009,7 @@ func (itr *_Entry__MapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
 			v = ipld.Null
 			break
 		}
-		v = itr.n.RmCids.v
+		v = &itr.n.RmCids.v
 	case 1:
 		k = &fieldName__Entry_Cids
 		if itr.n.Cids.m == schema.Maybe_Absent {
@@ -3064,7 +3020,7 @@ func (itr *_Entry__MapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
 			v = ipld.Null
 			break
 		}
-		v = itr.n.Cids.v
+		v = &itr.n.Cids.v
 	case 2:
 		k = &fieldName__Entry_Metadata
 		if itr.n.Metadata.m == schema.Maybe_Absent {
@@ -3075,7 +3031,7 @@ func (itr *_Entry__MapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
 			v = ipld.Null
 			break
 		}
-		v = itr.n.Metadata.v
+		v = &itr.n.Metadata.v
 	default:
 		panic("unreachable")
 	}
@@ -3099,22 +3055,22 @@ func (Entry) IsNull() bool {
 	return false
 }
 func (Entry) AsBool() (bool, error) {
-	return mixins.Map{"ingestion.Entry"}.AsBool()
+	return mixins.Map{TypeName: "ingestion.Entry"}.AsBool()
 }
 func (Entry) AsInt() (int64, error) {
-	return mixins.Map{"ingestion.Entry"}.AsInt()
+	return mixins.Map{TypeName: "ingestion.Entry"}.AsInt()
 }
 func (Entry) AsFloat() (float64, error) {
-	return mixins.Map{"ingestion.Entry"}.AsFloat()
+	return mixins.Map{TypeName: "ingestion.Entry"}.AsFloat()
 }
 func (Entry) AsString() (string, error) {
-	return mixins.Map{"ingestion.Entry"}.AsString()
+	return mixins.Map{TypeName: "ingestion.Entry"}.AsString()
 }
 func (Entry) AsBytes() ([]byte, error) {
-	return mixins.Map{"ingestion.Entry"}.AsBytes()
+	return mixins.Map{TypeName: "ingestion.Entry"}.AsBytes()
 }
 func (Entry) AsLink() (ipld.Link, error) {
-	return mixins.Map{"ingestion.Entry"}.AsLink()
+	return mixins.Map{TypeName: "ingestion.Entry"}.AsLink()
 }
 func (Entry) Prototype() ipld.NodePrototype {
 	return _Entry__Prototype{}
@@ -3186,7 +3142,7 @@ func (na *_Entry__Assembler) BeginMap(int64) (ipld.MapAssembler, error) {
 	return na, nil
 }
 func (_Entry__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.MapAssembler{"ingestion.Entry"}.BeginList(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Entry"}.BeginList(0)
 }
 func (na *_Entry__Assembler) AssignNull() error {
 	switch *na.m {
@@ -3194,7 +3150,7 @@ func (na *_Entry__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.MapAssembler{"ingestion.Entry"}.AssignNull()
+		return mixins.MapAssembler{TypeName: "ingestion.Entry"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -3203,22 +3159,22 @@ func (na *_Entry__Assembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_Entry__Assembler) AssignBool(bool) error {
-	return mixins.MapAssembler{"ingestion.Entry"}.AssignBool(false)
+	return mixins.MapAssembler{TypeName: "ingestion.Entry"}.AssignBool(false)
 }
 func (_Entry__Assembler) AssignInt(int64) error {
-	return mixins.MapAssembler{"ingestion.Entry"}.AssignInt(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Entry"}.AssignInt(0)
 }
 func (_Entry__Assembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{"ingestion.Entry"}.AssignFloat(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Entry"}.AssignFloat(0)
 }
 func (_Entry__Assembler) AssignString(string) error {
-	return mixins.MapAssembler{"ingestion.Entry"}.AssignString("")
+	return mixins.MapAssembler{TypeName: "ingestion.Entry"}.AssignString("")
 }
 func (_Entry__Assembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{"ingestion.Entry"}.AssignBytes(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Entry"}.AssignBytes(nil)
 }
 func (_Entry__Assembler) AssignLink(ipld.Link) error {
-	return mixins.MapAssembler{"ingestion.Entry"}.AssignLink(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Entry"}.AssignLink(nil)
 }
 func (na *_Entry__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -3269,7 +3225,6 @@ func (ma *_Entry__Assembler) valueFinishTidy() bool {
 			ma.state = maState_initial
 			return true
 		case schema.Maybe_Value:
-			ma.w.RmCids.v = ma.ca_RmCids.w
 			ma.state = maState_initial
 			return true
 		default:
@@ -3281,7 +3236,6 @@ func (ma *_Entry__Assembler) valueFinishTidy() bool {
 			ma.state = maState_initial
 			return true
 		case schema.Maybe_Value:
-			ma.w.Cids.v = ma.ca_Cids.w
 			ma.state = maState_initial
 			return true
 		default:
@@ -3293,7 +3247,6 @@ func (ma *_Entry__Assembler) valueFinishTidy() bool {
 			ma.state = maState_initial
 			return true
 		case schema.Maybe_Value:
-			ma.w.Metadata.v = ma.ca_Metadata.w
 			ma.state = maState_initial
 			return true
 		default:
@@ -3321,40 +3274,39 @@ func (ma *_Entry__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error)
 	switch k {
 	case "RmCids":
 		if ma.s&fieldBit__Entry_RmCids != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Entry_RmCids}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_RmCids}
 		}
 		ma.s += fieldBit__Entry_RmCids
 		ma.state = maState_midValue
 		ma.f = 0
-		ma.ca_RmCids.w = ma.w.RmCids.v
+		ma.ca_RmCids.w = &ma.w.RmCids.v
 		ma.ca_RmCids.m = &ma.w.RmCids.m
 		ma.w.RmCids.m = allowNull
 		return &ma.ca_RmCids, nil
 	case "Cids":
 		if ma.s&fieldBit__Entry_Cids != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Entry_Cids}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Cids}
 		}
 		ma.s += fieldBit__Entry_Cids
 		ma.state = maState_midValue
 		ma.f = 1
-		ma.ca_Cids.w = ma.w.Cids.v
+		ma.ca_Cids.w = &ma.w.Cids.v
 		ma.ca_Cids.m = &ma.w.Cids.m
 		ma.w.Cids.m = allowNull
 		return &ma.ca_Cids, nil
 	case "Metadata":
 		if ma.s&fieldBit__Entry_Metadata != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Entry_Metadata}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Metadata}
 		}
 		ma.s += fieldBit__Entry_Metadata
 		ma.state = maState_midValue
 		ma.f = 2
-		ma.ca_Metadata.w = ma.w.Metadata.v
+		ma.ca_Metadata.w = &ma.w.Metadata.v
 		ma.ca_Metadata.m = &ma.w.Metadata.m
 		ma.w.Metadata.m = allowNull
 		return &ma.ca_Metadata, nil
-	default:
-		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Entry", Key: &_String{k}}
 	}
+	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Entry", Key: &_String{k}}
 }
 func (ma *_Entry__Assembler) AssembleKey() ipld.NodeAssembler {
 	switch ma.state {
@@ -3390,17 +3342,17 @@ func (ma *_Entry__Assembler) AssembleValue() ipld.NodeAssembler {
 	ma.state = maState_midValue
 	switch ma.f {
 	case 0:
-		ma.ca_RmCids.w = ma.w.RmCids.v
+		ma.ca_RmCids.w = &ma.w.RmCids.v
 		ma.ca_RmCids.m = &ma.w.RmCids.m
 		ma.w.RmCids.m = allowNull
 		return &ma.ca_RmCids
 	case 1:
-		ma.ca_Cids.w = ma.w.Cids.v
+		ma.ca_Cids.w = &ma.w.Cids.v
 		ma.ca_Cids.m = &ma.w.Cids.m
 		ma.w.Cids.m = allowNull
 		return &ma.ca_Cids
 	case 2:
-		ma.ca_Metadata.w = ma.w.Metadata.v
+		ma.ca_Metadata.w = &ma.w.Metadata.v
 		ma.ca_Metadata.m = &ma.w.Metadata.m
 		ma.w.Metadata.m = allowNull
 		return &ma.ca_Metadata
@@ -3441,22 +3393,22 @@ func (ma *_Entry__Assembler) ValuePrototype(k string) ipld.NodePrototype {
 type _Entry__KeyAssembler _Entry__Assembler
 
 func (_Entry__KeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Entry.KeyAssembler"}.BeginMap(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.BeginMap(0)
 }
 func (_Entry__KeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Entry.KeyAssembler"}.BeginList(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.BeginList(0)
 }
 func (na *_Entry__KeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{"ingestion.Entry.KeyAssembler"}.AssignNull()
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.AssignNull()
 }
 func (_Entry__KeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{"ingestion.Entry.KeyAssembler"}.AssignBool(false)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.AssignBool(false)
 }
 func (_Entry__KeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{"ingestion.Entry.KeyAssembler"}.AssignInt(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.AssignInt(0)
 }
 func (_Entry__KeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{"ingestion.Entry.KeyAssembler"}.AssignFloat(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.AssignFloat(0)
 }
 func (ka *_Entry__KeyAssembler) AssignString(k string) error {
 	if ka.state != maState_midKey {
@@ -3465,35 +3417,37 @@ func (ka *_Entry__KeyAssembler) AssignString(k string) error {
 	switch k {
 	case "RmCids":
 		if ka.s&fieldBit__Entry_RmCids != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Entry_RmCids}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_RmCids}
 		}
 		ka.s += fieldBit__Entry_RmCids
 		ka.state = maState_expectValue
 		ka.f = 0
+		return nil
 	case "Cids":
 		if ka.s&fieldBit__Entry_Cids != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Entry_Cids}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Cids}
 		}
 		ka.s += fieldBit__Entry_Cids
 		ka.state = maState_expectValue
 		ka.f = 1
+		return nil
 	case "Metadata":
 		if ka.s&fieldBit__Entry_Metadata != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Entry_Metadata}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Metadata}
 		}
 		ka.s += fieldBit__Entry_Metadata
 		ka.state = maState_expectValue
 		ka.f = 2
+		return nil
 	default:
 		return ipld.ErrInvalidKey{TypeName: "ingestion.Entry", Key: &_String{k}}
 	}
-	return nil
 }
 func (_Entry__KeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{"ingestion.Entry.KeyAssembler"}.AssignBytes(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.AssignBytes(nil)
 }
 func (_Entry__KeyAssembler) AssignLink(ipld.Link) error {
-	return mixins.StringAssembler{"ingestion.Entry.KeyAssembler"}.AssignLink(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Entry__KeyAssembler) AssignNode(v ipld.Node) error {
 	if v2, err := v.AsString(); err != nil {
@@ -3528,7 +3482,7 @@ func (n *_Entry__Repr) LookupByString(key string) (ipld.Node, error) {
 	switch key {
 	case "RmCids":
 		if n.RmCids.m == schema.Maybe_Absent {
-			return ipld.Absent, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
+			return ipld.Absent, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
 		}
 		if n.RmCids.m == schema.Maybe_Null {
 			return ipld.Null, nil
@@ -3536,7 +3490,7 @@ func (n *_Entry__Repr) LookupByString(key string) (ipld.Node, error) {
 		return n.RmCids.v.Representation(), nil
 	case "Cids":
 		if n.Cids.m == schema.Maybe_Absent {
-			return ipld.Absent, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
+			return ipld.Absent, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
 		}
 		if n.Cids.m == schema.Maybe_Null {
 			return ipld.Null, nil
@@ -3544,7 +3498,7 @@ func (n *_Entry__Repr) LookupByString(key string) (ipld.Node, error) {
 		return n.Cids.v.Representation(), nil
 	case "Metadata":
 		if n.Metadata.m == schema.Maybe_Absent {
-			return ipld.Absent, ipld.ErrNotExists{ipld.PathSegmentOfString(key)}
+			return ipld.Absent, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
 		}
 		if n.Metadata.m == schema.Maybe_Null {
 			return ipld.Null, nil
@@ -3562,7 +3516,7 @@ func (n *_Entry__Repr) LookupByNode(key ipld.Node) (ipld.Node, error) {
 	return n.LookupByString(ks)
 }
 func (_Entry__Repr) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Map{"ingestion.Entry.Repr"}.LookupByIndex(0)
+	return mixins.Map{TypeName: "ingestion.Entry.Repr"}.LookupByIndex(0)
 }
 func (n _Entry__Repr) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
 	return n.LookupByString(seg.String())
@@ -3665,22 +3619,22 @@ func (_Entry__Repr) IsNull() bool {
 	return false
 }
 func (_Entry__Repr) AsBool() (bool, error) {
-	return mixins.Map{"ingestion.Entry.Repr"}.AsBool()
+	return mixins.Map{TypeName: "ingestion.Entry.Repr"}.AsBool()
 }
 func (_Entry__Repr) AsInt() (int64, error) {
-	return mixins.Map{"ingestion.Entry.Repr"}.AsInt()
+	return mixins.Map{TypeName: "ingestion.Entry.Repr"}.AsInt()
 }
 func (_Entry__Repr) AsFloat() (float64, error) {
-	return mixins.Map{"ingestion.Entry.Repr"}.AsFloat()
+	return mixins.Map{TypeName: "ingestion.Entry.Repr"}.AsFloat()
 }
 func (_Entry__Repr) AsString() (string, error) {
-	return mixins.Map{"ingestion.Entry.Repr"}.AsString()
+	return mixins.Map{TypeName: "ingestion.Entry.Repr"}.AsString()
 }
 func (_Entry__Repr) AsBytes() ([]byte, error) {
-	return mixins.Map{"ingestion.Entry.Repr"}.AsBytes()
+	return mixins.Map{TypeName: "ingestion.Entry.Repr"}.AsBytes()
 }
 func (_Entry__Repr) AsLink() (ipld.Link, error) {
-	return mixins.Map{"ingestion.Entry.Repr"}.AsLink()
+	return mixins.Map{TypeName: "ingestion.Entry.Repr"}.AsLink()
 }
 func (_Entry__Repr) Prototype() ipld.NodePrototype {
 	return _Entry__ReprPrototype{}
@@ -3744,7 +3698,7 @@ func (na *_Entry__ReprAssembler) BeginMap(int64) (ipld.MapAssembler, error) {
 	return na, nil
 }
 func (_Entry__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.MapAssembler{"ingestion.Entry.Repr"}.BeginList(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Entry.Repr"}.BeginList(0)
 }
 func (na *_Entry__ReprAssembler) AssignNull() error {
 	switch *na.m {
@@ -3752,7 +3706,7 @@ func (na *_Entry__ReprAssembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.MapAssembler{"ingestion.Entry.Repr.Repr"}.AssignNull()
+		return mixins.MapAssembler{TypeName: "ingestion.Entry.Repr.Repr"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -3761,22 +3715,22 @@ func (na *_Entry__ReprAssembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_Entry__ReprAssembler) AssignBool(bool) error {
-	return mixins.MapAssembler{"ingestion.Entry.Repr"}.AssignBool(false)
+	return mixins.MapAssembler{TypeName: "ingestion.Entry.Repr"}.AssignBool(false)
 }
 func (_Entry__ReprAssembler) AssignInt(int64) error {
-	return mixins.MapAssembler{"ingestion.Entry.Repr"}.AssignInt(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Entry.Repr"}.AssignInt(0)
 }
 func (_Entry__ReprAssembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{"ingestion.Entry.Repr"}.AssignFloat(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Entry.Repr"}.AssignFloat(0)
 }
 func (_Entry__ReprAssembler) AssignString(string) error {
-	return mixins.MapAssembler{"ingestion.Entry.Repr"}.AssignString("")
+	return mixins.MapAssembler{TypeName: "ingestion.Entry.Repr"}.AssignString("")
 }
 func (_Entry__ReprAssembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{"ingestion.Entry.Repr"}.AssignBytes(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Entry.Repr"}.AssignBytes(nil)
 }
 func (_Entry__ReprAssembler) AssignLink(ipld.Link) error {
-	return mixins.MapAssembler{"ingestion.Entry.Repr"}.AssignLink(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Entry.Repr"}.AssignLink(nil)
 }
 func (na *_Entry__ReprAssembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -3827,7 +3781,6 @@ func (ma *_Entry__ReprAssembler) valueFinishTidy() bool {
 			ma.state = maState_initial
 			return true
 		case schema.Maybe_Value:
-			ma.w.RmCids.v = ma.ca_RmCids.w
 			ma.state = maState_initial
 			return true
 		default:
@@ -3839,7 +3792,6 @@ func (ma *_Entry__ReprAssembler) valueFinishTidy() bool {
 			ma.state = maState_initial
 			return true
 		case schema.Maybe_Value:
-			ma.w.Cids.v = ma.ca_Cids.w
 			ma.state = maState_initial
 			return true
 		default:
@@ -3851,7 +3803,6 @@ func (ma *_Entry__ReprAssembler) valueFinishTidy() bool {
 			ma.state = maState_initial
 			return true
 		case schema.Maybe_Value:
-			ma.w.Metadata.v = ma.ca_Metadata.w
 			ma.state = maState_initial
 			return true
 		default:
@@ -3879,40 +3830,40 @@ func (ma *_Entry__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssembler, er
 	switch k {
 	case "RmCids":
 		if ma.s&fieldBit__Entry_RmCids != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Entry_RmCids_serial}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_RmCids_serial}
 		}
 		ma.s += fieldBit__Entry_RmCids
 		ma.state = maState_midValue
 		ma.f = 0
-		ma.ca_RmCids.w = ma.w.RmCids.v
+		ma.ca_RmCids.w = &ma.w.RmCids.v
 		ma.ca_RmCids.m = &ma.w.RmCids.m
 		ma.w.RmCids.m = allowNull
 		return &ma.ca_RmCids, nil
 	case "Cids":
 		if ma.s&fieldBit__Entry_Cids != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Entry_Cids_serial}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Cids_serial}
 		}
 		ma.s += fieldBit__Entry_Cids
 		ma.state = maState_midValue
 		ma.f = 1
-		ma.ca_Cids.w = ma.w.Cids.v
+		ma.ca_Cids.w = &ma.w.Cids.v
 		ma.ca_Cids.m = &ma.w.Cids.m
 		ma.w.Cids.m = allowNull
 		return &ma.ca_Cids, nil
 	case "Metadata":
 		if ma.s&fieldBit__Entry_Metadata != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Entry_Metadata_serial}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Metadata_serial}
 		}
 		ma.s += fieldBit__Entry_Metadata
 		ma.state = maState_midValue
 		ma.f = 2
-		ma.ca_Metadata.w = ma.w.Metadata.v
+		ma.ca_Metadata.w = &ma.w.Metadata.v
 		ma.ca_Metadata.m = &ma.w.Metadata.m
 		ma.w.Metadata.m = allowNull
 		return &ma.ca_Metadata, nil
 	default:
-		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Entry.Repr", Key: &_String{k}}
 	}
+	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Entry.Repr", Key: &_String{k}}
 }
 func (ma *_Entry__ReprAssembler) AssembleKey() ipld.NodeAssembler {
 	switch ma.state {
@@ -3948,17 +3899,17 @@ func (ma *_Entry__ReprAssembler) AssembleValue() ipld.NodeAssembler {
 	ma.state = maState_midValue
 	switch ma.f {
 	case 0:
-		ma.ca_RmCids.w = ma.w.RmCids.v
+		ma.ca_RmCids.w = &ma.w.RmCids.v
 		ma.ca_RmCids.m = &ma.w.RmCids.m
 		ma.w.RmCids.m = allowNull
 		return &ma.ca_RmCids
 	case 1:
-		ma.ca_Cids.w = ma.w.Cids.v
+		ma.ca_Cids.w = &ma.w.Cids.v
 		ma.ca_Cids.m = &ma.w.Cids.m
 		ma.w.Cids.m = allowNull
 		return &ma.ca_Cids
 	case 2:
-		ma.ca_Metadata.w = ma.w.Metadata.v
+		ma.ca_Metadata.w = &ma.w.Metadata.v
 		ma.ca_Metadata.m = &ma.w.Metadata.m
 		ma.w.Metadata.m = allowNull
 		return &ma.ca_Metadata
@@ -3999,22 +3950,22 @@ func (ma *_Entry__ReprAssembler) ValuePrototype(k string) ipld.NodePrototype {
 type _Entry__ReprKeyAssembler _Entry__ReprAssembler
 
 func (_Entry__ReprKeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Entry.Repr.KeyAssembler"}.BeginMap(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.BeginMap(0)
 }
 func (_Entry__ReprKeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Entry.Repr.KeyAssembler"}.BeginList(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.BeginList(0)
 }
 func (na *_Entry__ReprKeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{"ingestion.Entry.Repr.KeyAssembler"}.AssignNull()
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.AssignNull()
 }
 func (_Entry__ReprKeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{"ingestion.Entry.Repr.KeyAssembler"}.AssignBool(false)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.AssignBool(false)
 }
 func (_Entry__ReprKeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{"ingestion.Entry.Repr.KeyAssembler"}.AssignInt(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.AssignInt(0)
 }
 func (_Entry__ReprKeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{"ingestion.Entry.Repr.KeyAssembler"}.AssignFloat(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.AssignFloat(0)
 }
 func (ka *_Entry__ReprKeyAssembler) AssignString(k string) error {
 	if ka.state != maState_midKey {
@@ -4023,35 +3974,36 @@ func (ka *_Entry__ReprKeyAssembler) AssignString(k string) error {
 	switch k {
 	case "RmCids":
 		if ka.s&fieldBit__Entry_RmCids != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Entry_RmCids_serial}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_RmCids_serial}
 		}
 		ka.s += fieldBit__Entry_RmCids
 		ka.state = maState_expectValue
 		ka.f = 0
+		return nil
 	case "Cids":
 		if ka.s&fieldBit__Entry_Cids != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Entry_Cids_serial}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Cids_serial}
 		}
 		ka.s += fieldBit__Entry_Cids
 		ka.state = maState_expectValue
 		ka.f = 1
+		return nil
 	case "Metadata":
 		if ka.s&fieldBit__Entry_Metadata != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Entry_Metadata_serial}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Metadata_serial}
 		}
 		ka.s += fieldBit__Entry_Metadata
 		ka.state = maState_expectValue
 		ka.f = 2
-	default:
-		return ipld.ErrInvalidKey{TypeName: "ingestion.Entry.Repr", Key: &_String{k}}
+		return nil
 	}
-	return nil
+	return ipld.ErrInvalidKey{TypeName: "ingestion.Entry.Repr", Key: &_String{k}}
 }
 func (_Entry__ReprKeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{"ingestion.Entry.Repr.KeyAssembler"}.AssignBytes(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.AssignBytes(nil)
 }
 func (_Entry__ReprKeyAssembler) AssignLink(ipld.Link) error {
-	return mixins.StringAssembler{"ingestion.Entry.Repr.KeyAssembler"}.AssignLink(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Entry__ReprKeyAssembler) AssignNode(v ipld.Node) error {
 	if v2, err := v.AsString(); err != nil {
@@ -4074,7 +4026,7 @@ func (_Float__Prototype) FromFloat(v float64) (Float, error) {
 
 type _Float__Maybe struct {
 	m schema.Maybe
-	v Float
+	v _Float
 }
 type MaybeFloat = *_Float__Maybe
 
@@ -4094,7 +4046,7 @@ func (m MaybeFloat) AsNode() ipld.Node {
 	case schema.Maybe_Null:
 		return ipld.Null
 	case schema.Maybe_Value:
-		return m.v
+		return &m.v
 	default:
 		panic("unreachable")
 	}
@@ -4103,7 +4055,7 @@ func (m MaybeFloat) Must() Float {
 	if !m.Exists() {
 		panic("unbox of a maybe rejected")
 	}
-	return m.v
+	return &m.v
 }
 
 var _ ipld.Node = (Float)(&_Float{})
@@ -4113,16 +4065,16 @@ func (Float) Kind() ipld.Kind {
 	return ipld.Kind_Float
 }
 func (Float) LookupByString(string) (ipld.Node, error) {
-	return mixins.Float{"ingestion.Float"}.LookupByString("")
+	return mixins.Float{TypeName: "ingestion.Float"}.LookupByString("")
 }
 func (Float) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Float{"ingestion.Float"}.LookupByNode(nil)
+	return mixins.Float{TypeName: "ingestion.Float"}.LookupByNode(nil)
 }
 func (Float) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Float{"ingestion.Float"}.LookupByIndex(0)
+	return mixins.Float{TypeName: "ingestion.Float"}.LookupByIndex(0)
 }
 func (Float) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-	return mixins.Float{"ingestion.Float"}.LookupBySegment(seg)
+	return mixins.Float{TypeName: "ingestion.Float"}.LookupBySegment(seg)
 }
 func (Float) MapIterator() ipld.MapIterator {
 	return nil
@@ -4140,22 +4092,22 @@ func (Float) IsNull() bool {
 	return false
 }
 func (Float) AsBool() (bool, error) {
-	return mixins.Float{"ingestion.Float"}.AsBool()
+	return mixins.Float{TypeName: "ingestion.Float"}.AsBool()
 }
 func (Float) AsInt() (int64, error) {
-	return mixins.Float{"ingestion.Float"}.AsInt()
+	return mixins.Float{TypeName: "ingestion.Float"}.AsInt()
 }
 func (n Float) AsFloat() (float64, error) {
 	return n.x, nil
 }
 func (Float) AsString() (string, error) {
-	return mixins.Float{"ingestion.Float"}.AsString()
+	return mixins.Float{TypeName: "ingestion.Float"}.AsString()
 }
 func (Float) AsBytes() ([]byte, error) {
-	return mixins.Float{"ingestion.Float"}.AsBytes()
+	return mixins.Float{TypeName: "ingestion.Float"}.AsBytes()
 }
 func (Float) AsLink() (ipld.Link, error) {
-	return mixins.Float{"ingestion.Float"}.AsLink()
+	return mixins.Float{TypeName: "ingestion.Float"}.AsLink()
 }
 func (Float) Prototype() ipld.NodePrototype {
 	return _Float__Prototype{}
@@ -4192,10 +4144,10 @@ type _Float__Assembler struct {
 
 func (na *_Float__Assembler) reset() {}
 func (_Float__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.FloatAssembler{"ingestion.Float"}.BeginMap(0)
+	return mixins.FloatAssembler{TypeName: "ingestion.Float"}.BeginMap(0)
 }
 func (_Float__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.FloatAssembler{"ingestion.Float"}.BeginList(0)
+	return mixins.FloatAssembler{TypeName: "ingestion.Float"}.BeginList(0)
 }
 func (na *_Float__Assembler) AssignNull() error {
 	switch *na.m {
@@ -4203,38 +4155,35 @@ func (na *_Float__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.FloatAssembler{"ingestion.Float"}.AssignNull()
+		return mixins.FloatAssembler{TypeName: "ingestion.Float"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
 	panic("unreachable")
 }
 func (_Float__Assembler) AssignBool(bool) error {
-	return mixins.FloatAssembler{"ingestion.Float"}.AssignBool(false)
+	return mixins.FloatAssembler{TypeName: "ingestion.Float"}.AssignBool(false)
 }
 func (_Float__Assembler) AssignInt(int64) error {
-	return mixins.FloatAssembler{"ingestion.Float"}.AssignInt(0)
+	return mixins.FloatAssembler{TypeName: "ingestion.Float"}.AssignInt(0)
 }
 func (na *_Float__Assembler) AssignFloat(v float64) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
-	if na.w == nil {
-		na.w = &_Float{}
-	}
 	na.w.x = v
 	*na.m = schema.Maybe_Value
 	return nil
 }
 func (_Float__Assembler) AssignString(string) error {
-	return mixins.FloatAssembler{"ingestion.Float"}.AssignString("")
+	return mixins.FloatAssembler{TypeName: "ingestion.Float"}.AssignString("")
 }
 func (_Float__Assembler) AssignBytes([]byte) error {
-	return mixins.FloatAssembler{"ingestion.Float"}.AssignBytes(nil)
+	return mixins.FloatAssembler{TypeName: "ingestion.Float"}.AssignBytes(nil)
 }
 func (_Float__Assembler) AssignLink(ipld.Link) error {
-	return mixins.FloatAssembler{"ingestion.Float"}.AssignLink(nil)
+	return mixins.FloatAssembler{TypeName: "ingestion.Float"}.AssignLink(nil)
 }
 func (na *_Float__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -4244,11 +4193,6 @@ func (na *_Float__Assembler) AssignNode(v ipld.Node) error {
 		switch *na.m {
 		case schema.Maybe_Value, schema.Maybe_Null:
 			panic("invalid state: cannot assign into assembler that's already finished")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -4277,7 +4221,7 @@ var _ ipld.Node = &_Float__Repr{}
 type _Float__ReprPrototype = _Float__Prototype
 type _Float__ReprAssembler = _Float__Assembler
 
-func (n _Index) FieldPrevious() Link_Index {
+func (n _Index) FieldPrevious() MaybeLink_Index {
 	return &n.Previous
 }
 func (n _Index) FieldEntries() List_Entry {
@@ -4331,7 +4275,10 @@ func (Index) Kind() ipld.Kind {
 func (n Index) LookupByString(key string) (ipld.Node, error) {
 	switch key {
 	case "Previous":
-		return &n.Previous, nil
+		if n.Previous.m == schema.Maybe_Absent {
+			return ipld.Absent, nil
+		}
+		return &n.Previous.v, nil
 	case "Entries":
 		return &n.Entries, nil
 	default:
@@ -4346,7 +4293,7 @@ func (n Index) LookupByNode(key ipld.Node) (ipld.Node, error) {
 	return n.LookupByString(ks)
 }
 func (Index) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Map{"ingestion.Index"}.LookupByIndex(0)
+	return mixins.Map{TypeName: "ingestion.Index"}.LookupByIndex(0)
 }
 func (n Index) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
 	return n.LookupByString(seg.String())
@@ -4367,7 +4314,11 @@ func (itr *_Index__MapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
 	switch itr.idx {
 	case 0:
 		k = &fieldName__Index_Previous
-		v = &itr.n.Previous
+		if itr.n.Previous.m == schema.Maybe_Absent {
+			v = ipld.Absent
+			break
+		}
+		v = &itr.n.Previous.v
 	case 1:
 		k = &fieldName__Index_Entries
 		v = &itr.n.Entries
@@ -4394,22 +4345,22 @@ func (Index) IsNull() bool {
 	return false
 }
 func (Index) AsBool() (bool, error) {
-	return mixins.Map{"ingestion.Index"}.AsBool()
+	return mixins.Map{TypeName: "ingestion.Index"}.AsBool()
 }
 func (Index) AsInt() (int64, error) {
-	return mixins.Map{"ingestion.Index"}.AsInt()
+	return mixins.Map{TypeName: "ingestion.Index"}.AsInt()
 }
 func (Index) AsFloat() (float64, error) {
-	return mixins.Map{"ingestion.Index"}.AsFloat()
+	return mixins.Map{TypeName: "ingestion.Index"}.AsFloat()
 }
 func (Index) AsString() (string, error) {
-	return mixins.Map{"ingestion.Index"}.AsString()
+	return mixins.Map{TypeName: "ingestion.Index"}.AsString()
 }
 func (Index) AsBytes() ([]byte, error) {
-	return mixins.Map{"ingestion.Index"}.AsBytes()
+	return mixins.Map{TypeName: "ingestion.Index"}.AsBytes()
 }
 func (Index) AsLink() (ipld.Link, error) {
-	return mixins.Map{"ingestion.Index"}.AsLink()
+	return mixins.Map{TypeName: "ingestion.Index"}.AsLink()
 }
 func (Index) Prototype() ipld.NodePrototype {
 	return _Index__Prototype{}
@@ -4461,7 +4412,7 @@ func (na *_Index__Assembler) reset() {
 var (
 	fieldBit__Index_Previous    = 1 << 0
 	fieldBit__Index_Entries     = 1 << 1
-	fieldBits__Index_sufficient = 0 + 1<<0 + 1<<1
+	fieldBits__Index_sufficient = 0 + 1<<1
 )
 
 func (na *_Index__Assembler) BeginMap(int64) (ipld.MapAssembler, error) {
@@ -4478,7 +4429,7 @@ func (na *_Index__Assembler) BeginMap(int64) (ipld.MapAssembler, error) {
 	return na, nil
 }
 func (_Index__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.MapAssembler{"ingestion.Index"}.BeginList(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Index"}.BeginList(0)
 }
 func (na *_Index__Assembler) AssignNull() error {
 	switch *na.m {
@@ -4486,7 +4437,7 @@ func (na *_Index__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.MapAssembler{"ingestion.Index"}.AssignNull()
+		return mixins.MapAssembler{TypeName: "ingestion.Index"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -4495,22 +4446,22 @@ func (na *_Index__Assembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_Index__Assembler) AssignBool(bool) error {
-	return mixins.MapAssembler{"ingestion.Index"}.AssignBool(false)
+	return mixins.MapAssembler{TypeName: "ingestion.Index"}.AssignBool(false)
 }
 func (_Index__Assembler) AssignInt(int64) error {
-	return mixins.MapAssembler{"ingestion.Index"}.AssignInt(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Index"}.AssignInt(0)
 }
 func (_Index__Assembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{"ingestion.Index"}.AssignFloat(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Index"}.AssignFloat(0)
 }
 func (_Index__Assembler) AssignString(string) error {
-	return mixins.MapAssembler{"ingestion.Index"}.AssignString("")
+	return mixins.MapAssembler{TypeName: "ingestion.Index"}.AssignString("")
 }
 func (_Index__Assembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{"ingestion.Index"}.AssignBytes(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Index"}.AssignBytes(nil)
 }
 func (_Index__Assembler) AssignLink(ipld.Link) error {
-	return mixins.MapAssembler{"ingestion.Index"}.AssignLink(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Index"}.AssignLink(nil)
 }
 func (na *_Index__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -4556,10 +4507,8 @@ func (_Index__Assembler) Prototype() ipld.NodePrototype {
 func (ma *_Index__Assembler) valueFinishTidy() bool {
 	switch ma.f {
 	case 0:
-		switch ma.cm {
+		switch ma.w.Previous.m {
 		case schema.Maybe_Value:
-			ma.ca_Previous.w = nil
-			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -4597,17 +4546,17 @@ func (ma *_Index__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error)
 	switch k {
 	case "Previous":
 		if ma.s&fieldBit__Index_Previous != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Index_Previous}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Previous}
 		}
 		ma.s += fieldBit__Index_Previous
 		ma.state = maState_midValue
 		ma.f = 0
-		ma.ca_Previous.w = &ma.w.Previous
-		ma.ca_Previous.m = &ma.cm
+		ma.ca_Previous.w = &ma.w.Previous.v
+		ma.ca_Previous.m = &ma.w.Previous.m
 		return &ma.ca_Previous, nil
 	case "Entries":
 		if ma.s&fieldBit__Index_Entries != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Index_Entries}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Entries}
 		}
 		ma.s += fieldBit__Index_Entries
 		ma.state = maState_midValue
@@ -4615,9 +4564,8 @@ func (ma *_Index__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error)
 		ma.ca_Entries.w = &ma.w.Entries
 		ma.ca_Entries.m = &ma.cm
 		return &ma.ca_Entries, nil
-	default:
-		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Index", Key: &_String{k}}
 	}
+	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Index", Key: &_String{k}}
 }
 func (ma *_Index__Assembler) AssembleKey() ipld.NodeAssembler {
 	switch ma.state {
@@ -4653,8 +4601,8 @@ func (ma *_Index__Assembler) AssembleValue() ipld.NodeAssembler {
 	ma.state = maState_midValue
 	switch ma.f {
 	case 0:
-		ma.ca_Previous.w = &ma.w.Previous
-		ma.ca_Previous.m = &ma.cm
+		ma.ca_Previous.w = &ma.w.Previous.v
+		ma.ca_Previous.m = &ma.w.Previous.m
 		return &ma.ca_Previous
 	case 1:
 		ma.ca_Entries.w = &ma.w.Entries
@@ -4681,9 +4629,6 @@ func (ma *_Index__Assembler) Finish() error {
 	}
 	if ma.s&fieldBits__Index_sufficient != fieldBits__Index_sufficient {
 		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Index_Previous == 0 {
-			err.Missing = append(err.Missing, "Previous")
-		}
 		if ma.s&fieldBit__Index_Entries == 0 {
 			err.Missing = append(err.Missing, "Entries")
 		}
@@ -4703,22 +4648,22 @@ func (ma *_Index__Assembler) ValuePrototype(k string) ipld.NodePrototype {
 type _Index__KeyAssembler _Index__Assembler
 
 func (_Index__KeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Index.KeyAssembler"}.BeginMap(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.BeginMap(0)
 }
 func (_Index__KeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Index.KeyAssembler"}.BeginList(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.BeginList(0)
 }
 func (na *_Index__KeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{"ingestion.Index.KeyAssembler"}.AssignNull()
+	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.AssignNull()
 }
 func (_Index__KeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{"ingestion.Index.KeyAssembler"}.AssignBool(false)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.AssignBool(false)
 }
 func (_Index__KeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{"ingestion.Index.KeyAssembler"}.AssignInt(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.AssignInt(0)
 }
 func (_Index__KeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{"ingestion.Index.KeyAssembler"}.AssignFloat(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.AssignFloat(0)
 }
 func (ka *_Index__KeyAssembler) AssignString(k string) error {
 	if ka.state != maState_midKey {
@@ -4727,28 +4672,29 @@ func (ka *_Index__KeyAssembler) AssignString(k string) error {
 	switch k {
 	case "Previous":
 		if ka.s&fieldBit__Index_Previous != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Index_Previous}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Previous}
 		}
 		ka.s += fieldBit__Index_Previous
 		ka.state = maState_expectValue
 		ka.f = 0
+		return nil
 	case "Entries":
 		if ka.s&fieldBit__Index_Entries != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Index_Entries}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Entries}
 		}
 		ka.s += fieldBit__Index_Entries
 		ka.state = maState_expectValue
 		ka.f = 1
+		return nil
 	default:
 		return ipld.ErrInvalidKey{TypeName: "ingestion.Index", Key: &_String{k}}
 	}
-	return nil
 }
 func (_Index__KeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{"ingestion.Index.KeyAssembler"}.AssignBytes(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.AssignBytes(nil)
 }
 func (_Index__KeyAssembler) AssignLink(ipld.Link) error {
-	return mixins.StringAssembler{"ingestion.Index.KeyAssembler"}.AssignLink(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Index__KeyAssembler) AssignNode(v ipld.Node) error {
 	if v2, err := v.AsString(); err != nil {
@@ -4781,7 +4727,10 @@ func (_Index__Repr) Kind() ipld.Kind {
 func (n *_Index__Repr) LookupByString(key string) (ipld.Node, error) {
 	switch key {
 	case "Previous":
-		return n.Previous.Representation(), nil
+		if n.Previous.m == schema.Maybe_Absent {
+			return ipld.Absent, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
+		}
+		return n.Previous.v.Representation(), nil
 	case "Entries":
 		return n.Entries.Representation(), nil
 	default:
@@ -4796,7 +4745,7 @@ func (n *_Index__Repr) LookupByNode(key ipld.Node) (ipld.Node, error) {
 	return n.LookupByString(ks)
 }
 func (_Index__Repr) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Map{"ingestion.Index.Repr"}.LookupByIndex(0)
+	return mixins.Map{TypeName: "ingestion.Index.Repr"}.LookupByIndex(0)
 }
 func (n _Index__Repr) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
 	return n.LookupByString(seg.String())
@@ -4811,13 +4760,18 @@ type _Index__ReprMapItr struct {
 }
 
 func (itr *_Index__ReprMapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
+advance:
 	if itr.idx >= 2 {
 		return nil, nil, ipld.ErrIteratorOverread{}
 	}
 	switch itr.idx {
 	case 0:
 		k = &fieldName__Index_Previous_serial
-		v = itr.n.Previous.Representation()
+		if itr.n.Previous.m == schema.Maybe_Absent {
+			itr.idx++
+			goto advance
+		}
+		v = itr.n.Previous.v.Representation()
 	case 1:
 		k = &fieldName__Index_Entries_serial
 		v = itr.n.Entries.Representation()
@@ -4835,6 +4789,9 @@ func (_Index__Repr) ListIterator() ipld.ListIterator {
 }
 func (rn *_Index__Repr) Length() int64 {
 	l := 2
+	if rn.Previous.m == schema.Maybe_Absent {
+		l--
+	}
 	return int64(l)
 }
 func (_Index__Repr) IsAbsent() bool {
@@ -4844,22 +4801,22 @@ func (_Index__Repr) IsNull() bool {
 	return false
 }
 func (_Index__Repr) AsBool() (bool, error) {
-	return mixins.Map{"ingestion.Index.Repr"}.AsBool()
+	return mixins.Map{TypeName: "ingestion.Index.Repr"}.AsBool()
 }
 func (_Index__Repr) AsInt() (int64, error) {
-	return mixins.Map{"ingestion.Index.Repr"}.AsInt()
+	return mixins.Map{TypeName: "ingestion.Index.Repr"}.AsInt()
 }
 func (_Index__Repr) AsFloat() (float64, error) {
-	return mixins.Map{"ingestion.Index.Repr"}.AsFloat()
+	return mixins.Map{TypeName: "ingestion.Index.Repr"}.AsFloat()
 }
 func (_Index__Repr) AsString() (string, error) {
-	return mixins.Map{"ingestion.Index.Repr"}.AsString()
+	return mixins.Map{TypeName: "ingestion.Index.Repr"}.AsString()
 }
 func (_Index__Repr) AsBytes() ([]byte, error) {
-	return mixins.Map{"ingestion.Index.Repr"}.AsBytes()
+	return mixins.Map{TypeName: "ingestion.Index.Repr"}.AsBytes()
 }
 func (_Index__Repr) AsLink() (ipld.Link, error) {
-	return mixins.Map{"ingestion.Index.Repr"}.AsLink()
+	return mixins.Map{TypeName: "ingestion.Index.Repr"}.AsLink()
 }
 func (_Index__Repr) Prototype() ipld.NodePrototype {
 	return _Index__ReprPrototype{}
@@ -4921,7 +4878,7 @@ func (na *_Index__ReprAssembler) BeginMap(int64) (ipld.MapAssembler, error) {
 	return na, nil
 }
 func (_Index__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.MapAssembler{"ingestion.Index.Repr"}.BeginList(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Index.Repr"}.BeginList(0)
 }
 func (na *_Index__ReprAssembler) AssignNull() error {
 	switch *na.m {
@@ -4929,7 +4886,7 @@ func (na *_Index__ReprAssembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.MapAssembler{"ingestion.Index.Repr.Repr"}.AssignNull()
+		return mixins.MapAssembler{TypeName: "ingestion.Index.Repr.Repr"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -4938,22 +4895,22 @@ func (na *_Index__ReprAssembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_Index__ReprAssembler) AssignBool(bool) error {
-	return mixins.MapAssembler{"ingestion.Index.Repr"}.AssignBool(false)
+	return mixins.MapAssembler{TypeName: "ingestion.Index.Repr"}.AssignBool(false)
 }
 func (_Index__ReprAssembler) AssignInt(int64) error {
-	return mixins.MapAssembler{"ingestion.Index.Repr"}.AssignInt(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Index.Repr"}.AssignInt(0)
 }
 func (_Index__ReprAssembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{"ingestion.Index.Repr"}.AssignFloat(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Index.Repr"}.AssignFloat(0)
 }
 func (_Index__ReprAssembler) AssignString(string) error {
-	return mixins.MapAssembler{"ingestion.Index.Repr"}.AssignString("")
+	return mixins.MapAssembler{TypeName: "ingestion.Index.Repr"}.AssignString("")
 }
 func (_Index__ReprAssembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{"ingestion.Index.Repr"}.AssignBytes(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Index.Repr"}.AssignBytes(nil)
 }
 func (_Index__ReprAssembler) AssignLink(ipld.Link) error {
-	return mixins.MapAssembler{"ingestion.Index.Repr"}.AssignLink(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Index.Repr"}.AssignLink(nil)
 }
 func (na *_Index__ReprAssembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -4999,9 +4956,8 @@ func (_Index__ReprAssembler) Prototype() ipld.NodePrototype {
 func (ma *_Index__ReprAssembler) valueFinishTidy() bool {
 	switch ma.f {
 	case 0:
-		switch ma.cm {
+		switch ma.w.Previous.m {
 		case schema.Maybe_Value:
-			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -5038,17 +4994,18 @@ func (ma *_Index__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssembler, er
 	switch k {
 	case "Previous":
 		if ma.s&fieldBit__Index_Previous != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Index_Previous_serial}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Previous_serial}
 		}
 		ma.s += fieldBit__Index_Previous
 		ma.state = maState_midValue
 		ma.f = 0
-		ma.ca_Previous.w = &ma.w.Previous
-		ma.ca_Previous.m = &ma.cm
+		ma.ca_Previous.w = &ma.w.Previous.v
+		ma.ca_Previous.m = &ma.w.Previous.m
+
 		return &ma.ca_Previous, nil
 	case "Entries":
 		if ma.s&fieldBit__Index_Entries != 0 {
-			return nil, ipld.ErrRepeatedMapKey{&fieldName__Index_Entries_serial}
+			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Entries_serial}
 		}
 		ma.s += fieldBit__Index_Entries
 		ma.state = maState_midValue
@@ -5057,8 +5014,8 @@ func (ma *_Index__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssembler, er
 		ma.ca_Entries.m = &ma.cm
 		return &ma.ca_Entries, nil
 	default:
-		return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Index.Repr", Key: &_String{k}}
 	}
+	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Index.Repr", Key: &_String{k}}
 }
 func (ma *_Index__ReprAssembler) AssembleKey() ipld.NodeAssembler {
 	switch ma.state {
@@ -5094,8 +5051,9 @@ func (ma *_Index__ReprAssembler) AssembleValue() ipld.NodeAssembler {
 	ma.state = maState_midValue
 	switch ma.f {
 	case 0:
-		ma.ca_Previous.w = &ma.w.Previous
-		ma.ca_Previous.m = &ma.cm
+		ma.ca_Previous.w = &ma.w.Previous.v
+		ma.ca_Previous.m = &ma.w.Previous.m
+
 		return &ma.ca_Previous
 	case 1:
 		ma.ca_Entries.w = &ma.w.Entries
@@ -5122,9 +5080,6 @@ func (ma *_Index__ReprAssembler) Finish() error {
 	}
 	if ma.s&fieldBits__Index_sufficient != fieldBits__Index_sufficient {
 		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Index_Previous == 0 {
-			err.Missing = append(err.Missing, "Previous")
-		}
 		if ma.s&fieldBit__Index_Entries == 0 {
 			err.Missing = append(err.Missing, "Entries")
 		}
@@ -5144,22 +5099,22 @@ func (ma *_Index__ReprAssembler) ValuePrototype(k string) ipld.NodePrototype {
 type _Index__ReprKeyAssembler _Index__ReprAssembler
 
 func (_Index__ReprKeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Index.Repr.KeyAssembler"}.BeginMap(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.BeginMap(0)
 }
 func (_Index__ReprKeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.StringAssembler{"ingestion.Index.Repr.KeyAssembler"}.BeginList(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.BeginList(0)
 }
 func (na *_Index__ReprKeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{"ingestion.Index.Repr.KeyAssembler"}.AssignNull()
+	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.AssignNull()
 }
 func (_Index__ReprKeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{"ingestion.Index.Repr.KeyAssembler"}.AssignBool(false)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.AssignBool(false)
 }
 func (_Index__ReprKeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{"ingestion.Index.Repr.KeyAssembler"}.AssignInt(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.AssignInt(0)
 }
 func (_Index__ReprKeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{"ingestion.Index.Repr.KeyAssembler"}.AssignFloat(0)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.AssignFloat(0)
 }
 func (ka *_Index__ReprKeyAssembler) AssignString(k string) error {
 	if ka.state != maState_midKey {
@@ -5168,28 +5123,28 @@ func (ka *_Index__ReprKeyAssembler) AssignString(k string) error {
 	switch k {
 	case "Previous":
 		if ka.s&fieldBit__Index_Previous != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Index_Previous_serial}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Previous_serial}
 		}
 		ka.s += fieldBit__Index_Previous
 		ka.state = maState_expectValue
 		ka.f = 0
+		return nil
 	case "Entries":
 		if ka.s&fieldBit__Index_Entries != 0 {
-			return ipld.ErrRepeatedMapKey{&fieldName__Index_Entries_serial}
+			return ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Entries_serial}
 		}
 		ka.s += fieldBit__Index_Entries
 		ka.state = maState_expectValue
 		ka.f = 1
-	default:
-		return ipld.ErrInvalidKey{TypeName: "ingestion.Index.Repr", Key: &_String{k}}
+		return nil
 	}
-	return nil
+	return ipld.ErrInvalidKey{TypeName: "ingestion.Index.Repr", Key: &_String{k}}
 }
 func (_Index__ReprKeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{"ingestion.Index.Repr.KeyAssembler"}.AssignBytes(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.AssignBytes(nil)
 }
 func (_Index__ReprKeyAssembler) AssignLink(ipld.Link) error {
-	return mixins.StringAssembler{"ingestion.Index.Repr.KeyAssembler"}.AssignLink(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Index__ReprKeyAssembler) AssignNode(v ipld.Node) error {
 	if v2, err := v.AsString(); err != nil {
@@ -5212,7 +5167,7 @@ func (_Int__Prototype) FromInt(v int64) (Int, error) {
 
 type _Int__Maybe struct {
 	m schema.Maybe
-	v Int
+	v _Int
 }
 type MaybeInt = *_Int__Maybe
 
@@ -5232,7 +5187,7 @@ func (m MaybeInt) AsNode() ipld.Node {
 	case schema.Maybe_Null:
 		return ipld.Null
 	case schema.Maybe_Value:
-		return m.v
+		return &m.v
 	default:
 		panic("unreachable")
 	}
@@ -5241,7 +5196,7 @@ func (m MaybeInt) Must() Int {
 	if !m.Exists() {
 		panic("unbox of a maybe rejected")
 	}
-	return m.v
+	return &m.v
 }
 
 var _ ipld.Node = (Int)(&_Int{})
@@ -5251,16 +5206,16 @@ func (Int) Kind() ipld.Kind {
 	return ipld.Kind_Int
 }
 func (Int) LookupByString(string) (ipld.Node, error) {
-	return mixins.Int{"ingestion.Int"}.LookupByString("")
+	return mixins.Int{TypeName: "ingestion.Int"}.LookupByString("")
 }
 func (Int) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Int{"ingestion.Int"}.LookupByNode(nil)
+	return mixins.Int{TypeName: "ingestion.Int"}.LookupByNode(nil)
 }
 func (Int) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Int{"ingestion.Int"}.LookupByIndex(0)
+	return mixins.Int{TypeName: "ingestion.Int"}.LookupByIndex(0)
 }
 func (Int) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-	return mixins.Int{"ingestion.Int"}.LookupBySegment(seg)
+	return mixins.Int{TypeName: "ingestion.Int"}.LookupBySegment(seg)
 }
 func (Int) MapIterator() ipld.MapIterator {
 	return nil
@@ -5278,22 +5233,22 @@ func (Int) IsNull() bool {
 	return false
 }
 func (Int) AsBool() (bool, error) {
-	return mixins.Int{"ingestion.Int"}.AsBool()
+	return mixins.Int{TypeName: "ingestion.Int"}.AsBool()
 }
 func (n Int) AsInt() (int64, error) {
 	return n.x, nil
 }
 func (Int) AsFloat() (float64, error) {
-	return mixins.Int{"ingestion.Int"}.AsFloat()
+	return mixins.Int{TypeName: "ingestion.Int"}.AsFloat()
 }
 func (Int) AsString() (string, error) {
-	return mixins.Int{"ingestion.Int"}.AsString()
+	return mixins.Int{TypeName: "ingestion.Int"}.AsString()
 }
 func (Int) AsBytes() ([]byte, error) {
-	return mixins.Int{"ingestion.Int"}.AsBytes()
+	return mixins.Int{TypeName: "ingestion.Int"}.AsBytes()
 }
 func (Int) AsLink() (ipld.Link, error) {
-	return mixins.Int{"ingestion.Int"}.AsLink()
+	return mixins.Int{TypeName: "ingestion.Int"}.AsLink()
 }
 func (Int) Prototype() ipld.NodePrototype {
 	return _Int__Prototype{}
@@ -5330,10 +5285,10 @@ type _Int__Assembler struct {
 
 func (na *_Int__Assembler) reset() {}
 func (_Int__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.IntAssembler{"ingestion.Int"}.BeginMap(0)
+	return mixins.IntAssembler{TypeName: "ingestion.Int"}.BeginMap(0)
 }
 func (_Int__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.IntAssembler{"ingestion.Int"}.BeginList(0)
+	return mixins.IntAssembler{TypeName: "ingestion.Int"}.BeginList(0)
 }
 func (na *_Int__Assembler) AssignNull() error {
 	switch *na.m {
@@ -5341,38 +5296,35 @@ func (na *_Int__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.IntAssembler{"ingestion.Int"}.AssignNull()
+		return mixins.IntAssembler{TypeName: "ingestion.Int"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
 	panic("unreachable")
 }
 func (_Int__Assembler) AssignBool(bool) error {
-	return mixins.IntAssembler{"ingestion.Int"}.AssignBool(false)
+	return mixins.IntAssembler{TypeName: "ingestion.Int"}.AssignBool(false)
 }
 func (na *_Int__Assembler) AssignInt(v int64) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
-	if na.w == nil {
-		na.w = &_Int{}
-	}
 	na.w.x = v
 	*na.m = schema.Maybe_Value
 	return nil
 }
 func (_Int__Assembler) AssignFloat(float64) error {
-	return mixins.IntAssembler{"ingestion.Int"}.AssignFloat(0)
+	return mixins.IntAssembler{TypeName: "ingestion.Int"}.AssignFloat(0)
 }
 func (_Int__Assembler) AssignString(string) error {
-	return mixins.IntAssembler{"ingestion.Int"}.AssignString("")
+	return mixins.IntAssembler{TypeName: "ingestion.Int"}.AssignString("")
 }
 func (_Int__Assembler) AssignBytes([]byte) error {
-	return mixins.IntAssembler{"ingestion.Int"}.AssignBytes(nil)
+	return mixins.IntAssembler{TypeName: "ingestion.Int"}.AssignBytes(nil)
 }
 func (_Int__Assembler) AssignLink(ipld.Link) error {
-	return mixins.IntAssembler{"ingestion.Int"}.AssignLink(nil)
+	return mixins.IntAssembler{TypeName: "ingestion.Int"}.AssignLink(nil)
 }
 func (na *_Int__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -5382,11 +5334,6 @@ func (na *_Int__Assembler) AssignNode(v ipld.Node) error {
 		switch *na.m {
 		case schema.Maybe_Value, schema.Maybe_Null:
 			panic("invalid state: cannot assign into assembler that's already finished")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -5425,7 +5372,7 @@ func (_Link__Prototype) FromLink(v ipld.Link) (Link, error) {
 
 type _Link__Maybe struct {
 	m schema.Maybe
-	v Link
+	v _Link
 }
 type MaybeLink = *_Link__Maybe
 
@@ -5445,7 +5392,7 @@ func (m MaybeLink) AsNode() ipld.Node {
 	case schema.Maybe_Null:
 		return ipld.Null
 	case schema.Maybe_Value:
-		return m.v
+		return &m.v
 	default:
 		panic("unreachable")
 	}
@@ -5454,7 +5401,7 @@ func (m MaybeLink) Must() Link {
 	if !m.Exists() {
 		panic("unbox of a maybe rejected")
 	}
-	return m.v
+	return &m.v
 }
 
 var _ ipld.Node = (Link)(&_Link{})
@@ -5464,16 +5411,16 @@ func (Link) Kind() ipld.Kind {
 	return ipld.Kind_Link
 }
 func (Link) LookupByString(string) (ipld.Node, error) {
-	return mixins.Link{"ingestion.Link"}.LookupByString("")
+	return mixins.Link{TypeName: "ingestion.Link"}.LookupByString("")
 }
 func (Link) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Link{"ingestion.Link"}.LookupByNode(nil)
+	return mixins.Link{TypeName: "ingestion.Link"}.LookupByNode(nil)
 }
 func (Link) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Link{"ingestion.Link"}.LookupByIndex(0)
+	return mixins.Link{TypeName: "ingestion.Link"}.LookupByIndex(0)
 }
 func (Link) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-	return mixins.Link{"ingestion.Link"}.LookupBySegment(seg)
+	return mixins.Link{TypeName: "ingestion.Link"}.LookupBySegment(seg)
 }
 func (Link) MapIterator() ipld.MapIterator {
 	return nil
@@ -5491,19 +5438,19 @@ func (Link) IsNull() bool {
 	return false
 }
 func (Link) AsBool() (bool, error) {
-	return mixins.Link{"ingestion.Link"}.AsBool()
+	return mixins.Link{TypeName: "ingestion.Link"}.AsBool()
 }
 func (Link) AsInt() (int64, error) {
-	return mixins.Link{"ingestion.Link"}.AsInt()
+	return mixins.Link{TypeName: "ingestion.Link"}.AsInt()
 }
 func (Link) AsFloat() (float64, error) {
-	return mixins.Link{"ingestion.Link"}.AsFloat()
+	return mixins.Link{TypeName: "ingestion.Link"}.AsFloat()
 }
 func (Link) AsString() (string, error) {
-	return mixins.Link{"ingestion.Link"}.AsString()
+	return mixins.Link{TypeName: "ingestion.Link"}.AsString()
 }
 func (Link) AsBytes() ([]byte, error) {
-	return mixins.Link{"ingestion.Link"}.AsBytes()
+	return mixins.Link{TypeName: "ingestion.Link"}.AsBytes()
 }
 func (n Link) AsLink() (ipld.Link, error) {
 	return n.x, nil
@@ -5543,10 +5490,10 @@ type _Link__Assembler struct {
 
 func (na *_Link__Assembler) reset() {}
 func (_Link__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.LinkAssembler{"ingestion.Link"}.BeginMap(0)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link"}.BeginMap(0)
 }
 func (_Link__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.LinkAssembler{"ingestion.Link"}.BeginList(0)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link"}.BeginList(0)
 }
 func (na *_Link__Assembler) AssignNull() error {
 	switch *na.m {
@@ -5554,34 +5501,31 @@ func (na *_Link__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.LinkAssembler{"ingestion.Link"}.AssignNull()
+		return mixins.LinkAssembler{TypeName: "ingestion.Link"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
 	panic("unreachable")
 }
 func (_Link__Assembler) AssignBool(bool) error {
-	return mixins.LinkAssembler{"ingestion.Link"}.AssignBool(false)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link"}.AssignBool(false)
 }
 func (_Link__Assembler) AssignInt(int64) error {
-	return mixins.LinkAssembler{"ingestion.Link"}.AssignInt(0)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link"}.AssignInt(0)
 }
 func (_Link__Assembler) AssignFloat(float64) error {
-	return mixins.LinkAssembler{"ingestion.Link"}.AssignFloat(0)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link"}.AssignFloat(0)
 }
 func (_Link__Assembler) AssignString(string) error {
-	return mixins.LinkAssembler{"ingestion.Link"}.AssignString("")
+	return mixins.LinkAssembler{TypeName: "ingestion.Link"}.AssignString("")
 }
 func (_Link__Assembler) AssignBytes([]byte) error {
-	return mixins.LinkAssembler{"ingestion.Link"}.AssignBytes(nil)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link"}.AssignBytes(nil)
 }
 func (na *_Link__Assembler) AssignLink(v ipld.Link) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
-	}
-	if na.w == nil {
-		na.w = &_Link{}
 	}
 	na.w.x = v
 	*na.m = schema.Maybe_Value
@@ -5595,11 +5539,6 @@ func (na *_Link__Assembler) AssignNode(v ipld.Node) error {
 		switch *na.m {
 		case schema.Maybe_Value, schema.Maybe_Null:
 			panic("invalid state: cannot assign into assembler that's already finished")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -5638,7 +5577,7 @@ func (_Link_Advertisement__Prototype) FromLink(v ipld.Link) (Link_Advertisement,
 
 type _Link_Advertisement__Maybe struct {
 	m schema.Maybe
-	v Link_Advertisement
+	v _Link_Advertisement
 }
 type MaybeLink_Advertisement = *_Link_Advertisement__Maybe
 
@@ -5658,7 +5597,7 @@ func (m MaybeLink_Advertisement) AsNode() ipld.Node {
 	case schema.Maybe_Null:
 		return ipld.Null
 	case schema.Maybe_Value:
-		return m.v
+		return &m.v
 	default:
 		panic("unreachable")
 	}
@@ -5667,7 +5606,7 @@ func (m MaybeLink_Advertisement) Must() Link_Advertisement {
 	if !m.Exists() {
 		panic("unbox of a maybe rejected")
 	}
-	return m.v
+	return &m.v
 }
 
 var _ ipld.Node = (Link_Advertisement)(&_Link_Advertisement{})
@@ -5677,16 +5616,16 @@ func (Link_Advertisement) Kind() ipld.Kind {
 	return ipld.Kind_Link
 }
 func (Link_Advertisement) LookupByString(string) (ipld.Node, error) {
-	return mixins.Link{"ingestion.Link_Advertisement"}.LookupByString("")
+	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.LookupByString("")
 }
 func (Link_Advertisement) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Link{"ingestion.Link_Advertisement"}.LookupByNode(nil)
+	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.LookupByNode(nil)
 }
 func (Link_Advertisement) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Link{"ingestion.Link_Advertisement"}.LookupByIndex(0)
+	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.LookupByIndex(0)
 }
 func (Link_Advertisement) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-	return mixins.Link{"ingestion.Link_Advertisement"}.LookupBySegment(seg)
+	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.LookupBySegment(seg)
 }
 func (Link_Advertisement) MapIterator() ipld.MapIterator {
 	return nil
@@ -5704,19 +5643,19 @@ func (Link_Advertisement) IsNull() bool {
 	return false
 }
 func (Link_Advertisement) AsBool() (bool, error) {
-	return mixins.Link{"ingestion.Link_Advertisement"}.AsBool()
+	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.AsBool()
 }
 func (Link_Advertisement) AsInt() (int64, error) {
-	return mixins.Link{"ingestion.Link_Advertisement"}.AsInt()
+	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.AsInt()
 }
 func (Link_Advertisement) AsFloat() (float64, error) {
-	return mixins.Link{"ingestion.Link_Advertisement"}.AsFloat()
+	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.AsFloat()
 }
 func (Link_Advertisement) AsString() (string, error) {
-	return mixins.Link{"ingestion.Link_Advertisement"}.AsString()
+	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.AsString()
 }
 func (Link_Advertisement) AsBytes() ([]byte, error) {
-	return mixins.Link{"ingestion.Link_Advertisement"}.AsBytes()
+	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.AsBytes()
 }
 func (n Link_Advertisement) AsLink() (ipld.Link, error) {
 	return n.x, nil
@@ -5756,10 +5695,10 @@ type _Link_Advertisement__Assembler struct {
 
 func (na *_Link_Advertisement__Assembler) reset() {}
 func (_Link_Advertisement__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.LinkAssembler{"ingestion.Link_Advertisement"}.BeginMap(0)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Advertisement"}.BeginMap(0)
 }
 func (_Link_Advertisement__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.LinkAssembler{"ingestion.Link_Advertisement"}.BeginList(0)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Advertisement"}.BeginList(0)
 }
 func (na *_Link_Advertisement__Assembler) AssignNull() error {
 	switch *na.m {
@@ -5767,34 +5706,31 @@ func (na *_Link_Advertisement__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.LinkAssembler{"ingestion.Link_Advertisement"}.AssignNull()
+		return mixins.LinkAssembler{TypeName: "ingestion.Link_Advertisement"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
 	panic("unreachable")
 }
 func (_Link_Advertisement__Assembler) AssignBool(bool) error {
-	return mixins.LinkAssembler{"ingestion.Link_Advertisement"}.AssignBool(false)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Advertisement"}.AssignBool(false)
 }
 func (_Link_Advertisement__Assembler) AssignInt(int64) error {
-	return mixins.LinkAssembler{"ingestion.Link_Advertisement"}.AssignInt(0)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Advertisement"}.AssignInt(0)
 }
 func (_Link_Advertisement__Assembler) AssignFloat(float64) error {
-	return mixins.LinkAssembler{"ingestion.Link_Advertisement"}.AssignFloat(0)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Advertisement"}.AssignFloat(0)
 }
 func (_Link_Advertisement__Assembler) AssignString(string) error {
-	return mixins.LinkAssembler{"ingestion.Link_Advertisement"}.AssignString("")
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Advertisement"}.AssignString("")
 }
 func (_Link_Advertisement__Assembler) AssignBytes([]byte) error {
-	return mixins.LinkAssembler{"ingestion.Link_Advertisement"}.AssignBytes(nil)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Advertisement"}.AssignBytes(nil)
 }
 func (na *_Link_Advertisement__Assembler) AssignLink(v ipld.Link) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
-	}
-	if na.w == nil {
-		na.w = &_Link_Advertisement{}
 	}
 	na.w.x = v
 	*na.m = schema.Maybe_Value
@@ -5808,11 +5744,6 @@ func (na *_Link_Advertisement__Assembler) AssignNode(v ipld.Node) error {
 		switch *na.m {
 		case schema.Maybe_Value, schema.Maybe_Null:
 			panic("invalid state: cannot assign into assembler that's already finished")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -5831,7 +5762,7 @@ func (Link_Advertisement) Type() schema.Type {
 	return nil /*TODO:typelit*/
 }
 func (Link_Advertisement) LinkTargetNodePrototype() ipld.NodePrototype {
-	return Type.Link_Advertisement__Repr
+	return Type.Advertisement__Repr
 }
 func (n Link_Advertisement) Representation() ipld.Node {
 	return (*_Link_Advertisement__Repr)(n)
@@ -5854,7 +5785,7 @@ func (_Link_Index__Prototype) FromLink(v ipld.Link) (Link_Index, error) {
 
 type _Link_Index__Maybe struct {
 	m schema.Maybe
-	v Link_Index
+	v _Link_Index
 }
 type MaybeLink_Index = *_Link_Index__Maybe
 
@@ -5874,7 +5805,7 @@ func (m MaybeLink_Index) AsNode() ipld.Node {
 	case schema.Maybe_Null:
 		return ipld.Null
 	case schema.Maybe_Value:
-		return m.v
+		return &m.v
 	default:
 		panic("unreachable")
 	}
@@ -5883,7 +5814,7 @@ func (m MaybeLink_Index) Must() Link_Index {
 	if !m.Exists() {
 		panic("unbox of a maybe rejected")
 	}
-	return m.v
+	return &m.v
 }
 
 var _ ipld.Node = (Link_Index)(&_Link_Index{})
@@ -5893,16 +5824,16 @@ func (Link_Index) Kind() ipld.Kind {
 	return ipld.Kind_Link
 }
 func (Link_Index) LookupByString(string) (ipld.Node, error) {
-	return mixins.Link{"ingestion.Link_Index"}.LookupByString("")
+	return mixins.Link{TypeName: "ingestion.Link_Index"}.LookupByString("")
 }
 func (Link_Index) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Link{"ingestion.Link_Index"}.LookupByNode(nil)
+	return mixins.Link{TypeName: "ingestion.Link_Index"}.LookupByNode(nil)
 }
 func (Link_Index) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Link{"ingestion.Link_Index"}.LookupByIndex(0)
+	return mixins.Link{TypeName: "ingestion.Link_Index"}.LookupByIndex(0)
 }
 func (Link_Index) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-	return mixins.Link{"ingestion.Link_Index"}.LookupBySegment(seg)
+	return mixins.Link{TypeName: "ingestion.Link_Index"}.LookupBySegment(seg)
 }
 func (Link_Index) MapIterator() ipld.MapIterator {
 	return nil
@@ -5920,19 +5851,19 @@ func (Link_Index) IsNull() bool {
 	return false
 }
 func (Link_Index) AsBool() (bool, error) {
-	return mixins.Link{"ingestion.Link_Index"}.AsBool()
+	return mixins.Link{TypeName: "ingestion.Link_Index"}.AsBool()
 }
 func (Link_Index) AsInt() (int64, error) {
-	return mixins.Link{"ingestion.Link_Index"}.AsInt()
+	return mixins.Link{TypeName: "ingestion.Link_Index"}.AsInt()
 }
 func (Link_Index) AsFloat() (float64, error) {
-	return mixins.Link{"ingestion.Link_Index"}.AsFloat()
+	return mixins.Link{TypeName: "ingestion.Link_Index"}.AsFloat()
 }
 func (Link_Index) AsString() (string, error) {
-	return mixins.Link{"ingestion.Link_Index"}.AsString()
+	return mixins.Link{TypeName: "ingestion.Link_Index"}.AsString()
 }
 func (Link_Index) AsBytes() ([]byte, error) {
-	return mixins.Link{"ingestion.Link_Index"}.AsBytes()
+	return mixins.Link{TypeName: "ingestion.Link_Index"}.AsBytes()
 }
 func (n Link_Index) AsLink() (ipld.Link, error) {
 	return n.x, nil
@@ -5972,10 +5903,10 @@ type _Link_Index__Assembler struct {
 
 func (na *_Link_Index__Assembler) reset() {}
 func (_Link_Index__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.LinkAssembler{"ingestion.Link_Index"}.BeginMap(0)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Index"}.BeginMap(0)
 }
 func (_Link_Index__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.LinkAssembler{"ingestion.Link_Index"}.BeginList(0)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Index"}.BeginList(0)
 }
 func (na *_Link_Index__Assembler) AssignNull() error {
 	switch *na.m {
@@ -5983,34 +5914,31 @@ func (na *_Link_Index__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.LinkAssembler{"ingestion.Link_Index"}.AssignNull()
+		return mixins.LinkAssembler{TypeName: "ingestion.Link_Index"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
 	panic("unreachable")
 }
 func (_Link_Index__Assembler) AssignBool(bool) error {
-	return mixins.LinkAssembler{"ingestion.Link_Index"}.AssignBool(false)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Index"}.AssignBool(false)
 }
 func (_Link_Index__Assembler) AssignInt(int64) error {
-	return mixins.LinkAssembler{"ingestion.Link_Index"}.AssignInt(0)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Index"}.AssignInt(0)
 }
 func (_Link_Index__Assembler) AssignFloat(float64) error {
-	return mixins.LinkAssembler{"ingestion.Link_Index"}.AssignFloat(0)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Index"}.AssignFloat(0)
 }
 func (_Link_Index__Assembler) AssignString(string) error {
-	return mixins.LinkAssembler{"ingestion.Link_Index"}.AssignString("")
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Index"}.AssignString("")
 }
 func (_Link_Index__Assembler) AssignBytes([]byte) error {
-	return mixins.LinkAssembler{"ingestion.Link_Index"}.AssignBytes(nil)
+	return mixins.LinkAssembler{TypeName: "ingestion.Link_Index"}.AssignBytes(nil)
 }
 func (na *_Link_Index__Assembler) AssignLink(v ipld.Link) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
-	}
-	if na.w == nil {
-		na.w = &_Link_Index{}
 	}
 	na.w.x = v
 	*na.m = schema.Maybe_Value
@@ -6024,11 +5952,6 @@ func (na *_Link_Index__Assembler) AssignNode(v ipld.Node) error {
 		switch *na.m {
 		case schema.Maybe_Value, schema.Maybe_Null:
 			panic("invalid state: cannot assign into assembler that's already finished")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -6047,7 +5970,7 @@ func (Link_Index) Type() schema.Type {
 	return nil /*TODO:typelit*/
 }
 func (Link_Index) LinkTargetNodePrototype() ipld.NodePrototype {
-	return Type.Link_Index__Repr
+	return Type.Index__Repr
 }
 func (n Link_Index) Representation() ipld.Node {
 	return (*_Link_Index__Repr)(n)
@@ -6104,7 +6027,7 @@ func (itr *List__Itr) Done() bool {
 
 type _List__Maybe struct {
 	m schema.Maybe
-	v List
+	v _List
 }
 type MaybeList = *_List__Maybe
 
@@ -6124,7 +6047,7 @@ func (m MaybeList) AsNode() ipld.Node {
 	case schema.Maybe_Null:
 		return ipld.Null
 	case schema.Maybe_Value:
-		return m.v
+		return &m.v
 	default:
 		panic("unreachable")
 	}
@@ -6133,7 +6056,7 @@ func (m MaybeList) Must() List {
 	if !m.Exists() {
 		panic("unbox of a maybe rejected")
 	}
-	return m.v
+	return &m.v
 }
 
 var _ ipld.Node = (List)(&_List{})
@@ -6143,7 +6066,7 @@ func (List) Kind() ipld.Kind {
 	return ipld.Kind_List
 }
 func (List) LookupByString(string) (ipld.Node, error) {
-	return mixins.List{"ingestion.List"}.LookupByString("")
+	return mixins.List{TypeName: "ingestion.List"}.LookupByString("")
 }
 func (n List) LookupByNode(k ipld.Node) (ipld.Node, error) {
 	idx, err := k.AsInt()
@@ -6154,7 +6077,7 @@ func (n List) LookupByNode(k ipld.Node) (ipld.Node, error) {
 }
 func (n List) LookupByIndex(idx int64) (ipld.Node, error) {
 	if n.Length() <= idx {
-		return nil, ipld.ErrNotExists{ipld.PathSegmentOfInt(idx)}
+		return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfInt(idx)}
 	}
 	v := &n.x[idx]
 	if v.m == schema.Maybe_Null {
@@ -6210,22 +6133,22 @@ func (List) IsNull() bool {
 	return false
 }
 func (List) AsBool() (bool, error) {
-	return mixins.List{"ingestion.List"}.AsBool()
+	return mixins.List{TypeName: "ingestion.List"}.AsBool()
 }
 func (List) AsInt() (int64, error) {
-	return mixins.List{"ingestion.List"}.AsInt()
+	return mixins.List{TypeName: "ingestion.List"}.AsInt()
 }
 func (List) AsFloat() (float64, error) {
-	return mixins.List{"ingestion.List"}.AsFloat()
+	return mixins.List{TypeName: "ingestion.List"}.AsFloat()
 }
 func (List) AsString() (string, error) {
-	return mixins.List{"ingestion.List"}.AsString()
+	return mixins.List{TypeName: "ingestion.List"}.AsString()
 }
 func (List) AsBytes() ([]byte, error) {
-	return mixins.List{"ingestion.List"}.AsBytes()
+	return mixins.List{TypeName: "ingestion.List"}.AsBytes()
 }
 func (List) AsLink() (ipld.Link, error) {
-	return mixins.List{"ingestion.List"}.AsLink()
+	return mixins.List{TypeName: "ingestion.List"}.AsLink()
 }
 func (List) Prototype() ipld.NodePrototype {
 	return _List__Prototype{}
@@ -6268,7 +6191,7 @@ func (na *_List__Assembler) reset() {
 	na.va.reset()
 }
 func (_List__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.ListAssembler{"ingestion.List"}.BeginMap(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List"}.BeginMap(0)
 }
 func (na *_List__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
 	switch *na.m {
@@ -6281,9 +6204,6 @@ func (na *_List__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error
 	if sizeHint < 0 {
 		sizeHint = 0
 	}
-	if na.w == nil {
-		na.w = &_List{}
-	}
 	if sizeHint > 0 {
 		na.w.x = make([]_Any__Maybe, 0, sizeHint)
 	}
@@ -6295,7 +6215,7 @@ func (na *_List__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.ListAssembler{"ingestion.List"}.AssignNull()
+		return mixins.ListAssembler{TypeName: "ingestion.List"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -6304,22 +6224,22 @@ func (na *_List__Assembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_List__Assembler) AssignBool(bool) error {
-	return mixins.ListAssembler{"ingestion.List"}.AssignBool(false)
+	return mixins.ListAssembler{TypeName: "ingestion.List"}.AssignBool(false)
 }
 func (_List__Assembler) AssignInt(int64) error {
-	return mixins.ListAssembler{"ingestion.List"}.AssignInt(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List"}.AssignInt(0)
 }
 func (_List__Assembler) AssignFloat(float64) error {
-	return mixins.ListAssembler{"ingestion.List"}.AssignFloat(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List"}.AssignFloat(0)
 }
 func (_List__Assembler) AssignString(string) error {
-	return mixins.ListAssembler{"ingestion.List"}.AssignString("")
+	return mixins.ListAssembler{TypeName: "ingestion.List"}.AssignString("")
 }
 func (_List__Assembler) AssignBytes([]byte) error {
-	return mixins.ListAssembler{"ingestion.List"}.AssignBytes(nil)
+	return mixins.ListAssembler{TypeName: "ingestion.List"}.AssignBytes(nil)
 }
 func (_List__Assembler) AssignLink(ipld.Link) error {
-	return mixins.ListAssembler{"ingestion.List"}.AssignLink(nil)
+	return mixins.ListAssembler{TypeName: "ingestion.List"}.AssignLink(nil)
 }
 func (na *_List__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -6331,11 +6251,6 @@ func (na *_List__Assembler) AssignNode(v ipld.Node) error {
 			panic("invalid state: cannot assign into assembler that's already finished")
 		case midvalue:
 			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -6425,7 +6340,7 @@ func (_List__Repr) Kind() ipld.Kind {
 	return ipld.Kind_List
 }
 func (_List__Repr) LookupByString(string) (ipld.Node, error) {
-	return mixins.List{"ingestion.List.Repr"}.LookupByString("")
+	return mixins.List{TypeName: "ingestion.List.Repr"}.LookupByString("")
 }
 func (nr *_List__Repr) LookupByNode(k ipld.Node) (ipld.Node, error) {
 	v, err := (List)(nr).LookupByNode(k)
@@ -6478,22 +6393,22 @@ func (_List__Repr) IsNull() bool {
 	return false
 }
 func (_List__Repr) AsBool() (bool, error) {
-	return mixins.List{"ingestion.List.Repr"}.AsBool()
+	return mixins.List{TypeName: "ingestion.List.Repr"}.AsBool()
 }
 func (_List__Repr) AsInt() (int64, error) {
-	return mixins.List{"ingestion.List.Repr"}.AsInt()
+	return mixins.List{TypeName: "ingestion.List.Repr"}.AsInt()
 }
 func (_List__Repr) AsFloat() (float64, error) {
-	return mixins.List{"ingestion.List.Repr"}.AsFloat()
+	return mixins.List{TypeName: "ingestion.List.Repr"}.AsFloat()
 }
 func (_List__Repr) AsString() (string, error) {
-	return mixins.List{"ingestion.List.Repr"}.AsString()
+	return mixins.List{TypeName: "ingestion.List.Repr"}.AsString()
 }
 func (_List__Repr) AsBytes() ([]byte, error) {
-	return mixins.List{"ingestion.List.Repr"}.AsBytes()
+	return mixins.List{TypeName: "ingestion.List.Repr"}.AsBytes()
 }
 func (_List__Repr) AsLink() (ipld.Link, error) {
-	return mixins.List{"ingestion.List.Repr"}.AsLink()
+	return mixins.List{TypeName: "ingestion.List.Repr"}.AsLink()
 }
 func (_List__Repr) Prototype() ipld.NodePrototype {
 	return _List__ReprPrototype{}
@@ -6536,7 +6451,7 @@ func (na *_List__ReprAssembler) reset() {
 	na.va.reset()
 }
 func (_List__ReprAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.ListAssembler{"ingestion.List.Repr"}.BeginMap(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List.Repr"}.BeginMap(0)
 }
 func (na *_List__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
 	switch *na.m {
@@ -6549,9 +6464,6 @@ func (na *_List__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, e
 	if sizeHint < 0 {
 		sizeHint = 0
 	}
-	if na.w == nil {
-		na.w = &_List{}
-	}
 	if sizeHint > 0 {
 		na.w.x = make([]_Any__Maybe, 0, sizeHint)
 	}
@@ -6563,7 +6475,7 @@ func (na *_List__ReprAssembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.ListAssembler{"ingestion.List.Repr.Repr"}.AssignNull()
+		return mixins.ListAssembler{TypeName: "ingestion.List.Repr.Repr"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -6572,22 +6484,22 @@ func (na *_List__ReprAssembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_List__ReprAssembler) AssignBool(bool) error {
-	return mixins.ListAssembler{"ingestion.List.Repr"}.AssignBool(false)
+	return mixins.ListAssembler{TypeName: "ingestion.List.Repr"}.AssignBool(false)
 }
 func (_List__ReprAssembler) AssignInt(int64) error {
-	return mixins.ListAssembler{"ingestion.List.Repr"}.AssignInt(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List.Repr"}.AssignInt(0)
 }
 func (_List__ReprAssembler) AssignFloat(float64) error {
-	return mixins.ListAssembler{"ingestion.List.Repr"}.AssignFloat(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List.Repr"}.AssignFloat(0)
 }
 func (_List__ReprAssembler) AssignString(string) error {
-	return mixins.ListAssembler{"ingestion.List.Repr"}.AssignString("")
+	return mixins.ListAssembler{TypeName: "ingestion.List.Repr"}.AssignString("")
 }
 func (_List__ReprAssembler) AssignBytes([]byte) error {
-	return mixins.ListAssembler{"ingestion.List.Repr"}.AssignBytes(nil)
+	return mixins.ListAssembler{TypeName: "ingestion.List.Repr"}.AssignBytes(nil)
 }
 func (_List__ReprAssembler) AssignLink(ipld.Link) error {
-	return mixins.ListAssembler{"ingestion.List.Repr"}.AssignLink(nil)
+	return mixins.ListAssembler{TypeName: "ingestion.List.Repr"}.AssignLink(nil)
 }
 func (na *_List__ReprAssembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -6599,11 +6511,6 @@ func (na *_List__ReprAssembler) AssignNode(v ipld.Node) error {
 			panic("invalid state: cannot assign into assembler that's already finished")
 		case midvalue:
 			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -6723,7 +6630,7 @@ func (itr *List_Entry__Itr) Done() bool {
 
 type _List_Entry__Maybe struct {
 	m schema.Maybe
-	v List_Entry
+	v _List_Entry
 }
 type MaybeList_Entry = *_List_Entry__Maybe
 
@@ -6743,7 +6650,7 @@ func (m MaybeList_Entry) AsNode() ipld.Node {
 	case schema.Maybe_Null:
 		return ipld.Null
 	case schema.Maybe_Value:
-		return m.v
+		return &m.v
 	default:
 		panic("unreachable")
 	}
@@ -6752,7 +6659,7 @@ func (m MaybeList_Entry) Must() List_Entry {
 	if !m.Exists() {
 		panic("unbox of a maybe rejected")
 	}
-	return m.v
+	return &m.v
 }
 
 var _ ipld.Node = (List_Entry)(&_List_Entry{})
@@ -6762,7 +6669,7 @@ func (List_Entry) Kind() ipld.Kind {
 	return ipld.Kind_List
 }
 func (List_Entry) LookupByString(string) (ipld.Node, error) {
-	return mixins.List{"ingestion.List_Entry"}.LookupByString("")
+	return mixins.List{TypeName: "ingestion.List_Entry"}.LookupByString("")
 }
 func (n List_Entry) LookupByNode(k ipld.Node) (ipld.Node, error) {
 	idx, err := k.AsInt()
@@ -6773,7 +6680,7 @@ func (n List_Entry) LookupByNode(k ipld.Node) (ipld.Node, error) {
 }
 func (n List_Entry) LookupByIndex(idx int64) (ipld.Node, error) {
 	if n.Length() <= idx {
-		return nil, ipld.ErrNotExists{ipld.PathSegmentOfInt(idx)}
+		return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfInt(idx)}
 	}
 	v := &n.x[idx]
 	return v, nil
@@ -6821,22 +6728,22 @@ func (List_Entry) IsNull() bool {
 	return false
 }
 func (List_Entry) AsBool() (bool, error) {
-	return mixins.List{"ingestion.List_Entry"}.AsBool()
+	return mixins.List{TypeName: "ingestion.List_Entry"}.AsBool()
 }
 func (List_Entry) AsInt() (int64, error) {
-	return mixins.List{"ingestion.List_Entry"}.AsInt()
+	return mixins.List{TypeName: "ingestion.List_Entry"}.AsInt()
 }
 func (List_Entry) AsFloat() (float64, error) {
-	return mixins.List{"ingestion.List_Entry"}.AsFloat()
+	return mixins.List{TypeName: "ingestion.List_Entry"}.AsFloat()
 }
 func (List_Entry) AsString() (string, error) {
-	return mixins.List{"ingestion.List_Entry"}.AsString()
+	return mixins.List{TypeName: "ingestion.List_Entry"}.AsString()
 }
 func (List_Entry) AsBytes() ([]byte, error) {
-	return mixins.List{"ingestion.List_Entry"}.AsBytes()
+	return mixins.List{TypeName: "ingestion.List_Entry"}.AsBytes()
 }
 func (List_Entry) AsLink() (ipld.Link, error) {
-	return mixins.List{"ingestion.List_Entry"}.AsLink()
+	return mixins.List{TypeName: "ingestion.List_Entry"}.AsLink()
 }
 func (List_Entry) Prototype() ipld.NodePrototype {
 	return _List_Entry__Prototype{}
@@ -6880,7 +6787,7 @@ func (na *_List_Entry__Assembler) reset() {
 	na.va.reset()
 }
 func (_List_Entry__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.ListAssembler{"ingestion.List_Entry"}.BeginMap(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry"}.BeginMap(0)
 }
 func (na *_List_Entry__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
 	switch *na.m {
@@ -6893,9 +6800,6 @@ func (na *_List_Entry__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler,
 	if sizeHint < 0 {
 		sizeHint = 0
 	}
-	if na.w == nil {
-		na.w = &_List_Entry{}
-	}
 	if sizeHint > 0 {
 		na.w.x = make([]_Entry, 0, sizeHint)
 	}
@@ -6907,7 +6811,7 @@ func (na *_List_Entry__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.ListAssembler{"ingestion.List_Entry"}.AssignNull()
+		return mixins.ListAssembler{TypeName: "ingestion.List_Entry"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -6916,22 +6820,22 @@ func (na *_List_Entry__Assembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_List_Entry__Assembler) AssignBool(bool) error {
-	return mixins.ListAssembler{"ingestion.List_Entry"}.AssignBool(false)
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry"}.AssignBool(false)
 }
 func (_List_Entry__Assembler) AssignInt(int64) error {
-	return mixins.ListAssembler{"ingestion.List_Entry"}.AssignInt(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry"}.AssignInt(0)
 }
 func (_List_Entry__Assembler) AssignFloat(float64) error {
-	return mixins.ListAssembler{"ingestion.List_Entry"}.AssignFloat(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry"}.AssignFloat(0)
 }
 func (_List_Entry__Assembler) AssignString(string) error {
-	return mixins.ListAssembler{"ingestion.List_Entry"}.AssignString("")
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry"}.AssignString("")
 }
 func (_List_Entry__Assembler) AssignBytes([]byte) error {
-	return mixins.ListAssembler{"ingestion.List_Entry"}.AssignBytes(nil)
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry"}.AssignBytes(nil)
 }
 func (_List_Entry__Assembler) AssignLink(ipld.Link) error {
-	return mixins.ListAssembler{"ingestion.List_Entry"}.AssignLink(nil)
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry"}.AssignLink(nil)
 }
 func (na *_List_Entry__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -6943,11 +6847,6 @@ func (na *_List_Entry__Assembler) AssignNode(v ipld.Node) error {
 			panic("invalid state: cannot assign into assembler that's already finished")
 		case midvalue:
 			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -7034,7 +6933,7 @@ func (_List_Entry__Repr) Kind() ipld.Kind {
 	return ipld.Kind_List
 }
 func (_List_Entry__Repr) LookupByString(string) (ipld.Node, error) {
-	return mixins.List{"ingestion.List_Entry.Repr"}.LookupByString("")
+	return mixins.List{TypeName: "ingestion.List_Entry.Repr"}.LookupByString("")
 }
 func (nr *_List_Entry__Repr) LookupByNode(k ipld.Node) (ipld.Node, error) {
 	v, err := (List_Entry)(nr).LookupByNode(k)
@@ -7087,22 +6986,22 @@ func (_List_Entry__Repr) IsNull() bool {
 	return false
 }
 func (_List_Entry__Repr) AsBool() (bool, error) {
-	return mixins.List{"ingestion.List_Entry.Repr"}.AsBool()
+	return mixins.List{TypeName: "ingestion.List_Entry.Repr"}.AsBool()
 }
 func (_List_Entry__Repr) AsInt() (int64, error) {
-	return mixins.List{"ingestion.List_Entry.Repr"}.AsInt()
+	return mixins.List{TypeName: "ingestion.List_Entry.Repr"}.AsInt()
 }
 func (_List_Entry__Repr) AsFloat() (float64, error) {
-	return mixins.List{"ingestion.List_Entry.Repr"}.AsFloat()
+	return mixins.List{TypeName: "ingestion.List_Entry.Repr"}.AsFloat()
 }
 func (_List_Entry__Repr) AsString() (string, error) {
-	return mixins.List{"ingestion.List_Entry.Repr"}.AsString()
+	return mixins.List{TypeName: "ingestion.List_Entry.Repr"}.AsString()
 }
 func (_List_Entry__Repr) AsBytes() ([]byte, error) {
-	return mixins.List{"ingestion.List_Entry.Repr"}.AsBytes()
+	return mixins.List{TypeName: "ingestion.List_Entry.Repr"}.AsBytes()
 }
 func (_List_Entry__Repr) AsLink() (ipld.Link, error) {
-	return mixins.List{"ingestion.List_Entry.Repr"}.AsLink()
+	return mixins.List{TypeName: "ingestion.List_Entry.Repr"}.AsLink()
 }
 func (_List_Entry__Repr) Prototype() ipld.NodePrototype {
 	return _List_Entry__ReprPrototype{}
@@ -7146,7 +7045,7 @@ func (na *_List_Entry__ReprAssembler) reset() {
 	na.va.reset()
 }
 func (_List_Entry__ReprAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.ListAssembler{"ingestion.List_Entry.Repr"}.BeginMap(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry.Repr"}.BeginMap(0)
 }
 func (na *_List_Entry__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
 	switch *na.m {
@@ -7159,9 +7058,6 @@ func (na *_List_Entry__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssemb
 	if sizeHint < 0 {
 		sizeHint = 0
 	}
-	if na.w == nil {
-		na.w = &_List_Entry{}
-	}
 	if sizeHint > 0 {
 		na.w.x = make([]_Entry, 0, sizeHint)
 	}
@@ -7173,7 +7069,7 @@ func (na *_List_Entry__ReprAssembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.ListAssembler{"ingestion.List_Entry.Repr.Repr"}.AssignNull()
+		return mixins.ListAssembler{TypeName: "ingestion.List_Entry.Repr.Repr"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -7182,22 +7078,22 @@ func (na *_List_Entry__ReprAssembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_List_Entry__ReprAssembler) AssignBool(bool) error {
-	return mixins.ListAssembler{"ingestion.List_Entry.Repr"}.AssignBool(false)
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry.Repr"}.AssignBool(false)
 }
 func (_List_Entry__ReprAssembler) AssignInt(int64) error {
-	return mixins.ListAssembler{"ingestion.List_Entry.Repr"}.AssignInt(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry.Repr"}.AssignInt(0)
 }
 func (_List_Entry__ReprAssembler) AssignFloat(float64) error {
-	return mixins.ListAssembler{"ingestion.List_Entry.Repr"}.AssignFloat(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry.Repr"}.AssignFloat(0)
 }
 func (_List_Entry__ReprAssembler) AssignString(string) error {
-	return mixins.ListAssembler{"ingestion.List_Entry.Repr"}.AssignString("")
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry.Repr"}.AssignString("")
 }
 func (_List_Entry__ReprAssembler) AssignBytes([]byte) error {
-	return mixins.ListAssembler{"ingestion.List_Entry.Repr"}.AssignBytes(nil)
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry.Repr"}.AssignBytes(nil)
 }
 func (_List_Entry__ReprAssembler) AssignLink(ipld.Link) error {
-	return mixins.ListAssembler{"ingestion.List_Entry.Repr"}.AssignLink(nil)
+	return mixins.ListAssembler{TypeName: "ingestion.List_Entry.Repr"}.AssignLink(nil)
 }
 func (na *_List_Entry__ReprAssembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -7209,11 +7105,6 @@ func (na *_List_Entry__ReprAssembler) AssignNode(v ipld.Node) error {
 			panic("invalid state: cannot assign into assembler that's already finished")
 		case midvalue:
 			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -7300,7 +7191,7 @@ func (n *_List_String) LookupMaybe(idx int64) MaybeString {
 	v := &n.x[idx]
 	return &_String__Maybe{
 		m: schema.Maybe_Value,
-		v: v,
+		v: *v,
 	}
 }
 
@@ -7330,7 +7221,7 @@ func (itr *List_String__Itr) Done() bool {
 
 type _List_String__Maybe struct {
 	m schema.Maybe
-	v List_String
+	v _List_String
 }
 type MaybeList_String = *_List_String__Maybe
 
@@ -7350,7 +7241,7 @@ func (m MaybeList_String) AsNode() ipld.Node {
 	case schema.Maybe_Null:
 		return ipld.Null
 	case schema.Maybe_Value:
-		return m.v
+		return &m.v
 	default:
 		panic("unreachable")
 	}
@@ -7359,7 +7250,7 @@ func (m MaybeList_String) Must() List_String {
 	if !m.Exists() {
 		panic("unbox of a maybe rejected")
 	}
-	return m.v
+	return &m.v
 }
 
 var _ ipld.Node = (List_String)(&_List_String{})
@@ -7369,7 +7260,7 @@ func (List_String) Kind() ipld.Kind {
 	return ipld.Kind_List
 }
 func (List_String) LookupByString(string) (ipld.Node, error) {
-	return mixins.List{"ingestion.List_String"}.LookupByString("")
+	return mixins.List{TypeName: "ingestion.List_String"}.LookupByString("")
 }
 func (n List_String) LookupByNode(k ipld.Node) (ipld.Node, error) {
 	idx, err := k.AsInt()
@@ -7380,7 +7271,7 @@ func (n List_String) LookupByNode(k ipld.Node) (ipld.Node, error) {
 }
 func (n List_String) LookupByIndex(idx int64) (ipld.Node, error) {
 	if n.Length() <= idx {
-		return nil, ipld.ErrNotExists{ipld.PathSegmentOfInt(idx)}
+		return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfInt(idx)}
 	}
 	v := &n.x[idx]
 	return v, nil
@@ -7428,22 +7319,22 @@ func (List_String) IsNull() bool {
 	return false
 }
 func (List_String) AsBool() (bool, error) {
-	return mixins.List{"ingestion.List_String"}.AsBool()
+	return mixins.List{TypeName: "ingestion.List_String"}.AsBool()
 }
 func (List_String) AsInt() (int64, error) {
-	return mixins.List{"ingestion.List_String"}.AsInt()
+	return mixins.List{TypeName: "ingestion.List_String"}.AsInt()
 }
 func (List_String) AsFloat() (float64, error) {
-	return mixins.List{"ingestion.List_String"}.AsFloat()
+	return mixins.List{TypeName: "ingestion.List_String"}.AsFloat()
 }
 func (List_String) AsString() (string, error) {
-	return mixins.List{"ingestion.List_String"}.AsString()
+	return mixins.List{TypeName: "ingestion.List_String"}.AsString()
 }
 func (List_String) AsBytes() ([]byte, error) {
-	return mixins.List{"ingestion.List_String"}.AsBytes()
+	return mixins.List{TypeName: "ingestion.List_String"}.AsBytes()
 }
 func (List_String) AsLink() (ipld.Link, error) {
-	return mixins.List{"ingestion.List_String"}.AsLink()
+	return mixins.List{TypeName: "ingestion.List_String"}.AsLink()
 }
 func (List_String) Prototype() ipld.NodePrototype {
 	return _List_String__Prototype{}
@@ -7487,7 +7378,7 @@ func (na *_List_String__Assembler) reset() {
 	na.va.reset()
 }
 func (_List_String__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.ListAssembler{"ingestion.List_String"}.BeginMap(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List_String"}.BeginMap(0)
 }
 func (na *_List_String__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
 	switch *na.m {
@@ -7500,9 +7391,6 @@ func (na *_List_String__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler
 	if sizeHint < 0 {
 		sizeHint = 0
 	}
-	if na.w == nil {
-		na.w = &_List_String{}
-	}
 	if sizeHint > 0 {
 		na.w.x = make([]_String, 0, sizeHint)
 	}
@@ -7514,7 +7402,7 @@ func (na *_List_String__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.ListAssembler{"ingestion.List_String"}.AssignNull()
+		return mixins.ListAssembler{TypeName: "ingestion.List_String"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -7523,22 +7411,22 @@ func (na *_List_String__Assembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_List_String__Assembler) AssignBool(bool) error {
-	return mixins.ListAssembler{"ingestion.List_String"}.AssignBool(false)
+	return mixins.ListAssembler{TypeName: "ingestion.List_String"}.AssignBool(false)
 }
 func (_List_String__Assembler) AssignInt(int64) error {
-	return mixins.ListAssembler{"ingestion.List_String"}.AssignInt(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List_String"}.AssignInt(0)
 }
 func (_List_String__Assembler) AssignFloat(float64) error {
-	return mixins.ListAssembler{"ingestion.List_String"}.AssignFloat(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List_String"}.AssignFloat(0)
 }
 func (_List_String__Assembler) AssignString(string) error {
-	return mixins.ListAssembler{"ingestion.List_String"}.AssignString("")
+	return mixins.ListAssembler{TypeName: "ingestion.List_String"}.AssignString("")
 }
 func (_List_String__Assembler) AssignBytes([]byte) error {
-	return mixins.ListAssembler{"ingestion.List_String"}.AssignBytes(nil)
+	return mixins.ListAssembler{TypeName: "ingestion.List_String"}.AssignBytes(nil)
 }
 func (_List_String__Assembler) AssignLink(ipld.Link) error {
-	return mixins.ListAssembler{"ingestion.List_String"}.AssignLink(nil)
+	return mixins.ListAssembler{TypeName: "ingestion.List_String"}.AssignLink(nil)
 }
 func (na *_List_String__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -7550,11 +7438,6 @@ func (na *_List_String__Assembler) AssignNode(v ipld.Node) error {
 			panic("invalid state: cannot assign into assembler that's already finished")
 		case midvalue:
 			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -7641,7 +7524,7 @@ func (_List_String__Repr) Kind() ipld.Kind {
 	return ipld.Kind_List
 }
 func (_List_String__Repr) LookupByString(string) (ipld.Node, error) {
-	return mixins.List{"ingestion.List_String.Repr"}.LookupByString("")
+	return mixins.List{TypeName: "ingestion.List_String.Repr"}.LookupByString("")
 }
 func (nr *_List_String__Repr) LookupByNode(k ipld.Node) (ipld.Node, error) {
 	v, err := (List_String)(nr).LookupByNode(k)
@@ -7694,22 +7577,22 @@ func (_List_String__Repr) IsNull() bool {
 	return false
 }
 func (_List_String__Repr) AsBool() (bool, error) {
-	return mixins.List{"ingestion.List_String.Repr"}.AsBool()
+	return mixins.List{TypeName: "ingestion.List_String.Repr"}.AsBool()
 }
 func (_List_String__Repr) AsInt() (int64, error) {
-	return mixins.List{"ingestion.List_String.Repr"}.AsInt()
+	return mixins.List{TypeName: "ingestion.List_String.Repr"}.AsInt()
 }
 func (_List_String__Repr) AsFloat() (float64, error) {
-	return mixins.List{"ingestion.List_String.Repr"}.AsFloat()
+	return mixins.List{TypeName: "ingestion.List_String.Repr"}.AsFloat()
 }
 func (_List_String__Repr) AsString() (string, error) {
-	return mixins.List{"ingestion.List_String.Repr"}.AsString()
+	return mixins.List{TypeName: "ingestion.List_String.Repr"}.AsString()
 }
 func (_List_String__Repr) AsBytes() ([]byte, error) {
-	return mixins.List{"ingestion.List_String.Repr"}.AsBytes()
+	return mixins.List{TypeName: "ingestion.List_String.Repr"}.AsBytes()
 }
 func (_List_String__Repr) AsLink() (ipld.Link, error) {
-	return mixins.List{"ingestion.List_String.Repr"}.AsLink()
+	return mixins.List{TypeName: "ingestion.List_String.Repr"}.AsLink()
 }
 func (_List_String__Repr) Prototype() ipld.NodePrototype {
 	return _List_String__ReprPrototype{}
@@ -7753,7 +7636,7 @@ func (na *_List_String__ReprAssembler) reset() {
 	na.va.reset()
 }
 func (_List_String__ReprAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.ListAssembler{"ingestion.List_String.Repr"}.BeginMap(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List_String.Repr"}.BeginMap(0)
 }
 func (na *_List_String__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
 	switch *na.m {
@@ -7766,9 +7649,6 @@ func (na *_List_String__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssem
 	if sizeHint < 0 {
 		sizeHint = 0
 	}
-	if na.w == nil {
-		na.w = &_List_String{}
-	}
 	if sizeHint > 0 {
 		na.w.x = make([]_String, 0, sizeHint)
 	}
@@ -7780,7 +7660,7 @@ func (na *_List_String__ReprAssembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.ListAssembler{"ingestion.List_String.Repr.Repr"}.AssignNull()
+		return mixins.ListAssembler{TypeName: "ingestion.List_String.Repr.Repr"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -7789,22 +7669,22 @@ func (na *_List_String__ReprAssembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_List_String__ReprAssembler) AssignBool(bool) error {
-	return mixins.ListAssembler{"ingestion.List_String.Repr"}.AssignBool(false)
+	return mixins.ListAssembler{TypeName: "ingestion.List_String.Repr"}.AssignBool(false)
 }
 func (_List_String__ReprAssembler) AssignInt(int64) error {
-	return mixins.ListAssembler{"ingestion.List_String.Repr"}.AssignInt(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List_String.Repr"}.AssignInt(0)
 }
 func (_List_String__ReprAssembler) AssignFloat(float64) error {
-	return mixins.ListAssembler{"ingestion.List_String.Repr"}.AssignFloat(0)
+	return mixins.ListAssembler{TypeName: "ingestion.List_String.Repr"}.AssignFloat(0)
 }
 func (_List_String__ReprAssembler) AssignString(string) error {
-	return mixins.ListAssembler{"ingestion.List_String.Repr"}.AssignString("")
+	return mixins.ListAssembler{TypeName: "ingestion.List_String.Repr"}.AssignString("")
 }
 func (_List_String__ReprAssembler) AssignBytes([]byte) error {
-	return mixins.ListAssembler{"ingestion.List_String.Repr"}.AssignBytes(nil)
+	return mixins.ListAssembler{TypeName: "ingestion.List_String.Repr"}.AssignBytes(nil)
 }
 func (_List_String__ReprAssembler) AssignLink(ipld.Link) error {
-	return mixins.ListAssembler{"ingestion.List_String.Repr"}.AssignLink(nil)
+	return mixins.ListAssembler{TypeName: "ingestion.List_String.Repr"}.AssignLink(nil)
 }
 func (na *_List_String__ReprAssembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -7816,11 +7696,6 @@ func (na *_List_String__ReprAssembler) AssignNode(v ipld.Node) error {
 			panic("invalid state: cannot assign into assembler that's already finished")
 		case midvalue:
 			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -7938,7 +7813,7 @@ func (itr *Map__Itr) Done() bool {
 
 type _Map__Maybe struct {
 	m schema.Maybe
-	v Map
+	v _Map
 }
 type MaybeMap = *_Map__Maybe
 
@@ -7958,7 +7833,7 @@ func (m MaybeMap) AsNode() ipld.Node {
 	case schema.Maybe_Null:
 		return ipld.Null
 	case schema.Maybe_Value:
-		return m.v
+		return &m.v
 	default:
 		panic("unreachable")
 	}
@@ -7967,7 +7842,7 @@ func (m MaybeMap) Must() Map {
 	if !m.Exists() {
 		panic("unbox of a maybe rejected")
 	}
-	return m.v
+	return &m.v
 }
 
 var _ ipld.Node = (Map)(&_Map{})
@@ -7983,7 +7858,7 @@ func (n Map) LookupByString(k string) (ipld.Node, error) {
 	}
 	v, exists := n.m[k2]
 	if !exists {
-		return nil, ipld.ErrNotExists{ipld.PathSegmentOfString(k)}
+		return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(k)}
 	}
 	if v.m == schema.Maybe_Null {
 		return ipld.Null, nil
@@ -7998,7 +7873,7 @@ func (n Map) LookupByNode(k ipld.Node) (ipld.Node, error) {
 	}
 	v, exists := n.m[*k2]
 	if !exists {
-		return nil, ipld.ErrNotExists{ipld.PathSegmentOfString(k2.String())}
+		return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(k2.String())}
 	}
 	if v.m == schema.Maybe_Null {
 		return ipld.Null, nil
@@ -8006,7 +7881,7 @@ func (n Map) LookupByNode(k ipld.Node) (ipld.Node, error) {
 	return v.v, nil
 }
 func (Map) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Map{"ingestion.Map"}.LookupByIndex(0)
+	return mixins.Map{TypeName: "ingestion.Map"}.LookupByIndex(0)
 }
 func (n Map) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
 	return n.LookupByString(seg.String())
@@ -8052,22 +7927,22 @@ func (Map) IsNull() bool {
 	return false
 }
 func (Map) AsBool() (bool, error) {
-	return mixins.Map{"ingestion.Map"}.AsBool()
+	return mixins.Map{TypeName: "ingestion.Map"}.AsBool()
 }
 func (Map) AsInt() (int64, error) {
-	return mixins.Map{"ingestion.Map"}.AsInt()
+	return mixins.Map{TypeName: "ingestion.Map"}.AsInt()
 }
 func (Map) AsFloat() (float64, error) {
-	return mixins.Map{"ingestion.Map"}.AsFloat()
+	return mixins.Map{TypeName: "ingestion.Map"}.AsFloat()
 }
 func (Map) AsString() (string, error) {
-	return mixins.Map{"ingestion.Map"}.AsString()
+	return mixins.Map{TypeName: "ingestion.Map"}.AsString()
 }
 func (Map) AsBytes() ([]byte, error) {
-	return mixins.Map{"ingestion.Map"}.AsBytes()
+	return mixins.Map{TypeName: "ingestion.Map"}.AsBytes()
 }
 func (Map) AsLink() (ipld.Link, error) {
-	return mixins.Map{"ingestion.Map"}.AsLink()
+	return mixins.Map{TypeName: "ingestion.Map"}.AsLink()
 }
 func (Map) Prototype() ipld.NodePrototype {
 	return _Map__Prototype{}
@@ -8123,15 +7998,12 @@ func (na *_Map__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
 	if sizeHint < 0 {
 		sizeHint = 0
 	}
-	if na.w == nil {
-		na.w = &_Map{}
-	}
 	na.w.m = make(map[_String]MaybeAny, sizeHint)
 	na.w.t = make([]_Map__entry, 0, sizeHint)
 	return na, nil
 }
 func (_Map__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.MapAssembler{"ingestion.Map"}.BeginList(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Map"}.BeginList(0)
 }
 func (na *_Map__Assembler) AssignNull() error {
 	switch *na.m {
@@ -8139,7 +8011,7 @@ func (na *_Map__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.MapAssembler{"ingestion.Map"}.AssignNull()
+		return mixins.MapAssembler{TypeName: "ingestion.Map"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -8148,22 +8020,22 @@ func (na *_Map__Assembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_Map__Assembler) AssignBool(bool) error {
-	return mixins.MapAssembler{"ingestion.Map"}.AssignBool(false)
+	return mixins.MapAssembler{TypeName: "ingestion.Map"}.AssignBool(false)
 }
 func (_Map__Assembler) AssignInt(int64) error {
-	return mixins.MapAssembler{"ingestion.Map"}.AssignInt(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Map"}.AssignInt(0)
 }
 func (_Map__Assembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{"ingestion.Map"}.AssignFloat(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Map"}.AssignFloat(0)
 }
 func (_Map__Assembler) AssignString(string) error {
-	return mixins.MapAssembler{"ingestion.Map"}.AssignString("")
+	return mixins.MapAssembler{TypeName: "ingestion.Map"}.AssignString("")
 }
 func (_Map__Assembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{"ingestion.Map"}.AssignBytes(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Map"}.AssignBytes(nil)
 }
 func (_Map__Assembler) AssignLink(ipld.Link) error {
-	return mixins.MapAssembler{"ingestion.Map"}.AssignLink(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Map"}.AssignLink(nil)
 }
 func (na *_Map__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -8175,11 +8047,6 @@ func (na *_Map__Assembler) AssignNode(v ipld.Node) error {
 			panic("invalid state: cannot assign into assembler that's already finished")
 		case midvalue:
 			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -8260,7 +8127,7 @@ func (ma *_Map__Assembler) AssembleEntry(k string) (ipld.NodeAssembler, error) {
 		return nil, err // TODO wrap in some kind of ErrInvalidKey
 	}
 	if _, exists := ma.w.m[k2]; exists {
-		return nil, ipld.ErrRepeatedMapKey{&k2}
+		return nil, ipld.ErrRepeatedMapKey{Key: &k2}
 	}
 	ma.w.t = append(ma.w.t, _Map__entry{k: k2})
 	tz := &ma.w.t[len(ma.w.t)-1]
@@ -8364,7 +8231,7 @@ func (nr *_Map__Repr) LookupByNode(k ipld.Node) (ipld.Node, error) {
 	return v.(Any).Representation(), nil
 }
 func (_Map__Repr) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Map{"ingestion.Map.Repr"}.LookupByIndex(0)
+	return mixins.Map{TypeName: "ingestion.Map.Repr"}.LookupByIndex(0)
 }
 func (n _Map__Repr) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
 	return n.LookupByString(seg.String())
@@ -8399,22 +8266,22 @@ func (_Map__Repr) IsNull() bool {
 	return false
 }
 func (_Map__Repr) AsBool() (bool, error) {
-	return mixins.Map{"ingestion.Map.Repr"}.AsBool()
+	return mixins.Map{TypeName: "ingestion.Map.Repr"}.AsBool()
 }
 func (_Map__Repr) AsInt() (int64, error) {
-	return mixins.Map{"ingestion.Map.Repr"}.AsInt()
+	return mixins.Map{TypeName: "ingestion.Map.Repr"}.AsInt()
 }
 func (_Map__Repr) AsFloat() (float64, error) {
-	return mixins.Map{"ingestion.Map.Repr"}.AsFloat()
+	return mixins.Map{TypeName: "ingestion.Map.Repr"}.AsFloat()
 }
 func (_Map__Repr) AsString() (string, error) {
-	return mixins.Map{"ingestion.Map.Repr"}.AsString()
+	return mixins.Map{TypeName: "ingestion.Map.Repr"}.AsString()
 }
 func (_Map__Repr) AsBytes() ([]byte, error) {
-	return mixins.Map{"ingestion.Map.Repr"}.AsBytes()
+	return mixins.Map{TypeName: "ingestion.Map.Repr"}.AsBytes()
 }
 func (_Map__Repr) AsLink() (ipld.Link, error) {
-	return mixins.Map{"ingestion.Map.Repr"}.AsLink()
+	return mixins.Map{TypeName: "ingestion.Map.Repr"}.AsLink()
 }
 func (_Map__Repr) Prototype() ipld.NodePrototype {
 	return _Map__ReprPrototype{}
@@ -8470,15 +8337,12 @@ func (na *_Map__ReprAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, erro
 	if sizeHint < 0 {
 		sizeHint = 0
 	}
-	if na.w == nil {
-		na.w = &_Map{}
-	}
 	na.w.m = make(map[_String]MaybeAny, sizeHint)
 	na.w.t = make([]_Map__entry, 0, sizeHint)
 	return na, nil
 }
 func (_Map__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.MapAssembler{"ingestion.Map.Repr"}.BeginList(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Map.Repr"}.BeginList(0)
 }
 func (na *_Map__ReprAssembler) AssignNull() error {
 	switch *na.m {
@@ -8486,7 +8350,7 @@ func (na *_Map__ReprAssembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.MapAssembler{"ingestion.Map.Repr.Repr"}.AssignNull()
+		return mixins.MapAssembler{TypeName: "ingestion.Map.Repr.Repr"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	case midvalue:
@@ -8495,22 +8359,22 @@ func (na *_Map__ReprAssembler) AssignNull() error {
 	panic("unreachable")
 }
 func (_Map__ReprAssembler) AssignBool(bool) error {
-	return mixins.MapAssembler{"ingestion.Map.Repr"}.AssignBool(false)
+	return mixins.MapAssembler{TypeName: "ingestion.Map.Repr"}.AssignBool(false)
 }
 func (_Map__ReprAssembler) AssignInt(int64) error {
-	return mixins.MapAssembler{"ingestion.Map.Repr"}.AssignInt(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Map.Repr"}.AssignInt(0)
 }
 func (_Map__ReprAssembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{"ingestion.Map.Repr"}.AssignFloat(0)
+	return mixins.MapAssembler{TypeName: "ingestion.Map.Repr"}.AssignFloat(0)
 }
 func (_Map__ReprAssembler) AssignString(string) error {
-	return mixins.MapAssembler{"ingestion.Map.Repr"}.AssignString("")
+	return mixins.MapAssembler{TypeName: "ingestion.Map.Repr"}.AssignString("")
 }
 func (_Map__ReprAssembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{"ingestion.Map.Repr"}.AssignBytes(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Map.Repr"}.AssignBytes(nil)
 }
 func (_Map__ReprAssembler) AssignLink(ipld.Link) error {
-	return mixins.MapAssembler{"ingestion.Map.Repr"}.AssignLink(nil)
+	return mixins.MapAssembler{TypeName: "ingestion.Map.Repr"}.AssignLink(nil)
 }
 func (na *_Map__ReprAssembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -8522,11 +8386,6 @@ func (na *_Map__ReprAssembler) AssignNode(v ipld.Node) error {
 			panic("invalid state: cannot assign into assembler that's already finished")
 		case midvalue:
 			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value
@@ -8607,7 +8466,7 @@ func (ma *_Map__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssembler, erro
 		return nil, err // TODO wrap in some kind of ErrInvalidKey
 	}
 	if _, exists := ma.w.m[k2]; exists {
-		return nil, ipld.ErrRepeatedMapKey{&k2}
+		return nil, ipld.ErrRepeatedMapKey{Key: &k2}
 	}
 	ma.w.t = append(ma.w.t, _Map__entry{k: k2})
 	tz := &ma.w.t[len(ma.w.t)-1]
@@ -8697,7 +8556,7 @@ func (_String__Prototype) FromString(v string) (String, error) {
 
 type _String__Maybe struct {
 	m schema.Maybe
-	v String
+	v _String
 }
 type MaybeString = *_String__Maybe
 
@@ -8717,7 +8576,7 @@ func (m MaybeString) AsNode() ipld.Node {
 	case schema.Maybe_Null:
 		return ipld.Null
 	case schema.Maybe_Value:
-		return m.v
+		return &m.v
 	default:
 		panic("unreachable")
 	}
@@ -8726,7 +8585,7 @@ func (m MaybeString) Must() String {
 	if !m.Exists() {
 		panic("unbox of a maybe rejected")
 	}
-	return m.v
+	return &m.v
 }
 
 var _ ipld.Node = (String)(&_String{})
@@ -8736,16 +8595,16 @@ func (String) Kind() ipld.Kind {
 	return ipld.Kind_String
 }
 func (String) LookupByString(string) (ipld.Node, error) {
-	return mixins.String{"ingestion.String"}.LookupByString("")
+	return mixins.String{TypeName: "ingestion.String"}.LookupByString("")
 }
 func (String) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.String{"ingestion.String"}.LookupByNode(nil)
+	return mixins.String{TypeName: "ingestion.String"}.LookupByNode(nil)
 }
 func (String) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.String{"ingestion.String"}.LookupByIndex(0)
+	return mixins.String{TypeName: "ingestion.String"}.LookupByIndex(0)
 }
 func (String) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-	return mixins.String{"ingestion.String"}.LookupBySegment(seg)
+	return mixins.String{TypeName: "ingestion.String"}.LookupBySegment(seg)
 }
 func (String) MapIterator() ipld.MapIterator {
 	return nil
@@ -8763,22 +8622,22 @@ func (String) IsNull() bool {
 	return false
 }
 func (String) AsBool() (bool, error) {
-	return mixins.String{"ingestion.String"}.AsBool()
+	return mixins.String{TypeName: "ingestion.String"}.AsBool()
 }
 func (String) AsInt() (int64, error) {
-	return mixins.String{"ingestion.String"}.AsInt()
+	return mixins.String{TypeName: "ingestion.String"}.AsInt()
 }
 func (String) AsFloat() (float64, error) {
-	return mixins.String{"ingestion.String"}.AsFloat()
+	return mixins.String{TypeName: "ingestion.String"}.AsFloat()
 }
 func (n String) AsString() (string, error) {
 	return n.x, nil
 }
 func (String) AsBytes() ([]byte, error) {
-	return mixins.String{"ingestion.String"}.AsBytes()
+	return mixins.String{TypeName: "ingestion.String"}.AsBytes()
 }
 func (String) AsLink() (ipld.Link, error) {
-	return mixins.String{"ingestion.String"}.AsLink()
+	return mixins.String{TypeName: "ingestion.String"}.AsLink()
 }
 func (String) Prototype() ipld.NodePrototype {
 	return _String__Prototype{}
@@ -8815,10 +8674,10 @@ type _String__Assembler struct {
 
 func (na *_String__Assembler) reset() {}
 func (_String__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{"ingestion.String"}.BeginMap(0)
+	return mixins.StringAssembler{TypeName: "ingestion.String"}.BeginMap(0)
 }
 func (_String__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-	return mixins.StringAssembler{"ingestion.String"}.BeginList(0)
+	return mixins.StringAssembler{TypeName: "ingestion.String"}.BeginList(0)
 }
 func (na *_String__Assembler) AssignNull() error {
 	switch *na.m {
@@ -8826,38 +8685,35 @@ func (na *_String__Assembler) AssignNull() error {
 		*na.m = schema.Maybe_Null
 		return nil
 	case schema.Maybe_Absent:
-		return mixins.StringAssembler{"ingestion.String"}.AssignNull()
+		return mixins.StringAssembler{TypeName: "ingestion.String"}.AssignNull()
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
 	panic("unreachable")
 }
 func (_String__Assembler) AssignBool(bool) error {
-	return mixins.StringAssembler{"ingestion.String"}.AssignBool(false)
+	return mixins.StringAssembler{TypeName: "ingestion.String"}.AssignBool(false)
 }
 func (_String__Assembler) AssignInt(int64) error {
-	return mixins.StringAssembler{"ingestion.String"}.AssignInt(0)
+	return mixins.StringAssembler{TypeName: "ingestion.String"}.AssignInt(0)
 }
 func (_String__Assembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{"ingestion.String"}.AssignFloat(0)
+	return mixins.StringAssembler{TypeName: "ingestion.String"}.AssignFloat(0)
 }
 func (na *_String__Assembler) AssignString(v string) error {
 	switch *na.m {
 	case schema.Maybe_Value, schema.Maybe_Null:
 		panic("invalid state: cannot assign into assembler that's already finished")
 	}
-	if na.w == nil {
-		na.w = &_String{}
-	}
 	na.w.x = v
 	*na.m = schema.Maybe_Value
 	return nil
 }
 func (_String__Assembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{"ingestion.String"}.AssignBytes(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.String"}.AssignBytes(nil)
 }
 func (_String__Assembler) AssignLink(ipld.Link) error {
-	return mixins.StringAssembler{"ingestion.String"}.AssignLink(nil)
+	return mixins.StringAssembler{TypeName: "ingestion.String"}.AssignLink(nil)
 }
 func (na *_String__Assembler) AssignNode(v ipld.Node) error {
 	if v.IsNull() {
@@ -8867,11 +8723,6 @@ func (na *_String__Assembler) AssignNode(v ipld.Node) error {
 		switch *na.m {
 		case schema.Maybe_Value, schema.Maybe_Null:
 			panic("invalid state: cannot assign into assembler that's already finished")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
 		}
 		*na.w = *v2
 		*na.m = schema.Maybe_Value

@@ -61,13 +61,14 @@ type Advertisement = *_Advertisement
 type _Advertisement struct {
 	ID           _Bytes
 	IndexID      _Link_Index
-	Previous     _Link_Advertisement__Maybe
+	PreviousID   _Bytes
 	Provider     _String
-	Signature    _Bytes__Maybe
+	Signature    _Bytes
 	GraphSupport _Bool
 }
 
-// Any matches the IPLD Schema type "Any".  It has Union type-kind, and may be interrogated like map kind.
+// Any matches the IPLD Schema type "Any".
+// Any has Union typekind, which means its data model behaviors are that of a map kind.
 type Any = *_Any
 type _Any struct {
 	x _Any__iface
@@ -108,7 +109,7 @@ type _Float struct{ x float64 }
 // Index matches the IPLD Schema type "Index".  It has Struct type-kind, and may be interrogated like map kind.
 type Index = *_Index
 type _Index struct {
-	Previous _Link_Index
+	Previous _Link_Index__Maybe
 	Entries  _List_Entry
 }
 
