@@ -75,27 +75,12 @@ func (n Advertisement) LookupByString(key string) (datamodel.Node, error) {
 	switch key {
 	case "IndexID":
 		return &n.IndexID, nil
-<<<<<<< HEAD
 	case "PreviousID":
 		return &n.PreviousID, nil
 	case "Provider":
 		return &n.Provider, nil
 	case "Signature":
 		return &n.Signature, nil
-=======
-	case "Previous":
-		if n.Previous.m == schema.Maybe_Absent {
-			return datamodel.Absent, nil
-		}
-		return &n.Previous.v, nil
-	case "Provider":
-		return &n.Provider, nil
-	case "Signature":
-		if n.Signature.m == schema.Maybe_Absent {
-			return datamodel.Absent, nil
-		}
-		return &n.Signature.v, nil
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	case "GraphSupport":
 		return &n.GraphSupport, nil
 	default:
@@ -109,11 +94,7 @@ func (n Advertisement) LookupByNode(key datamodel.Node) (datamodel.Node, error) 
 	}
 	return n.LookupByString(ks)
 }
-<<<<<<< HEAD
-func (Advertisement) LookupByIndex(idx int64) (ipld.Node, error) {
-=======
 func (Advertisement) LookupByIndex(idx int64) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Advertisement"}.LookupByIndex(0)
 }
 func (n Advertisement) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
@@ -128,15 +109,9 @@ type _Advertisement__MapItr struct {
 	idx int
 }
 
-<<<<<<< HEAD
-func (itr *_Advertisement__MapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
-	if itr.idx >= 5 {
-		return nil, nil, ipld.ErrIteratorOverread{}
-=======
 func (itr *_Advertisement__MapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
-	if itr.idx >= 6 {
+	if itr.idx >= 5 {
 		return nil, nil, datamodel.ErrIteratorOverread{}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	}
 	switch itr.idx {
 	case 0:
@@ -146,31 +121,12 @@ func (itr *_Advertisement__MapItr) Next() (k datamodel.Node, v datamodel.Node, _
 		k = &fieldName__Advertisement_PreviousID
 		v = &itr.n.PreviousID
 	case 2:
-<<<<<<< HEAD
-=======
-		k = &fieldName__Advertisement_Previous
-		if itr.n.Previous.m == schema.Maybe_Absent {
-			v = datamodel.Absent
-			break
-		}
-		v = &itr.n.Previous.v
-	case 3:
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		k = &fieldName__Advertisement_Provider
 		v = &itr.n.Provider
 	case 3:
 		k = &fieldName__Advertisement_Signature
-<<<<<<< HEAD
 		v = &itr.n.Signature
 	case 4:
-=======
-		if itr.n.Signature.m == schema.Maybe_Absent {
-			v = datamodel.Absent
-			break
-		}
-		v = &itr.n.Signature.v
-	case 5:
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		k = &fieldName__Advertisement_GraphSupport
 		v = &itr.n.GraphSupport
 	default:
@@ -210,11 +166,7 @@ func (Advertisement) AsString() (string, error) {
 func (Advertisement) AsBytes() ([]byte, error) {
 	return mixins.Map{TypeName: "ingestion.Advertisement"}.AsBytes()
 }
-<<<<<<< HEAD
-func (Advertisement) AsLink() (ipld.Link, error) {
-=======
 func (Advertisement) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Advertisement"}.AsLink()
 }
 func (Advertisement) Prototype() datamodel.NodePrototype {
@@ -292,11 +244,7 @@ func (na *_Advertisement__Assembler) BeginMap(int64) (datamodel.MapAssembler, er
 	}
 	return na, nil
 }
-<<<<<<< HEAD
-func (_Advertisement__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Advertisement__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Advertisement"}.BeginList(0)
 }
 func (na *_Advertisement__Assembler) AssignNull() error {
@@ -328,11 +276,7 @@ func (_Advertisement__Assembler) AssignString(string) error {
 func (_Advertisement__Assembler) AssignBytes([]byte) error {
 	return mixins.MapAssembler{TypeName: "ingestion.Advertisement"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Advertisement__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_Advertisement__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Advertisement"}.AssignLink(nil)
 }
 func (na *_Advertisement__Assembler) AssignNode(v datamodel.Node) error {
@@ -401,11 +345,8 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 	case 2:
 		switch ma.cm {
 		case schema.Maybe_Value:
-<<<<<<< HEAD
 			ma.ca_Provider.w = nil
 			ma.cm = schema.Maybe_Absent
-=======
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 			ma.state = maState_initial
 			return true
 		default:
@@ -422,17 +363,6 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 			return false
 		}
 	case 4:
-<<<<<<< HEAD
-=======
-		switch ma.w.Signature.m {
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 5:
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		switch ma.cm {
 		case schema.Maybe_Value:
 			ma.ca_GraphSupport.w = nil
@@ -462,25 +392,9 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (datamodel.NodeAsse
 		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
 	}
 	switch k {
-<<<<<<< HEAD
-	case "IndexID":
-		if ma.s&fieldBit__Advertisement_IndexID != 0 {
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID}
-=======
-	case "ID":
-		if ma.s&fieldBit__Advertisement_ID != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ID}
-		}
-		ma.s += fieldBit__Advertisement_ID
-		ma.state = maState_midValue
-		ma.f = 0
-		ma.ca_ID.w = &ma.w.ID
-		ma.ca_ID.m = &ma.cm
-		return &ma.ca_ID, nil
 	case "IndexID":
 		if ma.s&fieldBit__Advertisement_IndexID != 0 {
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Advertisement_IndexID
 		ma.state = maState_midValue
@@ -488,35 +402,19 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (datamodel.NodeAsse
 		ma.ca_IndexID.w = &ma.w.IndexID
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID, nil
-<<<<<<< HEAD
 	case "PreviousID":
 		if ma.s&fieldBit__Advertisement_PreviousID != 0 {
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID}
-=======
-	case "Previous":
-		if ma.s&fieldBit__Advertisement_Previous != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Previous}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID}
 		}
 		ma.s += fieldBit__Advertisement_PreviousID
 		ma.state = maState_midValue
-<<<<<<< HEAD
 		ma.f = 1
 		ma.ca_PreviousID.w = &ma.w.PreviousID
 		ma.ca_PreviousID.m = &ma.cm
 		return &ma.ca_PreviousID, nil
 	case "Provider":
 		if ma.s&fieldBit__Advertisement_Provider != 0 {
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Provider}
-=======
-		ma.f = 2
-		ma.ca_Previous.w = &ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-		return &ma.ca_Previous, nil
-	case "Provider":
-		if ma.s&fieldBit__Advertisement_Provider != 0 {
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Provider}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Advertisement_Provider
 		ma.state = maState_midValue
@@ -526,8 +424,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (datamodel.NodeAsse
 		return &ma.ca_Provider, nil
 	case "Signature":
 		if ma.s&fieldBit__Advertisement_Signature != 0 {
-<<<<<<< HEAD
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Signature}
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Signature}
 		}
 		ma.s += fieldBit__Advertisement_Signature
 		ma.state = maState_midValue
@@ -537,20 +434,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (datamodel.NodeAsse
 		return &ma.ca_Signature, nil
 	case "GraphSupport":
 		if ma.s&fieldBit__Advertisement_GraphSupport != 0 {
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_GraphSupport}
-=======
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Signature}
-		}
-		ma.s += fieldBit__Advertisement_Signature
-		ma.state = maState_midValue
-		ma.f = 4
-		ma.ca_Signature.w = &ma.w.Signature.v
-		ma.ca_Signature.m = &ma.w.Signature.m
-		return &ma.ca_Signature, nil
-	case "GraphSupport":
-		if ma.s&fieldBit__Advertisement_GraphSupport != 0 {
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_GraphSupport}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Advertisement_GraphSupport
 		ma.state = maState_midValue
@@ -559,11 +443,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (datamodel.NodeAsse
 		ma.ca_GraphSupport.m = &ma.cm
 		return &ma.ca_GraphSupport, nil
 	}
-<<<<<<< HEAD
-	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement", Key: &_String{k}}
-=======
 	return nil, schema.ErrInvalidKey{TypeName: "ingestion.Advertisement", Key: &_String{k}}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 }
 func (ma *_Advertisement__Assembler) AssembleKey() datamodel.NodeAssembler {
 	switch ma.state {
@@ -607,25 +487,12 @@ func (ma *_Advertisement__Assembler) AssembleValue() datamodel.NodeAssembler {
 		ma.ca_PreviousID.m = &ma.cm
 		return &ma.ca_PreviousID
 	case 2:
-<<<<<<< HEAD
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider
 	case 3:
 		ma.ca_Signature.w = &ma.w.Signature
 		ma.ca_Signature.m = &ma.cm
-=======
-		ma.ca_Previous.w = &ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-		return &ma.ca_Previous
-	case 3:
-		ma.ca_Provider.w = &ma.w.Provider
-		ma.ca_Provider.m = &ma.cm
-		return &ma.ca_Provider
-	case 4:
-		ma.ca_Signature.w = &ma.w.Signature.v
-		ma.ca_Signature.m = &ma.w.Signature.m
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		return &ma.ca_Signature
 	case 4:
 		ma.ca_GraphSupport.w = &ma.w.GraphSupport
@@ -651,14 +518,7 @@ func (ma *_Advertisement__Assembler) Finish() error {
 		panic("invalid state: Finish cannot be called on an assembler that's already finished")
 	}
 	if ma.s&fieldBits__Advertisement_sufficient != fieldBits__Advertisement_sufficient {
-<<<<<<< HEAD
-		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
-=======
 		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Advertisement_ID == 0 {
-			err.Missing = append(err.Missing, "ID")
-		}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		if ma.s&fieldBit__Advertisement_IndexID == 0 {
 			err.Missing = append(err.Missing, "IndexID")
 		}
@@ -689,17 +549,10 @@ func (ma *_Advertisement__Assembler) ValuePrototype(k string) datamodel.NodeProt
 
 type _Advertisement__KeyAssembler _Advertisement__Assembler
 
-<<<<<<< HEAD
-func (_Advertisement__KeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.BeginMap(0)
-}
-func (_Advertisement__KeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Advertisement__KeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.BeginMap(0)
 }
 func (_Advertisement__KeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.BeginList(0)
 }
 func (na *_Advertisement__KeyAssembler) AssignNull() error {
@@ -719,10 +572,9 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		panic("misuse: KeyAssembler held beyond its valid lifetime")
 	}
 	switch k {
-<<<<<<< HEAD
 	case "IndexID":
 		if ka.s&fieldBit__Advertisement_IndexID != 0 {
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID}
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID}
 		}
 		ka.s += fieldBit__Advertisement_IndexID
 		ka.state = maState_expectValue
@@ -730,59 +582,11 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		return nil
 	case "PreviousID":
 		if ka.s&fieldBit__Advertisement_PreviousID != 0 {
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID}
-=======
-	case "ID":
-		if ka.s&fieldBit__Advertisement_ID != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ID}
-		}
-		ka.s += fieldBit__Advertisement_ID
-		ka.state = maState_expectValue
-		ka.f = 0
-		return nil
-	case "IndexID":
-		if ka.s&fieldBit__Advertisement_IndexID != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID}
-		}
-		ka.s += fieldBit__Advertisement_IndexID
-		ka.state = maState_expectValue
-		ka.f = 1
-		return nil
-	case "Previous":
-		if ka.s&fieldBit__Advertisement_Previous != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Previous}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID}
 		}
 		ka.s += fieldBit__Advertisement_PreviousID
 		ka.state = maState_expectValue
-<<<<<<< HEAD
 		ka.f = 1
-		return nil
-	case "Provider":
-		if ka.s&fieldBit__Advertisement_Provider != 0 {
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Provider}
-		}
-		ka.s += fieldBit__Advertisement_Provider
-		ka.state = maState_expectValue
-		ka.f = 2
-		return nil
-	case "Signature":
-		if ka.s&fieldBit__Advertisement_Signature != 0 {
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Signature}
-		}
-		ka.s += fieldBit__Advertisement_Signature
-		ka.state = maState_expectValue
-		ka.f = 3
-		return nil
-	case "GraphSupport":
-		if ka.s&fieldBit__Advertisement_GraphSupport != 0 {
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_GraphSupport}
-		}
-		ka.s += fieldBit__Advertisement_GraphSupport
-		ka.state = maState_expectValue
-		ka.f = 4
-=======
-		ka.f = 2
 		return nil
 	case "Provider":
 		if ka.s&fieldBit__Advertisement_Provider != 0 {
@@ -790,7 +594,7 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_Provider
 		ka.state = maState_expectValue
-		ka.f = 3
+		ka.f = 2
 		return nil
 	case "Signature":
 		if ka.s&fieldBit__Advertisement_Signature != 0 {
@@ -798,7 +602,7 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_Signature
 		ka.state = maState_expectValue
-		ka.f = 4
+		ka.f = 3
 		return nil
 	case "GraphSupport":
 		if ka.s&fieldBit__Advertisement_GraphSupport != 0 {
@@ -806,8 +610,7 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_GraphSupport
 		ka.state = maState_expectValue
-		ka.f = 5
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
+		ka.f = 4
 		return nil
 	default:
 		return schema.ErrInvalidKey{TypeName: "ingestion.Advertisement", Key: &_String{k}}
@@ -816,11 +619,7 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 func (_Advertisement__KeyAssembler) AssignBytes([]byte) error {
 	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Advertisement__KeyAssembler) AssignLink(ipld.Link) error {
-=======
 func (_Advertisement__KeyAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Advertisement__KeyAssembler) AssignNode(v datamodel.Node) error {
@@ -858,27 +657,12 @@ func (n *_Advertisement__Repr) LookupByString(key string) (datamodel.Node, error
 	switch key {
 	case "IndexID":
 		return n.IndexID.Representation(), nil
-<<<<<<< HEAD
 	case "PreviousID":
 		return n.PreviousID.Representation(), nil
 	case "Provider":
 		return n.Provider.Representation(), nil
 	case "Signature":
 		return n.Signature.Representation(), nil
-=======
-	case "Previous":
-		if n.Previous.m == schema.Maybe_Absent {
-			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
-		}
-		return n.Previous.v.Representation(), nil
-	case "Provider":
-		return n.Provider.Representation(), nil
-	case "Signature":
-		if n.Signature.m == schema.Maybe_Absent {
-			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
-		}
-		return n.Signature.v.Representation(), nil
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	case "GraphSupport":
 		return n.GraphSupport.Representation(), nil
 	default:
@@ -892,11 +676,7 @@ func (n *_Advertisement__Repr) LookupByNode(key datamodel.Node) (datamodel.Node,
 	}
 	return n.LookupByString(ks)
 }
-<<<<<<< HEAD
-func (_Advertisement__Repr) LookupByIndex(idx int64) (ipld.Node, error) {
-=======
 func (_Advertisement__Repr) LookupByIndex(idx int64) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Advertisement.Repr"}.LookupByIndex(0)
 }
 func (n _Advertisement__Repr) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
@@ -911,16 +691,9 @@ type _Advertisement__ReprMapItr struct {
 	idx int
 }
 
-<<<<<<< HEAD
-func (itr *_Advertisement__ReprMapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
-	if itr.idx >= 5 {
-		return nil, nil, ipld.ErrIteratorOverread{}
-=======
 func (itr *_Advertisement__ReprMapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
-advance:
-	if itr.idx >= 6 {
+	if itr.idx >= 5 {
 		return nil, nil, datamodel.ErrIteratorOverread{}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	}
 	switch itr.idx {
 	case 0:
@@ -975,11 +748,7 @@ func (_Advertisement__Repr) AsString() (string, error) {
 func (_Advertisement__Repr) AsBytes() ([]byte, error) {
 	return mixins.Map{TypeName: "ingestion.Advertisement.Repr"}.AsBytes()
 }
-<<<<<<< HEAD
-func (_Advertisement__Repr) AsLink() (ipld.Link, error) {
-=======
 func (_Advertisement__Repr) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Advertisement.Repr"}.AsLink()
 }
 func (_Advertisement__Repr) Prototype() datamodel.NodePrototype {
@@ -1047,11 +816,7 @@ func (na *_Advertisement__ReprAssembler) BeginMap(int64) (datamodel.MapAssembler
 	}
 	return na, nil
 }
-<<<<<<< HEAD
-func (_Advertisement__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Advertisement__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Advertisement.Repr"}.BeginList(0)
 }
 func (na *_Advertisement__ReprAssembler) AssignNull() error {
@@ -1083,11 +848,7 @@ func (_Advertisement__ReprAssembler) AssignString(string) error {
 func (_Advertisement__ReprAssembler) AssignBytes([]byte) error {
 	return mixins.MapAssembler{TypeName: "ingestion.Advertisement.Repr"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Advertisement__ReprAssembler) AssignLink(ipld.Link) error {
-=======
 func (_Advertisement__ReprAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Advertisement.Repr"}.AssignLink(nil)
 }
 func (na *_Advertisement__ReprAssembler) AssignNode(v datamodel.Node) error {
@@ -1154,10 +915,7 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 	case 2:
 		switch ma.cm {
 		case schema.Maybe_Value:
-<<<<<<< HEAD
 			ma.cm = schema.Maybe_Absent
-=======
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 			ma.state = maState_initial
 			return true
 		default:
@@ -1173,17 +931,6 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 			return false
 		}
 	case 4:
-<<<<<<< HEAD
-=======
-		switch ma.w.Signature.m {
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 5:
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		switch ma.cm {
 		case schema.Maybe_Value:
 			ma.cm = schema.Maybe_Absent
@@ -1212,25 +959,9 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (datamodel.Node
 		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
 	}
 	switch k {
-<<<<<<< HEAD
-	case "IndexID":
-		if ma.s&fieldBit__Advertisement_IndexID != 0 {
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID_serial}
-=======
-	case "ID":
-		if ma.s&fieldBit__Advertisement_ID != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ID_serial}
-		}
-		ma.s += fieldBit__Advertisement_ID
-		ma.state = maState_midValue
-		ma.f = 0
-		ma.ca_ID.w = &ma.w.ID
-		ma.ca_ID.m = &ma.cm
-		return &ma.ca_ID, nil
 	case "IndexID":
 		if ma.s&fieldBit__Advertisement_IndexID != 0 {
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Advertisement_IndexID
 		ma.state = maState_midValue
@@ -1238,36 +969,19 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (datamodel.Node
 		ma.ca_IndexID.w = &ma.w.IndexID
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID, nil
-<<<<<<< HEAD
 	case "PreviousID":
 		if ma.s&fieldBit__Advertisement_PreviousID != 0 {
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID_serial}
-=======
-	case "Previous":
-		if ma.s&fieldBit__Advertisement_Previous != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Previous_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID_serial}
 		}
 		ma.s += fieldBit__Advertisement_PreviousID
 		ma.state = maState_midValue
-<<<<<<< HEAD
 		ma.f = 1
 		ma.ca_PreviousID.w = &ma.w.PreviousID
 		ma.ca_PreviousID.m = &ma.cm
 		return &ma.ca_PreviousID, nil
 	case "Provider":
 		if ma.s&fieldBit__Advertisement_Provider != 0 {
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Provider_serial}
-=======
-		ma.f = 2
-		ma.ca_Previous.w = &ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-
-		return &ma.ca_Previous, nil
-	case "Provider":
-		if ma.s&fieldBit__Advertisement_Provider != 0 {
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Provider_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Advertisement_Provider
 		ma.state = maState_midValue
@@ -1277,8 +991,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (datamodel.Node
 		return &ma.ca_Provider, nil
 	case "Signature":
 		if ma.s&fieldBit__Advertisement_Signature != 0 {
-<<<<<<< HEAD
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Signature_serial}
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Signature_serial}
 		}
 		ma.s += fieldBit__Advertisement_Signature
 		ma.state = maState_midValue
@@ -1288,21 +1001,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (datamodel.Node
 		return &ma.ca_Signature, nil
 	case "GraphSupport":
 		if ma.s&fieldBit__Advertisement_GraphSupport != 0 {
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_GraphSupport_serial}
-=======
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Signature_serial}
-		}
-		ma.s += fieldBit__Advertisement_Signature
-		ma.state = maState_midValue
-		ma.f = 4
-		ma.ca_Signature.w = &ma.w.Signature.v
-		ma.ca_Signature.m = &ma.w.Signature.m
-
-		return &ma.ca_Signature, nil
-	case "GraphSupport":
-		if ma.s&fieldBit__Advertisement_GraphSupport != 0 {
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_GraphSupport_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Advertisement_GraphSupport
 		ma.state = maState_midValue
@@ -1312,11 +1011,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (datamodel.Node
 		return &ma.ca_GraphSupport, nil
 	default:
 	}
-<<<<<<< HEAD
-	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement.Repr", Key: &_String{k}}
-=======
 	return nil, schema.ErrInvalidKey{TypeName: "ingestion.Advertisement.Repr", Key: &_String{k}}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 }
 func (ma *_Advertisement__ReprAssembler) AssembleKey() datamodel.NodeAssembler {
 	switch ma.state {
@@ -1360,27 +1055,12 @@ func (ma *_Advertisement__ReprAssembler) AssembleValue() datamodel.NodeAssembler
 		ma.ca_PreviousID.m = &ma.cm
 		return &ma.ca_PreviousID
 	case 2:
-<<<<<<< HEAD
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider
 	case 3:
 		ma.ca_Signature.w = &ma.w.Signature
 		ma.ca_Signature.m = &ma.cm
-=======
-		ma.ca_Previous.w = &ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-
-		return &ma.ca_Previous
-	case 3:
-		ma.ca_Provider.w = &ma.w.Provider
-		ma.ca_Provider.m = &ma.cm
-		return &ma.ca_Provider
-	case 4:
-		ma.ca_Signature.w = &ma.w.Signature.v
-		ma.ca_Signature.m = &ma.w.Signature.m
-
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		return &ma.ca_Signature
 	case 4:
 		ma.ca_GraphSupport.w = &ma.w.GraphSupport
@@ -1406,14 +1086,7 @@ func (ma *_Advertisement__ReprAssembler) Finish() error {
 		panic("invalid state: Finish cannot be called on an assembler that's already finished")
 	}
 	if ma.s&fieldBits__Advertisement_sufficient != fieldBits__Advertisement_sufficient {
-<<<<<<< HEAD
-		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
-=======
 		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Advertisement_ID == 0 {
-			err.Missing = append(err.Missing, "ID")
-		}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		if ma.s&fieldBit__Advertisement_IndexID == 0 {
 			err.Missing = append(err.Missing, "IndexID")
 		}
@@ -1444,17 +1117,10 @@ func (ma *_Advertisement__ReprAssembler) ValuePrototype(k string) datamodel.Node
 
 type _Advertisement__ReprKeyAssembler _Advertisement__ReprAssembler
 
-<<<<<<< HEAD
-func (_Advertisement__ReprKeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.BeginMap(0)
-}
-func (_Advertisement__ReprKeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Advertisement__ReprKeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.BeginMap(0)
 }
 func (_Advertisement__ReprKeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.BeginList(0)
 }
 func (na *_Advertisement__ReprKeyAssembler) AssignNull() error {
@@ -1474,10 +1140,9 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		panic("misuse: KeyAssembler held beyond its valid lifetime")
 	}
 	switch k {
-<<<<<<< HEAD
 	case "IndexID":
 		if ka.s&fieldBit__Advertisement_IndexID != 0 {
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID_serial}
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID_serial}
 		}
 		ka.s += fieldBit__Advertisement_IndexID
 		ka.state = maState_expectValue
@@ -1485,62 +1150,11 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		return nil
 	case "PreviousID":
 		if ka.s&fieldBit__Advertisement_PreviousID != 0 {
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID_serial}
-=======
-	case "ID":
-		if ka.s&fieldBit__Advertisement_ID != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ID_serial}
-		}
-		ka.s += fieldBit__Advertisement_ID
-		ka.state = maState_expectValue
-		ka.f = 0
-		return nil
-	case "IndexID":
-		if ka.s&fieldBit__Advertisement_IndexID != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID_serial}
-		}
-		ka.s += fieldBit__Advertisement_IndexID
-		ka.state = maState_expectValue
-		ka.f = 1
-		return nil
-	case "Previous":
-		if ka.s&fieldBit__Advertisement_Previous != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Previous_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID_serial}
 		}
 		ka.s += fieldBit__Advertisement_PreviousID
 		ka.state = maState_expectValue
-<<<<<<< HEAD
 		ka.f = 1
-		return nil
-	case "Provider":
-		if ka.s&fieldBit__Advertisement_Provider != 0 {
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Provider_serial}
-		}
-		ka.s += fieldBit__Advertisement_Provider
-		ka.state = maState_expectValue
-		ka.f = 2
-		return nil
-	case "Signature":
-		if ka.s&fieldBit__Advertisement_Signature != 0 {
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Signature_serial}
-		}
-		ka.s += fieldBit__Advertisement_Signature
-		ka.state = maState_expectValue
-		ka.f = 3
-		return nil
-	case "GraphSupport":
-		if ka.s&fieldBit__Advertisement_GraphSupport != 0 {
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_GraphSupport_serial}
-		}
-		ka.s += fieldBit__Advertisement_GraphSupport
-		ka.state = maState_expectValue
-		ka.f = 4
-		return nil
-	}
-	return ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement.Repr", Key: &_String{k}}
-=======
-		ka.f = 2
 		return nil
 	case "Provider":
 		if ka.s&fieldBit__Advertisement_Provider != 0 {
@@ -1548,7 +1162,7 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_Provider
 		ka.state = maState_expectValue
-		ka.f = 3
+		ka.f = 2
 		return nil
 	case "Signature":
 		if ka.s&fieldBit__Advertisement_Signature != 0 {
@@ -1556,7 +1170,7 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_Signature
 		ka.state = maState_expectValue
-		ka.f = 4
+		ka.f = 3
 		return nil
 	case "GraphSupport":
 		if ka.s&fieldBit__Advertisement_GraphSupport != 0 {
@@ -1564,20 +1178,15 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_GraphSupport
 		ka.state = maState_expectValue
-		ka.f = 5
+		ka.f = 4
 		return nil
 	}
 	return schema.ErrInvalidKey{TypeName: "ingestion.Advertisement.Repr", Key: &_String{k}}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 }
 func (_Advertisement__ReprKeyAssembler) AssignBytes([]byte) error {
 	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Advertisement__ReprKeyAssembler) AssignLink(ipld.Link) error {
-=======
 func (_Advertisement__ReprKeyAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Advertisement.Repr.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Advertisement__ReprKeyAssembler) AssignNode(v datamodel.Node) error {
@@ -1651,81 +1260,49 @@ func (n Any) LookupByString(key string) (datamodel.Node, error) {
 		if n2, ok := n.x.(Bool); ok {
 			return n2, nil
 		} else {
-<<<<<<< HEAD
-			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
-=======
 			return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 	case "Int":
 		if n2, ok := n.x.(Int); ok {
 			return n2, nil
 		} else {
-<<<<<<< HEAD
-			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
-=======
 			return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 	case "Float":
 		if n2, ok := n.x.(Float); ok {
 			return n2, nil
 		} else {
-<<<<<<< HEAD
-			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
-=======
 			return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 	case "String":
 		if n2, ok := n.x.(String); ok {
 			return n2, nil
 		} else {
-<<<<<<< HEAD
-			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
-=======
 			return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 	case "Bytes":
 		if n2, ok := n.x.(Bytes); ok {
 			return n2, nil
 		} else {
-<<<<<<< HEAD
-			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
-=======
 			return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 	case "Map":
 		if n2, ok := n.x.(Map); ok {
 			return n2, nil
 		} else {
-<<<<<<< HEAD
-			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
-=======
 			return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 	case "List":
 		if n2, ok := n.x.(List); ok {
 			return n2, nil
 		} else {
-<<<<<<< HEAD
-			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
-=======
 			return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 	case "Link":
 		if n2, ok := n.x.(Link); ok {
 			return n2, nil
 		} else {
-<<<<<<< HEAD
-			return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
-=======
 			return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 	default:
 		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: datamodel.PathSegmentOfString(key)}
@@ -1738,11 +1315,7 @@ func (n Any) LookupByNode(key datamodel.Node) (datamodel.Node, error) {
 	}
 	return n.LookupByString(ks)
 }
-<<<<<<< HEAD
-func (Any) LookupByIndex(idx int64) (ipld.Node, error) {
-=======
 func (Any) LookupByIndex(idx int64) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Any"}.LookupByIndex(0)
 }
 func (n Any) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
@@ -1815,11 +1388,7 @@ func (Any) AsString() (string, error) {
 func (Any) AsBytes() ([]byte, error) {
 	return mixins.Map{TypeName: "ingestion.Any"}.AsBytes()
 }
-<<<<<<< HEAD
-func (Any) AsLink() (ipld.Link, error) {
-=======
 func (Any) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Any"}.AsLink()
 }
 func (Any) Prototype() datamodel.NodePrototype {
@@ -1921,11 +1490,7 @@ func (na *_Any__Assembler) BeginMap(int64) (datamodel.MapAssembler, error) {
 	}
 	return na, nil
 }
-<<<<<<< HEAD
-func (_Any__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Any__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Any"}.BeginList(0)
 }
 func (na *_Any__Assembler) AssignNull() error {
@@ -1957,11 +1522,7 @@ func (_Any__Assembler) AssignString(string) error {
 func (_Any__Assembler) AssignBytes([]byte) error {
 	return mixins.MapAssembler{TypeName: "ingestion.Any"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Any__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_Any__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Any"}.AssignLink(nil)
 }
 func (na *_Any__Assembler) AssignNode(v datamodel.Node) error {
@@ -2122,11 +1683,7 @@ func (ma *_Any__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, err
 		ma.ca8.m = &ma.cm
 		return ma.ca8, nil
 	}
-<<<<<<< HEAD
-	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Any", Key: &_String{k}}
-=======
 	return nil, schema.ErrInvalidKey{TypeName: "ingestion.Any", Key: &_String{k}}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 }
 func (ma *_Any__Assembler) AssembleKey() datamodel.NodeAssembler {
 	switch ma.state {
@@ -2287,17 +1844,10 @@ func (ma *_Any__Assembler) ValuePrototype(k string) datamodel.NodePrototype {
 
 type _Any__KeyAssembler _Any__Assembler
 
-<<<<<<< HEAD
-func (_Any__KeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.BeginMap(0)
-}
-func (_Any__KeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Any__KeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.BeginMap(0)
 }
 func (_Any__KeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.BeginList(0)
 }
 func (na *_Any__KeyAssembler) AssignNull() error {
@@ -2353,20 +1903,12 @@ func (ka *_Any__KeyAssembler) AssignString(k string) error {
 		ka.state = maState_expectValue
 		return nil
 	}
-<<<<<<< HEAD
-	return ipld.ErrInvalidKey{TypeName: "ingestion.Any", Key: &_String{k}} // TODO: error quality: ErrInvalidUnionDiscriminant ?
-=======
 	return schema.ErrInvalidKey{TypeName: "ingestion.Any", Key: &_String{k}} // TODO: error quality: ErrInvalidUnionDiscriminant ?
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 }
 func (_Any__KeyAssembler) AssignBytes([]byte) error {
 	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Any__KeyAssembler) AssignLink(ipld.Link) error {
-=======
 func (_Any__KeyAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Any.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Any__KeyAssembler) AssignNode(v datamodel.Node) error {
@@ -2894,18 +2436,6 @@ var _ schema.TypedNode = (Bool)(&_Bool{})
 func (Bool) Kind() datamodel.Kind {
 	return datamodel.Kind_Bool
 }
-<<<<<<< HEAD
-func (Bool) LookupByString(string) (ipld.Node, error) {
-	return mixins.Bool{TypeName: "ingestion.Bool"}.LookupByString("")
-}
-func (Bool) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Bool{TypeName: "ingestion.Bool"}.LookupByNode(nil)
-}
-func (Bool) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Bool{TypeName: "ingestion.Bool"}.LookupByIndex(0)
-}
-func (Bool) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-=======
 func (Bool) LookupByString(string) (datamodel.Node, error) {
 	return mixins.Bool{TypeName: "ingestion.Bool"}.LookupByString("")
 }
@@ -2916,7 +2446,6 @@ func (Bool) LookupByIndex(idx int64) (datamodel.Node, error) {
 	return mixins.Bool{TypeName: "ingestion.Bool"}.LookupByIndex(0)
 }
 func (Bool) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Bool{TypeName: "ingestion.Bool"}.LookupBySegment(seg)
 }
 func (Bool) MapIterator() datamodel.MapIterator {
@@ -2949,11 +2478,7 @@ func (Bool) AsString() (string, error) {
 func (Bool) AsBytes() ([]byte, error) {
 	return mixins.Bool{TypeName: "ingestion.Bool"}.AsBytes()
 }
-<<<<<<< HEAD
-func (Bool) AsLink() (ipld.Link, error) {
-=======
 func (Bool) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Bool{TypeName: "ingestion.Bool"}.AsLink()
 }
 func (Bool) Prototype() datamodel.NodePrototype {
@@ -2990,17 +2515,10 @@ type _Bool__Assembler struct {
 }
 
 func (na *_Bool__Assembler) reset() {}
-<<<<<<< HEAD
-func (_Bool__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.BeginMap(0)
-}
-func (_Bool__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Bool__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.BeginMap(0)
 }
 func (_Bool__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.BeginList(0)
 }
 func (na *_Bool__Assembler) AssignNull() error {
@@ -3036,11 +2554,7 @@ func (_Bool__Assembler) AssignString(string) error {
 func (_Bool__Assembler) AssignBytes([]byte) error {
 	return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Bool__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_Bool__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.BoolAssembler{TypeName: "ingestion.Bool"}.AssignLink(nil)
 }
 func (na *_Bool__Assembler) AssignNode(v datamodel.Node) error {
@@ -3127,18 +2641,6 @@ var _ schema.TypedNode = (Bytes)(&_Bytes{})
 func (Bytes) Kind() datamodel.Kind {
 	return datamodel.Kind_Bytes
 }
-<<<<<<< HEAD
-func (Bytes) LookupByString(string) (ipld.Node, error) {
-	return mixins.Bytes{TypeName: "ingestion.Bytes"}.LookupByString("")
-}
-func (Bytes) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Bytes{TypeName: "ingestion.Bytes"}.LookupByNode(nil)
-}
-func (Bytes) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Bytes{TypeName: "ingestion.Bytes"}.LookupByIndex(0)
-}
-func (Bytes) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-=======
 func (Bytes) LookupByString(string) (datamodel.Node, error) {
 	return mixins.Bytes{TypeName: "ingestion.Bytes"}.LookupByString("")
 }
@@ -3149,7 +2651,6 @@ func (Bytes) LookupByIndex(idx int64) (datamodel.Node, error) {
 	return mixins.Bytes{TypeName: "ingestion.Bytes"}.LookupByIndex(0)
 }
 func (Bytes) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Bytes{TypeName: "ingestion.Bytes"}.LookupBySegment(seg)
 }
 func (Bytes) MapIterator() datamodel.MapIterator {
@@ -3182,11 +2683,7 @@ func (Bytes) AsString() (string, error) {
 func (n Bytes) AsBytes() ([]byte, error) {
 	return n.x, nil
 }
-<<<<<<< HEAD
-func (Bytes) AsLink() (ipld.Link, error) {
-=======
 func (Bytes) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Bytes{TypeName: "ingestion.Bytes"}.AsLink()
 }
 func (Bytes) Prototype() datamodel.NodePrototype {
@@ -3223,17 +2720,10 @@ type _Bytes__Assembler struct {
 }
 
 func (na *_Bytes__Assembler) reset() {}
-<<<<<<< HEAD
-func (_Bytes__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.BytesAssembler{TypeName: "ingestion.Bytes"}.BeginMap(0)
-}
-func (_Bytes__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Bytes__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.BytesAssembler{TypeName: "ingestion.Bytes"}.BeginMap(0)
 }
 func (_Bytes__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.BytesAssembler{TypeName: "ingestion.Bytes"}.BeginList(0)
 }
 func (na *_Bytes__Assembler) AssignNull() error {
@@ -3269,11 +2759,7 @@ func (na *_Bytes__Assembler) AssignBytes(v []byte) error {
 	*na.m = schema.Maybe_Value
 	return nil
 }
-<<<<<<< HEAD
-func (_Bytes__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_Bytes__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.BytesAssembler{TypeName: "ingestion.Bytes"}.AssignLink(nil)
 }
 func (na *_Bytes__Assembler) AssignNode(v datamodel.Node) error {
@@ -3404,11 +2890,7 @@ func (n Entry) LookupByNode(key datamodel.Node) (datamodel.Node, error) {
 	}
 	return n.LookupByString(ks)
 }
-<<<<<<< HEAD
-func (Entry) LookupByIndex(idx int64) (ipld.Node, error) {
-=======
 func (Entry) LookupByIndex(idx int64) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Entry"}.LookupByIndex(0)
 }
 func (n Entry) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
@@ -3498,11 +2980,7 @@ func (Entry) AsString() (string, error) {
 func (Entry) AsBytes() ([]byte, error) {
 	return mixins.Map{TypeName: "ingestion.Entry"}.AsBytes()
 }
-<<<<<<< HEAD
-func (Entry) AsLink() (ipld.Link, error) {
-=======
 func (Entry) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Entry"}.AsLink()
 }
 func (Entry) Prototype() datamodel.NodePrototype {
@@ -3574,11 +3052,7 @@ func (na *_Entry__Assembler) BeginMap(int64) (datamodel.MapAssembler, error) {
 	}
 	return na, nil
 }
-<<<<<<< HEAD
-func (_Entry__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Entry__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Entry"}.BeginList(0)
 }
 func (na *_Entry__Assembler) AssignNull() error {
@@ -3610,11 +3084,7 @@ func (_Entry__Assembler) AssignString(string) error {
 func (_Entry__Assembler) AssignBytes([]byte) error {
 	return mixins.MapAssembler{TypeName: "ingestion.Entry"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Entry__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_Entry__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Entry"}.AssignLink(nil)
 }
 func (na *_Entry__Assembler) AssignNode(v datamodel.Node) error {
@@ -3715,11 +3185,7 @@ func (ma *_Entry__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, e
 	switch k {
 	case "RmCids":
 		if ma.s&fieldBit__Entry_RmCids != 0 {
-<<<<<<< HEAD
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_RmCids}
-=======
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Entry_RmCids}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Entry_RmCids
 		ma.state = maState_midValue
@@ -3730,11 +3196,7 @@ func (ma *_Entry__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, e
 		return &ma.ca_RmCids, nil
 	case "Cids":
 		if ma.s&fieldBit__Entry_Cids != 0 {
-<<<<<<< HEAD
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Cids}
-=======
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Entry_Cids}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Entry_Cids
 		ma.state = maState_midValue
@@ -3745,11 +3207,7 @@ func (ma *_Entry__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, e
 		return &ma.ca_Cids, nil
 	case "Metadata":
 		if ma.s&fieldBit__Entry_Metadata != 0 {
-<<<<<<< HEAD
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Metadata}
-=======
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Entry_Metadata}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Entry_Metadata
 		ma.state = maState_midValue
@@ -3759,11 +3217,7 @@ func (ma *_Entry__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, e
 		ma.w.Metadata.m = allowNull
 		return &ma.ca_Metadata, nil
 	}
-<<<<<<< HEAD
-	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Entry", Key: &_String{k}}
-=======
 	return nil, schema.ErrInvalidKey{TypeName: "ingestion.Entry", Key: &_String{k}}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 }
 func (ma *_Entry__Assembler) AssembleKey() datamodel.NodeAssembler {
 	switch ma.state {
@@ -3849,17 +3303,10 @@ func (ma *_Entry__Assembler) ValuePrototype(k string) datamodel.NodePrototype {
 
 type _Entry__KeyAssembler _Entry__Assembler
 
-<<<<<<< HEAD
-func (_Entry__KeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.BeginMap(0)
-}
-func (_Entry__KeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Entry__KeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.BeginMap(0)
 }
 func (_Entry__KeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.BeginList(0)
 }
 func (na *_Entry__KeyAssembler) AssignNull() error {
@@ -3881,11 +3328,7 @@ func (ka *_Entry__KeyAssembler) AssignString(k string) error {
 	switch k {
 	case "RmCids":
 		if ka.s&fieldBit__Entry_RmCids != 0 {
-<<<<<<< HEAD
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_RmCids}
-=======
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Entry_RmCids}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ka.s += fieldBit__Entry_RmCids
 		ka.state = maState_expectValue
@@ -3893,11 +3336,7 @@ func (ka *_Entry__KeyAssembler) AssignString(k string) error {
 		return nil
 	case "Cids":
 		if ka.s&fieldBit__Entry_Cids != 0 {
-<<<<<<< HEAD
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Cids}
-=======
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Entry_Cids}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ka.s += fieldBit__Entry_Cids
 		ka.state = maState_expectValue
@@ -3905,11 +3344,7 @@ func (ka *_Entry__KeyAssembler) AssignString(k string) error {
 		return nil
 	case "Metadata":
 		if ka.s&fieldBit__Entry_Metadata != 0 {
-<<<<<<< HEAD
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Metadata}
-=======
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Entry_Metadata}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ka.s += fieldBit__Entry_Metadata
 		ka.state = maState_expectValue
@@ -3922,11 +3357,7 @@ func (ka *_Entry__KeyAssembler) AssignString(k string) error {
 func (_Entry__KeyAssembler) AssignBytes([]byte) error {
 	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Entry__KeyAssembler) AssignLink(ipld.Link) error {
-=======
 func (_Entry__KeyAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Entry.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Entry__KeyAssembler) AssignNode(v datamodel.Node) error {
@@ -3962,11 +3393,7 @@ func (n *_Entry__Repr) LookupByString(key string) (datamodel.Node, error) {
 	switch key {
 	case "RmCids":
 		if n.RmCids.m == schema.Maybe_Absent {
-<<<<<<< HEAD
-			return ipld.Absent, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
-=======
 			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		if n.RmCids.m == schema.Maybe_Null {
 			return datamodel.Null, nil
@@ -3974,11 +3401,7 @@ func (n *_Entry__Repr) LookupByString(key string) (datamodel.Node, error) {
 		return n.RmCids.v.Representation(), nil
 	case "Cids":
 		if n.Cids.m == schema.Maybe_Absent {
-<<<<<<< HEAD
-			return ipld.Absent, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
-=======
 			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		if n.Cids.m == schema.Maybe_Null {
 			return datamodel.Null, nil
@@ -3986,11 +3409,7 @@ func (n *_Entry__Repr) LookupByString(key string) (datamodel.Node, error) {
 		return n.Cids.v.Representation(), nil
 	case "Metadata":
 		if n.Metadata.m == schema.Maybe_Absent {
-<<<<<<< HEAD
-			return ipld.Absent, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
-=======
 			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		if n.Metadata.m == schema.Maybe_Null {
 			return datamodel.Null, nil
@@ -4007,11 +3426,7 @@ func (n *_Entry__Repr) LookupByNode(key datamodel.Node) (datamodel.Node, error) 
 	}
 	return n.LookupByString(ks)
 }
-<<<<<<< HEAD
-func (_Entry__Repr) LookupByIndex(idx int64) (ipld.Node, error) {
-=======
 func (_Entry__Repr) LookupByIndex(idx int64) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Entry.Repr"}.LookupByIndex(0)
 }
 func (n _Entry__Repr) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
@@ -4129,11 +3544,7 @@ func (_Entry__Repr) AsString() (string, error) {
 func (_Entry__Repr) AsBytes() ([]byte, error) {
 	return mixins.Map{TypeName: "ingestion.Entry.Repr"}.AsBytes()
 }
-<<<<<<< HEAD
-func (_Entry__Repr) AsLink() (ipld.Link, error) {
-=======
 func (_Entry__Repr) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Entry.Repr"}.AsLink()
 }
 func (_Entry__Repr) Prototype() datamodel.NodePrototype {
@@ -4197,11 +3608,7 @@ func (na *_Entry__ReprAssembler) BeginMap(int64) (datamodel.MapAssembler, error)
 	}
 	return na, nil
 }
-<<<<<<< HEAD
-func (_Entry__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Entry__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Entry.Repr"}.BeginList(0)
 }
 func (na *_Entry__ReprAssembler) AssignNull() error {
@@ -4233,11 +3640,7 @@ func (_Entry__ReprAssembler) AssignString(string) error {
 func (_Entry__ReprAssembler) AssignBytes([]byte) error {
 	return mixins.MapAssembler{TypeName: "ingestion.Entry.Repr"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Entry__ReprAssembler) AssignLink(ipld.Link) error {
-=======
 func (_Entry__ReprAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Entry.Repr"}.AssignLink(nil)
 }
 func (na *_Entry__ReprAssembler) AssignNode(v datamodel.Node) error {
@@ -4338,11 +3741,7 @@ func (ma *_Entry__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssemble
 	switch k {
 	case "RmCids":
 		if ma.s&fieldBit__Entry_RmCids != 0 {
-<<<<<<< HEAD
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_RmCids_serial}
-=======
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Entry_RmCids_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Entry_RmCids
 		ma.state = maState_midValue
@@ -4353,11 +3752,7 @@ func (ma *_Entry__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssemble
 		return &ma.ca_RmCids, nil
 	case "Cids":
 		if ma.s&fieldBit__Entry_Cids != 0 {
-<<<<<<< HEAD
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Cids_serial}
-=======
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Entry_Cids_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Entry_Cids
 		ma.state = maState_midValue
@@ -4368,11 +3763,7 @@ func (ma *_Entry__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssemble
 		return &ma.ca_Cids, nil
 	case "Metadata":
 		if ma.s&fieldBit__Entry_Metadata != 0 {
-<<<<<<< HEAD
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Metadata_serial}
-=======
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Entry_Metadata_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Entry_Metadata
 		ma.state = maState_midValue
@@ -4383,11 +3774,7 @@ func (ma *_Entry__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssemble
 		return &ma.ca_Metadata, nil
 	default:
 	}
-<<<<<<< HEAD
-	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Entry.Repr", Key: &_String{k}}
-=======
 	return nil, schema.ErrInvalidKey{TypeName: "ingestion.Entry.Repr", Key: &_String{k}}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 }
 func (ma *_Entry__ReprAssembler) AssembleKey() datamodel.NodeAssembler {
 	switch ma.state {
@@ -4473,17 +3860,10 @@ func (ma *_Entry__ReprAssembler) ValuePrototype(k string) datamodel.NodePrototyp
 
 type _Entry__ReprKeyAssembler _Entry__ReprAssembler
 
-<<<<<<< HEAD
-func (_Entry__ReprKeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.BeginMap(0)
-}
-func (_Entry__ReprKeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Entry__ReprKeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.BeginMap(0)
 }
 func (_Entry__ReprKeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.BeginList(0)
 }
 func (na *_Entry__ReprKeyAssembler) AssignNull() error {
@@ -4505,11 +3885,7 @@ func (ka *_Entry__ReprKeyAssembler) AssignString(k string) error {
 	switch k {
 	case "RmCids":
 		if ka.s&fieldBit__Entry_RmCids != 0 {
-<<<<<<< HEAD
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_RmCids_serial}
-=======
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Entry_RmCids_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ka.s += fieldBit__Entry_RmCids
 		ka.state = maState_expectValue
@@ -4517,11 +3893,7 @@ func (ka *_Entry__ReprKeyAssembler) AssignString(k string) error {
 		return nil
 	case "Cids":
 		if ka.s&fieldBit__Entry_Cids != 0 {
-<<<<<<< HEAD
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Cids_serial}
-=======
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Entry_Cids_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ka.s += fieldBit__Entry_Cids
 		ka.state = maState_expectValue
@@ -4529,31 +3901,19 @@ func (ka *_Entry__ReprKeyAssembler) AssignString(k string) error {
 		return nil
 	case "Metadata":
 		if ka.s&fieldBit__Entry_Metadata != 0 {
-<<<<<<< HEAD
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Entry_Metadata_serial}
-=======
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Entry_Metadata_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ka.s += fieldBit__Entry_Metadata
 		ka.state = maState_expectValue
 		ka.f = 2
 		return nil
 	}
-<<<<<<< HEAD
-	return ipld.ErrInvalidKey{TypeName: "ingestion.Entry.Repr", Key: &_String{k}}
-=======
 	return schema.ErrInvalidKey{TypeName: "ingestion.Entry.Repr", Key: &_String{k}}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 }
 func (_Entry__ReprKeyAssembler) AssignBytes([]byte) error {
 	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Entry__ReprKeyAssembler) AssignLink(ipld.Link) error {
-=======
 func (_Entry__ReprKeyAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Entry.Repr.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Entry__ReprKeyAssembler) AssignNode(v datamodel.Node) error {
@@ -4615,18 +3975,6 @@ var _ schema.TypedNode = (Float)(&_Float{})
 func (Float) Kind() datamodel.Kind {
 	return datamodel.Kind_Float
 }
-<<<<<<< HEAD
-func (Float) LookupByString(string) (ipld.Node, error) {
-	return mixins.Float{TypeName: "ingestion.Float"}.LookupByString("")
-}
-func (Float) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Float{TypeName: "ingestion.Float"}.LookupByNode(nil)
-}
-func (Float) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Float{TypeName: "ingestion.Float"}.LookupByIndex(0)
-}
-func (Float) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-=======
 func (Float) LookupByString(string) (datamodel.Node, error) {
 	return mixins.Float{TypeName: "ingestion.Float"}.LookupByString("")
 }
@@ -4637,7 +3985,6 @@ func (Float) LookupByIndex(idx int64) (datamodel.Node, error) {
 	return mixins.Float{TypeName: "ingestion.Float"}.LookupByIndex(0)
 }
 func (Float) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Float{TypeName: "ingestion.Float"}.LookupBySegment(seg)
 }
 func (Float) MapIterator() datamodel.MapIterator {
@@ -4670,11 +4017,7 @@ func (Float) AsString() (string, error) {
 func (Float) AsBytes() ([]byte, error) {
 	return mixins.Float{TypeName: "ingestion.Float"}.AsBytes()
 }
-<<<<<<< HEAD
-func (Float) AsLink() (ipld.Link, error) {
-=======
 func (Float) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Float{TypeName: "ingestion.Float"}.AsLink()
 }
 func (Float) Prototype() datamodel.NodePrototype {
@@ -4711,17 +4054,10 @@ type _Float__Assembler struct {
 }
 
 func (na *_Float__Assembler) reset() {}
-<<<<<<< HEAD
-func (_Float__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.FloatAssembler{TypeName: "ingestion.Float"}.BeginMap(0)
-}
-func (_Float__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Float__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.FloatAssembler{TypeName: "ingestion.Float"}.BeginMap(0)
 }
 func (_Float__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.FloatAssembler{TypeName: "ingestion.Float"}.BeginList(0)
 }
 func (na *_Float__Assembler) AssignNull() error {
@@ -4757,11 +4093,7 @@ func (_Float__Assembler) AssignString(string) error {
 func (_Float__Assembler) AssignBytes([]byte) error {
 	return mixins.FloatAssembler{TypeName: "ingestion.Float"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Float__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_Float__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.FloatAssembler{TypeName: "ingestion.Float"}.AssignLink(nil)
 }
 func (na *_Float__Assembler) AssignNode(v datamodel.Node) error {
@@ -4855,7 +4187,7 @@ func (n Index) LookupByString(key string) (datamodel.Node, error) {
 	switch key {
 	case "Previous":
 		if n.Previous.m == schema.Maybe_Absent {
-			return ipld.Absent, nil
+			return datamodel.Absent, nil
 		}
 		return &n.Previous.v, nil
 	case "Entries":
@@ -4871,11 +4203,7 @@ func (n Index) LookupByNode(key datamodel.Node) (datamodel.Node, error) {
 	}
 	return n.LookupByString(ks)
 }
-<<<<<<< HEAD
-func (Index) LookupByIndex(idx int64) (ipld.Node, error) {
-=======
 func (Index) LookupByIndex(idx int64) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Index"}.LookupByIndex(0)
 }
 func (n Index) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
@@ -4898,7 +4226,7 @@ func (itr *_Index__MapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) 
 	case 0:
 		k = &fieldName__Index_Previous
 		if itr.n.Previous.m == schema.Maybe_Absent {
-			v = ipld.Absent
+			v = datamodel.Absent
 			break
 		}
 		v = &itr.n.Previous.v
@@ -4942,11 +4270,7 @@ func (Index) AsString() (string, error) {
 func (Index) AsBytes() ([]byte, error) {
 	return mixins.Map{TypeName: "ingestion.Index"}.AsBytes()
 }
-<<<<<<< HEAD
-func (Index) AsLink() (ipld.Link, error) {
-=======
 func (Index) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Index"}.AsLink()
 }
 func (Index) Prototype() datamodel.NodePrototype {
@@ -5015,11 +4339,7 @@ func (na *_Index__Assembler) BeginMap(int64) (datamodel.MapAssembler, error) {
 	}
 	return na, nil
 }
-<<<<<<< HEAD
-func (_Index__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Index__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Index"}.BeginList(0)
 }
 func (na *_Index__Assembler) AssignNull() error {
@@ -5051,11 +4371,7 @@ func (_Index__Assembler) AssignString(string) error {
 func (_Index__Assembler) AssignBytes([]byte) error {
 	return mixins.MapAssembler{TypeName: "ingestion.Index"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Index__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_Index__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Index"}.AssignLink(nil)
 }
 func (na *_Index__Assembler) AssignNode(v datamodel.Node) error {
@@ -5141,11 +4457,7 @@ func (ma *_Index__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, e
 	switch k {
 	case "Previous":
 		if ma.s&fieldBit__Index_Previous != 0 {
-<<<<<<< HEAD
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Previous}
-=======
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_Previous}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Index_Previous
 		ma.state = maState_midValue
@@ -5155,11 +4467,7 @@ func (ma *_Index__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, e
 		return &ma.ca_Previous, nil
 	case "Entries":
 		if ma.s&fieldBit__Index_Entries != 0 {
-<<<<<<< HEAD
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Entries}
-=======
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_Entries}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Index_Entries
 		ma.state = maState_midValue
@@ -5168,11 +4476,7 @@ func (ma *_Index__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, e
 		ma.ca_Entries.m = &ma.cm
 		return &ma.ca_Entries, nil
 	}
-<<<<<<< HEAD
-	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Index", Key: &_String{k}}
-=======
 	return nil, schema.ErrInvalidKey{TypeName: "ingestion.Index", Key: &_String{k}}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 }
 func (ma *_Index__Assembler) AssembleKey() datamodel.NodeAssembler {
 	switch ma.state {
@@ -5235,14 +4539,7 @@ func (ma *_Index__Assembler) Finish() error {
 		panic("invalid state: Finish cannot be called on an assembler that's already finished")
 	}
 	if ma.s&fieldBits__Index_sufficient != fieldBits__Index_sufficient {
-<<<<<<< HEAD
-		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
-=======
 		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Index_Previous == 0 {
-			err.Missing = append(err.Missing, "Previous")
-		}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		if ma.s&fieldBit__Index_Entries == 0 {
 			err.Missing = append(err.Missing, "Entries")
 		}
@@ -5261,17 +4558,10 @@ func (ma *_Index__Assembler) ValuePrototype(k string) datamodel.NodePrototype {
 
 type _Index__KeyAssembler _Index__Assembler
 
-<<<<<<< HEAD
-func (_Index__KeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.BeginMap(0)
-}
-func (_Index__KeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Index__KeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.BeginMap(0)
 }
 func (_Index__KeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.BeginList(0)
 }
 func (na *_Index__KeyAssembler) AssignNull() error {
@@ -5293,11 +4583,7 @@ func (ka *_Index__KeyAssembler) AssignString(k string) error {
 	switch k {
 	case "Previous":
 		if ka.s&fieldBit__Index_Previous != 0 {
-<<<<<<< HEAD
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Previous}
-=======
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_Previous}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ka.s += fieldBit__Index_Previous
 		ka.state = maState_expectValue
@@ -5305,11 +4591,7 @@ func (ka *_Index__KeyAssembler) AssignString(k string) error {
 		return nil
 	case "Entries":
 		if ka.s&fieldBit__Index_Entries != 0 {
-<<<<<<< HEAD
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Entries}
-=======
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_Entries}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ka.s += fieldBit__Index_Entries
 		ka.state = maState_expectValue
@@ -5322,11 +4604,7 @@ func (ka *_Index__KeyAssembler) AssignString(k string) error {
 func (_Index__KeyAssembler) AssignBytes([]byte) error {
 	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Index__KeyAssembler) AssignLink(ipld.Link) error {
-=======
 func (_Index__KeyAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Index.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Index__KeyAssembler) AssignNode(v datamodel.Node) error {
@@ -5361,7 +4639,7 @@ func (n *_Index__Repr) LookupByString(key string) (datamodel.Node, error) {
 	switch key {
 	case "Previous":
 		if n.Previous.m == schema.Maybe_Absent {
-			return ipld.Absent, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(key)}
+			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
 		}
 		return n.Previous.v.Representation(), nil
 	case "Entries":
@@ -5377,11 +4655,7 @@ func (n *_Index__Repr) LookupByNode(key datamodel.Node) (datamodel.Node, error) 
 	}
 	return n.LookupByString(ks)
 }
-<<<<<<< HEAD
-func (_Index__Repr) LookupByIndex(idx int64) (ipld.Node, error) {
-=======
 func (_Index__Repr) LookupByIndex(idx int64) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Index.Repr"}.LookupByIndex(0)
 }
 func (n _Index__Repr) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
@@ -5396,12 +4670,8 @@ type _Index__ReprMapItr struct {
 	idx int
 }
 
-<<<<<<< HEAD
-func (itr *_Index__ReprMapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
-advance:
-=======
 func (itr *_Index__ReprMapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
+advance:
 	if itr.idx >= 2 {
 		return nil, nil, datamodel.ErrIteratorOverread{}
 	}
@@ -5456,11 +4726,7 @@ func (_Index__Repr) AsString() (string, error) {
 func (_Index__Repr) AsBytes() ([]byte, error) {
 	return mixins.Map{TypeName: "ingestion.Index.Repr"}.AsBytes()
 }
-<<<<<<< HEAD
-func (_Index__Repr) AsLink() (ipld.Link, error) {
-=======
 func (_Index__Repr) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Index.Repr"}.AsLink()
 }
 func (_Index__Repr) Prototype() datamodel.NodePrototype {
@@ -5522,11 +4788,7 @@ func (na *_Index__ReprAssembler) BeginMap(int64) (datamodel.MapAssembler, error)
 	}
 	return na, nil
 }
-<<<<<<< HEAD
-func (_Index__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Index__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Index.Repr"}.BeginList(0)
 }
 func (na *_Index__ReprAssembler) AssignNull() error {
@@ -5558,11 +4820,7 @@ func (_Index__ReprAssembler) AssignString(string) error {
 func (_Index__ReprAssembler) AssignBytes([]byte) error {
 	return mixins.MapAssembler{TypeName: "ingestion.Index.Repr"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Index__ReprAssembler) AssignLink(ipld.Link) error {
-=======
 func (_Index__ReprAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Index.Repr"}.AssignLink(nil)
 }
 func (na *_Index__ReprAssembler) AssignNode(v datamodel.Node) error {
@@ -5647,11 +4905,7 @@ func (ma *_Index__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssemble
 	switch k {
 	case "Previous":
 		if ma.s&fieldBit__Index_Previous != 0 {
-<<<<<<< HEAD
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Previous_serial}
-=======
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_Previous_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Index_Previous
 		ma.state = maState_midValue
@@ -5662,11 +4916,7 @@ func (ma *_Index__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssemble
 		return &ma.ca_Previous, nil
 	case "Entries":
 		if ma.s&fieldBit__Index_Entries != 0 {
-<<<<<<< HEAD
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Entries_serial}
-=======
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_Entries_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ma.s += fieldBit__Index_Entries
 		ma.state = maState_midValue
@@ -5676,11 +4926,7 @@ func (ma *_Index__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssemble
 		return &ma.ca_Entries, nil
 	default:
 	}
-<<<<<<< HEAD
-	return nil, ipld.ErrInvalidKey{TypeName: "ingestion.Index.Repr", Key: &_String{k}}
-=======
 	return nil, schema.ErrInvalidKey{TypeName: "ingestion.Index.Repr", Key: &_String{k}}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 }
 func (ma *_Index__ReprAssembler) AssembleKey() datamodel.NodeAssembler {
 	switch ma.state {
@@ -5744,14 +4990,7 @@ func (ma *_Index__ReprAssembler) Finish() error {
 		panic("invalid state: Finish cannot be called on an assembler that's already finished")
 	}
 	if ma.s&fieldBits__Index_sufficient != fieldBits__Index_sufficient {
-<<<<<<< HEAD
-		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
-=======
 		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Index_Previous == 0 {
-			err.Missing = append(err.Missing, "Previous")
-		}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		if ma.s&fieldBit__Index_Entries == 0 {
 			err.Missing = append(err.Missing, "Entries")
 		}
@@ -5770,17 +5009,10 @@ func (ma *_Index__ReprAssembler) ValuePrototype(k string) datamodel.NodePrototyp
 
 type _Index__ReprKeyAssembler _Index__ReprAssembler
 
-<<<<<<< HEAD
-func (_Index__ReprKeyAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.BeginMap(0)
-}
-func (_Index__ReprKeyAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Index__ReprKeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.BeginMap(0)
 }
 func (_Index__ReprKeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.BeginList(0)
 }
 func (na *_Index__ReprKeyAssembler) AssignNull() error {
@@ -5802,11 +5034,7 @@ func (ka *_Index__ReprKeyAssembler) AssignString(k string) error {
 	switch k {
 	case "Previous":
 		if ka.s&fieldBit__Index_Previous != 0 {
-<<<<<<< HEAD
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Previous_serial}
-=======
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_Previous_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ka.s += fieldBit__Index_Previous
 		ka.state = maState_expectValue
@@ -5814,31 +5042,19 @@ func (ka *_Index__ReprKeyAssembler) AssignString(k string) error {
 		return nil
 	case "Entries":
 		if ka.s&fieldBit__Index_Entries != 0 {
-<<<<<<< HEAD
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Index_Entries_serial}
-=======
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_Entries_serial}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 		}
 		ka.s += fieldBit__Index_Entries
 		ka.state = maState_expectValue
 		ka.f = 1
 		return nil
 	}
-<<<<<<< HEAD
-	return ipld.ErrInvalidKey{TypeName: "ingestion.Index.Repr", Key: &_String{k}}
-=======
 	return schema.ErrInvalidKey{TypeName: "ingestion.Index.Repr", Key: &_String{k}}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 }
 func (_Index__ReprKeyAssembler) AssignBytes([]byte) error {
 	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Index__ReprKeyAssembler) AssignLink(ipld.Link) error {
-=======
 func (_Index__ReprKeyAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.Index.Repr.KeyAssembler"}.AssignLink(nil)
 }
 func (ka *_Index__ReprKeyAssembler) AssignNode(v datamodel.Node) error {
@@ -5900,18 +5116,6 @@ var _ schema.TypedNode = (Int)(&_Int{})
 func (Int) Kind() datamodel.Kind {
 	return datamodel.Kind_Int
 }
-<<<<<<< HEAD
-func (Int) LookupByString(string) (ipld.Node, error) {
-	return mixins.Int{TypeName: "ingestion.Int"}.LookupByString("")
-}
-func (Int) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Int{TypeName: "ingestion.Int"}.LookupByNode(nil)
-}
-func (Int) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Int{TypeName: "ingestion.Int"}.LookupByIndex(0)
-}
-func (Int) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-=======
 func (Int) LookupByString(string) (datamodel.Node, error) {
 	return mixins.Int{TypeName: "ingestion.Int"}.LookupByString("")
 }
@@ -5922,7 +5126,6 @@ func (Int) LookupByIndex(idx int64) (datamodel.Node, error) {
 	return mixins.Int{TypeName: "ingestion.Int"}.LookupByIndex(0)
 }
 func (Int) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Int{TypeName: "ingestion.Int"}.LookupBySegment(seg)
 }
 func (Int) MapIterator() datamodel.MapIterator {
@@ -5955,11 +5158,7 @@ func (Int) AsString() (string, error) {
 func (Int) AsBytes() ([]byte, error) {
 	return mixins.Int{TypeName: "ingestion.Int"}.AsBytes()
 }
-<<<<<<< HEAD
-func (Int) AsLink() (ipld.Link, error) {
-=======
 func (Int) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Int{TypeName: "ingestion.Int"}.AsLink()
 }
 func (Int) Prototype() datamodel.NodePrototype {
@@ -5996,17 +5195,10 @@ type _Int__Assembler struct {
 }
 
 func (na *_Int__Assembler) reset() {}
-<<<<<<< HEAD
-func (_Int__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.IntAssembler{TypeName: "ingestion.Int"}.BeginMap(0)
-}
-func (_Int__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Int__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.IntAssembler{TypeName: "ingestion.Int"}.BeginMap(0)
 }
 func (_Int__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.IntAssembler{TypeName: "ingestion.Int"}.BeginList(0)
 }
 func (na *_Int__Assembler) AssignNull() error {
@@ -6042,11 +5234,7 @@ func (_Int__Assembler) AssignString(string) error {
 func (_Int__Assembler) AssignBytes([]byte) error {
 	return mixins.IntAssembler{TypeName: "ingestion.Int"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Int__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_Int__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.IntAssembler{TypeName: "ingestion.Int"}.AssignLink(nil)
 }
 func (na *_Int__Assembler) AssignNode(v datamodel.Node) error {
@@ -6133,18 +5321,6 @@ var _ schema.TypedNode = (Link)(&_Link{})
 func (Link) Kind() datamodel.Kind {
 	return datamodel.Kind_Link
 }
-<<<<<<< HEAD
-func (Link) LookupByString(string) (ipld.Node, error) {
-	return mixins.Link{TypeName: "ingestion.Link"}.LookupByString("")
-}
-func (Link) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Link{TypeName: "ingestion.Link"}.LookupByNode(nil)
-}
-func (Link) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Link{TypeName: "ingestion.Link"}.LookupByIndex(0)
-}
-func (Link) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-=======
 func (Link) LookupByString(string) (datamodel.Node, error) {
 	return mixins.Link{TypeName: "ingestion.Link"}.LookupByString("")
 }
@@ -6155,7 +5331,6 @@ func (Link) LookupByIndex(idx int64) (datamodel.Node, error) {
 	return mixins.Link{TypeName: "ingestion.Link"}.LookupByIndex(0)
 }
 func (Link) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Link{TypeName: "ingestion.Link"}.LookupBySegment(seg)
 }
 func (Link) MapIterator() datamodel.MapIterator {
@@ -6225,17 +5400,10 @@ type _Link__Assembler struct {
 }
 
 func (na *_Link__Assembler) reset() {}
-<<<<<<< HEAD
-func (_Link__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.LinkAssembler{TypeName: "ingestion.Link"}.BeginMap(0)
-}
-func (_Link__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Link__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.LinkAssembler{TypeName: "ingestion.Link"}.BeginMap(0)
 }
 func (_Link__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.LinkAssembler{TypeName: "ingestion.Link"}.BeginList(0)
 }
 func (na *_Link__Assembler) AssignNull() error {
@@ -6358,18 +5526,6 @@ var _ schema.TypedNode = (Link_Advertisement)(&_Link_Advertisement{})
 func (Link_Advertisement) Kind() datamodel.Kind {
 	return datamodel.Kind_Link
 }
-<<<<<<< HEAD
-func (Link_Advertisement) LookupByString(string) (ipld.Node, error) {
-	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.LookupByString("")
-}
-func (Link_Advertisement) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.LookupByNode(nil)
-}
-func (Link_Advertisement) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.LookupByIndex(0)
-}
-func (Link_Advertisement) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-=======
 func (Link_Advertisement) LookupByString(string) (datamodel.Node, error) {
 	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.LookupByString("")
 }
@@ -6380,7 +5536,6 @@ func (Link_Advertisement) LookupByIndex(idx int64) (datamodel.Node, error) {
 	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.LookupByIndex(0)
 }
 func (Link_Advertisement) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Link{TypeName: "ingestion.Link_Advertisement"}.LookupBySegment(seg)
 }
 func (Link_Advertisement) MapIterator() datamodel.MapIterator {
@@ -6450,17 +5605,10 @@ type _Link_Advertisement__Assembler struct {
 }
 
 func (na *_Link_Advertisement__Assembler) reset() {}
-<<<<<<< HEAD
-func (_Link_Advertisement__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.LinkAssembler{TypeName: "ingestion.Link_Advertisement"}.BeginMap(0)
-}
-func (_Link_Advertisement__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Link_Advertisement__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.LinkAssembler{TypeName: "ingestion.Link_Advertisement"}.BeginMap(0)
 }
 func (_Link_Advertisement__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.LinkAssembler{TypeName: "ingestion.Link_Advertisement"}.BeginList(0)
 }
 func (na *_Link_Advertisement__Assembler) AssignNull() error {
@@ -6524,11 +5672,7 @@ func (_Link_Advertisement__Assembler) Prototype() datamodel.NodePrototype {
 func (Link_Advertisement) Type() schema.Type {
 	return nil /*TODO:typelit*/
 }
-<<<<<<< HEAD
-func (Link_Advertisement) LinkTargetNodePrototype() ipld.NodePrototype {
-=======
 func (Link_Advertisement) LinkTargetNodePrototype() datamodel.NodePrototype {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return Type.Advertisement__Repr
 }
 func (n Link_Advertisement) Representation() datamodel.Node {
@@ -6590,18 +5734,6 @@ var _ schema.TypedNode = (Link_Index)(&_Link_Index{})
 func (Link_Index) Kind() datamodel.Kind {
 	return datamodel.Kind_Link
 }
-<<<<<<< HEAD
-func (Link_Index) LookupByString(string) (ipld.Node, error) {
-	return mixins.Link{TypeName: "ingestion.Link_Index"}.LookupByString("")
-}
-func (Link_Index) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.Link{TypeName: "ingestion.Link_Index"}.LookupByNode(nil)
-}
-func (Link_Index) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.Link{TypeName: "ingestion.Link_Index"}.LookupByIndex(0)
-}
-func (Link_Index) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-=======
 func (Link_Index) LookupByString(string) (datamodel.Node, error) {
 	return mixins.Link{TypeName: "ingestion.Link_Index"}.LookupByString("")
 }
@@ -6612,7 +5744,6 @@ func (Link_Index) LookupByIndex(idx int64) (datamodel.Node, error) {
 	return mixins.Link{TypeName: "ingestion.Link_Index"}.LookupByIndex(0)
 }
 func (Link_Index) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Link{TypeName: "ingestion.Link_Index"}.LookupBySegment(seg)
 }
 func (Link_Index) MapIterator() datamodel.MapIterator {
@@ -6682,17 +5813,10 @@ type _Link_Index__Assembler struct {
 }
 
 func (na *_Link_Index__Assembler) reset() {}
-<<<<<<< HEAD
-func (_Link_Index__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.LinkAssembler{TypeName: "ingestion.Link_Index"}.BeginMap(0)
-}
-func (_Link_Index__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Link_Index__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.LinkAssembler{TypeName: "ingestion.Link_Index"}.BeginMap(0)
 }
 func (_Link_Index__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.LinkAssembler{TypeName: "ingestion.Link_Index"}.BeginList(0)
 }
 func (na *_Link_Index__Assembler) AssignNull() error {
@@ -6756,11 +5880,7 @@ func (_Link_Index__Assembler) Prototype() datamodel.NodePrototype {
 func (Link_Index) Type() schema.Type {
 	return nil /*TODO:typelit*/
 }
-<<<<<<< HEAD
-func (Link_Index) LinkTargetNodePrototype() ipld.NodePrototype {
-=======
 func (Link_Index) LinkTargetNodePrototype() datamodel.NodePrototype {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return Type.Index__Repr
 }
 func (n Link_Index) Representation() datamodel.Node {
@@ -6856,11 +5976,7 @@ var _ schema.TypedNode = (List)(&_List{})
 func (List) Kind() datamodel.Kind {
 	return datamodel.Kind_List
 }
-<<<<<<< HEAD
-func (List) LookupByString(string) (ipld.Node, error) {
-=======
 func (List) LookupByString(string) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.List{TypeName: "ingestion.List"}.LookupByString("")
 }
 func (n List) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
@@ -6872,11 +5988,7 @@ func (n List) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
 }
 func (n List) LookupByIndex(idx int64) (datamodel.Node, error) {
 	if n.Length() <= idx {
-<<<<<<< HEAD
-		return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfInt(idx)}
-=======
 		return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfInt(idx)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	}
 	v := &n.x[idx]
 	if v.m == schema.Maybe_Null {
@@ -6946,11 +6058,7 @@ func (List) AsString() (string, error) {
 func (List) AsBytes() ([]byte, error) {
 	return mixins.List{TypeName: "ingestion.List"}.AsBytes()
 }
-<<<<<<< HEAD
-func (List) AsLink() (ipld.Link, error) {
-=======
 func (List) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.List{TypeName: "ingestion.List"}.AsLink()
 }
 func (List) Prototype() datamodel.NodePrototype {
@@ -6993,11 +6101,7 @@ func (na *_List__Assembler) reset() {
 	na.state = laState_initial
 	na.va.reset()
 }
-<<<<<<< HEAD
-func (_List__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-=======
 func (_List__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.ListAssembler{TypeName: "ingestion.List"}.BeginMap(0)
 }
 func (na *_List__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
@@ -7045,11 +6149,7 @@ func (_List__Assembler) AssignString(string) error {
 func (_List__Assembler) AssignBytes([]byte) error {
 	return mixins.ListAssembler{TypeName: "ingestion.List"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_List__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_List__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.ListAssembler{TypeName: "ingestion.List"}.AssignLink(nil)
 }
 func (na *_List__Assembler) AssignNode(v datamodel.Node) error {
@@ -7150,11 +6250,7 @@ var _ datamodel.Node = &_List__Repr{}
 func (_List__Repr) Kind() datamodel.Kind {
 	return datamodel.Kind_List
 }
-<<<<<<< HEAD
-func (_List__Repr) LookupByString(string) (ipld.Node, error) {
-=======
 func (_List__Repr) LookupByString(string) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.List{TypeName: "ingestion.List.Repr"}.LookupByString("")
 }
 func (nr *_List__Repr) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
@@ -7222,11 +6318,7 @@ func (_List__Repr) AsString() (string, error) {
 func (_List__Repr) AsBytes() ([]byte, error) {
 	return mixins.List{TypeName: "ingestion.List.Repr"}.AsBytes()
 }
-<<<<<<< HEAD
-func (_List__Repr) AsLink() (ipld.Link, error) {
-=======
 func (_List__Repr) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.List{TypeName: "ingestion.List.Repr"}.AsLink()
 }
 func (_List__Repr) Prototype() datamodel.NodePrototype {
@@ -7269,11 +6361,7 @@ func (na *_List__ReprAssembler) reset() {
 	na.state = laState_initial
 	na.va.reset()
 }
-<<<<<<< HEAD
-func (_List__ReprAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-=======
 func (_List__ReprAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.ListAssembler{TypeName: "ingestion.List.Repr"}.BeginMap(0)
 }
 func (na *_List__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
@@ -7321,11 +6409,7 @@ func (_List__ReprAssembler) AssignString(string) error {
 func (_List__ReprAssembler) AssignBytes([]byte) error {
 	return mixins.ListAssembler{TypeName: "ingestion.List.Repr"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_List__ReprAssembler) AssignLink(ipld.Link) error {
-=======
 func (_List__ReprAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.ListAssembler{TypeName: "ingestion.List.Repr"}.AssignLink(nil)
 }
 func (na *_List__ReprAssembler) AssignNode(v datamodel.Node) error {
@@ -7495,11 +6579,7 @@ var _ schema.TypedNode = (List_Entry)(&_List_Entry{})
 func (List_Entry) Kind() datamodel.Kind {
 	return datamodel.Kind_List
 }
-<<<<<<< HEAD
-func (List_Entry) LookupByString(string) (ipld.Node, error) {
-=======
 func (List_Entry) LookupByString(string) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.List{TypeName: "ingestion.List_Entry"}.LookupByString("")
 }
 func (n List_Entry) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
@@ -7511,11 +6591,7 @@ func (n List_Entry) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
 }
 func (n List_Entry) LookupByIndex(idx int64) (datamodel.Node, error) {
 	if n.Length() <= idx {
-<<<<<<< HEAD
-		return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfInt(idx)}
-=======
 		return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfInt(idx)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	}
 	v := &n.x[idx]
 	return v, nil
@@ -7577,11 +6653,7 @@ func (List_Entry) AsString() (string, error) {
 func (List_Entry) AsBytes() ([]byte, error) {
 	return mixins.List{TypeName: "ingestion.List_Entry"}.AsBytes()
 }
-<<<<<<< HEAD
-func (List_Entry) AsLink() (ipld.Link, error) {
-=======
 func (List_Entry) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.List{TypeName: "ingestion.List_Entry"}.AsLink()
 }
 func (List_Entry) Prototype() datamodel.NodePrototype {
@@ -7625,11 +6697,7 @@ func (na *_List_Entry__Assembler) reset() {
 	na.state = laState_initial
 	na.va.reset()
 }
-<<<<<<< HEAD
-func (_List_Entry__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-=======
 func (_List_Entry__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.ListAssembler{TypeName: "ingestion.List_Entry"}.BeginMap(0)
 }
 func (na *_List_Entry__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
@@ -7677,11 +6745,7 @@ func (_List_Entry__Assembler) AssignString(string) error {
 func (_List_Entry__Assembler) AssignBytes([]byte) error {
 	return mixins.ListAssembler{TypeName: "ingestion.List_Entry"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_List_Entry__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_List_Entry__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.ListAssembler{TypeName: "ingestion.List_Entry"}.AssignLink(nil)
 }
 func (na *_List_Entry__Assembler) AssignNode(v datamodel.Node) error {
@@ -7779,11 +6843,7 @@ var _ datamodel.Node = &_List_Entry__Repr{}
 func (_List_Entry__Repr) Kind() datamodel.Kind {
 	return datamodel.Kind_List
 }
-<<<<<<< HEAD
-func (_List_Entry__Repr) LookupByString(string) (ipld.Node, error) {
-=======
 func (_List_Entry__Repr) LookupByString(string) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.List{TypeName: "ingestion.List_Entry.Repr"}.LookupByString("")
 }
 func (nr *_List_Entry__Repr) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
@@ -7851,11 +6911,7 @@ func (_List_Entry__Repr) AsString() (string, error) {
 func (_List_Entry__Repr) AsBytes() ([]byte, error) {
 	return mixins.List{TypeName: "ingestion.List_Entry.Repr"}.AsBytes()
 }
-<<<<<<< HEAD
-func (_List_Entry__Repr) AsLink() (ipld.Link, error) {
-=======
 func (_List_Entry__Repr) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.List{TypeName: "ingestion.List_Entry.Repr"}.AsLink()
 }
 func (_List_Entry__Repr) Prototype() datamodel.NodePrototype {
@@ -7899,11 +6955,7 @@ func (na *_List_Entry__ReprAssembler) reset() {
 	na.state = laState_initial
 	na.va.reset()
 }
-<<<<<<< HEAD
-func (_List_Entry__ReprAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-=======
 func (_List_Entry__ReprAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.ListAssembler{TypeName: "ingestion.List_Entry.Repr"}.BeginMap(0)
 }
 func (na *_List_Entry__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
@@ -7951,11 +7003,7 @@ func (_List_Entry__ReprAssembler) AssignString(string) error {
 func (_List_Entry__ReprAssembler) AssignBytes([]byte) error {
 	return mixins.ListAssembler{TypeName: "ingestion.List_Entry.Repr"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_List_Entry__ReprAssembler) AssignLink(ipld.Link) error {
-=======
 func (_List_Entry__ReprAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.ListAssembler{TypeName: "ingestion.List_Entry.Repr"}.AssignLink(nil)
 }
 func (na *_List_Entry__ReprAssembler) AssignNode(v datamodel.Node) error {
@@ -8122,11 +7170,7 @@ var _ schema.TypedNode = (List_String)(&_List_String{})
 func (List_String) Kind() datamodel.Kind {
 	return datamodel.Kind_List
 }
-<<<<<<< HEAD
-func (List_String) LookupByString(string) (ipld.Node, error) {
-=======
 func (List_String) LookupByString(string) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.List{TypeName: "ingestion.List_String"}.LookupByString("")
 }
 func (n List_String) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
@@ -8138,11 +7182,7 @@ func (n List_String) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
 }
 func (n List_String) LookupByIndex(idx int64) (datamodel.Node, error) {
 	if n.Length() <= idx {
-<<<<<<< HEAD
-		return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfInt(idx)}
-=======
 		return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfInt(idx)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	}
 	v := &n.x[idx]
 	return v, nil
@@ -8204,11 +7244,7 @@ func (List_String) AsString() (string, error) {
 func (List_String) AsBytes() ([]byte, error) {
 	return mixins.List{TypeName: "ingestion.List_String"}.AsBytes()
 }
-<<<<<<< HEAD
-func (List_String) AsLink() (ipld.Link, error) {
-=======
 func (List_String) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.List{TypeName: "ingestion.List_String"}.AsLink()
 }
 func (List_String) Prototype() datamodel.NodePrototype {
@@ -8252,11 +7288,7 @@ func (na *_List_String__Assembler) reset() {
 	na.state = laState_initial
 	na.va.reset()
 }
-<<<<<<< HEAD
-func (_List_String__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-=======
 func (_List_String__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.ListAssembler{TypeName: "ingestion.List_String"}.BeginMap(0)
 }
 func (na *_List_String__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
@@ -8304,11 +7336,7 @@ func (_List_String__Assembler) AssignString(string) error {
 func (_List_String__Assembler) AssignBytes([]byte) error {
 	return mixins.ListAssembler{TypeName: "ingestion.List_String"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_List_String__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_List_String__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.ListAssembler{TypeName: "ingestion.List_String"}.AssignLink(nil)
 }
 func (na *_List_String__Assembler) AssignNode(v datamodel.Node) error {
@@ -8406,11 +7434,7 @@ var _ datamodel.Node = &_List_String__Repr{}
 func (_List_String__Repr) Kind() datamodel.Kind {
 	return datamodel.Kind_List
 }
-<<<<<<< HEAD
-func (_List_String__Repr) LookupByString(string) (ipld.Node, error) {
-=======
 func (_List_String__Repr) LookupByString(string) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.List{TypeName: "ingestion.List_String.Repr"}.LookupByString("")
 }
 func (nr *_List_String__Repr) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
@@ -8478,11 +7502,7 @@ func (_List_String__Repr) AsString() (string, error) {
 func (_List_String__Repr) AsBytes() ([]byte, error) {
 	return mixins.List{TypeName: "ingestion.List_String.Repr"}.AsBytes()
 }
-<<<<<<< HEAD
-func (_List_String__Repr) AsLink() (ipld.Link, error) {
-=======
 func (_List_String__Repr) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.List{TypeName: "ingestion.List_String.Repr"}.AsLink()
 }
 func (_List_String__Repr) Prototype() datamodel.NodePrototype {
@@ -8526,11 +7546,7 @@ func (na *_List_String__ReprAssembler) reset() {
 	na.state = laState_initial
 	na.va.reset()
 }
-<<<<<<< HEAD
-func (_List_String__ReprAssembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-=======
 func (_List_String__ReprAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.ListAssembler{TypeName: "ingestion.List_String.Repr"}.BeginMap(0)
 }
 func (na *_List_String__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
@@ -8578,11 +7594,7 @@ func (_List_String__ReprAssembler) AssignString(string) error {
 func (_List_String__ReprAssembler) AssignBytes([]byte) error {
 	return mixins.ListAssembler{TypeName: "ingestion.List_String.Repr"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_List_String__ReprAssembler) AssignLink(ipld.Link) error {
-=======
 func (_List_String__ReprAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.ListAssembler{TypeName: "ingestion.List_String.Repr"}.AssignLink(nil)
 }
 func (na *_List_String__ReprAssembler) AssignNode(v datamodel.Node) error {
@@ -8757,11 +7769,7 @@ func (n Map) LookupByString(k string) (datamodel.Node, error) {
 	}
 	v, exists := n.m[k2]
 	if !exists {
-<<<<<<< HEAD
-		return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(k)}
-=======
 		return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(k)}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	}
 	if v.m == schema.Maybe_Null {
 		return datamodel.Null, nil
@@ -8776,22 +7784,14 @@ func (n Map) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
 	}
 	v, exists := n.m[*k2]
 	if !exists {
-<<<<<<< HEAD
-		return nil, ipld.ErrNotExists{Segment: ipld.PathSegmentOfString(k2.String())}
-=======
 		return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(k2.String())}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	}
 	if v.m == schema.Maybe_Null {
 		return datamodel.Null, nil
 	}
 	return v.v, nil
 }
-<<<<<<< HEAD
-func (Map) LookupByIndex(idx int64) (ipld.Node, error) {
-=======
 func (Map) LookupByIndex(idx int64) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Map"}.LookupByIndex(0)
 }
 func (n Map) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
@@ -8852,11 +7852,7 @@ func (Map) AsString() (string, error) {
 func (Map) AsBytes() ([]byte, error) {
 	return mixins.Map{TypeName: "ingestion.Map"}.AsBytes()
 }
-<<<<<<< HEAD
-func (Map) AsLink() (ipld.Link, error) {
-=======
 func (Map) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Map"}.AsLink()
 }
 func (Map) Prototype() datamodel.NodePrototype {
@@ -8917,11 +7913,7 @@ func (na *_Map__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, err
 	na.w.t = make([]_Map__entry, 0, sizeHint)
 	return na, nil
 }
-<<<<<<< HEAD
-func (_Map__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Map__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Map"}.BeginList(0)
 }
 func (na *_Map__Assembler) AssignNull() error {
@@ -8953,11 +7945,7 @@ func (_Map__Assembler) AssignString(string) error {
 func (_Map__Assembler) AssignBytes([]byte) error {
 	return mixins.MapAssembler{TypeName: "ingestion.Map"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Map__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_Map__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Map"}.AssignLink(nil)
 }
 func (na *_Map__Assembler) AssignNode(v datamodel.Node) error {
@@ -9050,11 +8038,7 @@ func (ma *_Map__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, err
 		return nil, err // TODO wrap in some kind of ErrInvalidKey
 	}
 	if _, exists := ma.w.m[k2]; exists {
-<<<<<<< HEAD
-		return nil, ipld.ErrRepeatedMapKey{Key: &k2}
-=======
 		return nil, datamodel.ErrRepeatedMapKey{Key: &k2}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	}
 	ma.w.t = append(ma.w.t, _Map__entry{k: k2})
 	tz := &ma.w.t[len(ma.w.t)-1]
@@ -9157,11 +8141,7 @@ func (nr *_Map__Repr) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
 	}
 	return v.(Any).Representation(), nil
 }
-<<<<<<< HEAD
-func (_Map__Repr) LookupByIndex(idx int64) (ipld.Node, error) {
-=======
 func (_Map__Repr) LookupByIndex(idx int64) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Map.Repr"}.LookupByIndex(0)
 }
 func (n _Map__Repr) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
@@ -9211,11 +8191,7 @@ func (_Map__Repr) AsString() (string, error) {
 func (_Map__Repr) AsBytes() ([]byte, error) {
 	return mixins.Map{TypeName: "ingestion.Map.Repr"}.AsBytes()
 }
-<<<<<<< HEAD
-func (_Map__Repr) AsLink() (ipld.Link, error) {
-=======
 func (_Map__Repr) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.Map{TypeName: "ingestion.Map.Repr"}.AsLink()
 }
 func (_Map__Repr) Prototype() datamodel.NodePrototype {
@@ -9276,11 +8252,7 @@ func (na *_Map__ReprAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler,
 	na.w.t = make([]_Map__entry, 0, sizeHint)
 	return na, nil
 }
-<<<<<<< HEAD
-func (_Map__ReprAssembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_Map__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Map.Repr"}.BeginList(0)
 }
 func (na *_Map__ReprAssembler) AssignNull() error {
@@ -9312,11 +8284,7 @@ func (_Map__ReprAssembler) AssignString(string) error {
 func (_Map__ReprAssembler) AssignBytes([]byte) error {
 	return mixins.MapAssembler{TypeName: "ingestion.Map.Repr"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_Map__ReprAssembler) AssignLink(ipld.Link) error {
-=======
 func (_Map__ReprAssembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.MapAssembler{TypeName: "ingestion.Map.Repr"}.AssignLink(nil)
 }
 func (na *_Map__ReprAssembler) AssignNode(v datamodel.Node) error {
@@ -9409,11 +8377,7 @@ func (ma *_Map__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssembler,
 		return nil, err // TODO wrap in some kind of ErrInvalidKey
 	}
 	if _, exists := ma.w.m[k2]; exists {
-<<<<<<< HEAD
-		return nil, ipld.ErrRepeatedMapKey{Key: &k2}
-=======
 		return nil, datamodel.ErrRepeatedMapKey{Key: &k2}
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	}
 	ma.w.t = append(ma.w.t, _Map__entry{k: k2})
 	tz := &ma.w.t[len(ma.w.t)-1]
@@ -9541,18 +8505,6 @@ var _ schema.TypedNode = (String)(&_String{})
 func (String) Kind() datamodel.Kind {
 	return datamodel.Kind_String
 }
-<<<<<<< HEAD
-func (String) LookupByString(string) (ipld.Node, error) {
-	return mixins.String{TypeName: "ingestion.String"}.LookupByString("")
-}
-func (String) LookupByNode(ipld.Node) (ipld.Node, error) {
-	return mixins.String{TypeName: "ingestion.String"}.LookupByNode(nil)
-}
-func (String) LookupByIndex(idx int64) (ipld.Node, error) {
-	return mixins.String{TypeName: "ingestion.String"}.LookupByIndex(0)
-}
-func (String) LookupBySegment(seg ipld.PathSegment) (ipld.Node, error) {
-=======
 func (String) LookupByString(string) (datamodel.Node, error) {
 	return mixins.String{TypeName: "ingestion.String"}.LookupByString("")
 }
@@ -9563,7 +8515,6 @@ func (String) LookupByIndex(idx int64) (datamodel.Node, error) {
 	return mixins.String{TypeName: "ingestion.String"}.LookupByIndex(0)
 }
 func (String) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.String{TypeName: "ingestion.String"}.LookupBySegment(seg)
 }
 func (String) MapIterator() datamodel.MapIterator {
@@ -9596,11 +8547,7 @@ func (n String) AsString() (string, error) {
 func (String) AsBytes() ([]byte, error) {
 	return mixins.String{TypeName: "ingestion.String"}.AsBytes()
 }
-<<<<<<< HEAD
-func (String) AsLink() (ipld.Link, error) {
-=======
 func (String) AsLink() (datamodel.Link, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.String{TypeName: "ingestion.String"}.AsLink()
 }
 func (String) Prototype() datamodel.NodePrototype {
@@ -9637,17 +8584,10 @@ type _String__Assembler struct {
 }
 
 func (na *_String__Assembler) reset() {}
-<<<<<<< HEAD
-func (_String__Assembler) BeginMap(sizeHint int64) (ipld.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "ingestion.String"}.BeginMap(0)
-}
-func (_String__Assembler) BeginList(sizeHint int64) (ipld.ListAssembler, error) {
-=======
 func (_String__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
 	return mixins.StringAssembler{TypeName: "ingestion.String"}.BeginMap(0)
 }
 func (_String__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.String"}.BeginList(0)
 }
 func (na *_String__Assembler) AssignNull() error {
@@ -9683,11 +8623,7 @@ func (na *_String__Assembler) AssignString(v string) error {
 func (_String__Assembler) AssignBytes([]byte) error {
 	return mixins.StringAssembler{TypeName: "ingestion.String"}.AssignBytes(nil)
 }
-<<<<<<< HEAD
-func (_String__Assembler) AssignLink(ipld.Link) error {
-=======
 func (_String__Assembler) AssignLink(datamodel.Link) error {
->>>>>>> 83b5839 (Remove all lotus imports and use raw jsonrpc over https instead (#43))
 	return mixins.StringAssembler{TypeName: "ingestion.String"}.AssignLink(nil)
 }
 func (na *_String__Assembler) AssignNode(v datamodel.Node) error {
