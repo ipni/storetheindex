@@ -9,14 +9,13 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	p2pserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
 	"github.com/filecoin-project/storetheindex/server/finder/test"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
-	swarmt "github.com/libp2p/go-libp2p-swarm/testing"
-	bhost "github.com/libp2p/go-libp2p/p2p/host/basic"
 )
 
 func setupServer(ctx context.Context, ind indexer.Interface, reg *providers.Registry, t *testing.T) (*p2pserver.Server, host.Host) {
-	h := bhost.New(swarmt.GenSwarm(t, ctx, swarmt.OptDisableReuseport))
+	h, _ := libp2p.New(context.Background(), libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
 	s, err := p2pserver.New(ctx, h, ind, reg)
 	if err != nil {
 		t.Fatal(err)
@@ -25,7 +24,7 @@ func setupServer(ctx context.Context, ind indexer.Interface, reg *providers.Regi
 }
 
 func setupClient(ctx context.Context, peerID peer.ID, t *testing.T) (*p2pclient.Finder, host.Host) {
-	h := bhost.New(swarmt.GenSwarm(t, ctx, swarmt.OptDisableReuseport))
+	h, _ := libp2p.New(context.Background(), libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
 	c, err := p2pclient.NewFinder(ctx, h, peerID)
 	if err != nil {
 		t.Fatal(err)
