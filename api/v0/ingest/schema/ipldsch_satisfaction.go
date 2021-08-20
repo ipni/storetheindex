@@ -14,13 +14,13 @@ func (n _Advertisement) FieldID() Bytes {
 func (n _Advertisement) FieldIndexID() Link_Index {
 	return &n.IndexID
 }
-func (n _Advertisement) FieldPrevious() MaybeLink_Advertisement {
-	return &n.Previous
+func (n _Advertisement) FieldPreviousID() Bytes {
+	return &n.PreviousID
 }
 func (n _Advertisement) FieldProvider() String {
 	return &n.Provider
 }
-func (n _Advertisement) FieldSignature() MaybeBytes {
+func (n _Advertisement) FieldSignature() Bytes {
 	return &n.Signature
 }
 func (n _Advertisement) FieldGraphSupport() Bool {
@@ -64,7 +64,7 @@ func (m MaybeAdvertisement) Must() Advertisement {
 var (
 	fieldName__Advertisement_ID           = _String{"ID"}
 	fieldName__Advertisement_IndexID      = _String{"IndexID"}
-	fieldName__Advertisement_Previous     = _String{"Previous"}
+	fieldName__Advertisement_PreviousID   = _String{"PreviousID"}
 	fieldName__Advertisement_Provider     = _String{"Provider"}
 	fieldName__Advertisement_Signature    = _String{"Signature"}
 	fieldName__Advertisement_GraphSupport = _String{"GraphSupport"}
@@ -81,18 +81,12 @@ func (n Advertisement) LookupByString(key string) (datamodel.Node, error) {
 		return &n.ID, nil
 	case "IndexID":
 		return &n.IndexID, nil
-	case "Previous":
-		if n.Previous.m == schema.Maybe_Absent {
-			return datamodel.Absent, nil
-		}
-		return &n.Previous.v, nil
+	case "PreviousID":
+		return &n.PreviousID, nil
 	case "Provider":
 		return &n.Provider, nil
 	case "Signature":
-		if n.Signature.m == schema.Maybe_Absent {
-			return datamodel.Absent, nil
-		}
-		return &n.Signature.v, nil
+		return &n.Signature, nil
 	case "GraphSupport":
 		return &n.GraphSupport, nil
 	default:
@@ -133,22 +127,14 @@ func (itr *_Advertisement__MapItr) Next() (k datamodel.Node, v datamodel.Node, _
 		k = &fieldName__Advertisement_IndexID
 		v = &itr.n.IndexID
 	case 2:
-		k = &fieldName__Advertisement_Previous
-		if itr.n.Previous.m == schema.Maybe_Absent {
-			v = datamodel.Absent
-			break
-		}
-		v = &itr.n.Previous.v
+		k = &fieldName__Advertisement_PreviousID
+		v = &itr.n.PreviousID
 	case 3:
 		k = &fieldName__Advertisement_Provider
 		v = &itr.n.Provider
 	case 4:
 		k = &fieldName__Advertisement_Signature
-		if itr.n.Signature.m == schema.Maybe_Absent {
-			v = datamodel.Absent
-			break
-		}
-		v = &itr.n.Signature.v
+		v = &itr.n.Signature
 	case 5:
 		k = &fieldName__Advertisement_GraphSupport
 		v = &itr.n.GraphSupport
@@ -230,7 +216,7 @@ type _Advertisement__Assembler struct {
 	cm              schema.Maybe
 	ca_ID           _Bytes__Assembler
 	ca_IndexID      _Link_Index__Assembler
-	ca_Previous     _Link_Advertisement__Assembler
+	ca_PreviousID   _Bytes__Assembler
 	ca_Provider     _String__Assembler
 	ca_Signature    _Bytes__Assembler
 	ca_GraphSupport _Bool__Assembler
@@ -241,7 +227,7 @@ func (na *_Advertisement__Assembler) reset() {
 	na.s = 0
 	na.ca_ID.reset()
 	na.ca_IndexID.reset()
-	na.ca_Previous.reset()
+	na.ca_PreviousID.reset()
 	na.ca_Provider.reset()
 	na.ca_Signature.reset()
 	na.ca_GraphSupport.reset()
@@ -250,11 +236,11 @@ func (na *_Advertisement__Assembler) reset() {
 var (
 	fieldBit__Advertisement_ID           = 1 << 0
 	fieldBit__Advertisement_IndexID      = 1 << 1
-	fieldBit__Advertisement_Previous     = 1 << 2
+	fieldBit__Advertisement_PreviousID   = 1 << 2
 	fieldBit__Advertisement_Provider     = 1 << 3
 	fieldBit__Advertisement_Signature    = 1 << 4
 	fieldBit__Advertisement_GraphSupport = 1 << 5
-	fieldBits__Advertisement_sufficient  = 0 + 1<<0 + 1<<1 + 1<<3 + 1<<5
+	fieldBits__Advertisement_sufficient  = 0 + 1<<0 + 1<<1 + 1<<2 + 1<<3 + 1<<4 + 1<<5
 )
 
 func (na *_Advertisement__Assembler) BeginMap(int64) (datamodel.MapAssembler, error) {
@@ -369,8 +355,10 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 			return false
 		}
 	case 2:
-		switch ma.w.Previous.m {
+		switch ma.cm {
 		case schema.Maybe_Value:
+			ma.ca_PreviousID.w = nil
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -387,8 +375,10 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 			return false
 		}
 	case 4:
-		switch ma.w.Signature.m {
+		switch ma.cm {
 		case schema.Maybe_Value:
+			ma.ca_Signature.w = nil
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -444,16 +434,16 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (datamodel.NodeAsse
 		ma.ca_IndexID.w = &ma.w.IndexID
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID, nil
-	case "Previous":
-		if ma.s&fieldBit__Advertisement_Previous != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Previous}
+	case "PreviousID":
+		if ma.s&fieldBit__Advertisement_PreviousID != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID}
 		}
-		ma.s += fieldBit__Advertisement_Previous
+		ma.s += fieldBit__Advertisement_PreviousID
 		ma.state = maState_midValue
 		ma.f = 2
-		ma.ca_Previous.w = &ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-		return &ma.ca_Previous, nil
+		ma.ca_PreviousID.w = &ma.w.PreviousID
+		ma.ca_PreviousID.m = &ma.cm
+		return &ma.ca_PreviousID, nil
 	case "Provider":
 		if ma.s&fieldBit__Advertisement_Provider != 0 {
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Provider}
@@ -471,8 +461,8 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (datamodel.NodeAsse
 		ma.s += fieldBit__Advertisement_Signature
 		ma.state = maState_midValue
 		ma.f = 4
-		ma.ca_Signature.w = &ma.w.Signature.v
-		ma.ca_Signature.m = &ma.w.Signature.m
+		ma.ca_Signature.w = &ma.w.Signature
+		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature, nil
 	case "GraphSupport":
 		if ma.s&fieldBit__Advertisement_GraphSupport != 0 {
@@ -529,16 +519,16 @@ func (ma *_Advertisement__Assembler) AssembleValue() datamodel.NodeAssembler {
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID
 	case 2:
-		ma.ca_Previous.w = &ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-		return &ma.ca_Previous
+		ma.ca_PreviousID.w = &ma.w.PreviousID
+		ma.ca_PreviousID.m = &ma.cm
+		return &ma.ca_PreviousID
 	case 3:
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider
 	case 4:
-		ma.ca_Signature.w = &ma.w.Signature.v
-		ma.ca_Signature.m = &ma.w.Signature.m
+		ma.ca_Signature.w = &ma.w.Signature
+		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature
 	case 5:
 		ma.ca_GraphSupport.w = &ma.w.GraphSupport
@@ -571,8 +561,14 @@ func (ma *_Advertisement__Assembler) Finish() error {
 		if ma.s&fieldBit__Advertisement_IndexID == 0 {
 			err.Missing = append(err.Missing, "IndexID")
 		}
+		if ma.s&fieldBit__Advertisement_PreviousID == 0 {
+			err.Missing = append(err.Missing, "PreviousID")
+		}
 		if ma.s&fieldBit__Advertisement_Provider == 0 {
 			err.Missing = append(err.Missing, "Provider")
+		}
+		if ma.s&fieldBit__Advertisement_Signature == 0 {
+			err.Missing = append(err.Missing, "Signature")
 		}
 		if ma.s&fieldBit__Advertisement_GraphSupport == 0 {
 			err.Missing = append(err.Missing, "GraphSupport")
@@ -631,11 +627,11 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		ka.state = maState_expectValue
 		ka.f = 1
 		return nil
-	case "Previous":
-		if ka.s&fieldBit__Advertisement_Previous != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Previous}
+	case "PreviousID":
+		if ka.s&fieldBit__Advertisement_PreviousID != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID}
 		}
-		ka.s += fieldBit__Advertisement_Previous
+		ka.s += fieldBit__Advertisement_PreviousID
 		ka.state = maState_expectValue
 		ka.f = 2
 		return nil
@@ -695,7 +691,7 @@ type _Advertisement__Repr _Advertisement
 var (
 	fieldName__Advertisement_ID_serial           = _String{"ID"}
 	fieldName__Advertisement_IndexID_serial      = _String{"IndexID"}
-	fieldName__Advertisement_Previous_serial     = _String{"Previous"}
+	fieldName__Advertisement_PreviousID_serial   = _String{"PreviousID"}
 	fieldName__Advertisement_Provider_serial     = _String{"Provider"}
 	fieldName__Advertisement_Signature_serial    = _String{"Signature"}
 	fieldName__Advertisement_GraphSupport_serial = _String{"GraphSupport"}
@@ -711,18 +707,12 @@ func (n *_Advertisement__Repr) LookupByString(key string) (datamodel.Node, error
 		return n.ID.Representation(), nil
 	case "IndexID":
 		return n.IndexID.Representation(), nil
-	case "Previous":
-		if n.Previous.m == schema.Maybe_Absent {
-			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
-		}
-		return n.Previous.v.Representation(), nil
+	case "PreviousID":
+		return n.PreviousID.Representation(), nil
 	case "Provider":
 		return n.Provider.Representation(), nil
 	case "Signature":
-		if n.Signature.m == schema.Maybe_Absent {
-			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
-		}
-		return n.Signature.v.Representation(), nil
+		return n.Signature.Representation(), nil
 	case "GraphSupport":
 		return n.GraphSupport.Representation(), nil
 	default:
@@ -752,7 +742,6 @@ type _Advertisement__ReprMapItr struct {
 }
 
 func (itr *_Advertisement__ReprMapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
-advance:
 	if itr.idx >= 6 {
 		return nil, nil, datamodel.ErrIteratorOverread{}
 	}
@@ -764,22 +753,14 @@ advance:
 		k = &fieldName__Advertisement_IndexID_serial
 		v = itr.n.IndexID.Representation()
 	case 2:
-		k = &fieldName__Advertisement_Previous_serial
-		if itr.n.Previous.m == schema.Maybe_Absent {
-			itr.idx++
-			goto advance
-		}
-		v = itr.n.Previous.v.Representation()
+		k = &fieldName__Advertisement_PreviousID_serial
+		v = itr.n.PreviousID.Representation()
 	case 3:
 		k = &fieldName__Advertisement_Provider_serial
 		v = itr.n.Provider.Representation()
 	case 4:
 		k = &fieldName__Advertisement_Signature_serial
-		if itr.n.Signature.m == schema.Maybe_Absent {
-			itr.idx++
-			goto advance
-		}
-		v = itr.n.Signature.v.Representation()
+		v = itr.n.Signature.Representation()
 	case 5:
 		k = &fieldName__Advertisement_GraphSupport_serial
 		v = itr.n.GraphSupport.Representation()
@@ -797,12 +778,6 @@ func (_Advertisement__Repr) ListIterator() datamodel.ListIterator {
 }
 func (rn *_Advertisement__Repr) Length() int64 {
 	l := 6
-	if rn.Previous.m == schema.Maybe_Absent {
-		l--
-	}
-	if rn.Signature.m == schema.Maybe_Absent {
-		l--
-	}
 	return int64(l)
 }
 func (_Advertisement__Repr) IsAbsent() bool {
@@ -867,7 +842,7 @@ type _Advertisement__ReprAssembler struct {
 	cm              schema.Maybe
 	ca_ID           _Bytes__ReprAssembler
 	ca_IndexID      _Link_Index__ReprAssembler
-	ca_Previous     _Link_Advertisement__ReprAssembler
+	ca_PreviousID   _Bytes__ReprAssembler
 	ca_Provider     _String__ReprAssembler
 	ca_Signature    _Bytes__ReprAssembler
 	ca_GraphSupport _Bool__ReprAssembler
@@ -878,7 +853,7 @@ func (na *_Advertisement__ReprAssembler) reset() {
 	na.s = 0
 	na.ca_ID.reset()
 	na.ca_IndexID.reset()
-	na.ca_Previous.reset()
+	na.ca_PreviousID.reset()
 	na.ca_Provider.reset()
 	na.ca_Signature.reset()
 	na.ca_GraphSupport.reset()
@@ -993,8 +968,9 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 			return false
 		}
 	case 2:
-		switch ma.w.Previous.m {
+		switch ma.cm {
 		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -1010,8 +986,9 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 			return false
 		}
 	case 4:
-		switch ma.w.Signature.m {
+		switch ma.cm {
 		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -1066,17 +1043,16 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (datamodel.Node
 		ma.ca_IndexID.w = &ma.w.IndexID
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID, nil
-	case "Previous":
-		if ma.s&fieldBit__Advertisement_Previous != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Previous_serial}
+	case "PreviousID":
+		if ma.s&fieldBit__Advertisement_PreviousID != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID_serial}
 		}
-		ma.s += fieldBit__Advertisement_Previous
+		ma.s += fieldBit__Advertisement_PreviousID
 		ma.state = maState_midValue
 		ma.f = 2
-		ma.ca_Previous.w = &ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-
-		return &ma.ca_Previous, nil
+		ma.ca_PreviousID.w = &ma.w.PreviousID
+		ma.ca_PreviousID.m = &ma.cm
+		return &ma.ca_PreviousID, nil
 	case "Provider":
 		if ma.s&fieldBit__Advertisement_Provider != 0 {
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Provider_serial}
@@ -1094,9 +1070,8 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (datamodel.Node
 		ma.s += fieldBit__Advertisement_Signature
 		ma.state = maState_midValue
 		ma.f = 4
-		ma.ca_Signature.w = &ma.w.Signature.v
-		ma.ca_Signature.m = &ma.w.Signature.m
-
+		ma.ca_Signature.w = &ma.w.Signature
+		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature, nil
 	case "GraphSupport":
 		if ma.s&fieldBit__Advertisement_GraphSupport != 0 {
@@ -1154,18 +1129,16 @@ func (ma *_Advertisement__ReprAssembler) AssembleValue() datamodel.NodeAssembler
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID
 	case 2:
-		ma.ca_Previous.w = &ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-
-		return &ma.ca_Previous
+		ma.ca_PreviousID.w = &ma.w.PreviousID
+		ma.ca_PreviousID.m = &ma.cm
+		return &ma.ca_PreviousID
 	case 3:
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider
 	case 4:
-		ma.ca_Signature.w = &ma.w.Signature.v
-		ma.ca_Signature.m = &ma.w.Signature.m
-
+		ma.ca_Signature.w = &ma.w.Signature
+		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature
 	case 5:
 		ma.ca_GraphSupport.w = &ma.w.GraphSupport
@@ -1198,8 +1171,14 @@ func (ma *_Advertisement__ReprAssembler) Finish() error {
 		if ma.s&fieldBit__Advertisement_IndexID == 0 {
 			err.Missing = append(err.Missing, "IndexID")
 		}
+		if ma.s&fieldBit__Advertisement_PreviousID == 0 {
+			err.Missing = append(err.Missing, "PreviousID")
+		}
 		if ma.s&fieldBit__Advertisement_Provider == 0 {
 			err.Missing = append(err.Missing, "Provider")
+		}
+		if ma.s&fieldBit__Advertisement_Signature == 0 {
+			err.Missing = append(err.Missing, "Signature")
 		}
 		if ma.s&fieldBit__Advertisement_GraphSupport == 0 {
 			err.Missing = append(err.Missing, "GraphSupport")
@@ -1258,11 +1237,11 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		ka.state = maState_expectValue
 		ka.f = 1
 		return nil
-	case "Previous":
-		if ka.s&fieldBit__Advertisement_Previous != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Previous_serial}
+	case "PreviousID":
+		if ka.s&fieldBit__Advertisement_PreviousID != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID_serial}
 		}
-		ka.s += fieldBit__Advertisement_Previous
+		ka.s += fieldBit__Advertisement_PreviousID
 		ka.state = maState_expectValue
 		ka.f = 2
 		return nil
@@ -4242,7 +4221,7 @@ var _ datamodel.Node = &_Float__Repr{}
 type _Float__ReprPrototype = _Float__Prototype
 type _Float__ReprAssembler = _Float__Assembler
 
-func (n _Index) FieldPrevious() Link_Index {
+func (n _Index) FieldPrevious() MaybeLink_Index {
 	return &n.Previous
 }
 func (n _Index) FieldEntries() List_Entry {
@@ -4296,7 +4275,10 @@ func (Index) Kind() datamodel.Kind {
 func (n Index) LookupByString(key string) (datamodel.Node, error) {
 	switch key {
 	case "Previous":
-		return &n.Previous, nil
+		if n.Previous.m == schema.Maybe_Absent {
+			return datamodel.Absent, nil
+		}
+		return &n.Previous.v, nil
 	case "Entries":
 		return &n.Entries, nil
 	default:
@@ -4332,7 +4314,11 @@ func (itr *_Index__MapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) 
 	switch itr.idx {
 	case 0:
 		k = &fieldName__Index_Previous
-		v = &itr.n.Previous
+		if itr.n.Previous.m == schema.Maybe_Absent {
+			v = datamodel.Absent
+			break
+		}
+		v = &itr.n.Previous.v
 	case 1:
 		k = &fieldName__Index_Entries
 		v = &itr.n.Entries
@@ -4426,7 +4412,7 @@ func (na *_Index__Assembler) reset() {
 var (
 	fieldBit__Index_Previous    = 1 << 0
 	fieldBit__Index_Entries     = 1 << 1
-	fieldBits__Index_sufficient = 0 + 1<<0 + 1<<1
+	fieldBits__Index_sufficient = 0 + 1<<1
 )
 
 func (na *_Index__Assembler) BeginMap(int64) (datamodel.MapAssembler, error) {
@@ -4521,10 +4507,8 @@ func (_Index__Assembler) Prototype() datamodel.NodePrototype {
 func (ma *_Index__Assembler) valueFinishTidy() bool {
 	switch ma.f {
 	case 0:
-		switch ma.cm {
+		switch ma.w.Previous.m {
 		case schema.Maybe_Value:
-			ma.ca_Previous.w = nil
-			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -4567,8 +4551,8 @@ func (ma *_Index__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, e
 		ma.s += fieldBit__Index_Previous
 		ma.state = maState_midValue
 		ma.f = 0
-		ma.ca_Previous.w = &ma.w.Previous
-		ma.ca_Previous.m = &ma.cm
+		ma.ca_Previous.w = &ma.w.Previous.v
+		ma.ca_Previous.m = &ma.w.Previous.m
 		return &ma.ca_Previous, nil
 	case "Entries":
 		if ma.s&fieldBit__Index_Entries != 0 {
@@ -4617,8 +4601,8 @@ func (ma *_Index__Assembler) AssembleValue() datamodel.NodeAssembler {
 	ma.state = maState_midValue
 	switch ma.f {
 	case 0:
-		ma.ca_Previous.w = &ma.w.Previous
-		ma.ca_Previous.m = &ma.cm
+		ma.ca_Previous.w = &ma.w.Previous.v
+		ma.ca_Previous.m = &ma.w.Previous.m
 		return &ma.ca_Previous
 	case 1:
 		ma.ca_Entries.w = &ma.w.Entries
@@ -4645,9 +4629,6 @@ func (ma *_Index__Assembler) Finish() error {
 	}
 	if ma.s&fieldBits__Index_sufficient != fieldBits__Index_sufficient {
 		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Index_Previous == 0 {
-			err.Missing = append(err.Missing, "Previous")
-		}
 		if ma.s&fieldBit__Index_Entries == 0 {
 			err.Missing = append(err.Missing, "Entries")
 		}
@@ -4746,7 +4727,10 @@ func (_Index__Repr) Kind() datamodel.Kind {
 func (n *_Index__Repr) LookupByString(key string) (datamodel.Node, error) {
 	switch key {
 	case "Previous":
-		return n.Previous.Representation(), nil
+		if n.Previous.m == schema.Maybe_Absent {
+			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
+		}
+		return n.Previous.v.Representation(), nil
 	case "Entries":
 		return n.Entries.Representation(), nil
 	default:
@@ -4776,13 +4760,18 @@ type _Index__ReprMapItr struct {
 }
 
 func (itr *_Index__ReprMapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
+advance:
 	if itr.idx >= 2 {
 		return nil, nil, datamodel.ErrIteratorOverread{}
 	}
 	switch itr.idx {
 	case 0:
 		k = &fieldName__Index_Previous_serial
-		v = itr.n.Previous.Representation()
+		if itr.n.Previous.m == schema.Maybe_Absent {
+			itr.idx++
+			goto advance
+		}
+		v = itr.n.Previous.v.Representation()
 	case 1:
 		k = &fieldName__Index_Entries_serial
 		v = itr.n.Entries.Representation()
@@ -4800,6 +4789,9 @@ func (_Index__Repr) ListIterator() datamodel.ListIterator {
 }
 func (rn *_Index__Repr) Length() int64 {
 	l := 2
+	if rn.Previous.m == schema.Maybe_Absent {
+		l--
+	}
 	return int64(l)
 }
 func (_Index__Repr) IsAbsent() bool {
@@ -4964,9 +4956,8 @@ func (_Index__ReprAssembler) Prototype() datamodel.NodePrototype {
 func (ma *_Index__ReprAssembler) valueFinishTidy() bool {
 	switch ma.f {
 	case 0:
-		switch ma.cm {
+		switch ma.w.Previous.m {
 		case schema.Maybe_Value:
-			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -5008,8 +4999,9 @@ func (ma *_Index__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssemble
 		ma.s += fieldBit__Index_Previous
 		ma.state = maState_midValue
 		ma.f = 0
-		ma.ca_Previous.w = &ma.w.Previous
-		ma.ca_Previous.m = &ma.cm
+		ma.ca_Previous.w = &ma.w.Previous.v
+		ma.ca_Previous.m = &ma.w.Previous.m
+
 		return &ma.ca_Previous, nil
 	case "Entries":
 		if ma.s&fieldBit__Index_Entries != 0 {
@@ -5059,8 +5051,9 @@ func (ma *_Index__ReprAssembler) AssembleValue() datamodel.NodeAssembler {
 	ma.state = maState_midValue
 	switch ma.f {
 	case 0:
-		ma.ca_Previous.w = &ma.w.Previous
-		ma.ca_Previous.m = &ma.cm
+		ma.ca_Previous.w = &ma.w.Previous.v
+		ma.ca_Previous.m = &ma.w.Previous.m
+
 		return &ma.ca_Previous
 	case 1:
 		ma.ca_Entries.w = &ma.w.Entries
@@ -5087,9 +5080,6 @@ func (ma *_Index__ReprAssembler) Finish() error {
 	}
 	if ma.s&fieldBits__Index_sufficient != fieldBits__Index_sufficient {
 		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Index_Previous == 0 {
-			err.Missing = append(err.Missing, "Previous")
-		}
 		if ma.s&fieldBit__Index_Entries == 0 {
 			err.Missing = append(err.Missing, "Entries")
 		}
