@@ -42,7 +42,7 @@ var ImportCmd = &cli.Command{
 func importListCmd(cctx *cli.Context) error {
 	// NOTE: Importing manually from CLI only supported for http protocol
 	// for now. This feature is mainly for testing purposes
-	cl, err := httpclient.NewFinder(cctx.String("admin_ep"))
+	cl, err := httpclient.NewFinder(cctx.String("indexer-host"))
 	if err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func importCarCmd(c *cli.Context) error {
 }
 
 func importManifestCmd(cctx *cli.Context) error {
-	cl, err := httpclient.NewFinder(cctx.String("admin_ep"))
+	cl, err := httpclient.NewFinder(cctx.String("indexer-host"))
 	if err != nil {
 		return err
 	}

@@ -44,7 +44,7 @@ func getCidCmd(cctx *cli.Context) error {
 
 	switch protocol {
 	case "http":
-		cl, err = httpclient.NewFinder(cctx.String("finder-host"))
+		cl, err = httpclient.NewFinder(cctx.String("indexer-host"))
 		if err != nil {
 			return err
 		}
@@ -59,7 +59,7 @@ func getCidCmd(cctx *cli.Context) error {
 			return err
 		}
 
-		peerID, err := peer.Decode(cctx.String("finder-host"))
+		peerID, err := peer.Decode(cctx.String("indexer-host"))
 		if err != nil {
 			return err
 		}

@@ -6,7 +6,7 @@ import (
 )
 
 var IndexerHostFlag = altsrc.NewStringFlag(&cli.StringFlag{
-	Name:     "indexer",
+	Name:     "indexer-host",
 	Usage:    "Host or host:port of indexer to use",
 	Aliases:  []string{"i"},
 	EnvVars:  []string{"INDEXER_HOST"},
