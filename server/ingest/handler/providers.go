@@ -91,14 +91,14 @@ func (h *Handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 	err = discoReq.VerifySignature()
 	if err != nil {
 		log.Errorw("signature not verified", "err", err, "provider", discoReq.ProviderID, "discover_addr", discoReq.DiscoveryAddr)
-		w.WriteHeader(http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	err = h.registry.Discover(discoReq.ProviderID, discoReq.DiscoveryAddr, discoReq.Nonce, discoReq.Signature, false)
 	if err != nil {
 		log.Errorw("cannot process discovery request", "err", err)
-		w.WriteHeader(http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -125,7 +125,7 @@ func (h *Handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
 	err = regReq.VerifySignature()
 	if err != nil {
 		log.Errorw("signature not verified", "err", err, "provider", regReq.AddrInfo.ID)
-		w.WriteHeader(http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -135,11 +135,10 @@ func (h *Handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
 	err = h.registry.Register(info)
 	if err != nil {
 		log.Errorw("cannot process registration request", "err", err)
-		w.WriteHeader(http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	log.Debugw("registered provider", "provider", regReq.AddrInfo.ID)
 	w.WriteHeader(http.StatusOK)
 }
 

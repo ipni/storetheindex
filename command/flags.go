@@ -1,33 +1,22 @@
 package command
 
 import (
-	_ "github.com/lib/pq"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 )
 
-var FinderAddrFlag = altsrc.NewStringFlag(&cli.StringFlag{
-	Name:     "finderaddr",
-	Usage:    "Finder HTTP API address",
-	Aliases:  []string{"fep"},
-	EnvVars:  []string{"FINDER_ADDRESS"},
+var IndexerHostFlag = altsrc.NewStringFlag(&cli.StringFlag{
+	Name:     "indexer-host",
+	Usage:    "Host or host:port of indexer to use",
+	Aliases:  []string{"i"},
+	EnvVars:  []string{"INDEXER_HOST"},
 	Required: false,
-	Value:    "127.0.0.0:3000",
-})
-
-var AdminAddrFlag = altsrc.NewStringFlag(&cli.StringFlag{
-	Name:     "adminaddr",
-	Usage:    "Admin HTTP API address",
-	Aliases:  []string{"aep"},
-	EnvVars:  []string{"ADMIN_ARRDESS"},
-	Required: false,
-	Value:    "127.0.0.0:3001",
+	Value:    "localhost",
 })
 
 var CacheSizeFlag = &cli.Int64Flag{
 	Name:     "cachesize",
 	Usage:    "Maximum number of CIDs that cache can hold, 0 to disable cache",
-	Aliases:  []string{"c"},
 	Required: false,
 	Value:    -1,
 }
@@ -51,11 +40,10 @@ var DaemonFlags = []cli.Flag{
 }
 
 var ClientCmdFlags = []cli.Flag{
-	FinderAddrFlag,
+	IndexerHostFlag,
 	&cli.StringFlag{
 		Name:     "protocol",
 		Usage:    "Protocol to query the indexer (http, libp2p currently supported)",
-		Aliases:  []string{"proto"},
 		Value:    "http",
 		Required: false,
 	},
@@ -75,7 +63,7 @@ var ImportFlags = []cli.Flag{
 		Required: false,
 	},
 	DirFlag,
-	AdminAddrFlag,
+	IndexerHostFlag,
 }
 
 var InitFlags = []cli.Flag{
@@ -110,6 +98,21 @@ var InitFlags = []cli.Flag{
 		Usage:    "Address for a lotus gateway to collect chain information",
 		EnvVars:  []string{"STORETHEINDEX_LOTUS_GATEWAY"},
 		Required: false,
+	},
+}
+
+var RegisterFlags = []cli.Flag{
+	&cli.StringFlag{
+		Name:     "config",
+		Usage:    "Config file containing provider's peer ID and private key",
+		Required: true,
+	},
+	IndexerHostFlag,
+	&cli.StringSliceFlag{
+		Name:     "provider-addr",
+		Usage:    "Provider address as multiaddr string, example: \"/ip4/127.0.0.1/tcp/3333\"",
+		Aliases:  []string{"pa"},
+		Required: true,
 	},
 }
 

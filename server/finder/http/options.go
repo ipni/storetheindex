@@ -29,6 +29,11 @@ var serverDefaults = func(o *serverConfig) error {
 
 // apply applies the given options to this Option
 func (c *serverConfig) apply(opts ...ServerOption) error {
+	err := serverDefaults(c)
+	if err != nil {
+		// Failure of default option should panic
+		panic("default option failed: " + err.Error())
+	}
 	for i, opt := range opts {
 		if err := opt(c); err != nil {
 			return fmt.Errorf("httpserver option %d failed: %s", i, err)

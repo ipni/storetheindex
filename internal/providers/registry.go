@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	providersKeyPath = "/providers"
+	providerKeyPath = "/registry/pinfo"
 )
 
 var log = logging.Logger("providers")
@@ -58,6 +58,10 @@ type ProviderInfo struct {
 	LastIndexTime time.Time
 }
 
+func (p *ProviderInfo) dsKey() datastore.Key {
+	return datastore.NewKey(path.Join(providerKeyPath, p.AddrInfo.ID.String()))
+}
+
 // NewRegistry creates a new provider registry, giving it provider policy
 // configuration, a datastore to persist provider data, and a Discovery
 // interface.
@@ -86,10 +90,11 @@ func NewRegistry(cfg config.Discovery, dstore datastore.Datastore, disco discove
 		dstore: dstore,
 	}
 
-	err = r.loadPersistedProviders()
+	count, err := r.loadPersistedProviders()
 	if err != nil {
 		return nil, err
 	}
+	log.Infow("loaded providers into registry", "count", count)
 
 	go r.run()
 	return r, nil
@@ -161,7 +166,13 @@ func (r *Registry) Register(info *ProviderInfo) error {
 		r.syncRegister(info, errCh)
 	}
 
-	return <-errCh
+	err := <-errCh
+	if err != nil {
+		return err
+	}
+
+	log.Infow("registered provider", "id", info.AddrInfo.ID)
+	return nil
 }
 
 // IsRegistered checks if the provider is in the registry
@@ -297,47 +308,53 @@ func (r *Registry) syncPersistProvider(info *ProviderInfo) error {
 		return err
 	}
 
-	idStr := info.AddrInfo.ID.String()
-	dsKey := datastore.NewKey(path.Join(providersKeyPath, idStr))
-
-	return r.dstore.Put(dsKey, value)
+	dsKey := info.dsKey()
+	if err = r.dstore.Put(dsKey, value); err != nil {
+		return err
+	}
+	if err = r.dstore.Sync(dsKey); err != nil {
+		return fmt.Errorf("cannot sync provider info: %s", err)
+	}
+	return nil
 }
 
-func (r *Registry) loadPersistedProviders() error {
+func (r *Registry) loadPersistedProviders() (int, error) {
 	if r.dstore == nil {
-		return nil
+		return 0, nil
 	}
 
 	// Load all providers from the datastore.
 	q := query.Query{
-		Prefix: providersKeyPath,
+		Prefix: providerKeyPath,
 	}
 	results, err := r.dstore.Query(q)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer results.Close()
 
+	var count int
 	for result := range results.Next() {
 		if result.Error != nil {
-			return fmt.Errorf("cannot read provider data: %v", result.Error)
+			return 0, fmt.Errorf("cannot read provider data: %v", result.Error)
 		}
 		ent := result.Entry
 
 		peerID, err := peer.Decode(path.Base(ent.Key))
 		if err != nil {
-			return fmt.Errorf("cannot decode provider ID: %s", err)
+			return 0, fmt.Errorf("cannot decode provider ID: %s", err)
 		}
 
 		pinfo := new(ProviderInfo)
 		err = json.Unmarshal(ent.Value, pinfo)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		r.providers[peerID] = pinfo
+		count++
 	}
-	return nil
+	return count, nil
 }
 
 func (r *Registry) discover(peerID peer.ID, discoAddr string, signature, signed []byte) (*discovery.Discovered, error) {

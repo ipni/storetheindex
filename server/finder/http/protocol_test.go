@@ -4,16 +4,16 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/client/http"
-	"github.com/filecoin-project/storetheindex/internal/finder"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	httpserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	"github.com/filecoin-project/storetheindex/server/finder/test"
 )
 
-func setupServer(ctx context.Context, ind indexer.Interface, reg *providers.Registry, t *testing.T) *httpserver.Server {
+func setupServer(ind indexer.Interface, reg *providers.Registry, t *testing.T) *httpserver.Server {
 	s, err := httpserver.New("127.0.0.1:0", ind, reg)
 	if err != nil {
 		t.Fatal(err)
@@ -21,8 +21,8 @@ func setupServer(ctx context.Context, ind indexer.Interface, reg *providers.Regi
 	return s
 }
 
-func setupClient(ctx context.Context, t *testing.T) finder.Interface {
-	c, err := httpclient.New()
+func setupClient(host string, t *testing.T) *httpclient.Finder {
+	c, err := httpclient.NewFinder(host)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,14 +30,12 @@ func setupClient(ctx context.Context, t *testing.T) finder.Interface {
 }
 
 func TestGetCidData(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t)
-	c := setupClient(ctx, t)
-	s := setupServer(ctx, ind, reg, t)
+	s := setupServer(ind, reg, t)
+	c := setupClient(s.URL(), t)
+
 	// Start server
 	errChan := make(chan error, 1)
 	go func() {
@@ -48,7 +46,11 @@ func TestGetCidData(t *testing.T) {
 		close(errChan)
 	}()
 
-	test.GetCidDataTest(ctx, t, c, s, ind, reg)
+	// Test must complete in 5 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	test.GetCidDataTest(ctx, t, c, ind, reg)
 
 	err := s.Shutdown(ctx)
 	if err != nil {
