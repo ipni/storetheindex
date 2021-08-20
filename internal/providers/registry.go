@@ -20,8 +20,7 @@ import (
 )
 
 const (
-	registryBasePath = "/registry"
-	providerKeyPath  = "/registry/pinfo"
+	providerKeyPath = "/registry/pinfo"
 )
 
 var log = logging.Logger("providers")

@@ -16,7 +16,7 @@ var log = logging.Logger("httpclient")
 
 // newClient creates a base URL and a new http.Client
 func newClient(baseURL, resource string, defaultPort int, options ...ClientOption) (*url.URL, *http.Client, error) {
-	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "http://") {
+	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		baseURL = "http://" + baseURL
 	}
 
