@@ -11,6 +11,7 @@ import (
 	"github.com/ipfs/go-datastore"
 	ipld "github.com/ipld/go-ipld-prime"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/test"
 
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
@@ -41,7 +42,7 @@ func genIndexAndAdv(t *testing.T, lsys ipld.LinkSystem,
 	priv crypto.PrivKey, cids []cid.Cid,
 	rmcids []cid.Cid) (Index, Link_Index, Advertisement, Link_Advertisement) {
 
-	p, _ := utils.TestPeerID()
+	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	val := indexer.MakeValue(p, 0, cids[0].Bytes())
 	index, indexLnk, err := NewSingleEntryIndex(lsys, cids, nil, val.Metadata, nil)
 	if err != nil {
@@ -61,7 +62,7 @@ func TestChainAdvertisements(t *testing.T) {
 	}
 	dstore := datastore.NewMapDatastore()
 	lsys := mkLinkSystem(dstore)
-	p, _ := utils.TestPeerID()
+	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	cids, _ := utils.RandomCids(10)
 	val := indexer.MakeValue(p, 0, cids[0].Bytes())
 	// Genesis index
