@@ -41,6 +41,13 @@ func (l Link_Advertisement) ToCid() cid.Cid {
 	return l.x.(cidlink.Link).Cid
 }
 
+// LinkContext returns a linkContext for the type of link
+func (l Advertisement) LinkContext(ctx context.Context) ipld.LinkContext {
+	return ipld.LinkContext{
+		Ctx: context.WithValue(ctx, IsIndexKey, LinkContextValue(false)),
+	}
+}
+
 // LinkIndexFromCid creates a link index from a CID
 func LinkIndexFromCid(c cid.Cid) Link_Index {
 	return &_Link_Index{x: cidlink.Link{Cid: c}}
@@ -49,6 +56,13 @@ func LinkIndexFromCid(c cid.Cid) Link_Index {
 // ToCid converts a link to CID
 func (l Link_Index) ToCid() cid.Cid {
 	return l.x.(cidlink.Link).Cid
+}
+
+// LinkContext returns a linkContext for the type of link
+func (l Index) LinkContext(ctx context.Context) ipld.LinkContext {
+	return ipld.LinkContext{
+		Ctx: context.WithValue(ctx, IsIndexKey, LinkContextValue(true)),
+	}
 }
 
 // LinkContextKey used to propagate link info through the linkSystem context
@@ -79,9 +93,7 @@ func newIndex(lsys ipld.LinkSystem, lentries _List_Entry, previousIndex Link_Ind
 		}
 	}
 
-	lnk, err := lsys.Store(ipld.LinkContext{
-		Ctx: context.WithValue(context.Background(), IsIndexKey, LinkContextValue(true))},
-		linkproto, &index)
+	lnk, err := lsys.Store((&index).LinkContext(context.Background()), linkproto, &index)
 	if err != nil {
 
 		return nil, nil, err
@@ -156,9 +168,7 @@ func NewAdvertisementWithLink(
 // AdvertisementLink generates a new link from an advertisemenet using a specific
 // linkSystem
 func AdvertisementLink(lsys ipld.LinkSystem, adv Advertisement) (Link_Advertisement, error) {
-	lnk, err := lsys.Store(ipld.LinkContext{
-		Ctx: context.WithValue(context.Background(), IsIndexKey, LinkContextValue(false))},
-		linkproto, adv)
+	lnk, err := lsys.Store(adv.LinkContext(context.Background()), linkproto, adv)
 	if err != nil {
 		return nil, err
 	}
