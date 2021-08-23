@@ -6,7 +6,6 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p-core/peer"
 	mh "github.com/multiformats/go-multihash"
 )
 
@@ -64,8 +63,4 @@ func HasValue(values []indexer.Value, v indexer.Value) bool {
 		}
 	}
 	return false
-}
-
-func TestPeerID() (peer.ID, error) {
-	return peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 }
