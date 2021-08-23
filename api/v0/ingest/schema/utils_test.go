@@ -74,7 +74,7 @@ func TestChainAdvertisements(t *testing.T) {
 		t.Error("previous should be nil, it's the genesis", index.Previous.v)
 	}
 	// Genesis advertisement
-	adv, _, err := NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String(), true)
+	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String(), true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,13 +89,14 @@ func TestChainAdvertisements(t *testing.T) {
 	if index2.FieldPrevious().v.x != indexLnk.x {
 		t.Error("index2 should be pointing to genesis", index2.FieldPrevious().v.x, indexLnk.x)
 	}
-	// Genesis advertisement
-	adv2, _, err := NewAdvertisementWithLink(lsys, priv, adv.FieldID().x, indexLnk2, p.String(), true)
+	adv2Cid := advLnk.ToCid().Bytes()
+	// Second advertisement
+	adv2, _, err := NewAdvertisementWithLink(lsys, priv, adv2Cid, indexLnk2, p.String(), true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(adv2.FieldPreviousID().x, adv.FieldID().x) {
-		t.Error("adv2 should be pointing to genesis", adv2.FieldPreviousID().x, adv.FieldID().x)
+	if !bytes.Equal(adv2.FieldPreviousID().x, adv2Cid) {
+		t.Error("adv2 should be pointing to genesis", adv2.FieldPreviousID().x, adv2Cid)
 	}
 }
 

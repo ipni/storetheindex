@@ -36,9 +36,19 @@ func LinkAdvFromCid(c cid.Cid) Link_Advertisement {
 	return &_Link_Advertisement{x: cidlink.Link{Cid: c}}
 }
 
-// LinkIndexFromCid creates a link omdex from a CID
+// ToCid converts a link to CID
+func (l Link_Advertisement) ToCid() cid.Cid {
+	return l.x.(cidlink.Link).Cid
+}
+
+// LinkIndexFromCid creates a link index from a CID
 func LinkIndexFromCid(c cid.Cid) Link_Index {
 	return &_Link_Index{x: cidlink.Link{Cid: c}}
+}
+
+// ToCid converts a link to CID
+func (l Link_Index) ToCid() cid.Cid {
+	return l.x.(cidlink.Link).Cid
 }
 
 // LinkContextKey used to propagate link info through the linkSystem context
@@ -164,21 +174,21 @@ func newAdvertisement(
 	indexID Link_Index,
 	provider string, graphSupport bool) (Advertisement, error) {
 
-	advID, err := genAdvertisementID(indexID, provider, previousAdvID)
-	if err != nil {
-		return nil, err
+	ad := &_Advertisement{
+		IndexID:      *indexID,
+		PreviousID:   _Bytes{x: previousAdvID},
+		Provider:     _String{x: provider},
+		GraphSupport: _Bool{x: graphSupport},
 	}
-	sig, err := signAdvertisement(signKey, advID)
+
+	// Sign advertisement
+	sig, err := signAdvertisement(signKey, ad)
 	if err != nil {
 		return nil, err
 	}
 
-	return &_Advertisement{
-		ID:           _Bytes{x: advID},
-		IndexID:      *indexID,
-		Signature:    _Bytes{x: sig},
-		PreviousID:   _Bytes{x: previousAdvID},
-		Provider:     _String{x: provider},
-		GraphSupport: _Bool{x: graphSupport},
-	}, nil
+	// Add signature
+	ad.Signature = _Bytes{x: sig}
+
+	return ad, nil
 }

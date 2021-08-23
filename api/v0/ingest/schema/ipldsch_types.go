@@ -59,7 +59,6 @@ type typeSlab struct {
 // Advertisement matches the IPLD Schema type "Advertisement".  It has Struct type-kind, and may be interrogated like map kind.
 type Advertisement = *_Advertisement
 type _Advertisement struct {
-	ID           _Bytes
 	IndexID      _Link_Index
 	PreviousID   _Bytes
 	Provider     _String

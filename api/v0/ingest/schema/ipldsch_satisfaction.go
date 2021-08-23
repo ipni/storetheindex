@@ -8,9 +8,6 @@ import (
 	"github.com/ipld/go-ipld-prime/schema"
 )
 
-func (n _Advertisement) FieldID() Bytes {
-	return &n.ID
-}
 func (n _Advertisement) FieldIndexID() Link_Index {
 	return &n.IndexID
 }
@@ -62,7 +59,6 @@ func (m MaybeAdvertisement) Must() Advertisement {
 }
 
 var (
-	fieldName__Advertisement_ID           = _String{"ID"}
 	fieldName__Advertisement_IndexID      = _String{"IndexID"}
 	fieldName__Advertisement_PreviousID   = _String{"PreviousID"}
 	fieldName__Advertisement_Provider     = _String{"Provider"}
@@ -77,8 +73,6 @@ func (Advertisement) Kind() ipld.Kind {
 }
 func (n Advertisement) LookupByString(key string) (ipld.Node, error) {
 	switch key {
-	case "ID":
-		return &n.ID, nil
 	case "IndexID":
 		return &n.IndexID, nil
 	case "PreviousID":
@@ -116,26 +110,23 @@ type _Advertisement__MapItr struct {
 }
 
 func (itr *_Advertisement__MapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
-	if itr.idx >= 6 {
+	if itr.idx >= 5 {
 		return nil, nil, ipld.ErrIteratorOverread{}
 	}
 	switch itr.idx {
 	case 0:
-		k = &fieldName__Advertisement_ID
-		v = &itr.n.ID
-	case 1:
 		k = &fieldName__Advertisement_IndexID
 		v = &itr.n.IndexID
-	case 2:
+	case 1:
 		k = &fieldName__Advertisement_PreviousID
 		v = &itr.n.PreviousID
-	case 3:
+	case 2:
 		k = &fieldName__Advertisement_Provider
 		v = &itr.n.Provider
-	case 4:
+	case 3:
 		k = &fieldName__Advertisement_Signature
 		v = &itr.n.Signature
-	case 5:
+	case 4:
 		k = &fieldName__Advertisement_GraphSupport
 		v = &itr.n.GraphSupport
 	default:
@@ -145,14 +136,14 @@ func (itr *_Advertisement__MapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
 	return
 }
 func (itr *_Advertisement__MapItr) Done() bool {
-	return itr.idx >= 6
+	return itr.idx >= 5
 }
 
 func (Advertisement) ListIterator() ipld.ListIterator {
 	return nil
 }
 func (Advertisement) Length() int64 {
-	return 6
+	return 5
 }
 func (Advertisement) IsAbsent() bool {
 	return false
@@ -214,7 +205,6 @@ type _Advertisement__Assembler struct {
 	f     int
 
 	cm              schema.Maybe
-	ca_ID           _Bytes__Assembler
 	ca_IndexID      _Link_Index__Assembler
 	ca_PreviousID   _Bytes__Assembler
 	ca_Provider     _String__Assembler
@@ -225,7 +215,6 @@ type _Advertisement__Assembler struct {
 func (na *_Advertisement__Assembler) reset() {
 	na.state = maState_initial
 	na.s = 0
-	na.ca_ID.reset()
 	na.ca_IndexID.reset()
 	na.ca_PreviousID.reset()
 	na.ca_Provider.reset()
@@ -234,13 +223,12 @@ func (na *_Advertisement__Assembler) reset() {
 }
 
 var (
-	fieldBit__Advertisement_ID           = 1 << 0
-	fieldBit__Advertisement_IndexID      = 1 << 1
-	fieldBit__Advertisement_PreviousID   = 1 << 2
-	fieldBit__Advertisement_Provider     = 1 << 3
-	fieldBit__Advertisement_Signature    = 1 << 4
-	fieldBit__Advertisement_GraphSupport = 1 << 5
-	fieldBits__Advertisement_sufficient  = 0 + 1<<0 + 1<<1 + 1<<2 + 1<<3 + 1<<4 + 1<<5
+	fieldBit__Advertisement_IndexID      = 1 << 0
+	fieldBit__Advertisement_PreviousID   = 1 << 1
+	fieldBit__Advertisement_Provider     = 1 << 2
+	fieldBit__Advertisement_Signature    = 1 << 3
+	fieldBit__Advertisement_GraphSupport = 1 << 4
+	fieldBits__Advertisement_sufficient  = 0 + 1<<0 + 1<<1 + 1<<2 + 1<<3 + 1<<4
 )
 
 func (na *_Advertisement__Assembler) BeginMap(int64) (ipld.MapAssembler, error) {
@@ -337,7 +325,7 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 	case 0:
 		switch ma.cm {
 		case schema.Maybe_Value:
-			ma.ca_ID.w = nil
+			ma.ca_IndexID.w = nil
 			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
@@ -347,7 +335,7 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 	case 1:
 		switch ma.cm {
 		case schema.Maybe_Value:
-			ma.ca_IndexID.w = nil
+			ma.ca_PreviousID.w = nil
 			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
@@ -357,7 +345,7 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 	case 2:
 		switch ma.cm {
 		case schema.Maybe_Value:
-			ma.ca_PreviousID.w = nil
+			ma.ca_Provider.w = nil
 			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
@@ -367,16 +355,6 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 	case 3:
 		switch ma.cm {
 		case schema.Maybe_Value:
-			ma.ca_Provider.w = nil
-			ma.cm = schema.Maybe_Absent
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 4:
-		switch ma.cm {
-		case schema.Maybe_Value:
 			ma.ca_Signature.w = nil
 			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
@@ -384,7 +362,7 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 		default:
 			return false
 		}
-	case 5:
+	case 4:
 		switch ma.cm {
 		case schema.Maybe_Value:
 			ma.ca_GraphSupport.w = nil
@@ -414,23 +392,13 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
 	}
 	switch k {
-	case "ID":
-		if ma.s&fieldBit__Advertisement_ID != 0 {
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ID}
-		}
-		ma.s += fieldBit__Advertisement_ID
-		ma.state = maState_midValue
-		ma.f = 0
-		ma.ca_ID.w = &ma.w.ID
-		ma.ca_ID.m = &ma.cm
-		return &ma.ca_ID, nil
 	case "IndexID":
 		if ma.s&fieldBit__Advertisement_IndexID != 0 {
 			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID}
 		}
 		ma.s += fieldBit__Advertisement_IndexID
 		ma.state = maState_midValue
-		ma.f = 1
+		ma.f = 0
 		ma.ca_IndexID.w = &ma.w.IndexID
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID, nil
@@ -440,7 +408,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		}
 		ma.s += fieldBit__Advertisement_PreviousID
 		ma.state = maState_midValue
-		ma.f = 2
+		ma.f = 1
 		ma.ca_PreviousID.w = &ma.w.PreviousID
 		ma.ca_PreviousID.m = &ma.cm
 		return &ma.ca_PreviousID, nil
@@ -450,7 +418,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		}
 		ma.s += fieldBit__Advertisement_Provider
 		ma.state = maState_midValue
-		ma.f = 3
+		ma.f = 2
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider, nil
@@ -460,7 +428,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		}
 		ma.s += fieldBit__Advertisement_Signature
 		ma.state = maState_midValue
-		ma.f = 4
+		ma.f = 3
 		ma.ca_Signature.w = &ma.w.Signature
 		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature, nil
@@ -470,7 +438,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (ipld.NodeAssembler
 		}
 		ma.s += fieldBit__Advertisement_GraphSupport
 		ma.state = maState_midValue
-		ma.f = 5
+		ma.f = 4
 		ma.ca_GraphSupport.w = &ma.w.GraphSupport
 		ma.ca_GraphSupport.m = &ma.cm
 		return &ma.ca_GraphSupport, nil
@@ -511,26 +479,22 @@ func (ma *_Advertisement__Assembler) AssembleValue() ipld.NodeAssembler {
 	ma.state = maState_midValue
 	switch ma.f {
 	case 0:
-		ma.ca_ID.w = &ma.w.ID
-		ma.ca_ID.m = &ma.cm
-		return &ma.ca_ID
-	case 1:
 		ma.ca_IndexID.w = &ma.w.IndexID
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID
-	case 2:
+	case 1:
 		ma.ca_PreviousID.w = &ma.w.PreviousID
 		ma.ca_PreviousID.m = &ma.cm
 		return &ma.ca_PreviousID
-	case 3:
+	case 2:
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider
-	case 4:
+	case 3:
 		ma.ca_Signature.w = &ma.w.Signature
 		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature
-	case 5:
+	case 4:
 		ma.ca_GraphSupport.w = &ma.w.GraphSupport
 		ma.ca_GraphSupport.m = &ma.cm
 		return &ma.ca_GraphSupport
@@ -555,9 +519,6 @@ func (ma *_Advertisement__Assembler) Finish() error {
 	}
 	if ma.s&fieldBits__Advertisement_sufficient != fieldBits__Advertisement_sufficient {
 		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Advertisement_ID == 0 {
-			err.Missing = append(err.Missing, "ID")
-		}
 		if ma.s&fieldBit__Advertisement_IndexID == 0 {
 			err.Missing = append(err.Missing, "IndexID")
 		}
@@ -611,21 +572,13 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		panic("misuse: KeyAssembler held beyond its valid lifetime")
 	}
 	switch k {
-	case "ID":
-		if ka.s&fieldBit__Advertisement_ID != 0 {
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ID}
-		}
-		ka.s += fieldBit__Advertisement_ID
-		ka.state = maState_expectValue
-		ka.f = 0
-		return nil
 	case "IndexID":
 		if ka.s&fieldBit__Advertisement_IndexID != 0 {
 			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID}
 		}
 		ka.s += fieldBit__Advertisement_IndexID
 		ka.state = maState_expectValue
-		ka.f = 1
+		ka.f = 0
 		return nil
 	case "PreviousID":
 		if ka.s&fieldBit__Advertisement_PreviousID != 0 {
@@ -633,7 +586,7 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_PreviousID
 		ka.state = maState_expectValue
-		ka.f = 2
+		ka.f = 1
 		return nil
 	case "Provider":
 		if ka.s&fieldBit__Advertisement_Provider != 0 {
@@ -641,7 +594,7 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_Provider
 		ka.state = maState_expectValue
-		ka.f = 3
+		ka.f = 2
 		return nil
 	case "Signature":
 		if ka.s&fieldBit__Advertisement_Signature != 0 {
@@ -649,7 +602,7 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_Signature
 		ka.state = maState_expectValue
-		ka.f = 4
+		ka.f = 3
 		return nil
 	case "GraphSupport":
 		if ka.s&fieldBit__Advertisement_GraphSupport != 0 {
@@ -657,7 +610,7 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_GraphSupport
 		ka.state = maState_expectValue
-		ka.f = 5
+		ka.f = 4
 		return nil
 	default:
 		return ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement", Key: &_String{k}}
@@ -689,7 +642,6 @@ func (n Advertisement) Representation() ipld.Node {
 type _Advertisement__Repr _Advertisement
 
 var (
-	fieldName__Advertisement_ID_serial           = _String{"ID"}
 	fieldName__Advertisement_IndexID_serial      = _String{"IndexID"}
 	fieldName__Advertisement_PreviousID_serial   = _String{"PreviousID"}
 	fieldName__Advertisement_Provider_serial     = _String{"Provider"}
@@ -703,8 +655,6 @@ func (_Advertisement__Repr) Kind() ipld.Kind {
 }
 func (n *_Advertisement__Repr) LookupByString(key string) (ipld.Node, error) {
 	switch key {
-	case "ID":
-		return n.ID.Representation(), nil
 	case "IndexID":
 		return n.IndexID.Representation(), nil
 	case "PreviousID":
@@ -742,26 +692,23 @@ type _Advertisement__ReprMapItr struct {
 }
 
 func (itr *_Advertisement__ReprMapItr) Next() (k ipld.Node, v ipld.Node, _ error) {
-	if itr.idx >= 6 {
+	if itr.idx >= 5 {
 		return nil, nil, ipld.ErrIteratorOverread{}
 	}
 	switch itr.idx {
 	case 0:
-		k = &fieldName__Advertisement_ID_serial
-		v = itr.n.ID.Representation()
-	case 1:
 		k = &fieldName__Advertisement_IndexID_serial
 		v = itr.n.IndexID.Representation()
-	case 2:
+	case 1:
 		k = &fieldName__Advertisement_PreviousID_serial
 		v = itr.n.PreviousID.Representation()
-	case 3:
+	case 2:
 		k = &fieldName__Advertisement_Provider_serial
 		v = itr.n.Provider.Representation()
-	case 4:
+	case 3:
 		k = &fieldName__Advertisement_Signature_serial
 		v = itr.n.Signature.Representation()
-	case 5:
+	case 4:
 		k = &fieldName__Advertisement_GraphSupport_serial
 		v = itr.n.GraphSupport.Representation()
 	default:
@@ -771,13 +718,13 @@ func (itr *_Advertisement__ReprMapItr) Next() (k ipld.Node, v ipld.Node, _ error
 	return
 }
 func (itr *_Advertisement__ReprMapItr) Done() bool {
-	return itr.idx >= 6
+	return itr.idx >= 5
 }
 func (_Advertisement__Repr) ListIterator() ipld.ListIterator {
 	return nil
 }
 func (rn *_Advertisement__Repr) Length() int64 {
-	l := 6
+	l := 5
 	return int64(l)
 }
 func (_Advertisement__Repr) IsAbsent() bool {
@@ -840,7 +787,6 @@ type _Advertisement__ReprAssembler struct {
 	f     int
 
 	cm              schema.Maybe
-	ca_ID           _Bytes__ReprAssembler
 	ca_IndexID      _Link_Index__ReprAssembler
 	ca_PreviousID   _Bytes__ReprAssembler
 	ca_Provider     _String__ReprAssembler
@@ -851,7 +797,6 @@ type _Advertisement__ReprAssembler struct {
 func (na *_Advertisement__ReprAssembler) reset() {
 	na.state = maState_initial
 	na.s = 0
-	na.ca_ID.reset()
 	na.ca_IndexID.reset()
 	na.ca_PreviousID.reset()
 	na.ca_Provider.reset()
@@ -994,15 +939,6 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 		default:
 			return false
 		}
-	case 5:
-		switch ma.cm {
-		case schema.Maybe_Value:
-			ma.cm = schema.Maybe_Absent
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
 	default:
 		panic("unreachable")
 	}
@@ -1023,23 +959,13 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
 	}
 	switch k {
-	case "ID":
-		if ma.s&fieldBit__Advertisement_ID != 0 {
-			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ID_serial}
-		}
-		ma.s += fieldBit__Advertisement_ID
-		ma.state = maState_midValue
-		ma.f = 0
-		ma.ca_ID.w = &ma.w.ID
-		ma.ca_ID.m = &ma.cm
-		return &ma.ca_ID, nil
 	case "IndexID":
 		if ma.s&fieldBit__Advertisement_IndexID != 0 {
 			return nil, ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID_serial}
 		}
 		ma.s += fieldBit__Advertisement_IndexID
 		ma.state = maState_midValue
-		ma.f = 1
+		ma.f = 0
 		ma.ca_IndexID.w = &ma.w.IndexID
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID, nil
@@ -1049,7 +975,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		}
 		ma.s += fieldBit__Advertisement_PreviousID
 		ma.state = maState_midValue
-		ma.f = 2
+		ma.f = 1
 		ma.ca_PreviousID.w = &ma.w.PreviousID
 		ma.ca_PreviousID.m = &ma.cm
 		return &ma.ca_PreviousID, nil
@@ -1059,7 +985,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		}
 		ma.s += fieldBit__Advertisement_Provider
 		ma.state = maState_midValue
-		ma.f = 3
+		ma.f = 2
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider, nil
@@ -1069,7 +995,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		}
 		ma.s += fieldBit__Advertisement_Signature
 		ma.state = maState_midValue
-		ma.f = 4
+		ma.f = 3
 		ma.ca_Signature.w = &ma.w.Signature
 		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature, nil
@@ -1079,7 +1005,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (ipld.NodeAssem
 		}
 		ma.s += fieldBit__Advertisement_GraphSupport
 		ma.state = maState_midValue
-		ma.f = 5
+		ma.f = 4
 		ma.ca_GraphSupport.w = &ma.w.GraphSupport
 		ma.ca_GraphSupport.m = &ma.cm
 		return &ma.ca_GraphSupport, nil
@@ -1121,26 +1047,22 @@ func (ma *_Advertisement__ReprAssembler) AssembleValue() ipld.NodeAssembler {
 	ma.state = maState_midValue
 	switch ma.f {
 	case 0:
-		ma.ca_ID.w = &ma.w.ID
-		ma.ca_ID.m = &ma.cm
-		return &ma.ca_ID
-	case 1:
 		ma.ca_IndexID.w = &ma.w.IndexID
 		ma.ca_IndexID.m = &ma.cm
 		return &ma.ca_IndexID
-	case 2:
+	case 1:
 		ma.ca_PreviousID.w = &ma.w.PreviousID
 		ma.ca_PreviousID.m = &ma.cm
 		return &ma.ca_PreviousID
-	case 3:
+	case 2:
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider
-	case 4:
+	case 3:
 		ma.ca_Signature.w = &ma.w.Signature
 		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature
-	case 5:
+	case 4:
 		ma.ca_GraphSupport.w = &ma.w.GraphSupport
 		ma.ca_GraphSupport.m = &ma.cm
 		return &ma.ca_GraphSupport
@@ -1165,9 +1087,6 @@ func (ma *_Advertisement__ReprAssembler) Finish() error {
 	}
 	if ma.s&fieldBits__Advertisement_sufficient != fieldBits__Advertisement_sufficient {
 		err := ipld.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Advertisement_ID == 0 {
-			err.Missing = append(err.Missing, "ID")
-		}
 		if ma.s&fieldBit__Advertisement_IndexID == 0 {
 			err.Missing = append(err.Missing, "IndexID")
 		}
@@ -1221,21 +1140,13 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		panic("misuse: KeyAssembler held beyond its valid lifetime")
 	}
 	switch k {
-	case "ID":
-		if ka.s&fieldBit__Advertisement_ID != 0 {
-			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ID_serial}
-		}
-		ka.s += fieldBit__Advertisement_ID
-		ka.state = maState_expectValue
-		ka.f = 0
-		return nil
 	case "IndexID":
 		if ka.s&fieldBit__Advertisement_IndexID != 0 {
 			return ipld.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID_serial}
 		}
 		ka.s += fieldBit__Advertisement_IndexID
 		ka.state = maState_expectValue
-		ka.f = 1
+		ka.f = 0
 		return nil
 	case "PreviousID":
 		if ka.s&fieldBit__Advertisement_PreviousID != 0 {
@@ -1243,7 +1154,7 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_PreviousID
 		ka.state = maState_expectValue
-		ka.f = 2
+		ka.f = 1
 		return nil
 	case "Provider":
 		if ka.s&fieldBit__Advertisement_Provider != 0 {
@@ -1251,7 +1162,7 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_Provider
 		ka.state = maState_expectValue
-		ka.f = 3
+		ka.f = 2
 		return nil
 	case "Signature":
 		if ka.s&fieldBit__Advertisement_Signature != 0 {
@@ -1259,7 +1170,7 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_Signature
 		ka.state = maState_expectValue
-		ka.f = 4
+		ka.f = 3
 		return nil
 	case "GraphSupport":
 		if ka.s&fieldBit__Advertisement_GraphSupport != 0 {
@@ -1267,7 +1178,7 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_GraphSupport
 		ka.state = maState_expectValue
-		ka.f = 5
+		ka.f = 4
 		return nil
 	}
 	return ipld.ErrInvalidKey{TypeName: "ingestion.Advertisement.Repr", Key: &_String{k}}

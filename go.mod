@@ -15,7 +15,6 @@ require (
 	github.com/lib/pq v1.10.2
 	github.com/libp2p/go-libp2p v0.14.4
 	github.com/libp2p/go-libp2p-core v0.8.6
-	github.com/libp2p/go-libp2p-crypto v0.1.0
 	github.com/libp2p/go-libp2p-peer v0.2.0
 	github.com/libp2p/go-libp2p-swarm v0.5.0
 	github.com/libp2p/go-msgio v0.0.6

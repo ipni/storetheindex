@@ -44,8 +44,8 @@ func (r *advSignatureRecord) UnmarshalRecord(buf []byte) error {
 	return nil
 }
 
-// Generates advertisements ID from the data included.
-func genAdvertisementID(indexID Link_Index, provider string, previousAdvID []byte) ([]byte, error) {
+// Generates the data payload used for signature.
+func signaturePayload(indexID Link_Index, provider string, previousAdvID []byte) ([]byte, error) {
 	lindex, err := indexID.AsLink()
 	if err != nil {
 		return nil, err
@@ -61,7 +61,14 @@ func genAdvertisementID(indexID Link_Index, provider string, previousAdvID []byt
 }
 
 // Signs advertisements using libp2p envelope
-func signAdvertisement(privkey crypto.PrivKey, advID []byte) ([]byte, error) {
+func signAdvertisement(privkey crypto.PrivKey, ad Advertisement) ([]byte, error) {
+	index := ad.FieldIndexID()
+	provider := ad.FieldProvider().x
+	previous := ad.FieldPreviousID().x
+	advID, err := signaturePayload(index, provider, previous)
+	if err != nil {
+		return nil, err
+	}
 	env, err := record.Seal(&advSignatureRecord{advID: advID}, privkey)
 	if err != nil {
 		return nil, err
@@ -75,17 +82,11 @@ func VerifyAdvertisement(ad Advertisement) error {
 	index := ad.FieldIndexID()
 	provider := ad.FieldProvider().x
 	previous := ad.FieldPreviousID().x
-	advID := ad.FieldID().x
 	sig := ad.FieldSignature().x
 
-	genID, err := genAdvertisementID(index, provider, previous)
+	genID, err := signaturePayload(index, provider, previous)
 	if err != nil {
 		return err
-	}
-
-	// Check if ID is the same
-	if !bytes.Equal(genID, advID) {
-		return errors.New("the id doesn't correspond to the data sent in advertisement")
 	}
 
 	// Consume envelope
@@ -94,7 +95,7 @@ func VerifyAdvertisement(ad Advertisement) error {
 	if err != nil {
 		return err
 	}
-	if !bytes.Equal(advID, rec.advID) {
+	if !bytes.Equal(genID, rec.advID) {
 		return errors.New("envelope signed with the wrong ID")
 	}
 	return nil

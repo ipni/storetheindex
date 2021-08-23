@@ -67,10 +67,11 @@ func main() {
 
 	// Advertisement
 	ts.Accumulate(schema.SpawnStruct("Advertisement", []schema.StructField{
-		// ID is a multihash of IndexID+Provider+Previous
-		schema.SpawnStructField("ID", "Bytes", false, false),
 		schema.SpawnStructField("IndexID", "Link_Index", false, false),
 		// Empty bytes for the first advertisement
+		// We are using Bytes instead of link because we don't want
+		// selectors to follow advertisements as links with the
+		// current implementation. this may change in the future.
 		schema.SpawnStructField("PreviousID", "Bytes", false, false),
 		schema.SpawnStructField("Provider", "String", false, false),
 		schema.SpawnStructField("Signature", "Bytes", false, false),
