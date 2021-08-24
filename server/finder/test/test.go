@@ -3,6 +3,8 @@ package test
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"runtime"
 	"testing"
 	"time"
 
@@ -26,7 +28,17 @@ const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
 
 //InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
-	valueStore, err := storethehash.New(t.TempDir())
+	var err error
+	var tmpDir string
+	if runtime.GOOS == "windows" {
+		tmpDir, err = ioutil.TempDir("", "sth_test")
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		tmpDir = t.TempDir()
+	}
+	valueStore, err := storethehash.New(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}

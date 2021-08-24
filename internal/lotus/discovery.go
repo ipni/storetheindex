@@ -4,43 +4,102 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/storetheindex/internal/providers/discovery"
+	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
-	// If it is necessary to have lotus verify a signature
-	//"github.com/filecoin-project/go-state-types/crypto"
-	//"github.com/filecoin-project/lotus/tree/master/lib/sigs"
+	jrpc "github.com/ybbus/jsonrpc/v2"
 )
 
-type Discovery struct {
-	node   api.Gateway
-	closer *nodeCloser
+type Discoverer struct {
+	gatewayURL string
 }
 
-func (d *Discovery) Close() error {
-	return d.closer.Close()
+type ExpTipSet struct {
+	Cids []cid.Cid
+	//Blocks []*BlockHeader
+	//Height abi.ChainEpoch
+	Blocks []interface{}
+	Height int64
 }
 
-func (d *Discovery) Discover(ctx context.Context, peerID peer.ID, minerAddr string, data, signature []byte) (*discovery.Discovered, error) {
-	tipSet, err := d.node.ChainHead(ctx)
+type MinerInfo struct {
+	Owner                      address.Address
+	Worker                     address.Address
+	NewWorker                  address.Address
+	ControlAddresses           []address.Address
+	WorkerChangeEpoch          int64
+	PeerId                     *peer.ID
+	Multiaddrs                 [][]byte
+	WindowPoStProofType        int64
+	SectorSize                 uint64
+	WindowPoStPartitionSectors uint64
+	ConsensusFaultElapsed      int64
+}
+
+// New creates a new lotus Discoverer
+func NewDiscoverer(gateway string) (*Discoverer, error) {
+	u, err := url.Parse(gateway)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get filecoin chain head: %s", err)
+		return nil, err
 	}
-	tipSetKey := tipSet.Key()
+	u.Scheme = "https"
+	u.Path = "/rpc/v1"
 
+	return &Discoverer{
+		gatewayURL: u.String(),
+	}, nil
+}
+
+func (d *Discoverer) Discover(ctx context.Context, peerID peer.ID, minerAddr string) (*discovery.Discovered, error) {
 	// Get miner info from lotus
 	minerAddress, err := address.NewFromString(minerAddr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid provider filecoin address: %s", err)
 	}
-	minerInfo, err := d.node.StateMinerInfo(ctx, minerAddress, tipSetKey)
+
+	jrpcClient := jrpc.NewClient("https://api.chain.love/rpc/v1")
+
+	var ets ExpTipSet
+	err = jrpcClient.CallFor(&ets, "Filecoin.ChainHead")
+	if err != nil {
+		return nil, fmt.Errorf("call failed: %s", err)
+	}
+
+	var minerInfo MinerInfo
+	err = jrpcClient.CallFor(&minerInfo, "Filecoin.StateMinerInfo", minerAddress, ets.Cids)
 	if err != nil {
 		return nil, err
 	}
+
+	// If it is necessary to use lotus datastructures, then uncomment this and
+	// remove code above
+	/*
+		apiInfo := cliutil.ParseApiInfo(gatewayApi)
+		addr, err := apiInfo.DialArgs("v1")
+		if err != nil {
+			return nil, fmt.Errorf("parse listen address: %w", err)
+		}
+
+		node, closer, err := client.NewGatewayRPCV1(ctx, addr, apiInfo.AuthHeader())
+		if err != nil {
+			return nil, err
+		}
+		defer closer()
+
+		tipset, err := node.ChainHead(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("calling chain head: %s", err)
+		}
+
+		minerInfo, err := node.StateMinerInfo(ctx, minerAddress, tipset.Key())
+		if err != nil {
+			return nil, err
+		}
+	*/
 
 	if minerInfo.PeerId == nil {
 		return nil, errors.New("no peer id for miner")
@@ -55,35 +114,13 @@ func (d *Discovery) Discover(ctx context.Context, peerID peer.ID, minerAddr stri
 		return nil, err
 	}
 
-	// TODO: Determine if this is needed
-	//
-	// Verifying the miner's signature is commented out as it may not be
-	// needed, so long as the peerID matches the one sent in the request, and
-	// the signature made by the peerID is valid.
-	/*
-		sig := new(crypto.Signature)
-		err = sig.UnmarshalBinary(signature)
-		if err != nil {
-			return err
-		}
-
-		fcAddr, err := d.node.StateAccountKey(ctx, minerInfo.Worker, tipSetKey)
-		if err != nil {
-			return fmt.Errorf("cannot get miner worker key: %s", err)
-		}
-
-		err = sigs.Verify(sig, fcAddr, data)
-		if err != nil {
-			return fmt.Errorf("cannot verify miner signature: %s", err)
-		}
-	*/
 	return &discovery.Discovered{
 		AddrInfo: addrInfo,
 		Type:     discovery.MinerType,
 	}, nil
 }
 
-func (d *Discovery) getMinerPeerAddr(minerInfo miner.MinerInfo) (peer.AddrInfo, error) {
+func (d *Discoverer) getMinerPeerAddr(minerInfo MinerInfo) (peer.AddrInfo, error) {
 	multiaddrs := make([]multiaddr.Multiaddr, 0, len(minerInfo.Multiaddrs))
 	for _, a := range minerInfo.Multiaddrs {
 		maddr, err := multiaddr.NewMultiaddrBytes(a)

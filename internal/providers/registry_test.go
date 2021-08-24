@@ -13,7 +13,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-type mockDiscovery struct {
+type mockDiscoverer struct {
 	discoverRsp *discovery.Discovered
 }
 
@@ -37,7 +37,7 @@ var discoveryCfg = config.Discovery{
 	RediscoverWait: config.Duration(time.Minute),
 }
 
-func newMockDiscovery(t *testing.T, providerID string) *mockDiscovery {
+func newMockDiscoverer(t *testing.T, providerID string) *mockDiscoverer {
 	peerID, err := peer.Decode(providerID)
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
@@ -48,7 +48,7 @@ func newMockDiscovery(t *testing.T, providerID string) *mockDiscovery {
 		t.Fatal("bad miner address:", err)
 	}
 
-	return &mockDiscovery{
+	return &mockDiscoverer{
 		discoverRsp: &discovery.Discovered{
 			AddrInfo: peer.AddrInfo{
 				ID:    peerID,
@@ -59,7 +59,7 @@ func newMockDiscovery(t *testing.T, providerID string) *mockDiscovery {
 	}
 }
 
-func (m *mockDiscovery) Discover(ctx context.Context, peerID peer.ID, filecoinAddr string, signature, signed []byte) (*discovery.Discovered, error) {
+func (m *mockDiscoverer) Discover(ctx context.Context, peerID peer.ID, filecoinAddr string) (*discovery.Discovered, error) {
 	if filecoinAddr == "bad1234" {
 		return nil, errors.New("unknown miner")
 	}
@@ -68,7 +68,7 @@ func (m *mockDiscovery) Discover(ctx context.Context, peerID peer.ID, filecoinAd
 }
 
 func TestNewRegistryDiscovery(t *testing.T) {
-	mockDisco := newMockDiscovery(t, exceptID)
+	mockDisco := newMockDiscoverer(t, exceptID)
 
 	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
 	if err != nil {
@@ -104,7 +104,7 @@ func TestNewRegistryDiscovery(t *testing.T) {
 }
 
 func TestDiscoveryAllowed(t *testing.T) {
-	mockDisco := newMockDiscovery(t, exceptID)
+	mockDisco := newMockDiscoverer(t, exceptID)
 
 	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
 	if err != nil {
@@ -118,7 +118,7 @@ func TestDiscoveryAllowed(t *testing.T) {
 		t.Fatal("bad provider ID:", err)
 	}
 
-	err = r.Discover(peerID, minerDiscoAddr, nil, nil, true)
+	err = r.Discover(peerID, minerDiscoAddr, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 		discoveryCfg.Policy.Action = "block"
 	}()
 
-	mockDisco := newMockDiscovery(t, exceptID)
+	mockDisco := newMockDiscoverer(t, exceptID)
 
 	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
 	if err != nil {
@@ -170,7 +170,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 	t.Log("created new registry")
 
 	var peerID peer.ID
-	err = r.Discover(peerID, minerDiscoAddr, nil, nil, true)
+	err = r.Discover(peerID, minerDiscoAddr, true)
 	if err != ErrNotAllowed {
 		t.Fatal("expected error:", ErrNotAllowed)
 	}
@@ -183,7 +183,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 
 func TestDatastore(t *testing.T) {
 	dataStorePath := t.TempDir()
-	mockDisco := newMockDiscovery(t, exceptID)
+	mockDisco := newMockDiscoverer(t, exceptID)
 
 	peerID, err := peer.Decode(trustedID)
 	if err != nil {

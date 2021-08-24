@@ -103,19 +103,18 @@ func daemonCommand(cctx *cli.Context) error {
 		return err
 	}
 
-	var lotusDiscovery *lotus.Discovery
+	var lotusDiscoverer *lotus.Discoverer
 	if cfg.Discovery.LotusGateway != "" {
 		log.Infow("discovery using lotus", "gateway", cfg.Discovery.LotusGateway)
 		// Create lotus client
-		lotusDiscovery, err = lotus.SetupGateway(context.Background(), cfg.Discovery.LotusGateway)
+		lotusDiscoverer, err = lotus.NewDiscoverer(cfg.Discovery.LotusGateway)
 		if err != nil {
 			return fmt.Errorf("cannot create lotus client: %s", err)
 		}
-		defer lotusDiscovery.Close()
 	}
 
 	// Create registry
-	registry, err := providers.NewRegistry(cfg.Discovery, dstore, lotusDiscovery)
+	registry, err := providers.NewRegistry(cfg.Discovery, dstore, lotusDiscoverer)
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}

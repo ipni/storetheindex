@@ -12,9 +12,9 @@ const (
 	MinerType
 )
 
-// Discovery is the interface that supplies functionality to discover providers
-type Discovery interface {
-	Discover(ctx context.Context, peerID peer.ID, discoveryAddr string, signature, signed []byte) (*Discovered, error)
+// Discoverer is the interface that supplies functionality to discover providers
+type Discoverer interface {
+	Discover(ctx context.Context, peerID peer.ID, discoveryAddr string) (*Discovered, error)
 }
 
 // Discovered holds information about a provider that is discovered
