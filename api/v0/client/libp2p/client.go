@@ -14,11 +14,10 @@ var log = logging.Logger("p2pclient")
 // p2pclient is responsible for sending
 // requests to other peers.
 type p2pclient struct {
-	ctx       context.Context
-	host      host.Host
-	self      peer.ID
-	peerID    peer.ID
-	protocols []protocol.ID
+	ctx    context.Context
+	host   host.Host
+	self   peer.ID
+	peerID peer.ID
 
 	senderManager *messageSender
 }
