@@ -95,7 +95,7 @@ func (h *Handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.registry.Discover(discoReq.ProviderID, discoReq.DiscoveryAddr, discoReq.Nonce, discoReq.Signature, false)
+	err = h.registry.Discover(discoReq.ProviderID, discoReq.DiscoveryAddr, false)
 	if err != nil {
 		log.Errorw("cannot process discovery request", "err", err)
 		writeError(w, http.StatusBadRequest, err)

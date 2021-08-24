@@ -9,18 +9,18 @@ import (
 
 const testMinerAddr = "t01000"
 
-func TestDiscovery(t *testing.T) {
+func TestDiscoverer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	gateway := "wss://api.chain.love"
-	disco, err := SetupGateway(ctx, gateway)
+	gateway := "api.chain.love"
+	disco, err := NewDiscoverer(gateway)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	var peerID peer.ID
-	_, err = disco.Discover(ctx, peerID, testMinerAddr, nil, nil)
+	_, err = disco.Discover(ctx, peerID, testMinerAddr)
 	if err == nil {
 		t.Fatal("expected provider id mismatch error")
 	}
@@ -30,7 +30,7 @@ func TestDiscovery(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	discovered, err := disco.Discover(ctx, peerID, testMinerAddr, nil, nil)
+	discovered, err := disco.Discover(ctx, peerID, testMinerAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,8 +40,4 @@ func TestDiscovery(t *testing.T) {
 	}
 
 	t.Logf("Lotus discovered info for miner %q: %s", testMinerAddr, discovered.AddrInfo.String())
-	err = disco.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
 }
