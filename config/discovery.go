@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	defaultLotusGateway     = "wss://api.chain.love"
+	defaultLotusGateway     = "https://api.chain.love"
 	defaultPollInterval     = Duration(24 * time.Hour)
 	defaultRediscoverWait   = Duration(5 * time.Minute)
 	defaultDiscoveryTimeout = Duration(2 * time.Minute)
