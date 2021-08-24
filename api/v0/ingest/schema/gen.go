@@ -68,19 +68,25 @@ func main() {
 
 	// Advertisement
 	ts.Accumulate(schema.SpawnStruct("Advertisement", []schema.StructField{
-		// ID is a multihash of IndexID+Provider+Previous
-		schema.SpawnStructField("ID", "Bytes", false, false),
 		schema.SpawnStructField("IndexID", "Link_Index", false, false),
-		schema.SpawnStructField("Previous", "Link_Advertisement", true, false),
+		// Empty bytes for the first advertisement
+		// We are using Bytes instead of link because we don't want
+		// selectors to follow advertisements as links with the
+		// current implementation. this may change in the future.
+		schema.SpawnStructField("PreviousID", "Bytes", false, false),
 		schema.SpawnStructField("Provider", "String", false, false),
-		schema.SpawnStructField("Signature", "Bytes", true, false),
+		schema.SpawnStructField("Signature", "Bytes", false, false),
 		schema.SpawnStructField("GraphSupport", "Bool", false, false),
 	}, schema.SpawnStructRepresentationMap(map[string]string{})))
 	ts.Accumulate(schema.SpawnLinkReference("Link_Advertisement", "Advertisement"))
 
 	// IPLD-aware index
 	ts.Accumulate(schema.SpawnStruct("Index", []schema.StructField{
-		schema.SpawnStructField("Previous", "Link_Index", false, false),
+		// NOTE: We link the previous index instead of the previous
+		// advertisement to this one. If by any change ingestion clients
+		// need to also fetch all the chain of advertisements change this
+		// to Link_Advertisement of the previous ad.
+		schema.SpawnStructField("Previous", "Link_Index", true, false),
 		schema.SpawnStructField("Entries", "List_Entry", false, false),
 	}, schema.SpawnStructRepresentationMap(map[string]string{})))
 	ts.Accumulate(schema.SpawnLinkReference("Link_Index", "Index"))

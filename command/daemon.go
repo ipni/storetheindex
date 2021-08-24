@@ -20,7 +20,7 @@ import (
 	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	p2pfinderserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
 	ingestserver "github.com/filecoin-project/storetheindex/server/ingest"
-	"github.com/ipfs/go-ds-leveldb"
+	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	"github.com/multiformats/go-multiaddr"

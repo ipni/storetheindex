@@ -13,12 +13,13 @@ require (
 	github.com/ipfs/go-ds-leveldb v0.4.2
 	github.com/ipfs/go-log/v2 v2.3.0
 	github.com/ipld/go-ipld-prime v0.12.0
-	github.com/libp2p/go-libp2p v0.14.4
-	github.com/libp2p/go-libp2p-core v0.8.6
-	github.com/libp2p/go-libp2p-swarm v0.5.3
+	github.com/libp2p/go-libp2p v0.15.0-rc.1
+	github.com/libp2p/go-libp2p-core v0.9.0
+	github.com/libp2p/go-libp2p-peer v0.2.0
 	github.com/libp2p/go-msgio v0.0.6
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/multiformats/go-multiaddr v0.3.3
+	github.com/multiformats/go-multiaddr v0.4.0
+	github.com/multiformats/go-multicodec v0.3.0
 	github.com/multiformats/go-multihash v0.0.15
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/ybbus/jsonrpc/v2 v2.1.6
