@@ -28,8 +28,10 @@ type typeSlab struct {
 	Bool__Repr               _Bool__ReprPrototype
 	Bytes                    _Bytes__Prototype
 	Bytes__Repr              _Bytes__ReprPrototype
-	Entry                    _Entry__Prototype
-	Entry__Repr              _Entry__ReprPrototype
+	CarEntry                 _CarEntry__Prototype
+	CarEntry__Repr           _CarEntry__ReprPrototype
+	CidEntry                 _CidEntry__Prototype
+	CidEntry__Repr           _CidEntry__ReprPrototype
 	Float                    _Float__Prototype
 	Float__Repr              _Float__ReprPrototype
 	Index                    _Index__Prototype
@@ -44,8 +46,10 @@ type typeSlab struct {
 	Link_Index__Repr         _Link_Index__ReprPrototype
 	List                     _List__Prototype
 	List__Repr               _List__ReprPrototype
-	List_Entry               _List_Entry__Prototype
-	List_Entry__Repr         _List_Entry__ReprPrototype
+	List_CarEntry            _List_CarEntry__Prototype
+	List_CarEntry__Repr      _List_CarEntry__ReprPrototype
+	List_CidEntry            _List_CidEntry__Prototype
+	List_CidEntry__Repr      _List_CidEntry__ReprPrototype
 	List_String              _List_String__Prototype
 	List_String__Repr        _List_String__ReprPrototype
 	Map                      _Map__Prototype
@@ -59,11 +63,10 @@ type typeSlab struct {
 // Advertisement matches the IPLD Schema type "Advertisement".  It has Struct type-kind, and may be interrogated like map kind.
 type Advertisement = *_Advertisement
 type _Advertisement struct {
-	IndexID      _Link_Index
-	PreviousID   _Bytes
-	Provider     _String
-	Signature    _Bytes
-	GraphSupport _Bool
+	IndexID    _Link_Index
+	PreviousID _Bytes
+	Provider   _String
+	Signature  _Bytes
 }
 
 // Any matches the IPLD Schema type "Any".
@@ -93,11 +96,19 @@ type _Bool struct{ x bool }
 type Bytes = *_Bytes
 type _Bytes struct{ x []byte }
 
-// Entry matches the IPLD Schema type "Entry".  It has Struct type-kind, and may be interrogated like map kind.
-type Entry = *_Entry
-type _Entry struct {
-	RmCids   _List_String__Maybe
-	Cids     _List_String__Maybe
+// CarEntry matches the IPLD Schema type "CarEntry".  It has Struct type-kind, and may be interrogated like map kind.
+type CarEntry = *_CarEntry
+type _CarEntry struct {
+	Remove   _Link__Maybe
+	Put      _Link__Maybe
+	Metadata _Bytes__Maybe
+}
+
+// CidEntry matches the IPLD Schema type "CidEntry".  It has Struct type-kind, and may be interrogated like map kind.
+type CidEntry = *_CidEntry
+type _CidEntry struct {
+	Remove   _List_String__Maybe
+	Put      _List_String__Maybe
 	Metadata _Bytes__Maybe
 }
 
@@ -108,8 +119,9 @@ type _Float struct{ x float64 }
 // Index matches the IPLD Schema type "Index".  It has Struct type-kind, and may be interrogated like map kind.
 type Index = *_Index
 type _Index struct {
-	Previous _Link_Index__Maybe
-	Entries  _List_Entry
+	Previous   _Link_Index__Maybe
+	CidEntries _List_CidEntry
+	CarEntries _List_CarEntry
 }
 
 // Int matches the IPLD Schema type "Int".  It has int kind.
@@ -134,10 +146,16 @@ type _List struct {
 	x []_Any__Maybe
 }
 
-// List_Entry matches the IPLD Schema type "List_Entry".  It has list kind.
-type List_Entry = *_List_Entry
-type _List_Entry struct {
-	x []_Entry
+// List_CarEntry matches the IPLD Schema type "List_CarEntry".  It has list kind.
+type List_CarEntry = *_List_CarEntry
+type _List_CarEntry struct {
+	x []_CarEntry
+}
+
+// List_CidEntry matches the IPLD Schema type "List_CidEntry".  It has list kind.
+type List_CidEntry = *_List_CidEntry
+type _List_CidEntry struct {
+	x []_CidEntry
 }
 
 // List_String matches the IPLD Schema type "List_String".  It has list kind.

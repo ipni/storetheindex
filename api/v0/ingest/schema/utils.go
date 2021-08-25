@@ -78,18 +78,30 @@ const (
 	IsIndexKey = LinkContextKey("isIndexLink")
 )
 
-func newIndex(lsys ipld.LinkSystem, lentries _List_Entry, previousIndex Link_Index) (Index, Link_Index, error) {
+func newIndex(lsys ipld.LinkSystem, cidEntries List_CidEntry, carEntries List_CarEntry,
+	previousIndex Link_Index) (Index, Link_Index, error) {
 	// Create the index for this update from the entry list
 	var index _Index
+	var cidEnt _List_CidEntry
+	var carEnt _List_CarEntry
+
+	if cidEntries != nil {
+		cidEnt = *cidEntries
+	}
+	if carEntries != nil {
+		carEnt = *carEntries
+	}
 	// If genesis index
 	if previousIndex == nil {
 		index = _Index{
-			Entries: lentries,
+			CidEntries: cidEnt,
+			CarEntries: carEnt,
 		}
 	} else {
 		index = _Index{
-			Entries:  lentries,
-			Previous: _Link_Index__Maybe{m: schema.Maybe_Value, v: *previousIndex},
+			CidEntries: cidEnt,
+			CarEntries: carEnt,
+			Previous:   _Link_Index__Maybe{m: schema.Maybe_Value, v: *previousIndex},
 		}
 	}
 
@@ -101,32 +113,59 @@ func newIndex(lsys ipld.LinkSystem, lentries _List_Entry, previousIndex Link_Ind
 	return &index, &_Link_Index{lnk}, err
 }
 
-// NewSingleEntryIndex creates a new Index with a single entry
+// NewIndexFromCids creates a new Index with a single entry
 // from a list of CIDs to add or to remove.
-func NewSingleEntryIndex(
+func NewIndexFromCids(
 	lsys ipld.LinkSystem, cids []cid.Cid,
 	rmCids []cid.Cid, metadata []byte,
 	previousIndex Link_Index) (Index, Link_Index, error) {
 
 	// Generate the entry and entry list from CIDs
-	entries := make([]_Entry, 1)
-	entries[0] = _Entry{
-		Cids:     _List_String__Maybe{m: schema.Maybe_Value, v: _List_String{cidsToString(cids)}},
-		RmCids:   _List_String__Maybe{m: schema.Maybe_Value, v: _List_String{cidsToString(rmCids)}},
+	entries := make([]_CidEntry, 1)
+	entries[0] = _CidEntry{
+		Put:      _List_String__Maybe{m: schema.Maybe_Value, v: _List_String{cidsToString(cids)}},
+		Remove:   _List_String__Maybe{m: schema.Maybe_Value, v: _List_String{cidsToString(rmCids)}},
 		Metadata: _Bytes__Maybe{m: schema.Maybe_Value, v: _Bytes{x: metadata}},
 	}
-	lentries := _List_Entry{x: entries}
+	lentries := _List_CidEntry{x: entries}
 
-	return newIndex(lsys, lentries, previousIndex)
+	return newIndex(lsys, &lentries, nil, previousIndex)
+}
+
+// NewIndexFromCarID creates a new Index with a single entry
+// from a local CarID
+func NewIndexFromCarID(
+	lsys ipld.LinkSystem, putCarID cid.Cid,
+	rmCarID cid.Cid, metadata []byte,
+	previousIndex Link_Index) (Index, Link_Index, error) {
+
+	// NOTE: Depending on the selector and the linkingSystem
+	// used to follow this links, traversals may fail if
+	// any of these links point to cid.Undef. If this is the case
+	// try making the link nil if one of the CIDs is cid.Undef
+	// or build using its prototype.
+	putLink := _Link{x: cidlink.Link{Cid: putCarID}}
+	rmLink := _Link{x: cidlink.Link{Cid: rmCarID}}
+
+	// Generate the entry and entry list from CIDs
+	entries := make([]_CarEntry, 1)
+	entries[0] = _CarEntry{
+		Put:      _Link__Maybe{m: schema.Maybe_Value, v: putLink},
+		Remove:   _Link__Maybe{m: schema.Maybe_Value, v: rmLink},
+		Metadata: _Bytes__Maybe{m: schema.Maybe_Value, v: _Bytes{x: metadata}},
+	}
+	lentries := _List_CarEntry{x: entries}
+
+	return newIndex(lsys, nil, &lentries, previousIndex)
 }
 
 // NewIndexFromEntries creates an index from a list of entries
 // Providerse can choose how to generate their entries.
 func NewIndexFromEntries(
-	lsys ipld.LinkSystem, entries List_Entry,
+	lsys ipld.LinkSystem, cidEntries List_CidEntry, carEntries List_CarEntry,
 	previousIndex Link_Index) (Index, Link_Index, error) {
 
-	return newIndex(lsys, *entries, previousIndex)
+	return newIndex(lsys, cidEntries, carEntries, previousIndex)
 }
 
 // NewAdvertisement creates a new advertisement without link to
@@ -135,10 +174,10 @@ func NewAdvertisement(
 	signKey crypto.PrivKey,
 	previousAdvID []byte,
 	indexID Link_Index,
-	provider string, graphSupport bool) (Advertisement, error) {
+	provider string) (Advertisement, error) {
 
 	// Create advertisement
-	return newAdvertisement(signKey, previousAdvID, indexID, provider, graphSupport)
+	return newAdvertisement(signKey, previousAdvID, indexID, provider)
 
 }
 
@@ -149,10 +188,10 @@ func NewAdvertisementWithLink(
 	signKey crypto.PrivKey,
 	previousAdvID []byte,
 	indexID Link_Index,
-	provider string, graphSupport bool) (Advertisement, Link_Advertisement, error) {
+	provider string) (Advertisement, Link_Advertisement, error) {
 
 	// Create advertisement
-	adv, err := newAdvertisement(signKey, previousAdvID, indexID, provider, graphSupport)
+	adv, err := newAdvertisement(signKey, previousAdvID, indexID, provider)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -182,13 +221,12 @@ func newAdvertisement(
 	signKey crypto.PrivKey,
 	previousAdvID []byte,
 	indexID Link_Index,
-	provider string, graphSupport bool) (Advertisement, error) {
+	provider string) (Advertisement, error) {
 
 	ad := &_Advertisement{
-		IndexID:      *indexID,
-		PreviousID:   _Bytes{x: previousAdvID},
-		Provider:     _String{x: provider},
-		GraphSupport: _Bool{x: graphSupport},
+		IndexID:    *indexID,
+		PreviousID: _Bytes{x: previousAdvID},
+		Provider:   _String{x: provider},
 	}
 
 	// Sign advertisement
