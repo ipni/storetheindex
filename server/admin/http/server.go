@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/server/admin/handler"
+	"github.com/filecoin-project/storetheindex/server/admin/http/handler"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )

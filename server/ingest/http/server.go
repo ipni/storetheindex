@@ -7,7 +7,7 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/providers"
-	"github.com/filecoin-project/storetheindex/server/ingest/handler"
+	"github.com/filecoin-project/storetheindex/server/ingest/http/handler"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )

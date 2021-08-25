@@ -16,10 +16,10 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/lotus"
 	"github.com/filecoin-project/storetheindex/internal/providers"
-	adminserver "github.com/filecoin-project/storetheindex/server/admin"
+	httpadminserver "github.com/filecoin-project/storetheindex/server/admin/http"
 	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	p2pfinderserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
-	ingestserver "github.com/filecoin-project/storetheindex/server/ingest"
+	httpingestserver "github.com/filecoin-project/storetheindex/server/ingest/http"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
@@ -128,7 +128,7 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	adminSvr, err := adminserver.New(adminAddr.String(), indexerCore)
+	adminSvr, err := httpadminserver.New(adminAddr.String(), indexerCore)
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	ingestSvr, err := ingestserver.New(ingestAddr.String(), indexerCore, registry)
+	ingestSvr, err := httpingestserver.New(ingestAddr.String(), indexerCore, registry)
 	if err != nil {
 		return err
 	}
