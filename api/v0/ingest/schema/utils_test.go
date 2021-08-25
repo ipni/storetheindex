@@ -44,11 +44,11 @@ func genIndexAndAdv(t *testing.T, lsys ipld.LinkSystem,
 
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	val := indexer.MakeValue(p, 0, cids[0].Bytes())
-	index, indexLnk, err := NewSingleEntryIndex(lsys, cids, nil, val.Metadata, nil)
+	index, indexLnk, err := NewIndexFromCids(lsys, cids, nil, val.Metadata, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String(), true)
+	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestChainAdvertisements(t *testing.T) {
 	cids, _ := utils.RandomCids(10)
 	val := indexer.MakeValue(p, 0, cids[0].Bytes())
 	// Genesis index
-	index, indexLnk, err := NewSingleEntryIndex(lsys, cids, nil, val.Metadata, nil)
+	index, indexLnk, err := NewIndexFromCids(lsys, cids, nil, val.Metadata, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestChainAdvertisements(t *testing.T) {
 		t.Error("previous should be nil, it's the genesis", index.Previous.v)
 	}
 	// Genesis advertisement
-	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String(), true)
+	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestChainAdvertisements(t *testing.T) {
 		t.Error("previous should be nil, it's the genesis", index.Previous.v)
 	}
 	// Seecond node
-	index2, indexLnk2, err := NewSingleEntryIndex(lsys, cids, nil, val.Metadata, indexLnk)
+	index2, indexLnk2, err := NewIndexFromCids(lsys, cids, nil, val.Metadata, indexLnk)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,12 +91,35 @@ func TestChainAdvertisements(t *testing.T) {
 	}
 	adv2Cid := advLnk.ToCid().Bytes()
 	// Second advertisement
-	adv2, _, err := NewAdvertisementWithLink(lsys, priv, adv2Cid, indexLnk2, p.String(), true)
+	adv2, _, err := NewAdvertisementWithLink(lsys, priv, adv2Cid, indexLnk2, p.String())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(adv2.FieldPreviousID().x, adv2Cid) {
 		t.Error("adv2 should be pointing to genesis", adv2.FieldPreviousID().x, adv2Cid)
+	}
+}
+
+func TestCarIndex(t *testing.T) {
+	dstore := datastore.NewMapDatastore()
+	lsys := mkLinkSystem(dstore)
+	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
+	cids, _ := utils.RandomCids(1)
+	val := indexer.MakeValue(p, 0, cids[0].Bytes())
+	index, _, err := NewIndexFromCarID(lsys, cids[0], cid.Undef, val.Metadata, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ent := index.CarEntries.x
+	if len(ent) != 1 {
+		t.Fatal("number of entries is not correct")
+	}
+	if ent[0].Put.v.x.(cidlink.Link).Cid != cids[0] {
+		t.Fatal("carID not set correctly in index")
+	}
+	if ent[0].Remove.v.x.(cidlink.Link).Cid != cid.Undef {
+		t.Fatal("carID for remove should be cid.Undef")
 	}
 }
 
