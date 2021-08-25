@@ -72,7 +72,7 @@ func main() {
 		// Empty bytes for the first advertisement
 		// We are using Bytes instead of links because we don't want
 		// selectors to follow advertisements as links with the
-		// current implementation. this may change in the future.
+		// current implementation. This may change in the future.
 		schema.SpawnStructField("PreviousID", "Bytes", false, false),
 		schema.SpawnStructField("Provider", "String", false, false),
 		schema.SpawnStructField("Signature", "Bytes", false, false),
