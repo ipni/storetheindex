@@ -16,5 +16,8 @@ type Ingester interface {
 	Subscribe(ctx context.Context, p peer.ID) error
 
 	// Unsubscribe to stop listening to advertisement from a specific provider.
-	Unsubscribe(ctx context.Context, p peer.ID)
+	Unsubscribe(ctx context.Context, p peer.ID) error
+
+	// Close the ingester
+	Close(ctx context.Context) error
 }

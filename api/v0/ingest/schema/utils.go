@@ -12,7 +12,7 @@ import (
 	mh "github.com/multiformats/go-multihash"
 )
 
-var linkproto = cidlink.LinkPrototype{
+var Linkproto = cidlink.LinkPrototype{
 	Prefix: cid.Prefix{
 		Version:  1,
 		Codec:    uint64(multicodec.DagJson),
@@ -105,7 +105,7 @@ func newIndex(lsys ipld.LinkSystem, cidEntries List_CidEntry, carEntries List_Ca
 		}
 	}
 
-	lnk, err := lsys.Store((&index).LinkContext(context.Background()), linkproto, &index)
+	lnk, err := lsys.Store((&index).LinkContext(context.Background()), Linkproto, &index)
 	if err != nil {
 
 		return nil, nil, err
@@ -207,7 +207,7 @@ func NewAdvertisementWithLink(
 // AdvertisementLink generates a new link from an advertisemenet using a specific
 // linkSystem
 func AdvertisementLink(lsys ipld.LinkSystem, adv Advertisement) (Link_Advertisement, error) {
-	lnk, err := lsys.Store(adv.LinkContext(context.Background()), linkproto, adv)
+	lnk, err := lsys.Store(adv.LinkContext(context.Background()), Linkproto, adv)
 	if err != nil {
 		return nil, err
 	}

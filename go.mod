@@ -22,6 +22,7 @@ require (
 	github.com/multiformats/go-multiaddr v0.4.0
 	github.com/multiformats/go-multicodec v0.3.0
 	github.com/multiformats/go-multihash v0.0.15
+	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/willscott/go-legs v0.0.0-00010101000000-000000000000
 	github.com/ybbus/jsonrpc/v2 v2.1.6
