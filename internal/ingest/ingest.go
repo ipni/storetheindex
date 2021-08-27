@@ -152,7 +152,7 @@ func (i *legIngester) Unsubscribe(ctx context.Context, p peer.ID) error {
 	i.sublk.Lock(p)
 	defer i.sublk.Unlock(p)
 	// Run cancel
-	i.subs[p].cncl()
+	// i.subs[p].cncl()
 	// Close subscriber
 	i.subs[p].ls.Close(ctx)
 	// Delete from map
