@@ -110,10 +110,7 @@ func decodeIPLDNode(r io.Reader) (ipld.Node, error) {
 // the schema with new types that are traversable)
 func isAdvertisement(n ipld.Node) bool {
 	indexID, _ := n.LookupByString("IndexID")
-	if indexID != nil {
-		return true
-	}
-	return false
+	return indexID != nil
 }
 
 // Process the CIDs included in an IPLD.Node of type index and
