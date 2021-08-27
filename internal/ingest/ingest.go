@@ -151,10 +151,10 @@ func (i *legIngester) listenUpdates(ctx context.Context, s *sub) {
 func (i *legIngester) Unsubscribe(ctx context.Context, p peer.ID) error {
 	i.sublk.Lock(p)
 	defer i.sublk.Unlock(p)
-	// Run cancel
-	// i.subs[p].cncl()
 	// Close subscriber
 	i.subs[p].ls.Close(ctx)
+	// Run cancel
+	i.subs[p].cncl()
 	// Delete from map
 	delete(i.subs, p)
 
