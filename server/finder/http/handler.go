@@ -17,13 +17,6 @@ type handler struct {
 	registry *providers.Registry
 }
 
-func newHandler(indexer indexer.Interface, registry *providers.Registry) *handler {
-	return &handler{
-		indexer:  indexer,
-		registry: registry,
-	}
-}
-
 func (h *handler) GetSingleCid(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	mhCid := vars["cid"]

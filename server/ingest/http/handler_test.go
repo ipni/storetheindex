@@ -1,4 +1,4 @@
-package handler
+package ingestserver
 
 import (
 	"bytes"
@@ -22,7 +22,7 @@ var ident = config.Identity{
 
 var providerID peer.ID
 
-var hnd *Handler
+var hnd *handler
 var reg *providers.Registry
 
 type mockIndexer struct {
@@ -66,7 +66,10 @@ func init() {
 	idx := &mockIndexer{
 		store: map[cid.Cid][]indexer.Value{},
 	}
-	hnd = New(idx, reg)
+	hnd = &handler{
+		indexer:  idx,
+		registry: reg,
+	}
 
 	providerID, err = peer.Decode(ident.PeerID)
 	if err != nil {

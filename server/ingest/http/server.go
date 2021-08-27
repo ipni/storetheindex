@@ -7,7 +7,6 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/providers"
-	"github.com/filecoin-project/storetheindex/server/ingest/http/handler"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )
@@ -39,7 +38,10 @@ func New(listen string, indexer indexer.Interface, registry *providers.Registry,
 	}
 	s := &Server{server, l}
 
-	h := handler.New(indexer, registry)
+	h := &handler{
+		indexer:  indexer,
+		registry: registry,
+	}
 
 	// Advertisement routes
 	r.HandleFunc("/ingestion/content", h.IndexContent).Methods("POST")
