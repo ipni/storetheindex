@@ -31,11 +31,11 @@ func NewIngest(ctx context.Context, h host.Host, peerID peer.ID, options ...libp
 }
 
 func (cl *Ingest) ListProviders(ctx context.Context) ([]*models.ProviderInfo, error) {
-	req := &pb.Message{
-		Type: pb.Message_LIST_PROVIDERS,
+	req := &pb.IngestMessage{
+		Type: pb.IngestMessage_LIST_PROVIDERS,
 	}
 
-	data, err := cl.sendRecv(ctx, req, pb.Message_LIST_PROVIDERS_RESPONSE)
+	data, err := cl.sendRecv(ctx, req, pb.IngestMessage_LIST_PROVIDERS_RESPONSE)
 	if err != nil {
 		return nil, err
 	}
@@ -55,12 +55,12 @@ func (cl *Ingest) GetProvider(ctx context.Context, providerID peer.ID) (*models.
 		return nil, err
 	}
 
-	req := &pb.Message{
-		Type: pb.Message_GET_PROVIDER,
+	req := &pb.IngestMessage{
+		Type: pb.IngestMessage_GET_PROVIDER,
 		Data: data,
 	}
 
-	data, err = cl.sendRecv(ctx, req, pb.Message_GET_PROVIDER_RESPONSE)
+	data, err = cl.sendRecv(ctx, req, pb.IngestMessage_GET_PROVIDER_RESPONSE)
 	if err != nil {
 		return nil, err
 	}
@@ -83,12 +83,12 @@ func (cl *Ingest) Register(ctx context.Context, providerIdent config.Identity, a
 		return err
 	}
 
-	req := &pb.Message{
-		Type: pb.Message_REGISTER_PROVIDER,
+	req := &pb.IngestMessage{
+		Type: pb.IngestMessage_REGISTER_PROVIDER,
 		Data: data,
 	}
 
-	_, err = cl.sendRecv(ctx, req, pb.Message_REGISTER_PROVIDER_RESPONSE)
+	_, err = cl.sendRecv(ctx, req, pb.IngestMessage_REGISTER_PROVIDER_RESPONSE)
 	if err != nil {
 		return err
 	}
@@ -96,8 +96,8 @@ func (cl *Ingest) Register(ctx context.Context, providerIdent config.Identity, a
 	return nil
 }
 
-func (cl *Ingest) sendRecv(ctx context.Context, req *pb.Message, expectRspType pb.Message_MessageType) ([]byte, error) {
-	resp := new(pb.Message)
+func (cl *Ingest) sendRecv(ctx context.Context, req *pb.IngestMessage, expectRspType pb.IngestMessage_MessageType) ([]byte, error) {
+	resp := new(pb.IngestMessage)
 	err := cl.p2pc.SendRequest(ctx, req, func(data []byte) error {
 		return resp.Unmarshal(data)
 	})
@@ -105,7 +105,7 @@ func (cl *Ingest) sendRecv(ctx context.Context, req *pb.Message, expectRspType p
 		return nil, fmt.Errorf("failed to send request to indexer: %s", err)
 	}
 	if resp.GetType() != expectRspType {
-		if resp.GetType() == pb.Message_ERROR_RESPONSE {
+		if resp.GetType() == pb.IngestMessage_ERROR_RESPONSE {
 			return nil, v0.DecodeError(resp.GetData())
 		}
 		return nil, fmt.Errorf("response type is not %s", expectRspType.String())

@@ -24,7 +24,7 @@ type handler struct {
 }
 
 // handlerFunc is the function signature required by handlers in this package
-type handlerFunc func(context.Context, peer.ID, *pb.Message) ([]byte, error)
+type handlerFunc func(context.Context, peer.ID, *pb.FinderMessage) ([]byte, error)
 
 func newHandler(indexer indexer.Interface, registry *providers.Registry) *handler {
 	return &handler{
@@ -38,20 +38,20 @@ func (h *handler) ProtocolID() protocol.ID {
 }
 
 func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes []byte, freeMsg func()) (proto.Message, error) {
-	var req pb.Message
+	var req pb.FinderMessage
 	err := req.Unmarshal(msgbytes)
 	freeMsg()
 	if err != nil {
 		return nil, err
 	}
 
-	var rspType pb.Message_MessageType
+	var rspType pb.FinderMessage_MessageType
 	var handle handlerFunc
 	switch req.GetType() {
-	case pb.Message_GET:
+	case pb.FinderMessage_GET:
 		log.Debug("Handle new GET message")
 		handle = h.get
-		rspType = pb.Message_GET_RESPONSE
+		rspType = pb.FinderMessage_GET_RESPONSE
 	default:
 		msg := "ussupported message type"
 		log.Errorw(msg, "type", req.GetType())
@@ -60,17 +60,17 @@ func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes [
 
 	data, err := handle(ctx, msgPeer, &req)
 	if err != nil {
-		rspType = pb.Message_ERROR_RESPONSE
+		rspType = pb.FinderMessage_ERROR_RESPONSE
 		data = v0.EncodeError(err)
 	}
 
-	return &pb.Message{
+	return &pb.FinderMessage{
 		Type: rspType,
 		Data: data,
 	}, nil
 }
 
-func (h *handler) get(ctx context.Context, p peer.ID, msg *pb.Message) ([]byte, error) {
+func (h *handler) get(ctx context.Context, p peer.ID, msg *pb.FinderMessage) ([]byte, error) {
 	req, err := models.UnmarshalReq(msg.GetData())
 	if err != nil {
 		return nil, err

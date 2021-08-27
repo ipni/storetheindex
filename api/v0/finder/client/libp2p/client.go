@@ -36,12 +36,12 @@ func (cl *Finder) GetBatch(ctx context.Context, cs []cid.Cid) (*models.Response,
 	if err != nil {
 		return nil, err
 	}
-	req := &pb.Message{
-		Type: pb.Message_GET,
+	req := &pb.FinderMessage{
+		Type: pb.FinderMessage_GET,
 		Data: data,
 	}
 
-	data, err = cl.sendRecv(ctx, req, pb.Message_GET_RESPONSE)
+	data, err = cl.sendRecv(ctx, req, pb.FinderMessage_GET_RESPONSE)
 	if err != nil {
 		return nil, err
 	}
@@ -49,8 +49,8 @@ func (cl *Finder) GetBatch(ctx context.Context, cs []cid.Cid) (*models.Response,
 	return models.UnmarshalResp(data)
 }
 
-func (cl *Finder) sendRecv(ctx context.Context, req *pb.Message, expectRspType pb.Message_MessageType) ([]byte, error) {
-	resp := new(pb.Message)
+func (cl *Finder) sendRecv(ctx context.Context, req *pb.FinderMessage, expectRspType pb.FinderMessage_MessageType) ([]byte, error) {
+	resp := new(pb.FinderMessage)
 	err := cl.p2pc.SendRequest(ctx, req, func(data []byte) error {
 		return resp.Unmarshal(data)
 	})
@@ -58,7 +58,7 @@ func (cl *Finder) sendRecv(ctx context.Context, req *pb.Message, expectRspType p
 		return nil, fmt.Errorf("failed to send request to indexer: %s", err)
 	}
 	if resp.GetType() != expectRspType {
-		if resp.GetType() == pb.Message_ERROR_RESPONSE {
+		if resp.GetType() == pb.FinderMessage_ERROR_RESPONSE {
 			return nil, v0.DecodeError(resp.GetData())
 		}
 		return nil, fmt.Errorf("response type is not %s", expectRspType.String())

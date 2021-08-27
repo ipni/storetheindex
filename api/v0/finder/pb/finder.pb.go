@@ -22,53 +22,53 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-type Message_MessageType int32
+type FinderMessage_MessageType int32
 
 const (
-	Message_ERROR_RESPONSE Message_MessageType = 0
-	Message_GET            Message_MessageType = 1
-	Message_GET_RESPONSE   Message_MessageType = 2
+	FinderMessage_ERROR_RESPONSE FinderMessage_MessageType = 0
+	FinderMessage_GET            FinderMessage_MessageType = 1
+	FinderMessage_GET_RESPONSE   FinderMessage_MessageType = 2
 )
 
-var Message_MessageType_name = map[int32]string{
+var FinderMessage_MessageType_name = map[int32]string{
 	0: "ERROR_RESPONSE",
 	1: "GET",
 	2: "GET_RESPONSE",
 }
 
-var Message_MessageType_value = map[string]int32{
+var FinderMessage_MessageType_value = map[string]int32{
 	"ERROR_RESPONSE": 0,
 	"GET":            1,
 	"GET_RESPONSE":   2,
 }
 
-func (x Message_MessageType) String() string {
-	return proto.EnumName(Message_MessageType_name, int32(x))
+func (x FinderMessage_MessageType) String() string {
+	return proto.EnumName(FinderMessage_MessageType_name, int32(x))
 }
 
-func (Message_MessageType) EnumDescriptor() ([]byte, []int) {
+func (FinderMessage_MessageType) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_02dfec63316bfb34, []int{0, 0}
 }
 
-type Message struct {
+type FinderMessage struct {
 	// defines what type of message it is.
-	Type Message_MessageType `protobuf:"varint,1,opt,name=type,proto3,enum=reqresp.pb.Message_MessageType" json:"type,omitempty"`
+	Type FinderMessage_MessageType `protobuf:"varint,1,opt,name=type,proto3,enum=reqresp.pb.FinderMessage_MessageType" json:"type,omitempty"`
 	// Value for the message
 	Data []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 }
 
-func (m *Message) Reset()         { *m = Message{} }
-func (m *Message) String() string { return proto.CompactTextString(m) }
-func (*Message) ProtoMessage()    {}
-func (*Message) Descriptor() ([]byte, []int) {
+func (m *FinderMessage) Reset()         { *m = FinderMessage{} }
+func (m *FinderMessage) String() string { return proto.CompactTextString(m) }
+func (*FinderMessage) ProtoMessage()    {}
+func (*FinderMessage) Descriptor() ([]byte, []int) {
 	return fileDescriptor_02dfec63316bfb34, []int{0}
 }
-func (m *Message) XXX_Unmarshal(b []byte) error {
+func (m *FinderMessage) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *Message) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *FinderMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_Message.Marshal(b, m, deterministic)
+		return xxx_messageInfo_FinderMessage.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -78,26 +78,26 @@ func (m *Message) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-func (m *Message) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Message.Merge(m, src)
+func (m *FinderMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FinderMessage.Merge(m, src)
 }
-func (m *Message) XXX_Size() int {
+func (m *FinderMessage) XXX_Size() int {
 	return m.Size()
 }
-func (m *Message) XXX_DiscardUnknown() {
-	xxx_messageInfo_Message.DiscardUnknown(m)
+func (m *FinderMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_FinderMessage.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_Message proto.InternalMessageInfo
+var xxx_messageInfo_FinderMessage proto.InternalMessageInfo
 
-func (m *Message) GetType() Message_MessageType {
+func (m *FinderMessage) GetType() FinderMessage_MessageType {
 	if m != nil {
 		return m.Type
 	}
-	return Message_ERROR_RESPONSE
+	return FinderMessage_ERROR_RESPONSE
 }
 
-func (m *Message) GetData() []byte {
+func (m *FinderMessage) GetData() []byte {
 	if m != nil {
 		return m.Data
 	}
@@ -105,29 +105,29 @@ func (m *Message) GetData() []byte {
 }
 
 func init() {
-	proto.RegisterEnum("reqresp.pb.Message_MessageType", Message_MessageType_name, Message_MessageType_value)
-	proto.RegisterType((*Message)(nil), "reqresp.pb.Message")
+	proto.RegisterEnum("reqresp.pb.FinderMessage_MessageType", FinderMessage_MessageType_name, FinderMessage_MessageType_value)
+	proto.RegisterType((*FinderMessage)(nil), "reqresp.pb.FinderMessage")
 }
 
 func init() { proto.RegisterFile("finder.proto", fileDescriptor_02dfec63316bfb34) }
 
 var fileDescriptor_02dfec63316bfb34 = []byte{
-	// 187 bytes of a gzipped FileDescriptorProto
+	// 191 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x49, 0xcb, 0xcc, 0x4b,
 	0x49, 0x2d, 0xd2, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0xe2, 0x2a, 0x4a, 0x2d, 0x2c, 0x4a, 0x2d,
-	0x2e, 0xd0, 0x2b, 0x48, 0x52, 0x9a, 0xc0, 0xc8, 0xc5, 0xee, 0x9b, 0x5a, 0x5c, 0x9c, 0x98, 0x9e,
-	0x2a, 0x64, 0xcc, 0xc5, 0x52, 0x52, 0x59, 0x90, 0x2a, 0xc1, 0xa8, 0xc0, 0xa8, 0xc1, 0x67, 0x24,
-	0xaf, 0x87, 0x50, 0xa6, 0x07, 0x55, 0x02, 0xa3, 0x43, 0x2a, 0x0b, 0x52, 0x83, 0xc0, 0x8a, 0x85,
-	0x84, 0xb8, 0x58, 0x52, 0x12, 0x4b, 0x12, 0x25, 0x98, 0x14, 0x18, 0x35, 0x78, 0x82, 0xc0, 0x6c,
-	0x25, 0x1b, 0x2e, 0x6e, 0x24, 0x85, 0x42, 0x42, 0x5c, 0x7c, 0xae, 0x41, 0x41, 0xfe, 0x41, 0xf1,
-	0x41, 0xae, 0xc1, 0x01, 0xfe, 0x7e, 0xc1, 0xae, 0x02, 0x0c, 0x42, 0xec, 0x5c, 0xcc, 0xee, 0xae,
-	0x21, 0x02, 0x8c, 0x42, 0x02, 0x5c, 0x3c, 0xee, 0xae, 0x21, 0x08, 0x29, 0x26, 0x27, 0x89, 0x13,
-	0x8f, 0xe4, 0x18, 0x2f, 0x3c, 0x92, 0x63, 0x7c, 0xf0, 0x48, 0x8e, 0x71, 0xc2, 0x63, 0x39, 0x86,
-	0x0b, 0x8f, 0xe5, 0x18, 0x6e, 0x3c, 0x96, 0x63, 0x48, 0x62, 0x03, 0xbb, 0xdf, 0x18, 0x10, 0x00,
-	0x00, 0xff, 0xff, 0xc6, 0x4c, 0x84, 0xd1, 0xcf, 0x00, 0x00, 0x00,
+	0x2e, 0xd0, 0x2b, 0x48, 0x52, 0x9a, 0xc3, 0xc8, 0xc5, 0xeb, 0x06, 0x96, 0xf4, 0x4d, 0x2d, 0x2e,
+	0x4e, 0x4c, 0x4f, 0x15, 0xb2, 0xe4, 0x62, 0x29, 0xa9, 0x2c, 0x48, 0x95, 0x60, 0x54, 0x60, 0xd4,
+	0xe0, 0x33, 0x52, 0xd5, 0x43, 0x28, 0xd6, 0x43, 0x51, 0xa8, 0x07, 0xa5, 0x43, 0x2a, 0x0b, 0x52,
+	0x83, 0xc0, 0x5a, 0x84, 0x84, 0xb8, 0x58, 0x52, 0x12, 0x4b, 0x12, 0x25, 0x98, 0x14, 0x18, 0x35,
+	0x78, 0x82, 0xc0, 0x6c, 0x25, 0x1b, 0x2e, 0x6e, 0x24, 0x85, 0x42, 0x42, 0x5c, 0x7c, 0xae, 0x41,
+	0x41, 0xfe, 0x41, 0xf1, 0x41, 0xae, 0xc1, 0x01, 0xfe, 0x7e, 0xc1, 0xae, 0x02, 0x0c, 0x42, 0xec,
+	0x5c, 0xcc, 0xee, 0xae, 0x21, 0x02, 0x8c, 0x42, 0x02, 0x5c, 0x3c, 0xee, 0xae, 0x21, 0x08, 0x29,
+	0x26, 0x27, 0x89, 0x13, 0x8f, 0xe4, 0x18, 0x2f, 0x3c, 0x92, 0x63, 0x7c, 0xf0, 0x48, 0x8e, 0x71,
+	0xc2, 0x63, 0x39, 0x86, 0x0b, 0x8f, 0xe5, 0x18, 0x6e, 0x3c, 0x96, 0x63, 0x48, 0x62, 0x03, 0xfb,
+	0xc5, 0x18, 0x10, 0x00, 0x00, 0xff, 0xff, 0x65, 0xf2, 0x99, 0x68, 0xdb, 0x00, 0x00, 0x00,
 }
 
-func (m *Message) Marshal() (dAtA []byte, err error) {
+func (m *FinderMessage) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -137,12 +137,12 @@ func (m *Message) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *Message) MarshalTo(dAtA []byte) (int, error) {
+func (m *FinderMessage) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Message) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *FinderMessage) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -173,7 +173,7 @@ func encodeVarintFinder(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
-func (m *Message) Size() (n int) {
+func (m *FinderMessage) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -195,7 +195,7 @@ func sovFinder(x uint64) (n int) {
 func sozFinder(x uint64) (n int) {
 	return sovFinder(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *Message) Unmarshal(dAtA []byte) error {
+func (m *FinderMessage) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -218,10 +218,10 @@ func (m *Message) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Message: wiretype end group for non-group")
+			return fmt.Errorf("proto: FinderMessage: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Message: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: FinderMessage: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -238,7 +238,7 @@ func (m *Message) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Type |= Message_MessageType(b&0x7F) << shift
+				m.Type |= FinderMessage_MessageType(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

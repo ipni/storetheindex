@@ -20,6 +20,7 @@ import (
 	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	p2pfinderserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
 	httpingestserver "github.com/filecoin-project/storetheindex/server/ingest/http"
+	p2pingestserver "github.com/filecoin-project/storetheindex/server/ingest/libp2p"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
@@ -188,7 +189,7 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 
 		p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
-		p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
+		p2pingestserver.New(ctx, p2pHost, indexerCore, registry)
 		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID())
 	}
 

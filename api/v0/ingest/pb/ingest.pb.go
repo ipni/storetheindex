@@ -22,23 +22,23 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-type Message_MessageType int32
+type IngestMessage_MessageType int32
 
 const (
-	Message_ERROR_RESPONSE             Message_MessageType = 0
-	Message_LIST_PROVIDERS             Message_MessageType = 1
-	Message_LIST_PROVIDERS_RESPONSE    Message_MessageType = 2
-	Message_GET_PROVIDER               Message_MessageType = 3
-	Message_GET_PROVIDER_RESPONSE      Message_MessageType = 4
-	Message_DISCOVER_PROVIDER          Message_MessageType = 5
-	Message_DISCOVER_PROVIDER_RESPONSE Message_MessageType = 6
-	Message_REGISTER_PROVIDER          Message_MessageType = 7
-	Message_REGISTER_PROVIDER_RESPONSE Message_MessageType = 8
-	Message_REMOVE_PROVIDER            Message_MessageType = 9
-	Message_REMOVE_PROVIDER_RESPONSE   Message_MessageType = 10
+	IngestMessage_ERROR_RESPONSE             IngestMessage_MessageType = 0
+	IngestMessage_LIST_PROVIDERS             IngestMessage_MessageType = 1
+	IngestMessage_LIST_PROVIDERS_RESPONSE    IngestMessage_MessageType = 2
+	IngestMessage_GET_PROVIDER               IngestMessage_MessageType = 3
+	IngestMessage_GET_PROVIDER_RESPONSE      IngestMessage_MessageType = 4
+	IngestMessage_DISCOVER_PROVIDER          IngestMessage_MessageType = 5
+	IngestMessage_DISCOVER_PROVIDER_RESPONSE IngestMessage_MessageType = 6
+	IngestMessage_REGISTER_PROVIDER          IngestMessage_MessageType = 7
+	IngestMessage_REGISTER_PROVIDER_RESPONSE IngestMessage_MessageType = 8
+	IngestMessage_REMOVE_PROVIDER            IngestMessage_MessageType = 9
+	IngestMessage_REMOVE_PROVIDER_RESPONSE   IngestMessage_MessageType = 10
 )
 
-var Message_MessageType_name = map[int32]string{
+var IngestMessage_MessageType_name = map[int32]string{
 	0:  "ERROR_RESPONSE",
 	1:  "LIST_PROVIDERS",
 	2:  "LIST_PROVIDERS_RESPONSE",
@@ -52,7 +52,7 @@ var Message_MessageType_name = map[int32]string{
 	10: "REMOVE_PROVIDER_RESPONSE",
 }
 
-var Message_MessageType_value = map[string]int32{
+var IngestMessage_MessageType_value = map[string]int32{
 	"ERROR_RESPONSE":             0,
 	"LIST_PROVIDERS":             1,
 	"LIST_PROVIDERS_RESPONSE":    2,
@@ -66,33 +66,33 @@ var Message_MessageType_value = map[string]int32{
 	"REMOVE_PROVIDER_RESPONSE":   10,
 }
 
-func (x Message_MessageType) String() string {
-	return proto.EnumName(Message_MessageType_name, int32(x))
+func (x IngestMessage_MessageType) String() string {
+	return proto.EnumName(IngestMessage_MessageType_name, int32(x))
 }
 
-func (Message_MessageType) EnumDescriptor() ([]byte, []int) {
+func (IngestMessage_MessageType) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_ff993cce43359ffa, []int{0, 0}
 }
 
-type Message struct {
+type IngestMessage struct {
 	// defines what type of message it is.
-	Type Message_MessageType `protobuf:"varint,1,opt,name=type,proto3,enum=reqresp.pb.Message_MessageType" json:"type,omitempty"`
+	Type IngestMessage_MessageType `protobuf:"varint,1,opt,name=type,proto3,enum=reqresp.pb.IngestMessage_MessageType" json:"type,omitempty"`
 	// Value for the message
 	Data []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 }
 
-func (m *Message) Reset()         { *m = Message{} }
-func (m *Message) String() string { return proto.CompactTextString(m) }
-func (*Message) ProtoMessage()    {}
-func (*Message) Descriptor() ([]byte, []int) {
+func (m *IngestMessage) Reset()         { *m = IngestMessage{} }
+func (m *IngestMessage) String() string { return proto.CompactTextString(m) }
+func (*IngestMessage) ProtoMessage()    {}
+func (*IngestMessage) Descriptor() ([]byte, []int) {
 	return fileDescriptor_ff993cce43359ffa, []int{0}
 }
-func (m *Message) XXX_Unmarshal(b []byte) error {
+func (m *IngestMessage) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *Message) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *IngestMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_Message.Marshal(b, m, deterministic)
+		return xxx_messageInfo_IngestMessage.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -102,26 +102,26 @@ func (m *Message) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-func (m *Message) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Message.Merge(m, src)
+func (m *IngestMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_IngestMessage.Merge(m, src)
 }
-func (m *Message) XXX_Size() int {
+func (m *IngestMessage) XXX_Size() int {
 	return m.Size()
 }
-func (m *Message) XXX_DiscardUnknown() {
-	xxx_messageInfo_Message.DiscardUnknown(m)
+func (m *IngestMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_IngestMessage.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_Message proto.InternalMessageInfo
+var xxx_messageInfo_IngestMessage proto.InternalMessageInfo
 
-func (m *Message) GetType() Message_MessageType {
+func (m *IngestMessage) GetType() IngestMessage_MessageType {
 	if m != nil {
 		return m.Type
 	}
-	return Message_ERROR_RESPONSE
+	return IngestMessage_ERROR_RESPONSE
 }
 
-func (m *Message) GetData() []byte {
+func (m *IngestMessage) GetData() []byte {
 	if m != nil {
 		return m.Data
 	}
@@ -129,35 +129,35 @@ func (m *Message) GetData() []byte {
 }
 
 func init() {
-	proto.RegisterEnum("reqresp.pb.Message_MessageType", Message_MessageType_name, Message_MessageType_value)
-	proto.RegisterType((*Message)(nil), "reqresp.pb.Message")
+	proto.RegisterEnum("reqresp.pb.IngestMessage_MessageType", IngestMessage_MessageType_name, IngestMessage_MessageType_value)
+	proto.RegisterType((*IngestMessage)(nil), "reqresp.pb.IngestMessage")
 }
 
 func init() { proto.RegisterFile("ingest.proto", fileDescriptor_ff993cce43359ffa) }
 
 var fileDescriptor_ff993cce43359ffa = []byte{
-	// 276 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x64, 0xd1, 0x3f, 0x4e, 0xc3, 0x30,
-	0x14, 0xc7, 0xf1, 0x38, 0x84, 0x16, 0x1e, 0x51, 0x09, 0x0f, 0x55, 0x84, 0x3f, 0x32, 0x55, 0xa7,
-	0x4e, 0x19, 0xe8, 0x0d, 0xa0, 0x56, 0x15, 0x89, 0x92, 0xea, 0x39, 0xca, 0x5a, 0xa5, 0xc2, 0xaa,
-	0x58, 0xa8, 0x49, 0xb2, 0xf4, 0x16, 0x1c, 0x81, 0xe3, 0x30, 0x76, 0x64, 0x44, 0xc9, 0x19, 0xd8,
-	0x51, 0x22, 0x90, 0x03, 0x9d, 0x6c, 0x7d, 0xfd, 0xfb, 0x4c, 0x06, 0xf7, 0xe9, 0x79, 0xa5, 0xf2,
-	0x22, 0xd0, 0xd9, 0xba, 0x58, 0x23, 0x64, 0xea, 0x25, 0x53, 0xb9, 0x0e, 0xf4, 0x72, 0xf8, 0x65,
-	0x43, 0x77, 0xa6, 0xf2, 0x3c, 0x5d, 0x29, 0x1c, 0x83, 0x53, 0x6c, 0xb4, 0xf2, 0xd9, 0x80, 0x8d,
-	0x7a, 0x37, 0xd7, 0x81, 0x99, 0x05, 0x3f, 0x93, 0xdf, 0x33, 0xde, 0x68, 0x45, 0xcd, 0x18, 0x11,
-	0x9c, 0xc7, 0xb4, 0x48, 0x7d, 0x7b, 0xc0, 0x46, 0x2e, 0x35, 0xf7, 0xe1, 0x9b, 0x0d, 0x47, 0xad,
-	0x25, 0x22, 0xf4, 0x04, 0x51, 0x44, 0x0b, 0x12, 0x72, 0x1e, 0x3d, 0x48, 0xe1, 0x59, 0x75, 0xbb,
-	0x0f, 0x65, 0xbc, 0x98, 0x53, 0x94, 0x84, 0x13, 0x41, 0xd2, 0x63, 0x78, 0x09, 0x67, 0x7f, 0x9b,
-	0x01, 0x36, 0x7a, 0xe0, 0x4e, 0x85, 0x79, 0xf3, 0xf6, 0xf0, 0x1c, 0xfa, 0xed, 0x62, 0xc6, 0x0e,
-	0xf6, 0xe1, 0x64, 0x12, 0xca, 0xbb, 0x28, 0x11, 0x64, 0xc4, 0x3e, 0x72, 0xb8, 0xd8, 0xc9, 0x86,
-	0x75, 0x6a, 0x46, 0x62, 0x1a, 0xca, 0xb8, 0xcd, 0xba, 0x35, 0xdb, 0xc9, 0x86, 0x1d, 0xe0, 0x29,
-	0x1c, 0x93, 0x98, 0x45, 0x89, 0x30, 0xe8, 0x10, 0xaf, 0xc0, 0xff, 0x17, 0x0d, 0x81, 0x5b, 0xff,
-	0xbd, 0xe4, 0x6c, 0x5b, 0x72, 0xf6, 0x59, 0x72, 0xf6, 0x5a, 0x71, 0x6b, 0x5b, 0x71, 0xeb, 0xa3,
-	0xe2, 0xd6, 0xb2, 0xd3, 0x7c, 0xd2, 0xf8, 0x3b, 0x00, 0x00, 0xff, 0xff, 0x0b, 0xb9, 0xb5, 0xc1,
-	0xb4, 0x01, 0x00, 0x00,
+	// 283 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x64, 0xd1, 0xcf, 0x4a, 0xeb, 0x40,
+	0x14, 0xc7, 0xf1, 0x4c, 0x9a, 0xdb, 0xab, 0xc7, 0x58, 0xe3, 0x91, 0x62, 0xfc, 0xc3, 0x50, 0x0a,
+	0x42, 0x57, 0x59, 0xe8, 0xca, 0xad, 0x76, 0x28, 0x01, 0x6b, 0xca, 0x99, 0x90, 0x6d, 0x49, 0x71,
+	0x28, 0x6e, 0xec, 0x98, 0x64, 0xd3, 0xa5, 0x6f, 0xe0, 0x23, 0xf8, 0x38, 0x2e, 0xbb, 0x74, 0x29,
+	0xc9, 0x8b, 0x48, 0x82, 0x30, 0xa9, 0x5d, 0x25, 0x7c, 0xcf, 0xef, 0xb3, 0x1a, 0x70, 0x9f, 0x5f,
+	0x96, 0x2a, 0x2f, 0x02, 0x9d, 0xad, 0x8a, 0x15, 0x42, 0xa6, 0x5e, 0x33, 0x95, 0xeb, 0x40, 0x2f,
+	0x86, 0x6f, 0x1d, 0x38, 0x0c, 0x9b, 0xe3, 0x54, 0xe5, 0x79, 0xba, 0x54, 0x78, 0x0b, 0x4e, 0xb1,
+	0xd6, 0xca, 0x67, 0x03, 0x36, 0xea, 0x5d, 0x5f, 0x05, 0x66, 0x1c, 0x6c, 0x0d, 0x83, 0xdf, 0x6f,
+	0xbc, 0xd6, 0x8a, 0x1a, 0x82, 0x08, 0xce, 0x53, 0x5a, 0xa4, 0xbe, 0x3d, 0x60, 0x23, 0x97, 0x9a,
+	0xff, 0xe1, 0x87, 0x0d, 0x07, 0xad, 0x25, 0x22, 0xf4, 0x04, 0x51, 0x44, 0x73, 0x12, 0x72, 0x16,
+	0x3d, 0x4a, 0xe1, 0x59, 0x75, 0x7b, 0x08, 0x65, 0x3c, 0x9f, 0x51, 0x94, 0x84, 0x63, 0x41, 0xd2,
+	0x63, 0x78, 0x01, 0xa7, 0xdb, 0xcd, 0x00, 0x1b, 0x3d, 0x70, 0x27, 0xc2, 0xdc, 0xbc, 0x0e, 0x9e,
+	0x41, 0xbf, 0x5d, 0xcc, 0xd8, 0xc1, 0x3e, 0x1c, 0x8f, 0x43, 0x79, 0x1f, 0x25, 0x82, 0x8c, 0xf8,
+	0x87, 0x1c, 0xce, 0x77, 0xb2, 0x61, 0xdd, 0x9a, 0x91, 0x98, 0x84, 0x32, 0x6e, 0xb3, 0xff, 0x35,
+	0xdb, 0xc9, 0x86, 0xed, 0xe1, 0x09, 0x1c, 0x91, 0x98, 0x46, 0x89, 0x30, 0x68, 0x1f, 0x2f, 0xc1,
+	0xff, 0x13, 0x0d, 0x81, 0x3b, 0xff, 0xb3, 0xe4, 0x6c, 0x53, 0x72, 0xf6, 0x5d, 0x72, 0xf6, 0x5e,
+	0x71, 0x6b, 0x53, 0x71, 0xeb, 0xab, 0xe2, 0xd6, 0xa2, 0xdb, 0x3c, 0xd8, 0xcd, 0x4f, 0x00, 0x00,
+	0x00, 0xff, 0xff, 0xbb, 0x05, 0x99, 0x05, 0xc0, 0x01, 0x00, 0x00,
 }
 
-func (m *Message) Marshal() (dAtA []byte, err error) {
+func (m *IngestMessage) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -167,12 +167,12 @@ func (m *Message) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *Message) MarshalTo(dAtA []byte) (int, error) {
+func (m *IngestMessage) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Message) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *IngestMessage) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -203,7 +203,7 @@ func encodeVarintIngest(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
-func (m *Message) Size() (n int) {
+func (m *IngestMessage) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -225,7 +225,7 @@ func sovIngest(x uint64) (n int) {
 func sozIngest(x uint64) (n int) {
 	return sovIngest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *Message) Unmarshal(dAtA []byte) error {
+func (m *IngestMessage) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -248,10 +248,10 @@ func (m *Message) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Message: wiretype end group for non-group")
+			return fmt.Errorf("proto: IngestMessage: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Message: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: IngestMessage: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -268,7 +268,7 @@ func (m *Message) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Type |= Message_MessageType(b&0x7F) << shift
+				m.Type |= IngestMessage_MessageType(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

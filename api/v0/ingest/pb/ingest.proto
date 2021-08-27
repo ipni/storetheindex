@@ -7,7 +7,7 @@
 syntax = "proto3";
 package reqresp.pb;
 
-message Message {
+message IngestMessage {
     enum MessageType {
         ERROR_RESPONSE = 0;
         LIST_PROVIDERS = 1;

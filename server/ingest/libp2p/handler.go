@@ -27,7 +27,7 @@ type handler struct {
 }
 
 // handlerFunc is the function signature required by handlers in this package
-type handlerFunc func(context.Context, peer.ID, *pb.Message) ([]byte, error)
+type handlerFunc func(context.Context, peer.ID, *pb.IngestMessage) ([]byte, error)
 
 func newHandler(indexer indexer.Interface, registry *providers.Registry) *handler {
 	return &handler{
@@ -41,7 +41,7 @@ func (h *handler) ProtocolID() protocol.ID {
 }
 
 func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes []byte, freeMsg func()) (proto.Message, error) {
-	var req pb.Message
+	var req pb.IngestMessage
 	err := req.Unmarshal(msgbytes)
 	freeMsg()
 	if err != nil {
@@ -49,23 +49,23 @@ func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes [
 	}
 
 	var handle handlerFunc
-	var rspType pb.Message_MessageType
+	var rspType pb.IngestMessage_MessageType
 	switch req.GetType() {
-	case pb.Message_DISCOVER_PROVIDER:
+	case pb.IngestMessage_DISCOVER_PROVIDER:
 		handle = h.DiscoverProvider
-		rspType = pb.Message_DISCOVER_PROVIDER_RESPONSE
-	case pb.Message_GET_PROVIDER:
+		rspType = pb.IngestMessage_DISCOVER_PROVIDER_RESPONSE
+	case pb.IngestMessage_GET_PROVIDER:
 		handle = h.GetProvider
-		rspType = pb.Message_GET_PROVIDER_RESPONSE
-	case pb.Message_LIST_PROVIDERS:
+		rspType = pb.IngestMessage_GET_PROVIDER_RESPONSE
+	case pb.IngestMessage_LIST_PROVIDERS:
 		handle = h.ListProviders
-		rspType = pb.Message_LIST_PROVIDERS_RESPONSE
-	case pb.Message_REGISTER_PROVIDER:
+		rspType = pb.IngestMessage_LIST_PROVIDERS_RESPONSE
+	case pb.IngestMessage_REGISTER_PROVIDER:
 		handle = h.RegisterProvider
-		rspType = pb.Message_REGISTER_PROVIDER_RESPONSE
-	case pb.Message_REMOVE_PROVIDER:
+		rspType = pb.IngestMessage_REGISTER_PROVIDER_RESPONSE
+	case pb.IngestMessage_REMOVE_PROVIDER:
 		handle = h.RemoveProvider
-		rspType = pb.Message_REMOVE_PROVIDER_RESPONSE
+		rspType = pb.IngestMessage_REMOVE_PROVIDER_RESPONSE
 	default:
 		msg := "ussupported message type"
 		log.Errorw(msg, "type", req.GetType())
@@ -74,17 +74,17 @@ func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes [
 
 	data, err := handle(ctx, msgPeer, &req)
 	if err != nil {
-		rspType = pb.Message_ERROR_RESPONSE
+		rspType = pb.IngestMessage_ERROR_RESPONSE
 		data = v0.EncodeError(err)
 	}
 
-	return &pb.Message{
+	return &pb.IngestMessage{
 		Type: rspType,
 		Data: data,
 	}, nil
 }
 
-func (h *handler) DiscoverProvider(ctx context.Context, p peer.ID, msg *pb.Message) ([]byte, error) {
+func (h *handler) DiscoverProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
 	var discoReq models.DiscoverRequest
 	if err := json.Unmarshal(msg.GetData(), &discoReq); err != nil {
 		log.Errorw("error unmarshalling discovery request", "err", err)
@@ -106,7 +106,7 @@ func (h *handler) DiscoverProvider(ctx context.Context, p peer.ID, msg *pb.Messa
 	return nil, nil
 }
 
-func (h *handler) ListProviders(ctx context.Context, p peer.ID, msg *pb.Message) ([]byte, error) {
+func (h *handler) ListProviders(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
 	infos := h.registry.AllProviderInfo()
 
 	responses := make([]models.ProviderInfo, len(infos))
@@ -123,7 +123,7 @@ func (h *handler) ListProviders(ctx context.Context, p peer.ID, msg *pb.Message)
 	return rb, nil
 }
 
-func (h *handler) GetProvider(ctx context.Context, p peer.ID, msg *pb.Message) ([]byte, error) {
+func (h *handler) GetProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
 	var providerID peer.ID
 	err := json.Unmarshal(msg.GetData(), &providerID)
 	if err != nil {
@@ -148,7 +148,7 @@ func (h *handler) GetProvider(ctx context.Context, p peer.ID, msg *pb.Message) (
 	return rb, nil
 }
 
-func (h *handler) RegisterProvider(ctx context.Context, p peer.ID, msg *pb.Message) ([]byte, error) {
+func (h *handler) RegisterProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
 	var regReq models.RegisterRequest
 	err := json.Unmarshal(msg.GetData(), &regReq)
 	if err != nil {
@@ -174,7 +174,7 @@ func (h *handler) RegisterProvider(ctx context.Context, p peer.ID, msg *pb.Messa
 	return nil, nil
 }
 
-func (h *handler) RemoveProvider(ctx context.Context, p peer.ID, msg *pb.Message) ([]byte, error) {
+func (h *handler) RemoveProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
 	return nil, v0.MakeError(http.StatusNotImplemented, nil)
 }
 
