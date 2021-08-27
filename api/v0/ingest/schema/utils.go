@@ -12,6 +12,8 @@ import (
 	mh "github.com/multiformats/go-multihash"
 )
 
+// Linkproto is the ipld.LinkProtocol used for the ingestion protocol.
+// Refer to it if you have encoding questions.
 var Linkproto = cidlink.LinkPrototype{
 	Prefix: cid.Prefix{
 		Version:  1,

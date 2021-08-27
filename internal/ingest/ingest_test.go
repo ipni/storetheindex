@@ -28,7 +28,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/test"
-	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 	"github.com/willscott/go-legs"
 )
@@ -37,17 +36,105 @@ var ingestCfg = config.Ingest{
 	PubSubTopic: "test/ingest",
 }
 
-var prefix = cid.Prefix{
-	Version:  1,
-	Codec:    cid.Raw,
-	MhType:   multihash.SHA2_256,
-	MhLength: -1, // default length
+var prefix = schema.Linkproto.Prefix
+
+func TestSubscribe(t *testing.T) {
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := mkTestHost()
+	lph := mkTestHost()
+	i := mkIngest(t, h)
+	lp, lsys := mkMockPublisher(t, lph, srcStore)
+
+	connectHosts(t, h, lph)
+
+	// Subscribe to provider
+	err := i.Subscribe(context.Background(), lph.ID())
+	require.NoError(t, err)
+	require.NotNil(t, i.subs[lph.ID()])
+
+	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
+	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
+	time.Sleep(time.Second)
+
+	defer func() {
+		lp.Close(context.Background())
+		i.Close(context.Background())
+	}()
+
+	// Test with two random advertisement publications.
+	_, cids := publishRandomAdv(t, i, lph, lp, lsys)
+	// Check that the cids have been indexed correctly.
+	i.checkCidsIndexed(t, lph.ID(), cids)
+	_, cids = publishRandomAdv(t, i, lph, lp, lsys)
+	// Check that the cids have been indexed correctly.
+	i.checkCidsIndexed(t, lph.ID(), cids)
+
+	i.Unsubscribe(context.Background(), lph.ID())
+	// Check that no advertisement is retrieved from
+	// peer once it has been unsubscribed.
+	c, _ := publishRandomIndexAndAdv(t, lp, lsys)
+	adv, err := i.ds.Get(datastore.NewKey(c.String()))
+	require.Error(t, err, datastore.ErrNotFound)
+	require.Nil(t, adv)
+
+}
+
+func TestMultipleSubscriptions(t *testing.T) {
+	srcStore1 := dssync.MutexWrap(datastore.NewMapDatastore())
+	srcStore2 := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := mkTestHost()
+	lph1 := mkTestHost()
+	lph2 := mkTestHost()
+	i := mkIngest(t, h)
+	lp1, lsys1 := mkMockPublisher(t, lph1, srcStore1)
+	lp2, lsys2 := mkMockPublisher(t, lph2, srcStore2)
+
+	// Subscribe to both providers
+	connectHosts(t, h, lph1)
+	err := i.Subscribe(context.Background(), lph1.ID())
+	require.NoError(t, err)
+	require.NotNil(t, i.subs[lph1.ID()])
+
+	connectHosts(t, h, lph2)
+	err = i.Subscribe(context.Background(), lph2.ID())
+	require.NoError(t, err)
+	require.NotNil(t, i.subs[lph2.ID()])
+
+	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
+	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
+	time.Sleep(1 * time.Second)
+
+	defer func() {
+		lp1.Close(context.Background())
+		lp2.Close(context.Background())
+		i.Close(context.Background())
+	}()
+
+	// Test with two random advertisement publications for each
+	// of them.
+	c1, cids := publishRandomAdv(t, i, lph1, lp1, lsys1)
+	i.checkCidsIndexed(t, lph1.ID(), cids)
+	// TODO: Investigate why removing this sleep makes the test
+	// to fail.
+	time.Sleep(500 * time.Millisecond)
+	c2, cids := publishRandomAdv(t, i, lph2, lp2, lsys2)
+	i.checkCidsIndexed(t, lph2.ID(), cids)
+
+	lcid, err := i.getLatestSync(lph1.ID())
+	require.NoError(t, err)
+	require.Equal(t, lcid, c1)
+	lcid2, err := i.getLatestSync(lph2.ID())
+	require.NoError(t, err)
+	require.Equal(t, lcid2, c2)
+
 }
 
 func mkTestHost() host.Host {
 	h, _ := libp2p.New(context.Background(), libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
 	return h
 }
+
+// Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
 	var tmpDir string
 	var err error
@@ -111,14 +198,7 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 	}
 }
 
-func connectAlt(t *testing.T, srcHost, dstHost host.Host) {
-	dst := host.InfoFromHost(dstHost)
-	if err := srcHost.Connect(context.Background(), *dst); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem) cid.Cid {
+func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem) (cid.Cid, []cid.Cid) {
 	cids, _ := RandomCids(10)
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
@@ -132,93 +212,19 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.Lin
 	require.NoError(t, err)
 	err = pub.UpdateRoot(context.Background(), lnk.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	return lnk.(cidlink.Link).Cid
+	return lnk.(cidlink.Link).Cid, cids
 }
 
-func TestSubscribe(t *testing.T) {
-	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
-	h := mkTestHost()
-	lph := mkTestHost()
-	i := mkIngest(t, h)
-	lp, lsys := mkMockPublisher(t, lph, srcStore)
-
-	connectHosts(t, h, lph)
-
-	err := i.Subscribe(context.Background(), lph.ID())
-	require.NoError(t, err)
-	require.NotNil(t, i.subs[lph.ID()])
-
-	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
-	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
-	time.Sleep(time.Second)
-
-	defer func() {
-		lp.Close(context.Background())
-	}()
-
-	// Test with two random advertisement publications.
-	publishRandomAdv(t, i, lph, lp, lsys)
-	publishRandomAdv(t, i, lph, lp, lsys)
-
-	i.Unsubscribe(context.Background(), lph.ID())
-	// Check that no advertisement is retrieved from
-	// peer once it has been unsubscribed.
-	c := publishRandomIndexAndAdv(t, lp, lsys)
-	adv, err := i.ds.Get(datastore.NewKey(c.String()))
-	require.Error(t, err, datastore.ErrNotFound)
-	require.Nil(t, adv)
-
+func (i *legIngester) checkCidsIndexed(t *testing.T, p peer.ID, cids []cid.Cid) {
+	for x := range cids {
+		v, b, err := i.indexer.Get(cids[x])
+		require.NoError(t, err)
+		require.True(t, b)
+		require.Equal(t, v[0].ProviderID, p)
+	}
 }
-
-func TestMultipleSubscriptions(t *testing.T) {
-	srcStore1 := dssync.MutexWrap(datastore.NewMapDatastore())
-	srcStore2 := dssync.MutexWrap(datastore.NewMapDatastore())
-	h := mkTestHost()
-	lph1 := mkTestHost()
-	lph2 := mkTestHost()
-	i := mkIngest(t, h)
-	lp1, lsys1 := mkMockPublisher(t, lph1, srcStore1)
-	lp2, lsys2 := mkMockPublisher(t, lph2, srcStore2)
-	// Subscribe to both providers
-	connectAlt(t, h, lph1)
-	err := i.Subscribe(context.Background(), lph1.ID())
-	require.NoError(t, err)
-	require.NotNil(t, i.subs[lph1.ID()])
-
-	connectAlt(t, h, lph2)
-	err = i.Subscribe(context.Background(), lph2.ID())
-	require.NoError(t, err)
-	require.NotNil(t, i.subs[lph2.ID()])
-
-	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
-	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
-	time.Sleep(1 * time.Second)
-
-	defer func() {
-		lp1.Close(context.Background())
-		lp2.Close(context.Background())
-		i.Close(context.Background())
-	}()
-
-	// Test with two random advertisement publications for each
-	// of them.
-	c1 := publishRandomAdv(t, i, lph1, lp1, lsys1)
-	// TODO: We may need to have a different GS instance per subscription
-	// to avoid this kind of errors when doing subsequent actions.
-	time.Sleep(500 * time.Millisecond)
-	c2 := publishRandomAdv(t, i, lph2, lp2, lsys2)
-
-	lcid, err := i.getLatestSync(lph1.ID())
-	require.NoError(t, err)
-	require.Equal(t, lcid, c1)
-	lcid2, err := i.getLatestSync(lph2.ID())
-	require.NoError(t, err)
-	require.Equal(t, lcid2, c2)
-
-}
-
-func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPublisher, lsys ipld.LinkSystem) cid.Cid {
-	c := publishRandomIndexAndAdv(t, lp, lsys)
+func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPublisher, lsys ipld.LinkSystem) (cid.Cid, []cid.Cid) {
+	c, cids := publishRandomIndexAndAdv(t, lp, lsys)
 
 	// Give some time for the advertisement to propagate
 	time.Sleep(500 * time.Millisecond)
@@ -231,5 +237,5 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 	lcid, err := i.getLatestSync(lph.ID())
 	require.NoError(t, err)
 	require.Equal(t, lcid, c)
-	return c
+	return c, cids
 }

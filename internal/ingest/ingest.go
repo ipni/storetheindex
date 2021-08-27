@@ -2,7 +2,6 @@ package ingest
 
 import (
 	"context"
-	"fmt"
 
 	indexer "github.com/filecoin-project/go-indexer-core/engine"
 	ingestion "github.com/filecoin-project/storetheindex/api/v0/ingest"
@@ -20,14 +19,19 @@ import (
 	"github.com/willscott/go-legs"
 )
 
-var _ ingestion.Ingester = &legIngester{}
-
 var log = logging.Logger("indexer/ingest")
 
+var (
+	_ ingestion.Ingester = &legIngester{}
+)
+
+// prefix used to track latest sync in datastore.
 const (
 	syncPrefix = "/sync/"
 )
 
+// legIngester is an ingester type that leverages go-legs for the
+// ingestion protocol.
 type legIngester struct {
 	host     host.Host
 	ds       datastore.Batching
@@ -40,18 +44,12 @@ type legIngester struct {
 	sublk *kmutex.Kmutex
 }
 
+// Subscriber datastructure for a peer.
 type sub struct {
 	p       peer.ID
 	ls      legs.LegSubscriber
 	watcher chan cid.Cid
 	cncl    context.CancelFunc
-}
-
-func (s *sub) cancelFunc(c1, c2 context.CancelFunc) context.CancelFunc {
-	return func() {
-		c1()
-		c2()
-	}
 }
 
 // NewLegIngester creates a new go-legs-backed ingester.
@@ -62,7 +60,7 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 	gsnet := gsnet.NewFromLibp2pHost(h)
 	gs := gsimpl.New(ctx, gsnet, lsys)
 
-	return &legIngester{
+	li := &legIngester{
 		host:     h,
 		ds:       ds,
 		indexer:  i,
@@ -71,7 +69,11 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 		subTopic: cfg.PubSubTopic,
 		subs:     make(map[peer.ID]*sub),
 		sublk:    kmutex.New(),
-	}, nil
+	}
+
+	// Register storage hook to index data as we receive it.
+	gs.RegisterIncomingBlockHook(li.storageHook())
+	return li, nil
 }
 
 // Sync with a data provider up to latest ID
@@ -92,7 +94,8 @@ func (i *legIngester) Sync(ctx context.Context, p peer.ID) error {
 		return nil
 	}
 
-	// TODO: Figure out if graphsync should be shared or not before this.
+	// TODO: Blocked until getLatestAdvertisement endpoint is available
+	// in reference index provider.
 	// Close current subscriber if any.
 	// Sync with dedicated data transfer with stopAt in latestSync.
 	// Start a new partiallySynced subscriber from the last advertisement.
@@ -133,7 +136,6 @@ func (i *legIngester) listenUpdates(ctx context.Context, s *sub) {
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("Done?")
 			return
 		// Persist the latest sync
 		case c := <-s.watcher:
@@ -174,6 +176,9 @@ func (i *legIngester) newPeerSubscriber(ctx context.Context, p peer.ID) (*sub, e
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: Make a request to provider to see if it has any new advertisement
+	// and sync before initializing subscriber?
 
 	// If not synced start a brand new subscriber
 	if c == cid.Undef {
@@ -221,4 +226,13 @@ func (i *legIngester) getLatestSync(p peer.ID) (cid.Cid, error) {
 // Tracks latest sync for a specific peer.
 func (i *legIngester) putLatestSync(p peer.ID, c cid.Cid) error {
 	return i.ds.Put(datastore.NewKey(syncPrefix+p.String()), c.Bytes())
+}
+
+// cancelfunc for subscribers. Combines context cancel and LegSubscriber
+// cancel function.
+func (s *sub) cancelFunc(c1, c2 context.CancelFunc) context.CancelFunc {
+	return func() {
+		c1()
+		c2()
+	}
 }

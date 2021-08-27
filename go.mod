@@ -24,11 +24,8 @@ require (
 	github.com/multiformats/go-multihash v0.0.15
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.3.0
-	github.com/willscott/go-legs v0.0.0-00010101000000-000000000000
+	github.com/willscott/go-legs v0.0.0-20210827073353-cc91ef030405
 	github.com/ybbus/jsonrpc/v2 v2.1.6
 )
 
 replace github.com/filecoin-project/filecoin-ffi => github.com/filecoin-project/ffi-stub v0.2.0
-
-// TODO: Remove this when XXX merged
-replace github.com/willscott/go-legs => /home/adlrocha/Desktop/main/work/ProtocolLabs/repos/datasystems/go-legs
