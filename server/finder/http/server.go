@@ -44,7 +44,10 @@ func New(listen string, indexer indexer.Interface, registry *providers.Registry,
 	s := &Server{server, l}
 
 	// Resource handler
-	h := newHandler(indexer, registry)
+	h := &handler{
+		indexer:  indexer,
+		registry: registry,
+	}
 
 	// Client routes
 	r.HandleFunc("/cid/{cid}", h.GetSingleCid).Methods("GET")

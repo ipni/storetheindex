@@ -1,4 +1,4 @@
-package handler
+package ingestserver
 
 import (
 	"encoding/json"
@@ -6,14 +6,23 @@ import (
 	"io"
 	"net/http"
 
+	indexer "github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/gorilla/mux"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
+type handler struct {
+	indexer  indexer.Interface
+	registry *providers.Registry
+}
+
+// ----- provider handlers -----
+
 // GET /providers",
-func (h *Handler) ListProviders(w http.ResponseWriter, r *http.Request) {
+func (h *handler) ListProviders(w http.ResponseWriter, r *http.Request) {
 	infos := h.registry.AllProviderInfo()
 
 	responses := make([]models.ProviderInfo, len(infos))
@@ -38,7 +47,7 @@ func (h *Handler) ListProviders(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /providers/{providerid}
-func (h *Handler) GetProvider(w http.ResponseWriter, r *http.Request) {
+func (h *handler) GetProvider(w http.ResponseWriter, r *http.Request) {
 	providerID, err := getProviderID(r)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -72,7 +81,7 @@ func (h *Handler) GetProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /discover
-func (h *Handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
+func (h *handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
@@ -106,7 +115,7 @@ func (h *Handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /providers
-func (h *Handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
+func (h *handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
@@ -142,7 +151,7 @@ func (h *Handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 // DELETE /providers/{providerid}
-func (h *Handler) RemoveProvider(w http.ResponseWriter, r *http.Request) {
+func (h *handler) RemoveProvider(w http.ResponseWriter, r *http.Request) {
 	/*
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -179,6 +188,70 @@ func (h *Handler) RemoveProvider(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// ----- ingest handlers -----
+// PUT /ingestion/advertisement
+func (h *handler) Advertise(w http.ResponseWriter, r *http.Request) {
+	/*
+		w.Header().Set("Content-Type", "application/json")
+		adBuild := ingestion.Type.Advertisement.NewBuilder()
+		err := dagjson.Decoder(ptp, r.Body)
+		if err != nil {
+			log.Errorw("Advertise request json decode", "err", err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		_, err := h.registry.Advertise(r.Context(), adBuild.Build().(ingestion.Advertisement))
+		if err != nil {
+			log.Errorw("Advertise failed:", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	*/
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// POST /ingestion
+func (h *handler) IndexContent(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Errorw("failed reading body", "err", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	ireq := new(models.IngestRequest)
+	err = json.Unmarshal(body, &ireq)
+	if err != nil {
+		log.Errorw("error unmarshaling body", "err", err)
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	// Check that the provider has been discovered and validated
+	if !h.registry.IsRegistered(ireq.Value.ProviderID) {
+		log.Infow("cannot accept ingest request from unknown provider", "provider", ireq.Value.ProviderID)
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	err = ireq.VerifySignature()
+	if err != nil {
+		log.Infow("signature not verified", "err", err)
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	ok, err := h.indexer.Put(ireq.Cid, ireq.Value)
+	if err != nil {
+		log.Errorw("cannot store content", "cid", ireq.Cid, "err", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	if ok {
+		log.Infow("stored new content", "cid", ireq.Cid)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func getProviderID(r *http.Request) (peer.ID, error) {
 	vars := mux.Vars(r)
 	pid := vars["providerid"]
@@ -191,4 +264,35 @@ func getProviderID(r *http.Request) (peer.ID, error) {
 
 func provInfoToApi(pinfo *providers.ProviderInfo, apiModel *models.ProviderInfo) {
 	*apiModel = models.MakeProviderInfo(pinfo.AddrInfo, pinfo.LastIndex, pinfo.LastIndexTime)
+}
+
+func writeResponse(w http.ResponseWriter, body []byte) error {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	if _, err := w.Write(body); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeError(w http.ResponseWriter, statusCode int, err error) {
+	w.WriteHeader(http.StatusBadRequest)
+	if err == nil {
+		return
+	}
+
+	e := v0.Error{
+		Message: err.Error(),
+	}
+	rb, err := json.Marshal(&e)
+	if err != nil {
+		log.Errorw("failed to marshal error response", "err", err)
+		return
+	}
+
+	err = writeResponse(w, rb)
+	if err != nil {
+		log.Errorw("failed writing error response", "err", err)
+	}
 }
