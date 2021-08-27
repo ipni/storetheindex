@@ -28,6 +28,10 @@ type Client struct {
 	protocols   []protocol.ID
 }
 
+// DecodeResponseFunc is a function that is passed into this generic libp2p
+// Client to decode a response message.  This is needed because the generic
+// client cannot decode the response message since the message is of a type
+// only know to a specific libp2p client using this generic client.
 type DecodeResponseFunc func([]byte) error
 
 // Timeout to wait for a response after a request is sent

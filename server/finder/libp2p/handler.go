@@ -37,10 +37,9 @@ func (h *handler) ProtocolID() protocol.ID {
 	return v0.FinderProtocolID
 }
 
-func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes []byte, freeMsg func()) (proto.Message, error) {
+func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes []byte) (proto.Message, error) {
 	var req pb.FinderMessage
 	err := req.Unmarshal(msgbytes)
-	freeMsg()
 	if err != nil {
 		return nil, err
 	}

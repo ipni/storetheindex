@@ -18,7 +18,7 @@ import (
 const streamIdleTimeout = 1 * time.Minute
 
 type Handler interface {
-	HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes []byte, freeMsg func()) (proto.Message, error)
+	HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes []byte) (proto.Message, error)
 	ProtocolID() protocol.ID
 }
 
@@ -78,16 +78,8 @@ func (s *Server) handleNewMessages(stream network.Stream) bool {
 		}
 		timer.Reset(streamIdleTimeout)
 
-		var freed bool
-		freeMsg := func() {
-			r.ReleaseMsg(msgbytes)
-			freed = true
-		}
-
-		resp, err := handler.HandleMessage(ctx, mPeer, msgbytes, freeMsg)
-		if !freed {
-			r.ReleaseMsg(msgbytes)
-		}
+		resp, err := handler.HandleMessage(ctx, mPeer, msgbytes)
+		r.ReleaseMsg(msgbytes)
 		if err != nil {
 			return true
 		}
