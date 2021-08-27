@@ -277,7 +277,7 @@ func (r *Registry) syncRegister(info *ProviderInfo, errCh chan<- error) {
 	r.providers[info.AddrInfo.ID] = info
 	err := r.syncPersistProvider(info)
 	if err != nil {
-		log.Errorw("could not persiste provider", "err", err)
+		log.Errorw("could not persist provider", "err", err)
 		errCh <- err
 	}
 	close(errCh)

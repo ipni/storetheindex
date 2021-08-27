@@ -1,17 +1,18 @@
-package httpclient
+package ingesthttpclient
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
-	ic "github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/filecoin-project/storetheindex/config"
+	httpclient "github.com/filecoin-project/storetheindex/internal/httpclient"
+	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/multiformats/go-multiaddr"
 )
 
 const (
@@ -26,8 +27,8 @@ type IngestClient struct {
 }
 
 // NewIngest creates a new IngestClient
-func NewIngest(baseURL string, options ...ClientOption) (*IngestClient, error) {
-	u, c, err := newClient(baseURL, providersResource, ingestPort, options...)
+func NewIngest(baseURL string, options ...httpclient.ClientOption) (*IngestClient, error) {
+	u, c, err := httpclient.NewClient(baseURL, providersResource, ingestPort, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -37,31 +38,11 @@ func NewIngest(baseURL string, options ...ClientOption) (*IngestClient, error) {
 	}, nil
 }
 
-func (cl *IngestClient) Register(ctx context.Context, peerID string, privateKey ic.PrivKey, addrs []string) error {
-	providerID, err := peer.Decode(peerID)
+func (cl *IngestClient) Register(ctx context.Context, providerIdent config.Identity, addrs []string) error {
+	regReq, err := models.MakeRegisterRequest(providerIdent, addrs)
 	if err != nil {
-		return fmt.Errorf("could not decode peer id: %s", err)
+		return err
 	}
-
-	maddrs := make([]multiaddr.Multiaddr, len(addrs))
-	for i, m := range addrs {
-		maddrs[i], err = multiaddr.NewMultiaddr(m)
-		if err != nil {
-			return fmt.Errorf("bad provider address: %s", err)
-		}
-	}
-
-	regReq := &models.RegisterRequest{
-		AddrInfo: peer.AddrInfo{
-			ID:    providerID,
-			Addrs: maddrs,
-		},
-	}
-
-	if err = regReq.Sign(privateKey); err != nil {
-		return fmt.Errorf("cannot sign request: %s", err)
-	}
-
 	data, err := json.Marshal(regReq)
 	if err != nil {
 		return err
@@ -85,7 +66,17 @@ func (cl *IngestClient) Register(ctx context.Context, peerID string, privateKey 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return readError(resp.StatusCode, body)
+		return httpclient.ReadError(resp.StatusCode, body)
 	}
 	return nil
+}
+
+// Sync with a data provider up to latest ID
+func (cl *IngestClient) Sync(ctx context.Context, p peer.ID, cid cid.Cid) error {
+	return errors.New("not implemented")
+}
+
+// Subscribe to advertisements of a specific provider in the pubsub channel
+func (cl *IngestClient) Subscribe(ctx context.Context, p peer.ID) error {
+	return errors.New("not implemented")
 }

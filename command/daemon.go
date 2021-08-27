@@ -16,10 +16,11 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/lotus"
 	"github.com/filecoin-project/storetheindex/internal/providers"
-	adminserver "github.com/filecoin-project/storetheindex/server/admin"
+	httpadminserver "github.com/filecoin-project/storetheindex/server/admin/http"
 	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	p2pfinderserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
-	ingestserver "github.com/filecoin-project/storetheindex/server/ingest"
+	httpingestserver "github.com/filecoin-project/storetheindex/server/ingest/http"
+	p2pingestserver "github.com/filecoin-project/storetheindex/server/ingest/libp2p"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
@@ -128,7 +129,7 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	adminSvr, err := adminserver.New(adminAddr.String(), indexerCore)
+	adminSvr, err := httpadminserver.New(adminAddr.String(), indexerCore)
 	if err != nil {
 		return err
 	}
@@ -158,20 +159,20 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	ingestSvr, err := ingestserver.New(ingestAddr.String(), indexerCore, registry)
+	ingestSvr, err := httpingestserver.New(ingestAddr.String(), indexerCore, registry)
 	if err != nil {
 		return err
 	}
 	log.Infow("ingest server initialized", "address", finderAddr)
 
 	var (
-		p2pSvr          *p2pfinderserver.Server
-		cancelP2pFinder context.CancelFunc
+		cancelP2pServers context.CancelFunc
 	)
-	// Create libp2p host and finder libp2p server
+	// Create libp2p host and servers
 	if !cfg.Addresses.DisableP2P && !cctx.Bool("disablep2p") {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		cancelP2pServers = cancel
 
 		privKey, err := cfg.Identity.DecodePrivateKey("")
 		if err != nil {
@@ -187,12 +188,9 @@ func daemonCommand(cctx *cli.Context) error {
 			return err
 		}
 
-		p2pSvr, err = p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
-		if err != nil {
-			return err
-		}
-		cancelP2pFinder = cancel
-		log.Infow("Finder libp2p server  initialized", "host_id", p2pHost.ID())
+		p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
+		p2pingestserver.New(ctx, p2pHost, indexerCore, registry)
+		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID())
 	}
 
 	log.Info("Starting daemon servers")
@@ -230,8 +228,8 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 	}()
 
-	if p2pSvr != nil {
-		cancelP2pFinder()
+	if cancelP2pServers != nil {
+		cancelP2pServers()
 	}
 
 	if err = ingestSvr.Shutdown(ctx); err != nil {

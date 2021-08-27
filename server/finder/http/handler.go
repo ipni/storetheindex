@@ -1,4 +1,4 @@
-package handler
+package httpfinderserver
 
 import (
 	"io"
@@ -9,25 +9,22 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
-	logging "github.com/ipfs/go-log/v2"
 )
 
-var log = logging.Logger("find_handler")
-
-// Finder handles requests for the finder resource
-type Handler struct {
+// handler handles requests for the finder resource
+type handler struct {
 	indexer  indexer.Interface
 	registry *providers.Registry
 }
 
-func New(indexer indexer.Interface, registry *providers.Registry) *Handler {
-	return &Handler{
+func newHandler(indexer indexer.Interface, registry *providers.Registry) *handler {
+	return &handler{
 		indexer:  indexer,
 		registry: registry,
 	}
 }
 
-func (h *Handler) GetSingleCid(w http.ResponseWriter, r *http.Request) {
+func (h *handler) GetSingleCid(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	mhCid := vars["cid"]
 	c, err := cid.Decode(mhCid)
@@ -39,7 +36,7 @@ func (h *Handler) GetSingleCid(w http.ResponseWriter, r *http.Request) {
 	h.getCids(w, []cid.Cid{c})
 }
 
-func (h *Handler) GetBatchCid(w http.ResponseWriter, r *http.Request) {
+func (h *handler) GetBatchCid(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
@@ -64,7 +61,7 @@ func writeResponse(w http.ResponseWriter, body []byte) error {
 	return nil
 }
 
-func (h *Handler) getCids(w http.ResponseWriter, cids []cid.Cid) {
+func (h *handler) getCids(w http.ResponseWriter, cids []cid.Cid) {
 	response, err := models.PopulateResponse(h.indexer, h.registry, cids)
 	if err != nil {
 		log.Errorw("query failed", "err", err)

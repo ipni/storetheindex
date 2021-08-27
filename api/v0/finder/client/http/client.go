@@ -1,4 +1,4 @@
-package httpclient
+package finderhttpclient
 
 import (
 	"bytes"
@@ -12,9 +12,13 @@ import (
 	"path/filepath"
 
 	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
+	httpclient "github.com/filecoin-project/storetheindex/internal/httpclient"
 	"github.com/ipfs/go-cid"
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
+
+var log = logging.Logger("finderhttpclient")
 
 const (
 	finderResource = "cid"
@@ -28,8 +32,8 @@ type Finder struct {
 }
 
 // NewFinder creates a new finder client
-func NewFinder(baseURL string, options ...ClientOption) (*Finder, error) {
-	u, c, err := newClient(baseURL, finderResource, finderPort, options...)
+func NewFinder(baseURL string, options ...httpclient.ClientOption) (*Finder, error) {
+	u, c, err := httpclient.NewClient(baseURL, finderResource, finderPort, options...)
 	if err != nil {
 		return nil, err
 	}

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
-	httpclient "github.com/filecoin-project/storetheindex/api/v0/client/http"
+	httpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	httpserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	"github.com/filecoin-project/storetheindex/server/finder/test"

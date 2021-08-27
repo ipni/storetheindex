@@ -1,4 +1,4 @@
-package p2pfinderserver
+package p2pingestserver
 
 import (
 	"context"

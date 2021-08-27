@@ -2,10 +2,11 @@ package p2putil
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"sync"
 
-	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
+	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-msgio/protoio"
 )
 
@@ -28,10 +29,16 @@ var writerPool = sync.Pool{
 }
 
 // WriteMsg handles sending messages through the wire.
-func WriteMsg(w io.Writer, mes *pb.Message) error {
+func WriteMsg(w io.Writer, msg proto.Message) error {
+	if w == nil {
+		return errors.New("io writer is nil")
+	}
+	if msg == nil {
+		return errors.New("msg is nil")
+	}
 	bw := writerPool.Get().(*bufferedDelimitedWriter)
 	bw.Reset(w)
-	err := bw.WriteMsg(mes)
+	err := bw.WriteMsg(msg)
 	if err == nil {
 		err = bw.Flush()
 	}

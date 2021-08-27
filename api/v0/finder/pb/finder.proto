@@ -7,16 +7,16 @@
 syntax = "proto3";
 package reqresp.pb;
 
+message FinderMessage {
+    enum MessageType {
+        ERROR_RESPONSE = 0;
+        GET = 1;
+        GET_RESPONSE = 2;
+    }
 
-message Message {
-        enum MessageType {
-                RESPONSE = 0;
-                GET = 1;
-        }
+    // defines what type of message it is.
+    MessageType type = 1;
 
-        // defines what type of message it is.
-        MessageType type = 1;
-
-        // Value for the message
-        bytes data = 2;
+    // Value for the message
+    bytes data = 2;
 }

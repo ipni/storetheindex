@@ -7,7 +7,7 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/providers"
-	"github.com/filecoin-project/storetheindex/server/ingest/handler"
+	"github.com/filecoin-project/storetheindex/server/ingest/http/handler"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )
@@ -52,7 +52,7 @@ func New(listen string, indexer indexer.Interface, registry *providers.Registry,
 	r.HandleFunc("/providers", h.ListProviders).Methods("GET")
 	r.HandleFunc("/providers/{providerid}", h.GetProvider).Methods("GET")
 	r.HandleFunc("/providers", h.RegisterProvider).Methods("POST")
-	r.HandleFunc("/providers/{providerid}", h.UnregisterProvider).Methods("DELETE")
+	r.HandleFunc("/providers/{providerid}", h.RemoveProvider).Methods("DELETE")
 	return s, nil
 }
 
