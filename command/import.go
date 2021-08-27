@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	httpclient "github.com/filecoin-project/storetheindex/api/v0/client/http"
+	httpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/urfave/cli/v2"
 )

@@ -1,4 +1,4 @@
-package p2pclient
+package libp2pclient
 
 import (
 	"context"

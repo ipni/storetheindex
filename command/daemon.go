@@ -165,13 +165,13 @@ func daemonCommand(cctx *cli.Context) error {
 	log.Infow("ingest server initialized", "address", finderAddr)
 
 	var (
-		p2pSvr          *p2pfinderserver.Server
-		cancelP2pFinder context.CancelFunc
+		cancelP2pServers context.CancelFunc
 	)
-	// Create libp2p host and finder libp2p server
+	// Create libp2p host and servers
 	if !cfg.Addresses.DisableP2P && !cctx.Bool("disablep2p") {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		cancelP2pServers = cancel
 
 		privKey, err := cfg.Identity.DecodePrivateKey("")
 		if err != nil {
@@ -187,12 +187,9 @@ func daemonCommand(cctx *cli.Context) error {
 			return err
 		}
 
-		p2pSvr, err = p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
-		if err != nil {
-			return err
-		}
-		cancelP2pFinder = cancel
-		log.Infow("Finder libp2p server  initialized", "host_id", p2pHost.ID())
+		p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
+		p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
+		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID())
 	}
 
 	log.Info("Starting daemon servers")
@@ -230,8 +227,8 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 	}()
 
-	if p2pSvr != nil {
-		cancelP2pFinder()
+	if cancelP2pServers != nil {
+		cancelP2pServers()
 	}
 
 	if err = ingestSvr.Shutdown(ctx); err != nil {

@@ -1,17 +1,10 @@
-package p2pclient
+package libp2pclient
 
 import (
 	"fmt"
-
-	"github.com/libp2p/go-libp2p-core/protocol"
 )
 
 // NOTE: Placeholder to add client options
-
-// Protocol ID
-const (
-	pid protocol.ID = "/indexer/client/0.0.1"
-)
 
 type clientConfig struct {
 }

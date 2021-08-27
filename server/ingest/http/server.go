@@ -52,7 +52,7 @@ func New(listen string, indexer indexer.Interface, registry *providers.Registry,
 	r.HandleFunc("/providers", h.ListProviders).Methods("GET")
 	r.HandleFunc("/providers/{providerid}", h.GetProvider).Methods("GET")
 	r.HandleFunc("/providers", h.RegisterProvider).Methods("POST")
-	r.HandleFunc("/providers/{providerid}", h.UnregisterProvider).Methods("DELETE")
+	r.HandleFunc("/providers/{providerid}", h.RemoveProvider).Methods("DELETE")
 	return s, nil
 }
 

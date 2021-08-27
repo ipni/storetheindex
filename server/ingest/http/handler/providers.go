@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
 	"github.com/filecoin-project/storetheindex/internal/providers"
@@ -143,14 +142,14 @@ func (h *Handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 // DELETE /providers/{providerid}
-func (h *Handler) UnregisterProvider(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) RemoveProvider(w http.ResponseWriter, r *http.Request) {
 	/*
-		providerID, err := getProviderID(r)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
+			log.Errorw("failed reading body", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
 		unregReq := new(models.UnregisterRequest)
 		err = unregReq.UnmarshalJSON(body)
 		if err != nil {
@@ -159,7 +158,7 @@ func (h *Handler) UnregisterProvider(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = h.registry.RemoveProvider(providerID, unregReq.Nonce, unregReq.Signature)
+		err = h.registry.RemoveProvider(providerID)
 		if err != nil {
 			log.Errorw("cannot process unregistration request", "err", err)
 			w.WriteHeader(http.StatusBadRequest)
@@ -172,10 +171,12 @@ func (h *Handler) UnregisterProvider(w http.ResponseWriter, r *http.Request) {
 				log.Errorw("cannot remove content for provider", "err", err)
 			}
 		}()
+
+		// Retrun accepted (202) response
+		w.WriteHeader(http.StatusAccepted)
 	*/
 
-	// Retrun accepted (202) response
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusNotImplemented)
 }
 
 func getProviderID(r *http.Request) (peer.ID, error) {
@@ -188,26 +189,6 @@ func getProviderID(r *http.Request) (peer.ID, error) {
 	return providerID, nil
 }
 
-// iso8601 returns the given time as an ISO8601 formatted string.
-func iso8601(t time.Time) string {
-	tstr := t.Format("2006-01-02T15:04:05")
-	_, zoneOffset := t.Zone()
-	if zoneOffset == 0 {
-		return fmt.Sprintf("%sZ", tstr)
-	}
-	if zoneOffset < 0 {
-		return fmt.Sprintf("%s-%02d%02d", tstr, -zoneOffset/3600,
-			(-zoneOffset%3600)/60)
-	}
-	return fmt.Sprintf("%s+%02d%02d", tstr, zoneOffset/3600,
-		(zoneOffset%3600)/60)
-}
-
 func provInfoToApi(pinfo *providers.ProviderInfo, apiModel *models.ProviderInfo) {
-	apiModel.AddrInfo = pinfo.AddrInfo
-	apiModel.LastIndex = pinfo.LastIndex
-
-	if pinfo.LastIndex.Defined() {
-		apiModel.LastIndexTime = iso8601(pinfo.LastIndexTime)
-	}
+	*apiModel = models.MakeProviderInfo(pinfo.AddrInfo, pinfo.LastIndex, pinfo.LastIndexTime)
 }

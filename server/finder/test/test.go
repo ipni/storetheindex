@@ -13,8 +13,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
-	"github.com/filecoin-project/go-indexer-core/store/test"
-	"github.com/filecoin-project/storetheindex/api/v0/client"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/client"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/providers"
@@ -89,7 +88,7 @@ func PopulateIndex(ind indexer.Interface, cids []cid.Cid, v indexer.Value, t *te
 
 func GetCidDataTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *providers.Registry) {
 	// Generate some CIDs and populate indexer
-	cids, err := test.RandomCids(15)
+	cids, err := utils.RandomCids(15)
 	if err != nil {
 		t.Fatal(err)
 	}

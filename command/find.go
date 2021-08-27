@@ -11,9 +11,9 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/urfave/cli/v2"
 
-	"github.com/filecoin-project/storetheindex/api/v0/client"
-	httpclient "github.com/filecoin-project/storetheindex/api/v0/client/http"
-	p2pclient "github.com/filecoin-project/storetheindex/api/v0/client/libp2p"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/client"
+	httpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
+	p2pclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/libp2p"
 )
 
 const getTimeout = 15 * time.Second

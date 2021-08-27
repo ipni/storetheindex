@@ -1,7 +1,6 @@
 package httpclient
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,13 +8,10 @@ import (
 	"strings"
 
 	"github.com/filecoin-project/storetheindex/api/v0"
-	logging "github.com/ipfs/go-log/v2"
 )
 
-var log = logging.Logger("httpclient")
-
-// newClient creates a base URL and a new http.Client
-func newClient(baseURL, resource string, defaultPort int, options ...ClientOption) (*url.URL, *http.Client, error) {
+// NewClient creates a base URL and a new http.Client
+func NewClient(baseURL, resource string, defaultPort int, options ...ClientOption) (*url.URL, *http.Client, error) {
 	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		baseURL = "http://" + baseURL
 	}
@@ -43,12 +39,11 @@ func newClient(baseURL, resource string, defaultPort int, options ...ClientOptio
 	return u, cl, nil
 }
 
-func readError(statusCode int, body []byte) error {
+func ReadError(statusCode int, body []byte) error {
 	if len(body) == 0 {
 		return errors.New(http.StatusText(statusCode))
 	}
 
-	var e v0.Error
-	_ = json.Unmarshal(body, &e)
-	return fmt.Errorf("%s: %s", http.StatusText(statusCode), e.Message)
+	err := v0.DecodeError(body)
+	return fmt.Errorf("%s: %s", http.StatusText(statusCode), err)
 }

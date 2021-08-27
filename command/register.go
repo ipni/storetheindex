@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	v0client "github.com/filecoin-project/storetheindex/api/v0/client/http"
+	v0client "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/urfave/cli/v2"
 )
@@ -25,16 +25,11 @@ func registerCommand(cctx *cli.Context) error {
 		return fmt.Errorf("cannot load config file: %w", err)
 	}
 
-	privKey, err := cfg.Identity.DecodePrivateKey("")
-	if err != nil {
-		return fmt.Errorf("could not decode private key: %s", err)
-	}
-
 	client, err := v0client.NewIngest(cctx.String("indexer-host"))
 	if err != nil {
 		return err
 	}
-	err = client.Register(cctx.Context, cfg.Identity.PeerID, privKey, cctx.StringSlice("provider-addr"))
+	err = client.Register(cctx.Context, cfg.Identity, cctx.StringSlice("provider-addr"))
 	if err != nil {
 		return fmt.Errorf("failed to register providers: %s", err)
 	}

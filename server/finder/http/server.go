@@ -8,7 +8,6 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/providers"
-	"github.com/filecoin-project/storetheindex/server/finder/http/handler"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )
@@ -44,8 +43,8 @@ func New(listen string, indexer indexer.Interface, registry *providers.Registry,
 	}
 	s := &Server{server, l}
 
-	// Resource handlers
-	h := handler.New(indexer, registry)
+	// Resource handler
+	h := newHandler(indexer, registry)
 
 	// Client routes
 	r.HandleFunc("/cid/{cid}", h.GetSingleCid).Methods("GET")
