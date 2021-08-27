@@ -41,7 +41,7 @@ func (cl *Ingest) ListProviders(ctx context.Context) ([]*models.ProviderInfo, er
 	}
 
 	var providers []*models.ProviderInfo
-	err = json.Unmarshal(data, providers)
+	err = json.Unmarshal(data, &providers)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (cl *Ingest) ListProviders(ctx context.Context) ([]*models.ProviderInfo, er
 	return providers, nil
 }
 
-func (cl *Ingest) GetProivider(ctx context.Context, providerID peer.ID) (*models.ProviderInfo, error) {
+func (cl *Ingest) GetProvider(ctx context.Context, providerID peer.ID) (*models.ProviderInfo, error) {
 	data, err := json.Marshal(providerID)
 	if err != nil {
 		return nil, err

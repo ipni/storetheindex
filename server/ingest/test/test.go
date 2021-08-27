@@ -115,3 +115,36 @@ func RegisterProviderTest(t *testing.T, c client.Ingest, providerIdent config.Id
 		t.Fatal("expected send to failed due to canceled context")
 	}
 }
+
+func GetProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, reg *providers.Registry) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	provInfo, err := c.GetProvider(ctx, providerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if provInfo == nil {
+		t.Fatal("nil provider info")
+	}
+	if provInfo.AddrInfo.ID != providerID {
+		t.Fatal("wrong peer id")
+	}
+}
+
+func ListProvidersTest(t *testing.T, c client.Ingest, providerID peer.ID, reg *providers.Registry) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	providers, err := c.ListProviders(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(providers) != 1 {
+		t.Fatalf("should have 1 provider, has %d", len(providers))
+	}
+	if providers[0].AddrInfo.ID != providerID {
+		t.Fatal("wrong peer id")
+	}
+}

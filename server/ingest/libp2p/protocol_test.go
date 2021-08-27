@@ -61,4 +61,13 @@ func TestRegisterProvider(t *testing.T) {
 
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 	test.RegisterProviderTest(t, c, providerIdent, addrs, reg)
+
+	peerID, err := peer.Decode(providerIdent.PeerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.GetProviderTest(t, c, peerID, reg)
+
+	test.ListProvidersTest(t, c, peerID, reg)
 }

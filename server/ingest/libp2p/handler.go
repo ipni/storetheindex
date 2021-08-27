@@ -124,12 +124,12 @@ func (h *handler) ListProviders(ctx context.Context, p peer.ID, msg *pb.Message)
 }
 
 func (h *handler) GetProvider(ctx context.Context, p peer.ID, msg *pb.Message) ([]byte, error) {
-	providerID, err := peer.Decode(string(msg.GetData()))
+	var providerID peer.ID
+	err := json.Unmarshal(msg.GetData(), &providerID)
 	if err != nil {
-		return nil, fmt.Errorf("cannot decode provider id: %s", err)
+		log.Errorw("error unmarshalling GetProvider request", "err", err)
+		return nil, v0.MakeError(http.StatusBadRequest, errors.New("cannot decode request"))
 	}
-
-	log.Debugw("GetProvider", "provider", providerID)
 
 	info := h.registry.ProviderInfo(providerID)
 	if info == nil {
