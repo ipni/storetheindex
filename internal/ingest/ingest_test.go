@@ -18,8 +18,6 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
-	gsimpl "github.com/ipfs/go-graphsync/impl"
-	gsnet "github.com/ipfs/go-graphsync/network"
 	"github.com/ipld/go-ipld-prime"
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -160,9 +158,11 @@ func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
 func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.LegPublisher, ipld.LinkSystem) {
 	ctx := context.Background()
 	lsys := mkVanillaLinkSystem(store)
-	gsnet := gsnet.NewFromLibp2pHost(h)
-	gs := gsimpl.New(ctx, gsnet, lsys)
-	ls, err := legs.NewPublisher(ctx, store, h, gs, ingestCfg.PubSubTopic, lsys)
+	lt, err := legs.MakeLegTransport(context.Background(), h, store, lsys, ingestCfg.PubSubTopic, "ingester-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ls, err := legs.NewPublisher(ctx, store, h, lt, lsys)
 	require.NoError(t, err)
 	return ls, lsys
 }

@@ -24,7 +24,7 @@ require (
 	github.com/multiformats/go-multihash v0.0.15
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.3.0
-	github.com/willscott/go-legs v0.0.0-20210827140014-08fdff6dc26c
+	github.com/willscott/go-legs v0.0.0-20210829161133-2f1a0b0812e5
 	github.com/ybbus/jsonrpc/v2 v2.1.6
 )
 

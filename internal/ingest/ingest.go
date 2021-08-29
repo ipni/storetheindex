@@ -9,9 +9,6 @@ import (
 	"github.com/im7mortal/kmutex"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-graphsync"
-	gsimpl "github.com/ipfs/go-graphsync/impl"
-	gsnet "github.com/ipfs/go-graphsync/network"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -33,12 +30,11 @@ const (
 // legIngester is an ingester type that leverages go-legs for the
 // ingestion protocol.
 type legIngester struct {
-	host     host.Host
-	ds       datastore.Batching
-	gs       graphsync.GraphExchange
-	lsys     ipld.LinkSystem
-	subTopic string
-	indexer  *indexer.Engine
+	host    host.Host
+	ds      datastore.Batching
+	lt      *legs.LegTransport
+	lsys    ipld.LinkSystem
+	indexer *indexer.Engine
 
 	subs  map[peer.ID]*sub
 	sublk *kmutex.Kmutex
@@ -57,22 +53,23 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 	i *indexer.Engine, ds datastore.Batching) (ingestion.Ingester, error) {
 
 	lsys := mkVanillaLinkSystem(ds)
-	gsnet := gsnet.NewFromLibp2pHost(h)
-	gs := gsimpl.New(ctx, gsnet, lsys)
+	lt, err := legs.MakeLegTransport(context.Background(), h, ds, lsys, cfg.PubSubTopic, "ingester")
+	if err != nil {
+		return nil, err
+	}
 
 	li := &legIngester{
-		host:     h,
-		ds:       ds,
-		indexer:  i,
-		lsys:     lsys,
-		gs:       gs,
-		subTopic: cfg.PubSubTopic,
-		subs:     make(map[peer.ID]*sub),
-		sublk:    kmutex.New(),
+		host:    h,
+		ds:      ds,
+		indexer: i,
+		lsys:    lsys,
+		lt:      lt,
+		subs:    make(map[peer.ID]*sub),
+		sublk:   kmutex.New(),
 	}
 
 	// Register storage hook to index data as we receive it.
-	gs.RegisterIncomingBlockHook(li.storageHook())
+	lt.Gs.RegisterIncomingBlockHook(li.storageHook())
 	return li, nil
 }
 
@@ -183,7 +180,7 @@ func (i *legIngester) newPeerSubscriber(ctx context.Context, p peer.ID) (*sub, e
 	// If not synced start a brand new subscriber
 	if c == cid.Undef {
 		ls, err := legs.NewSubscriber(ctx, i.ds, i.host,
-			i.gs, i.subTopic, legs.FilterPeerPolicy(p))
+			i.lt, legs.FilterPeerPolicy(p))
 		if err != nil {
 			return nil, err
 		}
@@ -193,7 +190,7 @@ func (i *legIngester) newPeerSubscriber(ctx context.Context, p peer.ID) (*sub, e
 	}
 	// If yes, start a partially synced subscriber.
 	ls, err := legs.NewSubscriberPartiallySynced(ctx, i.ds, i.host,
-		i.gs, i.subTopic, legs.FilterPeerPolicy(p), c)
+		i.lt, legs.FilterPeerPolicy(p), c)
 	if err != nil {
 		return nil, err
 	}
