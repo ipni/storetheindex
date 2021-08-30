@@ -13,7 +13,9 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store"
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	ingestion "github.com/filecoin-project/storetheindex/api/v0/ingest"
 	"github.com/filecoin-project/storetheindex/config"
+	legingest "github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/lotus"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	httpadminserver "github.com/filecoin-project/storetheindex/server/admin/http"
@@ -120,23 +122,8 @@ func daemonCommand(cctx *cli.Context) error {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}
 
-	// Create admin HTTP server
-	maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Admin)
-	if err != nil {
-		return fmt.Errorf("bad admin address in config %s: %s", cfg.Addresses.Admin, err)
-	}
-	adminAddr, err := manet.ToNetAddr(maddr)
-	if err != nil {
-		return err
-	}
-	adminSvr, err := httpadminserver.New(adminAddr.String(), indexerCore)
-	if err != nil {
-		return err
-	}
-	log.Infow("admin server initialized", "address", adminAddr)
-
 	// Create finder HTTP server
-	maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Finder)
+	maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Finder)
 	if err != nil {
 		return fmt.Errorf("bad finder address in config %s: %s", cfg.Addresses.Finder, err)
 	}
@@ -167,6 +154,7 @@ func daemonCommand(cctx *cli.Context) error {
 
 	var (
 		cancelP2pServers context.CancelFunc
+		ingester         ingestion.Ingester
 	)
 	// Create libp2p host and servers
 	if !cfg.Addresses.DisableP2P && !cctx.Bool("disablep2p") {
@@ -191,7 +179,30 @@ func daemonCommand(cctx *cli.Context) error {
 		p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
 		p2pingestserver.New(ctx, p2pHost, indexerCore, registry)
 		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID())
+
+		// Initialize ingester if libp2p enabled.
+		ingester, err = legingest.NewLegIngester(ctx, cfg.Ingest, p2pHost, indexerCore, dstore)
+		if err != nil {
+			return err
+		}
+		log.Infow("libp2p ingester initialized")
+		// TODO: Make some initial subscriptions using providers from the registry?
 	}
+
+	// Create admin HTTP server
+	maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Admin)
+	if err != nil {
+		return fmt.Errorf("bad admin address in config %s: %s", cfg.Addresses.Admin, err)
+	}
+	adminAddr, err := manet.ToNetAddr(maddr)
+	if err != nil {
+		return err
+	}
+	adminSvr, err := httpadminserver.New(adminAddr.String(), indexerCore, ingester)
+	if err != nil {
+		return err
+	}
+	log.Infow("admin server initialized", "address", adminAddr)
 
 	log.Info("Starting daemon servers")
 	errChan := make(chan error, 3)
@@ -245,10 +256,19 @@ func daemonCommand(cctx *cli.Context) error {
 		finalErr = ErrDaemonStop
 	}
 
+	// If ingester set, close ingester
+	if ingester != nil {
+		if err = ingester.Close(ctx); err != nil {
+			log.Errorw("Error closing ingester", "err", err)
+			finalErr = ErrDaemonStop
+		}
+	}
+
 	if err = valueStore.Close(); err != nil {
 		log.Errorw("Error closing value store", "err", err)
 		finalErr = ErrDaemonStop
 	}
+
 	cancel()
 
 	log.Infow("node stopped")

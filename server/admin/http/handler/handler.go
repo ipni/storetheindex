@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
+	ingestion "github.com/filecoin-project/storetheindex/api/v0/ingest"
 	"github.com/filecoin-project/storetheindex/internal/importer"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
@@ -15,12 +16,14 @@ import (
 var log = logging.Logger("admin_handler")
 
 type AdminHandler struct {
-	indexer indexer.Interface
+	indexer  indexer.Interface
+	ingester ingestion.Ingester
 }
 
-func New(indexer indexer.Interface) *AdminHandler {
+func New(indexer indexer.Interface, ingester ingestion.Ingester) *AdminHandler {
 	return &AdminHandler{
-		indexer: indexer,
+		indexer:  indexer,
+		ingester: ingester,
 	}
 }
 
