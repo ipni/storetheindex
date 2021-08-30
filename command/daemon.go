@@ -13,7 +13,6 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store"
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
-	ingestion "github.com/filecoin-project/storetheindex/api/v0/ingest"
 	"github.com/filecoin-project/storetheindex/config"
 	legingest "github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/lotus"
@@ -154,7 +153,7 @@ func daemonCommand(cctx *cli.Context) error {
 
 	var (
 		cancelP2pServers context.CancelFunc
-		ingester         ingestion.Ingester
+		ingester         legingest.LegIngester
 	)
 	// Create libp2p host and servers
 	if !cfg.Addresses.DisableP2P && !cctx.Bool("disablep2p") {

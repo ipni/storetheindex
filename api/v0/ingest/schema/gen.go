@@ -119,5 +119,5 @@ func main() {
 		panic("not happening")
 	}
 
-	gengo.Generate(os.Args[1], "ingestion", ts, adjCfg)
+	gengo.Generate(os.Args[1], "schema", ts, adjCfg)
 }

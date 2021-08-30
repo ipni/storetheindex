@@ -18,13 +18,19 @@ import (
 var log = logging.Logger("indexer/ingest")
 
 var (
-	_ ingestion.Ingester = &legIngester{}
+	_ LegIngester = &legIngester{}
 )
 
 // prefix used to track latest sync in datastore.
 const (
 	syncPrefix = "/sync/"
 )
+
+// LegIngester interface
+type LegIngester interface {
+	ingestion.Ingester
+	Close(context.Context) error
+}
 
 // legIngester is an ingester type that leverages go-legs for the
 // ingestion protocol.
@@ -48,7 +54,7 @@ type sub struct {
 
 // NewLegIngester creates a new go-legs-backed ingester.
 func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
-	i *indexer.Engine, ds datastore.Batching) (ingestion.Ingester, error) {
+	i *indexer.Engine, ds datastore.Batching) (LegIngester, error) {
 
 	lsys := mkVanillaLinkSystem(ds)
 	lt, err := legs.MakeLegTransport(context.Background(), h, ds, lsys, cfg.PubSubTopic)
