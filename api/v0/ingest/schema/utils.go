@@ -217,8 +217,34 @@ func AdvertisementLink(lsys ipld.LinkSystem, adv Advertisement) (Link_Advertisem
 	return &_Link_Advertisement{lnk}, nil
 }
 
-// NewAdvertisementWithLink creates a new advertisement from an index
+// NewAdvertisementWithFakeSig creates a new advertisement from an index
 // with its corresponsing link.
+func NewAdvertisementWithFakeSig(
+	lsys ipld.LinkSystem,
+	signKey crypto.PrivKey,
+	previousAdvID []byte,
+	indexID Link_Index,
+	provider string) (Advertisement, Link_Advertisement, error) {
+
+	ad := &_Advertisement{
+		IndexID:    *indexID,
+		PreviousID: _Bytes{x: previousAdvID},
+		Provider:   _String{x: provider},
+	}
+
+	// Add signature
+	ad.Signature = _Bytes{x: []byte("InvalidSignature")}
+
+	// Generate link
+	lnk, err := AdvertisementLink(lsys, ad)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ad, lnk, nil
+}
+
+// NewAdvertisementWithoutSign creates a new advertisement from an index
+// with random signature.
 func newAdvertisement(
 	signKey crypto.PrivKey,
 	previousAdvID []byte,

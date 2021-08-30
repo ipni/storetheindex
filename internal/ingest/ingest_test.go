@@ -53,24 +53,27 @@ func TestSubscribe(t *testing.T) {
 	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
 	time.Sleep(time.Second)
-
 	defer func() {
-		lp.Close(context.Background())
+		lp.Close()
 		i.Close(context.Background())
 	}()
 
 	// Test with two random advertisement publications.
-	_, cids := publishRandomAdv(t, i, lph, lp, lsys)
+	_, cids := publishRandomAdv(t, i, lph, lp, lsys, false)
 	// Check that the cids have been indexed correctly.
 	i.checkCidsIndexed(t, lph.ID(), cids)
-	_, cids = publishRandomAdv(t, i, lph, lp, lsys)
+	_, cids = publishRandomAdv(t, i, lph, lp, lsys, false)
 	// Check that the cids have been indexed correctly.
 	i.checkCidsIndexed(t, lph.ID(), cids)
+
+	// Test advertisement with fake signature
+	// of them.
+	publishRandomAdv(t, i, lph, lp, lsys, true)
 
 	i.Unsubscribe(context.Background(), lph.ID())
 	// Check that no advertisement is retrieved from
 	// peer once it has been unsubscribed.
-	c, _ := publishRandomIndexAndAdv(t, lp, lsys)
+	c, _ := publishRandomIndexAndAdv(t, lp, lsys, false)
 	adv, err := i.ds.Get(datastore.NewKey(c.String()))
 	require.Error(t, err, datastore.ErrNotFound)
 	require.Nil(t, adv)
@@ -100,22 +103,19 @@ func TestMultipleSubscriptions(t *testing.T) {
 
 	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
-	time.Sleep(1 * time.Second)
+	time.Sleep(time.Second)
 
 	defer func() {
-		lp1.Close(context.Background())
-		lp2.Close(context.Background())
+		lp1.Close()
+		lp2.Close()
 		i.Close(context.Background())
 	}()
 
 	// Test with two random advertisement publications for each
 	// of them.
-	c1, cids := publishRandomAdv(t, i, lph1, lp1, lsys1)
+	c1, cids := publishRandomAdv(t, i, lph1, lp1, lsys1, false)
 	i.checkCidsIndexed(t, lph1.ID(), cids)
-	// TODO: Investigate why removing this sleep makes the test
-	// to fail.
-	time.Sleep(500 * time.Millisecond)
-	c2, cids := publishRandomAdv(t, i, lph2, lp2, lsys2)
+	c2, cids := publishRandomAdv(t, i, lph2, lp2, lsys2, false)
 	i.checkCidsIndexed(t, lph2.ID(), cids)
 
 	lcid, err := i.getLatestSync(lph1.ID())
@@ -158,11 +158,11 @@ func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
 func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.LegPublisher, ipld.LinkSystem) {
 	ctx := context.Background()
 	lsys := mkVanillaLinkSystem(store)
-	lt, err := legs.MakeLegTransport(context.Background(), h, store, lsys, ingestCfg.PubSubTopic, "ingester-test")
+	lt, err := legs.MakeLegTransport(context.Background(), h, store, lsys, ingestCfg.PubSubTopic)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ls, err := legs.NewPublisher(ctx, store, h, lt, lsys)
+	ls, err := legs.NewPublisher(ctx, lt)
 	require.NoError(t, err)
 	return ls, lsys
 }
@@ -198,7 +198,7 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 	}
 }
 
-func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem) (cid.Cid, []cid.Cid) {
+func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []cid.Cid) {
 	cids, _ := RandomCids(10)
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
@@ -207,6 +207,9 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.Lin
 	_, indexLnk, err := schema.NewIndexFromCids(lsys, cids, nil, val.Metadata, nil)
 	require.NoError(t, err)
 	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String())
+	if fakeSig {
+		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, indexLnk, p.String())
+	}
 	require.NoError(t, err)
 	lnk, err := advLnk.AsLink()
 	require.NoError(t, err)
@@ -223,8 +226,8 @@ func (i *legIngester) checkCidsIndexed(t *testing.T, p peer.ID, cids []cid.Cid) 
 		require.Equal(t, v[0].ProviderID, p)
 	}
 }
-func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPublisher, lsys ipld.LinkSystem) (cid.Cid, []cid.Cid) {
-	c, cids := publishRandomIndexAndAdv(t, lp, lsys)
+func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []cid.Cid) {
+	c, cids := publishRandomIndexAndAdv(t, lp, lsys, fakeSig)
 
 	// Give some time for the advertisement to propagate
 	time.Sleep(500 * time.Millisecond)
@@ -236,6 +239,12 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 	// Check if latest sync updated.
 	lcid, err := i.getLatestSync(lph.ID())
 	require.NoError(t, err)
-	require.Equal(t, lcid, c)
+	// If fake signature the exchange is not made and thus
+	// latest update is not saved
+	if fakeSig {
+		require.NotEqual(t, lcid, c)
+	} else {
+		require.Equal(t, lcid, c)
+	}
 	return c, cids
 }

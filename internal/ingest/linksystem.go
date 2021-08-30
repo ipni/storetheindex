@@ -2,14 +2,16 @@ package ingest
 
 import (
 	"bytes"
+	"errors"
 	"io"
 
 	"github.com/filecoin-project/go-indexer-core"
+	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-graphsync"
 	"github.com/ipld/go-ipld-prime"
-	"github.com/ipld/go-ipld-prime/codec/json"
+	"github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	peer "github.com/libp2p/go-libp2p-core/peer"
@@ -22,7 +24,7 @@ func dsKey(k string) datastore.Key {
 // mkVanillaLinkSystem makes a standard vanilla linkSystem that stores and loads from a datastore.
 func mkVanillaLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
-	lsys.StorageReadOpener = func(_ ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
+	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
 		val, err := ds.Get(dsKey(c.String()))
 		if err != nil {
@@ -66,11 +68,21 @@ func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 		// Check if it is of type Index (i.e. not an advertisements).
 		// Nothing needs to done for advertisements here, just traverse
 		// and persist them.
-		if !isAdvertisement(n) {
-
-			// TODO: Add additional logic for CAREntries
-			// We only speak CIDEntries for now.
-
+		if isAdvertisement(n) {
+			nb := schema.Type.Advertisement.NewBuilder()
+			err := nb.AssignNode(n)
+			if err != nil {
+				log.Errorf("Error decoding advertisement: %v", err)
+				return
+			}
+			ad := nb.Build().(schema.Advertisement)
+			// Verify advertisement signature
+			if err := schema.VerifyAdvertisement(ad); err != nil {
+				// stop exchange, verification of signature failed.
+				hookActions.TerminateWithError(errors.New("advertisement verification failed"))
+				log.Errorf("Signature verification failed for add: %v", err)
+			}
+		} else {
 			// Process CIDs from index and store them in the indexer.
 			err = i.processCidsIndex(p, n)
 			if err != nil {
@@ -78,7 +90,10 @@ func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 				return
 			}
 
-			// When we are finisher processing the index we can remove
+			// TODO: Add additional logic for CAREntries
+			// We only speak CIDEntries for now.
+
+			// When we are finished processing the index we can remove
 			// it from the datastore (we don't want redundant information
 			// in several datastores).
 			err = i.ds.Delete(dsKey(c.String()))
@@ -96,8 +111,8 @@ func decodeIPLDNode(r io.Reader) (ipld.Node, error) {
 	// NOTE: Considering using the schema prototypes.
 	// This was failing, using a map gives flexibility.
 	// Maybe is worth revisiting this again in the future.
-	nb := basicnode.Prototype.Map.NewBuilder()
-	err := json.Decode(nb, r)
+	nb := basicnode.Prototype.Any.NewBuilder()
+	err := dagjson.Decode(nb, r)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +166,10 @@ func (i *legIngester) processCidsEntry(p peer.ID, n ipld.Node) error {
 	if err != nil {
 		return err
 	}
-	metadata, _ := meta.AsBytes()
+	metadata, err := meta.AsBytes()
+	if err != nil {
+		return err
+	}
 
 	// Get the list of CIDS to put and iterate over them
 	putCids, _ := n.LookupByString("Put")

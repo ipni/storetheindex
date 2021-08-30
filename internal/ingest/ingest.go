@@ -10,7 +10,6 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/ipld/go-ipld-prime"
 	"github.com/libp2p/go-libp2p-core/host"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/willscott/go-legs"
@@ -33,7 +32,6 @@ type legIngester struct {
 	host    host.Host
 	ds      datastore.Batching
 	lt      *legs.LegTransport
-	lsys    ipld.LinkSystem
 	indexer *indexer.Engine
 
 	subs  map[peer.ID]*sub
@@ -53,7 +51,7 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 	i *indexer.Engine, ds datastore.Batching) (ingestion.Ingester, error) {
 
 	lsys := mkVanillaLinkSystem(ds)
-	lt, err := legs.MakeLegTransport(context.Background(), h, ds, lsys, cfg.PubSubTopic, "ingester")
+	lt, err := legs.MakeLegTransport(context.Background(), h, ds, lsys, cfg.PubSubTopic)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +60,6 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 		host:    h,
 		ds:      ds,
 		indexer: i,
-		lsys:    lsys,
 		lt:      lt,
 		subs:    make(map[peer.ID]*sub),
 		sublk:   kmutex.New(),
@@ -149,7 +146,7 @@ func (i *legIngester) Unsubscribe(ctx context.Context, p peer.ID) error {
 	i.sublk.Lock(p)
 	defer i.sublk.Unlock(p)
 	// Close subscriber
-	i.subs[p].ls.Close(ctx)
+	i.subs[p].ls.Close()
 	// Run cancel
 	i.subs[p].cncl()
 	// Delete from map
@@ -179,8 +176,7 @@ func (i *legIngester) newPeerSubscriber(ctx context.Context, p peer.ID) (*sub, e
 
 	// If not synced start a brand new subscriber
 	if c == cid.Undef {
-		ls, err := legs.NewSubscriber(ctx, i.ds, i.host,
-			i.lt, legs.FilterPeerPolicy(p))
+		ls, err := legs.NewSubscriber(ctx, i.lt, legs.FilterPeerPolicy(p))
 		if err != nil {
 			return nil, err
 		}
@@ -189,8 +185,7 @@ func (i *legIngester) newPeerSubscriber(ctx context.Context, p peer.ID) (*sub, e
 		return s, nil
 	}
 	// If yes, start a partially synced subscriber.
-	ls, err := legs.NewSubscriberPartiallySynced(ctx, i.ds, i.host,
-		i.lt, legs.FilterPeerPolicy(p), c)
+	ls, err := legs.NewSubscriberPartiallySynced(ctx, i.lt, legs.FilterPeerPolicy(p), c)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +199,8 @@ func (i *legIngester) Close(ctx context.Context) error {
 	for k := range i.subs {
 		i.Unsubscribe(ctx, k)
 	}
-	return nil
+	// Close leg transport.
+	return i.lt.Close(ctx)
 }
 
 // Get the latest cid synced for the peer.
@@ -222,6 +218,11 @@ func (i *legIngester) getLatestSync(p peer.ID) (cid.Cid, error) {
 
 // Tracks latest sync for a specific peer.
 func (i *legIngester) putLatestSync(p peer.ID, c cid.Cid) error {
+	// Do not save if empty CIDs are received. Closing the channel
+	// may lead to receiving empty CIDs.
+	if c == cid.Undef {
+		return nil
+	}
 	return i.ds.Put(datastore.NewKey(syncPrefix+p.String()), c.Bytes())
 }
 
