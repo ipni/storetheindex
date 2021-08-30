@@ -68,7 +68,12 @@ func TestSubscribe(t *testing.T) {
 
 	// Test advertisement with fake signature
 	// of them.
-	publishRandomAdv(t, i, lph, lp, lsys, true)
+	_, cids = publishRandomAdv(t, i, lph, lp, lsys, true)
+	// No cids should have been saved for related index
+	for x := range cids {
+		_, b, _ := i.indexer.Get(cids[x])
+		require.False(t, b)
+	}
 
 	i.Unsubscribe(context.Background(), lph.ID())
 	// Check that no advertisement is retrieved from
@@ -239,11 +244,9 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 	// Check if latest sync updated.
 	lcid, err := i.getLatestSync(lph.ID())
 	require.NoError(t, err)
-	// If fake signature the exchange is not made and thus
-	// latest update is not saved
-	if fakeSig {
-		require.NotEqual(t, lcid, c)
-	} else {
+
+	// If fakeSig Cids should not be saved.
+	if !fakeSig {
 		require.Equal(t, lcid, c)
 	}
 	return c, cids
