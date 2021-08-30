@@ -1,4 +1,4 @@
-package ingestion
+package schema
 
 import (
 	"context"
@@ -12,7 +12,9 @@ import (
 	mh "github.com/multiformats/go-multihash"
 )
 
-var linkproto = cidlink.LinkPrototype{
+// Linkproto is the ipld.LinkProtocol used for the ingestion protocol.
+// Refer to it if you have encoding questions.
+var Linkproto = cidlink.LinkPrototype{
 	Prefix: cid.Prefix{
 		Version:  1,
 		Codec:    uint64(multicodec.DagJson),
@@ -105,7 +107,7 @@ func newIndex(lsys ipld.LinkSystem, cidEntries List_CidEntry, carEntries List_Ca
 		}
 	}
 
-	lnk, err := lsys.Store((&index).LinkContext(context.Background()), linkproto, &index)
+	lnk, err := lsys.Store((&index).LinkContext(context.Background()), Linkproto, &index)
 	if err != nil {
 
 		return nil, nil, err
@@ -207,7 +209,7 @@ func NewAdvertisementWithLink(
 // AdvertisementLink generates a new link from an advertisemenet using a specific
 // linkSystem
 func AdvertisementLink(lsys ipld.LinkSystem, adv Advertisement) (Link_Advertisement, error) {
-	lnk, err := lsys.Store(adv.LinkContext(context.Background()), linkproto, adv)
+	lnk, err := lsys.Store(adv.LinkContext(context.Background()), Linkproto, adv)
 	if err != nil {
 		return nil, err
 	}
@@ -215,8 +217,34 @@ func AdvertisementLink(lsys ipld.LinkSystem, adv Advertisement) (Link_Advertisem
 	return &_Link_Advertisement{lnk}, nil
 }
 
-// NewAdvertisementWithLink creates a new advertisement from an index
+// NewAdvertisementWithFakeSig creates a new advertisement from an index
 // with its corresponsing link.
+func NewAdvertisementWithFakeSig(
+	lsys ipld.LinkSystem,
+	signKey crypto.PrivKey,
+	previousAdvID []byte,
+	indexID Link_Index,
+	provider string) (Advertisement, Link_Advertisement, error) {
+
+	ad := &_Advertisement{
+		IndexID:    *indexID,
+		PreviousID: _Bytes{x: previousAdvID},
+		Provider:   _String{x: provider},
+	}
+
+	// Add signature
+	ad.Signature = _Bytes{x: []byte("InvalidSignature")}
+
+	// Generate link
+	lnk, err := AdvertisementLink(lsys, ad)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ad, lnk, nil
+}
+
+// NewAdvertisementWithoutSign creates a new advertisement from an index
+// with random signature.
 func newAdvertisement(
 	signKey crypto.PrivKey,
 	previousAdvID []byte,

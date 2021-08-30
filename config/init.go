@@ -42,7 +42,15 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 			PollInterval:   defaultPollInterval,
 			RediscoverWait: defaultRediscoverWait,
 			Timeout:        defaultDiscoveryTimeout,
-			Topic:          defaultTopic,
+			// NOTE to @gammazero: If the discoverer topic is the same
+			// as the ingester pubsub topic we should remove one of the
+			// defaults (either defaultTopic or defaultIngestPubSubTopic)
+			// and set the same in both.
+			Topic: defaultTopic,
+		},
+
+		Ingest: Ingest{
+			PubSubTopic: defaultIngestPubSubTopic,
 		},
 
 		Identity: identity,

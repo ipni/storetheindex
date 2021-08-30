@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
+	ingestion "github.com/filecoin-project/storetheindex/api/v0/ingest"
 	"github.com/filecoin-project/storetheindex/server/admin/http/handler"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
@@ -18,7 +19,7 @@ type Server struct {
 	l      net.Listener
 }
 
-func New(listen string, indexer indexer.Interface, options ...ServerOption) (*Server, error) {
+func New(listen string, indexer indexer.Interface, ingester ingestion.Ingester, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
@@ -38,7 +39,7 @@ func New(listen string, indexer indexer.Interface, options ...ServerOption) (*Se
 	}
 	s := &Server{server, l}
 
-	adminHandler := handler.New(indexer)
+	adminHandler := handler.New(indexer, ingester)
 
 	// Set protocol handlers
 	// Import routes
@@ -47,6 +48,11 @@ func New(listen string, indexer indexer.Interface, options ...ServerOption) (*Se
 
 	// Admin routes
 	r.HandleFunc("/healthcheck", adminHandler.HealthCheckHandler).Methods("GET")
+
+	// Ingester routes
+	r.HandleFunc("/ingest/subscribe/{minerid}", adminHandler.Subscribe).Methods("POST")
+	r.HandleFunc("/ingest/unsubscribe/{minerid}", adminHandler.Unsubscribe).Methods("POST")
+	r.HandleFunc("/ingest/sync/{minerid}", adminHandler.Sync).Methods("POST")
 
 	return s, nil
 }

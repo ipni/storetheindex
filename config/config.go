@@ -17,6 +17,7 @@ type Config struct {
 	Datastore Datastore // datastore config
 	Discovery Discovery // provider pubsub peers
 	Indexer   Indexer   // indexer code configuration
+	Ingest    Ingest    // ingestion related configuration.
 }
 
 const (
