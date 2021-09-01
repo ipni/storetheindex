@@ -13,6 +13,8 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	ingestclient "github.com/filecoin-project/indexer-reference-provider/api/v0/client"
+	"github.com/filecoin-project/indexer-reference-provider/api/v0/models"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/ipfs/go-cid"
@@ -53,10 +55,11 @@ func TestSubscribe(t *testing.T) {
 	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
 	time.Sleep(time.Second)
-	defer func() {
+
+	t.Cleanup(func() {
 		lp.Close()
 		i.Close(context.Background())
-	}()
+	})
 
 	// Test with two random advertisement publications.
 	_, cids := publishRandomAdv(t, i, lph, lp, lsys, false)
@@ -85,6 +88,42 @@ func TestSubscribe(t *testing.T) {
 
 }
 
+func TestSync(t *testing.T) {
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := mkTestHost()
+	lph := mkTestHost()
+	i := mkIngest(t, h)
+	lp, lsys := mkMockPublisher(t, lph, srcStore)
+
+	connectHosts(t, h, lph)
+
+	// Publish an advertisement without
+	c1, cids := publishRandomIndexAndAdv(t, lp, lsys, false)
+	// Set mockClient in ingester with latest Cid to avoid trying to contact
+	// a real provider.
+	i.client = newMockClient(c1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	end, err := i.Sync(ctx, lph.ID())
+	t.Cleanup(func() {
+		cancel()
+		lp.Close()
+		i.Close(context.Background())
+	})
+	require.NoError(t, err)
+	select {
+	case c := <-end:
+		// We receive the CID that we synced.
+		require.Equal(t, c1, c)
+		i.checkCidsIndexed(t, lph.ID(), cids)
+		lcid, err := i.getLatestSync(lph.ID())
+		require.NoError(t, err)
+		require.Equal(t, lcid, c1)
+	case <-ctx.Done():
+		t.Fatal("sync timeout")
+	}
+
+}
+
 func TestMultipleSubscriptions(t *testing.T) {
 	srcStore1 := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcStore2 := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -110,11 +149,11 @@ func TestMultipleSubscriptions(t *testing.T) {
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
 	time.Sleep(time.Second)
 
-	defer func() {
+	t.Cleanup(func() {
 		lp1.Close()
 		lp2.Close()
 		i.Close(context.Background())
-	}()
+	})
 
 	// Test with two random advertisement publications for each
 	// of them.
@@ -250,4 +289,22 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 		require.Equal(t, lcid, c)
 	}
 	return c, cids
+}
+
+// Implementation of a mock provider client.
+var _ ingestclient.Provider = &mockClient{}
+
+type mockClient struct {
+	cid.Cid
+}
+
+func newMockClient(c cid.Cid) *mockClient {
+	return &mockClient{c}
+}
+func (c *mockClient) GetAdv(ctx context.Context, p peer.ID, id cid.Cid) (*models.AdResponse, error) {
+	return nil, nil
+}
+
+func (c *mockClient) GetLatestAdv(ctx context.Context, p peer.ID) (*models.AdResponse, error) {
+	return &models.AdResponse{ID: c.Cid}, nil
 }

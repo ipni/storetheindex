@@ -71,15 +71,19 @@ func (h *AdminHandler) Sync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Infow("Syncing with provider", "provider", m)
-	// TODO: Add context.WithCancel as this may take a long time.
-	err = h.ingester.Sync(r.Context(), miner)
+
+	// We accept the request but do nothing with the channel.
+	// We can include an ingestion API to check the latest sync for
+	// a provider in the indexer. This would show if the indexer
+	// has finally synced or not.
+	_, err = h.ingester.Sync(r.Context(), miner)
 	if err != nil {
 		log.Errorw("error syncing with provider", "err", err)
 		writeError(w, http.StatusInternalServerError, err)
 	}
 
-	// Return OK
-	w.WriteHeader(http.StatusOK)
+	// Return (202) Accepted
+	w.WriteHeader(http.StatusAccepted)
 
 }
 
