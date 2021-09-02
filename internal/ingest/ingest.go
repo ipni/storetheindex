@@ -204,12 +204,18 @@ func (i *legIngester) listenSyncUpdates(ctx context.Context, p peer.ID,
 func (i *legIngester) Unsubscribe(ctx context.Context, p peer.ID) error {
 	i.sublk.Lock(p)
 	defer i.sublk.Unlock(p)
+	// Check if subscriber exists.
+	s, ok := i.subs[p]
+	if !ok {
+		// If not we have nothing to do.
+		return nil
+	}
 	// Close subscriber
-	i.subs[p].ls.Close()
+	s.ls.Close()
 	// Check if we are subscribed
-	if i.subs[p].cncl != nil {
+	if s.cncl != nil {
 		// If yes, run cancel
-		i.subs[p].cncl()
+		s.cncl()
 	}
 	// Delete from map
 	delete(i.subs, p)

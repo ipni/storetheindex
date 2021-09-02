@@ -86,6 +86,9 @@ func TestSubscribe(t *testing.T) {
 	require.Error(t, err, datastore.ErrNotFound)
 	require.Nil(t, adv)
 
+	// Unsubscribing twice shouldn't break anything.
+	i.Unsubscribe(context.Background(), lph.ID())
+
 }
 
 func TestSync(t *testing.T) {
