@@ -50,9 +50,9 @@ func New(listen string, indexer indexer.Interface, ingester ingestion.Ingester, 
 	r.HandleFunc("/healthcheck", adminHandler.HealthCheckHandler).Methods("GET")
 
 	// Ingester routes
-	r.HandleFunc("/ingest/subscribe/{minerid}", adminHandler.Subscribe).Methods("POST")
-	r.HandleFunc("/ingest/unsubscribe/{minerid}", adminHandler.Unsubscribe).Methods("POST")
-	r.HandleFunc("/ingest/sync/{minerid}", adminHandler.Sync).Methods("POST")
+	r.HandleFunc("/ingest/subscribe/{provider}", adminHandler.Subscribe).Methods("GET")
+	r.HandleFunc("/ingest/unsubscribe/{provider}", adminHandler.Unsubscribe).Methods("GET")
+	r.HandleFunc("/ingest/sync/{provider}", adminHandler.Sync).Methods("GET")
 
 	return s, nil
 }

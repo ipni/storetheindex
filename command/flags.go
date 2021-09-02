@@ -66,6 +66,16 @@ var ImportFlags = []cli.Flag{
 	IndexerHostFlag,
 }
 
+var IngestFlags = []cli.Flag{
+	&cli.StringFlag{
+		Name:     "provider",
+		Usage:    "Provider to interact with",
+		Aliases:  []string{"prov"},
+		Required: true,
+	},
+	IndexerHostFlag,
+}
+
 var InitFlags = []cli.Flag{
 	CacheSizeFlag,
 	&cli.StringFlag{

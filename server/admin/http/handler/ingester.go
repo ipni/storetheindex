@@ -15,7 +15,7 @@ func (h *AdminHandler) Subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vars := mux.Vars(r)
-	m := vars["minerid"]
+	m := vars["provider"]
 	miner, err := peer.Decode(m)
 	if err != nil {
 		log.Errorw("error decoding miner id into peerID", "miner", m, "err", err)
@@ -39,7 +39,7 @@ func (h *AdminHandler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vars := mux.Vars(r)
-	m := vars["minerid"]
+	m := vars["provider"]
 	miner, err := peer.Decode(m)
 	if err != nil {
 		log.Errorw("error decoding miner id into peerID", "miner", m, "err", err)
@@ -63,7 +63,7 @@ func (h *AdminHandler) Sync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vars := mux.Vars(r)
-	m := vars["minerid"]
+	m := vars["provider"]
 	miner, err := peer.Decode(m)
 	if err != nil {
 		log.Errorw("error decoding miner id into peerID", "miner", m, "err", err)

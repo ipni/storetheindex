@@ -50,6 +50,7 @@ func main() {
 			command.InitCmd,
 			command.RegisterCmd,
 			command.SyntheticCmd,
+			command.IngestCmd,
 		},
 	}
 
