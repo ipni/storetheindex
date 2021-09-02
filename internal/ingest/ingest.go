@@ -4,6 +4,8 @@ import (
 	"context"
 
 	indexer "github.com/filecoin-project/go-indexer-core/engine"
+	ingestclient "github.com/filecoin-project/indexer-reference-provider/api/v0/client"
+	ingestclientimpl "github.com/filecoin-project/indexer-reference-provider/api/v0/client/libp2p"
 	ingestion "github.com/filecoin-project/storetheindex/api/v0/ingest"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/im7mortal/kmutex"
@@ -39,6 +41,7 @@ type legIngester struct {
 	ds      datastore.Batching
 	lt      *legs.LegTransport
 	indexer *indexer.Engine
+	client  ingestclient.Provider
 
 	subs  map[peer.ID]*sub
 	sublk *kmutex.Kmutex
@@ -62,11 +65,16 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 		return nil, err
 	}
 
+	cl, err := ingestclientimpl.NewProvider(ctx, h)
+	if err != nil {
+		return nil, err
+	}
 	li := &legIngester{
 		host:    h,
 		ds:      ds,
 		indexer: i,
 		lt:      lt,
+		client:  cl,
 		subs:    make(map[peer.ID]*sub),
 		sublk:   kmutex.New(),
 	}
@@ -77,35 +85,59 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 }
 
 // Sync with a data provider up to latest ID
-func (i *legIngester) Sync(ctx context.Context, p peer.ID) error {
+func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...ingestion.SyncOption) (chan cid.Cid, error) {
 	// Check latest sync for provider.
 	c, err := i.getLatestAdvID(ctx, p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Check if we already have the advertisement.
 	adv, err := i.ds.Get(datastore.NewKey(c.String()))
 	if err != nil && err != datastore.ErrNotFound {
-		return err
+		return nil, err
 	}
-	// If we have the advertisement do nothing, we are in sync.
+	// If we have the advertisement do nothing, we already synced
 	if adv != nil {
-		return nil
+		return nil, nil
+	}
+	// Get subscriber for peer or create a new one
+	s, err := i.newPeerSubscriber(ctx, p)
+	if err != nil {
+		return nil, err
 	}
 
-	// TODO: Blocked until getLatestAdvertisement endpoint is available
-	// in reference index provider.
-	// Close current subscriber if any.
-	// Sync with dedicated data transfer with stopAt in latestSync.
-	// Start a new partiallySynced subscriber from the last advertisement.
-	// NOTE: This may need changes over legs to allow dedicated transfers?
-	panic("Not implemented")
+	// Apply options to syncConfig or use defaults
+	var cfg ingestion.SyncConfig
+	if err := cfg.Apply(append([]ingestion.SyncOption{ingestion.SyncDefaults}, opts...)...); err != nil {
+		return nil, err
+	}
+
+	// Configure timeout for syncing process
+	ctx, cancel := context.WithTimeout(ctx, cfg.SyncTimeout)
+	// Start syncing. Notifications for the finished
+	// sync will be done asynchronously.
+	watcher, cncl, err := s.ls.Sync(ctx, p, c)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	// Merge cancelfuncs
+	cncl = cancelFunc(cncl, cancel)
+	// Notification channel.
+	out := make(chan cid.Cid)
+	// Listen when the sync is done to update latestSync and
+	// notify the channel.
+	go i.listenSyncUpdates(ctx, p, watcher, cncl, out)
+	return out, nil
 }
 
 func (i *legIngester) getLatestAdvID(ctx context.Context, p peer.ID) (cid.Cid, error) {
-	// Query provider to get its latest sync.
-	panic("not implemented")
+	res, err := i.client.GetLatestAdv(ctx, p)
+	if err != nil {
+		return cid.Undef, err
+	}
+	return res.ID, nil
 }
 
 // Subscribe to advertisements of a specific provider in the pubsub channel
@@ -125,14 +157,14 @@ func (i *legIngester) Subscribe(ctx context.Context, p peer.ID) error {
 
 	var cncl context.CancelFunc
 	s.watcher, cncl = s.ls.OnChange()
-	s.cncl = s.cancelFunc(cncl, cancel)
+	s.cncl = cancelFunc(cncl, cancel)
 
 	// Listen updates persist latestSync when sync is done.
-	go i.listenUpdates(ctx, s)
+	go i.listenSubUpdates(ctx, s)
 	return nil
 }
 
-func (i *legIngester) listenUpdates(ctx context.Context, s *sub) {
+func (i *legIngester) listenSubUpdates(ctx context.Context, s *sub) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -147,14 +179,44 @@ func (i *legIngester) listenUpdates(ctx context.Context, s *sub) {
 	}
 }
 
+func (i *legIngester) listenSyncUpdates(ctx context.Context, p peer.ID,
+	watcher chan cid.Cid, cncl context.CancelFunc, out chan cid.Cid) {
+
+	defer func() {
+		cncl()
+		close(out)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return
+	// Persist the latest sync
+	case c := <-watcher:
+		err := i.putLatestSync(p, c)
+		if err != nil {
+			log.Errorf("Error persisting latest sync: %w", err)
+		}
+		out <- c
+	}
+}
+
 // Unsubscribe to stop listening to advertisement from a specific provider.
 func (i *legIngester) Unsubscribe(ctx context.Context, p peer.ID) error {
 	i.sublk.Lock(p)
 	defer i.sublk.Unlock(p)
+	// Check if subscriber exists.
+	s, ok := i.subs[p]
+	if !ok {
+		// If not we have nothing to do.
+		return nil
+	}
 	// Close subscriber
-	i.subs[p].ls.Close()
-	// Run cancel
-	i.subs[p].cncl()
+	s.ls.Close()
+	// Check if we are subscribed
+	if s.cncl != nil {
+		// If yes, run cancel
+		s.cncl()
+	}
 	// Delete from map
 	delete(i.subs, p)
 
@@ -234,7 +296,7 @@ func (i *legIngester) putLatestSync(p peer.ID, c cid.Cid) error {
 
 // cancelfunc for subscribers. Combines context cancel and LegSubscriber
 // cancel function.
-func (s *sub) cancelFunc(c1, c2 context.CancelFunc) context.CancelFunc {
+func cancelFunc(c1, c2 context.CancelFunc) context.CancelFunc {
 	return func() {
 		c1()
 		c2()
