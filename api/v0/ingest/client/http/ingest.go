@@ -3,6 +3,7 @@ package ingesthttpclient
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -39,6 +40,67 @@ func NewIngest(baseURL string, options ...httpclient.ClientOption) (*IngestClien
 		indexContentURL: baseURL + indexContentPath,
 		providersURL:    baseURL + providersPath,
 	}, nil
+}
+
+func (cl *IngestClient) ListProviders(ctx context.Context) ([]*models.ProviderInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", cl.providersURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("Accept", "application/json")
+
+	resp, err := cl.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, httpclient.ReadError(resp.StatusCode, body)
+	}
+
+	var providers []*models.ProviderInfo
+	err = json.Unmarshal(body, &providers)
+	if err != nil {
+		return nil, err
+	}
+
+	return providers, nil
+}
+
+func (cl *IngestClient) GetProvider(ctx context.Context, providerID peer.ID) (*models.ProviderInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", cl.providersURL+"/"+providerID.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("Accept", "application/json")
+
+	resp, err := cl.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, httpclient.ReadError(resp.StatusCode, body)
+	}
+
+	var providerInfo models.ProviderInfo
+	err = json.Unmarshal(body, &providerInfo)
+	if err != nil {
+		return nil, err
+	}
+	return &providerInfo, nil
 }
 
 func (cl *IngestClient) IndexContent(ctx context.Context, providerIdent config.Identity, c cid.Cid, protocol uint64, metadata []byte) error {

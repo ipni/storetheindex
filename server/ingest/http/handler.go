@@ -10,7 +10,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/httpserver"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/gorilla/mux"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 type httpHandler struct {
@@ -177,7 +177,8 @@ func (h *httpHandler) IndexContent(w http.ResponseWriter, r *http.Request) {
 		log.Info("indexed new content")
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "new:", ok)
 }
 
 func getProviderID(r *http.Request) (peer.ID, error) {

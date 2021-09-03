@@ -115,7 +115,7 @@ func TestIndexContent(t *testing.T) {
 
 	resp := w.Result()
 
-	if resp.StatusCode != http.StatusNoContent {
-		t.Fatal("expected response to be", http.StatusNoContent)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatal("expected response to be", http.StatusOK)
 	}
 }

@@ -2,6 +2,7 @@ package httpingestserver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 
@@ -16,6 +17,10 @@ var log = logging.Logger("ingestserver")
 type Server struct {
 	server *http.Server
 	l      net.Listener
+}
+
+func (s *Server) URL() string {
+	return fmt.Sprint("http://", s.l.Addr().String())
 }
 
 func New(listen string, indexer indexer.Interface, registry *providers.Registry, options ...ServerOption) (*Server, error) {
