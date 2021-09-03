@@ -2,11 +2,16 @@ package libp2pserver
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/filecoin-project/storetheindex/internal/p2putil"
+	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/gogo/protobuf/proto"
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -29,6 +34,8 @@ type Server struct {
 	selfID  peer.ID
 }
 
+var log = logging.Logger("libp2pserver")
+
 // ID returns the peer.ID of the protocol server.
 func (s *Server) ID() peer.ID {
 	return s.selfID
@@ -46,6 +53,21 @@ func New(ctx context.Context, h host.Host, messageHandler Handler) *Server {
 	h.SetStreamHandler(messageHandler.ProtocolID(), s.handleNewStream)
 
 	return s
+}
+
+func HandleError(err error, reqType string) *syserr.SysError {
+	var se *syserr.SysError
+	if errors.As(err, &se) {
+		if se.Status() >= 500 {
+			log.Errorw(fmt.Sprint("cannot handle", reqType, "request"), "err", se.Error(), "status", se.Status())
+			// Log the error and return only the 5xx status.
+			return syserr.New(nil, se.Status())
+		}
+	} else {
+		se = syserr.New(err, http.StatusBadRequest)
+	}
+	log.Infow(fmt.Sprint("bad", reqType, "request"), "err", se.Error(), "status", se.Status())
+	return se
 }
 
 // handleNewStream implements the network.StreamHandler

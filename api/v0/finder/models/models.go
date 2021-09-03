@@ -6,6 +6,7 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -71,7 +72,7 @@ func PopulateResponse(indexer indexer.Interface, registry *providers.Registry, c
 	for i := range cids {
 		values, found, err := indexer.Get(cids[i])
 		if err != nil {
-			return nil, fmt.Errorf("failed to query cid %q: %s", cids[i], err)
+			return nil, syserr.New(fmt.Errorf("failed to query cid %q: %s", cids[i], err), 500)
 		}
 		if !found {
 			continue

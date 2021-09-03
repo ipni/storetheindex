@@ -11,8 +11,8 @@ import (
 // be added in a response
 type ProviderInfo struct {
 	AddrInfo      peer.AddrInfo
-	LastIndex     cid.Cid
-	LastIndexTime string `json:"omitempty"`
+	LastIndex     cid.Cid `json:",omitempty"`
+	LastIndexTime string  `json:",omitempty"`
 }
 
 func MakeProviderInfo(addrInfo peer.AddrInfo, lastIndex cid.Cid, lastIndexTime time.Time) ProviderInfo {

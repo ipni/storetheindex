@@ -25,7 +25,17 @@ func New(err error, status int) *SysError {
 }
 
 func (e *SysError) Error() string {
-	return e.err.Error()
+	if e.err != nil {
+		return e.err.Error()
+	}
+	if e.status == 0 {
+		return ""
+	}
+	// If there is only status, then return status text
+	if text := http.StatusText(e.status); text != "" {
+		return fmt.Sprintf("%d %s", e.status, text)
+	}
+	return fmt.Sprintf("%d", e.status)
 }
 
 func (e *SysError) Status() int {

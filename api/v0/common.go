@@ -10,7 +10,8 @@ import (
 )
 
 type Error struct {
-	Message string
+	Message string `json:",omitempty"`
+	Status  int    `json:",omitempty"`
 }
 
 var serverError []byte
@@ -32,10 +33,16 @@ func EncodeError(err error) []byte {
 	if err == nil {
 		return nil
 	}
-	errMsg := Error{
+
+	e := Error{
 		Message: err.Error(),
 	}
-	data, err := json.Marshal(&errMsg)
+	var se *syserr.SysError
+	if errors.As(err, &se) {
+		e.Status = se.Status()
+	}
+
+	data, err := json.Marshal(&e)
 	if err != nil {
 		return serverError
 	}
@@ -51,10 +58,7 @@ func DecodeError(data []byte) error {
 	if err != nil {
 		return fmt.Errorf("cannot decode error message: %s", err)
 	}
-	return errors.New(e.Message)
-}
 
-func MakeError(status int, err error) error {
-	se := syserr.New(err, status)
+	se := syserr.New(errors.New(e.Message), e.Status)
 	return errors.New(se.Text())
 }

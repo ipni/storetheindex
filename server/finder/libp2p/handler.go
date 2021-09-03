@@ -8,6 +8,7 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
+	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/gogo/protobuf/proto"
 	logging "github.com/ipfs/go-log/v2"
@@ -59,8 +60,9 @@ func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes [
 
 	data, err := handle(ctx, msgPeer, &req)
 	if err != nil {
-		rspType = pb.FinderMessage_ERROR_RESPONSE
+		err = libp2pserver.HandleError(err, req.GetType().String())
 		data = v0.EncodeError(err)
+		rspType = pb.FinderMessage_ERROR_RESPONSE
 	}
 
 	return &pb.FinderMessage{

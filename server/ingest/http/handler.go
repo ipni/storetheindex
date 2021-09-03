@@ -1,15 +1,14 @@
 package httpingestserver
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/handler"
+	"github.com/filecoin-project/storetheindex/internal/httpserver"
 	"github.com/filecoin-project/storetheindex/internal/providers"
-	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/gorilla/mux"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
@@ -35,7 +34,7 @@ func (h *httpHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJsonResponse(w, http.StatusOK, data)
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
 // GET /providers/{providerid}
@@ -58,7 +57,7 @@ func (h *httpHandler) GetProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJsonResponse(w, http.StatusOK, data)
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
 // POST /discover
@@ -72,7 +71,7 @@ func (h *httpHandler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 
 	err = h.ingestHandler.DiscoverProvider(body)
 	if err != nil {
-		handleError(w, err, "discover")
+		httpserver.HandleError(w, err, "discover")
 		return
 	}
 
@@ -91,7 +90,7 @@ func (h *httpHandler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
 
 	err = h.ingestHandler.RegisterProvider(body)
 	if err != nil {
-		handleError(w, err, "register")
+		httpserver.HandleError(w, err, "register")
 		return
 	}
 
@@ -170,7 +169,7 @@ func (h *httpHandler) IndexContent(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := h.ingestHandler.IndexContent(body)
 	if err != nil {
-		handleError(w, err, "ingest")
+		httpserver.HandleError(w, err, "ingest")
 		return
 	}
 
@@ -189,29 +188,4 @@ func getProviderID(r *http.Request) (peer.ID, error) {
 		return providerID, fmt.Errorf("cannot decode provider id: %s", err)
 	}
 	return providerID, nil
-}
-
-func handleError(w http.ResponseWriter, err error, reqType string) {
-	status := http.StatusBadRequest
-	var se *syserr.SysError
-	if errors.As(err, &se) {
-		if se.Status() >= 500 {
-			log.Errorw(fmt.Sprint("cannot handle", reqType, "request"), "err", se)
-			http.Error(w, "", se.Status())
-			return
-		}
-		status = se.Status()
-	}
-	log.Infow(fmt.Sprint("bad", reqType, "request"), "err", err.Error(), "status", status)
-	http.Error(w, err.Error(), status)
-}
-
-func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
-	w.WriteHeader(status)
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	if _, err := w.Write(body); err != nil {
-		log.Errorw("cannot write response", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-	}
 }
