@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	ingestPort        = 3001
-	providersResource = "providers"
-	ingestionResource = "ingestion"
+	ingestPort       = 3001
+	providersPath    = "/providers"
+	indexContentPath = "/ingest/content"
 )
 
 // IndestClient is an http client for the indexer ingest API
@@ -36,8 +36,8 @@ func NewIngest(baseURL string, options ...httpclient.ClientOption) (*IngestClien
 	baseURL = u.String()
 	return &IngestClient{
 		c:               c,
-		indexContentURL: baseURL + "/ingest/content",
-		providersURL:    baseURL + "/providers",
+		indexContentURL: baseURL + indexContentPath,
+		providersURL:    baseURL + providersPath,
 	}, nil
 }
 

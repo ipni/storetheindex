@@ -9,7 +9,6 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/api/v0"
-	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
 	pb "github.com/filecoin-project/storetheindex/api/v0/ingest/pb"
 	"github.com/filecoin-project/storetheindex/internal/handler"
 	"github.com/filecoin-project/storetheindex/internal/providers"
@@ -150,10 +149,6 @@ func (h *libp2pHandler) IndexContent(ctx context.Context, p peer.ID, msg *pb.Ing
 	}
 
 	return nil, nil
-}
-
-func providerInfoToApi(pinfo *providers.ProviderInfo, apiModel *models.ProviderInfo) {
-	*apiModel = models.MakeProviderInfo(pinfo.AddrInfo, pinfo.LastIndex, pinfo.LastIndexTime)
 }
 
 func handleError(err error, reqType string) error {

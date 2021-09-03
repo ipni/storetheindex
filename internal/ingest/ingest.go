@@ -203,7 +203,10 @@ func (i *legIngester) newPeerSubscriber(ctx context.Context, p peer.ID) (*sub, e
 func (i *legIngester) Close(ctx context.Context) error {
 	// Unsubscribe from all peers
 	for k := range i.subs {
-		i.Unsubscribe(ctx, k)
+		err := i.Unsubscribe(ctx, k)
+		if err != nil {
+			return err
+		}
 	}
 	// Close leg transport.
 	return i.lt.Close(ctx)

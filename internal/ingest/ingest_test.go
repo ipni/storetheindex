@@ -75,7 +75,9 @@ func TestSubscribe(t *testing.T) {
 		require.False(t, b)
 	}
 
-	i.Unsubscribe(context.Background(), lph.ID())
+	err = i.Unsubscribe(context.Background(), lph.ID())
+	require.NoError(t, err)
+
 	// Check that no advertisement is retrieved from
 	// peer once it has been unsubscribed.
 	c, _ := publishRandomIndexAndAdv(t, lp, lsys, false)

@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
+
+	"github.com/filecoin-project/storetheindex/internal/syserr"
 )
 
 type Error struct {
@@ -54,21 +55,6 @@ func DecodeError(data []byte) error {
 }
 
 func MakeError(status int, err error) error {
-	parts := make([]string, 0, 5)
-	if status != 0 {
-		parts = append(parts, fmt.Sprintf("%d", status))
-		text := http.StatusText(status)
-		if text != "" {
-			parts = append(parts, " ")
-			parts = append(parts, text)
-		}
-	}
-	if err != nil {
-		if len(parts) != 0 {
-			parts = append(parts, ": ")
-		}
-		parts = append(parts, err.Error())
-	}
-
-	return errors.New(strings.Join(parts, ""))
+	se := syserr.New(err, status)
+	return errors.New(se.Text())
 }

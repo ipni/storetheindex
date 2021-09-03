@@ -23,8 +23,6 @@ import (
 const (
 	// providerKeyPath is where provider info is stored in to indexer repo
 	providerKeyPath = "/registry/pinfo"
-	// periodicInterval is how often cleanup/polling task is run
-	periodicInterval = 12 * time.Hour
 )
 
 var log = logging.Logger("providers")
@@ -66,7 +64,7 @@ type ProviderInfo struct {
 
 	// lastContactTime is the time of last contact or attempted contact with
 	// the provider
-	lastContactTime time.Time
+	//lastContactTime time.Time
 }
 
 func (p *ProviderInfo) dsKey() datastore.Key {
@@ -108,10 +106,10 @@ func NewRegistry(cfg config.Discovery, dstore datastore.Datastore, disco discove
 	}
 	log.Infow("loaded providers into registry", "count", count)
 
-	r.periodicTimer = time.AfterFunc(r.pollInterval, func() {
+	r.periodicTimer = time.AfterFunc(r.pollInterval/2, func() {
 		r.cleanup()
 		r.pollProviders()
-		r.periodicTimer.Reset(r.pollInterval)
+		r.periodicTimer.Reset(r.pollInterval / 2)
 	})
 
 	go r.run()
@@ -425,5 +423,4 @@ func (r *Registry) cleanup() {
 
 func (r *Registry) pollProviders() {
 	// TODO: Poll providers that have not been contacted for more than pollInterval.
-	return
 }
