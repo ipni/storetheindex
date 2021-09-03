@@ -74,11 +74,7 @@ func (cl *Ingest) GetProvider(ctx context.Context, providerID peer.ID) (*models.
 }
 
 func (cl *Ingest) Register(ctx context.Context, providerIdent config.Identity, addrs []string) error {
-	regReq, err := models.MakeRegisterRequest(providerIdent, addrs)
-	if err != nil {
-		return err
-	}
-	data, err := json.Marshal(regReq)
+	data, err := models.MakeRegisterRequest(providerIdent, addrs)
 	if err != nil {
 		return err
 	}
@@ -89,6 +85,25 @@ func (cl *Ingest) Register(ctx context.Context, providerIdent config.Identity, a
 	}
 
 	_, err = cl.sendRecv(ctx, req, pb.IngestMessage_REGISTER_PROVIDER_RESPONSE)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cl *Ingest) IndexContent(ctx context.Context, providerIdent config.Identity, c cid.Cid, protocol uint64, metadata []byte) error {
+	data, err := models.MakeIngestRequest(providerIdent, c, protocol, metadata)
+	if err != nil {
+		return err
+	}
+
+	req := &pb.IngestMessage{
+		Type: pb.IngestMessage_INDEX_CONTENT,
+		Data: data,
+	}
+
+	_, err = cl.sendRecv(ctx, req, pb.IngestMessage_INDEX_CONTENT_RESPONSE)
 	if err != nil {
 		return err
 	}

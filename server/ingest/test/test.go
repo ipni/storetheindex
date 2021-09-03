@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/client"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/utils"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -116,7 +117,7 @@ func RegisterProviderTest(t *testing.T, c client.Ingest, providerIdent config.Id
 	}
 }
 
-func GetProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, reg *providers.Registry) {
+func GetProviderTest(t *testing.T, c client.Ingest, providerID peer.ID) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -133,7 +134,7 @@ func GetProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, reg *pro
 	}
 }
 
-func ListProvidersTest(t *testing.T, c client.Ingest, providerID peer.ID, reg *providers.Registry) {
+func ListProvidersTest(t *testing.T, c client.Ingest, providerID peer.ID) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -146,5 +147,50 @@ func ListProvidersTest(t *testing.T, c client.Ingest, providerID peer.ID, reg *p
 	}
 	if providers[0].AddrInfo.ID != providerID {
 		t.Fatal("wrong peer id")
+	}
+}
+
+func IndexContent(t *testing.T, cl client.Ingest, providerIdent config.Identity, ind indexer.Interface) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cids, err := utils.RandomCids(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	metadata := []byte("hello")
+
+	err = cl.IndexContent(ctx, providerIdent, cids[0], 0, metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vals, ok, err := ind.Get(cids[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("did not find content")
+	}
+	if len(vals) == 0 {
+		t.Fatal("no content values returned")
+	}
+
+	p, err := peer.Decode(providerIdent.PeerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectValue := indexer.MakeValue(p, 0, metadata)
+	ok = false
+	for i := range vals {
+		if vals[i].Equal(expectValue) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		t.Fatal("did not get expected content")
 	}
 }

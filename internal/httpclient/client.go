@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/filecoin-project/storetheindex/api/v0"
+	"github.com/filecoin-project/storetheindex/internal/syserr"
 )
 
 // NewClient creates a base URL and a new http.Client
@@ -39,11 +39,7 @@ func NewClient(baseURL, resource string, defaultPort int, options ...ClientOptio
 	return u, cl, nil
 }
 
-func ReadError(statusCode int, body []byte) error {
-	if len(body) == 0 {
-		return errors.New(http.StatusText(statusCode))
-	}
-
-	err := v0.DecodeError(body)
-	return fmt.Errorf("%s: %s", http.StatusText(statusCode), err)
+func ReadError(status int, body []byte) error {
+	se := syserr.New(errors.New(string(body)), status)
+	return errors.New(se.Text())
 }

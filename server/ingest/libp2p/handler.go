@@ -11,7 +11,9 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
 	pb "github.com/filecoin-project/storetheindex/api/v0/ingest/pb"
+	"github.com/filecoin-project/storetheindex/internal/handler"
 	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/gogo/protobuf/proto"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -21,26 +23,24 @@ import (
 var log = logging.Logger("ingestp2pserver")
 
 // handler handles requests for the providers resource
-type handler struct {
-	indexer  indexer.Interface
-	registry *providers.Registry
+type libp2pHandler struct {
+	ingestHandler *handler.IngestHandler
 }
 
 // handlerFunc is the function signature required by handlers in this package
 type handlerFunc func(context.Context, peer.ID, *pb.IngestMessage) ([]byte, error)
 
-func newHandler(indexer indexer.Interface, registry *providers.Registry) *handler {
-	return &handler{
-		indexer:  indexer,
-		registry: registry,
+func newHandler(indexer indexer.Interface, registry *providers.Registry) *libp2pHandler {
+	return &libp2pHandler{
+		ingestHandler: handler.NewIngestHandler(indexer, registry),
 	}
 }
 
-func (h *handler) ProtocolID() protocol.ID {
+func (h *libp2pHandler) ProtocolID() protocol.ID {
 	return v0.IngestProtocolID
 }
 
-func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes []byte) (proto.Message, error) {
+func (h *libp2pHandler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes []byte) (proto.Message, error) {
 	var req pb.IngestMessage
 	err := req.Unmarshal(msgbytes)
 	if err != nil {
@@ -65,6 +65,9 @@ func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes [
 	case pb.IngestMessage_REMOVE_PROVIDER:
 		handle = h.RemoveProvider
 		rspType = pb.IngestMessage_REMOVE_PROVIDER_RESPONSE
+	case pb.IngestMessage_INDEX_CONTENT:
+		handle = h.IndexContent
+		rspType = pb.IngestMessage_INDEX_CONTENT_RESPONSE
 	default:
 		msg := "ussupported message type"
 		log.Errorw(msg, "type", req.GetType())
@@ -83,46 +86,26 @@ func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes [
 	}, nil
 }
 
-func (h *handler) DiscoverProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
-	var discoReq models.DiscoverRequest
-	if err := json.Unmarshal(msg.GetData(), &discoReq); err != nil {
-		log.Errorw("error unmarshalling discovery request", "err", err)
-		return nil, v0.MakeError(http.StatusBadRequest, nil)
-	}
-
-	err := discoReq.VerifySignature()
+func (h *libp2pHandler) DiscoverProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
+	err := h.ingestHandler.DiscoverProvider(msg.GetData())
 	if err != nil {
-		log.Errorw("signature not verified", "err", err, "provider", discoReq.ProviderID, "discover_addr", discoReq.DiscoveryAddr)
-		return nil, v0.MakeError(http.StatusBadRequest, err)
-	}
-
-	err = h.registry.Discover(discoReq.ProviderID, discoReq.DiscoveryAddr, false)
-	if err != nil {
-		log.Errorw("cannot process discovery request", "err", err)
-		return nil, v0.MakeError(http.StatusBadRequest, nil)
+		return nil, handleError(err, "discover")
 	}
 
 	return nil, nil
 }
 
-func (h *handler) ListProviders(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
-	infos := h.registry.AllProviderInfo()
-
-	responses := make([]models.ProviderInfo, len(infos))
-	for i := range infos {
-		providerInfoToApi(infos[i], &responses[i])
-	}
-
-	rb, err := json.Marshal(responses)
+func (h *libp2pHandler) ListProviders(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
+	data, err := h.ingestHandler.ListProviders()
 	if err != nil {
-		log.Errorw("cannot marshal response", "err", err)
+		log.Errorw("cannot list providers", "err", err)
 		return nil, v0.MakeError(http.StatusInternalServerError, nil)
 	}
 
-	return rb, nil
+	return data, nil
 }
 
-func (h *handler) GetProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
+func (h *libp2pHandler) GetProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
 	var providerID peer.ID
 	err := json.Unmarshal(msg.GetData(), &providerID)
 	if err != nil {
@@ -130,53 +113,59 @@ func (h *handler) GetProvider(ctx context.Context, p peer.ID, msg *pb.IngestMess
 		return nil, v0.MakeError(http.StatusBadRequest, errors.New("cannot decode request"))
 	}
 
-	info := h.registry.ProviderInfo(providerID)
-	if info == nil {
-		return nil, v0.MakeError(http.StatusNotFound, nil)
-	}
-
-	var rsp models.ProviderInfo
-	providerInfoToApi(info, &rsp)
-
-	rb, err := json.Marshal(&rsp)
+	data, err := h.ingestHandler.GetProvider(providerID)
 	if err != nil {
-		log.Errorw("failed marshalling response", "err", err)
+		log.Error("cannot get provider", "err", err)
 		return nil, v0.MakeError(http.StatusInternalServerError, nil)
 	}
 
-	return rb, nil
+	if len(data) == 0 {
+		return nil, v0.MakeError(http.StatusNotFound, errors.New("provider not found"))
+	}
+
+	return data, nil
 }
 
-func (h *handler) RegisterProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
-	var regReq models.RegisterRequest
-	err := json.Unmarshal(msg.GetData(), &regReq)
+func (h *libp2pHandler) RegisterProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
+	err := h.ingestHandler.RegisterProvider(msg.GetData())
 	if err != nil {
-		log.Errorw("error unmarshalling registration request", "err", err)
-		return nil, v0.MakeError(http.StatusBadRequest, errors.New("cannot decode request"))
-	}
-
-	err = regReq.VerifySignature()
-	if err != nil {
-		log.Errorw("signature not verified", "err", err, "provider", regReq.AddrInfo.ID)
-		return nil, v0.MakeError(http.StatusBadRequest, err)
-	}
-
-	info := &providers.ProviderInfo{
-		AddrInfo: regReq.AddrInfo,
-	}
-	err = h.registry.Register(info)
-	if err != nil {
-		log.Errorw("cannot process registration request", "err", err)
-		return nil, v0.MakeError(http.StatusBadRequest, nil)
+		return nil, handleError(err, "register")
 	}
 
 	return nil, nil
 }
 
-func (h *handler) RemoveProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
+func (h *libp2pHandler) RemoveProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
 	return nil, v0.MakeError(http.StatusNotImplemented, nil)
+}
+
+func (h *libp2pHandler) IndexContent(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
+	ok, err := h.ingestHandler.IndexContent(msg.GetData())
+	if err != nil {
+		return nil, handleError(err, "index-content")
+	}
+
+	if ok {
+		log.Info("indexed content")
+	}
+
+	return nil, nil
 }
 
 func providerInfoToApi(pinfo *providers.ProviderInfo, apiModel *models.ProviderInfo) {
 	*apiModel = models.MakeProviderInfo(pinfo.AddrInfo, pinfo.LastIndex, pinfo.LastIndexTime)
+}
+
+func handleError(err error, reqType string) error {
+	status := http.StatusBadRequest
+	var se *syserr.SysError
+	if errors.As(err, &se) {
+		if se.Status() >= 500 {
+			log.Errorw(fmt.Sprint("cannot handle", reqType, "request"), "err", se)
+			return v0.MakeError(se.Status(), nil)
+		}
+		status = se.Status()
+	}
+	log.Infow(fmt.Sprint("bad", reqType, "request"), "err", err.Error(), "status", status)
+	return v0.MakeError(status, err)
 }

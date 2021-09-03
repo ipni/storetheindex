@@ -56,18 +56,20 @@ func TestRegisterProvider(t *testing.T) {
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t, providerIdent.PeerID)
 	s, sh := setupServer(ctx, ind, reg, t)
-	c, ch := setupClient(ctx, s.ID(), t)
+	p2pClient, ch := setupClient(ctx, s.ID(), t)
 	connect(ctx, t, ch, sh)
 
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
-	test.RegisterProviderTest(t, c, providerIdent, addrs, reg)
+	test.RegisterProviderTest(t, p2pClient, providerIdent, addrs, reg)
 
 	peerID, err := peer.Decode(providerIdent.PeerID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	test.GetProviderTest(t, c, peerID, reg)
+	test.GetProviderTest(t, p2pClient, peerID)
 
-	test.ListProvidersTest(t, c, peerID, reg)
+	test.ListProvidersTest(t, p2pClient, peerID)
+
+	test.IndexContent(t, p2pClient, providerIdent, ind)
 }

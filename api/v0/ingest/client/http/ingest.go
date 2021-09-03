@@ -3,7 +3,6 @@ package ingesthttpclient
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -18,41 +17,70 @@ import (
 const (
 	ingestPort        = 3001
 	providersResource = "providers"
+	ingestionResource = "ingestion"
 )
 
 // IndestClient is an http client for the indexer ingest API
 type IngestClient struct {
-	c       *http.Client
-	baseURL string
+	c               *http.Client
+	indexContentURL string
+	providersURL    string
 }
 
 // NewIngest creates a new IngestClient
 func NewIngest(baseURL string, options ...httpclient.ClientOption) (*IngestClient, error) {
-	u, c, err := httpclient.NewClient(baseURL, providersResource, ingestPort, options...)
+	u, c, err := httpclient.NewClient(baseURL, "", ingestPort, options...)
 	if err != nil {
 		return nil, err
 	}
+	baseURL = u.String()
 	return &IngestClient{
-		c:       c,
-		baseURL: u.String(),
+		c:               c,
+		indexContentURL: baseURL + "/ingest/content",
+		providersURL:    baseURL + "/providers",
 	}, nil
 }
 
-func (cl *IngestClient) Register(ctx context.Context, providerIdent config.Identity, addrs []string) error {
-	regReq, err := models.MakeRegisterRequest(providerIdent, addrs)
-	if err != nil {
-		return err
-	}
-	data, err := json.Marshal(regReq)
+func (cl *IngestClient) IndexContent(ctx context.Context, providerIdent config.Identity, c cid.Cid, protocol uint64, metadata []byte) error {
+	data, err := models.MakeIngestRequest(providerIdent, c, protocol, metadata)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", cl.baseURL, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", cl.indexContentURL, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", "application/octet-stream")
+
+	resp, err := cl.c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return httpclient.ReadError(resp.StatusCode, body)
+	}
+	return nil
+}
+
+func (cl *IngestClient) Register(ctx context.Context, providerIdent config.Identity, addrs []string) error {
+	data, err := models.MakeRegisterRequest(providerIdent, addrs)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", cl.providersURL, bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
 
 	resp, err := cl.c.Do(req)
 	if err != nil {

@@ -3,8 +3,8 @@ package providers
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"net/http"
 	"path"
 	"sync"
 	"time"
@@ -12,6 +12,7 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/providers/discovery"
 	"github.com/filecoin-project/storetheindex/internal/providers/policy"
+	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
@@ -20,7 +21,10 @@ import (
 )
 
 const (
+	// providerKeyPath is where provider info is stored in to indexer repo
 	providerKeyPath = "/registry/pinfo"
+	// periodicInterval is how often cleanup/polling task is run
+	periodicInterval = 12 * time.Hour
 )
 
 var log = logging.Logger("providers")
@@ -32,6 +36,7 @@ type Registry struct {
 	closeOnce sync.Once
 	dstore    datastore.Datastore
 	providers map[peer.ID]*ProviderInfo
+	sequences *sequences
 
 	discoverer discovery.Discoverer
 	discoWait  sync.WaitGroup
@@ -41,6 +46,8 @@ type Registry struct {
 	discoveryTimeout time.Duration
 	pollInterval     time.Duration
 	rediscoverWait   time.Duration
+
+	periodicTimer *time.Timer
 }
 
 // ProviderInfo is an immutable data sturcture that holds information about a
@@ -56,6 +63,10 @@ type ProviderInfo struct {
 	LastIndex cid.Cid
 	// LastIndexTime is the time indexed data was added to the indexer
 	LastIndexTime time.Time
+
+	// lastContactTime is the time of last contact or attempted contact with
+	// the provider
+	lastContactTime time.Time
 }
 
 func (p *ProviderInfo) dsKey() datastore.Key {
@@ -79,6 +90,7 @@ func NewRegistry(cfg config.Discovery, dstore datastore.Datastore, disco discove
 		closed:    make(chan struct{}),
 		policy:    discoPolicy,
 		providers: map[peer.ID]*ProviderInfo{},
+		sequences: newSequences(0),
 
 		pollInterval:     time.Duration(cfg.PollInterval),
 		rediscoverWait:   time.Duration(cfg.RediscoverWait),
@@ -96,6 +108,12 @@ func NewRegistry(cfg config.Discovery, dstore datastore.Datastore, disco discove
 	}
 	log.Infow("loaded providers into registry", "count", count)
 
+	r.periodicTimer = time.AfterFunc(r.pollInterval, func() {
+		r.cleanup()
+		r.pollProviders()
+		r.periodicTimer.Reset(r.pollInterval)
+	})
+
 	go r.run()
 	return r, nil
 }
@@ -104,6 +122,7 @@ func NewRegistry(cfg config.Discovery, dstore datastore.Datastore, disco discove
 func (r *Registry) Close() error {
 	var err error
 	r.closeOnce.Do(func() {
+		r.periodicTimer.Stop()
 		// Wait for any pending discoveries to complete, then stop the main run
 		// goroutine
 		r.discoWait.Wait()
@@ -139,6 +158,11 @@ func (r *Registry) run() {
 // to be information that is part of, or in addition to, the discoveryAddr to
 // indicate where/how discovery is done.
 func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) error {
+	// If provider is not allowed, then ignore request
+	if !r.policy.Allowed(peerID) {
+		return syserr.New(ErrNotAllowed, http.StatusForbidden)
+	}
+
 	errCh := make(chan error, 1)
 	r.actions <- func() {
 		r.syncStartDiscover(peerID, discoveryAddr, errCh)
@@ -152,13 +176,9 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 // Register is used to directly register a provider, bypassing discovery and
 // adding discovered data directly to the registry.
 func (r *Registry) Register(info *ProviderInfo) error {
-	if len(info.AddrInfo.ID) == 0 {
-		return errors.New("missing peer id")
-	}
-
 	// If provider is trusted, register immediately
 	if !r.policy.Trusted(info.AddrInfo.ID) {
-		return errors.New("provider must be trusted to register without on-chain verification")
+		return syserr.New(ErrNotTrusted, http.StatusUnauthorized)
 	}
 
 	errCh := make(chan error, 1)
@@ -235,6 +255,10 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	return infos
 }
 
+func (r *Registry) CheckSequence(peerID peer.ID, seq uint64) error {
+	return r.sequences.check(peerID, seq)
+}
+
 func (r *Registry) syncStartDiscover(peerID peer.ID, discoAddr string, errCh chan<- error) {
 	err := r.syncNeedDiscover(discoAddr)
 	if err != nil {
@@ -277,8 +301,8 @@ func (r *Registry) syncRegister(info *ProviderInfo, errCh chan<- error) {
 	r.providers[info.AddrInfo.ID] = info
 	err := r.syncPersistProvider(info)
 	if err != nil {
-		log.Errorw("could not persist provider", "err", err)
-		errCh <- err
+		err = fmt.Errorf("could not persist provider: %s", err)
+		errCh <- syserr.New(err, http.StatusInternalServerError)
 	}
 	close(errCh)
 }
@@ -359,7 +383,7 @@ func (r *Registry) loadPersistedProviders() (int, error) {
 
 func (r *Registry) discover(peerID peer.ID, discoAddr string) (*discovery.Discovered, error) {
 	if r.discoverer == nil {
-		return nil, errors.New("miner discovery not available")
+		return nil, ErrNoDiscovery
 	}
 
 	ctx := context.Background()
@@ -375,10 +399,31 @@ func (r *Registry) discover(peerID peer.ID, discoAddr string) (*discovery.Discov
 		return nil, fmt.Errorf("cannot discover provider: %s", err)
 	}
 
-	// If provider is not allowed, then ignore request
-	if !r.policy.Allowed(discoData.AddrInfo.ID) {
-		return nil, ErrNotAllowed
-	}
-
 	return discoData, nil
+}
+
+func (r *Registry) cleanup() {
+	r.discoWait.Add(1)
+	r.sequences.retire()
+	r.actions <- func() {
+		now := time.Now()
+		for id, completed := range r.discoTimes {
+			if completed.IsZero() {
+				continue
+			}
+			if r.rediscoverWait != 0 && now.Sub(completed) < r.rediscoverWait {
+				continue
+			}
+			delete(r.discoTimes, id)
+		}
+		if len(r.discoTimes) == 0 {
+			r.discoTimes = make(map[string]time.Time)
+		}
+	}
+	r.discoWait.Done()
+}
+
+func (r *Registry) pollProviders() {
+	// TODO: Poll providers that have not been contacted for more than pollInterval.
+	return
 }

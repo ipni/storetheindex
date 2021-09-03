@@ -20,6 +20,8 @@ message IngestMessage {
         REGISTER_PROVIDER_RESPONSE=8;
         REMOVE_PROVIDER = 9;
         REMOVE_PROVIDER_RESPONSE=10;
+        INDEX_CONTENT=11;
+        INDEX_CONTENT_RESPONSE=12;
     }
 
     // defines what type of message it is.

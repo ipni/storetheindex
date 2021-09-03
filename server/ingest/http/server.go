@@ -1,4 +1,4 @@
-package ingestserver
+package httpingestserver
 
 import (
 	"context"
@@ -38,14 +38,11 @@ func New(listen string, indexer indexer.Interface, registry *providers.Registry,
 	}
 	s := &Server{server, l}
 
-	h := &handler{
-		indexer:  indexer,
-		registry: registry,
-	}
+	h := newHandler(indexer, registry)
 
 	// Advertisement routes
-	r.HandleFunc("/ingestion/content", h.IndexContent).Methods("POST")
-	r.HandleFunc("/ingestion/advertisement", h.Advertise).Methods("PUT")
+	r.HandleFunc("/ingest/content", h.IndexContent).Methods("POST")
+	r.HandleFunc("/ingest/advertisement", h.Advertise).Methods("PUT")
 
 	// Discovery
 	r.HandleFunc("/discover", h.DiscoverProvider).Methods("POST")
