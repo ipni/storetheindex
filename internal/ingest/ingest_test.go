@@ -251,11 +251,11 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.Lin
 	require.NoError(t, err)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	val := indexer.MakeValue(p, 0, cids[0].Bytes())
-	_, indexLnk, err := schema.NewIndexFromCids(lsys, cids, nil, val.Metadata, nil)
+	cidsLnk, err := schema.NewListOfCids(lsys, cids)
 	require.NoError(t, err)
-	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String())
+	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, cidsLnk, val.Metadata, false, p.String())
 	if fakeSig {
-		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, indexLnk, p.String())
+		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, cidsLnk, val.Metadata, false, p.String())
 	}
 	require.NoError(t, err)
 	lnk, err := advLnk.AsLink()

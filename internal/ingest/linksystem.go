@@ -3,6 +3,7 @@ package ingest
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/filecoin-project/go-indexer-core"
@@ -90,9 +91,6 @@ func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 				return
 			}
 
-			// TODO: Add additional logic for CAREntries
-			// We only speak CIDEntries for now.
-
 			// When we are finished processing the index we can remove
 			// it from the datastore (we don't want redundant information
 			// in several datastores).
@@ -124,7 +122,7 @@ func decodeIPLDNode(r io.Reader) (ipld.Node, error) {
 // (We may need additional checks if we extend
 // the schema with new types that are traversable)
 func isAdvertisement(n ipld.Node) bool {
-	indexID, _ := n.LookupByString("IndexID")
+	indexID, _ := n.LookupByString("Signature")
 	return indexID != nil
 }
 
@@ -133,6 +131,15 @@ func isAdvertisement(n ipld.Node) bool {
 // and be able to run a different callbacks according to the needs.
 // I don't think it makes sense in this stage.
 func (i *legIngester) processCidsIndex(p peer.ID, n ipld.Node) error {
+	fmt.Println(n)
+	return nil
+}
+
+// Process the CIDs included in an IPLD.Node of type index and
+// NOTE: We could add a callback to give flexibility to processCidsIndex
+// and be able to run a different callbacks according to the needs.
+// I don't think it makes sense in this stage.
+func (i *legIngester) processCidsIndex2(p peer.ID, n ipld.Node) error {
 	// Get all CidEntries entries
 	entries, err := n.LookupByString("CidEntries")
 	if err != nil {

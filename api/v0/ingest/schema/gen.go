@@ -68,48 +68,20 @@ func main() {
 
 	// Advertisement
 	ts.Accumulate(schema.SpawnStruct("Advertisement", []schema.StructField{
-		schema.SpawnStructField("IndexID", "Link_Index", false, false),
-		// Empty bytes for the first advertisement
-		// We are using Bytes instead of links because we don't want
-		// selectors to follow advertisements as links with the
-		// current implementation. This may change in the future.
-		schema.SpawnStructField("PreviousID", "Bytes", false, false),
+		// Previous advertisement.
+		schema.SpawnStructField("PreviousID", "Link_Advertisement", true, false),
+		// Provider of the advertisement.
 		schema.SpawnStructField("Provider", "String", false, false),
+		// Advertisement signature.
 		schema.SpawnStructField("Signature", "Bytes", false, false),
+		// Entries with a link to the list of CIDs
+		schema.SpawnStructField("Entries", "Link", false, false),
+		// Metadata for entries.
+		schema.SpawnStructField("Metadata", "Bytes", false, false),
+		// IsRm or Put?
+		schema.SpawnStructField("IsRm", "Bool", false, false),
 	}, schema.SpawnStructRepresentationMap(map[string]string{})))
 	ts.Accumulate(schema.SpawnLinkReference("Link_Advertisement", "Advertisement"))
-
-	// IPLD-aware index
-	ts.Accumulate(schema.SpawnStruct("Index", []schema.StructField{
-		// NOTE: We link the previous index instead of the previous
-		// advertisement to this one. If by any change ingestion clients
-		// need to also fetch all the chain of advertisements change this
-		// to Link_Advertisement of the previous ad.
-		schema.SpawnStructField("Previous", "Link_Index", true, false),
-		schema.SpawnStructField("CidEntries", "List_CidEntry", false, false),
-		schema.SpawnStructField("CarEntries", "List_CarEntry", false, false),
-	}, schema.SpawnStructRepresentationMap(map[string]string{})))
-	ts.Accumulate(schema.SpawnLinkReference("Link_Index", "Index"))
-
-	// Entries
-	ts.Accumulate(schema.SpawnStruct("CidEntry", []schema.StructField{
-		// Use strings instead of CIDs, we don't want to traverse them,
-		// this is the info to be indexed by the indexer.
-		schema.SpawnStructField("Remove", "List_String", true, true),
-		schema.SpawnStructField("Put", "List_String", true, true),
-		schema.SpawnStructField("Metadata", "Bytes", true, true),
-	}, schema.SpawnStructRepresentationMap(map[string]string{})))
-	ts.Accumulate(schema.SpawnList("List_CidEntry", "CidEntry", false))
-
-	// CAR Entries
-	ts.Accumulate(schema.SpawnStruct("CarEntry", []schema.StructField{
-		// Link to CAR including the list of CIDs. The linkSystem
-		// needs to know how to go from CAR to list of included CIDs.
-		schema.SpawnStructField("Remove", "Link", true, true),
-		schema.SpawnStructField("Put", "Link", true, true),
-		schema.SpawnStructField("Metadata", "Bytes", true, true),
-	}, schema.SpawnStructRepresentationMap(map[string]string{})))
-	ts.Accumulate(schema.SpawnList("List_CarEntry", "CarEntry", false))
 
 	// Our types.
 	if errs := ts.ValidateGraph(); errs != nil {

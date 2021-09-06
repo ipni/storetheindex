@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 
+	"github.com/ipfs/go-cid"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/record"
@@ -45,27 +46,44 @@ func (r *advSignatureRecord) UnmarshalRecord(buf []byte) error {
 }
 
 // Generates the data payload used for signature.
-func signaturePayload(indexID Link_Index, provider string, previousAdvID []byte) ([]byte, error) {
-	lindex, err := indexID.AsLink()
+func signaturePayload(previousID Link_Advertisement, provider string, entries Link, metadata []byte, isRm bool) ([]byte, error) {
+	bindex := cid.Undef.Bytes()
+	lindex, err := previousID.AsLink()
 	if err != nil {
 		return nil, err
 	}
-	bindex := lindex.(cidlink.Link).Cid.Bytes()
-	// Signature data is indexID+provider+previousAdvID
-	sigData := make([]byte, len(bindex)+len([]byte(provider))+len(previousAdvID))
+	if lindex != nil {
+		bindex = lindex.(cidlink.Link).Cid.Bytes()
+	}
+	lent, err := entries.AsLink()
+	if err != nil {
+		return nil, err
+	}
+	ent := lent.(cidlink.Link).Cid.Bytes()
+	rm := []byte{0}
+	if isRm {
+		rm = []byte{1}
+	}
+	// Signature data is previousID+entries+metadata+isRm
+	sigData := make([]byte, len(bindex)+len(ent)+len([]byte(provider))+len(metadata)+len(rm))
 	copy(sigData[:len(bindex)], bindex)
-	copy(sigData[len(bindex):], []byte(provider))
-	copy(sigData[len(bindex)+len(provider):], previousAdvID)
+	copy(sigData[len(bindex):], ent)
+	copy(sigData[len(bindex)+len(ent):], []byte(provider))
+	copy(sigData[len(bindex)+len(ent)+len(provider):], metadata)
+	copy(sigData[len(bindex)+len(ent)+len(provider)+len(metadata):], rm)
 
 	return mh.Encode(sigData, mhCode)
 }
 
 // Signs advertisements using libp2p envelope
 func signAdvertisement(privkey crypto.PrivKey, ad Advertisement) ([]byte, error) {
-	index := ad.FieldIndexID()
+	previousID := ad.FieldPreviousID().v
 	provider := ad.FieldProvider().x
-	previous := ad.FieldPreviousID().x
-	advID, err := signaturePayload(index, provider, previous)
+	isRm := ad.FieldIsRm().x
+	entries := ad.FieldEntries()
+	metadata := ad.FieldMetadata().x
+
+	advID, err := signaturePayload(&previousID, provider, entries, metadata, isRm)
 	if err != nil {
 		return nil, err
 	}
@@ -79,12 +97,14 @@ func signAdvertisement(privkey crypto.PrivKey, ad Advertisement) ([]byte, error)
 // VerifyAdvertisement verifies that the advertisement has been
 // signed and generated correctly.
 func VerifyAdvertisement(ad Advertisement) error {
-	index := ad.FieldIndexID()
+	previousID := ad.FieldPreviousID().v
 	provider := ad.FieldProvider().x
-	previous := ad.FieldPreviousID().x
+	isRm := ad.FieldIsRm().x
+	entries := ad.FieldEntries()
+	metadata := ad.FieldMetadata().x
 	sig := ad.FieldSignature().x
 
-	genID, err := signaturePayload(index, provider, previous)
+	genID, err := signaturePayload(&previousID, provider, entries, metadata, isRm)
 	if err != nil {
 		return err
 	}
