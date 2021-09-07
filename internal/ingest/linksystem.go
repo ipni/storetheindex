@@ -50,15 +50,7 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 				if err != nil {
 					return err
 				}
-				/*
-					// Store advertisement and mapping between
-					// advertisement and link of entries.
-					r := bytes.NewBuffer(nil)
-					err = dagjson.Encode(ad, r)
-					if err != nil {
-						return err
-					}
-				*/
+
 				// Store entries link to the map
 				elnk, err := ad.FieldEntries().AsLink()
 				if err != nil {
