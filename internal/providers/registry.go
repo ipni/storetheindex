@@ -61,10 +61,6 @@ type ProviderInfo struct {
 	LastIndex cid.Cid
 	// LastIndexTime is the time indexed data was added to the indexer
 	LastIndexTime time.Time
-
-	// lastContactTime is the time of last contact or attempted contact with
-	// the provider
-	//lastContactTime time.Time
 }
 
 func (p *ProviderInfo) dsKey() datastore.Key {

@@ -108,5 +108,7 @@ func (h *IngestHandler) IndexContent(data []byte) (bool, error) {
 		return false, syserr.New(err, http.StatusInternalServerError)
 	}
 
+	// TODO: update last update time for provider
+
 	return ok, nil
 }
