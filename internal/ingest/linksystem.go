@@ -38,6 +38,7 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 		return buf, func(lnk ipld.Link) error {
 			c := lnk.(cidlink.Link).Cid
 			// Store the advertisement
+			origBuf := buf.Bytes()
 			n, err := decodeIPLDNode(buf)
 			if err != nil {
 				return err
@@ -68,10 +69,10 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 					return err
 				}
 				// Store the advertisement
-				return ds.Put(dsKey(c.String()), buf.Bytes())
+				return ds.Put(dsKey(c.String()), origBuf)
 			}
 			// Store the list of entries.
-			return ds.Put(dsKey(c.String()), buf.Bytes())
+			return ds.Put(dsKey(c.String()), origBuf)
 		}, nil
 	}
 	return lsys
@@ -117,7 +118,6 @@ func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 			log.Errorf("Error while fetching the node from datastore: %v", err)
 			return
 		}
-		fmt.Println(string(val))
 		// Decode entries into an IPLD node
 		nentries, err := decodeIPLDNode(bytes.NewBuffer(val))
 		if err != nil {
