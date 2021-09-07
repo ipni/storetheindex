@@ -1,8 +1,7 @@
-package ingestserver
+package httpingestserver
 
 import (
 	"bytes"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,7 +21,7 @@ var ident = config.Identity{
 
 var providerID peer.ID
 
-var hnd *handler
+var hnd *httpHandler
 var reg *providers.Registry
 
 type mockIndexer struct {
@@ -66,10 +65,7 @@ func init() {
 	idx := &mockIndexer{
 		store: map[cid.Cid][]indexer.Value{},
 	}
-	hnd = &handler{
-		indexer:  idx,
-		registry: reg,
-	}
+	hnd = newHandler(idx, reg)
 
 	providerID, err = peer.Decode(ident.PeerID)
 	if err != nil {
@@ -78,12 +74,11 @@ func init() {
 }
 
 func TestRegisterProvider(t *testing.T) {
-	regReq := makeRegisterRequest(t)
-	j, err := json.Marshal(regReq)
+	data, err := models.MakeRegisterRequest(ident, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reqBody := bytes.NewBuffer(j)
+	reqBody := bytes.NewBuffer(data)
 
 	req := httptest.NewRequest("POST", "http://example.com/providers", reqBody)
 	w := httptest.NewRecorder()
@@ -95,19 +90,24 @@ func TestRegisterProvider(t *testing.T) {
 		t.Fatal("expected response to be", http.StatusOK)
 	}
 
-	pinfo := reg.ProviderInfo(regReq.AddrInfo.ID)
+	pinfo := reg.ProviderInfo(providerID)
 	if pinfo == nil {
 		t.Fatal("provider was not registered")
 	}
 }
 
 func TestIndexContent(t *testing.T) {
-	ingestReq := makeIngestRequest(t)
-	j, err := json.Marshal(ingestReq)
+	c, err := cid.Decode("QmPNHBy5h7f19yJDt7ip9TvmMRbqmYsa6aetkrsc1ghjLB")
+	if err != nil {
+		t.Fatal("cannot decode cid:", err)
+	}
+	metadata := []byte("hello world")
+
+	data, err := models.MakeIngestRequest(ident, c, 0, metadata)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reqBody := bytes.NewBuffer(j)
+	reqBody := bytes.NewBuffer(data)
 
 	req := httptest.NewRequest("POST", "http://example.com/providers", reqBody)
 	w := httptest.NewRecorder()
@@ -115,49 +115,7 @@ func TestIndexContent(t *testing.T) {
 
 	resp := w.Result()
 
-	if resp.StatusCode != http.StatusNoContent {
-		t.Fatal("expected response to be", http.StatusNoContent)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatal("expected response to be", http.StatusOK)
 	}
-}
-
-func makeRegisterRequest(t *testing.T) *models.RegisterRequest {
-	privKey, err := ident.DecodePrivateKey("")
-	if err != nil {
-		t.Fatalf("could not decode private key: %s", err)
-	}
-
-	req := &models.RegisterRequest{
-		AddrInfo: peer.AddrInfo{
-			ID: providerID,
-		},
-	}
-
-	if err = req.Sign(privKey); err != nil {
-		t.Fatal(err)
-	}
-
-	return req
-}
-
-func makeIngestRequest(t *testing.T) *models.IngestRequest {
-	privKey, err := ident.DecodePrivateKey("")
-	if err != nil {
-		t.Fatalf("could not decode private key: %s", err)
-	}
-
-	c, err := cid.Decode("QmPNHBy5h7f19yJDt7ip9TvmMRbqmYsa6aetkrsc1ghjLB")
-	if err != nil {
-		t.Fatal("cannot decode cid:", err)
-	}
-
-	req := &models.IngestRequest{
-		Cid:   c,
-		Value: indexer.MakeValue(providerID, 0, []byte("hello world")),
-	}
-
-	if err = req.Sign(privKey); err != nil {
-		t.Fatal(err)
-	}
-
-	return req
 }

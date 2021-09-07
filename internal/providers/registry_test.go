@@ -155,12 +155,17 @@ func TestDiscoveryAllowed(t *testing.T) {
 }
 
 func TestDiscoveryBlocked(t *testing.T) {
+	mockDisco := newMockDiscoverer(t, exceptID)
+
+	peerID, err := peer.Decode(exceptID)
+	if err != nil {
+		t.Fatal("bad provider ID:", err)
+	}
+
 	discoveryCfg.Policy.Action = "allow"
 	defer func() {
 		discoveryCfg.Policy.Action = "block"
 	}()
-
-	mockDisco := newMockDiscoverer(t, exceptID)
 
 	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
 	if err != nil {
@@ -169,10 +174,9 @@ func TestDiscoveryBlocked(t *testing.T) {
 	defer r.Close()
 	t.Log("created new registry")
 
-	var peerID peer.ID
 	err = r.Discover(peerID, minerDiscoAddr, true)
-	if err != ErrNotAllowed {
-		t.Fatal("expected error:", ErrNotAllowed)
+	if !errors.Is(err, ErrNotAllowed) {
+		t.Fatal("expected error:", ErrNotAllowed, "got:", err)
 	}
 
 	into := r.ProviderInfoByAddr(minerDiscoAddr)

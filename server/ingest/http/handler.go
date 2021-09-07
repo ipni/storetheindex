@@ -1,87 +1,67 @@
-package ingestserver
+package httpingestserver
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v0"
-	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
+	"github.com/filecoin-project/storetheindex/internal/handler"
+	"github.com/filecoin-project/storetheindex/internal/httpserver"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/gorilla/mux"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-type handler struct {
-	indexer  indexer.Interface
-	registry *providers.Registry
+type httpHandler struct {
+	ingestHandler *handler.IngestHandler
+}
+
+func newHandler(indexer indexer.Interface, registry *providers.Registry) *httpHandler {
+	return &httpHandler{
+		ingestHandler: handler.NewIngestHandler(indexer, registry),
+	}
 }
 
 // ----- provider handlers -----
 
 // GET /providers",
-func (h *handler) ListProviders(w http.ResponseWriter, r *http.Request) {
-	infos := h.registry.AllProviderInfo()
-
-	responses := make([]models.ProviderInfo, len(infos))
-	for i := range infos {
-		provInfoToApi(infos[i], &responses[i])
-	}
-
-	b, err := json.Marshal(responses)
+func (h *httpHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
+	data, err := h.ingestHandler.ListProviders()
 	if err != nil {
-		log.Errorw("cannot marshal response", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		log.Errorw("cannot list providers", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	err = writeResponse(w, b)
-	if err != nil {
-		log.Errorw("cannot write response", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
 // GET /providers/{providerid}
-func (h *handler) GetProvider(w http.ResponseWriter, r *http.Request) {
+func (h *httpHandler) GetProvider(w http.ResponseWriter, r *http.Request) {
 	providerID, err := getProviderID(r)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	log.Debugw("GetProvider", "provider", providerID)
 
-	info := h.registry.ProviderInfo(providerID)
-	if info == nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	var rsp models.ProviderInfo
-	provInfoToApi(info, &rsp)
-
-	rb, err := json.Marshal(&rsp)
+	data, err := h.ingestHandler.GetProvider(providerID)
 	if err != nil {
-		log.Errorw("failed marshalling response", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		log.Error("cannot get provider", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	err = writeResponse(w, rb)
-	if err != nil {
-		log.Errorw("failed writing response", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+	if len(data) == 0 {
+		http.Error(w, "provider not found", http.StatusNotFound)
 		return
 	}
+
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
 // POST /discover
-func (h *handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
+func (h *httpHandler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
@@ -89,24 +69,9 @@ func (h *handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var discoReq models.DiscoverRequest
-	if err = json.Unmarshal(body, &discoReq); err != nil {
-		log.Errorw("error unmarshalling discovery request", "err", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	err = discoReq.VerifySignature()
+	err = h.ingestHandler.DiscoverProvider(body)
 	if err != nil {
-		log.Errorw("signature not verified", "err", err, "provider", discoReq.ProviderID, "discover_addr", discoReq.DiscoveryAddr)
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-
-	err = h.registry.Discover(discoReq.ProviderID, discoReq.DiscoveryAddr, false)
-	if err != nil {
-		log.Errorw("cannot process discovery request", "err", err)
-		writeError(w, http.StatusBadRequest, err)
+		httpserver.HandleError(w, err, "discover")
 		return
 	}
 
@@ -115,7 +80,7 @@ func (h *handler) DiscoverProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /providers
-func (h *handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
+func (h *httpHandler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
@@ -123,27 +88,9 @@ func (h *handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var regReq models.RegisterRequest
-	if err = json.Unmarshal(body, &regReq); err != nil {
-		log.Errorw("error unmarshalling registration request", "err", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	err = regReq.VerifySignature()
+	err = h.ingestHandler.RegisterProvider(body)
 	if err != nil {
-		log.Errorw("signature not verified", "err", err, "provider", regReq.AddrInfo.ID)
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-
-	info := &providers.ProviderInfo{
-		AddrInfo: regReq.AddrInfo,
-	}
-	err = h.registry.Register(info)
-	if err != nil {
-		log.Errorw("cannot process registration request", "err", err)
-		writeError(w, http.StatusBadRequest, err)
+		httpserver.HandleError(w, err, "register")
 		return
 	}
 
@@ -151,7 +98,7 @@ func (h *handler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 // DELETE /providers/{providerid}
-func (h *handler) RemoveProvider(w http.ResponseWriter, r *http.Request) {
+func (h *httpHandler) RemoveProvider(w http.ResponseWriter, r *http.Request) {
 	/*
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -190,7 +137,7 @@ func (h *handler) RemoveProvider(w http.ResponseWriter, r *http.Request) {
 
 // ----- ingest handlers -----
 // PUT /ingestion/advertisement
-func (h *handler) Advertise(w http.ResponseWriter, r *http.Request) {
+func (h *httpHandler) Advertise(w http.ResponseWriter, r *http.Request) {
 	/*
 		w.Header().Set("Content-Type", "application/json")
 		adBuild := ingestion.Type.Advertisement.NewBuilder()
@@ -212,44 +159,26 @@ func (h *handler) Advertise(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /ingestion
-func (h *handler) IndexContent(w http.ResponseWriter, r *http.Request) {
+func (h *httpHandler) IndexContent(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
-	ireq := new(models.IngestRequest)
-	err = json.Unmarshal(body, &ireq)
+	ok, err := h.ingestHandler.IndexContent(body)
 	if err != nil {
-		log.Errorw("error unmarshaling body", "err", err)
-		w.WriteHeader(http.StatusBadRequest)
-	}
-
-	// Check that the provider has been discovered and validated
-	if !h.registry.IsRegistered(ireq.Value.ProviderID) {
-		log.Infow("cannot accept ingest request from unknown provider", "provider", ireq.Value.ProviderID)
-		w.WriteHeader(http.StatusForbidden)
+		httpserver.HandleError(w, err, "ingest")
 		return
 	}
 
-	err = ireq.VerifySignature()
-	if err != nil {
-		log.Infow("signature not verified", "err", err)
-		w.WriteHeader(http.StatusBadRequest)
-	}
-
-	ok, err := h.indexer.Put(ireq.Cid, ireq.Value)
-	if err != nil {
-		log.Errorw("cannot store content", "cid", ireq.Cid, "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
-	}
 	if ok {
-		log.Infow("stored new content", "cid", ireq.Cid)
+		log.Info("indexed new content")
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "new:", ok)
 }
 
 func getProviderID(r *http.Request) (peer.ID, error) {
@@ -260,39 +189,4 @@ func getProviderID(r *http.Request) (peer.ID, error) {
 		return providerID, fmt.Errorf("cannot decode provider id: %s", err)
 	}
 	return providerID, nil
-}
-
-func provInfoToApi(pinfo *providers.ProviderInfo, apiModel *models.ProviderInfo) {
-	*apiModel = models.MakeProviderInfo(pinfo.AddrInfo, pinfo.LastIndex, pinfo.LastIndexTime)
-}
-
-func writeResponse(w http.ResponseWriter, body []byte) error {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	if _, err := w.Write(body); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func writeError(w http.ResponseWriter, statusCode int, err error) {
-	w.WriteHeader(http.StatusBadRequest)
-	if err == nil {
-		return
-	}
-
-	e := v0.Error{
-		Message: err.Error(),
-	}
-	rb, err := json.Marshal(&e)
-	if err != nil {
-		log.Errorw("failed to marshal error response", "err", err)
-		return
-	}
-
-	err = writeResponse(w, rb)
-	if err != nil {
-		log.Errorw("failed writing error response", "err", err)
-	}
 }

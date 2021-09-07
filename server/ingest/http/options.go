@@ -1,4 +1,4 @@
-package ingestserver
+package httpingestserver
 
 import (
 	"fmt"

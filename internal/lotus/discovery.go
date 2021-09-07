@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/storetheindex/internal/providers/discovery"
+	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -66,46 +68,20 @@ func (d *Discoverer) Discover(ctx context.Context, peerID peer.ID, minerAddr str
 	var ets ExpTipSet
 	err = jrpcClient.CallFor(&ets, "Filecoin.ChainHead")
 	if err != nil {
-		return nil, fmt.Errorf("call failed: %s", err)
+		return nil, syserr.New(err, http.StatusBadGateway)
 	}
 
 	var minerInfo MinerInfo
 	err = jrpcClient.CallFor(&minerInfo, "Filecoin.StateMinerInfo", minerAddress, ets.Cids)
 	if err != nil {
-		return nil, err
+		return nil, syserr.New(err, http.StatusBadGateway)
 	}
-
-	// If it is necessary to use lotus datastructures, then uncomment this and
-	// remove code above
-	/*
-		apiInfo := cliutil.ParseApiInfo(gatewayApi)
-		addr, err := apiInfo.DialArgs("v1")
-		if err != nil {
-			return nil, fmt.Errorf("parse listen address: %w", err)
-		}
-
-		node, closer, err := client.NewGatewayRPCV1(ctx, addr, apiInfo.AuthHeader())
-		if err != nil {
-			return nil, err
-		}
-		defer closer()
-
-		tipset, err := node.ChainHead(context.Background())
-		if err != nil {
-			return nil, fmt.Errorf("calling chain head: %s", err)
-		}
-
-		minerInfo, err := node.StateMinerInfo(ctx, minerAddress, tipset.Key())
-		if err != nil {
-			return nil, err
-		}
-	*/
 
 	if minerInfo.PeerId == nil {
 		return nil, errors.New("no peer id for miner")
 	}
 	if *minerInfo.PeerId != peerID {
-		return nil, fmt.Errorf("id mismatch for provider %q, requested: %q, response: %q", minerAddr, peerID, minerInfo.PeerId)
+		return nil, errors.New("provider id mismatch")
 	}
 
 	// Get miner peer ID and addresses from miner info

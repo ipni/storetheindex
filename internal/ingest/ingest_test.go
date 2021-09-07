@@ -80,7 +80,9 @@ func TestSubscribe(t *testing.T) {
 		require.False(t, b)
 	}
 
-	i.Unsubscribe(context.Background(), lph.ID())
+	err = i.Unsubscribe(context.Background(), lph.ID())
+	require.NoError(t, err)
+
 	// Check that no advertisement is retrieved from
 	// peer once it has been unsubscribed.
 	c, _ := publishRandomIndexAndAdv(t, lp, lsys, false)
@@ -297,8 +299,9 @@ func (i *legIngester) checkCidsIndexed(t *testing.T, p peer.ID, cids []cid.Cid) 
 func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []cid.Cid) {
 	c, cids := publishRandomIndexAndAdv(t, lp, lsys, fakeSig)
 
+	// TODO: fix this - do not rely on sleep time
 	// Give some time for the advertisement to propagate
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(time.Second)
 
 	// Check if advertisement in datastore.
 	adv, err := i.ds.Get(datastore.NewKey(c.String()))
