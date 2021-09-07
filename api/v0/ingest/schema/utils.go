@@ -1,6 +1,8 @@
 package schema
 
 import (
+	"context"
+
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -23,6 +25,19 @@ var Linkproto = cidlink.LinkPrototype{
 
 var mhCode = mh.Names["sha2-256"]
 
+// LinkContextKey used to propagate link info through the linkSystem context
+type LinkContextKey string
+
+// LinkContextValue used to propagate link info through the linkSystem context
+type LinkContextValue bool
+
+const (
+	// IsAdKey is a LinkContextValue that determines the schema type the
+	// link belongs to. This is used to understand what callback to trigger
+	// in the linksystem when we come across a specific linkType.
+	IsAdKey = LinkContextKey("isAdLink")
+)
+
 func cidsToString(cids []cid.Cid) []_String {
 	out := make([]_String, len(cids))
 	for i := range cids {
@@ -41,6 +56,15 @@ func (l Link_Advertisement) ToCid() cid.Cid {
 	return l.x.(cidlink.Link).Cid
 }
 
+// LinkContext returns a linkContext for the type of link
+func (l Advertisement) LinkContext(ctx context.Context) ipld.LinkContext {
+	return ipld.LinkContext{
+		Ctx: context.WithValue(ctx, IsAdKey, LinkContextValue(false)),
+	}
+}
+
+// NewListOfCids is a convenient method to create a new list of strings
+// from a list of Cids that may be consumed by a linksystem.
 func NewListOfCids(lsys ipld.LinkSystem, cids []cid.Cid) (ipld.Link, error) {
 	cStr := &_List_String{x: cidsToString(cids)}
 	return lsys.Store(ipld.LinkContext{}, Linkproto, cStr)
@@ -89,7 +113,7 @@ func NewAdvertisementWithLink(
 // AdvertisementLink generates a new link from an advertisemenet using a specific
 // linkSystem
 func AdvertisementLink(lsys ipld.LinkSystem, adv Advertisement) (Link_Advertisement, error) {
-	lnk, err := lsys.Store(ipld.LinkContext{}, Linkproto, adv.Representation())
+	lnk, err := lsys.Store(adv.LinkContext(context.Background()), Linkproto, adv.Representation())
 	if err != nil {
 		return nil, err
 	}
