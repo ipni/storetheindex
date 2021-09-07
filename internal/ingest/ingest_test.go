@@ -302,8 +302,13 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 
 	// Check if advertisement in datastore.
 	adv, err := i.ds.Get(datastore.NewKey(c.String()))
-	require.NoError(t, err)
-	require.NotNil(t, adv)
+	if !fakeSig {
+		require.NoError(t, err)
+		require.NotNil(t, adv)
+	} else {
+		// If the signature is invalid we shouldn't have store it.
+		require.Nil(t, adv)
+	}
 	// Check if latest sync updated.
 	lcid, err := i.getLatestSync(lph.ID())
 	require.NoError(t, err)

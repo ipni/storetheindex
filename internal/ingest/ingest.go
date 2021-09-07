@@ -25,7 +25,8 @@ var (
 
 // prefix used to track latest sync in datastore.
 const (
-	syncPrefix = "/sync/"
+	syncPrefix  = "/sync/"
+	admapPrefix = "/admap/"
 )
 
 // LegIngester interface
