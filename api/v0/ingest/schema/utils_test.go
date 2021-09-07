@@ -38,21 +38,22 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	return lsys
 }
 
-func genIndexAndAdv(t *testing.T, lsys ipld.LinkSystem,
-	priv crypto.PrivKey, cids []cid.Cid,
-	rmcids []cid.Cid) (Index, Link_Index, Advertisement, Link_Advertisement) {
+func genCidsAndAdv(t *testing.T, lsys ipld.LinkSystem,
+	priv crypto.PrivKey,
+	previous Link_Advertisement) ([]cid.Cid, ipld.Link, Advertisement, Link_Advertisement) {
 
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
+	cids, _ := utils.RandomCids(10)
 	val := indexer.MakeValue(p, 0, cids[0].Bytes())
-	index, indexLnk, err := NewIndexFromCids(lsys, cids, nil, val.Metadata, nil)
+	cidsLnk, err := NewListOfCids(lsys, cids)
 	if err != nil {
 		t.Fatal(err)
 	}
-	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String())
+	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, previous, cidsLnk, val.Metadata, false, p.String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	return index, indexLnk, adv, advLnk
+	return cids, cidsLnk, adv, advLnk
 }
 
 func TestChainAdvertisements(t *testing.T) {
@@ -62,64 +63,21 @@ func TestChainAdvertisements(t *testing.T) {
 	}
 	dstore := datastore.NewMapDatastore()
 	lsys := mkLinkSystem(dstore)
-	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
-	cids, _ := utils.RandomCids(10)
-	val := indexer.MakeValue(p, 0, cids[0].Bytes())
-	// Genesis index
-	index, indexLnk, err := NewIndexFromCids(lsys, cids, nil, val.Metadata, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if index.FieldPrevious().v.x != nil {
-		t.Error("previous should be nil, it's the genesis", index.Previous.v)
-	}
 	// Genesis advertisement
-	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String())
+	_, _, adv1, advLnk1 := genCidsAndAdv(t, lsys, priv, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if adv.FieldPreviousID().x != nil {
-		t.Error("previous should be nil, it's the genesis", index.Previous.v)
+	if adv1.FieldPreviousID().v.x != nil {
+		t.Error("previous should be nil, it's the genesis", adv1.FieldPreviousID().v.x)
 	}
-	// Seecond node
-	index2, indexLnk2, err := NewIndexFromCids(lsys, cids, nil, val.Metadata, indexLnk)
+	// Seecond advertisement
+	_, _, adv2, advLnk2 := genCidsAndAdv(t, lsys, priv, advLnk1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if index2.FieldPrevious().v.x != indexLnk.x {
-		t.Error("index2 should be pointing to genesis", index2.FieldPrevious().v.x, indexLnk.x)
-	}
-	adv2Cid := advLnk.ToCid().Bytes()
-	// Second advertisement
-	adv2, _, err := NewAdvertisementWithLink(lsys, priv, adv2Cid, indexLnk2, p.String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(adv2.FieldPreviousID().x, adv2Cid) {
-		t.Error("adv2 should be pointing to genesis", adv2.FieldPreviousID().x, adv2Cid)
-	}
-}
-
-func TestCarIndex(t *testing.T) {
-	dstore := datastore.NewMapDatastore()
-	lsys := mkLinkSystem(dstore)
-	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
-	cids, _ := utils.RandomCids(1)
-	val := indexer.MakeValue(p, 0, cids[0].Bytes())
-	index, _, err := NewIndexFromCarID(lsys, cids[0], cid.Undef, val.Metadata, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ent := index.CarEntries.x
-	if len(ent) != 1 {
-		t.Fatal("number of entries is not correct")
-	}
-	if ent[0].Put.v.x.(cidlink.Link).Cid != cids[0] {
-		t.Fatal("carID not set correctly in index")
-	}
-	if ent[0].Remove.v.x.(cidlink.Link).Cid != cid.Undef {
-		t.Fatal("carID for remove should be cid.Undef")
+	if adv2.FieldPreviousID().v.x != advLnk1.x {
+		t.Error("index2 should be pointing to genesis", adv2.FieldPreviousID().v.x, advLnk2.x)
 	}
 }
 
@@ -130,8 +88,7 @@ func TestAdvSignature(t *testing.T) {
 	}
 	dstore := datastore.NewMapDatastore()
 	lsys := mkLinkSystem(dstore)
-	cids, _ := utils.RandomCids(10)
-	_, _, adv, _ := genIndexAndAdv(t, lsys, priv, cids, cids)
+	_, _, adv, _ := genCidsAndAdv(t, lsys, priv, nil)
 
 	// Successful verification
 	err = VerifyAdvertisement(adv)

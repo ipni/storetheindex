@@ -8,10 +8,7 @@ import (
 	"github.com/ipld/go-ipld-prime/schema"
 )
 
-func (n _Advertisement) FieldIndexID() Link_Index {
-	return &n.IndexID
-}
-func (n _Advertisement) FieldPreviousID() Bytes {
+func (n _Advertisement) FieldPreviousID() MaybeLink_Advertisement {
 	return &n.PreviousID
 }
 func (n _Advertisement) FieldProvider() String {
@@ -19,6 +16,15 @@ func (n _Advertisement) FieldProvider() String {
 }
 func (n _Advertisement) FieldSignature() Bytes {
 	return &n.Signature
+}
+func (n _Advertisement) FieldEntries() Link {
+	return &n.Entries
+}
+func (n _Advertisement) FieldMetadata() Bytes {
+	return &n.Metadata
+}
+func (n _Advertisement) FieldIsRm() Bool {
+	return &n.IsRm
 }
 
 type _Advertisement__Maybe struct {
@@ -56,10 +62,12 @@ func (m MaybeAdvertisement) Must() Advertisement {
 }
 
 var (
-	fieldName__Advertisement_IndexID    = _String{"IndexID"}
 	fieldName__Advertisement_PreviousID = _String{"PreviousID"}
 	fieldName__Advertisement_Provider   = _String{"Provider"}
 	fieldName__Advertisement_Signature  = _String{"Signature"}
+	fieldName__Advertisement_Entries    = _String{"Entries"}
+	fieldName__Advertisement_Metadata   = _String{"Metadata"}
+	fieldName__Advertisement_IsRm       = _String{"IsRm"}
 )
 var _ datamodel.Node = (Advertisement)(&_Advertisement{})
 var _ schema.TypedNode = (Advertisement)(&_Advertisement{})
@@ -69,14 +77,21 @@ func (Advertisement) Kind() datamodel.Kind {
 }
 func (n Advertisement) LookupByString(key string) (datamodel.Node, error) {
 	switch key {
-	case "IndexID":
-		return &n.IndexID, nil
 	case "PreviousID":
-		return &n.PreviousID, nil
+		if n.PreviousID.m == schema.Maybe_Absent {
+			return datamodel.Absent, nil
+		}
+		return &n.PreviousID.v, nil
 	case "Provider":
 		return &n.Provider, nil
 	case "Signature":
 		return &n.Signature, nil
+	case "Entries":
+		return &n.Entries, nil
+	case "Metadata":
+		return &n.Metadata, nil
+	case "IsRm":
+		return &n.IsRm, nil
 	default:
 		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: datamodel.PathSegmentOfString(key)}
 	}
@@ -104,22 +119,32 @@ type _Advertisement__MapItr struct {
 }
 
 func (itr *_Advertisement__MapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
-	if itr.idx >= 4 {
+	if itr.idx >= 6 {
 		return nil, nil, datamodel.ErrIteratorOverread{}
 	}
 	switch itr.idx {
 	case 0:
-		k = &fieldName__Advertisement_IndexID
-		v = &itr.n.IndexID
-	case 1:
 		k = &fieldName__Advertisement_PreviousID
-		v = &itr.n.PreviousID
-	case 2:
+		if itr.n.PreviousID.m == schema.Maybe_Absent {
+			v = datamodel.Absent
+			break
+		}
+		v = &itr.n.PreviousID.v
+	case 1:
 		k = &fieldName__Advertisement_Provider
 		v = &itr.n.Provider
-	case 3:
+	case 2:
 		k = &fieldName__Advertisement_Signature
 		v = &itr.n.Signature
+	case 3:
+		k = &fieldName__Advertisement_Entries
+		v = &itr.n.Entries
+	case 4:
+		k = &fieldName__Advertisement_Metadata
+		v = &itr.n.Metadata
+	case 5:
+		k = &fieldName__Advertisement_IsRm
+		v = &itr.n.IsRm
 	default:
 		panic("unreachable")
 	}
@@ -127,14 +152,14 @@ func (itr *_Advertisement__MapItr) Next() (k datamodel.Node, v datamodel.Node, _
 	return
 }
 func (itr *_Advertisement__MapItr) Done() bool {
-	return itr.idx >= 4
+	return itr.idx >= 6
 }
 
 func (Advertisement) ListIterator() datamodel.ListIterator {
 	return nil
 }
 func (Advertisement) Length() int64 {
-	return 4
+	return 6
 }
 func (Advertisement) IsAbsent() bool {
 	return false
@@ -196,27 +221,33 @@ type _Advertisement__Assembler struct {
 	f     int
 
 	cm            schema.Maybe
-	ca_IndexID    _Link_Index__Assembler
-	ca_PreviousID _Bytes__Assembler
+	ca_PreviousID _Link_Advertisement__Assembler
 	ca_Provider   _String__Assembler
 	ca_Signature  _Bytes__Assembler
+	ca_Entries    _Link__Assembler
+	ca_Metadata   _Bytes__Assembler
+	ca_IsRm       _Bool__Assembler
 }
 
 func (na *_Advertisement__Assembler) reset() {
 	na.state = maState_initial
 	na.s = 0
-	na.ca_IndexID.reset()
 	na.ca_PreviousID.reset()
 	na.ca_Provider.reset()
 	na.ca_Signature.reset()
+	na.ca_Entries.reset()
+	na.ca_Metadata.reset()
+	na.ca_IsRm.reset()
 }
 
 var (
-	fieldBit__Advertisement_IndexID     = 1 << 0
-	fieldBit__Advertisement_PreviousID  = 1 << 1
-	fieldBit__Advertisement_Provider    = 1 << 2
-	fieldBit__Advertisement_Signature   = 1 << 3
-	fieldBits__Advertisement_sufficient = 0 + 1<<0 + 1<<1 + 1<<2 + 1<<3
+	fieldBit__Advertisement_PreviousID  = 1 << 0
+	fieldBit__Advertisement_Provider    = 1 << 1
+	fieldBit__Advertisement_Signature   = 1 << 2
+	fieldBit__Advertisement_Entries     = 1 << 3
+	fieldBit__Advertisement_Metadata    = 1 << 4
+	fieldBit__Advertisement_IsRm        = 1 << 5
+	fieldBits__Advertisement_sufficient = 0 + 1<<1 + 1<<2 + 1<<3 + 1<<4 + 1<<5
 )
 
 func (na *_Advertisement__Assembler) BeginMap(int64) (datamodel.MapAssembler, error) {
@@ -311,26 +342,14 @@ func (_Advertisement__Assembler) Prototype() datamodel.NodePrototype {
 func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 	switch ma.f {
 	case 0:
-		switch ma.cm {
+		switch ma.w.PreviousID.m {
 		case schema.Maybe_Value:
-			ma.ca_IndexID.w = nil
-			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
 			return false
 		}
 	case 1:
-		switch ma.cm {
-		case schema.Maybe_Value:
-			ma.ca_PreviousID.w = nil
-			ma.cm = schema.Maybe_Absent
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 2:
 		switch ma.cm {
 		case schema.Maybe_Value:
 			ma.ca_Provider.w = nil
@@ -340,10 +359,40 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 		default:
 			return false
 		}
-	case 3:
+	case 2:
 		switch ma.cm {
 		case schema.Maybe_Value:
 			ma.ca_Signature.w = nil
+			ma.cm = schema.Maybe_Absent
+			ma.state = maState_initial
+			return true
+		default:
+			return false
+		}
+	case 3:
+		switch ma.cm {
+		case schema.Maybe_Value:
+			ma.ca_Entries.w = nil
+			ma.cm = schema.Maybe_Absent
+			ma.state = maState_initial
+			return true
+		default:
+			return false
+		}
+	case 4:
+		switch ma.cm {
+		case schema.Maybe_Value:
+			ma.ca_Metadata.w = nil
+			ma.cm = schema.Maybe_Absent
+			ma.state = maState_initial
+			return true
+		default:
+			return false
+		}
+	case 5:
+		switch ma.cm {
+		case schema.Maybe_Value:
+			ma.ca_IsRm.w = nil
 			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
@@ -370,25 +419,15 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (datamodel.NodeAsse
 		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
 	}
 	switch k {
-	case "IndexID":
-		if ma.s&fieldBit__Advertisement_IndexID != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID}
-		}
-		ma.s += fieldBit__Advertisement_IndexID
-		ma.state = maState_midValue
-		ma.f = 0
-		ma.ca_IndexID.w = &ma.w.IndexID
-		ma.ca_IndexID.m = &ma.cm
-		return &ma.ca_IndexID, nil
 	case "PreviousID":
 		if ma.s&fieldBit__Advertisement_PreviousID != 0 {
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID}
 		}
 		ma.s += fieldBit__Advertisement_PreviousID
 		ma.state = maState_midValue
-		ma.f = 1
-		ma.ca_PreviousID.w = &ma.w.PreviousID
-		ma.ca_PreviousID.m = &ma.cm
+		ma.f = 0
+		ma.ca_PreviousID.w = &ma.w.PreviousID.v
+		ma.ca_PreviousID.m = &ma.w.PreviousID.m
 		return &ma.ca_PreviousID, nil
 	case "Provider":
 		if ma.s&fieldBit__Advertisement_Provider != 0 {
@@ -396,7 +435,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (datamodel.NodeAsse
 		}
 		ma.s += fieldBit__Advertisement_Provider
 		ma.state = maState_midValue
-		ma.f = 2
+		ma.f = 1
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider, nil
@@ -406,10 +445,40 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (datamodel.NodeAsse
 		}
 		ma.s += fieldBit__Advertisement_Signature
 		ma.state = maState_midValue
-		ma.f = 3
+		ma.f = 2
 		ma.ca_Signature.w = &ma.w.Signature
 		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature, nil
+	case "Entries":
+		if ma.s&fieldBit__Advertisement_Entries != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Entries}
+		}
+		ma.s += fieldBit__Advertisement_Entries
+		ma.state = maState_midValue
+		ma.f = 3
+		ma.ca_Entries.w = &ma.w.Entries
+		ma.ca_Entries.m = &ma.cm
+		return &ma.ca_Entries, nil
+	case "Metadata":
+		if ma.s&fieldBit__Advertisement_Metadata != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Metadata}
+		}
+		ma.s += fieldBit__Advertisement_Metadata
+		ma.state = maState_midValue
+		ma.f = 4
+		ma.ca_Metadata.w = &ma.w.Metadata
+		ma.ca_Metadata.m = &ma.cm
+		return &ma.ca_Metadata, nil
+	case "IsRm":
+		if ma.s&fieldBit__Advertisement_IsRm != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IsRm}
+		}
+		ma.s += fieldBit__Advertisement_IsRm
+		ma.state = maState_midValue
+		ma.f = 5
+		ma.ca_IsRm.w = &ma.w.IsRm
+		ma.ca_IsRm.m = &ma.cm
+		return &ma.ca_IsRm, nil
 	}
 	return nil, schema.ErrInvalidKey{TypeName: "schema.Advertisement", Key: &_String{k}}
 }
@@ -447,21 +516,29 @@ func (ma *_Advertisement__Assembler) AssembleValue() datamodel.NodeAssembler {
 	ma.state = maState_midValue
 	switch ma.f {
 	case 0:
-		ma.ca_IndexID.w = &ma.w.IndexID
-		ma.ca_IndexID.m = &ma.cm
-		return &ma.ca_IndexID
-	case 1:
-		ma.ca_PreviousID.w = &ma.w.PreviousID
-		ma.ca_PreviousID.m = &ma.cm
+		ma.ca_PreviousID.w = &ma.w.PreviousID.v
+		ma.ca_PreviousID.m = &ma.w.PreviousID.m
 		return &ma.ca_PreviousID
-	case 2:
+	case 1:
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider
-	case 3:
+	case 2:
 		ma.ca_Signature.w = &ma.w.Signature
 		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature
+	case 3:
+		ma.ca_Entries.w = &ma.w.Entries
+		ma.ca_Entries.m = &ma.cm
+		return &ma.ca_Entries
+	case 4:
+		ma.ca_Metadata.w = &ma.w.Metadata
+		ma.ca_Metadata.m = &ma.cm
+		return &ma.ca_Metadata
+	case 5:
+		ma.ca_IsRm.w = &ma.w.IsRm
+		ma.ca_IsRm.m = &ma.cm
+		return &ma.ca_IsRm
 	default:
 		panic("unreachable")
 	}
@@ -483,17 +560,20 @@ func (ma *_Advertisement__Assembler) Finish() error {
 	}
 	if ma.s&fieldBits__Advertisement_sufficient != fieldBits__Advertisement_sufficient {
 		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Advertisement_IndexID == 0 {
-			err.Missing = append(err.Missing, "IndexID")
-		}
-		if ma.s&fieldBit__Advertisement_PreviousID == 0 {
-			err.Missing = append(err.Missing, "PreviousID")
-		}
 		if ma.s&fieldBit__Advertisement_Provider == 0 {
 			err.Missing = append(err.Missing, "Provider")
 		}
 		if ma.s&fieldBit__Advertisement_Signature == 0 {
 			err.Missing = append(err.Missing, "Signature")
+		}
+		if ma.s&fieldBit__Advertisement_Entries == 0 {
+			err.Missing = append(err.Missing, "Entries")
+		}
+		if ma.s&fieldBit__Advertisement_Metadata == 0 {
+			err.Missing = append(err.Missing, "Metadata")
+		}
+		if ma.s&fieldBit__Advertisement_IsRm == 0 {
+			err.Missing = append(err.Missing, "IsRm")
 		}
 		return err
 	}
@@ -533,21 +613,13 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		panic("misuse: KeyAssembler held beyond its valid lifetime")
 	}
 	switch k {
-	case "IndexID":
-		if ka.s&fieldBit__Advertisement_IndexID != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID}
-		}
-		ka.s += fieldBit__Advertisement_IndexID
-		ka.state = maState_expectValue
-		ka.f = 0
-		return nil
 	case "PreviousID":
 		if ka.s&fieldBit__Advertisement_PreviousID != 0 {
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID}
 		}
 		ka.s += fieldBit__Advertisement_PreviousID
 		ka.state = maState_expectValue
-		ka.f = 1
+		ka.f = 0
 		return nil
 	case "Provider":
 		if ka.s&fieldBit__Advertisement_Provider != 0 {
@@ -555,7 +627,7 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_Provider
 		ka.state = maState_expectValue
-		ka.f = 2
+		ka.f = 1
 		return nil
 	case "Signature":
 		if ka.s&fieldBit__Advertisement_Signature != 0 {
@@ -563,7 +635,31 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_Signature
 		ka.state = maState_expectValue
+		ka.f = 2
+		return nil
+	case "Entries":
+		if ka.s&fieldBit__Advertisement_Entries != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Entries}
+		}
+		ka.s += fieldBit__Advertisement_Entries
+		ka.state = maState_expectValue
 		ka.f = 3
+		return nil
+	case "Metadata":
+		if ka.s&fieldBit__Advertisement_Metadata != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Metadata}
+		}
+		ka.s += fieldBit__Advertisement_Metadata
+		ka.state = maState_expectValue
+		ka.f = 4
+		return nil
+	case "IsRm":
+		if ka.s&fieldBit__Advertisement_IsRm != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IsRm}
+		}
+		ka.s += fieldBit__Advertisement_IsRm
+		ka.state = maState_expectValue
+		ka.f = 5
 		return nil
 	default:
 		return schema.ErrInvalidKey{TypeName: "schema.Advertisement", Key: &_String{k}}
@@ -595,10 +691,12 @@ func (n Advertisement) Representation() datamodel.Node {
 type _Advertisement__Repr _Advertisement
 
 var (
-	fieldName__Advertisement_IndexID_serial    = _String{"IndexID"}
 	fieldName__Advertisement_PreviousID_serial = _String{"PreviousID"}
 	fieldName__Advertisement_Provider_serial   = _String{"Provider"}
 	fieldName__Advertisement_Signature_serial  = _String{"Signature"}
+	fieldName__Advertisement_Entries_serial    = _String{"Entries"}
+	fieldName__Advertisement_Metadata_serial   = _String{"Metadata"}
+	fieldName__Advertisement_IsRm_serial       = _String{"IsRm"}
 )
 var _ datamodel.Node = &_Advertisement__Repr{}
 
@@ -607,14 +705,21 @@ func (_Advertisement__Repr) Kind() datamodel.Kind {
 }
 func (n *_Advertisement__Repr) LookupByString(key string) (datamodel.Node, error) {
 	switch key {
-	case "IndexID":
-		return n.IndexID.Representation(), nil
 	case "PreviousID":
-		return n.PreviousID.Representation(), nil
+		if n.PreviousID.m == schema.Maybe_Absent {
+			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
+		}
+		return n.PreviousID.v.Representation(), nil
 	case "Provider":
 		return n.Provider.Representation(), nil
 	case "Signature":
 		return n.Signature.Representation(), nil
+	case "Entries":
+		return n.Entries.Representation(), nil
+	case "Metadata":
+		return n.Metadata.Representation(), nil
+	case "IsRm":
+		return n.IsRm.Representation(), nil
 	default:
 		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: datamodel.PathSegmentOfString(key)}
 	}
@@ -642,22 +747,33 @@ type _Advertisement__ReprMapItr struct {
 }
 
 func (itr *_Advertisement__ReprMapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
-	if itr.idx >= 4 {
+advance:
+	if itr.idx >= 6 {
 		return nil, nil, datamodel.ErrIteratorOverread{}
 	}
 	switch itr.idx {
 	case 0:
-		k = &fieldName__Advertisement_IndexID_serial
-		v = itr.n.IndexID.Representation()
-	case 1:
 		k = &fieldName__Advertisement_PreviousID_serial
-		v = itr.n.PreviousID.Representation()
-	case 2:
+		if itr.n.PreviousID.m == schema.Maybe_Absent {
+			itr.idx++
+			goto advance
+		}
+		v = itr.n.PreviousID.v.Representation()
+	case 1:
 		k = &fieldName__Advertisement_Provider_serial
 		v = itr.n.Provider.Representation()
-	case 3:
+	case 2:
 		k = &fieldName__Advertisement_Signature_serial
 		v = itr.n.Signature.Representation()
+	case 3:
+		k = &fieldName__Advertisement_Entries_serial
+		v = itr.n.Entries.Representation()
+	case 4:
+		k = &fieldName__Advertisement_Metadata_serial
+		v = itr.n.Metadata.Representation()
+	case 5:
+		k = &fieldName__Advertisement_IsRm_serial
+		v = itr.n.IsRm.Representation()
 	default:
 		panic("unreachable")
 	}
@@ -665,13 +781,16 @@ func (itr *_Advertisement__ReprMapItr) Next() (k datamodel.Node, v datamodel.Nod
 	return
 }
 func (itr *_Advertisement__ReprMapItr) Done() bool {
-	return itr.idx >= 4
+	return itr.idx >= 6
 }
 func (_Advertisement__Repr) ListIterator() datamodel.ListIterator {
 	return nil
 }
 func (rn *_Advertisement__Repr) Length() int64 {
-	l := 4
+	l := 6
+	if rn.PreviousID.m == schema.Maybe_Absent {
+		l--
+	}
 	return int64(l)
 }
 func (_Advertisement__Repr) IsAbsent() bool {
@@ -734,19 +853,23 @@ type _Advertisement__ReprAssembler struct {
 	f     int
 
 	cm            schema.Maybe
-	ca_IndexID    _Link_Index__ReprAssembler
-	ca_PreviousID _Bytes__ReprAssembler
+	ca_PreviousID _Link_Advertisement__ReprAssembler
 	ca_Provider   _String__ReprAssembler
 	ca_Signature  _Bytes__ReprAssembler
+	ca_Entries    _Link__ReprAssembler
+	ca_Metadata   _Bytes__ReprAssembler
+	ca_IsRm       _Bool__ReprAssembler
 }
 
 func (na *_Advertisement__ReprAssembler) reset() {
 	na.state = maState_initial
 	na.s = 0
-	na.ca_IndexID.reset()
 	na.ca_PreviousID.reset()
 	na.ca_Provider.reset()
 	na.ca_Signature.reset()
+	na.ca_Entries.reset()
+	na.ca_Metadata.reset()
+	na.ca_IsRm.reset()
 }
 func (na *_Advertisement__ReprAssembler) BeginMap(int64) (datamodel.MapAssembler, error) {
 	switch *na.m {
@@ -840,9 +963,8 @@ func (_Advertisement__ReprAssembler) Prototype() datamodel.NodePrototype {
 func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 	switch ma.f {
 	case 0:
-		switch ma.cm {
+		switch ma.w.PreviousID.m {
 		case schema.Maybe_Value:
-			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
 		default:
@@ -875,6 +997,24 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 		default:
 			return false
 		}
+	case 4:
+		switch ma.cm {
+		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
+			ma.state = maState_initial
+			return true
+		default:
+			return false
+		}
+	case 5:
+		switch ma.cm {
+		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
+			ma.state = maState_initial
+			return true
+		default:
+			return false
+		}
 	default:
 		panic("unreachable")
 	}
@@ -895,25 +1035,16 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (datamodel.Node
 		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
 	}
 	switch k {
-	case "IndexID":
-		if ma.s&fieldBit__Advertisement_IndexID != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID_serial}
-		}
-		ma.s += fieldBit__Advertisement_IndexID
-		ma.state = maState_midValue
-		ma.f = 0
-		ma.ca_IndexID.w = &ma.w.IndexID
-		ma.ca_IndexID.m = &ma.cm
-		return &ma.ca_IndexID, nil
 	case "PreviousID":
 		if ma.s&fieldBit__Advertisement_PreviousID != 0 {
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID_serial}
 		}
 		ma.s += fieldBit__Advertisement_PreviousID
 		ma.state = maState_midValue
-		ma.f = 1
-		ma.ca_PreviousID.w = &ma.w.PreviousID
-		ma.ca_PreviousID.m = &ma.cm
+		ma.f = 0
+		ma.ca_PreviousID.w = &ma.w.PreviousID.v
+		ma.ca_PreviousID.m = &ma.w.PreviousID.m
+
 		return &ma.ca_PreviousID, nil
 	case "Provider":
 		if ma.s&fieldBit__Advertisement_Provider != 0 {
@@ -921,7 +1052,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (datamodel.Node
 		}
 		ma.s += fieldBit__Advertisement_Provider
 		ma.state = maState_midValue
-		ma.f = 2
+		ma.f = 1
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider, nil
@@ -931,10 +1062,40 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (datamodel.Node
 		}
 		ma.s += fieldBit__Advertisement_Signature
 		ma.state = maState_midValue
-		ma.f = 3
+		ma.f = 2
 		ma.ca_Signature.w = &ma.w.Signature
 		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature, nil
+	case "Entries":
+		if ma.s&fieldBit__Advertisement_Entries != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Entries_serial}
+		}
+		ma.s += fieldBit__Advertisement_Entries
+		ma.state = maState_midValue
+		ma.f = 3
+		ma.ca_Entries.w = &ma.w.Entries
+		ma.ca_Entries.m = &ma.cm
+		return &ma.ca_Entries, nil
+	case "Metadata":
+		if ma.s&fieldBit__Advertisement_Metadata != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Metadata_serial}
+		}
+		ma.s += fieldBit__Advertisement_Metadata
+		ma.state = maState_midValue
+		ma.f = 4
+		ma.ca_Metadata.w = &ma.w.Metadata
+		ma.ca_Metadata.m = &ma.cm
+		return &ma.ca_Metadata, nil
+	case "IsRm":
+		if ma.s&fieldBit__Advertisement_IsRm != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IsRm_serial}
+		}
+		ma.s += fieldBit__Advertisement_IsRm
+		ma.state = maState_midValue
+		ma.f = 5
+		ma.ca_IsRm.w = &ma.w.IsRm
+		ma.ca_IsRm.m = &ma.cm
+		return &ma.ca_IsRm, nil
 	default:
 	}
 	return nil, schema.ErrInvalidKey{TypeName: "schema.Advertisement.Repr", Key: &_String{k}}
@@ -973,21 +1134,30 @@ func (ma *_Advertisement__ReprAssembler) AssembleValue() datamodel.NodeAssembler
 	ma.state = maState_midValue
 	switch ma.f {
 	case 0:
-		ma.ca_IndexID.w = &ma.w.IndexID
-		ma.ca_IndexID.m = &ma.cm
-		return &ma.ca_IndexID
-	case 1:
-		ma.ca_PreviousID.w = &ma.w.PreviousID
-		ma.ca_PreviousID.m = &ma.cm
+		ma.ca_PreviousID.w = &ma.w.PreviousID.v
+		ma.ca_PreviousID.m = &ma.w.PreviousID.m
+
 		return &ma.ca_PreviousID
-	case 2:
+	case 1:
 		ma.ca_Provider.w = &ma.w.Provider
 		ma.ca_Provider.m = &ma.cm
 		return &ma.ca_Provider
-	case 3:
+	case 2:
 		ma.ca_Signature.w = &ma.w.Signature
 		ma.ca_Signature.m = &ma.cm
 		return &ma.ca_Signature
+	case 3:
+		ma.ca_Entries.w = &ma.w.Entries
+		ma.ca_Entries.m = &ma.cm
+		return &ma.ca_Entries
+	case 4:
+		ma.ca_Metadata.w = &ma.w.Metadata
+		ma.ca_Metadata.m = &ma.cm
+		return &ma.ca_Metadata
+	case 5:
+		ma.ca_IsRm.w = &ma.w.IsRm
+		ma.ca_IsRm.m = &ma.cm
+		return &ma.ca_IsRm
 	default:
 		panic("unreachable")
 	}
@@ -1009,17 +1179,20 @@ func (ma *_Advertisement__ReprAssembler) Finish() error {
 	}
 	if ma.s&fieldBits__Advertisement_sufficient != fieldBits__Advertisement_sufficient {
 		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Advertisement_IndexID == 0 {
-			err.Missing = append(err.Missing, "IndexID")
-		}
-		if ma.s&fieldBit__Advertisement_PreviousID == 0 {
-			err.Missing = append(err.Missing, "PreviousID")
-		}
 		if ma.s&fieldBit__Advertisement_Provider == 0 {
 			err.Missing = append(err.Missing, "Provider")
 		}
 		if ma.s&fieldBit__Advertisement_Signature == 0 {
 			err.Missing = append(err.Missing, "Signature")
+		}
+		if ma.s&fieldBit__Advertisement_Entries == 0 {
+			err.Missing = append(err.Missing, "Entries")
+		}
+		if ma.s&fieldBit__Advertisement_Metadata == 0 {
+			err.Missing = append(err.Missing, "Metadata")
+		}
+		if ma.s&fieldBit__Advertisement_IsRm == 0 {
+			err.Missing = append(err.Missing, "IsRm")
 		}
 		return err
 	}
@@ -1059,21 +1232,13 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		panic("misuse: KeyAssembler held beyond its valid lifetime")
 	}
 	switch k {
-	case "IndexID":
-		if ka.s&fieldBit__Advertisement_IndexID != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IndexID_serial}
-		}
-		ka.s += fieldBit__Advertisement_IndexID
-		ka.state = maState_expectValue
-		ka.f = 0
-		return nil
 	case "PreviousID":
 		if ka.s&fieldBit__Advertisement_PreviousID != 0 {
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_PreviousID_serial}
 		}
 		ka.s += fieldBit__Advertisement_PreviousID
 		ka.state = maState_expectValue
-		ka.f = 1
+		ka.f = 0
 		return nil
 	case "Provider":
 		if ka.s&fieldBit__Advertisement_Provider != 0 {
@@ -1081,7 +1246,7 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_Provider
 		ka.state = maState_expectValue
-		ka.f = 2
+		ka.f = 1
 		return nil
 	case "Signature":
 		if ka.s&fieldBit__Advertisement_Signature != 0 {
@@ -1089,7 +1254,31 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_Signature
 		ka.state = maState_expectValue
+		ka.f = 2
+		return nil
+	case "Entries":
+		if ka.s&fieldBit__Advertisement_Entries != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Entries_serial}
+		}
+		ka.s += fieldBit__Advertisement_Entries
+		ka.state = maState_expectValue
 		ka.f = 3
+		return nil
+	case "Metadata":
+		if ka.s&fieldBit__Advertisement_Metadata != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Metadata_serial}
+		}
+		ka.s += fieldBit__Advertisement_Metadata
+		ka.state = maState_expectValue
+		ka.f = 4
+		return nil
+	case "IsRm":
+		if ka.s&fieldBit__Advertisement_IsRm != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_IsRm_serial}
+		}
+		ka.s += fieldBit__Advertisement_IsRm
+		ka.state = maState_expectValue
+		ka.f = 5
 		return nil
 	}
 	return schema.ErrInvalidKey{TypeName: "schema.Advertisement.Repr", Key: &_String{k}}
@@ -2709,2264 +2898,6 @@ var _ datamodel.Node = &_Bytes__Repr{}
 type _Bytes__ReprPrototype = _Bytes__Prototype
 type _Bytes__ReprAssembler = _Bytes__Assembler
 
-func (n _CarEntry) FieldRemove() MaybeLink {
-	return &n.Remove
-}
-func (n _CarEntry) FieldPut() MaybeLink {
-	return &n.Put
-}
-func (n _CarEntry) FieldMetadata() MaybeBytes {
-	return &n.Metadata
-}
-
-type _CarEntry__Maybe struct {
-	m schema.Maybe
-	v CarEntry
-}
-type MaybeCarEntry = *_CarEntry__Maybe
-
-func (m MaybeCarEntry) IsNull() bool {
-	return m.m == schema.Maybe_Null
-}
-func (m MaybeCarEntry) IsAbsent() bool {
-	return m.m == schema.Maybe_Absent
-}
-func (m MaybeCarEntry) Exists() bool {
-	return m.m == schema.Maybe_Value
-}
-func (m MaybeCarEntry) AsNode() datamodel.Node {
-	switch m.m {
-	case schema.Maybe_Absent:
-		return datamodel.Absent
-	case schema.Maybe_Null:
-		return datamodel.Null
-	case schema.Maybe_Value:
-		return m.v
-	default:
-		panic("unreachable")
-	}
-}
-func (m MaybeCarEntry) Must() CarEntry {
-	if !m.Exists() {
-		panic("unbox of a maybe rejected")
-	}
-	return m.v
-}
-
-var (
-	fieldName__CarEntry_Remove   = _String{"Remove"}
-	fieldName__CarEntry_Put      = _String{"Put"}
-	fieldName__CarEntry_Metadata = _String{"Metadata"}
-)
-var _ datamodel.Node = (CarEntry)(&_CarEntry{})
-var _ schema.TypedNode = (CarEntry)(&_CarEntry{})
-
-func (CarEntry) Kind() datamodel.Kind {
-	return datamodel.Kind_Map
-}
-func (n CarEntry) LookupByString(key string) (datamodel.Node, error) {
-	switch key {
-	case "Remove":
-		if n.Remove.m == schema.Maybe_Absent {
-			return datamodel.Absent, nil
-		}
-		if n.Remove.m == schema.Maybe_Null {
-			return datamodel.Null, nil
-		}
-		return &n.Remove.v, nil
-	case "Put":
-		if n.Put.m == schema.Maybe_Absent {
-			return datamodel.Absent, nil
-		}
-		if n.Put.m == schema.Maybe_Null {
-			return datamodel.Null, nil
-		}
-		return &n.Put.v, nil
-	case "Metadata":
-		if n.Metadata.m == schema.Maybe_Absent {
-			return datamodel.Absent, nil
-		}
-		if n.Metadata.m == schema.Maybe_Null {
-			return datamodel.Null, nil
-		}
-		return &n.Metadata.v, nil
-	default:
-		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: datamodel.PathSegmentOfString(key)}
-	}
-}
-func (n CarEntry) LookupByNode(key datamodel.Node) (datamodel.Node, error) {
-	ks, err := key.AsString()
-	if err != nil {
-		return nil, err
-	}
-	return n.LookupByString(ks)
-}
-func (CarEntry) LookupByIndex(idx int64) (datamodel.Node, error) {
-	return mixins.Map{TypeName: "schema.CarEntry"}.LookupByIndex(0)
-}
-func (n CarEntry) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
-	return n.LookupByString(seg.String())
-}
-func (n CarEntry) MapIterator() datamodel.MapIterator {
-	return &_CarEntry__MapItr{n, 0}
-}
-
-type _CarEntry__MapItr struct {
-	n   CarEntry
-	idx int
-}
-
-func (itr *_CarEntry__MapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
-	if itr.idx >= 3 {
-		return nil, nil, datamodel.ErrIteratorOverread{}
-	}
-	switch itr.idx {
-	case 0:
-		k = &fieldName__CarEntry_Remove
-		if itr.n.Remove.m == schema.Maybe_Absent {
-			v = datamodel.Absent
-			break
-		}
-		if itr.n.Remove.m == schema.Maybe_Null {
-			v = datamodel.Null
-			break
-		}
-		v = &itr.n.Remove.v
-	case 1:
-		k = &fieldName__CarEntry_Put
-		if itr.n.Put.m == schema.Maybe_Absent {
-			v = datamodel.Absent
-			break
-		}
-		if itr.n.Put.m == schema.Maybe_Null {
-			v = datamodel.Null
-			break
-		}
-		v = &itr.n.Put.v
-	case 2:
-		k = &fieldName__CarEntry_Metadata
-		if itr.n.Metadata.m == schema.Maybe_Absent {
-			v = datamodel.Absent
-			break
-		}
-		if itr.n.Metadata.m == schema.Maybe_Null {
-			v = datamodel.Null
-			break
-		}
-		v = &itr.n.Metadata.v
-	default:
-		panic("unreachable")
-	}
-	itr.idx++
-	return
-}
-func (itr *_CarEntry__MapItr) Done() bool {
-	return itr.idx >= 3
-}
-
-func (CarEntry) ListIterator() datamodel.ListIterator {
-	return nil
-}
-func (CarEntry) Length() int64 {
-	return 3
-}
-func (CarEntry) IsAbsent() bool {
-	return false
-}
-func (CarEntry) IsNull() bool {
-	return false
-}
-func (CarEntry) AsBool() (bool, error) {
-	return mixins.Map{TypeName: "schema.CarEntry"}.AsBool()
-}
-func (CarEntry) AsInt() (int64, error) {
-	return mixins.Map{TypeName: "schema.CarEntry"}.AsInt()
-}
-func (CarEntry) AsFloat() (float64, error) {
-	return mixins.Map{TypeName: "schema.CarEntry"}.AsFloat()
-}
-func (CarEntry) AsString() (string, error) {
-	return mixins.Map{TypeName: "schema.CarEntry"}.AsString()
-}
-func (CarEntry) AsBytes() ([]byte, error) {
-	return mixins.Map{TypeName: "schema.CarEntry"}.AsBytes()
-}
-func (CarEntry) AsLink() (datamodel.Link, error) {
-	return mixins.Map{TypeName: "schema.CarEntry"}.AsLink()
-}
-func (CarEntry) Prototype() datamodel.NodePrototype {
-	return _CarEntry__Prototype{}
-}
-
-type _CarEntry__Prototype struct{}
-
-func (_CarEntry__Prototype) NewBuilder() datamodel.NodeBuilder {
-	var nb _CarEntry__Builder
-	nb.Reset()
-	return &nb
-}
-
-type _CarEntry__Builder struct {
-	_CarEntry__Assembler
-}
-
-func (nb *_CarEntry__Builder) Build() datamodel.Node {
-	if *nb.m != schema.Maybe_Value {
-		panic("invalid state: cannot call Build on an assembler that's not finished")
-	}
-	return nb.w
-}
-func (nb *_CarEntry__Builder) Reset() {
-	var w _CarEntry
-	var m schema.Maybe
-	*nb = _CarEntry__Builder{_CarEntry__Assembler{w: &w, m: &m}}
-}
-
-type _CarEntry__Assembler struct {
-	w     *_CarEntry
-	m     *schema.Maybe
-	state maState
-	s     int
-	f     int
-
-	cm          schema.Maybe
-	ca_Remove   _Link__Assembler
-	ca_Put      _Link__Assembler
-	ca_Metadata _Bytes__Assembler
-}
-
-func (na *_CarEntry__Assembler) reset() {
-	na.state = maState_initial
-	na.s = 0
-	na.ca_Remove.reset()
-	na.ca_Put.reset()
-	na.ca_Metadata.reset()
-}
-
-var (
-	fieldBit__CarEntry_Remove      = 1 << 0
-	fieldBit__CarEntry_Put         = 1 << 1
-	fieldBit__CarEntry_Metadata    = 1 << 2
-	fieldBits__CarEntry_sufficient = 0
-)
-
-func (na *_CarEntry__Assembler) BeginMap(int64) (datamodel.MapAssembler, error) {
-	switch *na.m {
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
-	}
-	*na.m = midvalue
-	if na.w == nil {
-		na.w = &_CarEntry{}
-	}
-	return na, nil
-}
-func (_CarEntry__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry"}.BeginList(0)
-}
-func (na *_CarEntry__Assembler) AssignNull() error {
-	switch *na.m {
-	case allowNull:
-		*na.m = schema.Maybe_Null
-		return nil
-	case schema.Maybe_Absent:
-		return mixins.MapAssembler{TypeName: "schema.CarEntry"}.AssignNull()
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-	}
-	panic("unreachable")
-}
-func (_CarEntry__Assembler) AssignBool(bool) error {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry"}.AssignBool(false)
-}
-func (_CarEntry__Assembler) AssignInt(int64) error {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry"}.AssignInt(0)
-}
-func (_CarEntry__Assembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry"}.AssignFloat(0)
-}
-func (_CarEntry__Assembler) AssignString(string) error {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry"}.AssignString("")
-}
-func (_CarEntry__Assembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry"}.AssignBytes(nil)
-}
-func (_CarEntry__Assembler) AssignLink(datamodel.Link) error {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry"}.AssignLink(nil)
-}
-func (na *_CarEntry__Assembler) AssignNode(v datamodel.Node) error {
-	if v.IsNull() {
-		return na.AssignNull()
-	}
-	if v2, ok := v.(*_CarEntry); ok {
-		switch *na.m {
-		case schema.Maybe_Value, schema.Maybe_Null:
-			panic("invalid state: cannot assign into assembler that's already finished")
-		case midvalue:
-			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
-		}
-		*na.w = *v2
-		*na.m = schema.Maybe_Value
-		return nil
-	}
-	if v.Kind() != datamodel.Kind_Map {
-		return datamodel.ErrWrongKind{TypeName: "schema.CarEntry", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustMap, ActualKind: v.Kind()}
-	}
-	itr := v.MapIterator()
-	for !itr.Done() {
-		k, v, err := itr.Next()
-		if err != nil {
-			return err
-		}
-		if err := na.AssembleKey().AssignNode(k); err != nil {
-			return err
-		}
-		if err := na.AssembleValue().AssignNode(v); err != nil {
-			return err
-		}
-	}
-	return na.Finish()
-}
-func (_CarEntry__Assembler) Prototype() datamodel.NodePrototype {
-	return _CarEntry__Prototype{}
-}
-func (ma *_CarEntry__Assembler) valueFinishTidy() bool {
-	switch ma.f {
-	case 0:
-		switch ma.w.Remove.m {
-		case schema.Maybe_Null:
-			ma.state = maState_initial
-			return true
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 1:
-		switch ma.w.Put.m {
-		case schema.Maybe_Null:
-			ma.state = maState_initial
-			return true
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 2:
-		switch ma.w.Metadata.m {
-		case schema.Maybe_Null:
-			ma.state = maState_initial
-			return true
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	default:
-		panic("unreachable")
-	}
-}
-func (ma *_CarEntry__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, error) {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: AssembleEntry cannot be called when in the middle of assembling another key")
-	case maState_expectValue:
-		panic("invalid state: AssembleEntry cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: AssembleEntry cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
-	}
-	switch k {
-	case "Remove":
-		if ma.s&fieldBit__CarEntry_Remove != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__CarEntry_Remove}
-		}
-		ma.s += fieldBit__CarEntry_Remove
-		ma.state = maState_midValue
-		ma.f = 0
-		ma.ca_Remove.w = &ma.w.Remove.v
-		ma.ca_Remove.m = &ma.w.Remove.m
-		ma.w.Remove.m = allowNull
-		return &ma.ca_Remove, nil
-	case "Put":
-		if ma.s&fieldBit__CarEntry_Put != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__CarEntry_Put}
-		}
-		ma.s += fieldBit__CarEntry_Put
-		ma.state = maState_midValue
-		ma.f = 1
-		ma.ca_Put.w = &ma.w.Put.v
-		ma.ca_Put.m = &ma.w.Put.m
-		ma.w.Put.m = allowNull
-		return &ma.ca_Put, nil
-	case "Metadata":
-		if ma.s&fieldBit__CarEntry_Metadata != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__CarEntry_Metadata}
-		}
-		ma.s += fieldBit__CarEntry_Metadata
-		ma.state = maState_midValue
-		ma.f = 2
-		ma.ca_Metadata.w = &ma.w.Metadata.v
-		ma.ca_Metadata.m = &ma.w.Metadata.m
-		ma.w.Metadata.m = allowNull
-		return &ma.ca_Metadata, nil
-	}
-	return nil, schema.ErrInvalidKey{TypeName: "schema.CarEntry", Key: &_String{k}}
-}
-func (ma *_CarEntry__Assembler) AssembleKey() datamodel.NodeAssembler {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: AssembleKey cannot be called when in the middle of assembling another key")
-	case maState_expectValue:
-		panic("invalid state: AssembleKey cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: AssembleKey cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: AssembleKey cannot be called on an assembler that's already finished")
-	}
-	ma.state = maState_midKey
-	return (*_CarEntry__KeyAssembler)(ma)
-}
-func (ma *_CarEntry__Assembler) AssembleValue() datamodel.NodeAssembler {
-	switch ma.state {
-	case maState_initial:
-		panic("invalid state: AssembleValue cannot be called when no key is primed")
-	case maState_midKey:
-		panic("invalid state: AssembleValue cannot be called when in the middle of assembling a key")
-	case maState_expectValue:
-		// carry on
-	case maState_midValue:
-		panic("invalid state: AssembleValue cannot be called when in the middle of assembling another value")
-	case maState_finished:
-		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
-	}
-	ma.state = maState_midValue
-	switch ma.f {
-	case 0:
-		ma.ca_Remove.w = &ma.w.Remove.v
-		ma.ca_Remove.m = &ma.w.Remove.m
-		ma.w.Remove.m = allowNull
-		return &ma.ca_Remove
-	case 1:
-		ma.ca_Put.w = &ma.w.Put.v
-		ma.ca_Put.m = &ma.w.Put.m
-		ma.w.Put.m = allowNull
-		return &ma.ca_Put
-	case 2:
-		ma.ca_Metadata.w = &ma.w.Metadata.v
-		ma.ca_Metadata.m = &ma.w.Metadata.m
-		ma.w.Metadata.m = allowNull
-		return &ma.ca_Metadata
-	default:
-		panic("unreachable")
-	}
-}
-func (ma *_CarEntry__Assembler) Finish() error {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: Finish cannot be called when in the middle of assembling a key")
-	case maState_expectValue:
-		panic("invalid state: Finish cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: Finish cannot be called on an assembler that's already finished")
-	}
-	if ma.s&fieldBits__CarEntry_sufficient != fieldBits__CarEntry_sufficient {
-		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		return err
-	}
-	ma.state = maState_finished
-	*ma.m = schema.Maybe_Value
-	return nil
-}
-func (ma *_CarEntry__Assembler) KeyPrototype() datamodel.NodePrototype {
-	return _String__Prototype{}
-}
-func (ma *_CarEntry__Assembler) ValuePrototype(k string) datamodel.NodePrototype {
-	panic("todo structbuilder mapassembler valueprototype")
-}
-
-type _CarEntry__KeyAssembler _CarEntry__Assembler
-
-func (_CarEntry__KeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.KeyAssembler"}.BeginMap(0)
-}
-func (_CarEntry__KeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.KeyAssembler"}.BeginList(0)
-}
-func (na *_CarEntry__KeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.KeyAssembler"}.AssignNull()
-}
-func (_CarEntry__KeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.KeyAssembler"}.AssignBool(false)
-}
-func (_CarEntry__KeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.KeyAssembler"}.AssignInt(0)
-}
-func (_CarEntry__KeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.KeyAssembler"}.AssignFloat(0)
-}
-func (ka *_CarEntry__KeyAssembler) AssignString(k string) error {
-	if ka.state != maState_midKey {
-		panic("misuse: KeyAssembler held beyond its valid lifetime")
-	}
-	switch k {
-	case "Remove":
-		if ka.s&fieldBit__CarEntry_Remove != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__CarEntry_Remove}
-		}
-		ka.s += fieldBit__CarEntry_Remove
-		ka.state = maState_expectValue
-		ka.f = 0
-		return nil
-	case "Put":
-		if ka.s&fieldBit__CarEntry_Put != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__CarEntry_Put}
-		}
-		ka.s += fieldBit__CarEntry_Put
-		ka.state = maState_expectValue
-		ka.f = 1
-		return nil
-	case "Metadata":
-		if ka.s&fieldBit__CarEntry_Metadata != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__CarEntry_Metadata}
-		}
-		ka.s += fieldBit__CarEntry_Metadata
-		ka.state = maState_expectValue
-		ka.f = 2
-		return nil
-	default:
-		return schema.ErrInvalidKey{TypeName: "schema.CarEntry", Key: &_String{k}}
-	}
-}
-func (_CarEntry__KeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.KeyAssembler"}.AssignBytes(nil)
-}
-func (_CarEntry__KeyAssembler) AssignLink(datamodel.Link) error {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.KeyAssembler"}.AssignLink(nil)
-}
-func (ka *_CarEntry__KeyAssembler) AssignNode(v datamodel.Node) error {
-	if v2, err := v.AsString(); err != nil {
-		return err
-	} else {
-		return ka.AssignString(v2)
-	}
-}
-func (_CarEntry__KeyAssembler) Prototype() datamodel.NodePrototype {
-	return _String__Prototype{}
-}
-func (CarEntry) Type() schema.Type {
-	return nil /*TODO:typelit*/
-}
-func (n CarEntry) Representation() datamodel.Node {
-	return (*_CarEntry__Repr)(n)
-}
-
-type _CarEntry__Repr _CarEntry
-
-var (
-	fieldName__CarEntry_Remove_serial   = _String{"Remove"}
-	fieldName__CarEntry_Put_serial      = _String{"Put"}
-	fieldName__CarEntry_Metadata_serial = _String{"Metadata"}
-)
-var _ datamodel.Node = &_CarEntry__Repr{}
-
-func (_CarEntry__Repr) Kind() datamodel.Kind {
-	return datamodel.Kind_Map
-}
-func (n *_CarEntry__Repr) LookupByString(key string) (datamodel.Node, error) {
-	switch key {
-	case "Remove":
-		if n.Remove.m == schema.Maybe_Absent {
-			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
-		}
-		if n.Remove.m == schema.Maybe_Null {
-			return datamodel.Null, nil
-		}
-		return n.Remove.v.Representation(), nil
-	case "Put":
-		if n.Put.m == schema.Maybe_Absent {
-			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
-		}
-		if n.Put.m == schema.Maybe_Null {
-			return datamodel.Null, nil
-		}
-		return n.Put.v.Representation(), nil
-	case "Metadata":
-		if n.Metadata.m == schema.Maybe_Absent {
-			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
-		}
-		if n.Metadata.m == schema.Maybe_Null {
-			return datamodel.Null, nil
-		}
-		return n.Metadata.v.Representation(), nil
-	default:
-		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: datamodel.PathSegmentOfString(key)}
-	}
-}
-func (n *_CarEntry__Repr) LookupByNode(key datamodel.Node) (datamodel.Node, error) {
-	ks, err := key.AsString()
-	if err != nil {
-		return nil, err
-	}
-	return n.LookupByString(ks)
-}
-func (_CarEntry__Repr) LookupByIndex(idx int64) (datamodel.Node, error) {
-	return mixins.Map{TypeName: "schema.CarEntry.Repr"}.LookupByIndex(0)
-}
-func (n _CarEntry__Repr) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
-	return n.LookupByString(seg.String())
-}
-func (n *_CarEntry__Repr) MapIterator() datamodel.MapIterator {
-	end := 3
-	if n.Metadata.m == schema.Maybe_Absent {
-		end = 2
-	} else {
-		goto done
-	}
-	if n.Put.m == schema.Maybe_Absent {
-		end = 1
-	} else {
-		goto done
-	}
-	if n.Remove.m == schema.Maybe_Absent {
-		end = 0
-	} else {
-		goto done
-	}
-done:
-	return &_CarEntry__ReprMapItr{n, 0, end}
-}
-
-type _CarEntry__ReprMapItr struct {
-	n   *_CarEntry__Repr
-	idx int
-	end int
-}
-
-func (itr *_CarEntry__ReprMapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
-advance:
-	if itr.idx >= 3 {
-		return nil, nil, datamodel.ErrIteratorOverread{}
-	}
-	switch itr.idx {
-	case 0:
-		k = &fieldName__CarEntry_Remove_serial
-		if itr.n.Remove.m == schema.Maybe_Absent {
-			itr.idx++
-			goto advance
-		}
-		if itr.n.Remove.m == schema.Maybe_Null {
-			v = datamodel.Null
-			break
-		}
-		v = itr.n.Remove.v.Representation()
-	case 1:
-		k = &fieldName__CarEntry_Put_serial
-		if itr.n.Put.m == schema.Maybe_Absent {
-			itr.idx++
-			goto advance
-		}
-		if itr.n.Put.m == schema.Maybe_Null {
-			v = datamodel.Null
-			break
-		}
-		v = itr.n.Put.v.Representation()
-	case 2:
-		k = &fieldName__CarEntry_Metadata_serial
-		if itr.n.Metadata.m == schema.Maybe_Absent {
-			itr.idx++
-			goto advance
-		}
-		if itr.n.Metadata.m == schema.Maybe_Null {
-			v = datamodel.Null
-			break
-		}
-		v = itr.n.Metadata.v.Representation()
-	default:
-		panic("unreachable")
-	}
-	itr.idx++
-	return
-}
-func (itr *_CarEntry__ReprMapItr) Done() bool {
-	return itr.idx >= itr.end
-}
-func (_CarEntry__Repr) ListIterator() datamodel.ListIterator {
-	return nil
-}
-func (rn *_CarEntry__Repr) Length() int64 {
-	l := 3
-	if rn.Remove.m == schema.Maybe_Absent {
-		l--
-	}
-	if rn.Put.m == schema.Maybe_Absent {
-		l--
-	}
-	if rn.Metadata.m == schema.Maybe_Absent {
-		l--
-	}
-	return int64(l)
-}
-func (_CarEntry__Repr) IsAbsent() bool {
-	return false
-}
-func (_CarEntry__Repr) IsNull() bool {
-	return false
-}
-func (_CarEntry__Repr) AsBool() (bool, error) {
-	return mixins.Map{TypeName: "schema.CarEntry.Repr"}.AsBool()
-}
-func (_CarEntry__Repr) AsInt() (int64, error) {
-	return mixins.Map{TypeName: "schema.CarEntry.Repr"}.AsInt()
-}
-func (_CarEntry__Repr) AsFloat() (float64, error) {
-	return mixins.Map{TypeName: "schema.CarEntry.Repr"}.AsFloat()
-}
-func (_CarEntry__Repr) AsString() (string, error) {
-	return mixins.Map{TypeName: "schema.CarEntry.Repr"}.AsString()
-}
-func (_CarEntry__Repr) AsBytes() ([]byte, error) {
-	return mixins.Map{TypeName: "schema.CarEntry.Repr"}.AsBytes()
-}
-func (_CarEntry__Repr) AsLink() (datamodel.Link, error) {
-	return mixins.Map{TypeName: "schema.CarEntry.Repr"}.AsLink()
-}
-func (_CarEntry__Repr) Prototype() datamodel.NodePrototype {
-	return _CarEntry__ReprPrototype{}
-}
-
-type _CarEntry__ReprPrototype struct{}
-
-func (_CarEntry__ReprPrototype) NewBuilder() datamodel.NodeBuilder {
-	var nb _CarEntry__ReprBuilder
-	nb.Reset()
-	return &nb
-}
-
-type _CarEntry__ReprBuilder struct {
-	_CarEntry__ReprAssembler
-}
-
-func (nb *_CarEntry__ReprBuilder) Build() datamodel.Node {
-	if *nb.m != schema.Maybe_Value {
-		panic("invalid state: cannot call Build on an assembler that's not finished")
-	}
-	return nb.w
-}
-func (nb *_CarEntry__ReprBuilder) Reset() {
-	var w _CarEntry
-	var m schema.Maybe
-	*nb = _CarEntry__ReprBuilder{_CarEntry__ReprAssembler{w: &w, m: &m}}
-}
-
-type _CarEntry__ReprAssembler struct {
-	w     *_CarEntry
-	m     *schema.Maybe
-	state maState
-	s     int
-	f     int
-
-	cm          schema.Maybe
-	ca_Remove   _Link__ReprAssembler
-	ca_Put      _Link__ReprAssembler
-	ca_Metadata _Bytes__ReprAssembler
-}
-
-func (na *_CarEntry__ReprAssembler) reset() {
-	na.state = maState_initial
-	na.s = 0
-	na.ca_Remove.reset()
-	na.ca_Put.reset()
-	na.ca_Metadata.reset()
-}
-func (na *_CarEntry__ReprAssembler) BeginMap(int64) (datamodel.MapAssembler, error) {
-	switch *na.m {
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
-	}
-	*na.m = midvalue
-	if na.w == nil {
-		na.w = &_CarEntry{}
-	}
-	return na, nil
-}
-func (_CarEntry__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry.Repr"}.BeginList(0)
-}
-func (na *_CarEntry__ReprAssembler) AssignNull() error {
-	switch *na.m {
-	case allowNull:
-		*na.m = schema.Maybe_Null
-		return nil
-	case schema.Maybe_Absent:
-		return mixins.MapAssembler{TypeName: "schema.CarEntry.Repr.Repr"}.AssignNull()
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-	}
-	panic("unreachable")
-}
-func (_CarEntry__ReprAssembler) AssignBool(bool) error {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry.Repr"}.AssignBool(false)
-}
-func (_CarEntry__ReprAssembler) AssignInt(int64) error {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry.Repr"}.AssignInt(0)
-}
-func (_CarEntry__ReprAssembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry.Repr"}.AssignFloat(0)
-}
-func (_CarEntry__ReprAssembler) AssignString(string) error {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry.Repr"}.AssignString("")
-}
-func (_CarEntry__ReprAssembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry.Repr"}.AssignBytes(nil)
-}
-func (_CarEntry__ReprAssembler) AssignLink(datamodel.Link) error {
-	return mixins.MapAssembler{TypeName: "schema.CarEntry.Repr"}.AssignLink(nil)
-}
-func (na *_CarEntry__ReprAssembler) AssignNode(v datamodel.Node) error {
-	if v.IsNull() {
-		return na.AssignNull()
-	}
-	if v2, ok := v.(*_CarEntry); ok {
-		switch *na.m {
-		case schema.Maybe_Value, schema.Maybe_Null:
-			panic("invalid state: cannot assign into assembler that's already finished")
-		case midvalue:
-			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
-		}
-		*na.w = *v2
-		*na.m = schema.Maybe_Value
-		return nil
-	}
-	if v.Kind() != datamodel.Kind_Map {
-		return datamodel.ErrWrongKind{TypeName: "schema.CarEntry.Repr", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustMap, ActualKind: v.Kind()}
-	}
-	itr := v.MapIterator()
-	for !itr.Done() {
-		k, v, err := itr.Next()
-		if err != nil {
-			return err
-		}
-		if err := na.AssembleKey().AssignNode(k); err != nil {
-			return err
-		}
-		if err := na.AssembleValue().AssignNode(v); err != nil {
-			return err
-		}
-	}
-	return na.Finish()
-}
-func (_CarEntry__ReprAssembler) Prototype() datamodel.NodePrototype {
-	return _CarEntry__ReprPrototype{}
-}
-func (ma *_CarEntry__ReprAssembler) valueFinishTidy() bool {
-	switch ma.f {
-	case 0:
-		switch ma.w.Remove.m {
-		case schema.Maybe_Null:
-			ma.state = maState_initial
-			return true
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 1:
-		switch ma.w.Put.m {
-		case schema.Maybe_Null:
-			ma.state = maState_initial
-			return true
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 2:
-		switch ma.w.Metadata.m {
-		case schema.Maybe_Null:
-			ma.state = maState_initial
-			return true
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	default:
-		panic("unreachable")
-	}
-}
-func (ma *_CarEntry__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssembler, error) {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: AssembleEntry cannot be called when in the middle of assembling another key")
-	case maState_expectValue:
-		panic("invalid state: AssembleEntry cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: AssembleEntry cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
-	}
-	switch k {
-	case "Remove":
-		if ma.s&fieldBit__CarEntry_Remove != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__CarEntry_Remove_serial}
-		}
-		ma.s += fieldBit__CarEntry_Remove
-		ma.state = maState_midValue
-		ma.f = 0
-		ma.ca_Remove.w = &ma.w.Remove.v
-		ma.ca_Remove.m = &ma.w.Remove.m
-		ma.w.Remove.m = allowNull
-		return &ma.ca_Remove, nil
-	case "Put":
-		if ma.s&fieldBit__CarEntry_Put != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__CarEntry_Put_serial}
-		}
-		ma.s += fieldBit__CarEntry_Put
-		ma.state = maState_midValue
-		ma.f = 1
-		ma.ca_Put.w = &ma.w.Put.v
-		ma.ca_Put.m = &ma.w.Put.m
-		ma.w.Put.m = allowNull
-		return &ma.ca_Put, nil
-	case "Metadata":
-		if ma.s&fieldBit__CarEntry_Metadata != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__CarEntry_Metadata_serial}
-		}
-		ma.s += fieldBit__CarEntry_Metadata
-		ma.state = maState_midValue
-		ma.f = 2
-		ma.ca_Metadata.w = &ma.w.Metadata.v
-		ma.ca_Metadata.m = &ma.w.Metadata.m
-		ma.w.Metadata.m = allowNull
-		return &ma.ca_Metadata, nil
-	default:
-	}
-	return nil, schema.ErrInvalidKey{TypeName: "schema.CarEntry.Repr", Key: &_String{k}}
-}
-func (ma *_CarEntry__ReprAssembler) AssembleKey() datamodel.NodeAssembler {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: AssembleKey cannot be called when in the middle of assembling another key")
-	case maState_expectValue:
-		panic("invalid state: AssembleKey cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: AssembleKey cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: AssembleKey cannot be called on an assembler that's already finished")
-	}
-	ma.state = maState_midKey
-	return (*_CarEntry__ReprKeyAssembler)(ma)
-}
-func (ma *_CarEntry__ReprAssembler) AssembleValue() datamodel.NodeAssembler {
-	switch ma.state {
-	case maState_initial:
-		panic("invalid state: AssembleValue cannot be called when no key is primed")
-	case maState_midKey:
-		panic("invalid state: AssembleValue cannot be called when in the middle of assembling a key")
-	case maState_expectValue:
-		// carry on
-	case maState_midValue:
-		panic("invalid state: AssembleValue cannot be called when in the middle of assembling another value")
-	case maState_finished:
-		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
-	}
-	ma.state = maState_midValue
-	switch ma.f {
-	case 0:
-		ma.ca_Remove.w = &ma.w.Remove.v
-		ma.ca_Remove.m = &ma.w.Remove.m
-		ma.w.Remove.m = allowNull
-		return &ma.ca_Remove
-	case 1:
-		ma.ca_Put.w = &ma.w.Put.v
-		ma.ca_Put.m = &ma.w.Put.m
-		ma.w.Put.m = allowNull
-		return &ma.ca_Put
-	case 2:
-		ma.ca_Metadata.w = &ma.w.Metadata.v
-		ma.ca_Metadata.m = &ma.w.Metadata.m
-		ma.w.Metadata.m = allowNull
-		return &ma.ca_Metadata
-	default:
-		panic("unreachable")
-	}
-}
-func (ma *_CarEntry__ReprAssembler) Finish() error {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: Finish cannot be called when in the middle of assembling a key")
-	case maState_expectValue:
-		panic("invalid state: Finish cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: Finish cannot be called on an assembler that's already finished")
-	}
-	if ma.s&fieldBits__CarEntry_sufficient != fieldBits__CarEntry_sufficient {
-		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		return err
-	}
-	ma.state = maState_finished
-	*ma.m = schema.Maybe_Value
-	return nil
-}
-func (ma *_CarEntry__ReprAssembler) KeyPrototype() datamodel.NodePrototype {
-	return _String__Prototype{}
-}
-func (ma *_CarEntry__ReprAssembler) ValuePrototype(k string) datamodel.NodePrototype {
-	panic("todo structbuilder mapassembler repr valueprototype")
-}
-
-type _CarEntry__ReprKeyAssembler _CarEntry__ReprAssembler
-
-func (_CarEntry__ReprKeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.Repr.KeyAssembler"}.BeginMap(0)
-}
-func (_CarEntry__ReprKeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.Repr.KeyAssembler"}.BeginList(0)
-}
-func (na *_CarEntry__ReprKeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.Repr.KeyAssembler"}.AssignNull()
-}
-func (_CarEntry__ReprKeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.Repr.KeyAssembler"}.AssignBool(false)
-}
-func (_CarEntry__ReprKeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.Repr.KeyAssembler"}.AssignInt(0)
-}
-func (_CarEntry__ReprKeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.Repr.KeyAssembler"}.AssignFloat(0)
-}
-func (ka *_CarEntry__ReprKeyAssembler) AssignString(k string) error {
-	if ka.state != maState_midKey {
-		panic("misuse: KeyAssembler held beyond its valid lifetime")
-	}
-	switch k {
-	case "Remove":
-		if ka.s&fieldBit__CarEntry_Remove != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__CarEntry_Remove_serial}
-		}
-		ka.s += fieldBit__CarEntry_Remove
-		ka.state = maState_expectValue
-		ka.f = 0
-		return nil
-	case "Put":
-		if ka.s&fieldBit__CarEntry_Put != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__CarEntry_Put_serial}
-		}
-		ka.s += fieldBit__CarEntry_Put
-		ka.state = maState_expectValue
-		ka.f = 1
-		return nil
-	case "Metadata":
-		if ka.s&fieldBit__CarEntry_Metadata != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__CarEntry_Metadata_serial}
-		}
-		ka.s += fieldBit__CarEntry_Metadata
-		ka.state = maState_expectValue
-		ka.f = 2
-		return nil
-	}
-	return schema.ErrInvalidKey{TypeName: "schema.CarEntry.Repr", Key: &_String{k}}
-}
-func (_CarEntry__ReprKeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.Repr.KeyAssembler"}.AssignBytes(nil)
-}
-func (_CarEntry__ReprKeyAssembler) AssignLink(datamodel.Link) error {
-	return mixins.StringAssembler{TypeName: "schema.CarEntry.Repr.KeyAssembler"}.AssignLink(nil)
-}
-func (ka *_CarEntry__ReprKeyAssembler) AssignNode(v datamodel.Node) error {
-	if v2, err := v.AsString(); err != nil {
-		return err
-	} else {
-		return ka.AssignString(v2)
-	}
-}
-func (_CarEntry__ReprKeyAssembler) Prototype() datamodel.NodePrototype {
-	return _String__Prototype{}
-}
-
-func (n _CidEntry) FieldRemove() MaybeList_String {
-	return &n.Remove
-}
-func (n _CidEntry) FieldPut() MaybeList_String {
-	return &n.Put
-}
-func (n _CidEntry) FieldMetadata() MaybeBytes {
-	return &n.Metadata
-}
-
-type _CidEntry__Maybe struct {
-	m schema.Maybe
-	v CidEntry
-}
-type MaybeCidEntry = *_CidEntry__Maybe
-
-func (m MaybeCidEntry) IsNull() bool {
-	return m.m == schema.Maybe_Null
-}
-func (m MaybeCidEntry) IsAbsent() bool {
-	return m.m == schema.Maybe_Absent
-}
-func (m MaybeCidEntry) Exists() bool {
-	return m.m == schema.Maybe_Value
-}
-func (m MaybeCidEntry) AsNode() datamodel.Node {
-	switch m.m {
-	case schema.Maybe_Absent:
-		return datamodel.Absent
-	case schema.Maybe_Null:
-		return datamodel.Null
-	case schema.Maybe_Value:
-		return m.v
-	default:
-		panic("unreachable")
-	}
-}
-func (m MaybeCidEntry) Must() CidEntry {
-	if !m.Exists() {
-		panic("unbox of a maybe rejected")
-	}
-	return m.v
-}
-
-var (
-	fieldName__CidEntry_Remove   = _String{"Remove"}
-	fieldName__CidEntry_Put      = _String{"Put"}
-	fieldName__CidEntry_Metadata = _String{"Metadata"}
-)
-var _ datamodel.Node = (CidEntry)(&_CidEntry{})
-var _ schema.TypedNode = (CidEntry)(&_CidEntry{})
-
-func (CidEntry) Kind() datamodel.Kind {
-	return datamodel.Kind_Map
-}
-func (n CidEntry) LookupByString(key string) (datamodel.Node, error) {
-	switch key {
-	case "Remove":
-		if n.Remove.m == schema.Maybe_Absent {
-			return datamodel.Absent, nil
-		}
-		if n.Remove.m == schema.Maybe_Null {
-			return datamodel.Null, nil
-		}
-		return &n.Remove.v, nil
-	case "Put":
-		if n.Put.m == schema.Maybe_Absent {
-			return datamodel.Absent, nil
-		}
-		if n.Put.m == schema.Maybe_Null {
-			return datamodel.Null, nil
-		}
-		return &n.Put.v, nil
-	case "Metadata":
-		if n.Metadata.m == schema.Maybe_Absent {
-			return datamodel.Absent, nil
-		}
-		if n.Metadata.m == schema.Maybe_Null {
-			return datamodel.Null, nil
-		}
-		return &n.Metadata.v, nil
-	default:
-		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: datamodel.PathSegmentOfString(key)}
-	}
-}
-func (n CidEntry) LookupByNode(key datamodel.Node) (datamodel.Node, error) {
-	ks, err := key.AsString()
-	if err != nil {
-		return nil, err
-	}
-	return n.LookupByString(ks)
-}
-func (CidEntry) LookupByIndex(idx int64) (datamodel.Node, error) {
-	return mixins.Map{TypeName: "schema.CidEntry"}.LookupByIndex(0)
-}
-func (n CidEntry) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
-	return n.LookupByString(seg.String())
-}
-func (n CidEntry) MapIterator() datamodel.MapIterator {
-	return &_CidEntry__MapItr{n, 0}
-}
-
-type _CidEntry__MapItr struct {
-	n   CidEntry
-	idx int
-}
-
-func (itr *_CidEntry__MapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
-	if itr.idx >= 3 {
-		return nil, nil, datamodel.ErrIteratorOverread{}
-	}
-	switch itr.idx {
-	case 0:
-		k = &fieldName__CidEntry_Remove
-		if itr.n.Remove.m == schema.Maybe_Absent {
-			v = datamodel.Absent
-			break
-		}
-		if itr.n.Remove.m == schema.Maybe_Null {
-			v = datamodel.Null
-			break
-		}
-		v = &itr.n.Remove.v
-	case 1:
-		k = &fieldName__CidEntry_Put
-		if itr.n.Put.m == schema.Maybe_Absent {
-			v = datamodel.Absent
-			break
-		}
-		if itr.n.Put.m == schema.Maybe_Null {
-			v = datamodel.Null
-			break
-		}
-		v = &itr.n.Put.v
-	case 2:
-		k = &fieldName__CidEntry_Metadata
-		if itr.n.Metadata.m == schema.Maybe_Absent {
-			v = datamodel.Absent
-			break
-		}
-		if itr.n.Metadata.m == schema.Maybe_Null {
-			v = datamodel.Null
-			break
-		}
-		v = &itr.n.Metadata.v
-	default:
-		panic("unreachable")
-	}
-	itr.idx++
-	return
-}
-func (itr *_CidEntry__MapItr) Done() bool {
-	return itr.idx >= 3
-}
-
-func (CidEntry) ListIterator() datamodel.ListIterator {
-	return nil
-}
-func (CidEntry) Length() int64 {
-	return 3
-}
-func (CidEntry) IsAbsent() bool {
-	return false
-}
-func (CidEntry) IsNull() bool {
-	return false
-}
-func (CidEntry) AsBool() (bool, error) {
-	return mixins.Map{TypeName: "schema.CidEntry"}.AsBool()
-}
-func (CidEntry) AsInt() (int64, error) {
-	return mixins.Map{TypeName: "schema.CidEntry"}.AsInt()
-}
-func (CidEntry) AsFloat() (float64, error) {
-	return mixins.Map{TypeName: "schema.CidEntry"}.AsFloat()
-}
-func (CidEntry) AsString() (string, error) {
-	return mixins.Map{TypeName: "schema.CidEntry"}.AsString()
-}
-func (CidEntry) AsBytes() ([]byte, error) {
-	return mixins.Map{TypeName: "schema.CidEntry"}.AsBytes()
-}
-func (CidEntry) AsLink() (datamodel.Link, error) {
-	return mixins.Map{TypeName: "schema.CidEntry"}.AsLink()
-}
-func (CidEntry) Prototype() datamodel.NodePrototype {
-	return _CidEntry__Prototype{}
-}
-
-type _CidEntry__Prototype struct{}
-
-func (_CidEntry__Prototype) NewBuilder() datamodel.NodeBuilder {
-	var nb _CidEntry__Builder
-	nb.Reset()
-	return &nb
-}
-
-type _CidEntry__Builder struct {
-	_CidEntry__Assembler
-}
-
-func (nb *_CidEntry__Builder) Build() datamodel.Node {
-	if *nb.m != schema.Maybe_Value {
-		panic("invalid state: cannot call Build on an assembler that's not finished")
-	}
-	return nb.w
-}
-func (nb *_CidEntry__Builder) Reset() {
-	var w _CidEntry
-	var m schema.Maybe
-	*nb = _CidEntry__Builder{_CidEntry__Assembler{w: &w, m: &m}}
-}
-
-type _CidEntry__Assembler struct {
-	w     *_CidEntry
-	m     *schema.Maybe
-	state maState
-	s     int
-	f     int
-
-	cm          schema.Maybe
-	ca_Remove   _List_String__Assembler
-	ca_Put      _List_String__Assembler
-	ca_Metadata _Bytes__Assembler
-}
-
-func (na *_CidEntry__Assembler) reset() {
-	na.state = maState_initial
-	na.s = 0
-	na.ca_Remove.reset()
-	na.ca_Put.reset()
-	na.ca_Metadata.reset()
-}
-
-var (
-	fieldBit__CidEntry_Remove      = 1 << 0
-	fieldBit__CidEntry_Put         = 1 << 1
-	fieldBit__CidEntry_Metadata    = 1 << 2
-	fieldBits__CidEntry_sufficient = 0
-)
-
-func (na *_CidEntry__Assembler) BeginMap(int64) (datamodel.MapAssembler, error) {
-	switch *na.m {
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
-	}
-	*na.m = midvalue
-	if na.w == nil {
-		na.w = &_CidEntry{}
-	}
-	return na, nil
-}
-func (_CidEntry__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry"}.BeginList(0)
-}
-func (na *_CidEntry__Assembler) AssignNull() error {
-	switch *na.m {
-	case allowNull:
-		*na.m = schema.Maybe_Null
-		return nil
-	case schema.Maybe_Absent:
-		return mixins.MapAssembler{TypeName: "schema.CidEntry"}.AssignNull()
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-	}
-	panic("unreachable")
-}
-func (_CidEntry__Assembler) AssignBool(bool) error {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry"}.AssignBool(false)
-}
-func (_CidEntry__Assembler) AssignInt(int64) error {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry"}.AssignInt(0)
-}
-func (_CidEntry__Assembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry"}.AssignFloat(0)
-}
-func (_CidEntry__Assembler) AssignString(string) error {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry"}.AssignString("")
-}
-func (_CidEntry__Assembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry"}.AssignBytes(nil)
-}
-func (_CidEntry__Assembler) AssignLink(datamodel.Link) error {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry"}.AssignLink(nil)
-}
-func (na *_CidEntry__Assembler) AssignNode(v datamodel.Node) error {
-	if v.IsNull() {
-		return na.AssignNull()
-	}
-	if v2, ok := v.(*_CidEntry); ok {
-		switch *na.m {
-		case schema.Maybe_Value, schema.Maybe_Null:
-			panic("invalid state: cannot assign into assembler that's already finished")
-		case midvalue:
-			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
-		}
-		*na.w = *v2
-		*na.m = schema.Maybe_Value
-		return nil
-	}
-	if v.Kind() != datamodel.Kind_Map {
-		return datamodel.ErrWrongKind{TypeName: "schema.CidEntry", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustMap, ActualKind: v.Kind()}
-	}
-	itr := v.MapIterator()
-	for !itr.Done() {
-		k, v, err := itr.Next()
-		if err != nil {
-			return err
-		}
-		if err := na.AssembleKey().AssignNode(k); err != nil {
-			return err
-		}
-		if err := na.AssembleValue().AssignNode(v); err != nil {
-			return err
-		}
-	}
-	return na.Finish()
-}
-func (_CidEntry__Assembler) Prototype() datamodel.NodePrototype {
-	return _CidEntry__Prototype{}
-}
-func (ma *_CidEntry__Assembler) valueFinishTidy() bool {
-	switch ma.f {
-	case 0:
-		switch ma.w.Remove.m {
-		case schema.Maybe_Null:
-			ma.state = maState_initial
-			return true
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 1:
-		switch ma.w.Put.m {
-		case schema.Maybe_Null:
-			ma.state = maState_initial
-			return true
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 2:
-		switch ma.w.Metadata.m {
-		case schema.Maybe_Null:
-			ma.state = maState_initial
-			return true
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	default:
-		panic("unreachable")
-	}
-}
-func (ma *_CidEntry__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, error) {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: AssembleEntry cannot be called when in the middle of assembling another key")
-	case maState_expectValue:
-		panic("invalid state: AssembleEntry cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: AssembleEntry cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
-	}
-	switch k {
-	case "Remove":
-		if ma.s&fieldBit__CidEntry_Remove != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__CidEntry_Remove}
-		}
-		ma.s += fieldBit__CidEntry_Remove
-		ma.state = maState_midValue
-		ma.f = 0
-		ma.ca_Remove.w = &ma.w.Remove.v
-		ma.ca_Remove.m = &ma.w.Remove.m
-		ma.w.Remove.m = allowNull
-		return &ma.ca_Remove, nil
-	case "Put":
-		if ma.s&fieldBit__CidEntry_Put != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__CidEntry_Put}
-		}
-		ma.s += fieldBit__CidEntry_Put
-		ma.state = maState_midValue
-		ma.f = 1
-		ma.ca_Put.w = &ma.w.Put.v
-		ma.ca_Put.m = &ma.w.Put.m
-		ma.w.Put.m = allowNull
-		return &ma.ca_Put, nil
-	case "Metadata":
-		if ma.s&fieldBit__CidEntry_Metadata != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__CidEntry_Metadata}
-		}
-		ma.s += fieldBit__CidEntry_Metadata
-		ma.state = maState_midValue
-		ma.f = 2
-		ma.ca_Metadata.w = &ma.w.Metadata.v
-		ma.ca_Metadata.m = &ma.w.Metadata.m
-		ma.w.Metadata.m = allowNull
-		return &ma.ca_Metadata, nil
-	}
-	return nil, schema.ErrInvalidKey{TypeName: "schema.CidEntry", Key: &_String{k}}
-}
-func (ma *_CidEntry__Assembler) AssembleKey() datamodel.NodeAssembler {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: AssembleKey cannot be called when in the middle of assembling another key")
-	case maState_expectValue:
-		panic("invalid state: AssembleKey cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: AssembleKey cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: AssembleKey cannot be called on an assembler that's already finished")
-	}
-	ma.state = maState_midKey
-	return (*_CidEntry__KeyAssembler)(ma)
-}
-func (ma *_CidEntry__Assembler) AssembleValue() datamodel.NodeAssembler {
-	switch ma.state {
-	case maState_initial:
-		panic("invalid state: AssembleValue cannot be called when no key is primed")
-	case maState_midKey:
-		panic("invalid state: AssembleValue cannot be called when in the middle of assembling a key")
-	case maState_expectValue:
-		// carry on
-	case maState_midValue:
-		panic("invalid state: AssembleValue cannot be called when in the middle of assembling another value")
-	case maState_finished:
-		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
-	}
-	ma.state = maState_midValue
-	switch ma.f {
-	case 0:
-		ma.ca_Remove.w = &ma.w.Remove.v
-		ma.ca_Remove.m = &ma.w.Remove.m
-		ma.w.Remove.m = allowNull
-		return &ma.ca_Remove
-	case 1:
-		ma.ca_Put.w = &ma.w.Put.v
-		ma.ca_Put.m = &ma.w.Put.m
-		ma.w.Put.m = allowNull
-		return &ma.ca_Put
-	case 2:
-		ma.ca_Metadata.w = &ma.w.Metadata.v
-		ma.ca_Metadata.m = &ma.w.Metadata.m
-		ma.w.Metadata.m = allowNull
-		return &ma.ca_Metadata
-	default:
-		panic("unreachable")
-	}
-}
-func (ma *_CidEntry__Assembler) Finish() error {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: Finish cannot be called when in the middle of assembling a key")
-	case maState_expectValue:
-		panic("invalid state: Finish cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: Finish cannot be called on an assembler that's already finished")
-	}
-	if ma.s&fieldBits__CidEntry_sufficient != fieldBits__CidEntry_sufficient {
-		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		return err
-	}
-	ma.state = maState_finished
-	*ma.m = schema.Maybe_Value
-	return nil
-}
-func (ma *_CidEntry__Assembler) KeyPrototype() datamodel.NodePrototype {
-	return _String__Prototype{}
-}
-func (ma *_CidEntry__Assembler) ValuePrototype(k string) datamodel.NodePrototype {
-	panic("todo structbuilder mapassembler valueprototype")
-}
-
-type _CidEntry__KeyAssembler _CidEntry__Assembler
-
-func (_CidEntry__KeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.KeyAssembler"}.BeginMap(0)
-}
-func (_CidEntry__KeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.KeyAssembler"}.BeginList(0)
-}
-func (na *_CidEntry__KeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.KeyAssembler"}.AssignNull()
-}
-func (_CidEntry__KeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.KeyAssembler"}.AssignBool(false)
-}
-func (_CidEntry__KeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.KeyAssembler"}.AssignInt(0)
-}
-func (_CidEntry__KeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.KeyAssembler"}.AssignFloat(0)
-}
-func (ka *_CidEntry__KeyAssembler) AssignString(k string) error {
-	if ka.state != maState_midKey {
-		panic("misuse: KeyAssembler held beyond its valid lifetime")
-	}
-	switch k {
-	case "Remove":
-		if ka.s&fieldBit__CidEntry_Remove != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__CidEntry_Remove}
-		}
-		ka.s += fieldBit__CidEntry_Remove
-		ka.state = maState_expectValue
-		ka.f = 0
-		return nil
-	case "Put":
-		if ka.s&fieldBit__CidEntry_Put != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__CidEntry_Put}
-		}
-		ka.s += fieldBit__CidEntry_Put
-		ka.state = maState_expectValue
-		ka.f = 1
-		return nil
-	case "Metadata":
-		if ka.s&fieldBit__CidEntry_Metadata != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__CidEntry_Metadata}
-		}
-		ka.s += fieldBit__CidEntry_Metadata
-		ka.state = maState_expectValue
-		ka.f = 2
-		return nil
-	default:
-		return schema.ErrInvalidKey{TypeName: "schema.CidEntry", Key: &_String{k}}
-	}
-}
-func (_CidEntry__KeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.KeyAssembler"}.AssignBytes(nil)
-}
-func (_CidEntry__KeyAssembler) AssignLink(datamodel.Link) error {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.KeyAssembler"}.AssignLink(nil)
-}
-func (ka *_CidEntry__KeyAssembler) AssignNode(v datamodel.Node) error {
-	if v2, err := v.AsString(); err != nil {
-		return err
-	} else {
-		return ka.AssignString(v2)
-	}
-}
-func (_CidEntry__KeyAssembler) Prototype() datamodel.NodePrototype {
-	return _String__Prototype{}
-}
-func (CidEntry) Type() schema.Type {
-	return nil /*TODO:typelit*/
-}
-func (n CidEntry) Representation() datamodel.Node {
-	return (*_CidEntry__Repr)(n)
-}
-
-type _CidEntry__Repr _CidEntry
-
-var (
-	fieldName__CidEntry_Remove_serial   = _String{"Remove"}
-	fieldName__CidEntry_Put_serial      = _String{"Put"}
-	fieldName__CidEntry_Metadata_serial = _String{"Metadata"}
-)
-var _ datamodel.Node = &_CidEntry__Repr{}
-
-func (_CidEntry__Repr) Kind() datamodel.Kind {
-	return datamodel.Kind_Map
-}
-func (n *_CidEntry__Repr) LookupByString(key string) (datamodel.Node, error) {
-	switch key {
-	case "Remove":
-		if n.Remove.m == schema.Maybe_Absent {
-			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
-		}
-		if n.Remove.m == schema.Maybe_Null {
-			return datamodel.Null, nil
-		}
-		return n.Remove.v.Representation(), nil
-	case "Put":
-		if n.Put.m == schema.Maybe_Absent {
-			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
-		}
-		if n.Put.m == schema.Maybe_Null {
-			return datamodel.Null, nil
-		}
-		return n.Put.v.Representation(), nil
-	case "Metadata":
-		if n.Metadata.m == schema.Maybe_Absent {
-			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
-		}
-		if n.Metadata.m == schema.Maybe_Null {
-			return datamodel.Null, nil
-		}
-		return n.Metadata.v.Representation(), nil
-	default:
-		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: datamodel.PathSegmentOfString(key)}
-	}
-}
-func (n *_CidEntry__Repr) LookupByNode(key datamodel.Node) (datamodel.Node, error) {
-	ks, err := key.AsString()
-	if err != nil {
-		return nil, err
-	}
-	return n.LookupByString(ks)
-}
-func (_CidEntry__Repr) LookupByIndex(idx int64) (datamodel.Node, error) {
-	return mixins.Map{TypeName: "schema.CidEntry.Repr"}.LookupByIndex(0)
-}
-func (n _CidEntry__Repr) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
-	return n.LookupByString(seg.String())
-}
-func (n *_CidEntry__Repr) MapIterator() datamodel.MapIterator {
-	end := 3
-	if n.Metadata.m == schema.Maybe_Absent {
-		end = 2
-	} else {
-		goto done
-	}
-	if n.Put.m == schema.Maybe_Absent {
-		end = 1
-	} else {
-		goto done
-	}
-	if n.Remove.m == schema.Maybe_Absent {
-		end = 0
-	} else {
-		goto done
-	}
-done:
-	return &_CidEntry__ReprMapItr{n, 0, end}
-}
-
-type _CidEntry__ReprMapItr struct {
-	n   *_CidEntry__Repr
-	idx int
-	end int
-}
-
-func (itr *_CidEntry__ReprMapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
-advance:
-	if itr.idx >= 3 {
-		return nil, nil, datamodel.ErrIteratorOverread{}
-	}
-	switch itr.idx {
-	case 0:
-		k = &fieldName__CidEntry_Remove_serial
-		if itr.n.Remove.m == schema.Maybe_Absent {
-			itr.idx++
-			goto advance
-		}
-		if itr.n.Remove.m == schema.Maybe_Null {
-			v = datamodel.Null
-			break
-		}
-		v = itr.n.Remove.v.Representation()
-	case 1:
-		k = &fieldName__CidEntry_Put_serial
-		if itr.n.Put.m == schema.Maybe_Absent {
-			itr.idx++
-			goto advance
-		}
-		if itr.n.Put.m == schema.Maybe_Null {
-			v = datamodel.Null
-			break
-		}
-		v = itr.n.Put.v.Representation()
-	case 2:
-		k = &fieldName__CidEntry_Metadata_serial
-		if itr.n.Metadata.m == schema.Maybe_Absent {
-			itr.idx++
-			goto advance
-		}
-		if itr.n.Metadata.m == schema.Maybe_Null {
-			v = datamodel.Null
-			break
-		}
-		v = itr.n.Metadata.v.Representation()
-	default:
-		panic("unreachable")
-	}
-	itr.idx++
-	return
-}
-func (itr *_CidEntry__ReprMapItr) Done() bool {
-	return itr.idx >= itr.end
-}
-func (_CidEntry__Repr) ListIterator() datamodel.ListIterator {
-	return nil
-}
-func (rn *_CidEntry__Repr) Length() int64 {
-	l := 3
-	if rn.Remove.m == schema.Maybe_Absent {
-		l--
-	}
-	if rn.Put.m == schema.Maybe_Absent {
-		l--
-	}
-	if rn.Metadata.m == schema.Maybe_Absent {
-		l--
-	}
-	return int64(l)
-}
-func (_CidEntry__Repr) IsAbsent() bool {
-	return false
-}
-func (_CidEntry__Repr) IsNull() bool {
-	return false
-}
-func (_CidEntry__Repr) AsBool() (bool, error) {
-	return mixins.Map{TypeName: "schema.CidEntry.Repr"}.AsBool()
-}
-func (_CidEntry__Repr) AsInt() (int64, error) {
-	return mixins.Map{TypeName: "schema.CidEntry.Repr"}.AsInt()
-}
-func (_CidEntry__Repr) AsFloat() (float64, error) {
-	return mixins.Map{TypeName: "schema.CidEntry.Repr"}.AsFloat()
-}
-func (_CidEntry__Repr) AsString() (string, error) {
-	return mixins.Map{TypeName: "schema.CidEntry.Repr"}.AsString()
-}
-func (_CidEntry__Repr) AsBytes() ([]byte, error) {
-	return mixins.Map{TypeName: "schema.CidEntry.Repr"}.AsBytes()
-}
-func (_CidEntry__Repr) AsLink() (datamodel.Link, error) {
-	return mixins.Map{TypeName: "schema.CidEntry.Repr"}.AsLink()
-}
-func (_CidEntry__Repr) Prototype() datamodel.NodePrototype {
-	return _CidEntry__ReprPrototype{}
-}
-
-type _CidEntry__ReprPrototype struct{}
-
-func (_CidEntry__ReprPrototype) NewBuilder() datamodel.NodeBuilder {
-	var nb _CidEntry__ReprBuilder
-	nb.Reset()
-	return &nb
-}
-
-type _CidEntry__ReprBuilder struct {
-	_CidEntry__ReprAssembler
-}
-
-func (nb *_CidEntry__ReprBuilder) Build() datamodel.Node {
-	if *nb.m != schema.Maybe_Value {
-		panic("invalid state: cannot call Build on an assembler that's not finished")
-	}
-	return nb.w
-}
-func (nb *_CidEntry__ReprBuilder) Reset() {
-	var w _CidEntry
-	var m schema.Maybe
-	*nb = _CidEntry__ReprBuilder{_CidEntry__ReprAssembler{w: &w, m: &m}}
-}
-
-type _CidEntry__ReprAssembler struct {
-	w     *_CidEntry
-	m     *schema.Maybe
-	state maState
-	s     int
-	f     int
-
-	cm          schema.Maybe
-	ca_Remove   _List_String__ReprAssembler
-	ca_Put      _List_String__ReprAssembler
-	ca_Metadata _Bytes__ReprAssembler
-}
-
-func (na *_CidEntry__ReprAssembler) reset() {
-	na.state = maState_initial
-	na.s = 0
-	na.ca_Remove.reset()
-	na.ca_Put.reset()
-	na.ca_Metadata.reset()
-}
-func (na *_CidEntry__ReprAssembler) BeginMap(int64) (datamodel.MapAssembler, error) {
-	switch *na.m {
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
-	}
-	*na.m = midvalue
-	if na.w == nil {
-		na.w = &_CidEntry{}
-	}
-	return na, nil
-}
-func (_CidEntry__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry.Repr"}.BeginList(0)
-}
-func (na *_CidEntry__ReprAssembler) AssignNull() error {
-	switch *na.m {
-	case allowNull:
-		*na.m = schema.Maybe_Null
-		return nil
-	case schema.Maybe_Absent:
-		return mixins.MapAssembler{TypeName: "schema.CidEntry.Repr.Repr"}.AssignNull()
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-	}
-	panic("unreachable")
-}
-func (_CidEntry__ReprAssembler) AssignBool(bool) error {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry.Repr"}.AssignBool(false)
-}
-func (_CidEntry__ReprAssembler) AssignInt(int64) error {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry.Repr"}.AssignInt(0)
-}
-func (_CidEntry__ReprAssembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry.Repr"}.AssignFloat(0)
-}
-func (_CidEntry__ReprAssembler) AssignString(string) error {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry.Repr"}.AssignString("")
-}
-func (_CidEntry__ReprAssembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry.Repr"}.AssignBytes(nil)
-}
-func (_CidEntry__ReprAssembler) AssignLink(datamodel.Link) error {
-	return mixins.MapAssembler{TypeName: "schema.CidEntry.Repr"}.AssignLink(nil)
-}
-func (na *_CidEntry__ReprAssembler) AssignNode(v datamodel.Node) error {
-	if v.IsNull() {
-		return na.AssignNull()
-	}
-	if v2, ok := v.(*_CidEntry); ok {
-		switch *na.m {
-		case schema.Maybe_Value, schema.Maybe_Null:
-			panic("invalid state: cannot assign into assembler that's already finished")
-		case midvalue:
-			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
-		}
-		*na.w = *v2
-		*na.m = schema.Maybe_Value
-		return nil
-	}
-	if v.Kind() != datamodel.Kind_Map {
-		return datamodel.ErrWrongKind{TypeName: "schema.CidEntry.Repr", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustMap, ActualKind: v.Kind()}
-	}
-	itr := v.MapIterator()
-	for !itr.Done() {
-		k, v, err := itr.Next()
-		if err != nil {
-			return err
-		}
-		if err := na.AssembleKey().AssignNode(k); err != nil {
-			return err
-		}
-		if err := na.AssembleValue().AssignNode(v); err != nil {
-			return err
-		}
-	}
-	return na.Finish()
-}
-func (_CidEntry__ReprAssembler) Prototype() datamodel.NodePrototype {
-	return _CidEntry__ReprPrototype{}
-}
-func (ma *_CidEntry__ReprAssembler) valueFinishTidy() bool {
-	switch ma.f {
-	case 0:
-		switch ma.w.Remove.m {
-		case schema.Maybe_Null:
-			ma.state = maState_initial
-			return true
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 1:
-		switch ma.w.Put.m {
-		case schema.Maybe_Null:
-			ma.state = maState_initial
-			return true
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 2:
-		switch ma.w.Metadata.m {
-		case schema.Maybe_Null:
-			ma.state = maState_initial
-			return true
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	default:
-		panic("unreachable")
-	}
-}
-func (ma *_CidEntry__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssembler, error) {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: AssembleEntry cannot be called when in the middle of assembling another key")
-	case maState_expectValue:
-		panic("invalid state: AssembleEntry cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: AssembleEntry cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
-	}
-	switch k {
-	case "Remove":
-		if ma.s&fieldBit__CidEntry_Remove != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__CidEntry_Remove_serial}
-		}
-		ma.s += fieldBit__CidEntry_Remove
-		ma.state = maState_midValue
-		ma.f = 0
-		ma.ca_Remove.w = &ma.w.Remove.v
-		ma.ca_Remove.m = &ma.w.Remove.m
-		ma.w.Remove.m = allowNull
-		return &ma.ca_Remove, nil
-	case "Put":
-		if ma.s&fieldBit__CidEntry_Put != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__CidEntry_Put_serial}
-		}
-		ma.s += fieldBit__CidEntry_Put
-		ma.state = maState_midValue
-		ma.f = 1
-		ma.ca_Put.w = &ma.w.Put.v
-		ma.ca_Put.m = &ma.w.Put.m
-		ma.w.Put.m = allowNull
-		return &ma.ca_Put, nil
-	case "Metadata":
-		if ma.s&fieldBit__CidEntry_Metadata != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__CidEntry_Metadata_serial}
-		}
-		ma.s += fieldBit__CidEntry_Metadata
-		ma.state = maState_midValue
-		ma.f = 2
-		ma.ca_Metadata.w = &ma.w.Metadata.v
-		ma.ca_Metadata.m = &ma.w.Metadata.m
-		ma.w.Metadata.m = allowNull
-		return &ma.ca_Metadata, nil
-	default:
-	}
-	return nil, schema.ErrInvalidKey{TypeName: "schema.CidEntry.Repr", Key: &_String{k}}
-}
-func (ma *_CidEntry__ReprAssembler) AssembleKey() datamodel.NodeAssembler {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: AssembleKey cannot be called when in the middle of assembling another key")
-	case maState_expectValue:
-		panic("invalid state: AssembleKey cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: AssembleKey cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: AssembleKey cannot be called on an assembler that's already finished")
-	}
-	ma.state = maState_midKey
-	return (*_CidEntry__ReprKeyAssembler)(ma)
-}
-func (ma *_CidEntry__ReprAssembler) AssembleValue() datamodel.NodeAssembler {
-	switch ma.state {
-	case maState_initial:
-		panic("invalid state: AssembleValue cannot be called when no key is primed")
-	case maState_midKey:
-		panic("invalid state: AssembleValue cannot be called when in the middle of assembling a key")
-	case maState_expectValue:
-		// carry on
-	case maState_midValue:
-		panic("invalid state: AssembleValue cannot be called when in the middle of assembling another value")
-	case maState_finished:
-		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
-	}
-	ma.state = maState_midValue
-	switch ma.f {
-	case 0:
-		ma.ca_Remove.w = &ma.w.Remove.v
-		ma.ca_Remove.m = &ma.w.Remove.m
-		ma.w.Remove.m = allowNull
-		return &ma.ca_Remove
-	case 1:
-		ma.ca_Put.w = &ma.w.Put.v
-		ma.ca_Put.m = &ma.w.Put.m
-		ma.w.Put.m = allowNull
-		return &ma.ca_Put
-	case 2:
-		ma.ca_Metadata.w = &ma.w.Metadata.v
-		ma.ca_Metadata.m = &ma.w.Metadata.m
-		ma.w.Metadata.m = allowNull
-		return &ma.ca_Metadata
-	default:
-		panic("unreachable")
-	}
-}
-func (ma *_CidEntry__ReprAssembler) Finish() error {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: Finish cannot be called when in the middle of assembling a key")
-	case maState_expectValue:
-		panic("invalid state: Finish cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: Finish cannot be called on an assembler that's already finished")
-	}
-	if ma.s&fieldBits__CidEntry_sufficient != fieldBits__CidEntry_sufficient {
-		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		return err
-	}
-	ma.state = maState_finished
-	*ma.m = schema.Maybe_Value
-	return nil
-}
-func (ma *_CidEntry__ReprAssembler) KeyPrototype() datamodel.NodePrototype {
-	return _String__Prototype{}
-}
-func (ma *_CidEntry__ReprAssembler) ValuePrototype(k string) datamodel.NodePrototype {
-	panic("todo structbuilder mapassembler repr valueprototype")
-}
-
-type _CidEntry__ReprKeyAssembler _CidEntry__ReprAssembler
-
-func (_CidEntry__ReprKeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.Repr.KeyAssembler"}.BeginMap(0)
-}
-func (_CidEntry__ReprKeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.Repr.KeyAssembler"}.BeginList(0)
-}
-func (na *_CidEntry__ReprKeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.Repr.KeyAssembler"}.AssignNull()
-}
-func (_CidEntry__ReprKeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.Repr.KeyAssembler"}.AssignBool(false)
-}
-func (_CidEntry__ReprKeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.Repr.KeyAssembler"}.AssignInt(0)
-}
-func (_CidEntry__ReprKeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.Repr.KeyAssembler"}.AssignFloat(0)
-}
-func (ka *_CidEntry__ReprKeyAssembler) AssignString(k string) error {
-	if ka.state != maState_midKey {
-		panic("misuse: KeyAssembler held beyond its valid lifetime")
-	}
-	switch k {
-	case "Remove":
-		if ka.s&fieldBit__CidEntry_Remove != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__CidEntry_Remove_serial}
-		}
-		ka.s += fieldBit__CidEntry_Remove
-		ka.state = maState_expectValue
-		ka.f = 0
-		return nil
-	case "Put":
-		if ka.s&fieldBit__CidEntry_Put != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__CidEntry_Put_serial}
-		}
-		ka.s += fieldBit__CidEntry_Put
-		ka.state = maState_expectValue
-		ka.f = 1
-		return nil
-	case "Metadata":
-		if ka.s&fieldBit__CidEntry_Metadata != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__CidEntry_Metadata_serial}
-		}
-		ka.s += fieldBit__CidEntry_Metadata
-		ka.state = maState_expectValue
-		ka.f = 2
-		return nil
-	}
-	return schema.ErrInvalidKey{TypeName: "schema.CidEntry.Repr", Key: &_String{k}}
-}
-func (_CidEntry__ReprKeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.Repr.KeyAssembler"}.AssignBytes(nil)
-}
-func (_CidEntry__ReprKeyAssembler) AssignLink(datamodel.Link) error {
-	return mixins.StringAssembler{TypeName: "schema.CidEntry.Repr.KeyAssembler"}.AssignLink(nil)
-}
-func (ka *_CidEntry__ReprKeyAssembler) AssignNode(v datamodel.Node) error {
-	if v2, err := v.AsString(); err != nil {
-		return err
-	} else {
-		return ka.AssignString(v2)
-	}
-}
-func (_CidEntry__ReprKeyAssembler) Prototype() datamodel.NodePrototype {
-	return _String__Prototype{}
-}
-
 func (n Float) Float() float64 {
 	return n.x
 }
@@ -5171,1031 +3102,6 @@ var _ datamodel.Node = &_Float__Repr{}
 
 type _Float__ReprPrototype = _Float__Prototype
 type _Float__ReprAssembler = _Float__Assembler
-
-func (n _Index) FieldPrevious() MaybeLink_Index {
-	return &n.Previous
-}
-func (n _Index) FieldCidEntries() List_CidEntry {
-	return &n.CidEntries
-}
-func (n _Index) FieldCarEntries() List_CarEntry {
-	return &n.CarEntries
-}
-
-type _Index__Maybe struct {
-	m schema.Maybe
-	v Index
-}
-type MaybeIndex = *_Index__Maybe
-
-func (m MaybeIndex) IsNull() bool {
-	return m.m == schema.Maybe_Null
-}
-func (m MaybeIndex) IsAbsent() bool {
-	return m.m == schema.Maybe_Absent
-}
-func (m MaybeIndex) Exists() bool {
-	return m.m == schema.Maybe_Value
-}
-func (m MaybeIndex) AsNode() datamodel.Node {
-	switch m.m {
-	case schema.Maybe_Absent:
-		return datamodel.Absent
-	case schema.Maybe_Null:
-		return datamodel.Null
-	case schema.Maybe_Value:
-		return m.v
-	default:
-		panic("unreachable")
-	}
-}
-func (m MaybeIndex) Must() Index {
-	if !m.Exists() {
-		panic("unbox of a maybe rejected")
-	}
-	return m.v
-}
-
-var (
-	fieldName__Index_Previous   = _String{"Previous"}
-	fieldName__Index_CidEntries = _String{"CidEntries"}
-	fieldName__Index_CarEntries = _String{"CarEntries"}
-)
-var _ datamodel.Node = (Index)(&_Index{})
-var _ schema.TypedNode = (Index)(&_Index{})
-
-func (Index) Kind() datamodel.Kind {
-	return datamodel.Kind_Map
-}
-func (n Index) LookupByString(key string) (datamodel.Node, error) {
-	switch key {
-	case "Previous":
-		if n.Previous.m == schema.Maybe_Absent {
-			return datamodel.Absent, nil
-		}
-		return &n.Previous.v, nil
-	case "CidEntries":
-		return &n.CidEntries, nil
-	case "CarEntries":
-		return &n.CarEntries, nil
-	default:
-		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: datamodel.PathSegmentOfString(key)}
-	}
-}
-func (n Index) LookupByNode(key datamodel.Node) (datamodel.Node, error) {
-	ks, err := key.AsString()
-	if err != nil {
-		return nil, err
-	}
-	return n.LookupByString(ks)
-}
-func (Index) LookupByIndex(idx int64) (datamodel.Node, error) {
-	return mixins.Map{TypeName: "schema.Index"}.LookupByIndex(0)
-}
-func (n Index) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
-	return n.LookupByString(seg.String())
-}
-func (n Index) MapIterator() datamodel.MapIterator {
-	return &_Index__MapItr{n, 0}
-}
-
-type _Index__MapItr struct {
-	n   Index
-	idx int
-}
-
-func (itr *_Index__MapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
-	if itr.idx >= 3 {
-		return nil, nil, datamodel.ErrIteratorOverread{}
-	}
-	switch itr.idx {
-	case 0:
-		k = &fieldName__Index_Previous
-		if itr.n.Previous.m == schema.Maybe_Absent {
-			v = datamodel.Absent
-			break
-		}
-		v = &itr.n.Previous.v
-	case 1:
-		k = &fieldName__Index_CidEntries
-		v = &itr.n.CidEntries
-	case 2:
-		k = &fieldName__Index_CarEntries
-		v = &itr.n.CarEntries
-	default:
-		panic("unreachable")
-	}
-	itr.idx++
-	return
-}
-func (itr *_Index__MapItr) Done() bool {
-	return itr.idx >= 3
-}
-
-func (Index) ListIterator() datamodel.ListIterator {
-	return nil
-}
-func (Index) Length() int64 {
-	return 3
-}
-func (Index) IsAbsent() bool {
-	return false
-}
-func (Index) IsNull() bool {
-	return false
-}
-func (Index) AsBool() (bool, error) {
-	return mixins.Map{TypeName: "schema.Index"}.AsBool()
-}
-func (Index) AsInt() (int64, error) {
-	return mixins.Map{TypeName: "schema.Index"}.AsInt()
-}
-func (Index) AsFloat() (float64, error) {
-	return mixins.Map{TypeName: "schema.Index"}.AsFloat()
-}
-func (Index) AsString() (string, error) {
-	return mixins.Map{TypeName: "schema.Index"}.AsString()
-}
-func (Index) AsBytes() ([]byte, error) {
-	return mixins.Map{TypeName: "schema.Index"}.AsBytes()
-}
-func (Index) AsLink() (datamodel.Link, error) {
-	return mixins.Map{TypeName: "schema.Index"}.AsLink()
-}
-func (Index) Prototype() datamodel.NodePrototype {
-	return _Index__Prototype{}
-}
-
-type _Index__Prototype struct{}
-
-func (_Index__Prototype) NewBuilder() datamodel.NodeBuilder {
-	var nb _Index__Builder
-	nb.Reset()
-	return &nb
-}
-
-type _Index__Builder struct {
-	_Index__Assembler
-}
-
-func (nb *_Index__Builder) Build() datamodel.Node {
-	if *nb.m != schema.Maybe_Value {
-		panic("invalid state: cannot call Build on an assembler that's not finished")
-	}
-	return nb.w
-}
-func (nb *_Index__Builder) Reset() {
-	var w _Index
-	var m schema.Maybe
-	*nb = _Index__Builder{_Index__Assembler{w: &w, m: &m}}
-}
-
-type _Index__Assembler struct {
-	w     *_Index
-	m     *schema.Maybe
-	state maState
-	s     int
-	f     int
-
-	cm            schema.Maybe
-	ca_Previous   _Link_Index__Assembler
-	ca_CidEntries _List_CidEntry__Assembler
-	ca_CarEntries _List_CarEntry__Assembler
-}
-
-func (na *_Index__Assembler) reset() {
-	na.state = maState_initial
-	na.s = 0
-	na.ca_Previous.reset()
-	na.ca_CidEntries.reset()
-	na.ca_CarEntries.reset()
-}
-
-var (
-	fieldBit__Index_Previous    = 1 << 0
-	fieldBit__Index_CidEntries  = 1 << 1
-	fieldBit__Index_CarEntries  = 1 << 2
-	fieldBits__Index_sufficient = 0 + 1<<1 + 1<<2
-)
-
-func (na *_Index__Assembler) BeginMap(int64) (datamodel.MapAssembler, error) {
-	switch *na.m {
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
-	}
-	*na.m = midvalue
-	if na.w == nil {
-		na.w = &_Index{}
-	}
-	return na, nil
-}
-func (_Index__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.MapAssembler{TypeName: "schema.Index"}.BeginList(0)
-}
-func (na *_Index__Assembler) AssignNull() error {
-	switch *na.m {
-	case allowNull:
-		*na.m = schema.Maybe_Null
-		return nil
-	case schema.Maybe_Absent:
-		return mixins.MapAssembler{TypeName: "schema.Index"}.AssignNull()
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-	}
-	panic("unreachable")
-}
-func (_Index__Assembler) AssignBool(bool) error {
-	return mixins.MapAssembler{TypeName: "schema.Index"}.AssignBool(false)
-}
-func (_Index__Assembler) AssignInt(int64) error {
-	return mixins.MapAssembler{TypeName: "schema.Index"}.AssignInt(0)
-}
-func (_Index__Assembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{TypeName: "schema.Index"}.AssignFloat(0)
-}
-func (_Index__Assembler) AssignString(string) error {
-	return mixins.MapAssembler{TypeName: "schema.Index"}.AssignString("")
-}
-func (_Index__Assembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{TypeName: "schema.Index"}.AssignBytes(nil)
-}
-func (_Index__Assembler) AssignLink(datamodel.Link) error {
-	return mixins.MapAssembler{TypeName: "schema.Index"}.AssignLink(nil)
-}
-func (na *_Index__Assembler) AssignNode(v datamodel.Node) error {
-	if v.IsNull() {
-		return na.AssignNull()
-	}
-	if v2, ok := v.(*_Index); ok {
-		switch *na.m {
-		case schema.Maybe_Value, schema.Maybe_Null:
-			panic("invalid state: cannot assign into assembler that's already finished")
-		case midvalue:
-			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
-		}
-		*na.w = *v2
-		*na.m = schema.Maybe_Value
-		return nil
-	}
-	if v.Kind() != datamodel.Kind_Map {
-		return datamodel.ErrWrongKind{TypeName: "schema.Index", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustMap, ActualKind: v.Kind()}
-	}
-	itr := v.MapIterator()
-	for !itr.Done() {
-		k, v, err := itr.Next()
-		if err != nil {
-			return err
-		}
-		if err := na.AssembleKey().AssignNode(k); err != nil {
-			return err
-		}
-		if err := na.AssembleValue().AssignNode(v); err != nil {
-			return err
-		}
-	}
-	return na.Finish()
-}
-func (_Index__Assembler) Prototype() datamodel.NodePrototype {
-	return _Index__Prototype{}
-}
-func (ma *_Index__Assembler) valueFinishTidy() bool {
-	switch ma.f {
-	case 0:
-		switch ma.w.Previous.m {
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 1:
-		switch ma.cm {
-		case schema.Maybe_Value:
-			ma.ca_CidEntries.w = nil
-			ma.cm = schema.Maybe_Absent
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 2:
-		switch ma.cm {
-		case schema.Maybe_Value:
-			ma.ca_CarEntries.w = nil
-			ma.cm = schema.Maybe_Absent
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	default:
-		panic("unreachable")
-	}
-}
-func (ma *_Index__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, error) {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: AssembleEntry cannot be called when in the middle of assembling another key")
-	case maState_expectValue:
-		panic("invalid state: AssembleEntry cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: AssembleEntry cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
-	}
-	switch k {
-	case "Previous":
-		if ma.s&fieldBit__Index_Previous != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_Previous}
-		}
-		ma.s += fieldBit__Index_Previous
-		ma.state = maState_midValue
-		ma.f = 0
-		ma.ca_Previous.w = &ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-		return &ma.ca_Previous, nil
-	case "CidEntries":
-		if ma.s&fieldBit__Index_CidEntries != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_CidEntries}
-		}
-		ma.s += fieldBit__Index_CidEntries
-		ma.state = maState_midValue
-		ma.f = 1
-		ma.ca_CidEntries.w = &ma.w.CidEntries
-		ma.ca_CidEntries.m = &ma.cm
-		return &ma.ca_CidEntries, nil
-	case "CarEntries":
-		if ma.s&fieldBit__Index_CarEntries != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_CarEntries}
-		}
-		ma.s += fieldBit__Index_CarEntries
-		ma.state = maState_midValue
-		ma.f = 2
-		ma.ca_CarEntries.w = &ma.w.CarEntries
-		ma.ca_CarEntries.m = &ma.cm
-		return &ma.ca_CarEntries, nil
-	}
-	return nil, schema.ErrInvalidKey{TypeName: "schema.Index", Key: &_String{k}}
-}
-func (ma *_Index__Assembler) AssembleKey() datamodel.NodeAssembler {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: AssembleKey cannot be called when in the middle of assembling another key")
-	case maState_expectValue:
-		panic("invalid state: AssembleKey cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: AssembleKey cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: AssembleKey cannot be called on an assembler that's already finished")
-	}
-	ma.state = maState_midKey
-	return (*_Index__KeyAssembler)(ma)
-}
-func (ma *_Index__Assembler) AssembleValue() datamodel.NodeAssembler {
-	switch ma.state {
-	case maState_initial:
-		panic("invalid state: AssembleValue cannot be called when no key is primed")
-	case maState_midKey:
-		panic("invalid state: AssembleValue cannot be called when in the middle of assembling a key")
-	case maState_expectValue:
-		// carry on
-	case maState_midValue:
-		panic("invalid state: AssembleValue cannot be called when in the middle of assembling another value")
-	case maState_finished:
-		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
-	}
-	ma.state = maState_midValue
-	switch ma.f {
-	case 0:
-		ma.ca_Previous.w = &ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-		return &ma.ca_Previous
-	case 1:
-		ma.ca_CidEntries.w = &ma.w.CidEntries
-		ma.ca_CidEntries.m = &ma.cm
-		return &ma.ca_CidEntries
-	case 2:
-		ma.ca_CarEntries.w = &ma.w.CarEntries
-		ma.ca_CarEntries.m = &ma.cm
-		return &ma.ca_CarEntries
-	default:
-		panic("unreachable")
-	}
-}
-func (ma *_Index__Assembler) Finish() error {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: Finish cannot be called when in the middle of assembling a key")
-	case maState_expectValue:
-		panic("invalid state: Finish cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: Finish cannot be called on an assembler that's already finished")
-	}
-	if ma.s&fieldBits__Index_sufficient != fieldBits__Index_sufficient {
-		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Index_CidEntries == 0 {
-			err.Missing = append(err.Missing, "CidEntries")
-		}
-		if ma.s&fieldBit__Index_CarEntries == 0 {
-			err.Missing = append(err.Missing, "CarEntries")
-		}
-		return err
-	}
-	ma.state = maState_finished
-	*ma.m = schema.Maybe_Value
-	return nil
-}
-func (ma *_Index__Assembler) KeyPrototype() datamodel.NodePrototype {
-	return _String__Prototype{}
-}
-func (ma *_Index__Assembler) ValuePrototype(k string) datamodel.NodePrototype {
-	panic("todo structbuilder mapassembler valueprototype")
-}
-
-type _Index__KeyAssembler _Index__Assembler
-
-func (_Index__KeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "schema.Index.KeyAssembler"}.BeginMap(0)
-}
-func (_Index__KeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.StringAssembler{TypeName: "schema.Index.KeyAssembler"}.BeginList(0)
-}
-func (na *_Index__KeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{TypeName: "schema.Index.KeyAssembler"}.AssignNull()
-}
-func (_Index__KeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{TypeName: "schema.Index.KeyAssembler"}.AssignBool(false)
-}
-func (_Index__KeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{TypeName: "schema.Index.KeyAssembler"}.AssignInt(0)
-}
-func (_Index__KeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{TypeName: "schema.Index.KeyAssembler"}.AssignFloat(0)
-}
-func (ka *_Index__KeyAssembler) AssignString(k string) error {
-	if ka.state != maState_midKey {
-		panic("misuse: KeyAssembler held beyond its valid lifetime")
-	}
-	switch k {
-	case "Previous":
-		if ka.s&fieldBit__Index_Previous != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_Previous}
-		}
-		ka.s += fieldBit__Index_Previous
-		ka.state = maState_expectValue
-		ka.f = 0
-		return nil
-	case "CidEntries":
-		if ka.s&fieldBit__Index_CidEntries != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_CidEntries}
-		}
-		ka.s += fieldBit__Index_CidEntries
-		ka.state = maState_expectValue
-		ka.f = 1
-		return nil
-	case "CarEntries":
-		if ka.s&fieldBit__Index_CarEntries != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_CarEntries}
-		}
-		ka.s += fieldBit__Index_CarEntries
-		ka.state = maState_expectValue
-		ka.f = 2
-		return nil
-	default:
-		return schema.ErrInvalidKey{TypeName: "schema.Index", Key: &_String{k}}
-	}
-}
-func (_Index__KeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{TypeName: "schema.Index.KeyAssembler"}.AssignBytes(nil)
-}
-func (_Index__KeyAssembler) AssignLink(datamodel.Link) error {
-	return mixins.StringAssembler{TypeName: "schema.Index.KeyAssembler"}.AssignLink(nil)
-}
-func (ka *_Index__KeyAssembler) AssignNode(v datamodel.Node) error {
-	if v2, err := v.AsString(); err != nil {
-		return err
-	} else {
-		return ka.AssignString(v2)
-	}
-}
-func (_Index__KeyAssembler) Prototype() datamodel.NodePrototype {
-	return _String__Prototype{}
-}
-func (Index) Type() schema.Type {
-	return nil /*TODO:typelit*/
-}
-func (n Index) Representation() datamodel.Node {
-	return (*_Index__Repr)(n)
-}
-
-type _Index__Repr _Index
-
-var (
-	fieldName__Index_Previous_serial   = _String{"Previous"}
-	fieldName__Index_CidEntries_serial = _String{"CidEntries"}
-	fieldName__Index_CarEntries_serial = _String{"CarEntries"}
-)
-var _ datamodel.Node = &_Index__Repr{}
-
-func (_Index__Repr) Kind() datamodel.Kind {
-	return datamodel.Kind_Map
-}
-func (n *_Index__Repr) LookupByString(key string) (datamodel.Node, error) {
-	switch key {
-	case "Previous":
-		if n.Previous.m == schema.Maybe_Absent {
-			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
-		}
-		return n.Previous.v.Representation(), nil
-	case "CidEntries":
-		return n.CidEntries.Representation(), nil
-	case "CarEntries":
-		return n.CarEntries.Representation(), nil
-	default:
-		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: datamodel.PathSegmentOfString(key)}
-	}
-}
-func (n *_Index__Repr) LookupByNode(key datamodel.Node) (datamodel.Node, error) {
-	ks, err := key.AsString()
-	if err != nil {
-		return nil, err
-	}
-	return n.LookupByString(ks)
-}
-func (_Index__Repr) LookupByIndex(idx int64) (datamodel.Node, error) {
-	return mixins.Map{TypeName: "schema.Index.Repr"}.LookupByIndex(0)
-}
-func (n _Index__Repr) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
-	return n.LookupByString(seg.String())
-}
-func (n *_Index__Repr) MapIterator() datamodel.MapIterator {
-	return &_Index__ReprMapItr{n, 0}
-}
-
-type _Index__ReprMapItr struct {
-	n   *_Index__Repr
-	idx int
-}
-
-func (itr *_Index__ReprMapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
-advance:
-	if itr.idx >= 3 {
-		return nil, nil, datamodel.ErrIteratorOverread{}
-	}
-	switch itr.idx {
-	case 0:
-		k = &fieldName__Index_Previous_serial
-		if itr.n.Previous.m == schema.Maybe_Absent {
-			itr.idx++
-			goto advance
-		}
-		v = itr.n.Previous.v.Representation()
-	case 1:
-		k = &fieldName__Index_CidEntries_serial
-		v = itr.n.CidEntries.Representation()
-	case 2:
-		k = &fieldName__Index_CarEntries_serial
-		v = itr.n.CarEntries.Representation()
-	default:
-		panic("unreachable")
-	}
-	itr.idx++
-	return
-}
-func (itr *_Index__ReprMapItr) Done() bool {
-	return itr.idx >= 3
-}
-func (_Index__Repr) ListIterator() datamodel.ListIterator {
-	return nil
-}
-func (rn *_Index__Repr) Length() int64 {
-	l := 3
-	if rn.Previous.m == schema.Maybe_Absent {
-		l--
-	}
-	return int64(l)
-}
-func (_Index__Repr) IsAbsent() bool {
-	return false
-}
-func (_Index__Repr) IsNull() bool {
-	return false
-}
-func (_Index__Repr) AsBool() (bool, error) {
-	return mixins.Map{TypeName: "schema.Index.Repr"}.AsBool()
-}
-func (_Index__Repr) AsInt() (int64, error) {
-	return mixins.Map{TypeName: "schema.Index.Repr"}.AsInt()
-}
-func (_Index__Repr) AsFloat() (float64, error) {
-	return mixins.Map{TypeName: "schema.Index.Repr"}.AsFloat()
-}
-func (_Index__Repr) AsString() (string, error) {
-	return mixins.Map{TypeName: "schema.Index.Repr"}.AsString()
-}
-func (_Index__Repr) AsBytes() ([]byte, error) {
-	return mixins.Map{TypeName: "schema.Index.Repr"}.AsBytes()
-}
-func (_Index__Repr) AsLink() (datamodel.Link, error) {
-	return mixins.Map{TypeName: "schema.Index.Repr"}.AsLink()
-}
-func (_Index__Repr) Prototype() datamodel.NodePrototype {
-	return _Index__ReprPrototype{}
-}
-
-type _Index__ReprPrototype struct{}
-
-func (_Index__ReprPrototype) NewBuilder() datamodel.NodeBuilder {
-	var nb _Index__ReprBuilder
-	nb.Reset()
-	return &nb
-}
-
-type _Index__ReprBuilder struct {
-	_Index__ReprAssembler
-}
-
-func (nb *_Index__ReprBuilder) Build() datamodel.Node {
-	if *nb.m != schema.Maybe_Value {
-		panic("invalid state: cannot call Build on an assembler that's not finished")
-	}
-	return nb.w
-}
-func (nb *_Index__ReprBuilder) Reset() {
-	var w _Index
-	var m schema.Maybe
-	*nb = _Index__ReprBuilder{_Index__ReprAssembler{w: &w, m: &m}}
-}
-
-type _Index__ReprAssembler struct {
-	w     *_Index
-	m     *schema.Maybe
-	state maState
-	s     int
-	f     int
-
-	cm            schema.Maybe
-	ca_Previous   _Link_Index__ReprAssembler
-	ca_CidEntries _List_CidEntry__ReprAssembler
-	ca_CarEntries _List_CarEntry__ReprAssembler
-}
-
-func (na *_Index__ReprAssembler) reset() {
-	na.state = maState_initial
-	na.s = 0
-	na.ca_Previous.reset()
-	na.ca_CidEntries.reset()
-	na.ca_CarEntries.reset()
-}
-func (na *_Index__ReprAssembler) BeginMap(int64) (datamodel.MapAssembler, error) {
-	switch *na.m {
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
-	}
-	*na.m = midvalue
-	if na.w == nil {
-		na.w = &_Index{}
-	}
-	return na, nil
-}
-func (_Index__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.MapAssembler{TypeName: "schema.Index.Repr"}.BeginList(0)
-}
-func (na *_Index__ReprAssembler) AssignNull() error {
-	switch *na.m {
-	case allowNull:
-		*na.m = schema.Maybe_Null
-		return nil
-	case schema.Maybe_Absent:
-		return mixins.MapAssembler{TypeName: "schema.Index.Repr.Repr"}.AssignNull()
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-	}
-	panic("unreachable")
-}
-func (_Index__ReprAssembler) AssignBool(bool) error {
-	return mixins.MapAssembler{TypeName: "schema.Index.Repr"}.AssignBool(false)
-}
-func (_Index__ReprAssembler) AssignInt(int64) error {
-	return mixins.MapAssembler{TypeName: "schema.Index.Repr"}.AssignInt(0)
-}
-func (_Index__ReprAssembler) AssignFloat(float64) error {
-	return mixins.MapAssembler{TypeName: "schema.Index.Repr"}.AssignFloat(0)
-}
-func (_Index__ReprAssembler) AssignString(string) error {
-	return mixins.MapAssembler{TypeName: "schema.Index.Repr"}.AssignString("")
-}
-func (_Index__ReprAssembler) AssignBytes([]byte) error {
-	return mixins.MapAssembler{TypeName: "schema.Index.Repr"}.AssignBytes(nil)
-}
-func (_Index__ReprAssembler) AssignLink(datamodel.Link) error {
-	return mixins.MapAssembler{TypeName: "schema.Index.Repr"}.AssignLink(nil)
-}
-func (na *_Index__ReprAssembler) AssignNode(v datamodel.Node) error {
-	if v.IsNull() {
-		return na.AssignNull()
-	}
-	if v2, ok := v.(*_Index); ok {
-		switch *na.m {
-		case schema.Maybe_Value, schema.Maybe_Null:
-			panic("invalid state: cannot assign into assembler that's already finished")
-		case midvalue:
-			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		if na.w == nil {
-			na.w = v2
-			*na.m = schema.Maybe_Value
-			return nil
-		}
-		*na.w = *v2
-		*na.m = schema.Maybe_Value
-		return nil
-	}
-	if v.Kind() != datamodel.Kind_Map {
-		return datamodel.ErrWrongKind{TypeName: "schema.Index.Repr", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustMap, ActualKind: v.Kind()}
-	}
-	itr := v.MapIterator()
-	for !itr.Done() {
-		k, v, err := itr.Next()
-		if err != nil {
-			return err
-		}
-		if err := na.AssembleKey().AssignNode(k); err != nil {
-			return err
-		}
-		if err := na.AssembleValue().AssignNode(v); err != nil {
-			return err
-		}
-	}
-	return na.Finish()
-}
-func (_Index__ReprAssembler) Prototype() datamodel.NodePrototype {
-	return _Index__ReprPrototype{}
-}
-func (ma *_Index__ReprAssembler) valueFinishTidy() bool {
-	switch ma.f {
-	case 0:
-		switch ma.w.Previous.m {
-		case schema.Maybe_Value:
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 1:
-		switch ma.cm {
-		case schema.Maybe_Value:
-			ma.cm = schema.Maybe_Absent
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	case 2:
-		switch ma.cm {
-		case schema.Maybe_Value:
-			ma.cm = schema.Maybe_Absent
-			ma.state = maState_initial
-			return true
-		default:
-			return false
-		}
-	default:
-		panic("unreachable")
-	}
-}
-func (ma *_Index__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssembler, error) {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: AssembleEntry cannot be called when in the middle of assembling another key")
-	case maState_expectValue:
-		panic("invalid state: AssembleEntry cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: AssembleEntry cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
-	}
-	switch k {
-	case "Previous":
-		if ma.s&fieldBit__Index_Previous != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_Previous_serial}
-		}
-		ma.s += fieldBit__Index_Previous
-		ma.state = maState_midValue
-		ma.f = 0
-		ma.ca_Previous.w = &ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-
-		return &ma.ca_Previous, nil
-	case "CidEntries":
-		if ma.s&fieldBit__Index_CidEntries != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_CidEntries_serial}
-		}
-		ma.s += fieldBit__Index_CidEntries
-		ma.state = maState_midValue
-		ma.f = 1
-		ma.ca_CidEntries.w = &ma.w.CidEntries
-		ma.ca_CidEntries.m = &ma.cm
-		return &ma.ca_CidEntries, nil
-	case "CarEntries":
-		if ma.s&fieldBit__Index_CarEntries != 0 {
-			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_CarEntries_serial}
-		}
-		ma.s += fieldBit__Index_CarEntries
-		ma.state = maState_midValue
-		ma.f = 2
-		ma.ca_CarEntries.w = &ma.w.CarEntries
-		ma.ca_CarEntries.m = &ma.cm
-		return &ma.ca_CarEntries, nil
-	default:
-	}
-	return nil, schema.ErrInvalidKey{TypeName: "schema.Index.Repr", Key: &_String{k}}
-}
-func (ma *_Index__ReprAssembler) AssembleKey() datamodel.NodeAssembler {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: AssembleKey cannot be called when in the middle of assembling another key")
-	case maState_expectValue:
-		panic("invalid state: AssembleKey cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: AssembleKey cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: AssembleKey cannot be called on an assembler that's already finished")
-	}
-	ma.state = maState_midKey
-	return (*_Index__ReprKeyAssembler)(ma)
-}
-func (ma *_Index__ReprAssembler) AssembleValue() datamodel.NodeAssembler {
-	switch ma.state {
-	case maState_initial:
-		panic("invalid state: AssembleValue cannot be called when no key is primed")
-	case maState_midKey:
-		panic("invalid state: AssembleValue cannot be called when in the middle of assembling a key")
-	case maState_expectValue:
-		// carry on
-	case maState_midValue:
-		panic("invalid state: AssembleValue cannot be called when in the middle of assembling another value")
-	case maState_finished:
-		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
-	}
-	ma.state = maState_midValue
-	switch ma.f {
-	case 0:
-		ma.ca_Previous.w = &ma.w.Previous.v
-		ma.ca_Previous.m = &ma.w.Previous.m
-
-		return &ma.ca_Previous
-	case 1:
-		ma.ca_CidEntries.w = &ma.w.CidEntries
-		ma.ca_CidEntries.m = &ma.cm
-		return &ma.ca_CidEntries
-	case 2:
-		ma.ca_CarEntries.w = &ma.w.CarEntries
-		ma.ca_CarEntries.m = &ma.cm
-		return &ma.ca_CarEntries
-	default:
-		panic("unreachable")
-	}
-}
-func (ma *_Index__ReprAssembler) Finish() error {
-	switch ma.state {
-	case maState_initial:
-		// carry on
-	case maState_midKey:
-		panic("invalid state: Finish cannot be called when in the middle of assembling a key")
-	case maState_expectValue:
-		panic("invalid state: Finish cannot be called when expecting start of value assembly")
-	case maState_midValue:
-		if !ma.valueFinishTidy() {
-			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case maState_finished:
-		panic("invalid state: Finish cannot be called on an assembler that's already finished")
-	}
-	if ma.s&fieldBits__Index_sufficient != fieldBits__Index_sufficient {
-		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
-		if ma.s&fieldBit__Index_CidEntries == 0 {
-			err.Missing = append(err.Missing, "CidEntries")
-		}
-		if ma.s&fieldBit__Index_CarEntries == 0 {
-			err.Missing = append(err.Missing, "CarEntries")
-		}
-		return err
-	}
-	ma.state = maState_finished
-	*ma.m = schema.Maybe_Value
-	return nil
-}
-func (ma *_Index__ReprAssembler) KeyPrototype() datamodel.NodePrototype {
-	return _String__Prototype{}
-}
-func (ma *_Index__ReprAssembler) ValuePrototype(k string) datamodel.NodePrototype {
-	panic("todo structbuilder mapassembler repr valueprototype")
-}
-
-type _Index__ReprKeyAssembler _Index__ReprAssembler
-
-func (_Index__ReprKeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
-	return mixins.StringAssembler{TypeName: "schema.Index.Repr.KeyAssembler"}.BeginMap(0)
-}
-func (_Index__ReprKeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.StringAssembler{TypeName: "schema.Index.Repr.KeyAssembler"}.BeginList(0)
-}
-func (na *_Index__ReprKeyAssembler) AssignNull() error {
-	return mixins.StringAssembler{TypeName: "schema.Index.Repr.KeyAssembler"}.AssignNull()
-}
-func (_Index__ReprKeyAssembler) AssignBool(bool) error {
-	return mixins.StringAssembler{TypeName: "schema.Index.Repr.KeyAssembler"}.AssignBool(false)
-}
-func (_Index__ReprKeyAssembler) AssignInt(int64) error {
-	return mixins.StringAssembler{TypeName: "schema.Index.Repr.KeyAssembler"}.AssignInt(0)
-}
-func (_Index__ReprKeyAssembler) AssignFloat(float64) error {
-	return mixins.StringAssembler{TypeName: "schema.Index.Repr.KeyAssembler"}.AssignFloat(0)
-}
-func (ka *_Index__ReprKeyAssembler) AssignString(k string) error {
-	if ka.state != maState_midKey {
-		panic("misuse: KeyAssembler held beyond its valid lifetime")
-	}
-	switch k {
-	case "Previous":
-		if ka.s&fieldBit__Index_Previous != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_Previous_serial}
-		}
-		ka.s += fieldBit__Index_Previous
-		ka.state = maState_expectValue
-		ka.f = 0
-		return nil
-	case "CidEntries":
-		if ka.s&fieldBit__Index_CidEntries != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_CidEntries_serial}
-		}
-		ka.s += fieldBit__Index_CidEntries
-		ka.state = maState_expectValue
-		ka.f = 1
-		return nil
-	case "CarEntries":
-		if ka.s&fieldBit__Index_CarEntries != 0 {
-			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Index_CarEntries_serial}
-		}
-		ka.s += fieldBit__Index_CarEntries
-		ka.state = maState_expectValue
-		ka.f = 2
-		return nil
-	}
-	return schema.ErrInvalidKey{TypeName: "schema.Index.Repr", Key: &_String{k}}
-}
-func (_Index__ReprKeyAssembler) AssignBytes([]byte) error {
-	return mixins.StringAssembler{TypeName: "schema.Index.Repr.KeyAssembler"}.AssignBytes(nil)
-}
-func (_Index__ReprKeyAssembler) AssignLink(datamodel.Link) error {
-	return mixins.StringAssembler{TypeName: "schema.Index.Repr.KeyAssembler"}.AssignLink(nil)
-}
-func (ka *_Index__ReprKeyAssembler) AssignNode(v datamodel.Node) error {
-	if v2, err := v.AsString(); err != nil {
-		return err
-	} else {
-		return ka.AssignString(v2)
-	}
-}
-func (_Index__ReprKeyAssembler) Prototype() datamodel.NodePrototype {
-	return _String__Prototype{}
-}
 
 func (n Int) Int() int64 {
 	return n.x
@@ -6815,214 +3721,6 @@ var _ datamodel.Node = &_Link_Advertisement__Repr{}
 type _Link_Advertisement__ReprPrototype = _Link_Advertisement__Prototype
 type _Link_Advertisement__ReprAssembler = _Link_Advertisement__Assembler
 
-func (n Link_Index) Link() datamodel.Link {
-	return n.x
-}
-func (_Link_Index__Prototype) FromLink(v datamodel.Link) (Link_Index, error) {
-	n := _Link_Index{v}
-	return &n, nil
-}
-
-type _Link_Index__Maybe struct {
-	m schema.Maybe
-	v _Link_Index
-}
-type MaybeLink_Index = *_Link_Index__Maybe
-
-func (m MaybeLink_Index) IsNull() bool {
-	return m.m == schema.Maybe_Null
-}
-func (m MaybeLink_Index) IsAbsent() bool {
-	return m.m == schema.Maybe_Absent
-}
-func (m MaybeLink_Index) Exists() bool {
-	return m.m == schema.Maybe_Value
-}
-func (m MaybeLink_Index) AsNode() datamodel.Node {
-	switch m.m {
-	case schema.Maybe_Absent:
-		return datamodel.Absent
-	case schema.Maybe_Null:
-		return datamodel.Null
-	case schema.Maybe_Value:
-		return &m.v
-	default:
-		panic("unreachable")
-	}
-}
-func (m MaybeLink_Index) Must() Link_Index {
-	if !m.Exists() {
-		panic("unbox of a maybe rejected")
-	}
-	return &m.v
-}
-
-var _ datamodel.Node = (Link_Index)(&_Link_Index{})
-var _ schema.TypedNode = (Link_Index)(&_Link_Index{})
-
-func (Link_Index) Kind() datamodel.Kind {
-	return datamodel.Kind_Link
-}
-func (Link_Index) LookupByString(string) (datamodel.Node, error) {
-	return mixins.Link{TypeName: "schema.Link_Index"}.LookupByString("")
-}
-func (Link_Index) LookupByNode(datamodel.Node) (datamodel.Node, error) {
-	return mixins.Link{TypeName: "schema.Link_Index"}.LookupByNode(nil)
-}
-func (Link_Index) LookupByIndex(idx int64) (datamodel.Node, error) {
-	return mixins.Link{TypeName: "schema.Link_Index"}.LookupByIndex(0)
-}
-func (Link_Index) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
-	return mixins.Link{TypeName: "schema.Link_Index"}.LookupBySegment(seg)
-}
-func (Link_Index) MapIterator() datamodel.MapIterator {
-	return nil
-}
-func (Link_Index) ListIterator() datamodel.ListIterator {
-	return nil
-}
-func (Link_Index) Length() int64 {
-	return -1
-}
-func (Link_Index) IsAbsent() bool {
-	return false
-}
-func (Link_Index) IsNull() bool {
-	return false
-}
-func (Link_Index) AsBool() (bool, error) {
-	return mixins.Link{TypeName: "schema.Link_Index"}.AsBool()
-}
-func (Link_Index) AsInt() (int64, error) {
-	return mixins.Link{TypeName: "schema.Link_Index"}.AsInt()
-}
-func (Link_Index) AsFloat() (float64, error) {
-	return mixins.Link{TypeName: "schema.Link_Index"}.AsFloat()
-}
-func (Link_Index) AsString() (string, error) {
-	return mixins.Link{TypeName: "schema.Link_Index"}.AsString()
-}
-func (Link_Index) AsBytes() ([]byte, error) {
-	return mixins.Link{TypeName: "schema.Link_Index"}.AsBytes()
-}
-func (n Link_Index) AsLink() (datamodel.Link, error) {
-	return n.x, nil
-}
-func (Link_Index) Prototype() datamodel.NodePrototype {
-	return _Link_Index__Prototype{}
-}
-
-type _Link_Index__Prototype struct{}
-
-func (_Link_Index__Prototype) NewBuilder() datamodel.NodeBuilder {
-	var nb _Link_Index__Builder
-	nb.Reset()
-	return &nb
-}
-
-type _Link_Index__Builder struct {
-	_Link_Index__Assembler
-}
-
-func (nb *_Link_Index__Builder) Build() datamodel.Node {
-	if *nb.m != schema.Maybe_Value {
-		panic("invalid state: cannot call Build on an assembler that's not finished")
-	}
-	return nb.w
-}
-func (nb *_Link_Index__Builder) Reset() {
-	var w _Link_Index
-	var m schema.Maybe
-	*nb = _Link_Index__Builder{_Link_Index__Assembler{w: &w, m: &m}}
-}
-
-type _Link_Index__Assembler struct {
-	w *_Link_Index
-	m *schema.Maybe
-}
-
-func (na *_Link_Index__Assembler) reset() {}
-func (_Link_Index__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
-	return mixins.LinkAssembler{TypeName: "schema.Link_Index"}.BeginMap(0)
-}
-func (_Link_Index__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	return mixins.LinkAssembler{TypeName: "schema.Link_Index"}.BeginList(0)
-}
-func (na *_Link_Index__Assembler) AssignNull() error {
-	switch *na.m {
-	case allowNull:
-		*na.m = schema.Maybe_Null
-		return nil
-	case schema.Maybe_Absent:
-		return mixins.LinkAssembler{TypeName: "schema.Link_Index"}.AssignNull()
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	}
-	panic("unreachable")
-}
-func (_Link_Index__Assembler) AssignBool(bool) error {
-	return mixins.LinkAssembler{TypeName: "schema.Link_Index"}.AssignBool(false)
-}
-func (_Link_Index__Assembler) AssignInt(int64) error {
-	return mixins.LinkAssembler{TypeName: "schema.Link_Index"}.AssignInt(0)
-}
-func (_Link_Index__Assembler) AssignFloat(float64) error {
-	return mixins.LinkAssembler{TypeName: "schema.Link_Index"}.AssignFloat(0)
-}
-func (_Link_Index__Assembler) AssignString(string) error {
-	return mixins.LinkAssembler{TypeName: "schema.Link_Index"}.AssignString("")
-}
-func (_Link_Index__Assembler) AssignBytes([]byte) error {
-	return mixins.LinkAssembler{TypeName: "schema.Link_Index"}.AssignBytes(nil)
-}
-func (na *_Link_Index__Assembler) AssignLink(v datamodel.Link) error {
-	switch *na.m {
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	}
-	na.w.x = v
-	*na.m = schema.Maybe_Value
-	return nil
-}
-func (na *_Link_Index__Assembler) AssignNode(v datamodel.Node) error {
-	if v.IsNull() {
-		return na.AssignNull()
-	}
-	if v2, ok := v.(*_Link_Index); ok {
-		switch *na.m {
-		case schema.Maybe_Value, schema.Maybe_Null:
-			panic("invalid state: cannot assign into assembler that's already finished")
-		}
-		*na.w = *v2
-		*na.m = schema.Maybe_Value
-		return nil
-	}
-	if v2, err := v.AsLink(); err != nil {
-		return err
-	} else {
-		return na.AssignLink(v2)
-	}
-}
-func (_Link_Index__Assembler) Prototype() datamodel.NodePrototype {
-	return _Link_Index__Prototype{}
-}
-func (Link_Index) Type() schema.Type {
-	return nil /*TODO:typelit*/
-}
-func (Link_Index) LinkTargetNodePrototype() datamodel.NodePrototype {
-	return Type.Index__Repr
-}
-func (n Link_Index) Representation() datamodel.Node {
-	return (*_Link_Index__Repr)(n)
-}
-
-type _Link_Index__Repr = _Link_Index
-
-var _ datamodel.Node = &_Link_Index__Repr{}
-
-type _Link_Index__ReprPrototype = _Link_Index__Prototype
-type _Link_Index__ReprAssembler = _Link_Index__Assembler
-
 func (n *_List) Lookup(idx int64) Any {
 	if n.Length() <= idx {
 		return nil
@@ -7624,1188 +4322,6 @@ func (la *_List__ReprAssembler) Finish() error {
 }
 func (la *_List__ReprAssembler) ValuePrototype(_ int64) datamodel.NodePrototype {
 	return _Any__ReprPrototype{}
-}
-
-func (n *_List_CarEntry) Lookup(idx int64) CarEntry {
-	if n.Length() <= idx {
-		return nil
-	}
-	v := &n.x[idx]
-	return v
-}
-func (n *_List_CarEntry) LookupMaybe(idx int64) MaybeCarEntry {
-	if n.Length() <= idx {
-		return nil
-	}
-	v := &n.x[idx]
-	return &_CarEntry__Maybe{
-		m: schema.Maybe_Value,
-		v: v,
-	}
-}
-
-var _List_CarEntry__valueAbsent = _CarEntry__Maybe{m: schema.Maybe_Absent}
-
-func (n List_CarEntry) Iterator() *List_CarEntry__Itr {
-	return &List_CarEntry__Itr{n, 0}
-}
-
-type List_CarEntry__Itr struct {
-	n   List_CarEntry
-	idx int
-}
-
-func (itr *List_CarEntry__Itr) Next() (idx int64, v CarEntry) {
-	if itr.idx >= len(itr.n.x) {
-		return -1, nil
-	}
-	idx = int64(itr.idx)
-	v = &itr.n.x[itr.idx]
-	itr.idx++
-	return
-}
-func (itr *List_CarEntry__Itr) Done() bool {
-	return itr.idx >= len(itr.n.x)
-}
-
-type _List_CarEntry__Maybe struct {
-	m schema.Maybe
-	v _List_CarEntry
-}
-type MaybeList_CarEntry = *_List_CarEntry__Maybe
-
-func (m MaybeList_CarEntry) IsNull() bool {
-	return m.m == schema.Maybe_Null
-}
-func (m MaybeList_CarEntry) IsAbsent() bool {
-	return m.m == schema.Maybe_Absent
-}
-func (m MaybeList_CarEntry) Exists() bool {
-	return m.m == schema.Maybe_Value
-}
-func (m MaybeList_CarEntry) AsNode() datamodel.Node {
-	switch m.m {
-	case schema.Maybe_Absent:
-		return datamodel.Absent
-	case schema.Maybe_Null:
-		return datamodel.Null
-	case schema.Maybe_Value:
-		return &m.v
-	default:
-		panic("unreachable")
-	}
-}
-func (m MaybeList_CarEntry) Must() List_CarEntry {
-	if !m.Exists() {
-		panic("unbox of a maybe rejected")
-	}
-	return &m.v
-}
-
-var _ datamodel.Node = (List_CarEntry)(&_List_CarEntry{})
-var _ schema.TypedNode = (List_CarEntry)(&_List_CarEntry{})
-
-func (List_CarEntry) Kind() datamodel.Kind {
-	return datamodel.Kind_List
-}
-func (List_CarEntry) LookupByString(string) (datamodel.Node, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry"}.LookupByString("")
-}
-func (n List_CarEntry) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
-	idx, err := k.AsInt()
-	if err != nil {
-		return nil, err
-	}
-	return n.LookupByIndex(idx)
-}
-func (n List_CarEntry) LookupByIndex(idx int64) (datamodel.Node, error) {
-	if n.Length() <= idx {
-		return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfInt(idx)}
-	}
-	v := &n.x[idx]
-	return v, nil
-}
-func (n List_CarEntry) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
-	i, err := seg.Index()
-	if err != nil {
-		return nil, datamodel.ErrInvalidSegmentForList{TypeName: "schema.List_CarEntry", TroubleSegment: seg, Reason: err}
-	}
-	return n.LookupByIndex(i)
-}
-func (List_CarEntry) MapIterator() datamodel.MapIterator {
-	return nil
-}
-func (n List_CarEntry) ListIterator() datamodel.ListIterator {
-	return &_List_CarEntry__ListItr{n, 0}
-}
-
-type _List_CarEntry__ListItr struct {
-	n   List_CarEntry
-	idx int
-}
-
-func (itr *_List_CarEntry__ListItr) Next() (idx int64, v datamodel.Node, _ error) {
-	if itr.idx >= len(itr.n.x) {
-		return -1, nil, datamodel.ErrIteratorOverread{}
-	}
-	idx = int64(itr.idx)
-	x := &itr.n.x[itr.idx]
-	v = x
-	itr.idx++
-	return
-}
-func (itr *_List_CarEntry__ListItr) Done() bool {
-	return itr.idx >= len(itr.n.x)
-}
-
-func (n List_CarEntry) Length() int64 {
-	return int64(len(n.x))
-}
-func (List_CarEntry) IsAbsent() bool {
-	return false
-}
-func (List_CarEntry) IsNull() bool {
-	return false
-}
-func (List_CarEntry) AsBool() (bool, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry"}.AsBool()
-}
-func (List_CarEntry) AsInt() (int64, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry"}.AsInt()
-}
-func (List_CarEntry) AsFloat() (float64, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry"}.AsFloat()
-}
-func (List_CarEntry) AsString() (string, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry"}.AsString()
-}
-func (List_CarEntry) AsBytes() ([]byte, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry"}.AsBytes()
-}
-func (List_CarEntry) AsLink() (datamodel.Link, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry"}.AsLink()
-}
-func (List_CarEntry) Prototype() datamodel.NodePrototype {
-	return _List_CarEntry__Prototype{}
-}
-
-type _List_CarEntry__Prototype struct{}
-
-func (_List_CarEntry__Prototype) NewBuilder() datamodel.NodeBuilder {
-	var nb _List_CarEntry__Builder
-	nb.Reset()
-	return &nb
-}
-
-type _List_CarEntry__Builder struct {
-	_List_CarEntry__Assembler
-}
-
-func (nb *_List_CarEntry__Builder) Build() datamodel.Node {
-	if *nb.m != schema.Maybe_Value {
-		panic("invalid state: cannot call Build on an assembler that's not finished")
-	}
-	return nb.w
-}
-func (nb *_List_CarEntry__Builder) Reset() {
-	var w _List_CarEntry
-	var m schema.Maybe
-	*nb = _List_CarEntry__Builder{_List_CarEntry__Assembler{w: &w, m: &m}}
-}
-
-type _List_CarEntry__Assembler struct {
-	w     *_List_CarEntry
-	m     *schema.Maybe
-	state laState
-
-	cm schema.Maybe
-	va _CarEntry__Assembler
-}
-
-func (na *_List_CarEntry__Assembler) reset() {
-	na.state = laState_initial
-	na.va.reset()
-}
-func (_List_CarEntry__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry"}.BeginMap(0)
-}
-func (na *_List_CarEntry__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	switch *na.m {
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
-	}
-	*na.m = midvalue
-	if sizeHint < 0 {
-		sizeHint = 0
-	}
-	if sizeHint > 0 {
-		na.w.x = make([]_CarEntry, 0, sizeHint)
-	}
-	return na, nil
-}
-func (na *_List_CarEntry__Assembler) AssignNull() error {
-	switch *na.m {
-	case allowNull:
-		*na.m = schema.Maybe_Null
-		return nil
-	case schema.Maybe_Absent:
-		return mixins.ListAssembler{TypeName: "schema.List_CarEntry"}.AssignNull()
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-	}
-	panic("unreachable")
-}
-func (_List_CarEntry__Assembler) AssignBool(bool) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry"}.AssignBool(false)
-}
-func (_List_CarEntry__Assembler) AssignInt(int64) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry"}.AssignInt(0)
-}
-func (_List_CarEntry__Assembler) AssignFloat(float64) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry"}.AssignFloat(0)
-}
-func (_List_CarEntry__Assembler) AssignString(string) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry"}.AssignString("")
-}
-func (_List_CarEntry__Assembler) AssignBytes([]byte) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry"}.AssignBytes(nil)
-}
-func (_List_CarEntry__Assembler) AssignLink(datamodel.Link) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry"}.AssignLink(nil)
-}
-func (na *_List_CarEntry__Assembler) AssignNode(v datamodel.Node) error {
-	if v.IsNull() {
-		return na.AssignNull()
-	}
-	if v2, ok := v.(*_List_CarEntry); ok {
-		switch *na.m {
-		case schema.Maybe_Value, schema.Maybe_Null:
-			panic("invalid state: cannot assign into assembler that's already finished")
-		case midvalue:
-			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		*na.w = *v2
-		*na.m = schema.Maybe_Value
-		return nil
-	}
-	if v.Kind() != datamodel.Kind_List {
-		return datamodel.ErrWrongKind{TypeName: "schema.List_CarEntry", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustList, ActualKind: v.Kind()}
-	}
-	itr := v.ListIterator()
-	for !itr.Done() {
-		_, v, err := itr.Next()
-		if err != nil {
-			return err
-		}
-		if err := na.AssembleValue().AssignNode(v); err != nil {
-			return err
-		}
-	}
-	return na.Finish()
-}
-func (_List_CarEntry__Assembler) Prototype() datamodel.NodePrototype {
-	return _List_CarEntry__Prototype{}
-}
-func (la *_List_CarEntry__Assembler) valueFinishTidy() bool {
-	switch la.cm {
-	case schema.Maybe_Value:
-		la.va.w = nil
-		la.cm = schema.Maybe_Absent
-		la.state = laState_initial
-		la.va.reset()
-		return true
-	default:
-		return false
-	}
-}
-func (la *_List_CarEntry__Assembler) AssembleValue() datamodel.NodeAssembler {
-	switch la.state {
-	case laState_initial:
-		// carry on
-	case laState_midValue:
-		if !la.valueFinishTidy() {
-			panic("invalid state: AssembleValue cannot be called when still in the middle of assembling the previous value")
-		} // if tidy success: carry on
-	case laState_finished:
-		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
-	}
-	la.w.x = append(la.w.x, _CarEntry{})
-	la.state = laState_midValue
-	row := &la.w.x[len(la.w.x)-1]
-	la.va.w = row
-	la.va.m = &la.cm
-	return &la.va
-}
-func (la *_List_CarEntry__Assembler) Finish() error {
-	switch la.state {
-	case laState_initial:
-		// carry on
-	case laState_midValue:
-		if !la.valueFinishTidy() {
-			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case laState_finished:
-		panic("invalid state: Finish cannot be called on an assembler that's already finished")
-	}
-	la.state = laState_finished
-	*la.m = schema.Maybe_Value
-	return nil
-}
-func (la *_List_CarEntry__Assembler) ValuePrototype(_ int64) datamodel.NodePrototype {
-	return _CarEntry__Prototype{}
-}
-func (List_CarEntry) Type() schema.Type {
-	return nil /*TODO:typelit*/
-}
-func (n List_CarEntry) Representation() datamodel.Node {
-	return (*_List_CarEntry__Repr)(n)
-}
-
-type _List_CarEntry__Repr _List_CarEntry
-
-var _ datamodel.Node = &_List_CarEntry__Repr{}
-
-func (_List_CarEntry__Repr) Kind() datamodel.Kind {
-	return datamodel.Kind_List
-}
-func (_List_CarEntry__Repr) LookupByString(string) (datamodel.Node, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry.Repr"}.LookupByString("")
-}
-func (nr *_List_CarEntry__Repr) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
-	v, err := (List_CarEntry)(nr).LookupByNode(k)
-	if err != nil || v == datamodel.Null {
-		return v, err
-	}
-	return v.(CarEntry).Representation(), nil
-}
-func (nr *_List_CarEntry__Repr) LookupByIndex(idx int64) (datamodel.Node, error) {
-	v, err := (List_CarEntry)(nr).LookupByIndex(idx)
-	if err != nil || v == datamodel.Null {
-		return v, err
-	}
-	return v.(CarEntry).Representation(), nil
-}
-func (n _List_CarEntry__Repr) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
-	i, err := seg.Index()
-	if err != nil {
-		return nil, datamodel.ErrInvalidSegmentForList{TypeName: "schema.List_CarEntry.Repr", TroubleSegment: seg, Reason: err}
-	}
-	return n.LookupByIndex(i)
-}
-func (_List_CarEntry__Repr) MapIterator() datamodel.MapIterator {
-	return nil
-}
-func (nr *_List_CarEntry__Repr) ListIterator() datamodel.ListIterator {
-	return &_List_CarEntry__ReprListItr{(List_CarEntry)(nr), 0}
-}
-
-type _List_CarEntry__ReprListItr _List_CarEntry__ListItr
-
-func (itr *_List_CarEntry__ReprListItr) Next() (idx int64, v datamodel.Node, err error) {
-	idx, v, err = (*_List_CarEntry__ListItr)(itr).Next()
-	if err != nil || v == datamodel.Null {
-		return
-	}
-	return idx, v.(CarEntry).Representation(), nil
-}
-func (itr *_List_CarEntry__ReprListItr) Done() bool {
-	return (*_List_CarEntry__ListItr)(itr).Done()
-}
-
-func (rn *_List_CarEntry__Repr) Length() int64 {
-	return int64(len(rn.x))
-}
-func (_List_CarEntry__Repr) IsAbsent() bool {
-	return false
-}
-func (_List_CarEntry__Repr) IsNull() bool {
-	return false
-}
-func (_List_CarEntry__Repr) AsBool() (bool, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry.Repr"}.AsBool()
-}
-func (_List_CarEntry__Repr) AsInt() (int64, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry.Repr"}.AsInt()
-}
-func (_List_CarEntry__Repr) AsFloat() (float64, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry.Repr"}.AsFloat()
-}
-func (_List_CarEntry__Repr) AsString() (string, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry.Repr"}.AsString()
-}
-func (_List_CarEntry__Repr) AsBytes() ([]byte, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry.Repr"}.AsBytes()
-}
-func (_List_CarEntry__Repr) AsLink() (datamodel.Link, error) {
-	return mixins.List{TypeName: "schema.List_CarEntry.Repr"}.AsLink()
-}
-func (_List_CarEntry__Repr) Prototype() datamodel.NodePrototype {
-	return _List_CarEntry__ReprPrototype{}
-}
-
-type _List_CarEntry__ReprPrototype struct{}
-
-func (_List_CarEntry__ReprPrototype) NewBuilder() datamodel.NodeBuilder {
-	var nb _List_CarEntry__ReprBuilder
-	nb.Reset()
-	return &nb
-}
-
-type _List_CarEntry__ReprBuilder struct {
-	_List_CarEntry__ReprAssembler
-}
-
-func (nb *_List_CarEntry__ReprBuilder) Build() datamodel.Node {
-	if *nb.m != schema.Maybe_Value {
-		panic("invalid state: cannot call Build on an assembler that's not finished")
-	}
-	return nb.w
-}
-func (nb *_List_CarEntry__ReprBuilder) Reset() {
-	var w _List_CarEntry
-	var m schema.Maybe
-	*nb = _List_CarEntry__ReprBuilder{_List_CarEntry__ReprAssembler{w: &w, m: &m}}
-}
-
-type _List_CarEntry__ReprAssembler struct {
-	w     *_List_CarEntry
-	m     *schema.Maybe
-	state laState
-
-	cm schema.Maybe
-	va _CarEntry__ReprAssembler
-}
-
-func (na *_List_CarEntry__ReprAssembler) reset() {
-	na.state = laState_initial
-	na.va.reset()
-}
-func (_List_CarEntry__ReprAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry.Repr"}.BeginMap(0)
-}
-func (na *_List_CarEntry__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	switch *na.m {
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
-	}
-	*na.m = midvalue
-	if sizeHint < 0 {
-		sizeHint = 0
-	}
-	if sizeHint > 0 {
-		na.w.x = make([]_CarEntry, 0, sizeHint)
-	}
-	return na, nil
-}
-func (na *_List_CarEntry__ReprAssembler) AssignNull() error {
-	switch *na.m {
-	case allowNull:
-		*na.m = schema.Maybe_Null
-		return nil
-	case schema.Maybe_Absent:
-		return mixins.ListAssembler{TypeName: "schema.List_CarEntry.Repr.Repr"}.AssignNull()
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-	}
-	panic("unreachable")
-}
-func (_List_CarEntry__ReprAssembler) AssignBool(bool) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry.Repr"}.AssignBool(false)
-}
-func (_List_CarEntry__ReprAssembler) AssignInt(int64) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry.Repr"}.AssignInt(0)
-}
-func (_List_CarEntry__ReprAssembler) AssignFloat(float64) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry.Repr"}.AssignFloat(0)
-}
-func (_List_CarEntry__ReprAssembler) AssignString(string) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry.Repr"}.AssignString("")
-}
-func (_List_CarEntry__ReprAssembler) AssignBytes([]byte) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry.Repr"}.AssignBytes(nil)
-}
-func (_List_CarEntry__ReprAssembler) AssignLink(datamodel.Link) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CarEntry.Repr"}.AssignLink(nil)
-}
-func (na *_List_CarEntry__ReprAssembler) AssignNode(v datamodel.Node) error {
-	if v.IsNull() {
-		return na.AssignNull()
-	}
-	if v2, ok := v.(*_List_CarEntry); ok {
-		switch *na.m {
-		case schema.Maybe_Value, schema.Maybe_Null:
-			panic("invalid state: cannot assign into assembler that's already finished")
-		case midvalue:
-			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		*na.w = *v2
-		*na.m = schema.Maybe_Value
-		return nil
-	}
-	if v.Kind() != datamodel.Kind_List {
-		return datamodel.ErrWrongKind{TypeName: "schema.List_CarEntry.Repr", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustList, ActualKind: v.Kind()}
-	}
-	itr := v.ListIterator()
-	for !itr.Done() {
-		_, v, err := itr.Next()
-		if err != nil {
-			return err
-		}
-		if err := na.AssembleValue().AssignNode(v); err != nil {
-			return err
-		}
-	}
-	return na.Finish()
-}
-func (_List_CarEntry__ReprAssembler) Prototype() datamodel.NodePrototype {
-	return _List_CarEntry__ReprPrototype{}
-}
-func (la *_List_CarEntry__ReprAssembler) valueFinishTidy() bool {
-	switch la.cm {
-	case schema.Maybe_Value:
-		la.va.w = nil
-		la.cm = schema.Maybe_Absent
-		la.state = laState_initial
-		la.va.reset()
-		return true
-	default:
-		return false
-	}
-}
-func (la *_List_CarEntry__ReprAssembler) AssembleValue() datamodel.NodeAssembler {
-	switch la.state {
-	case laState_initial:
-		// carry on
-	case laState_midValue:
-		if !la.valueFinishTidy() {
-			panic("invalid state: AssembleValue cannot be called when still in the middle of assembling the previous value")
-		} // if tidy success: carry on
-	case laState_finished:
-		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
-	}
-	la.w.x = append(la.w.x, _CarEntry{})
-	la.state = laState_midValue
-	row := &la.w.x[len(la.w.x)-1]
-	la.va.w = row
-	la.va.m = &la.cm
-	return &la.va
-}
-func (la *_List_CarEntry__ReprAssembler) Finish() error {
-	switch la.state {
-	case laState_initial:
-		// carry on
-	case laState_midValue:
-		if !la.valueFinishTidy() {
-			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case laState_finished:
-		panic("invalid state: Finish cannot be called on an assembler that's already finished")
-	}
-	la.state = laState_finished
-	*la.m = schema.Maybe_Value
-	return nil
-}
-func (la *_List_CarEntry__ReprAssembler) ValuePrototype(_ int64) datamodel.NodePrototype {
-	return _CarEntry__ReprPrototype{}
-}
-
-func (n *_List_CidEntry) Lookup(idx int64) CidEntry {
-	if n.Length() <= idx {
-		return nil
-	}
-	v := &n.x[idx]
-	return v
-}
-func (n *_List_CidEntry) LookupMaybe(idx int64) MaybeCidEntry {
-	if n.Length() <= idx {
-		return nil
-	}
-	v := &n.x[idx]
-	return &_CidEntry__Maybe{
-		m: schema.Maybe_Value,
-		v: v,
-	}
-}
-
-var _List_CidEntry__valueAbsent = _CidEntry__Maybe{m: schema.Maybe_Absent}
-
-func (n List_CidEntry) Iterator() *List_CidEntry__Itr {
-	return &List_CidEntry__Itr{n, 0}
-}
-
-type List_CidEntry__Itr struct {
-	n   List_CidEntry
-	idx int
-}
-
-func (itr *List_CidEntry__Itr) Next() (idx int64, v CidEntry) {
-	if itr.idx >= len(itr.n.x) {
-		return -1, nil
-	}
-	idx = int64(itr.idx)
-	v = &itr.n.x[itr.idx]
-	itr.idx++
-	return
-}
-func (itr *List_CidEntry__Itr) Done() bool {
-	return itr.idx >= len(itr.n.x)
-}
-
-type _List_CidEntry__Maybe struct {
-	m schema.Maybe
-	v _List_CidEntry
-}
-type MaybeList_CidEntry = *_List_CidEntry__Maybe
-
-func (m MaybeList_CidEntry) IsNull() bool {
-	return m.m == schema.Maybe_Null
-}
-func (m MaybeList_CidEntry) IsAbsent() bool {
-	return m.m == schema.Maybe_Absent
-}
-func (m MaybeList_CidEntry) Exists() bool {
-	return m.m == schema.Maybe_Value
-}
-func (m MaybeList_CidEntry) AsNode() datamodel.Node {
-	switch m.m {
-	case schema.Maybe_Absent:
-		return datamodel.Absent
-	case schema.Maybe_Null:
-		return datamodel.Null
-	case schema.Maybe_Value:
-		return &m.v
-	default:
-		panic("unreachable")
-	}
-}
-func (m MaybeList_CidEntry) Must() List_CidEntry {
-	if !m.Exists() {
-		panic("unbox of a maybe rejected")
-	}
-	return &m.v
-}
-
-var _ datamodel.Node = (List_CidEntry)(&_List_CidEntry{})
-var _ schema.TypedNode = (List_CidEntry)(&_List_CidEntry{})
-
-func (List_CidEntry) Kind() datamodel.Kind {
-	return datamodel.Kind_List
-}
-func (List_CidEntry) LookupByString(string) (datamodel.Node, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry"}.LookupByString("")
-}
-func (n List_CidEntry) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
-	idx, err := k.AsInt()
-	if err != nil {
-		return nil, err
-	}
-	return n.LookupByIndex(idx)
-}
-func (n List_CidEntry) LookupByIndex(idx int64) (datamodel.Node, error) {
-	if n.Length() <= idx {
-		return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfInt(idx)}
-	}
-	v := &n.x[idx]
-	return v, nil
-}
-func (n List_CidEntry) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
-	i, err := seg.Index()
-	if err != nil {
-		return nil, datamodel.ErrInvalidSegmentForList{TypeName: "schema.List_CidEntry", TroubleSegment: seg, Reason: err}
-	}
-	return n.LookupByIndex(i)
-}
-func (List_CidEntry) MapIterator() datamodel.MapIterator {
-	return nil
-}
-func (n List_CidEntry) ListIterator() datamodel.ListIterator {
-	return &_List_CidEntry__ListItr{n, 0}
-}
-
-type _List_CidEntry__ListItr struct {
-	n   List_CidEntry
-	idx int
-}
-
-func (itr *_List_CidEntry__ListItr) Next() (idx int64, v datamodel.Node, _ error) {
-	if itr.idx >= len(itr.n.x) {
-		return -1, nil, datamodel.ErrIteratorOverread{}
-	}
-	idx = int64(itr.idx)
-	x := &itr.n.x[itr.idx]
-	v = x
-	itr.idx++
-	return
-}
-func (itr *_List_CidEntry__ListItr) Done() bool {
-	return itr.idx >= len(itr.n.x)
-}
-
-func (n List_CidEntry) Length() int64 {
-	return int64(len(n.x))
-}
-func (List_CidEntry) IsAbsent() bool {
-	return false
-}
-func (List_CidEntry) IsNull() bool {
-	return false
-}
-func (List_CidEntry) AsBool() (bool, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry"}.AsBool()
-}
-func (List_CidEntry) AsInt() (int64, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry"}.AsInt()
-}
-func (List_CidEntry) AsFloat() (float64, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry"}.AsFloat()
-}
-func (List_CidEntry) AsString() (string, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry"}.AsString()
-}
-func (List_CidEntry) AsBytes() ([]byte, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry"}.AsBytes()
-}
-func (List_CidEntry) AsLink() (datamodel.Link, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry"}.AsLink()
-}
-func (List_CidEntry) Prototype() datamodel.NodePrototype {
-	return _List_CidEntry__Prototype{}
-}
-
-type _List_CidEntry__Prototype struct{}
-
-func (_List_CidEntry__Prototype) NewBuilder() datamodel.NodeBuilder {
-	var nb _List_CidEntry__Builder
-	nb.Reset()
-	return &nb
-}
-
-type _List_CidEntry__Builder struct {
-	_List_CidEntry__Assembler
-}
-
-func (nb *_List_CidEntry__Builder) Build() datamodel.Node {
-	if *nb.m != schema.Maybe_Value {
-		panic("invalid state: cannot call Build on an assembler that's not finished")
-	}
-	return nb.w
-}
-func (nb *_List_CidEntry__Builder) Reset() {
-	var w _List_CidEntry
-	var m schema.Maybe
-	*nb = _List_CidEntry__Builder{_List_CidEntry__Assembler{w: &w, m: &m}}
-}
-
-type _List_CidEntry__Assembler struct {
-	w     *_List_CidEntry
-	m     *schema.Maybe
-	state laState
-
-	cm schema.Maybe
-	va _CidEntry__Assembler
-}
-
-func (na *_List_CidEntry__Assembler) reset() {
-	na.state = laState_initial
-	na.va.reset()
-}
-func (_List_CidEntry__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry"}.BeginMap(0)
-}
-func (na *_List_CidEntry__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	switch *na.m {
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
-	}
-	*na.m = midvalue
-	if sizeHint < 0 {
-		sizeHint = 0
-	}
-	if sizeHint > 0 {
-		na.w.x = make([]_CidEntry, 0, sizeHint)
-	}
-	return na, nil
-}
-func (na *_List_CidEntry__Assembler) AssignNull() error {
-	switch *na.m {
-	case allowNull:
-		*na.m = schema.Maybe_Null
-		return nil
-	case schema.Maybe_Absent:
-		return mixins.ListAssembler{TypeName: "schema.List_CidEntry"}.AssignNull()
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-	}
-	panic("unreachable")
-}
-func (_List_CidEntry__Assembler) AssignBool(bool) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry"}.AssignBool(false)
-}
-func (_List_CidEntry__Assembler) AssignInt(int64) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry"}.AssignInt(0)
-}
-func (_List_CidEntry__Assembler) AssignFloat(float64) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry"}.AssignFloat(0)
-}
-func (_List_CidEntry__Assembler) AssignString(string) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry"}.AssignString("")
-}
-func (_List_CidEntry__Assembler) AssignBytes([]byte) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry"}.AssignBytes(nil)
-}
-func (_List_CidEntry__Assembler) AssignLink(datamodel.Link) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry"}.AssignLink(nil)
-}
-func (na *_List_CidEntry__Assembler) AssignNode(v datamodel.Node) error {
-	if v.IsNull() {
-		return na.AssignNull()
-	}
-	if v2, ok := v.(*_List_CidEntry); ok {
-		switch *na.m {
-		case schema.Maybe_Value, schema.Maybe_Null:
-			panic("invalid state: cannot assign into assembler that's already finished")
-		case midvalue:
-			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		*na.w = *v2
-		*na.m = schema.Maybe_Value
-		return nil
-	}
-	if v.Kind() != datamodel.Kind_List {
-		return datamodel.ErrWrongKind{TypeName: "schema.List_CidEntry", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustList, ActualKind: v.Kind()}
-	}
-	itr := v.ListIterator()
-	for !itr.Done() {
-		_, v, err := itr.Next()
-		if err != nil {
-			return err
-		}
-		if err := na.AssembleValue().AssignNode(v); err != nil {
-			return err
-		}
-	}
-	return na.Finish()
-}
-func (_List_CidEntry__Assembler) Prototype() datamodel.NodePrototype {
-	return _List_CidEntry__Prototype{}
-}
-func (la *_List_CidEntry__Assembler) valueFinishTidy() bool {
-	switch la.cm {
-	case schema.Maybe_Value:
-		la.va.w = nil
-		la.cm = schema.Maybe_Absent
-		la.state = laState_initial
-		la.va.reset()
-		return true
-	default:
-		return false
-	}
-}
-func (la *_List_CidEntry__Assembler) AssembleValue() datamodel.NodeAssembler {
-	switch la.state {
-	case laState_initial:
-		// carry on
-	case laState_midValue:
-		if !la.valueFinishTidy() {
-			panic("invalid state: AssembleValue cannot be called when still in the middle of assembling the previous value")
-		} // if tidy success: carry on
-	case laState_finished:
-		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
-	}
-	la.w.x = append(la.w.x, _CidEntry{})
-	la.state = laState_midValue
-	row := &la.w.x[len(la.w.x)-1]
-	la.va.w = row
-	la.va.m = &la.cm
-	return &la.va
-}
-func (la *_List_CidEntry__Assembler) Finish() error {
-	switch la.state {
-	case laState_initial:
-		// carry on
-	case laState_midValue:
-		if !la.valueFinishTidy() {
-			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case laState_finished:
-		panic("invalid state: Finish cannot be called on an assembler that's already finished")
-	}
-	la.state = laState_finished
-	*la.m = schema.Maybe_Value
-	return nil
-}
-func (la *_List_CidEntry__Assembler) ValuePrototype(_ int64) datamodel.NodePrototype {
-	return _CidEntry__Prototype{}
-}
-func (List_CidEntry) Type() schema.Type {
-	return nil /*TODO:typelit*/
-}
-func (n List_CidEntry) Representation() datamodel.Node {
-	return (*_List_CidEntry__Repr)(n)
-}
-
-type _List_CidEntry__Repr _List_CidEntry
-
-var _ datamodel.Node = &_List_CidEntry__Repr{}
-
-func (_List_CidEntry__Repr) Kind() datamodel.Kind {
-	return datamodel.Kind_List
-}
-func (_List_CidEntry__Repr) LookupByString(string) (datamodel.Node, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry.Repr"}.LookupByString("")
-}
-func (nr *_List_CidEntry__Repr) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
-	v, err := (List_CidEntry)(nr).LookupByNode(k)
-	if err != nil || v == datamodel.Null {
-		return v, err
-	}
-	return v.(CidEntry).Representation(), nil
-}
-func (nr *_List_CidEntry__Repr) LookupByIndex(idx int64) (datamodel.Node, error) {
-	v, err := (List_CidEntry)(nr).LookupByIndex(idx)
-	if err != nil || v == datamodel.Null {
-		return v, err
-	}
-	return v.(CidEntry).Representation(), nil
-}
-func (n _List_CidEntry__Repr) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
-	i, err := seg.Index()
-	if err != nil {
-		return nil, datamodel.ErrInvalidSegmentForList{TypeName: "schema.List_CidEntry.Repr", TroubleSegment: seg, Reason: err}
-	}
-	return n.LookupByIndex(i)
-}
-func (_List_CidEntry__Repr) MapIterator() datamodel.MapIterator {
-	return nil
-}
-func (nr *_List_CidEntry__Repr) ListIterator() datamodel.ListIterator {
-	return &_List_CidEntry__ReprListItr{(List_CidEntry)(nr), 0}
-}
-
-type _List_CidEntry__ReprListItr _List_CidEntry__ListItr
-
-func (itr *_List_CidEntry__ReprListItr) Next() (idx int64, v datamodel.Node, err error) {
-	idx, v, err = (*_List_CidEntry__ListItr)(itr).Next()
-	if err != nil || v == datamodel.Null {
-		return
-	}
-	return idx, v.(CidEntry).Representation(), nil
-}
-func (itr *_List_CidEntry__ReprListItr) Done() bool {
-	return (*_List_CidEntry__ListItr)(itr).Done()
-}
-
-func (rn *_List_CidEntry__Repr) Length() int64 {
-	return int64(len(rn.x))
-}
-func (_List_CidEntry__Repr) IsAbsent() bool {
-	return false
-}
-func (_List_CidEntry__Repr) IsNull() bool {
-	return false
-}
-func (_List_CidEntry__Repr) AsBool() (bool, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry.Repr"}.AsBool()
-}
-func (_List_CidEntry__Repr) AsInt() (int64, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry.Repr"}.AsInt()
-}
-func (_List_CidEntry__Repr) AsFloat() (float64, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry.Repr"}.AsFloat()
-}
-func (_List_CidEntry__Repr) AsString() (string, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry.Repr"}.AsString()
-}
-func (_List_CidEntry__Repr) AsBytes() ([]byte, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry.Repr"}.AsBytes()
-}
-func (_List_CidEntry__Repr) AsLink() (datamodel.Link, error) {
-	return mixins.List{TypeName: "schema.List_CidEntry.Repr"}.AsLink()
-}
-func (_List_CidEntry__Repr) Prototype() datamodel.NodePrototype {
-	return _List_CidEntry__ReprPrototype{}
-}
-
-type _List_CidEntry__ReprPrototype struct{}
-
-func (_List_CidEntry__ReprPrototype) NewBuilder() datamodel.NodeBuilder {
-	var nb _List_CidEntry__ReprBuilder
-	nb.Reset()
-	return &nb
-}
-
-type _List_CidEntry__ReprBuilder struct {
-	_List_CidEntry__ReprAssembler
-}
-
-func (nb *_List_CidEntry__ReprBuilder) Build() datamodel.Node {
-	if *nb.m != schema.Maybe_Value {
-		panic("invalid state: cannot call Build on an assembler that's not finished")
-	}
-	return nb.w
-}
-func (nb *_List_CidEntry__ReprBuilder) Reset() {
-	var w _List_CidEntry
-	var m schema.Maybe
-	*nb = _List_CidEntry__ReprBuilder{_List_CidEntry__ReprAssembler{w: &w, m: &m}}
-}
-
-type _List_CidEntry__ReprAssembler struct {
-	w     *_List_CidEntry
-	m     *schema.Maybe
-	state laState
-
-	cm schema.Maybe
-	va _CidEntry__ReprAssembler
-}
-
-func (na *_List_CidEntry__ReprAssembler) reset() {
-	na.state = laState_initial
-	na.va.reset()
-}
-func (_List_CidEntry__ReprAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry.Repr"}.BeginMap(0)
-}
-func (na *_List_CidEntry__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
-	switch *na.m {
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
-	}
-	*na.m = midvalue
-	if sizeHint < 0 {
-		sizeHint = 0
-	}
-	if sizeHint > 0 {
-		na.w.x = make([]_CidEntry, 0, sizeHint)
-	}
-	return na, nil
-}
-func (na *_List_CidEntry__ReprAssembler) AssignNull() error {
-	switch *na.m {
-	case allowNull:
-		*na.m = schema.Maybe_Null
-		return nil
-	case schema.Maybe_Absent:
-		return mixins.ListAssembler{TypeName: "schema.List_CidEntry.Repr.Repr"}.AssignNull()
-	case schema.Maybe_Value, schema.Maybe_Null:
-		panic("invalid state: cannot assign into assembler that's already finished")
-	case midvalue:
-		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-	}
-	panic("unreachable")
-}
-func (_List_CidEntry__ReprAssembler) AssignBool(bool) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry.Repr"}.AssignBool(false)
-}
-func (_List_CidEntry__ReprAssembler) AssignInt(int64) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry.Repr"}.AssignInt(0)
-}
-func (_List_CidEntry__ReprAssembler) AssignFloat(float64) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry.Repr"}.AssignFloat(0)
-}
-func (_List_CidEntry__ReprAssembler) AssignString(string) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry.Repr"}.AssignString("")
-}
-func (_List_CidEntry__ReprAssembler) AssignBytes([]byte) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry.Repr"}.AssignBytes(nil)
-}
-func (_List_CidEntry__ReprAssembler) AssignLink(datamodel.Link) error {
-	return mixins.ListAssembler{TypeName: "schema.List_CidEntry.Repr"}.AssignLink(nil)
-}
-func (na *_List_CidEntry__ReprAssembler) AssignNode(v datamodel.Node) error {
-	if v.IsNull() {
-		return na.AssignNull()
-	}
-	if v2, ok := v.(*_List_CidEntry); ok {
-		switch *na.m {
-		case schema.Maybe_Value, schema.Maybe_Null:
-			panic("invalid state: cannot assign into assembler that's already finished")
-		case midvalue:
-			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
-		}
-		*na.w = *v2
-		*na.m = schema.Maybe_Value
-		return nil
-	}
-	if v.Kind() != datamodel.Kind_List {
-		return datamodel.ErrWrongKind{TypeName: "schema.List_CidEntry.Repr", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustList, ActualKind: v.Kind()}
-	}
-	itr := v.ListIterator()
-	for !itr.Done() {
-		_, v, err := itr.Next()
-		if err != nil {
-			return err
-		}
-		if err := na.AssembleValue().AssignNode(v); err != nil {
-			return err
-		}
-	}
-	return na.Finish()
-}
-func (_List_CidEntry__ReprAssembler) Prototype() datamodel.NodePrototype {
-	return _List_CidEntry__ReprPrototype{}
-}
-func (la *_List_CidEntry__ReprAssembler) valueFinishTidy() bool {
-	switch la.cm {
-	case schema.Maybe_Value:
-		la.va.w = nil
-		la.cm = schema.Maybe_Absent
-		la.state = laState_initial
-		la.va.reset()
-		return true
-	default:
-		return false
-	}
-}
-func (la *_List_CidEntry__ReprAssembler) AssembleValue() datamodel.NodeAssembler {
-	switch la.state {
-	case laState_initial:
-		// carry on
-	case laState_midValue:
-		if !la.valueFinishTidy() {
-			panic("invalid state: AssembleValue cannot be called when still in the middle of assembling the previous value")
-		} // if tidy success: carry on
-	case laState_finished:
-		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
-	}
-	la.w.x = append(la.w.x, _CidEntry{})
-	la.state = laState_midValue
-	row := &la.w.x[len(la.w.x)-1]
-	la.va.w = row
-	la.va.m = &la.cm
-	return &la.va
-}
-func (la *_List_CidEntry__ReprAssembler) Finish() error {
-	switch la.state {
-	case laState_initial:
-		// carry on
-	case laState_midValue:
-		if !la.valueFinishTidy() {
-			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
-		} // if tidy success: carry on
-	case laState_finished:
-		panic("invalid state: Finish cannot be called on an assembler that's already finished")
-	}
-	la.state = laState_finished
-	*la.m = schema.Maybe_Value
-	return nil
-}
-func (la *_List_CidEntry__ReprAssembler) ValuePrototype(_ int64) datamodel.NodePrototype {
-	return _CidEntry__ReprPrototype{}
 }
 
 func (n *_List_String) Lookup(idx int64) String {

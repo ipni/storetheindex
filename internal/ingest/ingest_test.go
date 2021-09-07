@@ -1,7 +1,9 @@
 package ingest
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"runtime"
@@ -202,9 +204,28 @@ func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
 	return engine.New(resultCache, valueStore)
 }
 
+func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
+	lsys := cidlink.DefaultLinkSystem()
+	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
+		c := lnk.(cidlink.Link).Cid
+		val, err := ds.Get(dsKey(c.String()))
+		if err != nil {
+			return nil, err
+		}
+		return bytes.NewBuffer(val), nil
+	}
+	lsys.StorageWriteOpener = func(lctx ipld.LinkContext) (io.Writer, ipld.BlockWriteCommitter, error) {
+		buf := bytes.NewBuffer(nil)
+		return buf, func(lnk ipld.Link) error {
+			c := lnk.(cidlink.Link).Cid
+			return ds.Put(dsKey(c.String()), buf.Bytes())
+		}, nil
+	}
+	return lsys
+}
 func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.LegPublisher, ipld.LinkSystem) {
 	ctx := context.Background()
-	lsys := mkVanillaLinkSystem(store)
+	lsys := mkProvLinkSystem(store)
 	lt, err := legs.MakeLegTransport(context.Background(), h, store, lsys, ingestCfg.PubSubTopic)
 	if err != nil {
 		t.Fatal(err)
@@ -251,11 +272,11 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.Lin
 	require.NoError(t, err)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	val := indexer.MakeValue(p, 0, cids[0].Bytes())
-	_, indexLnk, err := schema.NewIndexFromCids(lsys, cids, nil, val.Metadata, nil)
+	cidsLnk, err := schema.NewListOfCids(lsys, cids)
 	require.NoError(t, err)
-	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, indexLnk, p.String())
+	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, cidsLnk, val.Metadata, false, p.String())
 	if fakeSig {
-		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, indexLnk, p.String())
+		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, cidsLnk, val.Metadata, false, p.String())
 	}
 	require.NoError(t, err)
 	lnk, err := advLnk.AsLink()
@@ -281,8 +302,13 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 
 	// Check if advertisement in datastore.
 	adv, err := i.ds.Get(datastore.NewKey(c.String()))
-	require.NoError(t, err)
-	require.NotNil(t, adv)
+	if !fakeSig {
+		require.NoError(t, err)
+		require.NotNil(t, adv)
+	} else {
+		// If the signature is invalid we shouldn't have store it.
+		require.Nil(t, adv)
+	}
 	// Check if latest sync updated.
 	lcid, err := i.getLatestSync(lph.ID())
 	require.NoError(t, err)

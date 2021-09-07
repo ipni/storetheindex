@@ -25,7 +25,8 @@ var (
 
 // prefix used to track latest sync in datastore.
 const (
-	syncPrefix = "/sync/"
+	syncPrefix  = "/sync/"
+	admapPrefix = "/admap/"
 )
 
 // LegIngester interface
@@ -59,7 +60,7 @@ type sub struct {
 func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 	i *indexer.Engine, ds datastore.Batching) (LegIngester, error) {
 
-	lsys := mkVanillaLinkSystem(ds)
+	lsys := mkLinkSystem(ds)
 	lt, err := legs.MakeLegTransport(context.Background(), h, ds, lsys, cfg.PubSubTopic)
 	if err != nil {
 		return nil, err
