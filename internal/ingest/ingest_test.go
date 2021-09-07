@@ -1,7 +1,9 @@
 package ingest
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"runtime"
@@ -202,9 +204,28 @@ func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
 	return engine.New(resultCache, valueStore)
 }
 
+func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
+	lsys := cidlink.DefaultLinkSystem()
+	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
+		c := lnk.(cidlink.Link).Cid
+		val, err := ds.Get(dsKey(c.String()))
+		if err != nil {
+			return nil, err
+		}
+		return bytes.NewBuffer(val), nil
+	}
+	lsys.StorageWriteOpener = func(lctx ipld.LinkContext) (io.Writer, ipld.BlockWriteCommitter, error) {
+		buf := bytes.NewBuffer(nil)
+		return buf, func(lnk ipld.Link) error {
+			c := lnk.(cidlink.Link).Cid
+			return ds.Put(dsKey(c.String()), buf.Bytes())
+		}, nil
+	}
+	return lsys
+}
 func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.LegPublisher, ipld.LinkSystem) {
 	ctx := context.Background()
-	lsys := mkVanillaLinkSystem(store)
+	lsys := mkProvLinkSystem(store)
 	lt, err := legs.MakeLegTransport(context.Background(), h, store, lsys, ingestCfg.PubSubTopic)
 	if err != nil {
 		t.Fatal(err)

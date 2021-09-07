@@ -23,7 +23,7 @@ func dsKey(k string) datastore.Key {
 }
 
 // mkVanillaLinkSystem makes a standard vanilla linkSystem that stores and loads from a datastore.
-func mkVanillaLinkSystem(ds datastore.Batching) ipld.LinkSystem {
+func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
@@ -37,10 +37,68 @@ func mkVanillaLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 		buf := bytes.NewBuffer(nil)
 		return buf, func(lnk ipld.Link) error {
 			c := lnk.(cidlink.Link).Cid
+			// Store the advertisement
+			n, err := decodeIPLDNode(buf)
+			if err != nil {
+				return err
+			}
+			if isAdvertisement(n) {
+				// Verify if the signature is correct.
+				// And the advertisement valid.
+				ad, err := verifyAdvertisement(n)
+				if err != nil {
+					return err
+				}
+				/*
+					// Store advertisement and mapping between
+					// advertisement and link of entries.
+					r := bytes.NewBuffer(nil)
+					err = dagjson.Encode(ad, r)
+					if err != nil {
+						return err
+					}
+				*/
+				// Store entries link to the map
+				elnk, err := ad.FieldEntries().AsLink()
+				if err != nil {
+					return err
+				}
+				err = ds.Put(dsKey("adMap/"+elnk.(cidlink.Link).Cid.String()), c.Bytes())
+				if err != nil {
+					return err
+				}
+				// Store the advertisement
+				return ds.Put(dsKey(c.String()), buf.Bytes())
+			}
+			// Store the list of entries.
 			return ds.Put(dsKey(c.String()), buf.Bytes())
 		}, nil
 	}
 	return lsys
+}
+
+func decodeAd(n ipld.Node) (schema.Advertisement, error) {
+	nb := schema.Type.Advertisement.NewBuilder()
+	err := nb.AssignNode(n)
+	if err != nil {
+		return nil, err
+	}
+	return nb.Build().(schema.Advertisement), nil
+}
+func verifyAdvertisement(n ipld.Node) (schema.Advertisement, error) {
+	ad, err := decodeAd(n)
+	if err != nil {
+		log.Errorf("Error decoding advertisement: %v", err)
+		return nil, err
+	}
+	// Verify advertisement signature
+	if err := schema.VerifyAdvertisement(ad); err != nil {
+		// stop exchange, verification of signature failed.
+		// hookActions.TerminateWithError(errors.New("advertisement verification failed"))
+		log.Errorf("Signature verification failed for add: %v", err)
+		return nil, err
+	}
+	return ad, nil
 }
 
 // storageHook determines the logic to run when a new block is received through graphsync.
@@ -50,6 +108,127 @@ func mkVanillaLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 // receive in the linkSystem, but until we figure out how to pass to the linkSystem
 // the peer invoved in the request, we'll need to go with this approach.
 func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
+	return func(p peer.ID, responseData graphsync.ResponseData, blockData graphsync.BlockData, hookActions graphsync.IncomingBlockHookActions) {
+		// Get cid of the node received.
+		c := blockData.Link().(cidlink.Link).Cid
+		// Get the entries node from the datastore.
+		val, err := i.ds.Get(dsKey(c.String()))
+		if err != nil {
+			log.Errorf("Error while fetching the node from datastore: %v", err)
+			return
+		}
+		fmt.Println(string(val))
+		// Decode entries into an IPLD node
+		nentries, err := decodeIPLDNode(bytes.NewBuffer(val))
+		if err != nil {
+			log.Errorf("Error decoding ipldNode: %v", err)
+			return
+		}
+
+		// If it is not an advertisement, is the list of Cids.
+		// Let's ingest it!
+		if !isAdvertisement(nentries) {
+			// Get the advertisement ID corresponding to the link.
+			val, err := i.ds.Get(dsKey("adMap/" + c.String()))
+			if err != nil {
+				log.Errorf("Error while fetching the advertisementID for entries map: %v", err)
+			}
+			adCid, err := cid.Cast(val)
+			if err != nil {
+				log.Errorf("Error casting Cid for advertisement: %v", err)
+			}
+
+			err = i.processEntries(adCid, p, nentries)
+			if err != nil {
+				log.Errorf("Error processing entries for advertisement: %v", err)
+
+			}
+
+			// When we are finished processing the index we can remove
+			// it from the datastore (we don't want redundant information
+			// in several datastores).
+			err = i.ds.Delete(dsKey(c.String()))
+			if err != nil {
+				log.Errorf("Error deleting index from datastore: %v", err)
+				return
+			}
+		}
+	}
+}
+
+func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Node) error {
+	adb, err := i.ds.Get(dsKey("adMap/" + adCid.String()))
+	if err != nil {
+		log.Errorf("Error while fetching advertisement for entry: %v", err)
+		return err
+	}
+	adn, err := decodeIPLDNode(bytes.NewBuffer(adb))
+	if err != nil {
+		log.Errorf("Error decoding ipldNode: %v", err)
+		return err
+	}
+	ad, err := decodeAd(adn)
+	if err != nil {
+		log.Errorf("Error decoding advertisement: %v", err)
+		return err
+	}
+	metadata, err := ad.FieldMetadata().AsBytes()
+	if err != nil {
+		return err
+	}
+	isRm, err := ad.FieldIsRm().AsBool()
+	if err != nil {
+		return err
+	}
+	// NOTE: No need to get provider from the advertisement
+	// we have in the message source. We could add an additional
+	// check here though.
+	// provider, err := ad.FieldProvider().AsString()
+
+	nb := schema.Type.List_String.NewBuilder()
+	err = nb.AssignNode(nentries)
+	if err != nil {
+		log.Errorf("Error decoding entries: %v", err)
+		return err
+	}
+	entries := nb.Build()
+	// Iterate over all entries
+	cit := entries.ListIterator()
+	for !cit.Done() {
+		_, cnode, err := cit.Next()
+		if err != nil {
+			// return err
+		}
+		cs, _ := cnode.AsString()
+		c, err := cid.Decode(cs)
+		if err != nil {
+			return err
+		}
+		val := indexer.MakeValue(p, 0, metadata)
+		if isRm {
+			if _, err := i.indexer.Remove(c, val); err != nil {
+				log.Errorf("Error removing CID %s in indexer: %v", c, err)
+				return err
+			}
+
+		} else {
+			if _, err := i.indexer.Put(c, val); err != nil {
+				log.Errorf("Error putting CID %s in indexer: %v", c, err)
+				return err
+			}
+		}
+		log.Debugf("Success putting CID %s in indexer", c)
+	}
+	return nil
+}
+
+// storageHook determines the logic to run when a new block is received through graphsync.
+// NOTE: This hook is run after an exchanged IPLD node has been stored in the datastore.
+// This means that the node is persisted and then processed. This is not the most appropriate
+// solution as it requires storing and then deleting data instead of processing the stream
+// receive in the linkSystem, but until we figure out how to pass to the linkSystem
+// the peer invoved in the request, we'll need to go with this approach.
+func (i *legIngester) storageHook2() graphsync.OnIncomingBlockHook {
 	return func(p peer.ID, responseData graphsync.ResponseData, blockData graphsync.BlockData, hookActions graphsync.IncomingBlockHookActions) {
 		// Get cid of the node received.
 		c := blockData.Link().(cidlink.Link).Cid
@@ -82,13 +261,6 @@ func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 				// stop exchange, verification of signature failed.
 				hookActions.TerminateWithError(errors.New("advertisement verification failed"))
 				log.Errorf("Signature verification failed for add: %v", err)
-			}
-		} else {
-			// Process CIDs from index and store them in the indexer.
-			err = i.processCidsIndex(p, n)
-			if err != nil {
-				log.Errorf("Error processing index for storage: %v", err)
-				return
 			}
 
 			// When we are finished processing the index we can remove
@@ -130,7 +302,7 @@ func isAdvertisement(n ipld.Node) bool {
 // NOTE: We could add a callback to give flexibility to processCidsIndex
 // and be able to run a different callbacks according to the needs.
 // I don't think it makes sense in this stage.
-func (i *legIngester) processCidsIndex(p peer.ID, n ipld.Node) error {
+func (i *legIngester) processCidsIndex(p peer.ID, n ipld.Node, metadata []byte, isRm bool) error {
 	fmt.Println(n)
 	return nil
 }

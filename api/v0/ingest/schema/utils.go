@@ -89,7 +89,7 @@ func NewAdvertisementWithLink(
 // AdvertisementLink generates a new link from an advertisemenet using a specific
 // linkSystem
 func AdvertisementLink(lsys ipld.LinkSystem, adv Advertisement) (Link_Advertisement, error) {
-	lnk, err := lsys.Store(ipld.LinkContext{}, Linkproto, adv)
+	lnk, err := lsys.Store(ipld.LinkContext{}, Linkproto, adv.Representation())
 	if err != nil {
 		return nil, err
 	}
