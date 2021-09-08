@@ -59,7 +59,7 @@ func (l Link_Advertisement) ToCid() cid.Cid {
 // LinkContext returns a linkContext for the type of link
 func (l Advertisement) LinkContext(ctx context.Context) ipld.LinkContext {
 	return ipld.LinkContext{
-		Ctx: context.WithValue(ctx, IsAdKey, LinkContextValue(false)),
+		Ctx: context.WithValue(ctx, IsAdKey, LinkContextValue(true)),
 	}
 }
 
@@ -68,6 +68,11 @@ func (l Advertisement) LinkContext(ctx context.Context) ipld.LinkContext {
 func NewListOfCids(lsys ipld.LinkSystem, cids []cid.Cid) (ipld.Link, error) {
 	cStr := &_List_String{x: cidsToString(cids)}
 	return lsys.Store(ipld.LinkContext{}, Linkproto, cStr)
+}
+
+// NewListStringFromCids converts the cid to a list of strings
+func NewListStringFromCids(cids []cid.Cid) List_String {
+	return &_List_String{x: cidsToString(cids)}
 }
 
 // NewAdvertisement creates a new advertisement without link to
