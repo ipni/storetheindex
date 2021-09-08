@@ -165,11 +165,15 @@ func daemonCommand(cctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		// TODO: Do we want to the libp2p host to listen on any particular
-		// addresss and port?
+		p2pmaddr, err := multiaddr.NewMultiaddr(cfg.Addresses.P2PAddr)
+		if err != nil {
+			return fmt.Errorf("bad p2p address in config %s: %s", cfg.Addresses.P2PAddr, err)
+		}
 		p2pHost, err := libp2p.New(ctx,
 			// Use the keypair generated during init
 			libp2p.Identity(privKey),
+			// Listen at specific address
+			libp2p.ListenAddrs(p2pmaddr),
 		)
 		if err != nil {
 			return err
@@ -177,7 +181,7 @@ func daemonCommand(cctx *cli.Context) error {
 
 		p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
 		p2pingestserver.New(ctx, p2pHost, indexerCore, registry)
-		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID())
+		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)
 
 		// Initialize ingester if libp2p enabled.
 		ingester, err = legingest.NewLegIngester(ctx, cfg.Ingest, p2pHost, indexerCore, dstore)

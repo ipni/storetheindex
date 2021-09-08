@@ -23,9 +23,10 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 	conf := &Config{
 		// setup the node's default addresses.
 		Addresses: Addresses{
-			Admin:  defaultAdminAddr,
-			Finder: defaultFinderAddr,
-			Ingest: defaultIngestAddr,
+			Admin:   defaultAdminAddr,
+			Finder:  defaultFinderAddr,
+			Ingest:  defaultIngestAddr,
+			P2PAddr: defaultP2PAddr,
 		},
 
 		Datastore: Datastore{
