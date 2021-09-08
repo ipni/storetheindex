@@ -109,7 +109,7 @@ func TestSync(t *testing.T) {
 	// Set mockClient in ingester with latest Cid to avoid trying to contact
 	// a real provider.
 	i.client = newMockClient(c1)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	end, err := i.Sync(ctx, lph.ID())
 	t.Cleanup(func() {
 		cancel()
