@@ -167,7 +167,7 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 		p2pmaddr, err := multiaddr.NewMultiaddr(cfg.Addresses.P2PAddr)
 		if err != nil {
-			return fmt.Errorf("bad p2p address in config %s: %s", cfg.Addresses.Admin, err)
+			return fmt.Errorf("bad p2p address in config %s: %s", cfg.Addresses.P2PAddr, err)
 		}
 		p2pHost, err := libp2p.New(ctx,
 			// Use the keypair generated during init
