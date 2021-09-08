@@ -301,7 +301,7 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 
 	// TODO: fix this - do not rely on sleep time
 	// Give some time for the advertisement to propagate
-	time.Sleep(time.Second)
+	time.Sleep(2 * time.Second)
 
 	// Check if advertisement in datastore.
 	adv, err := i.ds.Get(datastore.NewKey(c.String()))
