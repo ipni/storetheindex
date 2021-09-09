@@ -28,6 +28,8 @@ type typeSlab struct {
 	Bool__Repr               _Bool__ReprPrototype
 	Bytes                    _Bytes__Prototype
 	Bytes__Repr              _Bytes__ReprPrototype
+	EntryChunk               _EntryChunk__Prototype
+	EntryChunk__Repr         _EntryChunk__ReprPrototype
 	Float                    _Float__Prototype
 	Float__Repr              _Float__ReprPrototype
 	Int                      _Int__Prototype
@@ -36,6 +38,8 @@ type typeSlab struct {
 	Link__Repr               _Link__ReprPrototype
 	Link_Advertisement       _Link_Advertisement__Prototype
 	Link_Advertisement__Repr _Link_Advertisement__ReprPrototype
+	Link_EntryChunk          _Link_EntryChunk__Prototype
+	Link_EntryChunk__Repr    _Link_EntryChunk__ReprPrototype
 	List                     _List__Prototype
 	List__Repr               _List__ReprPrototype
 	List_String              _List_String__Prototype
@@ -86,6 +90,13 @@ type _Bool struct{ x bool }
 type Bytes = *_Bytes
 type _Bytes struct{ x []byte }
 
+// EntryChunk matches the IPLD Schema type "EntryChunk".  It has Struct type-kind, and may be interrogated like map kind.
+type EntryChunk = *_EntryChunk
+type _EntryChunk struct {
+	Entries _List_String
+	Next    _Link_EntryChunk__Maybe
+}
+
 // Float matches the IPLD Schema type "Float".  It has float kind.
 type Float = *_Float
 type _Float struct{ x float64 }
@@ -101,6 +112,10 @@ type _Link struct{ x datamodel.Link }
 // Link_Advertisement matches the IPLD Schema type "Link_Advertisement".  It has link kind.
 type Link_Advertisement = *_Link_Advertisement
 type _Link_Advertisement struct{ x datamodel.Link }
+
+// Link_EntryChunk matches the IPLD Schema type "Link_EntryChunk".  It has link kind.
+type Link_EntryChunk = *_Link_EntryChunk
+type _Link_EntryChunk struct{ x datamodel.Link }
 
 // List matches the IPLD Schema type "List".  It has list kind.
 type List = *_List
