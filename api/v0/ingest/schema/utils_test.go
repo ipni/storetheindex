@@ -81,6 +81,35 @@ func TestChainAdvertisements(t *testing.T) {
 	}
 }
 
+func TestLinkedList(t *testing.T) {
+	dstore := datastore.NewMapDatastore()
+	lsys := mkLinkSystem(dstore)
+	cids, _ := utils.RandomCids(10)
+	lnk1, ch1, err := NewLinkedListOfCids(lsys, cids, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	elnk1 := &_Link_EntryChunk{x: lnk1}
+	if ch1.FieldNext().v.x != nil {
+		t.Fatal("no link should have been assigned")
+	}
+	lnk2, ch2, err := NewLinkedListOfCids(lsys, cids, lnk1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ipld.DeepEqual(elnk1, &ch2.FieldNext().v) {
+		t.Fatal("elnk1 should equal ch2 fieldNext")
+	}
+	elnk2 := &_Link_EntryChunk{x: lnk2}
+	_, ch3, err := NewLinkedListOfCids(lsys, cids, lnk2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ipld.DeepEqual(elnk2, &ch3.FieldNext().v) {
+		t.Fatal("elnk3 should equal ch2 fieldNext")
+	}
+}
+
 func TestAdvSignature(t *testing.T) {
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	if err != nil {

@@ -75,6 +75,24 @@ func NewListStringFromCids(cids []cid.Cid) List_String {
 	return &_List_String{x: cidsToString(cids)}
 }
 
+// NewLinkedListOfCids creates a new element of a linked list that
+// can be used to paginate large lists.
+func NewLinkedListOfCids(lsys ipld.LinkSystem, cids []cid.Cid, next ipld.Link) (ipld.Link, EntryChunk, error) {
+	cStr := &_EntryChunk{
+		Entries: _List_String{x: cidsToString(cids)},
+	}
+	// If no next in the list.
+	if next == nil {
+		cStr.Next = _Link_EntryChunk__Maybe{m: schema.Maybe_Absent}
+	} else {
+
+		cStr.Next = _Link_EntryChunk__Maybe{m: schema.Maybe_Value, v: _Link_EntryChunk{x: next}}
+	}
+
+	lnk, err := lsys.Store(ipld.LinkContext{}, Linkproto, cStr.Representation())
+	return lnk, cStr, err
+}
+
 // NewAdvertisement creates a new advertisement without link to
 // let developerse choose the linking strategy they want to follow
 func NewAdvertisement(

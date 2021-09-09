@@ -268,14 +268,28 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 	}
 }
 
-func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []cid.Cid) {
+func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []cid.Cid) {
+	out := []cid.Cid{}
 	cids, _ := RandomCids(10)
+	out = append(out, cids...)
+	nextLnk, _, err := schema.NewLinkedListOfCids(lsys, cids, nil)
+	require.NoError(t, err)
+	for i := 1; i < size; i++ {
+		cids, _ := RandomCids(10)
+		nextLnk, _, err = schema.NewLinkedListOfCids(lsys, cids, nextLnk)
+		require.NoError(t, err)
+		out = append(out, cids...)
+	}
+	return nextLnk, out
+}
+
+func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []cid.Cid) {
+	cids, _ := RandomCids(1)
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	val := indexer.MakeValue(p, 0, cids[0].Bytes())
-	cidsLnk, err := schema.NewListOfCids(lsys, cids)
-	require.NoError(t, err)
+	cidsLnk, cids := newRandomLinkedList(t, lsys, 3)
 	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, cidsLnk, val.Metadata, false, p.String())
 	if fakeSig {
 		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, cidsLnk, val.Metadata, false, p.String())
