@@ -2898,6 +2898,950 @@ var _ datamodel.Node = &_Bytes__Repr{}
 type _Bytes__ReprPrototype = _Bytes__Prototype
 type _Bytes__ReprAssembler = _Bytes__Assembler
 
+func (n _EntryChunk) FieldEntries() List_String {
+	return &n.Entries
+}
+func (n _EntryChunk) FieldNext() MaybeLink_EntryChunk {
+	return &n.Next
+}
+
+type _EntryChunk__Maybe struct {
+	m schema.Maybe
+	v EntryChunk
+}
+type MaybeEntryChunk = *_EntryChunk__Maybe
+
+func (m MaybeEntryChunk) IsNull() bool {
+	return m.m == schema.Maybe_Null
+}
+func (m MaybeEntryChunk) IsAbsent() bool {
+	return m.m == schema.Maybe_Absent
+}
+func (m MaybeEntryChunk) Exists() bool {
+	return m.m == schema.Maybe_Value
+}
+func (m MaybeEntryChunk) AsNode() datamodel.Node {
+	switch m.m {
+	case schema.Maybe_Absent:
+		return datamodel.Absent
+	case schema.Maybe_Null:
+		return datamodel.Null
+	case schema.Maybe_Value:
+		return m.v
+	default:
+		panic("unreachable")
+	}
+}
+func (m MaybeEntryChunk) Must() EntryChunk {
+	if !m.Exists() {
+		panic("unbox of a maybe rejected")
+	}
+	return m.v
+}
+
+var (
+	fieldName__EntryChunk_Entries = _String{"Entries"}
+	fieldName__EntryChunk_Next    = _String{"Next"}
+)
+var _ datamodel.Node = (EntryChunk)(&_EntryChunk{})
+var _ schema.TypedNode = (EntryChunk)(&_EntryChunk{})
+
+func (EntryChunk) Kind() datamodel.Kind {
+	return datamodel.Kind_Map
+}
+func (n EntryChunk) LookupByString(key string) (datamodel.Node, error) {
+	switch key {
+	case "Entries":
+		return &n.Entries, nil
+	case "Next":
+		if n.Next.m == schema.Maybe_Absent {
+			return datamodel.Absent, nil
+		}
+		return &n.Next.v, nil
+	default:
+		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: datamodel.PathSegmentOfString(key)}
+	}
+}
+func (n EntryChunk) LookupByNode(key datamodel.Node) (datamodel.Node, error) {
+	ks, err := key.AsString()
+	if err != nil {
+		return nil, err
+	}
+	return n.LookupByString(ks)
+}
+func (EntryChunk) LookupByIndex(idx int64) (datamodel.Node, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk"}.LookupByIndex(0)
+}
+func (n EntryChunk) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
+	return n.LookupByString(seg.String())
+}
+func (n EntryChunk) MapIterator() datamodel.MapIterator {
+	return &_EntryChunk__MapItr{n, 0}
+}
+
+type _EntryChunk__MapItr struct {
+	n   EntryChunk
+	idx int
+}
+
+func (itr *_EntryChunk__MapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
+	if itr.idx >= 2 {
+		return nil, nil, datamodel.ErrIteratorOverread{}
+	}
+	switch itr.idx {
+	case 0:
+		k = &fieldName__EntryChunk_Entries
+		v = &itr.n.Entries
+	case 1:
+		k = &fieldName__EntryChunk_Next
+		if itr.n.Next.m == schema.Maybe_Absent {
+			v = datamodel.Absent
+			break
+		}
+		v = &itr.n.Next.v
+	default:
+		panic("unreachable")
+	}
+	itr.idx++
+	return
+}
+func (itr *_EntryChunk__MapItr) Done() bool {
+	return itr.idx >= 2
+}
+
+func (EntryChunk) ListIterator() datamodel.ListIterator {
+	return nil
+}
+func (EntryChunk) Length() int64 {
+	return 2
+}
+func (EntryChunk) IsAbsent() bool {
+	return false
+}
+func (EntryChunk) IsNull() bool {
+	return false
+}
+func (EntryChunk) AsBool() (bool, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk"}.AsBool()
+}
+func (EntryChunk) AsInt() (int64, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk"}.AsInt()
+}
+func (EntryChunk) AsFloat() (float64, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk"}.AsFloat()
+}
+func (EntryChunk) AsString() (string, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk"}.AsString()
+}
+func (EntryChunk) AsBytes() ([]byte, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk"}.AsBytes()
+}
+func (EntryChunk) AsLink() (datamodel.Link, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk"}.AsLink()
+}
+func (EntryChunk) Prototype() datamodel.NodePrototype {
+	return _EntryChunk__Prototype{}
+}
+
+type _EntryChunk__Prototype struct{}
+
+func (_EntryChunk__Prototype) NewBuilder() datamodel.NodeBuilder {
+	var nb _EntryChunk__Builder
+	nb.Reset()
+	return &nb
+}
+
+type _EntryChunk__Builder struct {
+	_EntryChunk__Assembler
+}
+
+func (nb *_EntryChunk__Builder) Build() datamodel.Node {
+	if *nb.m != schema.Maybe_Value {
+		panic("invalid state: cannot call Build on an assembler that's not finished")
+	}
+	return nb.w
+}
+func (nb *_EntryChunk__Builder) Reset() {
+	var w _EntryChunk
+	var m schema.Maybe
+	*nb = _EntryChunk__Builder{_EntryChunk__Assembler{w: &w, m: &m}}
+}
+
+type _EntryChunk__Assembler struct {
+	w     *_EntryChunk
+	m     *schema.Maybe
+	state maState
+	s     int
+	f     int
+
+	cm         schema.Maybe
+	ca_Entries _List_String__Assembler
+	ca_Next    _Link_EntryChunk__Assembler
+}
+
+func (na *_EntryChunk__Assembler) reset() {
+	na.state = maState_initial
+	na.s = 0
+	na.ca_Entries.reset()
+	na.ca_Next.reset()
+}
+
+var (
+	fieldBit__EntryChunk_Entries     = 1 << 0
+	fieldBit__EntryChunk_Next        = 1 << 1
+	fieldBits__EntryChunk_sufficient = 0 + 1<<0
+)
+
+func (na *_EntryChunk__Assembler) BeginMap(int64) (datamodel.MapAssembler, error) {
+	switch *na.m {
+	case schema.Maybe_Value, schema.Maybe_Null:
+		panic("invalid state: cannot assign into assembler that's already finished")
+	case midvalue:
+		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
+	}
+	*na.m = midvalue
+	if na.w == nil {
+		na.w = &_EntryChunk{}
+	}
+	return na, nil
+}
+func (_EntryChunk__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk"}.BeginList(0)
+}
+func (na *_EntryChunk__Assembler) AssignNull() error {
+	switch *na.m {
+	case allowNull:
+		*na.m = schema.Maybe_Null
+		return nil
+	case schema.Maybe_Absent:
+		return mixins.MapAssembler{TypeName: "schema.EntryChunk"}.AssignNull()
+	case schema.Maybe_Value, schema.Maybe_Null:
+		panic("invalid state: cannot assign into assembler that's already finished")
+	case midvalue:
+		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
+	}
+	panic("unreachable")
+}
+func (_EntryChunk__Assembler) AssignBool(bool) error {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk"}.AssignBool(false)
+}
+func (_EntryChunk__Assembler) AssignInt(int64) error {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk"}.AssignInt(0)
+}
+func (_EntryChunk__Assembler) AssignFloat(float64) error {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk"}.AssignFloat(0)
+}
+func (_EntryChunk__Assembler) AssignString(string) error {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk"}.AssignString("")
+}
+func (_EntryChunk__Assembler) AssignBytes([]byte) error {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk"}.AssignBytes(nil)
+}
+func (_EntryChunk__Assembler) AssignLink(datamodel.Link) error {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk"}.AssignLink(nil)
+}
+func (na *_EntryChunk__Assembler) AssignNode(v datamodel.Node) error {
+	if v.IsNull() {
+		return na.AssignNull()
+	}
+	if v2, ok := v.(*_EntryChunk); ok {
+		switch *na.m {
+		case schema.Maybe_Value, schema.Maybe_Null:
+			panic("invalid state: cannot assign into assembler that's already finished")
+		case midvalue:
+			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
+		}
+		if na.w == nil {
+			na.w = v2
+			*na.m = schema.Maybe_Value
+			return nil
+		}
+		*na.w = *v2
+		*na.m = schema.Maybe_Value
+		return nil
+	}
+	if v.Kind() != datamodel.Kind_Map {
+		return datamodel.ErrWrongKind{TypeName: "schema.EntryChunk", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustMap, ActualKind: v.Kind()}
+	}
+	itr := v.MapIterator()
+	for !itr.Done() {
+		k, v, err := itr.Next()
+		if err != nil {
+			return err
+		}
+		if err := na.AssembleKey().AssignNode(k); err != nil {
+			return err
+		}
+		if err := na.AssembleValue().AssignNode(v); err != nil {
+			return err
+		}
+	}
+	return na.Finish()
+}
+func (_EntryChunk__Assembler) Prototype() datamodel.NodePrototype {
+	return _EntryChunk__Prototype{}
+}
+func (ma *_EntryChunk__Assembler) valueFinishTidy() bool {
+	switch ma.f {
+	case 0:
+		switch ma.cm {
+		case schema.Maybe_Value:
+			ma.ca_Entries.w = nil
+			ma.cm = schema.Maybe_Absent
+			ma.state = maState_initial
+			return true
+		default:
+			return false
+		}
+	case 1:
+		switch ma.w.Next.m {
+		case schema.Maybe_Value:
+			ma.state = maState_initial
+			return true
+		default:
+			return false
+		}
+	default:
+		panic("unreachable")
+	}
+}
+func (ma *_EntryChunk__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, error) {
+	switch ma.state {
+	case maState_initial:
+		// carry on
+	case maState_midKey:
+		panic("invalid state: AssembleEntry cannot be called when in the middle of assembling another key")
+	case maState_expectValue:
+		panic("invalid state: AssembleEntry cannot be called when expecting start of value assembly")
+	case maState_midValue:
+		if !ma.valueFinishTidy() {
+			panic("invalid state: AssembleEntry cannot be called when in the middle of assembling a value")
+		} // if tidy success: carry on
+	case maState_finished:
+		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
+	}
+	switch k {
+	case "Entries":
+		if ma.s&fieldBit__EntryChunk_Entries != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__EntryChunk_Entries}
+		}
+		ma.s += fieldBit__EntryChunk_Entries
+		ma.state = maState_midValue
+		ma.f = 0
+		ma.ca_Entries.w = &ma.w.Entries
+		ma.ca_Entries.m = &ma.cm
+		return &ma.ca_Entries, nil
+	case "Next":
+		if ma.s&fieldBit__EntryChunk_Next != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__EntryChunk_Next}
+		}
+		ma.s += fieldBit__EntryChunk_Next
+		ma.state = maState_midValue
+		ma.f = 1
+		ma.ca_Next.w = &ma.w.Next.v
+		ma.ca_Next.m = &ma.w.Next.m
+		return &ma.ca_Next, nil
+	}
+	return nil, schema.ErrInvalidKey{TypeName: "schema.EntryChunk", Key: &_String{k}}
+}
+func (ma *_EntryChunk__Assembler) AssembleKey() datamodel.NodeAssembler {
+	switch ma.state {
+	case maState_initial:
+		// carry on
+	case maState_midKey:
+		panic("invalid state: AssembleKey cannot be called when in the middle of assembling another key")
+	case maState_expectValue:
+		panic("invalid state: AssembleKey cannot be called when expecting start of value assembly")
+	case maState_midValue:
+		if !ma.valueFinishTidy() {
+			panic("invalid state: AssembleKey cannot be called when in the middle of assembling a value")
+		} // if tidy success: carry on
+	case maState_finished:
+		panic("invalid state: AssembleKey cannot be called on an assembler that's already finished")
+	}
+	ma.state = maState_midKey
+	return (*_EntryChunk__KeyAssembler)(ma)
+}
+func (ma *_EntryChunk__Assembler) AssembleValue() datamodel.NodeAssembler {
+	switch ma.state {
+	case maState_initial:
+		panic("invalid state: AssembleValue cannot be called when no key is primed")
+	case maState_midKey:
+		panic("invalid state: AssembleValue cannot be called when in the middle of assembling a key")
+	case maState_expectValue:
+		// carry on
+	case maState_midValue:
+		panic("invalid state: AssembleValue cannot be called when in the middle of assembling another value")
+	case maState_finished:
+		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
+	}
+	ma.state = maState_midValue
+	switch ma.f {
+	case 0:
+		ma.ca_Entries.w = &ma.w.Entries
+		ma.ca_Entries.m = &ma.cm
+		return &ma.ca_Entries
+	case 1:
+		ma.ca_Next.w = &ma.w.Next.v
+		ma.ca_Next.m = &ma.w.Next.m
+		return &ma.ca_Next
+	default:
+		panic("unreachable")
+	}
+}
+func (ma *_EntryChunk__Assembler) Finish() error {
+	switch ma.state {
+	case maState_initial:
+		// carry on
+	case maState_midKey:
+		panic("invalid state: Finish cannot be called when in the middle of assembling a key")
+	case maState_expectValue:
+		panic("invalid state: Finish cannot be called when expecting start of value assembly")
+	case maState_midValue:
+		if !ma.valueFinishTidy() {
+			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
+		} // if tidy success: carry on
+	case maState_finished:
+		panic("invalid state: Finish cannot be called on an assembler that's already finished")
+	}
+	if ma.s&fieldBits__EntryChunk_sufficient != fieldBits__EntryChunk_sufficient {
+		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
+		if ma.s&fieldBit__EntryChunk_Entries == 0 {
+			err.Missing = append(err.Missing, "Entries")
+		}
+		return err
+	}
+	ma.state = maState_finished
+	*ma.m = schema.Maybe_Value
+	return nil
+}
+func (ma *_EntryChunk__Assembler) KeyPrototype() datamodel.NodePrototype {
+	return _String__Prototype{}
+}
+func (ma *_EntryChunk__Assembler) ValuePrototype(k string) datamodel.NodePrototype {
+	panic("todo structbuilder mapassembler valueprototype")
+}
+
+type _EntryChunk__KeyAssembler _EntryChunk__Assembler
+
+func (_EntryChunk__KeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.KeyAssembler"}.BeginMap(0)
+}
+func (_EntryChunk__KeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.KeyAssembler"}.BeginList(0)
+}
+func (na *_EntryChunk__KeyAssembler) AssignNull() error {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.KeyAssembler"}.AssignNull()
+}
+func (_EntryChunk__KeyAssembler) AssignBool(bool) error {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.KeyAssembler"}.AssignBool(false)
+}
+func (_EntryChunk__KeyAssembler) AssignInt(int64) error {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.KeyAssembler"}.AssignInt(0)
+}
+func (_EntryChunk__KeyAssembler) AssignFloat(float64) error {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.KeyAssembler"}.AssignFloat(0)
+}
+func (ka *_EntryChunk__KeyAssembler) AssignString(k string) error {
+	if ka.state != maState_midKey {
+		panic("misuse: KeyAssembler held beyond its valid lifetime")
+	}
+	switch k {
+	case "Entries":
+		if ka.s&fieldBit__EntryChunk_Entries != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__EntryChunk_Entries}
+		}
+		ka.s += fieldBit__EntryChunk_Entries
+		ka.state = maState_expectValue
+		ka.f = 0
+		return nil
+	case "Next":
+		if ka.s&fieldBit__EntryChunk_Next != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__EntryChunk_Next}
+		}
+		ka.s += fieldBit__EntryChunk_Next
+		ka.state = maState_expectValue
+		ka.f = 1
+		return nil
+	default:
+		return schema.ErrInvalidKey{TypeName: "schema.EntryChunk", Key: &_String{k}}
+	}
+}
+func (_EntryChunk__KeyAssembler) AssignBytes([]byte) error {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.KeyAssembler"}.AssignBytes(nil)
+}
+func (_EntryChunk__KeyAssembler) AssignLink(datamodel.Link) error {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.KeyAssembler"}.AssignLink(nil)
+}
+func (ka *_EntryChunk__KeyAssembler) AssignNode(v datamodel.Node) error {
+	if v2, err := v.AsString(); err != nil {
+		return err
+	} else {
+		return ka.AssignString(v2)
+	}
+}
+func (_EntryChunk__KeyAssembler) Prototype() datamodel.NodePrototype {
+	return _String__Prototype{}
+}
+func (EntryChunk) Type() schema.Type {
+	return nil /*TODO:typelit*/
+}
+func (n EntryChunk) Representation() datamodel.Node {
+	return (*_EntryChunk__Repr)(n)
+}
+
+type _EntryChunk__Repr _EntryChunk
+
+var (
+	fieldName__EntryChunk_Entries_serial = _String{"Entries"}
+	fieldName__EntryChunk_Next_serial    = _String{"Next"}
+)
+var _ datamodel.Node = &_EntryChunk__Repr{}
+
+func (_EntryChunk__Repr) Kind() datamodel.Kind {
+	return datamodel.Kind_Map
+}
+func (n *_EntryChunk__Repr) LookupByString(key string) (datamodel.Node, error) {
+	switch key {
+	case "Entries":
+		return n.Entries.Representation(), nil
+	case "Next":
+		if n.Next.m == schema.Maybe_Absent {
+			return datamodel.Absent, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfString(key)}
+		}
+		return n.Next.v.Representation(), nil
+	default:
+		return nil, schema.ErrNoSuchField{Type: nil /*TODO*/, Field: datamodel.PathSegmentOfString(key)}
+	}
+}
+func (n *_EntryChunk__Repr) LookupByNode(key datamodel.Node) (datamodel.Node, error) {
+	ks, err := key.AsString()
+	if err != nil {
+		return nil, err
+	}
+	return n.LookupByString(ks)
+}
+func (_EntryChunk__Repr) LookupByIndex(idx int64) (datamodel.Node, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk.Repr"}.LookupByIndex(0)
+}
+func (n _EntryChunk__Repr) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
+	return n.LookupByString(seg.String())
+}
+func (n *_EntryChunk__Repr) MapIterator() datamodel.MapIterator {
+	end := 2
+	if n.Next.m == schema.Maybe_Absent {
+		end = 1
+	} else {
+		goto done
+	}
+done:
+	return &_EntryChunk__ReprMapItr{n, 0, end}
+}
+
+type _EntryChunk__ReprMapItr struct {
+	n   *_EntryChunk__Repr
+	idx int
+	end int
+}
+
+func (itr *_EntryChunk__ReprMapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
+advance:
+	if itr.idx >= 2 {
+		return nil, nil, datamodel.ErrIteratorOverread{}
+	}
+	switch itr.idx {
+	case 0:
+		k = &fieldName__EntryChunk_Entries_serial
+		v = itr.n.Entries.Representation()
+	case 1:
+		k = &fieldName__EntryChunk_Next_serial
+		if itr.n.Next.m == schema.Maybe_Absent {
+			itr.idx++
+			goto advance
+		}
+		v = itr.n.Next.v.Representation()
+	default:
+		panic("unreachable")
+	}
+	itr.idx++
+	return
+}
+func (itr *_EntryChunk__ReprMapItr) Done() bool {
+	return itr.idx >= itr.end
+}
+func (_EntryChunk__Repr) ListIterator() datamodel.ListIterator {
+	return nil
+}
+func (rn *_EntryChunk__Repr) Length() int64 {
+	l := 2
+	if rn.Next.m == schema.Maybe_Absent {
+		l--
+	}
+	return int64(l)
+}
+func (_EntryChunk__Repr) IsAbsent() bool {
+	return false
+}
+func (_EntryChunk__Repr) IsNull() bool {
+	return false
+}
+func (_EntryChunk__Repr) AsBool() (bool, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk.Repr"}.AsBool()
+}
+func (_EntryChunk__Repr) AsInt() (int64, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk.Repr"}.AsInt()
+}
+func (_EntryChunk__Repr) AsFloat() (float64, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk.Repr"}.AsFloat()
+}
+func (_EntryChunk__Repr) AsString() (string, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk.Repr"}.AsString()
+}
+func (_EntryChunk__Repr) AsBytes() ([]byte, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk.Repr"}.AsBytes()
+}
+func (_EntryChunk__Repr) AsLink() (datamodel.Link, error) {
+	return mixins.Map{TypeName: "schema.EntryChunk.Repr"}.AsLink()
+}
+func (_EntryChunk__Repr) Prototype() datamodel.NodePrototype {
+	return _EntryChunk__ReprPrototype{}
+}
+
+type _EntryChunk__ReprPrototype struct{}
+
+func (_EntryChunk__ReprPrototype) NewBuilder() datamodel.NodeBuilder {
+	var nb _EntryChunk__ReprBuilder
+	nb.Reset()
+	return &nb
+}
+
+type _EntryChunk__ReprBuilder struct {
+	_EntryChunk__ReprAssembler
+}
+
+func (nb *_EntryChunk__ReprBuilder) Build() datamodel.Node {
+	if *nb.m != schema.Maybe_Value {
+		panic("invalid state: cannot call Build on an assembler that's not finished")
+	}
+	return nb.w
+}
+func (nb *_EntryChunk__ReprBuilder) Reset() {
+	var w _EntryChunk
+	var m schema.Maybe
+	*nb = _EntryChunk__ReprBuilder{_EntryChunk__ReprAssembler{w: &w, m: &m}}
+}
+
+type _EntryChunk__ReprAssembler struct {
+	w     *_EntryChunk
+	m     *schema.Maybe
+	state maState
+	s     int
+	f     int
+
+	cm         schema.Maybe
+	ca_Entries _List_String__ReprAssembler
+	ca_Next    _Link_EntryChunk__ReprAssembler
+}
+
+func (na *_EntryChunk__ReprAssembler) reset() {
+	na.state = maState_initial
+	na.s = 0
+	na.ca_Entries.reset()
+	na.ca_Next.reset()
+}
+func (na *_EntryChunk__ReprAssembler) BeginMap(int64) (datamodel.MapAssembler, error) {
+	switch *na.m {
+	case schema.Maybe_Value, schema.Maybe_Null:
+		panic("invalid state: cannot assign into assembler that's already finished")
+	case midvalue:
+		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
+	}
+	*na.m = midvalue
+	if na.w == nil {
+		na.w = &_EntryChunk{}
+	}
+	return na, nil
+}
+func (_EntryChunk__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk.Repr"}.BeginList(0)
+}
+func (na *_EntryChunk__ReprAssembler) AssignNull() error {
+	switch *na.m {
+	case allowNull:
+		*na.m = schema.Maybe_Null
+		return nil
+	case schema.Maybe_Absent:
+		return mixins.MapAssembler{TypeName: "schema.EntryChunk.Repr.Repr"}.AssignNull()
+	case schema.Maybe_Value, schema.Maybe_Null:
+		panic("invalid state: cannot assign into assembler that's already finished")
+	case midvalue:
+		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
+	}
+	panic("unreachable")
+}
+func (_EntryChunk__ReprAssembler) AssignBool(bool) error {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk.Repr"}.AssignBool(false)
+}
+func (_EntryChunk__ReprAssembler) AssignInt(int64) error {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk.Repr"}.AssignInt(0)
+}
+func (_EntryChunk__ReprAssembler) AssignFloat(float64) error {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk.Repr"}.AssignFloat(0)
+}
+func (_EntryChunk__ReprAssembler) AssignString(string) error {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk.Repr"}.AssignString("")
+}
+func (_EntryChunk__ReprAssembler) AssignBytes([]byte) error {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk.Repr"}.AssignBytes(nil)
+}
+func (_EntryChunk__ReprAssembler) AssignLink(datamodel.Link) error {
+	return mixins.MapAssembler{TypeName: "schema.EntryChunk.Repr"}.AssignLink(nil)
+}
+func (na *_EntryChunk__ReprAssembler) AssignNode(v datamodel.Node) error {
+	if v.IsNull() {
+		return na.AssignNull()
+	}
+	if v2, ok := v.(*_EntryChunk); ok {
+		switch *na.m {
+		case schema.Maybe_Value, schema.Maybe_Null:
+			panic("invalid state: cannot assign into assembler that's already finished")
+		case midvalue:
+			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
+		}
+		if na.w == nil {
+			na.w = v2
+			*na.m = schema.Maybe_Value
+			return nil
+		}
+		*na.w = *v2
+		*na.m = schema.Maybe_Value
+		return nil
+	}
+	if v.Kind() != datamodel.Kind_Map {
+		return datamodel.ErrWrongKind{TypeName: "schema.EntryChunk.Repr", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustMap, ActualKind: v.Kind()}
+	}
+	itr := v.MapIterator()
+	for !itr.Done() {
+		k, v, err := itr.Next()
+		if err != nil {
+			return err
+		}
+		if err := na.AssembleKey().AssignNode(k); err != nil {
+			return err
+		}
+		if err := na.AssembleValue().AssignNode(v); err != nil {
+			return err
+		}
+	}
+	return na.Finish()
+}
+func (_EntryChunk__ReprAssembler) Prototype() datamodel.NodePrototype {
+	return _EntryChunk__ReprPrototype{}
+}
+func (ma *_EntryChunk__ReprAssembler) valueFinishTidy() bool {
+	switch ma.f {
+	case 0:
+		switch ma.cm {
+		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
+			ma.state = maState_initial
+			return true
+		default:
+			return false
+		}
+	case 1:
+		switch ma.w.Next.m {
+		case schema.Maybe_Value:
+			ma.state = maState_initial
+			return true
+		default:
+			return false
+		}
+	default:
+		panic("unreachable")
+	}
+}
+func (ma *_EntryChunk__ReprAssembler) AssembleEntry(k string) (datamodel.NodeAssembler, error) {
+	switch ma.state {
+	case maState_initial:
+		// carry on
+	case maState_midKey:
+		panic("invalid state: AssembleEntry cannot be called when in the middle of assembling another key")
+	case maState_expectValue:
+		panic("invalid state: AssembleEntry cannot be called when expecting start of value assembly")
+	case maState_midValue:
+		if !ma.valueFinishTidy() {
+			panic("invalid state: AssembleEntry cannot be called when in the middle of assembling a value")
+		} // if tidy success: carry on
+	case maState_finished:
+		panic("invalid state: AssembleEntry cannot be called on an assembler that's already finished")
+	}
+	switch k {
+	case "Entries":
+		if ma.s&fieldBit__EntryChunk_Entries != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__EntryChunk_Entries_serial}
+		}
+		ma.s += fieldBit__EntryChunk_Entries
+		ma.state = maState_midValue
+		ma.f = 0
+		ma.ca_Entries.w = &ma.w.Entries
+		ma.ca_Entries.m = &ma.cm
+		return &ma.ca_Entries, nil
+	case "Next":
+		if ma.s&fieldBit__EntryChunk_Next != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__EntryChunk_Next_serial}
+		}
+		ma.s += fieldBit__EntryChunk_Next
+		ma.state = maState_midValue
+		ma.f = 1
+		ma.ca_Next.w = &ma.w.Next.v
+		ma.ca_Next.m = &ma.w.Next.m
+
+		return &ma.ca_Next, nil
+	default:
+	}
+	return nil, schema.ErrInvalidKey{TypeName: "schema.EntryChunk.Repr", Key: &_String{k}}
+}
+func (ma *_EntryChunk__ReprAssembler) AssembleKey() datamodel.NodeAssembler {
+	switch ma.state {
+	case maState_initial:
+		// carry on
+	case maState_midKey:
+		panic("invalid state: AssembleKey cannot be called when in the middle of assembling another key")
+	case maState_expectValue:
+		panic("invalid state: AssembleKey cannot be called when expecting start of value assembly")
+	case maState_midValue:
+		if !ma.valueFinishTidy() {
+			panic("invalid state: AssembleKey cannot be called when in the middle of assembling a value")
+		} // if tidy success: carry on
+	case maState_finished:
+		panic("invalid state: AssembleKey cannot be called on an assembler that's already finished")
+	}
+	ma.state = maState_midKey
+	return (*_EntryChunk__ReprKeyAssembler)(ma)
+}
+func (ma *_EntryChunk__ReprAssembler) AssembleValue() datamodel.NodeAssembler {
+	switch ma.state {
+	case maState_initial:
+		panic("invalid state: AssembleValue cannot be called when no key is primed")
+	case maState_midKey:
+		panic("invalid state: AssembleValue cannot be called when in the middle of assembling a key")
+	case maState_expectValue:
+		// carry on
+	case maState_midValue:
+		panic("invalid state: AssembleValue cannot be called when in the middle of assembling another value")
+	case maState_finished:
+		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
+	}
+	ma.state = maState_midValue
+	switch ma.f {
+	case 0:
+		ma.ca_Entries.w = &ma.w.Entries
+		ma.ca_Entries.m = &ma.cm
+		return &ma.ca_Entries
+	case 1:
+		ma.ca_Next.w = &ma.w.Next.v
+		ma.ca_Next.m = &ma.w.Next.m
+
+		return &ma.ca_Next
+	default:
+		panic("unreachable")
+	}
+}
+func (ma *_EntryChunk__ReprAssembler) Finish() error {
+	switch ma.state {
+	case maState_initial:
+		// carry on
+	case maState_midKey:
+		panic("invalid state: Finish cannot be called when in the middle of assembling a key")
+	case maState_expectValue:
+		panic("invalid state: Finish cannot be called when expecting start of value assembly")
+	case maState_midValue:
+		if !ma.valueFinishTidy() {
+			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
+		} // if tidy success: carry on
+	case maState_finished:
+		panic("invalid state: Finish cannot be called on an assembler that's already finished")
+	}
+	if ma.s&fieldBits__EntryChunk_sufficient != fieldBits__EntryChunk_sufficient {
+		err := schema.ErrMissingRequiredField{Missing: make([]string, 0)}
+		if ma.s&fieldBit__EntryChunk_Entries == 0 {
+			err.Missing = append(err.Missing, "Entries")
+		}
+		return err
+	}
+	ma.state = maState_finished
+	*ma.m = schema.Maybe_Value
+	return nil
+}
+func (ma *_EntryChunk__ReprAssembler) KeyPrototype() datamodel.NodePrototype {
+	return _String__Prototype{}
+}
+func (ma *_EntryChunk__ReprAssembler) ValuePrototype(k string) datamodel.NodePrototype {
+	panic("todo structbuilder mapassembler repr valueprototype")
+}
+
+type _EntryChunk__ReprKeyAssembler _EntryChunk__ReprAssembler
+
+func (_EntryChunk__ReprKeyAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.Repr.KeyAssembler"}.BeginMap(0)
+}
+func (_EntryChunk__ReprKeyAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.Repr.KeyAssembler"}.BeginList(0)
+}
+func (na *_EntryChunk__ReprKeyAssembler) AssignNull() error {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.Repr.KeyAssembler"}.AssignNull()
+}
+func (_EntryChunk__ReprKeyAssembler) AssignBool(bool) error {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.Repr.KeyAssembler"}.AssignBool(false)
+}
+func (_EntryChunk__ReprKeyAssembler) AssignInt(int64) error {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.Repr.KeyAssembler"}.AssignInt(0)
+}
+func (_EntryChunk__ReprKeyAssembler) AssignFloat(float64) error {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.Repr.KeyAssembler"}.AssignFloat(0)
+}
+func (ka *_EntryChunk__ReprKeyAssembler) AssignString(k string) error {
+	if ka.state != maState_midKey {
+		panic("misuse: KeyAssembler held beyond its valid lifetime")
+	}
+	switch k {
+	case "Entries":
+		if ka.s&fieldBit__EntryChunk_Entries != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__EntryChunk_Entries_serial}
+		}
+		ka.s += fieldBit__EntryChunk_Entries
+		ka.state = maState_expectValue
+		ka.f = 0
+		return nil
+	case "Next":
+		if ka.s&fieldBit__EntryChunk_Next != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__EntryChunk_Next_serial}
+		}
+		ka.s += fieldBit__EntryChunk_Next
+		ka.state = maState_expectValue
+		ka.f = 1
+		return nil
+	}
+	return schema.ErrInvalidKey{TypeName: "schema.EntryChunk.Repr", Key: &_String{k}}
+}
+func (_EntryChunk__ReprKeyAssembler) AssignBytes([]byte) error {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.Repr.KeyAssembler"}.AssignBytes(nil)
+}
+func (_EntryChunk__ReprKeyAssembler) AssignLink(datamodel.Link) error {
+	return mixins.StringAssembler{TypeName: "schema.EntryChunk.Repr.KeyAssembler"}.AssignLink(nil)
+}
+func (ka *_EntryChunk__ReprKeyAssembler) AssignNode(v datamodel.Node) error {
+	if v2, err := v.AsString(); err != nil {
+		return err
+	} else {
+		return ka.AssignString(v2)
+	}
+}
+func (_EntryChunk__ReprKeyAssembler) Prototype() datamodel.NodePrototype {
+	return _String__Prototype{}
+}
+
 func (n Float) Float() float64 {
 	return n.x
 }
@@ -3720,6 +4664,214 @@ var _ datamodel.Node = &_Link_Advertisement__Repr{}
 
 type _Link_Advertisement__ReprPrototype = _Link_Advertisement__Prototype
 type _Link_Advertisement__ReprAssembler = _Link_Advertisement__Assembler
+
+func (n Link_EntryChunk) Link() datamodel.Link {
+	return n.x
+}
+func (_Link_EntryChunk__Prototype) FromLink(v datamodel.Link) (Link_EntryChunk, error) {
+	n := _Link_EntryChunk{v}
+	return &n, nil
+}
+
+type _Link_EntryChunk__Maybe struct {
+	m schema.Maybe
+	v _Link_EntryChunk
+}
+type MaybeLink_EntryChunk = *_Link_EntryChunk__Maybe
+
+func (m MaybeLink_EntryChunk) IsNull() bool {
+	return m.m == schema.Maybe_Null
+}
+func (m MaybeLink_EntryChunk) IsAbsent() bool {
+	return m.m == schema.Maybe_Absent
+}
+func (m MaybeLink_EntryChunk) Exists() bool {
+	return m.m == schema.Maybe_Value
+}
+func (m MaybeLink_EntryChunk) AsNode() datamodel.Node {
+	switch m.m {
+	case schema.Maybe_Absent:
+		return datamodel.Absent
+	case schema.Maybe_Null:
+		return datamodel.Null
+	case schema.Maybe_Value:
+		return &m.v
+	default:
+		panic("unreachable")
+	}
+}
+func (m MaybeLink_EntryChunk) Must() Link_EntryChunk {
+	if !m.Exists() {
+		panic("unbox of a maybe rejected")
+	}
+	return &m.v
+}
+
+var _ datamodel.Node = (Link_EntryChunk)(&_Link_EntryChunk{})
+var _ schema.TypedNode = (Link_EntryChunk)(&_Link_EntryChunk{})
+
+func (Link_EntryChunk) Kind() datamodel.Kind {
+	return datamodel.Kind_Link
+}
+func (Link_EntryChunk) LookupByString(string) (datamodel.Node, error) {
+	return mixins.Link{TypeName: "schema.Link_EntryChunk"}.LookupByString("")
+}
+func (Link_EntryChunk) LookupByNode(datamodel.Node) (datamodel.Node, error) {
+	return mixins.Link{TypeName: "schema.Link_EntryChunk"}.LookupByNode(nil)
+}
+func (Link_EntryChunk) LookupByIndex(idx int64) (datamodel.Node, error) {
+	return mixins.Link{TypeName: "schema.Link_EntryChunk"}.LookupByIndex(0)
+}
+func (Link_EntryChunk) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
+	return mixins.Link{TypeName: "schema.Link_EntryChunk"}.LookupBySegment(seg)
+}
+func (Link_EntryChunk) MapIterator() datamodel.MapIterator {
+	return nil
+}
+func (Link_EntryChunk) ListIterator() datamodel.ListIterator {
+	return nil
+}
+func (Link_EntryChunk) Length() int64 {
+	return -1
+}
+func (Link_EntryChunk) IsAbsent() bool {
+	return false
+}
+func (Link_EntryChunk) IsNull() bool {
+	return false
+}
+func (Link_EntryChunk) AsBool() (bool, error) {
+	return mixins.Link{TypeName: "schema.Link_EntryChunk"}.AsBool()
+}
+func (Link_EntryChunk) AsInt() (int64, error) {
+	return mixins.Link{TypeName: "schema.Link_EntryChunk"}.AsInt()
+}
+func (Link_EntryChunk) AsFloat() (float64, error) {
+	return mixins.Link{TypeName: "schema.Link_EntryChunk"}.AsFloat()
+}
+func (Link_EntryChunk) AsString() (string, error) {
+	return mixins.Link{TypeName: "schema.Link_EntryChunk"}.AsString()
+}
+func (Link_EntryChunk) AsBytes() ([]byte, error) {
+	return mixins.Link{TypeName: "schema.Link_EntryChunk"}.AsBytes()
+}
+func (n Link_EntryChunk) AsLink() (datamodel.Link, error) {
+	return n.x, nil
+}
+func (Link_EntryChunk) Prototype() datamodel.NodePrototype {
+	return _Link_EntryChunk__Prototype{}
+}
+
+type _Link_EntryChunk__Prototype struct{}
+
+func (_Link_EntryChunk__Prototype) NewBuilder() datamodel.NodeBuilder {
+	var nb _Link_EntryChunk__Builder
+	nb.Reset()
+	return &nb
+}
+
+type _Link_EntryChunk__Builder struct {
+	_Link_EntryChunk__Assembler
+}
+
+func (nb *_Link_EntryChunk__Builder) Build() datamodel.Node {
+	if *nb.m != schema.Maybe_Value {
+		panic("invalid state: cannot call Build on an assembler that's not finished")
+	}
+	return nb.w
+}
+func (nb *_Link_EntryChunk__Builder) Reset() {
+	var w _Link_EntryChunk
+	var m schema.Maybe
+	*nb = _Link_EntryChunk__Builder{_Link_EntryChunk__Assembler{w: &w, m: &m}}
+}
+
+type _Link_EntryChunk__Assembler struct {
+	w *_Link_EntryChunk
+	m *schema.Maybe
+}
+
+func (na *_Link_EntryChunk__Assembler) reset() {}
+func (_Link_EntryChunk__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
+	return mixins.LinkAssembler{TypeName: "schema.Link_EntryChunk"}.BeginMap(0)
+}
+func (_Link_EntryChunk__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
+	return mixins.LinkAssembler{TypeName: "schema.Link_EntryChunk"}.BeginList(0)
+}
+func (na *_Link_EntryChunk__Assembler) AssignNull() error {
+	switch *na.m {
+	case allowNull:
+		*na.m = schema.Maybe_Null
+		return nil
+	case schema.Maybe_Absent:
+		return mixins.LinkAssembler{TypeName: "schema.Link_EntryChunk"}.AssignNull()
+	case schema.Maybe_Value, schema.Maybe_Null:
+		panic("invalid state: cannot assign into assembler that's already finished")
+	}
+	panic("unreachable")
+}
+func (_Link_EntryChunk__Assembler) AssignBool(bool) error {
+	return mixins.LinkAssembler{TypeName: "schema.Link_EntryChunk"}.AssignBool(false)
+}
+func (_Link_EntryChunk__Assembler) AssignInt(int64) error {
+	return mixins.LinkAssembler{TypeName: "schema.Link_EntryChunk"}.AssignInt(0)
+}
+func (_Link_EntryChunk__Assembler) AssignFloat(float64) error {
+	return mixins.LinkAssembler{TypeName: "schema.Link_EntryChunk"}.AssignFloat(0)
+}
+func (_Link_EntryChunk__Assembler) AssignString(string) error {
+	return mixins.LinkAssembler{TypeName: "schema.Link_EntryChunk"}.AssignString("")
+}
+func (_Link_EntryChunk__Assembler) AssignBytes([]byte) error {
+	return mixins.LinkAssembler{TypeName: "schema.Link_EntryChunk"}.AssignBytes(nil)
+}
+func (na *_Link_EntryChunk__Assembler) AssignLink(v datamodel.Link) error {
+	switch *na.m {
+	case schema.Maybe_Value, schema.Maybe_Null:
+		panic("invalid state: cannot assign into assembler that's already finished")
+	}
+	na.w.x = v
+	*na.m = schema.Maybe_Value
+	return nil
+}
+func (na *_Link_EntryChunk__Assembler) AssignNode(v datamodel.Node) error {
+	if v.IsNull() {
+		return na.AssignNull()
+	}
+	if v2, ok := v.(*_Link_EntryChunk); ok {
+		switch *na.m {
+		case schema.Maybe_Value, schema.Maybe_Null:
+			panic("invalid state: cannot assign into assembler that's already finished")
+		}
+		*na.w = *v2
+		*na.m = schema.Maybe_Value
+		return nil
+	}
+	if v2, err := v.AsLink(); err != nil {
+		return err
+	} else {
+		return na.AssignLink(v2)
+	}
+}
+func (_Link_EntryChunk__Assembler) Prototype() datamodel.NodePrototype {
+	return _Link_EntryChunk__Prototype{}
+}
+func (Link_EntryChunk) Type() schema.Type {
+	return nil /*TODO:typelit*/
+}
+func (Link_EntryChunk) LinkTargetNodePrototype() datamodel.NodePrototype {
+	return Type.EntryChunk__Repr
+}
+func (n Link_EntryChunk) Representation() datamodel.Node {
+	return (*_Link_EntryChunk__Repr)(n)
+}
+
+type _Link_EntryChunk__Repr = _Link_EntryChunk
+
+var _ datamodel.Node = &_Link_EntryChunk__Repr{}
+
+type _Link_EntryChunk__ReprPrototype = _Link_EntryChunk__Prototype
+type _Link_EntryChunk__ReprAssembler = _Link_EntryChunk__Assembler
 
 func (n *_List) Lookup(idx int64) Any {
 	if n.Length() <= idx {

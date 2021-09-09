@@ -64,6 +64,11 @@ func main() {
 	))
 
 	// List string
+	ts.Accumulate(schema.SpawnStruct("EntryChunk", []schema.StructField{
+		schema.SpawnStructField("Entries", "List_String", false, false),
+		schema.SpawnStructField("Next", "Link_EntryChunk", true, false),
+	}, schema.SpawnStructRepresentationMap(map[string]string{})))
+	ts.Accumulate(schema.SpawnLinkReference("Link_EntryChunk", "EntryChunk"))
 	ts.Accumulate(schema.SpawnList("List_String", "String", false))
 
 	// Advertisement
