@@ -60,7 +60,7 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 				if err != nil {
 					return err
 				}
-				err = ds.Put(dsKey(admapPrefix+elnk.(cidlink.Link).Cid.String()), c.Bytes())
+				err = putCidToAdMapping(ds, elnk, c)
 				if err != nil {
 					return err
 				}
@@ -144,6 +144,13 @@ func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 
 			}
 
+			// We can remove the datastore entry between chunk and CID once
+			// we've process it.
+			err = deleteCidToAdMapping(i.ds, c)
+			if err != nil {
+				log.Errorf("Error deleting cid-advertisement mapping for entries: %v", err)
+			}
+
 			// When we are finished processing the index we can remove
 			// it from the datastore (we don't want redundant information
 			// in several datastores).
@@ -190,13 +197,14 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 	// provider, err := ad.FieldProvider().AsString()
 
 	// Decode the list of cids into a List_String
-	nb := schema.Type.List_String.NewBuilder()
+	nb := schema.Type.EntryChunk.NewBuilder()
 	err = nb.AssignNode(nentries)
 	if err != nil {
 		log.Errorf("Error decoding entries: %v", err)
 		return err
 	}
-	entries := nb.Build()
+	nchunk := nb.Build().(schema.EntryChunk)
+	entries := nchunk.FieldEntries()
 	// Iterate over all entries and ingest them
 	cit := entries.ListIterator()
 	for !cit.Done() {
@@ -208,6 +216,9 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 		}
 		val := indexer.MakeValue(p, 0, metadata)
 		if isRm {
+			// TODO: Remove will change once we change the syncing process because
+			// we may not receive the list of CIDs to remove and we'll have to
+			// use a routine that looks for the CIDs for a specific key.
 			if _, err := i.indexer.Remove(c, val); err != nil {
 				log.Errorf("Error removing CID %s in indexer: %v", c, err)
 				return err
@@ -219,9 +230,31 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 				return err
 			}
 		}
-		log.Debugf("Success putting CID %s in indexer", c)
+		log.Debugf("Success processing CID %s in indexer", c)
 	}
+
+	// If there is a next link, update the mapping so we know the AdID
+	// it is related to.
+	if !(nchunk.Next.IsAbsent() || nchunk.Next.IsNull()) {
+		lnk, err := nchunk.Next.AsNode().AsLink()
+		if err != nil {
+			return err
+		}
+		err = putCidToAdMapping(i.ds, lnk, adCid)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func putCidToAdMapping(ds datastore.Batching, lnk ipld.Link, adCid cid.Cid) error {
+	return ds.Put(dsKey(admapPrefix+lnk.(cidlink.Link).Cid.String()), adCid.Bytes())
+}
+
+func deleteCidToAdMapping(ds datastore.Batching, entries cid.Cid) error {
+	return ds.Delete(dsKey(admapPrefix + entries.String()))
 }
 
 // decodeIPLDNode from a reaed
