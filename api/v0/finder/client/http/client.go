@@ -22,7 +22,7 @@ var log = logging.Logger("finderhttpclient")
 
 const (
 	finderResource = "cid"
-	finderPort     = 3001
+	finderPort     = 3000
 )
 
 // Finder is an http client for the indexer finder API
