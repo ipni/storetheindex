@@ -1,14 +1,13 @@
 package command
 
 import (
-	"io"
-	"net/http"
-	"net/url"
-	"path"
-
+	"fmt"
 	httpclient "github.com/filecoin-project/storetheindex/internal/httpclient"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/urfave/cli/v2"
+	"io"
+	"net/http"
+	"net/url"
 )
 
 const (
@@ -73,7 +72,8 @@ func sendRequest(cctx *cli.Context, action string) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(cctx.Context, "GET", path.Join(cl.baseurl.Path, action, p.String()), nil)
+	dest := fmt.Sprintf("%s/ingest/%s/%s", cl.baseurl, action, p.String())
+	req, err := http.NewRequestWithContext(cctx.Context, "GET", dest, nil)
 	if err != nil {
 		return err
 	}
