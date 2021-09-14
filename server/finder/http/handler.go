@@ -6,6 +6,7 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
+	"github.com/filecoin-project/storetheindex/internal/handler"
 	"github.com/filecoin-project/storetheindex/internal/httpserver"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/gorilla/mux"
@@ -13,12 +14,17 @@ import (
 )
 
 // handler handles requests for the finder resource
-type handler struct {
-	indexer  indexer.Interface
-	registry *providers.Registry
+type httpHandler struct {
+	finderHandler *handler.FinderHandler
 }
 
-func (h *handler) GetSingleCid(w http.ResponseWriter, r *http.Request) {
+func newHandler(indexer indexer.Interface, registry *providers.Registry) *httpHandler {
+	return &httpHandler{
+		finderHandler: handler.NewFinderHandler(indexer, registry),
+	}
+}
+
+func (h *httpHandler) GetSingleCid(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	mhCid := vars["cid"]
 	c, err := cid.Decode(mhCid)
@@ -30,7 +36,7 @@ func (h *handler) GetSingleCid(w http.ResponseWriter, r *http.Request) {
 	h.getCids(w, []cid.Cid{c})
 }
 
-func (h *handler) GetBatchCid(w http.ResponseWriter, r *http.Request) {
+func (h *httpHandler) GetBatchCid(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading get batch request", "err", err)
@@ -46,8 +52,8 @@ func (h *handler) GetBatchCid(w http.ResponseWriter, r *http.Request) {
 	h.getCids(w, req.Cids)
 }
 
-func (h *handler) getCids(w http.ResponseWriter, cids []cid.Cid) {
-	response, err := models.PopulateResponse(h.indexer, h.registry, cids)
+func (h *httpHandler) getCids(w http.ResponseWriter, cids []cid.Cid) {
+	response, err := h.finderHandler.PopulateResponse(cids)
 	if err != nil {
 		httpserver.HandleError(w, err, "get")
 		return
