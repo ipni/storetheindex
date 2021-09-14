@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/internal/providers"
-	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -57,51 +55,6 @@ func UnmarshalResp(b []byte) (*Response, error) {
 	r := &Response{}
 	err := json.Unmarshal(b, r)
 	return r, err
-}
-
-// PopulateResponse reads from indexer core to populate a response from a
-// list of CIDs.
-//
-// TODO: This should be relocated to a place common to all finder handlers, but
-// not under /api/
-func PopulateResponse(indexer indexer.Interface, registry *providers.Registry, cids []cid.Cid) (*Response, error) {
-	cidResults := make([]CidResult, 0, len(cids))
-	var providerResults []peer.AddrInfo
-	providerSeen := map[peer.ID]struct{}{}
-
-	for i := range cids {
-		values, found, err := indexer.Get(cids[i])
-		if err != nil {
-			return nil, syserr.New(fmt.Errorf("failed to query cid %q: %s", cids[i], err), 500)
-		}
-		if !found {
-			continue
-		}
-		// Add the response to the list of CID responses
-		cidResults = append(cidResults, CidResult{Cid: cids[i], Values: values})
-
-		// Lookup provider info for each unique provider
-		for j := range values {
-			provID := values[j].ProviderID
-			if _, found = providerSeen[provID]; found {
-				continue
-			}
-			providerSeen[provID] = struct{}{}
-
-			pinfo := registry.ProviderInfo(provID)
-			if pinfo == nil {
-				//log.Errorw("no info for provider", "provider_id", provID)
-				continue
-			}
-
-			providerResults = append(providerResults, pinfo.AddrInfo)
-		}
-	}
-
-	return &Response{
-		CidResults: cidResults,
-		Providers:  providerResults,
-	}, nil
 }
 
 // PrettyPrint a response for CLI output

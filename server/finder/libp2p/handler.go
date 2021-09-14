@@ -8,6 +8,7 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
+	"github.com/filecoin-project/storetheindex/internal/handler"
 	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/gogo/protobuf/proto"
@@ -18,27 +19,25 @@ import (
 
 var log = logging.Logger("finderp2pserver")
 
-// handler handles requests for the finder resource
-type handler struct {
-	indexer  indexer.Interface
-	registry *providers.Registry
+// handler handles requests for the providers resource
+type libp2pHandler struct {
+	finderHandler *handler.FinderHandler
 }
 
 // handlerFunc is the function signature required by handlers in this package
 type handlerFunc func(context.Context, peer.ID, *pb.FinderMessage) ([]byte, error)
 
-func newHandler(indexer indexer.Interface, registry *providers.Registry) *handler {
-	return &handler{
-		indexer:  indexer,
-		registry: registry,
+func newHandler(indexer indexer.Interface, registry *providers.Registry) *libp2pHandler {
+	return &libp2pHandler{
+		finderHandler: handler.NewFinderHandler(indexer, registry),
 	}
 }
 
-func (h *handler) ProtocolID() protocol.ID {
+func (h *libp2pHandler) ProtocolID() protocol.ID {
 	return v0.FinderProtocolID
 }
 
-func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes []byte) (proto.Message, error) {
+func (h *libp2pHandler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes []byte) (proto.Message, error) {
 	var req pb.FinderMessage
 	err := req.Unmarshal(msgbytes)
 	if err != nil {
@@ -71,13 +70,13 @@ func (h *handler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes [
 	}, nil
 }
 
-func (h *handler) get(ctx context.Context, p peer.ID, msg *pb.FinderMessage) ([]byte, error) {
+func (h *libp2pHandler) get(ctx context.Context, p peer.ID, msg *pb.FinderMessage) ([]byte, error) {
 	req, err := models.UnmarshalReq(msg.GetData())
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := models.PopulateResponse(h.indexer, h.registry, req.Cids)
+	r, err := h.finderHandler.PopulateResponse(req.Cids)
 	if err != nil {
 		return nil, err
 	}
