@@ -8,11 +8,12 @@ import (
 
 	agg "github.com/filecoin-project/go-dagaggregator-unixfs"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 )
 
-// ReadMenifest reads Cids from a manifest of a CID aggregator and outputs them
-// on a channel.
-func ReadManifest(ctx context.Context, in io.Reader, out chan cid.Cid, errOut chan error) {
+// ReadMenifest reads Cids from a manifest of a CID aggregator and outputs
+// their multihashes on a channel.
+func ReadManifest(ctx context.Context, in io.Reader, out chan<- multihash.Multihash, errOut chan error) {
 	defer close(errOut)
 
 	scanner := bufio.NewScanner(in)
@@ -38,8 +39,11 @@ func ReadManifest(ctx context.Context, in io.Reader, out chan cid.Cid, errOut ch
 					continue // ignore malformet CIDs
 				}
 			}
+			if !c.Defined() {
+				continue
+			}
 			select {
-			case out <- c:
+			case out <- c.Hash():
 			case <-ctx.Done():
 				close(out) // close out first in case errOut not buffered
 				errOut <- ctx.Err()

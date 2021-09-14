@@ -42,7 +42,7 @@ func connect(ctx context.Context, t *testing.T, h1 host.Host, h2 host.Host) {
 	}
 }
 
-func TestGetCidData(t *testing.T) {
+func TestFindIndexData(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -52,5 +52,5 @@ func TestGetCidData(t *testing.T) {
 	s, sh := setupServer(ctx, ind, reg, t)
 	c, ch := setupClient(ctx, s.ID(), t)
 	connect(ctx, t, ch, sh)
-	test.GetCidDataTest(ctx, t, c, ind, reg)
+	test.FindIndexTest(ctx, t, c, ind, reg)
 }

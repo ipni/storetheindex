@@ -11,9 +11,9 @@ import (
 	pb "github.com/filecoin-project/storetheindex/api/v0/ingest/pb"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
-	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multihash"
 )
 
 type Ingest struct {
@@ -92,8 +92,8 @@ func (cl *Ingest) Register(ctx context.Context, providerIdent config.Identity, a
 	return nil
 }
 
-func (cl *Ingest) IndexContent(ctx context.Context, providerIdent config.Identity, c cid.Cid, protocol uint64, metadata []byte) error {
-	data, err := models.MakeIngestRequest(providerIdent, c, protocol, metadata)
+func (cl *Ingest) IndexContent(ctx context.Context, providerIdent config.Identity, m multihash.Multihash, protocol uint64, metadata []byte) error {
+	data, err := models.MakeIngestRequest(providerIdent, m, protocol, metadata)
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (cl *Ingest) sendRecv(ctx context.Context, req *pb.IngestMessage, expectRsp
 }
 
 // Sync with a data provider up to latest ID
-func (cl *Ingest) Sync(ctx context.Context, p peer.ID, cid cid.Cid) error {
+func (cl *Ingest) Sync(ctx context.Context, p peer.ID, m multihash.Multihash) error {
 	return errors.New("not implemented")
 }
 

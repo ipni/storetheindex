@@ -76,7 +76,7 @@ func TestSubscribe(t *testing.T) {
 	_, cids = publishRandomAdv(t, i, lph, lp, lsys, true)
 	// No cids should have been saved for related index
 	for x := range cids {
-		_, b, _ := i.indexer.Get(cids[x])
+		_, b, _ := i.indexer.Get(cids[x].Hash())
 		require.False(t, b)
 	}
 
@@ -118,9 +118,9 @@ func TestSync(t *testing.T) {
 	})
 	require.NoError(t, err)
 	select {
-	case c := <-end:
+	case m := <-end:
 		// We receive the CID that we synced.
-		require.Equal(t, c1, c)
+		require.True(t, bytes.Equal([]byte(c1.Hash()), []byte(m)))
 		i.checkCidsIndexed(t, lph.ID(), cids)
 		lcid, err := i.getLatestSync(lph.ID())
 		require.NoError(t, err)
@@ -304,7 +304,7 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.Lin
 
 func (i *legIngester) checkCidsIndexed(t *testing.T, p peer.ID, cids []cid.Cid) {
 	for x := range cids {
-		v, b, err := i.indexer.Get(cids[x])
+		v, b, err := i.indexer.Get(cids[x].Hash())
 		require.NoError(t, err)
 		require.True(t, b)
 		require.Equal(t, v[0].ProviderID, p)

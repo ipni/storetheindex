@@ -11,8 +11,8 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
 	"github.com/filecoin-project/storetheindex/config"
 	httpclient "github.com/filecoin-project/storetheindex/internal/httpclient"
-	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multihash"
 )
 
 const (
@@ -103,8 +103,8 @@ func (cl *IngestClient) GetProvider(ctx context.Context, providerID peer.ID) (*m
 	return &providerInfo, nil
 }
 
-func (cl *IngestClient) IndexContent(ctx context.Context, providerIdent config.Identity, c cid.Cid, protocol uint64, metadata []byte) error {
-	data, err := models.MakeIngestRequest(providerIdent, c, protocol, metadata)
+func (cl *IngestClient) IndexContent(ctx context.Context, providerIdent config.Identity, m multihash.Multihash, protocol uint64, metadata []byte) error {
+	data, err := models.MakeIngestRequest(providerIdent, m, protocol, metadata)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (cl *IngestClient) Register(ctx context.Context, providerIdent config.Ident
 }
 
 // Sync with a data provider up to latest ID
-func (cl *IngestClient) Sync(ctx context.Context, p peer.ID, cid cid.Cid) error {
+func (cl *IngestClient) Sync(ctx context.Context, p peer.ID, m multihash.Multihash) error {
 	return errors.New("not implemented")
 }
 

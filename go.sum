@@ -187,8 +187,9 @@ github.com/filecoin-project/go-data-transfer v1.6.1-0.20210608092034-e4f40bc3a68
 github.com/filecoin-project/go-ds-versioning v0.1.0 h1:y/X6UksYTsK8TLCI7rttCKEvl8btmWxyFMEeeWGUxIQ=
 github.com/filecoin-project/go-ds-versioning v0.1.0/go.mod h1:mp16rb4i2QPmxBnmanUx8i/XANp+PFCCJWiAb+VW4/s=
 github.com/filecoin-project/go-indexer-core v0.0.0-20210816132949-bbccdebb905f/go.mod h1:oGmf25CxT/ph4bzskRF2kE5zs/tyGKUQOlZPocKwJqA=
-github.com/filecoin-project/go-indexer-core v0.0.0-20210818063915-4b4227413744 h1:OYhhvpg0wXdAiOVgLf3WLleCQD2jdJAPemcN+0crzc4=
 github.com/filecoin-project/go-indexer-core v0.0.0-20210818063915-4b4227413744/go.mod h1:J/Qxt2ea2GHIcXXcBTvhGe89hwAJCbA2r7fXVM2L4Dc=
+github.com/filecoin-project/go-indexer-core v0.1.1 h1:KMw+4flifs5KZ8i+/hls/cCnA2InmfEISXAXgl2d4FM=
+github.com/filecoin-project/go-indexer-core v0.1.1/go.mod h1:pQtfDvBF4gIA1/j7phod4Iv1Ao1n5CNNUdkSg0dyApE=
 github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe h1:dF8u+LEWeIcTcfUcCf3WFVlc81Fr2JKg8zPzIbBDKDw=
 github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe/go.mod h1:FGwQgZAt2Gh5mjlwJUlVB62JeYdo+if0xWxSEfBD9ig=
 github.com/filecoin-project/go-statestore v0.1.0 h1:t56reH59843TwXHkMcwyuayStBIiWBRilQjQ+5IiwdQ=
@@ -510,8 +511,9 @@ github.com/ipld/go-ipld-prime v0.9.1-0.20210324083106-dc342a9917db/go.mod h1:KvB
 github.com/ipld/go-ipld-prime v0.12.0 h1:JapyKWTsJgmhrPI7hfx4V798c/RClr85sXfBZnH1VIw=
 github.com/ipld/go-ipld-prime v0.12.0/go.mod h1:hy8b93WleDMRKumOJnTIrr0MbbFbx9GD6Kzxa53Xppc=
 github.com/ipld/go-ipld-prime-proto v0.0.0-20191113031812-e32bd156a1e5/go.mod h1:gcvzoEDBjwycpXt3LBE061wT9f46szXGHAmj9uoP6fU=
-github.com/ipld/go-storethehash v0.0.0-20210713070316-1ea50cc878b8 h1:h+C+Pv5+ZB/waNPpoT5csnJP1gjKMJPduutC95CETrY=
 github.com/ipld/go-storethehash v0.0.0-20210713070316-1ea50cc878b8/go.mod h1:PwE6iq8TiWJRI3zMGA1RtkFAnrDMK93dLA5SUeu0lH8=
+github.com/ipld/go-storethehash v0.0.0-20210825183827-efb212b402c8 h1:IEsGQqtPn+eBYhNjWm51B1WF+atPm1qgZd7dnDLjTY4=
+github.com/ipld/go-storethehash v0.0.0-20210825183827-efb212b402c8/go.mod h1:PwE6iq8TiWJRI3zMGA1RtkFAnrDMK93dLA5SUeu0lH8=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52 h1:QG4CGBqCeuBo6aZlGAamSkxWdgWfZGeE49eUOWJPA4c=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52/go.mod h1:fdg+/X9Gg4AsAIzWpEHwnqd+QY3b7lajxyjE1m4hkq4=
 github.com/jackpal/gateway v1.0.5/go.mod h1:lTpwd4ACLXmpyiCTRtfiNyVnUmqT9RivzCDQetPfnjA=

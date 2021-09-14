@@ -8,9 +8,9 @@ import (
 	ingestion "github.com/filecoin-project/storetheindex/api/v0/ingest"
 	"github.com/filecoin-project/storetheindex/internal/importer"
 	"github.com/gorilla/mux"
-	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multihash"
 )
 
 var log = logging.Logger("admin_handler")
@@ -47,7 +47,7 @@ func (h *AdminHandler) ImportManifest(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	out := make(chan cid.Cid)
+	out := make(chan multihash.Multihash)
 	errOut := make(chan error, 1)
 	go importer.ReadManifest(r.Context(), file, out, errOut)
 
@@ -80,7 +80,7 @@ func (h *AdminHandler) ImportCidList(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	log.Infow("Import cidlist for provider", "miner", m)
+	log.Infow("Import multihash list for provider", "miner", m)
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		log.Error("error reading file")
@@ -89,7 +89,7 @@ func (h *AdminHandler) ImportCidList(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	out := make(chan cid.Cid)
+	out := make(chan multihash.Multihash)
 	errOut := make(chan error, 1)
 	go importer.ReadCids(r.Context(), file, out, errOut)
 
@@ -113,19 +113,15 @@ func (h *AdminHandler) ImportCidList(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *AdminHandler) importCallback(c cid.Cid, value indexer.Value) error {
-	// Disregard empty Cids.
-	if c == cid.Undef {
-		return nil
-	}
+func (h *AdminHandler) importCallback(m multihash.Multihash, value indexer.Value) error {
 	// NOTE: We disregard errors for now
-	_, err := h.indexer.Put(c, value)
+	_, err := h.indexer.Put(m, value)
 	if err != nil {
-		log.Errorw("indexer Put returned error", "err", err, "cid", c)
+		log.Errorw("indexer Put returned error", "err", err, "multihash", m.B58String())
 		return errors.New("failed to store in indexer")
 	}
 	// TODO: Change to Debug
-	log.Infow("Imported successfully", "cid", c)
+	log.Infow("Imported successfully", "multihash", m.B58String())
 	return nil
 }
 

@@ -8,9 +8,9 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
-	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multihash"
 )
 
 type Finder struct {
@@ -27,12 +27,16 @@ func NewFinder(ctx context.Context, h host.Host, peerID peer.ID, options ...libp
 	}, nil
 }
 
-func (cl *Finder) Get(ctx context.Context, c cid.Cid) (*models.Response, error) {
-	return cl.GetBatch(ctx, []cid.Cid{c})
+func (cl *Finder) Find(ctx context.Context, m multihash.Multihash) (*models.FindResponse, error) {
+	return cl.FindBatch(ctx, []multihash.Multihash{m})
 }
 
-func (cl *Finder) GetBatch(ctx context.Context, cs []cid.Cid) (*models.Response, error) {
-	data, err := models.MarshalReq(&models.Request{Cids: cs})
+func (cl *Finder) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*models.FindResponse, error) {
+	if len(mhs) == 0 {
+		return &models.FindResponse{}, nil
+	}
+
+	data, err := models.MarshalFindRequest(&models.FindRequest{Multihashes: mhs})
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +50,7 @@ func (cl *Finder) GetBatch(ctx context.Context, cs []cid.Cid) (*models.Response,
 		return nil, err
 	}
 
-	return models.UnmarshalResp(data)
+	return models.UnmarshalFindResponse(data)
 }
 
 func (cl *Finder) sendRecv(ctx context.Context, req *pb.FinderMessage, expectRspType pb.FinderMessage_MessageType) ([]byte, error) {

@@ -93,7 +93,7 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, error) {
 	// Verify advertisement signature
 	if err := schema.VerifyAdvertisement(ad); err != nil {
 		// stop exchange, verification of signature failed.
-		log.Errorf("Signature verification failed for add: %v", err)
+		log.Errorf("Signature verification failed for advertisement: %v", err)
 		return nil, err
 	}
 	return ad, nil
@@ -219,18 +219,18 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 			// TODO: Remove will change once we change the syncing process because
 			// we may not receive the list of CIDs to remove and we'll have to
 			// use a routine that looks for the CIDs for a specific key.
-			if _, err := i.indexer.Remove(c, val); err != nil {
-				log.Errorf("Error removing CID %s in indexer: %v", c, err)
+			if _, err := i.indexer.Remove(c.Hash(), val); err != nil {
+				log.Errorf("Error removing index from indexer: %v", err)
 				return err
 			}
 
 		} else {
-			if _, err := i.indexer.Put(c, val); err != nil {
-				log.Errorf("Error putting CID %s in indexer: %v", c, err)
+			if _, err := i.indexer.Put(c.Hash(), val); err != nil {
+				log.Errorf("Error putting index in indexer: %v", err)
 				return err
 			}
 		}
-		log.Debugf("Success processing CID %s in indexer", c)
+		log.Debugf("Success processing index", "multihash", c.Hash().B58String())
 	}
 
 	// If there is a next link, update the mapping so we know the AdID

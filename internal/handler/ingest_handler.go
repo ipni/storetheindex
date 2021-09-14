@@ -102,7 +102,7 @@ func (h *IngestHandler) IndexContent(data []byte) (bool, error) {
 		return false, syserr.New(err, http.StatusForbidden)
 	}
 
-	ok, err := h.indexer.Put(ingReq.Cid, ingReq.Value)
+	ok, err := h.indexer.Put(ingReq.Multihash, ingReq.Value)
 	if err != nil {
 		err = fmt.Errorf("cannot index content: %s", err)
 		return false, syserr.New(err, http.StatusInternalServerError)

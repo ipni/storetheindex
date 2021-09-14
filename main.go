@@ -45,7 +45,7 @@ func main() {
 		Version: version.String(),
 		Commands: []*cli.Command{
 			command.DaemonCmd,
-			command.GetCmd,
+			command.FindCmd,
 			command.ImportCmd,
 			command.InitCmd,
 			command.RegisterCmd,

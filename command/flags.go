@@ -6,10 +6,9 @@ import (
 )
 
 var IndexerHostFlag = altsrc.NewStringFlag(&cli.StringFlag{
-	Name:     "indexer-host",
+	Name:     "indexer",
 	Usage:    "Host or host:port of indexer to use",
-	Aliases:  []string{"i"},
-	EnvVars:  []string{"INDEXER_HOST"},
+	EnvVars:  []string{"INDEXER"},
 	Required: false,
 	Value:    "localhost",
 })
@@ -40,6 +39,16 @@ var DaemonFlags = []cli.Flag{
 }
 
 var ClientCmdFlags = []cli.Flag{
+	&cli.StringFlag{
+		Name:     "cid",
+		Usage:    "Specify cid to use as indexer key",
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "mh",
+		Usage:    "Specify multihash to use as indexer key",
+		Required: false,
+	},
 	IndexerHostFlag,
 	&cli.StringFlag{
 		Name:     "protocol",

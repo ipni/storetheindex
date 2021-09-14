@@ -5,25 +5,25 @@ import (
 	"fmt"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multihash"
 )
 
-// Request is the client request send by end user clients
-type Request struct {
-	Cids []cid.Cid
+// FindRequest is the client request send by end user clients
+type FindRequest struct {
+	Multihashes []multihash.Multihash
 }
 
-// CidResult aggregates all values for a single CID.
-type CidResult struct {
-	Cid    cid.Cid
-	Values []indexer.Value
+// IndexResult aggregates all values for a single multihash.
+type IndexResult struct {
+	Multihash multihash.Multihash
+	Values    []indexer.Value
 }
 
-// Response used to answer client queries/requests
-type Response struct {
-	CidResults []CidResult
-	Providers  []peer.AddrInfo
+// FindResponse used to answer client queries/requests
+type FindResponse struct {
+	IndexResults []IndexResult
+	Providers    []peer.AddrInfo
 	// NOTE: This feature is not enabled yet.
 	// Signature []byte	// Providers signature.
 }
@@ -33,34 +33,34 @@ type Response struct {
 //NOTE: Consider using other serialization formats?
 // We could maybe use IPLD schemas instead of structs
 // for requests and response so we have any codec by design.
-func MarshalReq(r *Request) ([]byte, error) {
+func MarshalFindRequest(r *FindRequest) ([]byte, error) {
 	return json.Marshal(r)
 }
 
-// MarshalResp serializes the response.
-func MarshalResp(r *Response) ([]byte, error) {
-	return json.Marshal(r)
-}
-
-// UnmarshalReq de-serializes the request.
+// UnmarshalFindRequest de-serializes the request.
 // We currently JSON, we could use any other format.
-func UnmarshalReq(b []byte) (*Request, error) {
-	r := &Request{}
+func UnmarshalFindRequest(b []byte) (*FindRequest, error) {
+	r := &FindRequest{}
 	err := json.Unmarshal(b, r)
 	return r, err
 }
 
-// UnmarshalResp de-serializes the response.
-func UnmarshalResp(b []byte) (*Response, error) {
-	r := &Response{}
+// MarshalFindResponse serializes a find response.
+func MarshalFindResponse(r *FindResponse) ([]byte, error) {
+	return json.Marshal(r)
+}
+
+// UnmarshalFindResponse de-serializes a find response.
+func UnmarshalFindResponse(b []byte) (*FindResponse, error) {
+	r := &FindResponse{}
 	err := json.Unmarshal(b, r)
 	return r, err
 }
 
 // PrettyPrint a response for CLI output
-func (r *Response) PrettyPrint() {
-	for i := range r.CidResults {
-		fmt.Println("Cid:", r.CidResults[i].Cid)
-		fmt.Println("Values:", r.CidResults[i].Values)
+func (r *FindResponse) PrettyPrint() {
+	for i := range r.IndexResults {
+		fmt.Println("Multihash:", r.IndexResults[i].Multihash)
+		fmt.Println("Values:", r.IndexResults[i].Values)
 	}
 }
