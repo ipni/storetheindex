@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multihash"
 	"github.com/urfave/cli/v2"
 
 	"github.com/filecoin-project/storetheindex/api/v0/finder/client"
@@ -18,23 +20,39 @@ import (
 
 const getTimeout = 15 * time.Second
 
-var GetCmd = &cli.Command{
-	Name:   "get",
-	Usage:  "Get single Cid from idexer",
+var FindCmd = &cli.Command{
+	Name:   "find",
+	Usage:  "Find value by multihash in idexer",
 	Flags:  ClientCmdFlags,
-	Action: getCidCmd,
+	Action: findCmd,
 }
 
-func getCidCmd(cctx *cli.Context) error {
+func findCmd(cctx *cli.Context) error {
 	protocol := cctx.String("protocol")
 
-	cget := cctx.Args().Get(0)
-	if cget == "" {
-		return fmt.Errorf("no cid provided as input")
+	mhArg := cctx.String("mh")
+	cidArg := cctx.String("cid")
+	if mhArg == "" && cidArg == "" {
+		return errors.New("must specify --cid or --mh")
 	}
-	ccid, err := cid.Decode(cget)
-	if err != nil {
-		return err
+	if mhArg != "" && cidArg != "" {
+		return errors.New("only one --cid or --mh allowed")
+	}
+	var mh multihash.Multihash
+	var err error
+
+	if mhArg != "" {
+		mh, err = multihash.FromB58String(mhArg)
+		if err != nil {
+			return err
+		}
+	} else if cidArg != "" {
+		var ccid cid.Cid
+		ccid, err = cid.Decode(cidArg)
+		if err != nil {
+			return err
+		}
+		mh = ccid.Hash()
 	}
 
 	var cl client.Finder
@@ -72,7 +90,7 @@ func getCidCmd(cctx *cli.Context) error {
 		return fmt.Errorf("unrecognized protocol type for client interaction: %s", protocol)
 	}
 
-	resp, err := cl.Get(ctx, ccid)
+	resp, err := cl.Find(ctx, mh)
 	if err != nil {
 		return err
 	}

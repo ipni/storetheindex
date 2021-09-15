@@ -93,17 +93,18 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, error) {
 	// Verify advertisement signature
 	if err := schema.VerifyAdvertisement(ad); err != nil {
 		// stop exchange, verification of signature failed.
-		log.Errorf("Signature verification failed for add: %v", err)
+		log.Errorf("Signature verification failed for advertisement: %v", err)
 		return nil, err
 	}
 	return ad, nil
 }
 
-// storageHook determines the logic to run when a new block is received through graphsync.
+// storageHook determines the logic to run when a new block is received through
+// graphsync.
 //
-// When we receive a block, if it is not an advertisement it means that we finished storing
-// the list of entries of the advertisement, so we are ready to process them and ingest into
-// the indexer core.
+// When we receive a block, if it is not an advertisement it means that we
+// finished storing the list of entries of the advertisement, so we are ready
+// to process them and ingest into the indexer core.
 func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 	return func(p peer.ID, responseData graphsync.ResponseData, blockData graphsync.BlockData, hookActions graphsync.IncomingBlockHookActions) {
 		// Get cid of the node received.
@@ -216,21 +217,22 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 		}
 		val := indexer.MakeValue(p, 0, metadata)
 		if isRm {
-			// TODO: Remove will change once we change the syncing process because
-			// we may not receive the list of CIDs to remove and we'll have to
-			// use a routine that looks for the CIDs for a specific key.
-			if _, err := i.indexer.Remove(c, val); err != nil {
-				log.Errorf("Error removing CID %s in indexer: %v", c, err)
+			// TODO: Remove will change once we change the syncing process
+			// because we may not receive the list of CIDs to remove and we'll
+			// have to use a routine that looks for the CIDs for a specific
+			// key.
+			if _, err := i.indexer.Remove(c.Hash(), val); err != nil {
+				log.Errorf("Error removing entry from indexer: %v", err)
 				return err
 			}
 
 		} else {
-			if _, err := i.indexer.Put(c, val); err != nil {
-				log.Errorf("Error putting CID %s in indexer: %v", c, err)
+			if _, err := i.indexer.Put(c.Hash(), val); err != nil {
+				log.Errorf("Error putting entry in indexer: %v", err)
 				return err
 			}
 		}
-		log.Debugf("Success processing CID %s in indexer", c)
+		log.Debugf("Success processing entry", "multihash", c.Hash().B58String())
 	}
 
 	// If there is a next link, update the mapping so we know the AdID

@@ -47,8 +47,8 @@ func New(listen string, indexer indexer.Interface, registry *providers.Registry,
 	h := newHandler(indexer, registry)
 
 	// Client routes
-	r.HandleFunc("/cid/{cid}", h.GetSingleCid).Methods("GET")
-	r.HandleFunc("/cid", h.GetBatchCid).Methods("POST")
+	r.HandleFunc("/multihash/{multihash}", h.find).Methods("GET")
+	r.HandleFunc("/multihash", h.findBatch).Methods("POST")
 
 	return s, nil
 }

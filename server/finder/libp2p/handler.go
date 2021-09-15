@@ -71,14 +71,14 @@ func (h *libp2pHandler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgb
 }
 
 func (h *libp2pHandler) get(ctx context.Context, p peer.ID, msg *pb.FinderMessage) ([]byte, error) {
-	req, err := models.UnmarshalReq(msg.GetData())
+	req, err := models.UnmarshalFindRequest(msg.GetData())
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := h.finderHandler.PopulateResponse(req.Cids)
+	r, err := h.finderHandler.MakeFindResponse(req.Multihashes)
 	if err != nil {
 		return nil, err
 	}
-	return models.MarshalResp(r)
+	return models.MarshalFindResponse(r)
 }

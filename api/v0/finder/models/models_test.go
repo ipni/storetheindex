@@ -1,6 +1,7 @@
 package models
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
@@ -11,40 +12,39 @@ import (
 )
 
 func TestMarshal(t *testing.T) {
-
-	// Generate some CIDs and populate indexer
-	cids, err := test.RandomCids(3)
+	// Generate some multihashes and populate indexer
+	mhs, err := test.RandomMultihashes(3)
 	if err != nil {
 		t.Fatal(err)
 	}
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
-	v := indexer.MakeValue(p, 0, cids[0].Bytes())
+	v := indexer.MakeValue(p, 0, []byte(mhs[0]))
 
 	// Masrhal request and check e2e
 	t.Log("e2e marshalling request")
-	req := &Request{Cids: cids}
-	b, err := MarshalReq(req)
+	req := &FindRequest{Multihashes: mhs}
+	b, err := MarshalFindRequest(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	r, err := UnmarshalReq(b)
+	r, err := UnmarshalFindRequest(b)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !utils.EqualCids(r.Cids, cids) {
+	if !utils.EqualMultihashes(r.Multihashes, mhs) {
 		t.Fatal("Request marshal/unmarshal not correct")
 	}
 
 	// Masrhal response and check e2e
 	t.Log("e2e marshalling response")
-	resp := &Response{
-		CidResults: make([]CidResult, 0),
-		Providers:  make([]peer.AddrInfo, 0),
+	resp := &FindResponse{
+		MultihashResults: make([]MultihashResult, 0),
+		Providers:        make([]peer.AddrInfo, 0),
 	}
 
-	for i := range cids {
-		resp.CidResults = append(resp.CidResults, CidResult{cids[i], []indexer.Value{v}})
+	for i := range mhs {
+		resp.MultihashResults = append(resp.MultihashResults, MultihashResult{mhs[i], []indexer.Value{v}})
 	}
 	m1, err := ma.NewMultiaddr("/ip4/127.0.0.1/udp/1234")
 	if err != nil {
@@ -53,27 +53,27 @@ func TestMarshal(t *testing.T) {
 
 	resp.Providers = append(resp.Providers, peer.AddrInfo{ID: p, Addrs: []ma.Multiaddr{m1}})
 
-	b, err = MarshalResp(resp)
+	b, err = MarshalFindResponse(resp)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	r2, err := UnmarshalResp(b)
+	r2, err := UnmarshalFindResponse(b)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !EqualCidResult(resp.CidResults, r2.CidResults) {
+	if !EqualMultihashResult(resp.MultihashResults, r2.MultihashResults) {
 		t.Fatal("failed marshal/unmarshaling response")
 	}
 
 }
 
-func EqualCidResult(res1, res2 []CidResult) bool {
+func EqualMultihashResult(res1, res2 []MultihashResult) bool {
 	if len(res1) != len(res2) {
 		return false
 	}
 	for i := range res1 {
-		if res1[i].Cid == res2[i].Cid && !utils.EqualValues(res1[i].Values, res2[i].Values) {
+		if !bytes.Equal([]byte(res1[i].Multihash), []byte(res2[i].Multihash)) || !utils.EqualValues(res1[i].Values, res2[i].Values) {
 			return false
 		}
 	}

@@ -6,18 +6,18 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/record"
+	"github.com/multiformats/go-multihash"
 )
 
-// IgenstRequest is a request to store a single CID.  This is intentionally
-// limited to one CID as bulk CID ingestion should be done via advertisement
-// ingestion method.
+// IgenstRequest is a request to store a single multihash.  This is
+// intentionally limited to one multihash as bulk ingestion should be done via
+// advertisement ingestion method.
 type IngestRequest struct {
-	Cid   cid.Cid
-	Value indexer.Value
-	Seq   uint64
+	Multihash multihash.Multihash
+	Value     indexer.Value
+	Seq       uint64
 }
 
 // IngestRequestEnvelopeDomain is the domain string used for ingest requests contained in a Envelope.
@@ -55,7 +55,7 @@ func (r *IngestRequest) MarshalRecord() ([]byte, error) {
 }
 
 // MakeIngestRequest creates a signed IngestRequest and marshals it into bytes
-func MakeIngestRequest(providerIdent config.Identity, c cid.Cid, protocol uint64, metadata []byte) ([]byte, error) {
+func MakeIngestRequest(providerIdent config.Identity, m multihash.Multihash, protocol uint64, metadata []byte) ([]byte, error) {
 	providerID, privKey, err := providerIdent.Decode()
 	if err != nil {
 		return nil, err
@@ -64,9 +64,9 @@ func MakeIngestRequest(providerIdent config.Identity, c cid.Cid, protocol uint64
 	value := indexer.MakeValue(providerID, protocol, metadata)
 
 	req := &IngestRequest{
-		Cid:   c,
-		Value: value,
-		Seq:   peer.TimestampSeq(),
+		Multihash: m,
+		Value:     value,
+		Seq:       peer.TimestampSeq(),
 	}
 
 	return makeRequestEnvelop(req, privKey)

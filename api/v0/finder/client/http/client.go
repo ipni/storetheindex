@@ -12,16 +12,16 @@ import (
 	"path/filepath"
 
 	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
-	httpclient "github.com/filecoin-project/storetheindex/internal/httpclient"
-	"github.com/ipfs/go-cid"
+	"github.com/filecoin-project/storetheindex/internal/httpclient"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multihash"
 )
 
 var log = logging.Logger("finderhttpclient")
 
 const (
-	finderResource = "cid"
+	finderResource = "multihash"
 	finderPort     = 3000
 )
 
@@ -43,9 +43,9 @@ func NewFinder(baseURL string, options ...httpclient.ClientOption) (*Finder, err
 	}, nil
 }
 
-// Get indexeer entries for a CID
-func (cl *Finder) Get(ctx context.Context, c cid.Cid) (*models.Response, error) {
-	u := cl.baseURL + "/" + c.String()
+// Find queries indexer entries for a multihash
+func (cl *Finder) Find(ctx context.Context, m multihash.Multihash) (*models.FindResponse, error) {
+	u := cl.baseURL + "/" + m.B58String()
 	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
@@ -54,9 +54,12 @@ func (cl *Finder) Get(ctx context.Context, c cid.Cid) (*models.Response, error) 
 	return cl.sendRequest(req)
 }
 
-// GetBatch of indexeer entries for a CIDs
-func (cl *Finder) GetBatch(ctx context.Context, cs []cid.Cid) (*models.Response, error) {
-	data, err := models.MarshalReq(&models.Request{Cids: cs})
+// FindBatch queries indexer entries for a batch of multihashes
+func (cl *Finder) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*models.FindResponse, error) {
+	if len(mhs) == 0 {
+		return &models.FindResponse{}, nil
+	}
+	data, err := models.MarshalFindRequest(&models.FindRequest{Multihashes: mhs})
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +70,7 @@ func (cl *Finder) GetBatch(ctx context.Context, cs []cid.Cid) (*models.Response,
 	return cl.sendRequest(req)
 }
 
-func (cl *Finder) sendRequest(req *http.Request) (*models.Response, error) {
+func (cl *Finder) sendRequest(req *http.Request) (*models.FindResponse, error) {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := cl.c.Do(req)
 	if err != nil {
@@ -76,10 +79,10 @@ func (cl *Finder) sendRequest(req *http.Request) (*models.Response, error) {
 	// Handle failed requests
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
-			log.Info("Cid not found in indexer")
-			return &models.Response{}, nil
+			log.Info("Entry not found in indexer")
+			return &models.FindResponse{}, nil
 		}
-		return nil, fmt.Errorf("getting batch cids failed: %v", http.StatusText(resp.StatusCode))
+		return nil, fmt.Errorf("batch find query failed: %v", http.StatusText(resp.StatusCode))
 	}
 
 	defer resp.Body.Close()
@@ -88,10 +91,11 @@ func (cl *Finder) sendRequest(req *http.Request) (*models.Response, error) {
 		return nil, err
 	}
 
-	return models.UnmarshalResp(b)
+	return models.UnmarshalFindResponse(b)
 }
 
-// ImportFromManifest process entries from manifest and imports it in the indexer
+// ImportFromManifest processes entries from manifest and imports them into the
+// indexer
 func (cl *Finder) ImportFromManifest(ctx context.Context, dir string, provID peer.ID) error {
 	u := cl.baseURL + path.Join("/import", "manifest", provID.String())
 	req, err := cl.newUploadRequest(dir, u)
@@ -111,7 +115,8 @@ func (cl *Finder) ImportFromManifest(ctx context.Context, dir string, provID pee
 	return nil
 }
 
-// ImportFromCidList process entries from a cidlist and imprts it in the indexer
+// ImportFromCidList process entries from a cidlist and imprts it into the
+// indexer
 func (cl *Finder) ImportFromCidList(ctx context.Context, dir string, provID peer.ID) error {
 	u := cl.baseURL + path.Join("/import", "cidlist", provID.String())
 	req, err := cl.newUploadRequest(dir, u)

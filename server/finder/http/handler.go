@@ -10,7 +10,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/httpserver"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/gorilla/mux"
-	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 )
 
 // handler handles requests for the finder resource
@@ -24,48 +24,48 @@ func newHandler(indexer indexer.Interface, registry *providers.Registry) *httpHa
 	}
 }
 
-func (h *httpHandler) GetSingleCid(w http.ResponseWriter, r *http.Request) {
+func (h *httpHandler) find(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	mhCid := vars["cid"]
-	c, err := cid.Decode(mhCid)
+	mhVar := vars["multihash"]
+	m, err := multihash.FromB58String(mhVar)
 	if err != nil {
-		log.Errorw("error decoding cid", "cid", mhCid, "err", err)
-		httpserver.HandleError(w, err, "get")
+		log.Errorw("error decoding multihash", "multihash", mhVar, "err", err)
+		httpserver.HandleError(w, err, "find")
 		return
 	}
-	h.getCids(w, []cid.Cid{c})
+	h.getIndexes(w, []multihash.Multihash{m})
 }
 
-func (h *httpHandler) GetBatchCid(w http.ResponseWriter, r *http.Request) {
+func (h *httpHandler) findBatch(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading get batch request", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	req, err := models.UnmarshalReq(body)
+	req, err := models.UnmarshalFindRequest(body)
 	if err != nil {
 		log.Errorw("error unmarshalling get batch request", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	h.getCids(w, req.Cids)
+	h.getIndexes(w, req.Multihashes)
 }
 
-func (h *httpHandler) getCids(w http.ResponseWriter, cids []cid.Cid) {
-	response, err := h.finderHandler.PopulateResponse(cids)
+func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash) {
+	response, err := h.finderHandler.MakeFindResponse(mhs)
 	if err != nil {
 		httpserver.HandleError(w, err, "get")
 		return
 	}
 
-	// If no info for any Cids, then 404
-	if len(response.CidResults) == 0 {
+	// If no info for any multihashes, then 404
+	if len(response.MultihashResults) == 0 {
 		http.Error(w, "no results for query", http.StatusNotFound)
 		return
 	}
 
-	rb, err := models.MarshalResp(response)
+	rb, err := models.MarshalFindResponse(response)
 	if err != nil {
 		log.Errorw("failed marshalling query response", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)

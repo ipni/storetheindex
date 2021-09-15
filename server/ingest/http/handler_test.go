@@ -10,8 +10,8 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/providers"
-	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multihash"
 )
 
 var ident = config.Identity{
@@ -25,11 +25,12 @@ var hnd *httpHandler
 var reg *providers.Registry
 
 type mockIndexer struct {
-	store map[cid.Cid][]indexer.Value
+	store map[string][]indexer.Value
 }
 
-func (m *mockIndexer) Put(c cid.Cid, value indexer.Value) (bool, error) {
-	vals, ok := m.store[c]
+func (m *mockIndexer) Put(mh multihash.Multihash, value indexer.Value) (bool, error) {
+	k := mh.B58String()
+	vals, ok := m.store[k]
 	if ok {
 		for i := range vals {
 			if value.Equal(vals[i]) {
@@ -37,16 +38,20 @@ func (m *mockIndexer) Put(c cid.Cid, value indexer.Value) (bool, error) {
 			}
 		}
 	}
-	m.store[c] = append(vals, value)
+	m.store[k] = append(vals, value)
 	return true, nil
 }
 
-func (m *mockIndexer) Get(c cid.Cid) ([]indexer.Value, bool, error)         { return nil, false, nil }
-func (m *mockIndexer) PutMany(cids []cid.Cid, value indexer.Value) error    { return nil }
-func (m *mockIndexer) Remove(c cid.Cid, value indexer.Value) (bool, error)  { return false, nil }
-func (m *mockIndexer) RemoveMany(cids []cid.Cid, value indexer.Value) error { return nil }
-func (m *mockIndexer) RemoveProvider(providerID peer.ID) error              { return nil }
-func (m *mockIndexer) Size() (int64, error)                                 { return 0, nil }
+func (m *mockIndexer) Get(mh multihash.Multihash) ([]indexer.Value, bool, error) {
+	return nil, false, nil
+}
+func (m *mockIndexer) PutMany(mhs []multihash.Multihash, value indexer.Value) error { return nil }
+func (m *mockIndexer) Remove(mh multihash.Multihash, value indexer.Value) (bool, error) {
+	return false, nil
+}
+func (m *mockIndexer) RemoveMany(mhs []multihash.Multihash, value indexer.Value) error { return nil }
+func (m *mockIndexer) RemoveProvider(providerID peer.ID) error                         { return nil }
+func (m *mockIndexer) Size() (int64, error)                                            { return 0, nil }
 
 func init() {
 	var discoveryCfg = config.Discovery{
@@ -63,7 +68,7 @@ func init() {
 	}
 
 	idx := &mockIndexer{
-		store: map[cid.Cid][]indexer.Value{},
+		store: map[string][]indexer.Value{},
 	}
 	hnd = newHandler(idx, reg)
 
@@ -97,13 +102,13 @@ func TestRegisterProvider(t *testing.T) {
 }
 
 func TestIndexContent(t *testing.T) {
-	c, err := cid.Decode("QmPNHBy5h7f19yJDt7ip9TvmMRbqmYsa6aetkrsc1ghjLB")
+	m, err := multihash.FromB58String("QmPNHBy5h7f19yJDt7ip9TvmMRbqmYsa6aetkrsc1ghjLB")
 	if err != nil {
-		t.Fatal("cannot decode cid:", err)
+		t.Fatal(err)
 	}
 	metadata := []byte("hello world")
 
-	data, err := models.MakeIngestRequest(ident, c, 0, metadata)
+	data, err := models.MakeIngestRequest(ident, m, 0, metadata)
 	if err != nil {
 		t.Fatal(err)
 	}

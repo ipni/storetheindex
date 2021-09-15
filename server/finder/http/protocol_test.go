@@ -29,7 +29,7 @@ func setupClient(host string, t *testing.T) *httpclient.Finder {
 	return c
 }
 
-func TestGetCidData(t *testing.T) {
+func TestFindIndexData(t *testing.T) {
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t)
@@ -50,7 +50,7 @@ func TestGetCidData(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	test.GetCidDataTest(ctx, t, c, ind, reg)
+	test.FindIndexTest(ctx, t, c, ind, reg)
 
 	err := s.Shutdown(ctx)
 	if err != nil {

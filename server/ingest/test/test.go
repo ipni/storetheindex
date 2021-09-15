@@ -16,8 +16,8 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/filecoin-project/storetheindex/internal/utils"
-	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multihash"
 )
 
 //InitIndex initialize a new indexer engine.
@@ -60,18 +60,18 @@ func InitRegistry(t *testing.T, trustedID string) *providers.Registry {
 	return reg
 }
 
-// PopulateIndex with some CIDs
-func PopulateIndex(ind indexer.Interface, cids []cid.Cid, v indexer.Value, t *testing.T) {
-	err := ind.PutMany(cids, v)
+// PopulateIndex with some multihashes
+func PopulateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.Value, t *testing.T) {
+	err := ind.PutMany(mhs, v)
 	if err != nil {
-		t.Fatal("Error putting cids: ", err)
+		t.Fatal("Error putting multihashes: ", err)
 	}
-	vals, ok, err := ind.Get(cids[0])
+	vals, ok, err := ind.Get(mhs[0])
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !ok {
-		t.Fatal("cid not found")
+		t.Fatal("multihash not found")
 	}
 	if len(vals) == 0 {
 		t.Fatal("no values returned")
@@ -154,19 +154,19 @@ func IndexContent(t *testing.T, cl client.Ingest, providerIdent config.Identity,
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cids, err := utils.RandomCids(1)
+	mhs, err := utils.RandomMultihashes(1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	metadata := []byte("hello")
 
-	err = cl.IndexContent(ctx, providerIdent, cids[0], 0, metadata)
+	err = cl.IndexContent(ctx, providerIdent, mhs[0], 0, metadata)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	vals, ok, err := ind.Get(cids[0])
+	vals, ok, err := ind.Get(mhs[0])
 	if err != nil {
 		t.Fatal(err)
 	}

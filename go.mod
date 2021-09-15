@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
-	github.com/filecoin-project/go-indexer-core v0.0.0-20210818063915-4b4227413744
+	github.com/filecoin-project/go-indexer-core v0.1.1
 	github.com/filecoin-project/indexer-reference-provider v0.0.0-20210831125455-79faed24a362
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.4
@@ -28,5 +28,3 @@ require (
 	github.com/willscott/go-legs v0.0.0-20210901151650-83e866a4d54a
 	github.com/ybbus/jsonrpc/v2 v2.1.6
 )
-
-replace github.com/filecoin-project/filecoin-ffi => github.com/filecoin-project/ffi-stub v0.2.0

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
@@ -9,14 +10,14 @@ import (
 )
 
 func TestIngestRequest(t *testing.T) {
-	cids, err := utils.RandomCids(1)
+	mhs, err := utils.RandomMultihashes(1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	metadata := []byte("hello")
 
-	data, err := MakeIngestRequest(providerIdent, cids[0], 0, metadata)
+	data, err := MakeIngestRequest(providerIdent, mhs[0], 0, metadata)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +38,7 @@ func TestIngestRequest(t *testing.T) {
 		t.Fatal("value in request not same as original")
 	}
 
-	if !ingReq.Cid.Equals(cids[0]) {
-		t.Fatal("cid in request not same as original")
+	if !bytes.Equal([]byte(ingReq.Multihash), []byte(mhs[0])) {
+		t.Fatal("multihash in request not same as original")
 	}
 }

@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -18,9 +19,9 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/filecoin-project/storetheindex/internal/utils"
-	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multihash"
 )
 
 const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
@@ -65,18 +66,18 @@ func InitRegistry(t *testing.T) *providers.Registry {
 	return reg
 }
 
-// PopulateIndex with some CIDs
-func PopulateIndex(ind indexer.Interface, cids []cid.Cid, v indexer.Value, t *testing.T) {
-	err := ind.PutMany(cids, v)
+// PopulateIndex with some multihashes
+func PopulateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.Value, t *testing.T) {
+	err := ind.PutMany(mhs, v)
 	if err != nil {
-		t.Fatal("Error putting cids: ", err)
+		t.Fatal("Error putting multihashes: ", err)
 	}
-	vals, ok, err := ind.Get(cids[0])
+	vals, ok, err := ind.Get(mhs[0])
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !ok {
-		t.Fatal("cid not found")
+		t.Fatal("index not found")
 	}
 	if len(vals) == 0 {
 		t.Fatal("no values returned")
@@ -86,9 +87,9 @@ func PopulateIndex(ind indexer.Interface, cids []cid.Cid, v indexer.Value, t *te
 	}
 }
 
-func GetCidDataTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *providers.Registry) {
-	// Generate some CIDs and populate indexer
-	cids, err := utils.RandomCids(15)
+func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *providers.Registry) {
+	// Generate some multihashes and populate indexer
+	mhs, err := utils.RandomMultihashes(15)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,8 +97,8 @@ func GetCidDataTest(ctx context.Context, t *testing.T, c client.Finder, ind inde
 	if err != nil {
 		t.Fatal(err)
 	}
-	v := indexer.MakeValue(p, 0, cids[0].Bytes())
-	PopulateIndex(ind, cids[:10], v, t)
+	v := indexer.MakeValue(p, 0, []byte(mhs[0]))
+	PopulateIndex(ind, mhs[:10], v, t)
 
 	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	info := &providers.ProviderInfo{
@@ -111,84 +112,84 @@ func GetCidDataTest(ctx context.Context, t *testing.T, c client.Finder, ind inde
 		t.Fatal("could not register provider info:", err)
 	}
 
-	// Get single CID
-	resp, err := c.Get(ctx, cids[0])
+	// Get single multihash
+	resp, err := c.Find(ctx, mhs[0])
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log("cids in resp:", len(resp.CidResults))
-	err = checkResponse(resp, []cid.Cid{cids[0]}, []indexer.Value{v})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Get a batch of CIDs
-	resp, err = c.GetBatch(ctx, cids[:10])
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = checkResponse(resp, cids[:10], []indexer.Value{v})
+	t.Log("index values in resp:", len(resp.MultihashResults))
+	err = checkResponse(resp, mhs[:1], []indexer.Value{v})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Get a batch of CIDs where only a subset is in the index
-	resp, err = c.GetBatch(ctx, cids)
+	// Get a batch of multihashes
+	resp, err = c.FindBatch(ctx, mhs[:10])
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = checkResponse(resp, cids[:10], []indexer.Value{v})
+	err = checkResponse(resp, mhs[:10], []indexer.Value{v})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Get a batch of multihashes where only a subset is in the index
+	resp, err = c.FindBatch(ctx, mhs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = checkResponse(resp, mhs[:10], []indexer.Value{v})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Get empty batch
-	_, err = c.GetBatch(ctx, []cid.Cid{})
+	_, err = c.FindBatch(ctx, []multihash.Multihash{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = checkResponse(&models.Response{}, []cid.Cid{}, []indexer.Value{})
+	err = checkResponse(&models.FindResponse{}, []multihash.Multihash{}, []indexer.Value{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Get batch with no cids in request
-	_, err = c.GetBatch(ctx, cids[10:])
+	// Get batch with no multihashes in request
+	_, err = c.FindBatch(ctx, mhs[10:])
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = checkResponse(&models.Response{}, []cid.Cid{}, []indexer.Value{})
+	err = checkResponse(&models.FindResponse{}, []multihash.Multihash{}, []indexer.Value{})
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func checkResponse(r *models.Response, cids []cid.Cid, v []indexer.Value) error {
+func checkResponse(r *models.FindResponse, mhs []multihash.Multihash, v []indexer.Value) error {
 	// Check if everything was returned.
-	if len(r.CidResults) != len(cids) {
-		return fmt.Errorf("number of values send in responses not correct, expected %d got %d", len(cids), len(r.CidResults))
+	if len(r.MultihashResults) != len(mhs) {
+		return fmt.Errorf("number of values send in responses not correct, expected %d got %d", len(mhs), len(r.MultihashResults))
 	}
-	for i := range r.CidResults {
-		// Check if cid in list of cids
-		if !hasCid(cids, r.CidResults[i].Cid) {
-			return fmt.Errorf("cid not found in response containing %d cids", len(cids))
+	for i := range r.MultihashResults {
+		// Check if multihash in list of multihashes
+		if !hasMultihash(mhs, r.MultihashResults[i].Multihash) {
+			return fmt.Errorf("multihash not found in response containing %d multihash", len(mhs))
 		}
 
 		// Check if same value
-		if !utils.EqualValues(r.CidResults[i].Values, v) {
-			return fmt.Errorf("wrong value included for a cid: %s", v)
+		if !utils.EqualValues(r.MultihashResults[i].Values, v) {
+			return fmt.Errorf("wrong value included for a multihash: %s", v)
 		}
 	}
-	// If there are any CID responses, then there should be a provider
-	if len(r.CidResults) != 0 && len(r.Providers) != 1 {
+	// If there are any multihash responses, then there should be a provider
+	if len(r.MultihashResults) != 0 && len(r.Providers) != 1 {
 		return fmt.Errorf("wrong number of provider, expected 1 got %d", len(r.Providers))
 	}
 	return nil
 }
 
-func hasCid(cids []cid.Cid, c cid.Cid) bool {
-	for i := range cids {
-		if cids[i] == c {
+func hasMultihash(mhs []multihash.Multihash, m multihash.Multihash) bool {
+	for i := range mhs {
+		if bytes.Equal([]byte(mhs[i]), []byte(m)) {
 			return true
 		}
 	}

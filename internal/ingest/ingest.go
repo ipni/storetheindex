@@ -13,7 +13,8 @@ import (
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/host"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multihash"
 	"github.com/willscott/go-legs"
 )
 
@@ -86,7 +87,7 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 }
 
 // Sync with a data provider up to latest ID
-func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...ingestion.SyncOption) (chan cid.Cid, error) {
+func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...ingestion.SyncOption) (<-chan multihash.Multihash, error) {
 	// Check latest sync for provider.
 	c, err := i.getLatestAdvID(ctx, p)
 	if err != nil {
@@ -126,7 +127,7 @@ func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...ingestion.Syn
 	// Merge cancelfuncs
 	cncl = cancelFunc(cncl, cancel)
 	// Notification channel.
-	out := make(chan cid.Cid)
+	out := make(chan multihash.Multihash)
 	// Listen when the sync is done to update latestSync and
 	// notify the channel.
 	go i.listenSyncUpdates(ctx, p, watcher, cncl, out)
@@ -181,7 +182,7 @@ func (i *legIngester) listenSubUpdates(ctx context.Context, s *sub) {
 }
 
 func (i *legIngester) listenSyncUpdates(ctx context.Context, p peer.ID,
-	watcher chan cid.Cid, cncl context.CancelFunc, out chan cid.Cid) {
+	watcher <-chan cid.Cid, cncl context.CancelFunc, out chan<- multihash.Multihash) {
 
 	defer func() {
 		cncl()
@@ -197,7 +198,7 @@ func (i *legIngester) listenSyncUpdates(ctx context.Context, p peer.ID,
 		if err != nil {
 			log.Errorf("Error persisting latest sync: %w", err)
 		}
-		out <- c
+		out <- c.Hash()
 	}
 }
 
