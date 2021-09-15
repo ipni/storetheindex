@@ -24,10 +24,10 @@ var FindCmd = &cli.Command{
 	Name:   "find",
 	Usage:  "Find value by multihash in idexer",
 	Flags:  ClientCmdFlags,
-	Action: findIndexCmd,
+	Action: findCmd,
 }
 
-func findIndexCmd(cctx *cli.Context) error {
+func findCmd(cctx *cli.Context) error {
 	protocol := cctx.String("protocol")
 
 	mhArg := cctx.String("mh")

@@ -14,16 +14,16 @@ type FindRequest struct {
 	Multihashes []multihash.Multihash
 }
 
-// IndexResult aggregates all values for a single multihash.
-type IndexResult struct {
+// MultihashResult aggregates all values for a single multihash.
+type MultihashResult struct {
 	Multihash multihash.Multihash
 	Values    []indexer.Value
 }
 
 // FindResponse used to answer client queries/requests
 type FindResponse struct {
-	IndexResults []IndexResult
-	Providers    []peer.AddrInfo
+	MultihashResults []MultihashResult
+	Providers        []peer.AddrInfo
 	// NOTE: This feature is not enabled yet.
 	// Signature []byte	// Providers signature.
 }
@@ -59,8 +59,8 @@ func UnmarshalFindResponse(b []byte) (*FindResponse, error) {
 
 // PrettyPrint a response for CLI output
 func (r *FindResponse) PrettyPrint() {
-	for i := range r.IndexResults {
-		fmt.Println("Multihash:", r.IndexResults[i].Multihash)
-		fmt.Println("Values:", r.IndexResults[i].Values)
+	for i := range r.MultihashResults {
+		fmt.Println("Multihash:", r.MultihashResults[i].Multihash)
+		fmt.Println("Values:", r.MultihashResults[i].Values)
 	}
 }

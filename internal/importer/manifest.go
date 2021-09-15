@@ -11,7 +11,7 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
-// ReadMenifest reads Cids from a manifest of a CID aggregator and outputs
+// ReadManifest reads Cids from a manifest of a CID aggregator and outputs
 // their multihashes on a channel.
 func ReadManifest(ctx context.Context, in io.Reader, out chan<- multihash.Multihash, errOut chan error) {
 	defer close(errOut)

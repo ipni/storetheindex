@@ -39,12 +39,12 @@ func TestMarshal(t *testing.T) {
 	// Masrhal response and check e2e
 	t.Log("e2e marshalling response")
 	resp := &FindResponse{
-		IndexResults: make([]IndexResult, 0),
-		Providers:    make([]peer.AddrInfo, 0),
+		MultihashResults: make([]MultihashResult, 0),
+		Providers:        make([]peer.AddrInfo, 0),
 	}
 
 	for i := range mhs {
-		resp.IndexResults = append(resp.IndexResults, IndexResult{mhs[i], []indexer.Value{v}})
+		resp.MultihashResults = append(resp.MultihashResults, MultihashResult{mhs[i], []indexer.Value{v}})
 	}
 	m1, err := ma.NewMultiaddr("/ip4/127.0.0.1/udp/1234")
 	if err != nil {
@@ -62,13 +62,13 @@ func TestMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !EqualIndexResult(resp.IndexResults, r2.IndexResults) {
+	if !EqualMultihashResult(resp.MultihashResults, r2.MultihashResults) {
 		t.Fatal("failed marshal/unmarshaling response")
 	}
 
 }
 
-func EqualIndexResult(res1, res2 []IndexResult) bool {
+func EqualMultihashResult(res1, res2 []MultihashResult) bool {
 	if len(res1) != len(res2) {
 		return false
 	}

@@ -26,10 +26,10 @@ func newHandler(indexer indexer.Interface, registry *providers.Registry) *httpHa
 
 func (h *httpHandler) find(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	mhStr := vars["index"]
-	m, err := multihash.FromB58String(mhStr)
+	mhVar := vars["multihash"]
+	m, err := multihash.FromB58String(mhVar)
 	if err != nil {
-		log.Errorw("error decoding multihash", "multihash", mhStr, "err", err)
+		log.Errorw("error decoding multihash", "multihash", mhVar, "err", err)
 		httpserver.HandleError(w, err, "find")
 		return
 	}
@@ -60,7 +60,7 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 	}
 
 	// If no info for any multihashes, then 404
-	if len(response.IndexResults) == 0 {
+	if len(response.MultihashResults) == 0 {
 		http.Error(w, "no results for query", http.StatusNotFound)
 		return
 	}

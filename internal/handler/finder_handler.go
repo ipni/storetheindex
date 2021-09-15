@@ -28,7 +28,7 @@ func NewFinderHandler(indexer indexer.Interface, registry *providers.Registry) *
 // MakeFindResponse reads from indexer core to populate a response from a
 // list of multihashes.
 func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*models.FindResponse, error) {
-	results := make([]models.IndexResult, 0, len(mhashes))
+	results := make([]models.MultihashResult, 0, len(mhashes))
 	var providerResults []peer.AddrInfo
 	providerSeen := map[peer.ID]struct{}{}
 
@@ -41,7 +41,7 @@ func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*models
 			continue
 		}
 		// Add the result to the list of index results
-		results = append(results, models.IndexResult{
+		results = append(results, models.MultihashResult{
 			Multihash: mhashes[i],
 			Values:    values,
 		})
@@ -64,7 +64,7 @@ func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*models
 	}
 
 	return &models.FindResponse{
-		IndexResults: results,
-		Providers:    providerResults,
+		MultihashResults: results,
+		Providers:        providerResults,
 	}, nil
 }

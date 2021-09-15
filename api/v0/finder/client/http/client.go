@@ -21,7 +21,7 @@ import (
 var log = logging.Logger("finderhttpclient")
 
 const (
-	finderResource = "index"
+	finderResource = "multihash"
 	finderPort     = 3000
 )
 
@@ -79,10 +79,10 @@ func (cl *Finder) sendRequest(req *http.Request) (*models.FindResponse, error) {
 	// Handle failed requests
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
-			log.Info("Index not found in indexer")
+			log.Info("Entry not found in indexer")
 			return &models.FindResponse{}, nil
 		}
-		return nil, fmt.Errorf("getting batch indexes failed: %v", http.StatusText(resp.StatusCode))
+		return nil, fmt.Errorf("batch find query failed: %v", http.StatusText(resp.StatusCode))
 	}
 
 	defer resp.Body.Close()
@@ -94,7 +94,8 @@ func (cl *Finder) sendRequest(req *http.Request) (*models.FindResponse, error) {
 	return models.UnmarshalFindResponse(b)
 }
 
-// ImportFromManifest process entries from manifest and imports it in the indexer
+// ImportFromManifest processes entries from manifest and imports them into the
+// indexer
 func (cl *Finder) ImportFromManifest(ctx context.Context, dir string, provID peer.ID) error {
 	u := cl.baseURL + path.Join("/import", "manifest", provID.String())
 	req, err := cl.newUploadRequest(dir, u)
@@ -114,7 +115,8 @@ func (cl *Finder) ImportFromManifest(ctx context.Context, dir string, provID pee
 	return nil
 }
 
-// ImportFromCidList process entries from a cidlist and imprts it in the indexer
+// ImportFromCidList process entries from a cidlist and imprts it into the
+// indexer
 func (cl *Finder) ImportFromCidList(ctx context.Context, dir string, provID peer.ID) error {
 	u := cl.baseURL + path.Join("/import", "cidlist", provID.String())
 	req, err := cl.newUploadRequest(dir, u)
