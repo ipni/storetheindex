@@ -42,6 +42,8 @@ type typeSlab struct {
 	Link_EntryChunk__Repr    _Link_EntryChunk__ReprPrototype
 	List                     _List__Prototype
 	List__Repr               _List__ReprPrototype
+	List_Bytes               _List_Bytes__Prototype
+	List_Bytes__Repr         _List_Bytes__ReprPrototype
 	List_String              _List_String__Prototype
 	List_String__Repr        _List_String__ReprPrototype
 	Map                      _Map__Prototype
@@ -93,7 +95,7 @@ type _Bytes struct{ x []byte }
 // EntryChunk matches the IPLD Schema type "EntryChunk".  It has Struct type-kind, and may be interrogated like map kind.
 type EntryChunk = *_EntryChunk
 type _EntryChunk struct {
-	Entries _List_String
+	Entries _List_Bytes
 	Next    _Link_EntryChunk__Maybe
 }
 
@@ -121,6 +123,12 @@ type _Link_EntryChunk struct{ x datamodel.Link }
 type List = *_List
 type _List struct {
 	x []_Any__Maybe
+}
+
+// List_Bytes matches the IPLD Schema type "List_Bytes".  It has list kind.
+type List_Bytes = *_List_Bytes
+type _List_Bytes struct {
+	x []_Bytes
 }
 
 // List_String matches the IPLD Schema type "List_String".  It has list kind.

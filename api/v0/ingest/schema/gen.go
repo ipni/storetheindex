@@ -63,13 +63,14 @@ func main() {
 		}),
 	))
 
-	// List string
+	// List multihash
 	ts.Accumulate(schema.SpawnStruct("EntryChunk", []schema.StructField{
-		schema.SpawnStructField("Entries", "List_String", false, false),
+		schema.SpawnStructField("Entries", "List_Bytes", false, false),
 		schema.SpawnStructField("Next", "Link_EntryChunk", true, false),
 	}, schema.SpawnStructRepresentationMap(map[string]string{})))
 	ts.Accumulate(schema.SpawnLinkReference("Link_EntryChunk", "EntryChunk"))
 	ts.Accumulate(schema.SpawnList("List_String", "String", false))
+	ts.Accumulate(schema.SpawnList("List_Bytes", "Bytes", false))
 
 	// Advertisement
 	ts.Accumulate(schema.SpawnStruct("Advertisement", []schema.StructField{

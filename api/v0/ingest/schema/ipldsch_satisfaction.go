@@ -2898,7 +2898,7 @@ var _ datamodel.Node = &_Bytes__Repr{}
 type _Bytes__ReprPrototype = _Bytes__Prototype
 type _Bytes__ReprAssembler = _Bytes__Assembler
 
-func (n _EntryChunk) FieldEntries() List_String {
+func (n _EntryChunk) FieldEntries() List_Bytes {
 	return &n.Entries
 }
 func (n _EntryChunk) FieldNext() MaybeLink_EntryChunk {
@@ -3075,7 +3075,7 @@ type _EntryChunk__Assembler struct {
 	f     int
 
 	cm         schema.Maybe
-	ca_Entries _List_String__Assembler
+	ca_Entries _List_Bytes__Assembler
 	ca_Next    _Link_EntryChunk__Assembler
 }
 
@@ -3539,7 +3539,7 @@ type _EntryChunk__ReprAssembler struct {
 	f     int
 
 	cm         schema.Maybe
-	ca_Entries _List_String__ReprAssembler
+	ca_Entries _List_Bytes__ReprAssembler
 	ca_Next    _Link_EntryChunk__ReprAssembler
 }
 
@@ -5474,6 +5474,597 @@ func (la *_List__ReprAssembler) Finish() error {
 }
 func (la *_List__ReprAssembler) ValuePrototype(_ int64) datamodel.NodePrototype {
 	return _Any__ReprPrototype{}
+}
+
+func (n *_List_Bytes) Lookup(idx int64) Bytes {
+	if n.Length() <= idx {
+		return nil
+	}
+	v := &n.x[idx]
+	return v
+}
+func (n *_List_Bytes) LookupMaybe(idx int64) MaybeBytes {
+	if n.Length() <= idx {
+		return nil
+	}
+	v := &n.x[idx]
+	return &_Bytes__Maybe{
+		m: schema.Maybe_Value,
+		v: *v,
+	}
+}
+
+var _List_Bytes__valueAbsent = _Bytes__Maybe{m: schema.Maybe_Absent}
+
+func (n List_Bytes) Iterator() *List_Bytes__Itr {
+	return &List_Bytes__Itr{n, 0}
+}
+
+type List_Bytes__Itr struct {
+	n   List_Bytes
+	idx int
+}
+
+func (itr *List_Bytes__Itr) Next() (idx int64, v Bytes) {
+	if itr.idx >= len(itr.n.x) {
+		return -1, nil
+	}
+	idx = int64(itr.idx)
+	v = &itr.n.x[itr.idx]
+	itr.idx++
+	return
+}
+func (itr *List_Bytes__Itr) Done() bool {
+	return itr.idx >= len(itr.n.x)
+}
+
+type _List_Bytes__Maybe struct {
+	m schema.Maybe
+	v _List_Bytes
+}
+type MaybeList_Bytes = *_List_Bytes__Maybe
+
+func (m MaybeList_Bytes) IsNull() bool {
+	return m.m == schema.Maybe_Null
+}
+func (m MaybeList_Bytes) IsAbsent() bool {
+	return m.m == schema.Maybe_Absent
+}
+func (m MaybeList_Bytes) Exists() bool {
+	return m.m == schema.Maybe_Value
+}
+func (m MaybeList_Bytes) AsNode() datamodel.Node {
+	switch m.m {
+	case schema.Maybe_Absent:
+		return datamodel.Absent
+	case schema.Maybe_Null:
+		return datamodel.Null
+	case schema.Maybe_Value:
+		return &m.v
+	default:
+		panic("unreachable")
+	}
+}
+func (m MaybeList_Bytes) Must() List_Bytes {
+	if !m.Exists() {
+		panic("unbox of a maybe rejected")
+	}
+	return &m.v
+}
+
+var _ datamodel.Node = (List_Bytes)(&_List_Bytes{})
+var _ schema.TypedNode = (List_Bytes)(&_List_Bytes{})
+
+func (List_Bytes) Kind() datamodel.Kind {
+	return datamodel.Kind_List
+}
+func (List_Bytes) LookupByString(string) (datamodel.Node, error) {
+	return mixins.List{TypeName: "schema.List_Bytes"}.LookupByString("")
+}
+func (n List_Bytes) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
+	idx, err := k.AsInt()
+	if err != nil {
+		return nil, err
+	}
+	return n.LookupByIndex(idx)
+}
+func (n List_Bytes) LookupByIndex(idx int64) (datamodel.Node, error) {
+	if n.Length() <= idx {
+		return nil, datamodel.ErrNotExists{Segment: datamodel.PathSegmentOfInt(idx)}
+	}
+	v := &n.x[idx]
+	return v, nil
+}
+func (n List_Bytes) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
+	i, err := seg.Index()
+	if err != nil {
+		return nil, datamodel.ErrInvalidSegmentForList{TypeName: "schema.List_Bytes", TroubleSegment: seg, Reason: err}
+	}
+	return n.LookupByIndex(i)
+}
+func (List_Bytes) MapIterator() datamodel.MapIterator {
+	return nil
+}
+func (n List_Bytes) ListIterator() datamodel.ListIterator {
+	return &_List_Bytes__ListItr{n, 0}
+}
+
+type _List_Bytes__ListItr struct {
+	n   List_Bytes
+	idx int
+}
+
+func (itr *_List_Bytes__ListItr) Next() (idx int64, v datamodel.Node, _ error) {
+	if itr.idx >= len(itr.n.x) {
+		return -1, nil, datamodel.ErrIteratorOverread{}
+	}
+	idx = int64(itr.idx)
+	x := &itr.n.x[itr.idx]
+	v = x
+	itr.idx++
+	return
+}
+func (itr *_List_Bytes__ListItr) Done() bool {
+	return itr.idx >= len(itr.n.x)
+}
+
+func (n List_Bytes) Length() int64 {
+	return int64(len(n.x))
+}
+func (List_Bytes) IsAbsent() bool {
+	return false
+}
+func (List_Bytes) IsNull() bool {
+	return false
+}
+func (List_Bytes) AsBool() (bool, error) {
+	return mixins.List{TypeName: "schema.List_Bytes"}.AsBool()
+}
+func (List_Bytes) AsInt() (int64, error) {
+	return mixins.List{TypeName: "schema.List_Bytes"}.AsInt()
+}
+func (List_Bytes) AsFloat() (float64, error) {
+	return mixins.List{TypeName: "schema.List_Bytes"}.AsFloat()
+}
+func (List_Bytes) AsString() (string, error) {
+	return mixins.List{TypeName: "schema.List_Bytes"}.AsString()
+}
+func (List_Bytes) AsBytes() ([]byte, error) {
+	return mixins.List{TypeName: "schema.List_Bytes"}.AsBytes()
+}
+func (List_Bytes) AsLink() (datamodel.Link, error) {
+	return mixins.List{TypeName: "schema.List_Bytes"}.AsLink()
+}
+func (List_Bytes) Prototype() datamodel.NodePrototype {
+	return _List_Bytes__Prototype{}
+}
+
+type _List_Bytes__Prototype struct{}
+
+func (_List_Bytes__Prototype) NewBuilder() datamodel.NodeBuilder {
+	var nb _List_Bytes__Builder
+	nb.Reset()
+	return &nb
+}
+
+type _List_Bytes__Builder struct {
+	_List_Bytes__Assembler
+}
+
+func (nb *_List_Bytes__Builder) Build() datamodel.Node {
+	if *nb.m != schema.Maybe_Value {
+		panic("invalid state: cannot call Build on an assembler that's not finished")
+	}
+	return nb.w
+}
+func (nb *_List_Bytes__Builder) Reset() {
+	var w _List_Bytes
+	var m schema.Maybe
+	*nb = _List_Bytes__Builder{_List_Bytes__Assembler{w: &w, m: &m}}
+}
+
+type _List_Bytes__Assembler struct {
+	w     *_List_Bytes
+	m     *schema.Maybe
+	state laState
+
+	cm schema.Maybe
+	va _Bytes__Assembler
+}
+
+func (na *_List_Bytes__Assembler) reset() {
+	na.state = laState_initial
+	na.va.reset()
+}
+func (_List_Bytes__Assembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes"}.BeginMap(0)
+}
+func (na *_List_Bytes__Assembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
+	switch *na.m {
+	case schema.Maybe_Value, schema.Maybe_Null:
+		panic("invalid state: cannot assign into assembler that's already finished")
+	case midvalue:
+		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
+	}
+	*na.m = midvalue
+	if sizeHint < 0 {
+		sizeHint = 0
+	}
+	if sizeHint > 0 {
+		na.w.x = make([]_Bytes, 0, sizeHint)
+	}
+	return na, nil
+}
+func (na *_List_Bytes__Assembler) AssignNull() error {
+	switch *na.m {
+	case allowNull:
+		*na.m = schema.Maybe_Null
+		return nil
+	case schema.Maybe_Absent:
+		return mixins.ListAssembler{TypeName: "schema.List_Bytes"}.AssignNull()
+	case schema.Maybe_Value, schema.Maybe_Null:
+		panic("invalid state: cannot assign into assembler that's already finished")
+	case midvalue:
+		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
+	}
+	panic("unreachable")
+}
+func (_List_Bytes__Assembler) AssignBool(bool) error {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes"}.AssignBool(false)
+}
+func (_List_Bytes__Assembler) AssignInt(int64) error {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes"}.AssignInt(0)
+}
+func (_List_Bytes__Assembler) AssignFloat(float64) error {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes"}.AssignFloat(0)
+}
+func (_List_Bytes__Assembler) AssignString(string) error {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes"}.AssignString("")
+}
+func (_List_Bytes__Assembler) AssignBytes([]byte) error {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes"}.AssignBytes(nil)
+}
+func (_List_Bytes__Assembler) AssignLink(datamodel.Link) error {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes"}.AssignLink(nil)
+}
+func (na *_List_Bytes__Assembler) AssignNode(v datamodel.Node) error {
+	if v.IsNull() {
+		return na.AssignNull()
+	}
+	if v2, ok := v.(*_List_Bytes); ok {
+		switch *na.m {
+		case schema.Maybe_Value, schema.Maybe_Null:
+			panic("invalid state: cannot assign into assembler that's already finished")
+		case midvalue:
+			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
+		}
+		*na.w = *v2
+		*na.m = schema.Maybe_Value
+		return nil
+	}
+	if v.Kind() != datamodel.Kind_List {
+		return datamodel.ErrWrongKind{TypeName: "schema.List_Bytes", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustList, ActualKind: v.Kind()}
+	}
+	itr := v.ListIterator()
+	for !itr.Done() {
+		_, v, err := itr.Next()
+		if err != nil {
+			return err
+		}
+		if err := na.AssembleValue().AssignNode(v); err != nil {
+			return err
+		}
+	}
+	return na.Finish()
+}
+func (_List_Bytes__Assembler) Prototype() datamodel.NodePrototype {
+	return _List_Bytes__Prototype{}
+}
+func (la *_List_Bytes__Assembler) valueFinishTidy() bool {
+	switch la.cm {
+	case schema.Maybe_Value:
+		la.va.w = nil
+		la.cm = schema.Maybe_Absent
+		la.state = laState_initial
+		la.va.reset()
+		return true
+	default:
+		return false
+	}
+}
+func (la *_List_Bytes__Assembler) AssembleValue() datamodel.NodeAssembler {
+	switch la.state {
+	case laState_initial:
+		// carry on
+	case laState_midValue:
+		if !la.valueFinishTidy() {
+			panic("invalid state: AssembleValue cannot be called when still in the middle of assembling the previous value")
+		} // if tidy success: carry on
+	case laState_finished:
+		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
+	}
+	la.w.x = append(la.w.x, _Bytes{})
+	la.state = laState_midValue
+	row := &la.w.x[len(la.w.x)-1]
+	la.va.w = row
+	la.va.m = &la.cm
+	return &la.va
+}
+func (la *_List_Bytes__Assembler) Finish() error {
+	switch la.state {
+	case laState_initial:
+		// carry on
+	case laState_midValue:
+		if !la.valueFinishTidy() {
+			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
+		} // if tidy success: carry on
+	case laState_finished:
+		panic("invalid state: Finish cannot be called on an assembler that's already finished")
+	}
+	la.state = laState_finished
+	*la.m = schema.Maybe_Value
+	return nil
+}
+func (la *_List_Bytes__Assembler) ValuePrototype(_ int64) datamodel.NodePrototype {
+	return _Bytes__Prototype{}
+}
+func (List_Bytes) Type() schema.Type {
+	return nil /*TODO:typelit*/
+}
+func (n List_Bytes) Representation() datamodel.Node {
+	return (*_List_Bytes__Repr)(n)
+}
+
+type _List_Bytes__Repr _List_Bytes
+
+var _ datamodel.Node = &_List_Bytes__Repr{}
+
+func (_List_Bytes__Repr) Kind() datamodel.Kind {
+	return datamodel.Kind_List
+}
+func (_List_Bytes__Repr) LookupByString(string) (datamodel.Node, error) {
+	return mixins.List{TypeName: "schema.List_Bytes.Repr"}.LookupByString("")
+}
+func (nr *_List_Bytes__Repr) LookupByNode(k datamodel.Node) (datamodel.Node, error) {
+	v, err := (List_Bytes)(nr).LookupByNode(k)
+	if err != nil || v == datamodel.Null {
+		return v, err
+	}
+	return v.(Bytes).Representation(), nil
+}
+func (nr *_List_Bytes__Repr) LookupByIndex(idx int64) (datamodel.Node, error) {
+	v, err := (List_Bytes)(nr).LookupByIndex(idx)
+	if err != nil || v == datamodel.Null {
+		return v, err
+	}
+	return v.(Bytes).Representation(), nil
+}
+func (n _List_Bytes__Repr) LookupBySegment(seg datamodel.PathSegment) (datamodel.Node, error) {
+	i, err := seg.Index()
+	if err != nil {
+		return nil, datamodel.ErrInvalidSegmentForList{TypeName: "schema.List_Bytes.Repr", TroubleSegment: seg, Reason: err}
+	}
+	return n.LookupByIndex(i)
+}
+func (_List_Bytes__Repr) MapIterator() datamodel.MapIterator {
+	return nil
+}
+func (nr *_List_Bytes__Repr) ListIterator() datamodel.ListIterator {
+	return &_List_Bytes__ReprListItr{(List_Bytes)(nr), 0}
+}
+
+type _List_Bytes__ReprListItr _List_Bytes__ListItr
+
+func (itr *_List_Bytes__ReprListItr) Next() (idx int64, v datamodel.Node, err error) {
+	idx, v, err = (*_List_Bytes__ListItr)(itr).Next()
+	if err != nil || v == datamodel.Null {
+		return
+	}
+	return idx, v.(Bytes).Representation(), nil
+}
+func (itr *_List_Bytes__ReprListItr) Done() bool {
+	return (*_List_Bytes__ListItr)(itr).Done()
+}
+
+func (rn *_List_Bytes__Repr) Length() int64 {
+	return int64(len(rn.x))
+}
+func (_List_Bytes__Repr) IsAbsent() bool {
+	return false
+}
+func (_List_Bytes__Repr) IsNull() bool {
+	return false
+}
+func (_List_Bytes__Repr) AsBool() (bool, error) {
+	return mixins.List{TypeName: "schema.List_Bytes.Repr"}.AsBool()
+}
+func (_List_Bytes__Repr) AsInt() (int64, error) {
+	return mixins.List{TypeName: "schema.List_Bytes.Repr"}.AsInt()
+}
+func (_List_Bytes__Repr) AsFloat() (float64, error) {
+	return mixins.List{TypeName: "schema.List_Bytes.Repr"}.AsFloat()
+}
+func (_List_Bytes__Repr) AsString() (string, error) {
+	return mixins.List{TypeName: "schema.List_Bytes.Repr"}.AsString()
+}
+func (_List_Bytes__Repr) AsBytes() ([]byte, error) {
+	return mixins.List{TypeName: "schema.List_Bytes.Repr"}.AsBytes()
+}
+func (_List_Bytes__Repr) AsLink() (datamodel.Link, error) {
+	return mixins.List{TypeName: "schema.List_Bytes.Repr"}.AsLink()
+}
+func (_List_Bytes__Repr) Prototype() datamodel.NodePrototype {
+	return _List_Bytes__ReprPrototype{}
+}
+
+type _List_Bytes__ReprPrototype struct{}
+
+func (_List_Bytes__ReprPrototype) NewBuilder() datamodel.NodeBuilder {
+	var nb _List_Bytes__ReprBuilder
+	nb.Reset()
+	return &nb
+}
+
+type _List_Bytes__ReprBuilder struct {
+	_List_Bytes__ReprAssembler
+}
+
+func (nb *_List_Bytes__ReprBuilder) Build() datamodel.Node {
+	if *nb.m != schema.Maybe_Value {
+		panic("invalid state: cannot call Build on an assembler that's not finished")
+	}
+	return nb.w
+}
+func (nb *_List_Bytes__ReprBuilder) Reset() {
+	var w _List_Bytes
+	var m schema.Maybe
+	*nb = _List_Bytes__ReprBuilder{_List_Bytes__ReprAssembler{w: &w, m: &m}}
+}
+
+type _List_Bytes__ReprAssembler struct {
+	w     *_List_Bytes
+	m     *schema.Maybe
+	state laState
+
+	cm schema.Maybe
+	va _Bytes__ReprAssembler
+}
+
+func (na *_List_Bytes__ReprAssembler) reset() {
+	na.state = laState_initial
+	na.va.reset()
+}
+func (_List_Bytes__ReprAssembler) BeginMap(sizeHint int64) (datamodel.MapAssembler, error) {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes.Repr"}.BeginMap(0)
+}
+func (na *_List_Bytes__ReprAssembler) BeginList(sizeHint int64) (datamodel.ListAssembler, error) {
+	switch *na.m {
+	case schema.Maybe_Value, schema.Maybe_Null:
+		panic("invalid state: cannot assign into assembler that's already finished")
+	case midvalue:
+		panic("invalid state: it makes no sense to 'begin' twice on the same assembler!")
+	}
+	*na.m = midvalue
+	if sizeHint < 0 {
+		sizeHint = 0
+	}
+	if sizeHint > 0 {
+		na.w.x = make([]_Bytes, 0, sizeHint)
+	}
+	return na, nil
+}
+func (na *_List_Bytes__ReprAssembler) AssignNull() error {
+	switch *na.m {
+	case allowNull:
+		*na.m = schema.Maybe_Null
+		return nil
+	case schema.Maybe_Absent:
+		return mixins.ListAssembler{TypeName: "schema.List_Bytes.Repr.Repr"}.AssignNull()
+	case schema.Maybe_Value, schema.Maybe_Null:
+		panic("invalid state: cannot assign into assembler that's already finished")
+	case midvalue:
+		panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
+	}
+	panic("unreachable")
+}
+func (_List_Bytes__ReprAssembler) AssignBool(bool) error {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes.Repr"}.AssignBool(false)
+}
+func (_List_Bytes__ReprAssembler) AssignInt(int64) error {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes.Repr"}.AssignInt(0)
+}
+func (_List_Bytes__ReprAssembler) AssignFloat(float64) error {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes.Repr"}.AssignFloat(0)
+}
+func (_List_Bytes__ReprAssembler) AssignString(string) error {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes.Repr"}.AssignString("")
+}
+func (_List_Bytes__ReprAssembler) AssignBytes([]byte) error {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes.Repr"}.AssignBytes(nil)
+}
+func (_List_Bytes__ReprAssembler) AssignLink(datamodel.Link) error {
+	return mixins.ListAssembler{TypeName: "schema.List_Bytes.Repr"}.AssignLink(nil)
+}
+func (na *_List_Bytes__ReprAssembler) AssignNode(v datamodel.Node) error {
+	if v.IsNull() {
+		return na.AssignNull()
+	}
+	if v2, ok := v.(*_List_Bytes); ok {
+		switch *na.m {
+		case schema.Maybe_Value, schema.Maybe_Null:
+			panic("invalid state: cannot assign into assembler that's already finished")
+		case midvalue:
+			panic("invalid state: cannot assign null into an assembler that's already begun working on recursive structures!")
+		}
+		*na.w = *v2
+		*na.m = schema.Maybe_Value
+		return nil
+	}
+	if v.Kind() != datamodel.Kind_List {
+		return datamodel.ErrWrongKind{TypeName: "schema.List_Bytes.Repr", MethodName: "AssignNode", AppropriateKind: datamodel.KindSet_JustList, ActualKind: v.Kind()}
+	}
+	itr := v.ListIterator()
+	for !itr.Done() {
+		_, v, err := itr.Next()
+		if err != nil {
+			return err
+		}
+		if err := na.AssembleValue().AssignNode(v); err != nil {
+			return err
+		}
+	}
+	return na.Finish()
+}
+func (_List_Bytes__ReprAssembler) Prototype() datamodel.NodePrototype {
+	return _List_Bytes__ReprPrototype{}
+}
+func (la *_List_Bytes__ReprAssembler) valueFinishTidy() bool {
+	switch la.cm {
+	case schema.Maybe_Value:
+		la.va.w = nil
+		la.cm = schema.Maybe_Absent
+		la.state = laState_initial
+		la.va.reset()
+		return true
+	default:
+		return false
+	}
+}
+func (la *_List_Bytes__ReprAssembler) AssembleValue() datamodel.NodeAssembler {
+	switch la.state {
+	case laState_initial:
+		// carry on
+	case laState_midValue:
+		if !la.valueFinishTidy() {
+			panic("invalid state: AssembleValue cannot be called when still in the middle of assembling the previous value")
+		} // if tidy success: carry on
+	case laState_finished:
+		panic("invalid state: AssembleValue cannot be called on an assembler that's already finished")
+	}
+	la.w.x = append(la.w.x, _Bytes{})
+	la.state = laState_midValue
+	row := &la.w.x[len(la.w.x)-1]
+	la.va.w = row
+	la.va.m = &la.cm
+	return &la.va
+}
+func (la *_List_Bytes__ReprAssembler) Finish() error {
+	switch la.state {
+	case laState_initial:
+		// carry on
+	case laState_midValue:
+		if !la.valueFinishTidy() {
+			panic("invalid state: Finish cannot be called when in the middle of assembling a value")
+		} // if tidy success: carry on
+	case laState_finished:
+		panic("invalid state: Finish cannot be called on an assembler that's already finished")
+	}
+	la.state = laState_finished
+	*la.m = schema.Maybe_Value
+	return nil
+}
+func (la *_List_Bytes__ReprAssembler) ValuePrototype(_ int64) datamodel.NodePrototype {
+	return _Bytes__ReprPrototype{}
 }
 
 func (n *_List_String) Lookup(idx int64) String {
