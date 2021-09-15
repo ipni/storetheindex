@@ -210,9 +210,9 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 	cit := entries.ListIterator()
 	for !cit.Done() {
 		_, cnode, _ := cit.Next()
-		cs, _ := cnode.AsString()
-		c, err := cid.Decode(cs)
+		h, err := cnode.AsBytes()
 		if err != nil {
+			log.Errorf("Error decoding an entry from the ingestion list: %v", err)
 			return err
 		}
 		val := indexer.MakeValue(p, 0, metadata)
@@ -221,18 +221,18 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 			// because we may not receive the list of CIDs to remove and we'll
 			// have to use a routine that looks for the CIDs for a specific
 			// key.
-			if _, err := i.indexer.Remove(c.Hash(), val); err != nil {
+			if _, err := i.indexer.Remove(h, val); err != nil {
 				log.Errorf("Error removing entry from indexer: %v", err)
 				return err
 			}
 
 		} else {
-			if _, err := i.indexer.Put(c.Hash(), val); err != nil {
+			if _, err := i.indexer.Put(h, val); err != nil {
 				log.Errorf("Error putting entry in indexer: %v", err)
 				return err
 			}
 		}
-		log.Debugf("Success processing entry", "multihash", c.Hash().B58String())
+		log.Debugf("Success processing entry", "multihash", h)
 	}
 
 	// If there is a next link, update the mapping so we know the AdID

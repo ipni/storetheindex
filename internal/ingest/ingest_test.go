@@ -19,6 +19,7 @@ import (
 	"github.com/filecoin-project/indexer-reference-provider/api/v0/models"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/utils"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
@@ -30,6 +31,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/test"
+	mh "github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 	"github.com/willscott/go-legs"
 )
@@ -64,19 +66,19 @@ func TestSubscribe(t *testing.T) {
 	})
 
 	// Test with two random advertisement publications.
-	_, cids := publishRandomAdv(t, i, lph, lp, lsys, false)
-	// Check that the cids have been indexed correctly.
-	i.checkCidsIndexed(t, lph.ID(), cids)
-	_, cids = publishRandomAdv(t, i, lph, lp, lsys, false)
-	// Check that the cids have been indexed correctly.
-	i.checkCidsIndexed(t, lph.ID(), cids)
+	_, mhs := publishRandomAdv(t, i, lph, lp, lsys, false)
+	// Check that the mhs have been indexed correctly.
+	i.checkMhsIndexed(t, lph.ID(), mhs)
+	_, mhs = publishRandomAdv(t, i, lph, lp, lsys, false)
+	// Check that the mhs have been indexed correctly.
+	i.checkMhsIndexed(t, lph.ID(), mhs)
 
 	// Test advertisement with fake signature
 	// of them.
-	_, cids = publishRandomAdv(t, i, lph, lp, lsys, true)
-	// No cids should have been saved for related index
-	for x := range cids {
-		_, b, _ := i.indexer.Get(cids[x].Hash())
+	_, mhs = publishRandomAdv(t, i, lph, lp, lsys, true)
+	// No mhs should have been saved for related index
+	for x := range mhs {
+		_, b, _ := i.indexer.Get(mhs[x])
 		require.False(t, b)
 	}
 
@@ -105,7 +107,7 @@ func TestSync(t *testing.T) {
 	connectHosts(t, h, lph)
 
 	// Publish an advertisement without
-	c1, cids := publishRandomIndexAndAdv(t, lp, lsys, false)
+	c1, mhs := publishRandomIndexAndAdv(t, lp, lsys, false)
 	// Set mockClient in ingester with latest Cid to avoid trying to contact
 	// a real provider.
 	i.client = newMockClient(c1)
@@ -121,7 +123,7 @@ func TestSync(t *testing.T) {
 	case m := <-end:
 		// We receive the CID that we synced.
 		require.True(t, bytes.Equal([]byte(c1.Hash()), []byte(m)))
-		i.checkCidsIndexed(t, lph.ID(), cids)
+		i.checkMhsIndexed(t, lph.ID(), mhs)
 		lcid, err := i.getLatestSync(lph.ID())
 		require.NoError(t, err)
 		require.Equal(t, lcid, c1)
@@ -164,10 +166,10 @@ func TestMultipleSubscriptions(t *testing.T) {
 
 	// Test with two random advertisement publications for each
 	// of them.
-	c1, cids := publishRandomAdv(t, i, lph1, lp1, lsys1, false)
-	i.checkCidsIndexed(t, lph1.ID(), cids)
-	c2, cids := publishRandomAdv(t, i, lph2, lp2, lsys2, false)
-	i.checkCidsIndexed(t, lph2.ID(), cids)
+	c1, mhs := publishRandomAdv(t, i, lph1, lp1, lsys1, false)
+	i.checkMhsIndexed(t, lph1.ID(), mhs)
+	c2, mhs := publishRandomAdv(t, i, lph2, lp2, lsys2, false)
+	i.checkMhsIndexed(t, lph2.ID(), mhs)
 
 	lcid, err := i.getLatestSync(lph1.ID())
 	require.NoError(t, err)
@@ -268,50 +270,50 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 	}
 }
 
-func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []cid.Cid) {
-	out := []cid.Cid{}
-	cids, _ := RandomCids(10)
-	out = append(out, cids...)
-	nextLnk, _, err := schema.NewLinkedListOfCids(lsys, cids, nil)
+func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []mh.Multihash) {
+	out := []mh.Multihash{}
+	mhs, _ := utils.RandomMultihashes(10)
+	out = append(out, mhs...)
+	nextLnk, _, err := schema.NewLinkedListOfMhs(lsys, mhs, nil)
 	require.NoError(t, err)
 	for i := 1; i < size; i++ {
-		cids, _ := RandomCids(10)
-		nextLnk, _, err = schema.NewLinkedListOfCids(lsys, cids, nextLnk)
+		mhs, _ := utils.RandomMultihashes(10)
+		nextLnk, _, err = schema.NewLinkedListOfMhs(lsys, mhs, nextLnk)
 		require.NoError(t, err)
-		out = append(out, cids...)
+		out = append(out, mhs...)
 	}
 	return nextLnk, out
 }
 
-func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []cid.Cid) {
-	cids, _ := RandomCids(1)
+func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []mh.Multihash) {
+	mhs, _ := utils.RandomMultihashes(1)
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
-	val := indexer.MakeValue(p, 0, cids[0].Bytes())
-	cidsLnk, cids := newRandomLinkedList(t, lsys, 3)
-	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, cidsLnk, val.Metadata, false, p.String())
+	val := indexer.MakeValue(p, 0, mhs[0])
+	mhsLnk, mhs := newRandomLinkedList(t, lsys, 3)
+	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, mhsLnk, val.Metadata, false, p.String())
 	if fakeSig {
-		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, cidsLnk, val.Metadata, false, p.String())
+		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, mhsLnk, val.Metadata, false, p.String())
 	}
 	require.NoError(t, err)
 	lnk, err := advLnk.AsLink()
 	require.NoError(t, err)
 	err = pub.UpdateRoot(context.Background(), lnk.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	return lnk.(cidlink.Link).Cid, cids
+	return lnk.(cidlink.Link).Cid, mhs
 }
 
-func (i *legIngester) checkCidsIndexed(t *testing.T, p peer.ID, cids []cid.Cid) {
-	for x := range cids {
-		v, b, err := i.indexer.Get(cids[x].Hash())
+func (i *legIngester) checkMhsIndexed(t *testing.T, p peer.ID, mhs []mh.Multihash) {
+	for x := range mhs {
+		v, b, err := i.indexer.Get(mhs[x])
 		require.NoError(t, err)
 		require.True(t, b)
 		require.Equal(t, v[0].ProviderID, p)
 	}
 }
-func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []cid.Cid) {
-	c, cids := publishRandomIndexAndAdv(t, lp, lsys, fakeSig)
+func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []mh.Multihash) {
+	c, mhs := publishRandomIndexAndAdv(t, lp, lsys, fakeSig)
 
 	// TODO: fix this - do not rely on sleep time
 	// Give some time for the advertisement to propagate
@@ -334,7 +336,7 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 	if !fakeSig {
 		require.Equal(t, lcid, c)
 	}
-	return c, cids
+	return c, mhs
 }
 
 // Implementation of a mock provider client.

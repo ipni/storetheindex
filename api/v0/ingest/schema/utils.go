@@ -38,10 +38,10 @@ const (
 	IsAdKey = LinkContextKey("isAdLink")
 )
 
-func cidsToString(cids []cid.Cid) []_String {
-	out := make([]_String, len(cids))
-	for i := range cids {
-		out[i] = _String{x: cids[i].String()}
+func mhsToBytes(mhs []mh.Multihash) []_Bytes {
+	out := make([]_Bytes, len(mhs))
+	for i := range mhs {
+		out[i] = _Bytes{x: mhs[i]}
 	}
 	return out
 }
@@ -63,23 +63,23 @@ func (l Advertisement) LinkContext(ctx context.Context) ipld.LinkContext {
 	}
 }
 
-// NewListOfCids is a convenient method to create a new list of strings
-// from a list of Cids that may be consumed by a linksystem.
-func NewListOfCids(lsys ipld.LinkSystem, cids []cid.Cid) (ipld.Link, error) {
-	cStr := &_List_String{x: cidsToString(cids)}
+// NewListOfMhs is a convenient method to create a new list of bytes
+// from a list of multihashes that may be consumed by a linksystem.
+func NewListOfMhs(lsys ipld.LinkSystem, mhs []mh.Multihash) (ipld.Link, error) {
+	cStr := &_List_Bytes{x: mhsToBytes(mhs)}
 	return lsys.Store(ipld.LinkContext{}, Linkproto, cStr)
 }
 
-// NewListStringFromCids converts the cid to a list of strings
-func NewListStringFromCids(cids []cid.Cid) List_String {
-	return &_List_String{x: cidsToString(cids)}
+// NewListBytesFromMhs converts multihashes to a list of bytes
+func NewListBytesFromMhs(mhs []mh.Multihash) List_Bytes {
+	return &_List_Bytes{x: mhsToBytes(mhs)}
 }
 
-// NewLinkedListOfCids creates a new element of a linked list that
+// NewLinkedListOfMhs creates a new element of a linked list that
 // can be used to paginate large lists.
-func NewLinkedListOfCids(lsys ipld.LinkSystem, cids []cid.Cid, next ipld.Link) (ipld.Link, EntryChunk, error) {
+func NewLinkedListOfMhs(lsys ipld.LinkSystem, mhs []mh.Multihash, next ipld.Link) (ipld.Link, EntryChunk, error) {
 	cStr := &_EntryChunk{
-		Entries: _List_String{x: cidsToString(cids)},
+		Entries: _List_Bytes{x: mhsToBytes(mhs)},
 	}
 	// If no next in the list.
 	if next == nil {

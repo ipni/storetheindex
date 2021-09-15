@@ -7,12 +7,12 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/utils"
-	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	ipld "github.com/ipld/go-ipld-prime"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/test"
+	mh "github.com/multiformats/go-multihash"
 
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -40,12 +40,12 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 
 func genCidsAndAdv(t *testing.T, lsys ipld.LinkSystem,
 	priv crypto.PrivKey,
-	previous Link_Advertisement) ([]cid.Cid, ipld.Link, Advertisement, Link_Advertisement) {
+	previous Link_Advertisement) ([]mh.Multihash, ipld.Link, Advertisement, Link_Advertisement) {
 
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
-	cids, _ := utils.RandomCids(10)
-	val := indexer.MakeValue(p, 0, cids[0].Bytes())
-	cidsLnk, err := NewListOfCids(lsys, cids)
+	mhs, _ := utils.RandomMultihashes(10)
+	val := indexer.MakeValue(p, 0, mhs[0])
+	cidsLnk, err := NewListOfMhs(lsys, mhs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func genCidsAndAdv(t *testing.T, lsys ipld.LinkSystem,
 	if err != nil {
 		t.Fatal(err)
 	}
-	return cids, cidsLnk, adv, advLnk
+	return mhs, cidsLnk, adv, advLnk
 }
 
 func TestChainAdvertisements(t *testing.T) {
@@ -84,8 +84,8 @@ func TestChainAdvertisements(t *testing.T) {
 func TestLinkedList(t *testing.T) {
 	dstore := datastore.NewMapDatastore()
 	lsys := mkLinkSystem(dstore)
-	cids, _ := utils.RandomCids(10)
-	lnk1, ch1, err := NewLinkedListOfCids(lsys, cids, nil)
+	mhs, _ := utils.RandomMultihashes(10)
+	lnk1, ch1, err := NewLinkedListOfMhs(lsys, mhs, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestLinkedList(t *testing.T) {
 	if ch1.FieldNext().v.x != nil {
 		t.Fatal("no link should have been assigned")
 	}
-	lnk2, ch2, err := NewLinkedListOfCids(lsys, cids, lnk1)
+	lnk2, ch2, err := NewLinkedListOfMhs(lsys, mhs, lnk1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestLinkedList(t *testing.T) {
 		t.Fatal("elnk1 should equal ch2 fieldNext")
 	}
 	elnk2 := &_Link_EntryChunk{x: lnk2}
-	_, ch3, err := NewLinkedListOfCids(lsys, cids, lnk2)
+	_, ch3, err := NewLinkedListOfMhs(lsys, mhs, lnk2)
 	if err != nil {
 		t.Fatal(err)
 	}
