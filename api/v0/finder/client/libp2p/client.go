@@ -18,7 +18,7 @@ type Finder struct {
 }
 
 func NewFinder(ctx context.Context, h host.Host, peerID peer.ID, options ...libp2pclient.ClientOption) (*Finder, error) {
-	client, err := libp2pclient.NewClient(ctx, h, peerID, v0.FinderProtocolID, options...)
+	client, err := libp2pclient.NewClient(h, peerID, v0.FinderProtocolID, options...)
 	if err != nil {
 		return nil, err
 	}

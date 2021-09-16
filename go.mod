@@ -6,7 +6,6 @@ require (
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.1.1
-	github.com/filecoin-project/indexer-reference-provider v0.0.0-20210831125455-79faed24a362
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.4
 	github.com/im7mortal/kmutex v1.0.1
