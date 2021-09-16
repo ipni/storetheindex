@@ -17,7 +17,9 @@ import (
 
 var log = logging.Logger("libp2pclient")
 
-// Libp2pclient is responsible for sending requests to other peers
+// Client is responsible for sending requests and receiving responses to and
+// from libp2p peers.  Each instance of Client communicates with a single peer
+// using a single protocolID.
 type Client struct {
 	ctxLock ctxMutex
 	host    host.Host
@@ -57,11 +59,12 @@ func NewClient(h host.Host, peerID peer.ID, protoID protocol.ID, options ...Clie
 	}, nil
 }
 
-// Return peer ID of client
+// Self return the peer ID of this client
 func (c *Client) Self() peer.ID {
 	return c.host.ID()
 }
 
+// Close resets and closes the network stream if one exists
 func (c *Client) Close() error {
 	err := c.ctxLock.Lock(context.Background())
 	if err != nil {
@@ -74,13 +77,6 @@ func (c *Client) Close() error {
 	}
 
 	return nil
-}
-
-func (c *Client) closeStream() {
-	_ = c.stream.Reset()
-	_ = c.r.Close()
-	c.stream = nil
-	c.r = nil
 }
 
 // SendRequest sends out a request
@@ -142,6 +138,13 @@ func (c *Client) prepStreamReader(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (c *Client) closeStream() {
+	_ = c.stream.Reset()
+	_ = c.r.Close()
+	c.stream = nil
+	c.r = nil
 }
 
 func (c *Client) ctxReadMsg(ctx context.Context, decodeRsp DecodeResponseFunc) error {
