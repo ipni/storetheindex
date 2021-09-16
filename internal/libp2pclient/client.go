@@ -139,7 +139,6 @@ func (c *Client) prepStreamReader(ctx context.Context) error {
 
 func (c *Client) closeStream() {
 	_ = c.stream.Reset()
-	// _ = c.r.Close()
 	c.stream = nil
 	c.r = nil
 }
