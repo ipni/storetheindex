@@ -15,11 +15,10 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
-	ingestclient "github.com/filecoin-project/indexer-reference-provider/api/v0/client"
-	"github.com/filecoin-project/indexer-reference-provider/api/v0/models"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/utils"
+	pclient "github.com/filecoin-project/storetheindex/providerclient"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
@@ -93,8 +92,8 @@ func TestSubscribe(t *testing.T) {
 	require.Nil(t, adv)
 
 	// Unsubscribing twice shouldn't break anything.
-	i.Unsubscribe(context.Background(), lph.ID())
-
+	err = i.Unsubscribe(context.Background(), lph.ID())
+	require.NoError(t, err)
 }
 
 func TestSync(t *testing.T) {
@@ -110,7 +109,9 @@ func TestSync(t *testing.T) {
 	c1, mhs := publishRandomIndexAndAdv(t, lp, lsys, false)
 	// Set mockClient in ingester with latest Cid to avoid trying to contact
 	// a real provider.
-	i.client = newMockClient(c1)
+	i.newClient = func(ctx context.Context, h host.Host, p peer.ID) (pclient.Provider, error) {
+		return newMockClient(c1), nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	end, err := i.Sync(ctx, lph.ID())
 	t.Cleanup(func() {
@@ -340,7 +341,7 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 }
 
 // Implementation of a mock provider client.
-var _ ingestclient.Provider = &mockClient{}
+var _ pclient.Provider = &mockClient{}
 
 type mockClient struct {
 	cid.Cid
@@ -349,10 +350,14 @@ type mockClient struct {
 func newMockClient(c cid.Cid) *mockClient {
 	return &mockClient{c}
 }
-func (c *mockClient) GetAdv(ctx context.Context, p peer.ID, id cid.Cid) (*models.AdResponse, error) {
+func (c *mockClient) GetAdv(ctx context.Context, id cid.Cid) (*pclient.AdResponse, error) {
 	return nil, nil
 }
 
-func (c *mockClient) GetLatestAdv(ctx context.Context, p peer.ID) (*models.AdResponse, error) {
-	return &models.AdResponse{ID: c.Cid}, nil
+func (c *mockClient) GetLatestAdv(ctx context.Context) (*pclient.AdResponse, error) {
+	return &pclient.AdResponse{ID: c.Cid}, nil
+}
+
+func (c *mockClient) Close() error {
+	return nil
 }

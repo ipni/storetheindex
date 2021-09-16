@@ -3,29 +3,27 @@ package libp2pclient
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
+	"github.com/filecoin-project/storetheindex/internal/p2putil"
 	"github.com/gogo/protobuf/proto"
-	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
+	"github.com/libp2p/go-msgio"
 )
 
-var log = logging.Logger("libp2pclient")
-
-// Libp2pclient is responsible for sending
-// requests to other peers.
+// Client is responsible for sending requests and receiving responses to and
+// from libp2p peers.  Each instance of Client communicates with a single peer
+// using a single protocolID.
 type Client struct {
-	ctx    context.Context
-	host   host.Host
-	self   peer.ID
-	peerID peer.ID
-
-	sendersLock sync.Mutex
-	peerSenders map[peer.ID]*peerMessageSender
-	protocols   []protocol.ID
+	ctxLock ctxMutex
+	host    host.Host
+	peerID  peer.ID
+	protoID protocol.ID
+	r       msgio.ReadCloser
+	stream  network.Stream
 }
 
 // DecodeResponseFunc is a function that is passed into this generic libp2p
@@ -35,13 +33,15 @@ type Client struct {
 type DecodeResponseFunc func([]byte) error
 
 // Timeout to wait for a response after a request is sent
-var readMessageTimeout = 10 * time.Second
+const readMessageTimeout = 10 * time.Second
 
-// ErrReadTimeout is an error that occurs when no message is read within the timeout period.
+// ErrReadTimeout is an error that occurs when no message is read within the
+// timeout period
 var ErrReadTimeout = fmt.Errorf("timed out reading response")
 
-// NewClient creates a new libp2pclient Client
-func NewClient(ctx context.Context, h host.Host, peerID peer.ID, protoID protocol.ID, options ...ClientOption) (*Client, error) {
+// NewClient creates a new libp2pclient Client that connects to a specific peer
+// and protocolID
+func NewClient(h host.Host, peerID peer.ID, protoID protocol.ID, options ...ClientOption) (*Client, error) {
 	var cfg clientConfig
 	if err := cfg.apply(options...); err != nil {
 		return nil, err
@@ -49,79 +49,124 @@ func NewClient(ctx context.Context, h host.Host, peerID peer.ID, protoID protoco
 
 	// Start a client
 	return &Client{
-		ctx:         ctx,
-		host:        h,
-		self:        h.ID(),
-		peerID:      peerID,
-		peerSenders: make(map[peer.ID]*peerMessageSender),
-		protocols:   []protocol.ID{protoID},
+		ctxLock: newCtxMutex(),
+		host:    h,
+		peerID:  peerID,
+		protoID: protoID,
 	}, nil
+}
+
+// Self return the peer ID of this client
+func (c *Client) Self() peer.ID {
+	return c.host.ID()
+}
+
+// Close resets and closes the network stream if one exists
+func (c *Client) Close() error {
+	err := c.ctxLock.Lock(context.Background())
+	if err != nil {
+		return err
+	}
+	defer c.ctxLock.Unlock()
+
+	if c.stream != nil {
+		c.closeStream()
+	}
+
+	return nil
 }
 
 // SendRequest sends out a request
 func (c *Client) SendRequest(ctx context.Context, msg proto.Message, decodeRsp DecodeResponseFunc) error {
-	sender, err := c.messageSenderForPeer(ctx, c.peerID)
+	err := c.ctxLock.Lock(ctx)
 	if err != nil {
-		log.Debugw("request failed to open message sender", "error", err, "to", c.peerID)
 		return err
 	}
+	defer c.ctxLock.Unlock()
 
-	return sender.sendRequest(ctx, msg, decodeRsp, c.host, c.protocols)
+	err = c.sendMessage(ctx, msg)
+	if err != nil {
+		return fmt.Errorf("cannot sent request: %w", err)
+	}
+
+	if err = c.ctxReadMsg(ctx, decodeRsp); err != nil {
+		c.closeStream()
+
+		return fmt.Errorf("cannot read response: %w", err)
+	}
+
+	return nil
 }
 
 // SendMessage sends out a message
 func (c *Client) SendMessage(ctx context.Context, msg proto.Message) error {
-	sender, err := c.messageSenderForPeer(ctx, c.peerID)
+	err := c.ctxLock.Lock(ctx)
 	if err != nil {
-		log.Debugw("message failed to open message sender", "error", err, "to", c.peerID)
+		return err
+	}
+	defer c.ctxLock.Unlock()
+
+	return c.sendMessage(ctx, msg)
+}
+
+func (c *Client) sendMessage(ctx context.Context, msg proto.Message) error {
+	err := c.prepStreamReader(ctx)
+	if err != nil {
 		return err
 	}
 
-	if err = sender.sendMessage(ctx, msg, c.host, c.protocols); err != nil {
-		log.Debugw("message failed", "error", err, "to", c.peerID)
+	if err = p2putil.WriteMsg(c.stream, msg); err != nil {
+		c.closeStream()
 		return err
 	}
 
 	return nil
 }
 
-func (c *Client) peerSender(peerID peer.ID) *peerMessageSender {
-	c.sendersLock.Lock()
-	defer c.sendersLock.Unlock()
+func (c *Client) prepStreamReader(ctx context.Context) error {
+	if c.stream == nil {
+		nstr, err := c.host.NewStream(ctx, c.peerID, c.protoID)
+		if err != nil {
+			return err
+		}
 
-	ms, ok := c.peerSenders[peerID]
-	if ok {
-		return ms
+		c.r = msgio.NewVarintReaderSize(nstr, network.MessageSizeMax)
+		c.stream = nstr
 	}
-	ms = &peerMessageSender{
-		peerID:  peerID,
-		ctxLock: newCtxMutex(),
-	}
-	c.peerSenders[peerID] = ms
-	return ms
+
+	return nil
 }
 
-func (c *Client) messageSenderForPeer(ctx context.Context, peerID peer.ID) (*peerMessageSender, error) {
-	ms := c.peerSender(peerID)
+func (c *Client) closeStream() {
+	_ = c.stream.Reset()
+	c.stream = nil
+	c.r = nil
+}
 
-	err := ms.prepOrInvalidate(ctx, c.host, c.protocols)
-	if err != nil {
-		c.sendersLock.Lock()
-		defer c.sendersLock.Unlock()
-
-		if msCur, ok := c.peerSenders[peerID]; ok {
-			// Changed. Use the new one, old one is invalid and
-			// not in the map so we can just throw it away.
-			if ms != msCur {
-				return msCur, nil
-			}
-			// Not changed, remove the now invalid stream from the
-			// map.
-			delete(c.peerSenders, peerID)
+func (c *Client) ctxReadMsg(ctx context.Context, decodeRsp DecodeResponseFunc) error {
+	done := make(chan struct{})
+	var err error
+	go func(r msgio.ReadCloser) {
+		defer close(done)
+		var data []byte
+		data, err = r.ReadMsg()
+		defer r.ReleaseMsg(data)
+		if err != nil {
+			return
 		}
-		// Invalid but not in map. Must have been removed by a disconnect.
-		return nil, err
+		err = decodeRsp(data)
+	}(c.r)
+
+	t := time.NewTimer(readMessageTimeout)
+	defer t.Stop()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return ErrReadTimeout
 	}
-	// All ready to go.
-	return ms, nil
+
+	return err
 }

@@ -21,7 +21,7 @@ type Ingest struct {
 }
 
 func NewIngest(ctx context.Context, h host.Host, peerID peer.ID, options ...libp2pclient.ClientOption) (*Ingest, error) {
-	client, err := libp2pclient.NewClient(ctx, h, peerID, v0.IngestProtocolID, options...)
+	client, err := libp2pclient.NewClient(h, peerID, v0.IngestProtocolID, options...)
 	if err != nil {
 		return nil, err
 	}

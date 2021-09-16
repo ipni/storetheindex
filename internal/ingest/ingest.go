@@ -4,10 +4,10 @@ import (
 	"context"
 
 	indexer "github.com/filecoin-project/go-indexer-core/engine"
-	ingestclient "github.com/filecoin-project/indexer-reference-provider/api/v0/client"
-	ingestclientimpl "github.com/filecoin-project/indexer-reference-provider/api/v0/client/libp2p"
 	ingestion "github.com/filecoin-project/storetheindex/api/v0/ingest"
 	"github.com/filecoin-project/storetheindex/config"
+	pclient "github.com/filecoin-project/storetheindex/providerclient"
+	pclientp2p "github.com/filecoin-project/storetheindex/providerclient/libp2p"
 	"github.com/im7mortal/kmutex"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -43,7 +43,8 @@ type legIngester struct {
 	ds      datastore.Batching
 	lt      *legs.LegTransport
 	indexer *indexer.Engine
-	client  ingestclient.Provider
+
+	newClient func(context.Context, host.Host, peer.ID) (pclient.Provider, error)
 
 	subs  map[peer.ID]*sub
 	sublk *kmutex.Kmutex
@@ -67,18 +68,18 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 		return nil, err
 	}
 
-	cl, err := ingestclientimpl.NewProvider(ctx, h)
-	if err != nil {
-		return nil, err
+	newClient := func(ctx context.Context, h host.Host, p peer.ID) (pclient.Provider, error) {
+		return pclientp2p.NewProvider(ctx, h, p)
 	}
+
 	li := &legIngester{
-		host:    h,
-		ds:      ds,
-		indexer: i,
-		lt:      lt,
-		client:  cl,
-		subs:    make(map[peer.ID]*sub),
-		sublk:   kmutex.New(),
+		host:      h,
+		ds:        ds,
+		indexer:   i,
+		newClient: newClient,
+		lt:        lt,
+		subs:      make(map[peer.ID]*sub),
+		sublk:     kmutex.New(),
 	}
 
 	// Register storage hook to index data as we receive it.
@@ -135,7 +136,13 @@ func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...ingestion.Syn
 }
 
 func (i *legIngester) getLatestAdvID(ctx context.Context, p peer.ID) (cid.Cid, error) {
-	res, err := i.client.GetLatestAdv(ctx, p)
+	client, err := i.newClient(ctx, i.host, p)
+	if err != nil {
+		return cid.Undef, err
+	}
+	defer client.Close()
+
+	res, err := client.GetLatestAdv(ctx)
 	if err != nil {
 		return cid.Undef, err
 	}
