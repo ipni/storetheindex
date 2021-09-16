@@ -69,8 +69,9 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 		return nil, err
 	}
 
+	// Function to create new client.  Setting the function allows this to be
+	// mocked for testing.
 	newClient := func(ctx context.Context, h host.Host, p peer.ID) (pclient.Provider, error) {
-		log.Errorf("Error creating new libp2p provider client in ingester: %s", err)
 		return pclientp2p.NewProvider(ctx, h, p)
 	}
 
@@ -149,6 +150,7 @@ func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...ingestion.Syn
 func (i *legIngester) getLatestAdvID(ctx context.Context, p peer.ID) (cid.Cid, error) {
 	client, err := i.newClient(ctx, i.host, p)
 	if err != nil {
+		log.Errorf("Error creating new libp2p provider client in ingester: %s", err)
 		return cid.Undef, err
 	}
 	defer client.Close()
