@@ -7,15 +7,12 @@ import (
 
 	"github.com/filecoin-project/storetheindex/internal/p2putil"
 	"github.com/gogo/protobuf/proto"
-	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/libp2p/go-msgio"
 )
-
-var log = logging.Logger("libp2pclient")
 
 // Client is responsible for sending requests and receiving responses to and
 // from libp2p peers.  Each instance of Client communicates with a single peer

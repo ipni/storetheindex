@@ -92,8 +92,8 @@ func TestSubscribe(t *testing.T) {
 	require.Nil(t, adv)
 
 	// Unsubscribing twice shouldn't break anything.
-	i.Unsubscribe(context.Background(), lph.ID())
-
+	err = i.Unsubscribe(context.Background(), lph.ID())
+	require.NoError(t, err)
 }
 
 func TestSync(t *testing.T) {
