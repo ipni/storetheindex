@@ -65,10 +65,12 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 	lsys := mkLinkSystem(ds)
 	lt, err := legs.MakeLegTransport(context.Background(), h, ds, lsys, cfg.PubSubTopic)
 	if err != nil {
+		log.Errorf("Failed to state LegTransport in ingester: %s", err)
 		return nil, err
 	}
 
 	newClient := func(ctx context.Context, h host.Host, p peer.ID) (pclient.Provider, error) {
+		log.Errorf("Error creating new libp2p provider client in ingester: %s", err)
 		return pclientp2p.NewProvider(ctx, h, p)
 	}
 
@@ -84,29 +86,35 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 
 	// Register storage hook to index data as we receive it.
 	lt.Gs.RegisterIncomingBlockHook(li.storageHook())
+	log.Debugf("LegIngester started and all hooks and linksystem registered")
 	return li, nil
 }
 
 // Sync with a data provider up to latest ID
 func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...ingestion.SyncOption) (<-chan multihash.Multihash, error) {
+	log.Debugf("Syncing with peer %s", p.String())
 	// Check latest sync for provider.
 	c, err := i.getLatestAdvID(ctx, p)
 	if err != nil {
+		log.Errorf("Error getting latest advertisement for sync: %s", err)
 		return nil, err
 	}
 
 	// Check if we already have the advertisement.
 	adv, err := i.ds.Get(datastore.NewKey(c.String()))
 	if err != nil && err != datastore.ErrNotFound {
+		log.Errorf("Error fetching advertisement from datastore: %s", err)
 		return nil, err
 	}
 	// If we have the advertisement do nothing, we already synced
 	if adv != nil {
+		log.Debugf("Alredy synced with provider %s", p.String())
 		return nil, nil
 	}
 	// Get subscriber for peer or create a new one
 	s, err := i.newPeerSubscriber(ctx, p)
 	if err != nil {
+		log.Errorf("Error getting a subscriber instance for provider: %s", err)
 		return nil, err
 	}
 
@@ -120,8 +128,10 @@ func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...ingestion.Syn
 	ctx, cancel := context.WithTimeout(ctx, cfg.SyncTimeout)
 	// Start syncing. Notifications for the finished
 	// sync will be done asynchronously.
+	log.Debugf("Started syncing process with provider %s", s)
 	watcher, cncl, err := s.ls.Sync(ctx, p, c)
 	if err != nil {
+		log.Errorf("Errored while syncing: %s", err)
 		cancel()
 		return nil, err
 	}
@@ -132,6 +142,7 @@ func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...ingestion.Syn
 	// Listen when the sync is done to update latestSync and
 	// notify the channel.
 	go i.listenSyncUpdates(ctx, p, watcher, cncl, out)
+	log.Infof("Waiting for sync to finish for provider %s", p.String())
 	return out, nil
 }
 
@@ -151,15 +162,18 @@ func (i *legIngester) getLatestAdvID(ctx context.Context, p peer.ID) (cid.Cid, e
 
 // Subscribe to advertisements of a specific provider in the pubsub channel
 func (i *legIngester) Subscribe(ctx context.Context, p peer.ID) error {
+	log.Debugf("Subscribing to provider %s", p.String())
 	sctx, cancel := context.WithCancel(ctx)
 	s, err := i.newPeerSubscriber(sctx, p)
 	if err != nil {
+		log.Errorf("Error getting a subscriber instance for provider: %s", err)
 		cancel()
 		return err
 	}
 
 	// If already subscribed do nothing.
 	if s.watcher != nil {
+		log.Infof("Already subscribed to provider %s", p.String())
 		cancel()
 		return nil
 	}
@@ -211,11 +225,13 @@ func (i *legIngester) listenSyncUpdates(ctx context.Context, p peer.ID,
 
 // Unsubscribe to stop listening to advertisement from a specific provider.
 func (i *legIngester) Unsubscribe(ctx context.Context, p peer.ID) error {
+	log.Debugf("Unsubscribing from provider %s", p.String())
 	i.sublk.Lock(p)
 	defer i.sublk.Unlock(p)
 	// Check if subscriber exists.
 	s, ok := i.subs[p]
 	if !ok {
+		log.Infof("Not subscribed to provider %s. Nothing to do", p.String())
 		// If not we have nothing to do.
 		return nil
 	}
@@ -228,6 +244,7 @@ func (i *legIngester) Unsubscribe(ctx context.Context, p peer.ID) error {
 	}
 	// Delete from map
 	delete(i.subs, p)
+	log.Infof("Unsubscribed from provider %s successfully", p.String())
 
 	return nil
 }
