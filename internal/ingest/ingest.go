@@ -4,7 +4,6 @@ import (
 	"context"
 
 	indexer "github.com/filecoin-project/go-indexer-core/engine"
-	ingestion "github.com/filecoin-project/storetheindex/api/v0/ingest"
 	"github.com/filecoin-project/storetheindex/config"
 	pclient "github.com/filecoin-project/storetheindex/providerclient"
 	pclientp2p "github.com/filecoin-project/storetheindex/providerclient/libp2p"
@@ -32,7 +31,7 @@ const (
 
 // LegIngester interface
 type LegIngester interface {
-	ingestion.Ingester
+	Ingester
 	Close(context.Context) error
 }
 
@@ -92,7 +91,7 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 }
 
 // Sync with a data provider up to latest ID
-func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...ingestion.SyncOption) (<-chan multihash.Multihash, error) {
+func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...SyncOption) (<-chan multihash.Multihash, error) {
 	log.Debugf("Syncing with peer %s", p.String())
 	// Check latest sync for provider.
 	c, err := i.getLatestAdvID(ctx, p)
@@ -120,8 +119,8 @@ func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...ingestion.Syn
 	}
 
 	// Apply options to syncConfig or use defaults
-	var cfg ingestion.SyncConfig
-	if err := cfg.Apply(append([]ingestion.SyncOption{ingestion.SyncDefaults}, opts...)...); err != nil {
+	var cfg SyncConfig
+	if err := cfg.Apply(append([]SyncOption{SyncDefaults}, opts...)...); err != nil {
 		return nil, err
 	}
 

@@ -6,8 +6,7 @@ import (
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
-	ingestion "github.com/filecoin-project/storetheindex/api/v0/ingest"
-	"github.com/filecoin-project/storetheindex/server/admin/http/handler"
+	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )
@@ -19,7 +18,7 @@ type Server struct {
 	l      net.Listener
 }
 
-func New(listen string, indexer indexer.Interface, ingester ingestion.Ingester, options ...ServerOption) (*Server, error) {
+func New(listen string, indexer indexer.Interface, ingester ingest.Ingester, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
@@ -39,20 +38,20 @@ func New(listen string, indexer indexer.Interface, ingester ingestion.Ingester, 
 	}
 	s := &Server{server, l}
 
-	adminHandler := handler.New(indexer, ingester)
+	h := newHandler(indexer, ingester)
 
 	// Set protocol handlers
 	// Import routes
-	r.HandleFunc("/import/manifest/{minerid}", adminHandler.ImportManifest).Methods("POST")
-	r.HandleFunc("/import/cidlist/{minerid}", adminHandler.ImportCidList).Methods("POST")
+	r.HandleFunc("/import/manifest/{minerid}", h.importManifest).Methods("POST")
+	r.HandleFunc("/import/cidlist/{minerid}", h.importCidList).Methods("POST")
 
 	// Admin routes
-	r.HandleFunc("/healthcheck", adminHandler.HealthCheckHandler).Methods("GET")
+	r.HandleFunc("/healthcheck", h.healthCheckHandler).Methods("GET")
 
 	// Ingester routes
-	r.HandleFunc("/ingest/subscribe/{provider}", adminHandler.Subscribe).Methods("GET")
-	r.HandleFunc("/ingest/unsubscribe/{provider}", adminHandler.Unsubscribe).Methods("GET")
-	r.HandleFunc("/ingest/sync/{provider}", adminHandler.Sync).Methods("GET")
+	r.HandleFunc("/ingest/subscribe/{provider}", h.subscribe).Methods("GET")
+	r.HandleFunc("/ingest/unsubscribe/{provider}", h.unsubscribe).Methods("GET")
+	r.HandleFunc("/ingest/sync/{provider}", h.sync).Methods("GET")
 
 	return s, nil
 }

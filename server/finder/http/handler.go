@@ -40,13 +40,13 @@ func (h *httpHandler) findBatch(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading get batch request", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 	req, err := models.UnmarshalFindRequest(body)
 	if err != nil {
 		log.Errorw("error unmarshalling get batch request", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 	h.getIndexes(w, req.Multihashes)
@@ -68,7 +68,7 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 	rb, err := models.MarshalFindResponse(response)
 	if err != nil {
 		log.Errorw("failed marshalling query response", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
