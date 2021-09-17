@@ -157,7 +157,7 @@ func daemonCommand(cctx *cli.Context) error {
 	)
 	// Create libp2p host and servers
 	if !cfg.Addresses.DisableP2P && !cctx.Bool("disablep2p") {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(cctx.Context)
 		defer cancel()
 		cancelP2pServers = cancel
 
@@ -201,7 +201,7 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	adminSvr, err := httpadminserver.New(adminAddr.String(), indexerCore, ingester)
+	adminSvr, err := httpadminserver.New(cctx.Context, adminAddr.String(), indexerCore, ingester)
 	if err != nil {
 		return err
 	}
