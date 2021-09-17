@@ -156,6 +156,8 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 	if !r.policy.Allowed(peerID) {
 		return syserr.New(ErrNotAllowed, http.StatusForbidden)
 	}
+	// It does not matter if the provider is trusted or not, since verification
+	// is necessary to get the provider's address
 
 	errCh := make(chan error, 1)
 	r.actions <- func() {
@@ -170,7 +172,12 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 // Register is used to directly register a provider, bypassing discovery and
 // adding discovered data directly to the registry.
 func (r *Registry) Register(info *ProviderInfo) error {
-	// If provider is trusted, register immediately
+	// If provider is not allowed, then ignore request
+	if !r.policy.Allowed(info.AddrInfo.ID) {
+		return syserr.New(ErrNotAllowed, http.StatusForbidden)
+	}
+
+	// If provider is trusted, register immediately without verification
 	if !r.policy.Trusted(info.AddrInfo.ID) {
 		return syserr.New(ErrNotTrusted, http.StatusUnauthorized)
 	}

@@ -56,8 +56,10 @@ func (m *mockIndexer) Size() (int64, error)                                     
 func init() {
 	var discoveryCfg = config.Discovery{
 		Policy: config.Policy{
-			Action: "block",
-			Trust:  []string{ident.PeerID},
+			Allow:       false,
+			Except:      []string{ident.PeerID},
+			Trust:       false,
+			TrustExcept: []string{ident.PeerID},
 		},
 	}
 

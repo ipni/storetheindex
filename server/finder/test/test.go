@@ -53,8 +53,10 @@ func InitIndex(t *testing.T, withCache bool) indexer.Interface {
 func InitRegistry(t *testing.T) *providers.Registry {
 	var discoveryCfg = config.Discovery{
 		Policy: config.Policy{
-			Action: "block",
-			Trust:  []string{providerID},
+			Allow:       false,
+			Except:      []string{providerID},
+			Trust:       false,
+			TrustExcept: []string{providerID},
 		},
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),
