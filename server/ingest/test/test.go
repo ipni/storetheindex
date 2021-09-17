@@ -88,7 +88,7 @@ func RegisterProviderTest(t *testing.T, c client.Ingest, providerIdent config.Id
 	defer cancel()
 
 	t.Log("registering provider")
-	err := c.Register(ctx, providerIdent, addrs)
+	err := c.Register(ctx, providerIdent.PeerID, providerIdent.PrivKey, addrs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,14 +106,14 @@ func RegisterProviderTest(t *testing.T, c client.Ingest, providerIdent config.Id
 	t.Log("registering provider with bad signature")
 	badIdent := providerIdent
 	badIdent.PeerID = "12D3KooWBckWLKiYoUX4k3HTrbrSe4DD5SPNTKgP6vKTva1NaXXX"
-	err = c.Register(ctx, badIdent, addrs)
+	err = c.Register(ctx, badIdent.PeerID, badIdent.PrivKey, addrs)
 	if err == nil {
 		t.Fatal("expected bad signature error")
 	}
 
 	// Test error if context canceled
 	cancel()
-	err = c.Register(ctx, providerIdent, addrs)
+	err = c.Register(ctx, providerIdent.PeerID, providerIdent.PrivKey, addrs)
 	if err == nil {
 		t.Fatal("expected send to failed due to canceled context")
 	}
@@ -163,7 +163,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerIdent config.Identity,
 
 	metadata := []byte("hello")
 
-	err = cl.IndexContent(ctx, providerIdent, mhs[0], 0, metadata)
+	err = cl.IndexContent(ctx, providerIdent.PeerID, providerIdent.PrivKey, mhs[0], 0, metadata)
 	if err != nil {
 		t.Fatal(err)
 	}

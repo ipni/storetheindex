@@ -17,7 +17,7 @@ func TestIngestRequest(t *testing.T) {
 
 	metadata := []byte("hello")
 
-	data, err := MakeIngestRequest(providerIdent, mhs[0], 0, metadata)
+	data, err := MakeIngestRequest(providerIdent.PeerID, providerIdent.PrivKey, mhs[0], 0, metadata)
 	if err != nil {
 		t.Fatal(err)
 	}

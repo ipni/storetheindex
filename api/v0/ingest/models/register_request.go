@@ -11,8 +11,12 @@ import (
 
 // MakeRegisterRequest creates a signed peer.PeerRecord as a register request
 // and marshals this into bytes
-func MakeRegisterRequest(providerIdent config.Identity, addrs []string) ([]byte, error) {
-	providerID, privKey, err := providerIdent.Decode()
+func MakeRegisterRequest(providerID, privateKey string, addrs []string) ([]byte, error) {
+	providerIdent := config.Identity{
+		PeerID:  providerID,
+		PrivKey: privateKey,
+	}
+	peerID, privKey, err := providerIdent.Decode()
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +30,7 @@ func MakeRegisterRequest(providerIdent config.Identity, addrs []string) ([]byte,
 	}
 
 	rec := peer.NewPeerRecord()
-	rec.PeerID = providerID
+	rec.PeerID = peerID
 	rec.Addrs = maddrs
 
 	return makeRequestEnvelop(rec, privKey)

@@ -14,7 +14,7 @@ var providerIdent = config.Identity{
 func TestRegisterRequest(t *testing.T) {
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 
-	data, err := MakeRegisterRequest(providerIdent, addrs)
+	data, err := MakeRegisterRequest(providerIdent.PeerID, providerIdent.PrivKey, addrs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestRegisterRequest(t *testing.T) {
 
 	seq0 := peerRec.Seq
 
-	data, err = MakeRegisterRequest(providerIdent, addrs)
+	data, err = MakeRegisterRequest(providerIdent.PeerID, providerIdent.PrivKey, addrs)
 	if err != nil {
 		t.Fatal(err)
 	}

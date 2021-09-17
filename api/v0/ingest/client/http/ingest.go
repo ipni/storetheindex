@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
-	"github.com/filecoin-project/storetheindex/config"
 	httpclient "github.com/filecoin-project/storetheindex/internal/httpclient"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
@@ -103,8 +102,8 @@ func (cl *IngestClient) GetProvider(ctx context.Context, providerID peer.ID) (*m
 	return &providerInfo, nil
 }
 
-func (cl *IngestClient) IndexContent(ctx context.Context, providerIdent config.Identity, m multihash.Multihash, protocol uint64, metadata []byte) error {
-	data, err := models.MakeIngestRequest(providerIdent, m, protocol, metadata)
+func (cl *IngestClient) IndexContent(ctx context.Context, providerID, privateKey string, m multihash.Multihash, protocol uint64, metadata []byte) error {
+	data, err := models.MakeIngestRequest(providerID, privateKey, m, protocol, metadata)
 	if err != nil {
 		return err
 	}
@@ -132,8 +131,8 @@ func (cl *IngestClient) IndexContent(ctx context.Context, providerIdent config.I
 	return nil
 }
 
-func (cl *IngestClient) Register(ctx context.Context, providerIdent config.Identity, addrs []string) error {
-	data, err := models.MakeRegisterRequest(providerIdent, addrs)
+func (cl *IngestClient) Register(ctx context.Context, providerID, privateKey string, addrs []string) error {
+	data, err := models.MakeRegisterRequest(providerID, privateKey, addrs)
 	if err != nil {
 		return err
 	}
