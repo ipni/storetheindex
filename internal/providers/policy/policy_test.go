@@ -31,9 +31,10 @@ func init() {
 
 func TestNewPolicy(t *testing.T) {
 	policyCfg := config.Policy{
-		Action: "block",
-		Except: []string{exceptIDStr},
-		Trust:  []string{trustedIDStr},
+		Allow:       false,
+		Except:      []string{exceptIDStr},
+		Trust:       false,
+		TrustExcept: []string{trustedIDStr},
 	}
 
 	_, err := New(policyCfg)
@@ -41,26 +42,20 @@ func TestNewPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	policyCfg.Action = "allow"
+	policyCfg.Allow = true
 	_, err = New(policyCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	policyCfg.Action = "foo"
-	_, err = New(policyCfg)
-	if err == nil {
-		t.Fatal("expected error with bad Action")
-	}
-
-	policyCfg.Action = "block"
-	policyCfg.Trust = append(policyCfg.Trust, "bad ID")
+	policyCfg.Allow = false
+	policyCfg.TrustExcept = append(policyCfg.TrustExcept, "bad ID")
 	_, err = New(policyCfg)
 	if err == nil {
 		t.Error("expected error with bad trust ID")
 	}
 
-	policyCfg.Trust = nil
+	policyCfg.TrustExcept = nil
 	policyCfg.Except = append(policyCfg.Except, "bad ID")
 	_, err = New(policyCfg)
 	if err == nil {
@@ -73,7 +68,7 @@ func TestNewPolicy(t *testing.T) {
 		t.Error("expected error with inaccessible policy")
 	}
 
-	policyCfg.Action = "allow"
+	policyCfg.Allow = true
 	_, err = New(policyCfg)
 	if err != nil {
 		t.Error(err)
@@ -82,24 +77,15 @@ func TestNewPolicy(t *testing.T) {
 
 func TestPolicyAccess(t *testing.T) {
 	policyCfg := config.Policy{
-		Action: "block",
-		Except: []string{exceptIDStr},
-		Trust:  []string{trustedIDStr},
+		Allow:       false,
+		Except:      []string{exceptIDStr},
+		Trust:       false,
+		TrustExcept: []string{trustedIDStr},
 	}
 
 	p, err := New(policyCfg)
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	if p.Trusted(exceptID) {
-		t.Error("peer ID should not be trusted")
-	}
-	if !p.Trusted(trustedID) {
-		for tid := range p.trust {
-			t.Log("--->", tid)
-		}
-		t.Error("peer ID", trustedID, "should be trusted")
 	}
 
 	if p.Allowed(trustedID) {
@@ -109,7 +95,15 @@ func TestPolicyAccess(t *testing.T) {
 		t.Error("peer ID should be allowed")
 	}
 
-	policyCfg.Action = "allow"
+	if p.Trusted(exceptID) {
+		t.Error("peer ID should not be trusted")
+	}
+	if !p.Trusted(trustedID) {
+		t.Error("peer ID", trustedID, "should be trusted")
+	}
+
+	policyCfg.Allow = true
+	policyCfg.Trust = true
 	p, err = New(policyCfg)
 	if err != nil {
 		t.Fatal(err)
@@ -120,5 +114,12 @@ func TestPolicyAccess(t *testing.T) {
 	}
 	if p.Allowed(exceptID) {
 		t.Error("peer ID should not be allowed")
+	}
+
+	if !p.Trusted(exceptID) {
+		t.Error("peer ID should not be trusted")
+	}
+	if p.Trusted(trustedID) {
+		t.Error("peer ID", trustedID, "should be trusted")
 	}
 }

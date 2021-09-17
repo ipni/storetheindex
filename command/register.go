@@ -25,7 +25,7 @@ func registerCommand(cctx *cli.Context) error {
 		return fmt.Errorf("cannot load config file: %w", err)
 	}
 
-	client, err := v0client.NewIngest(cctx.String("indexer-host"))
+	client, err := v0client.NewIngest(cctx.String("indexer"))
 	if err != nil {
 		return err
 	}

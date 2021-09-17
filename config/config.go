@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -91,7 +90,7 @@ func Load(filePath string) (*Config, error) {
 
 	var cfg Config
 	if err := json.NewDecoder(f).Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("failure to decode config: %s", err)
+		return nil, err
 	}
 	return &cfg, err
 }

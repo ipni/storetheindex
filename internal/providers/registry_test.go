@@ -29,9 +29,10 @@ const (
 
 var discoveryCfg = config.Discovery{
 	Policy: config.Policy{
-		Action: "block",
-		Except: []string{exceptID},
-		Trust:  []string{trustedID, trustedID2},
+		Allow:       false,
+		Except:      []string{exceptID, trustedID, trustedID2},
+		Trust:       false,
+		TrustExcept: []string{trustedID, trustedID2},
 	},
 	PollInterval:   config.Duration(time.Minute),
 	RediscoverWait: config.Duration(time.Minute),
@@ -162,9 +163,9 @@ func TestDiscoveryBlocked(t *testing.T) {
 		t.Fatal("bad provider ID:", err)
 	}
 
-	discoveryCfg.Policy.Action = "allow"
+	discoveryCfg.Policy.Allow = true
 	defer func() {
-		discoveryCfg.Policy.Action = "block"
+		discoveryCfg.Policy.Allow = false
 	}()
 
 	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
