@@ -18,7 +18,7 @@ type Server struct {
 	l      net.Listener
 }
 
-func New(listen string, indexer indexer.Interface, ingester ingest.Ingester, options ...ServerOption) (*Server, error) {
+func New(ctx context.Context, listen string, indexer indexer.Interface, ingester ingest.Ingester, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func New(listen string, indexer indexer.Interface, ingester ingest.Ingester, opt
 	}
 	s := &Server{server, l}
 
-	h := newHandler(indexer, ingester)
+	h := newHandler(ctx, indexer, ingester)
 
 	// Set protocol handlers
 	// Import routes
