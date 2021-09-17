@@ -29,11 +29,11 @@ func registerCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	err = client.Register(cctx.Context, cfg.Identity, cctx.StringSlice("provider-addr"))
+	err = client.Register(cctx.Context, cfg.Identity.PeerID, cfg.Identity.PrivKey, cctx.StringSlice("addr"))
 	if err != nil {
 		return fmt.Errorf("failed to register providers: %s", err)
 	}
 
-	fmt.Println("Registered provider", cfg.Identity.PeerID, "at indexer", cctx.String("indexer-host"))
+	fmt.Println("Registered provider", cfg.Identity.PeerID, "at indexer", cctx.String("indexer"))
 	return nil
 }

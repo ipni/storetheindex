@@ -81,7 +81,7 @@ func init() {
 }
 
 func TestRegisterProvider(t *testing.T) {
-	data, err := models.MakeRegisterRequest(ident, nil)
+	data, err := models.MakeRegisterRequest(ident.PeerID, ident.PrivKey, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestIndexContent(t *testing.T) {
 	}
 	metadata := []byte("hello world")
 
-	data, err := models.MakeIngestRequest(ident, m, 0, metadata)
+	data, err := models.MakeIngestRequest(ident.PeerID, ident.PrivKey, m, 0, metadata)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -55,13 +55,17 @@ func (r *IngestRequest) MarshalRecord() ([]byte, error) {
 }
 
 // MakeIngestRequest creates a signed IngestRequest and marshals it into bytes
-func MakeIngestRequest(providerIdent config.Identity, m multihash.Multihash, protocol uint64, metadata []byte) ([]byte, error) {
-	providerID, privKey, err := providerIdent.Decode()
+func MakeIngestRequest(providerID, privateKey string, m multihash.Multihash, protocol uint64, metadata []byte) ([]byte, error) {
+	providerIdent := config.Identity{
+		PeerID:  providerID,
+		PrivKey: privateKey,
+	}
+	peerID, privKey, err := providerIdent.Decode()
 	if err != nil {
 		return nil, err
 	}
 
-	value := indexer.MakeValue(providerID, protocol, metadata)
+	value := indexer.MakeValue(peerID, protocol, metadata)
 
 	req := &IngestRequest{
 		Multihash: m,
