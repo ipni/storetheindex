@@ -176,7 +176,6 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 // adding discovered data directly to the registry.
 func (r *Registry) Register(info *ProviderInfo) error {
 	if len(info.AddrInfo.Addrs) == 0 {
-		panic("missing provider address")
 		return syserr.New(errors.New("missing provider address"), http.StatusBadRequest)
 	}
 

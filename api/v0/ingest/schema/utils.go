@@ -86,7 +86,6 @@ func NewLinkedListOfMhs(lsys ipld.LinkSystem, mhs []mh.Multihash, next ipld.Link
 	if next == nil {
 		cStr.Next = _Link_EntryChunk__Maybe{m: schema.Maybe_Absent}
 	} else {
-
 		cStr.Next = _Link_EntryChunk__Maybe{m: schema.Maybe_Value, v: _Link_EntryChunk{x: next}}
 	}
 

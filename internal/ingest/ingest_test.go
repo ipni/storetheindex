@@ -58,7 +58,7 @@ func TestSubscribe(t *testing.T) {
 
 	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
-	time.Sleep(time.Second)
+	time.Sleep(2 * time.Second)
 
 	t.Cleanup(func() {
 		lp.Close()
@@ -158,7 +158,7 @@ func TestMultipleSubscriptions(t *testing.T) {
 
 	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
-	time.Sleep(time.Second)
+	time.Sleep(2 * time.Second)
 
 	t.Cleanup(func() {
 		lp1.Close()
