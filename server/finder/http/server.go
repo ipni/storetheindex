@@ -54,7 +54,7 @@ func New(listen string, indexer indexer.Interface, registry *providers.Registry,
 }
 
 func (s *Server) Start() error {
-	log.Infow("finder listening", "addr", s.l.Addr())
+	log.Infow("finder http server listening", "listen_addr", s.l.Addr())
 	return s.server.Serve(s.l)
 }
 

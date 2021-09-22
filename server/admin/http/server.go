@@ -57,7 +57,7 @@ func New(listen string, indexer indexer.Interface, ingester ingest.Ingester, opt
 }
 
 func (s *Server) Start() error {
-	log.Infow("admin http server listening", "addr", s.l.Addr())
+	log.Infow("admin http server listening", "listen_addr", s.l.Addr())
 	return s.server.Serve(s.l)
 }
 

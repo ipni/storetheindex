@@ -164,7 +164,7 @@ func (i *legIngester) getLatestAdvID(ctx context.Context, peerID peer.ID) (cid.C
 
 // Subscribe to advertisements of a specific provider in the pubsub channel
 func (i *legIngester) Subscribe(ctx context.Context, peerID peer.ID) error {
-	log.Infow("Subscribing to provider", "id", peerID)
+	log.Infow("Subscribing to advertisement pub-sub channel", "host_id", peerID)
 	sctx, cancel := context.WithCancel(ctx)
 	sub, err := i.newPeerSubscriber(sctx, peerID)
 	if err != nil {

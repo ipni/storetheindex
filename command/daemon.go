@@ -83,14 +83,13 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 	if cacheSize > 0 {
 		resultCache = radixcache.New(cacheSize)
-		log.Infow("result cache enabled", "size", cacheSize)
+		log.Infow("Result cache enabled", "size", cacheSize)
 	} else {
-		log.Info("result cache disabled")
+		log.Info("Result cache disabled")
 	}
 
 	// Create indexer core
 	indexerCore := engine.New(resultCache, valueStore)
-	log.Infow("Indexer engine initialized")
 
 	// Create datastore
 	dataStorePath, err := config.Path("", cfg.Datastore.Dir)
@@ -135,7 +134,6 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Infow("finder server initialized", "address", finderAddr)
 
 	// Create ingest HTTP server
 	maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Ingest)
@@ -150,7 +148,6 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Infow("ingest server initialized", "address", ingestAddr)
 
 	var (
 		cancelP2pServers context.CancelFunc
@@ -189,15 +186,14 @@ func daemonCommand(cctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		log.Infow("libp2p ingester initialized")
+		log.Info("libp2p ingester initialized")
 
-		// Subscribe to PubSub channel if a pubsub host is configured
+		// Subscribe to pubsub channel if a pubsub host is configured
 		if cfg.Ingest.PubSubPeer != "" {
 			peerID, err := peer.Decode(cfg.Ingest.PubSubPeer)
 			if err != nil {
 				return fmt.Errorf("bad PubSubPeer in config: %s", err)
 			}
-			log.Infow("Subscribing to provider", "provider", peerID.String())
 			err = ingester.Subscribe(context.Background(), peerID)
 			if err != nil {
 				log.Errorf("Cannot subscribe to provider", "err", err)
@@ -218,9 +214,8 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Infow("admin server initialized", "address", adminAddr)
 
-	log.Info("Starting daemon servers")
+	log.Info("Starting http servers")
 	errChan := make(chan error, 3)
 	go func() {
 		errChan <- adminSvr.Start()
@@ -287,7 +282,7 @@ func daemonCommand(cctx *cli.Context) error {
 
 	cancel()
 
-	log.Infow("node stopped")
+	log.Info("Indexer stopped")
 	return finalErr
 }
 
