@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	"github.com/filecoin-project/go-legs"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/providers"
@@ -33,7 +34,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/test"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
-	"github.com/willscott/go-legs"
 )
 
 var ingestCfg = config.Ingest{

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	indexer "github.com/filecoin-project/go-indexer-core/engine"
+	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	pclient "github.com/filecoin-project/storetheindex/providerclient"
@@ -15,7 +16,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
-	"github.com/willscott/go-legs"
 )
 
 var log = logging.Logger("indexer/ingest")

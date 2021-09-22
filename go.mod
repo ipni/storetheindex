@@ -6,6 +6,7 @@ require (
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.1.4
+	github.com/filecoin-project/go-legs v0.0.0-20210922204025-c6f68b62ab16
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.4
 	github.com/im7mortal/kmutex v1.0.1
@@ -24,6 +25,5 @@ require (
 	github.com/multiformats/go-multihash v0.0.16
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.3.0
-	github.com/willscott/go-legs v0.0.0-20210916135704-ba1acdbce460
 	github.com/ybbus/jsonrpc/v2 v2.1.6
 )
