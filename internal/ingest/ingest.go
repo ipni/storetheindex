@@ -5,6 +5,7 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/metrics"
 	pclient "github.com/filecoin-project/storetheindex/providerclient"
 	pclientp2p "github.com/filecoin-project/storetheindex/providerclient/libp2p"
 	"github.com/im7mortal/kmutex"
@@ -14,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/willscott/go-legs"
 )
 
@@ -195,6 +197,7 @@ func (i *legIngester) listenSubUpdates(ctx context.Context, s *sub) {
 			return
 		// Persist the latest sync
 		case c := <-s.watcher:
+			metrics.IngestCounter.With(prometheus.Labels{"method": "libp2p"}).Add(1)
 			err := i.putLatestSync(s.p, c)
 			if err != nil {
 				log.Errorf("Error persisting latest sync: %w", err)
