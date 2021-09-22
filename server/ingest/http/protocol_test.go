@@ -10,7 +10,6 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	httpserver "github.com/filecoin-project/storetheindex/server/ingest/http"
 	"github.com/filecoin-project/storetheindex/server/ingest/test"
-	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 var providerIdent = config.Identity{
@@ -41,6 +40,11 @@ func TestRegisterProvider(t *testing.T) {
 	s := setupServer(ind, reg, t)
 	httpClient := setupClient(s.URL(), t)
 
+	peerID, privKey, err := providerIdent.Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Start server
 	errChan := make(chan error, 1)
 	go func() {
@@ -51,17 +55,13 @@ func TestRegisterProvider(t *testing.T) {
 		close(errChan)
 	}()
 
-	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
-	test.RegisterProviderTest(t, httpClient, providerIdent, addrs, reg)
-
-	peerID, err := peer.Decode(providerIdent.PeerID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	test.RegisterProviderTest(t, httpClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
 
 	test.GetProviderTest(t, httpClient, peerID)
 
 	test.ListProvidersTest(t, httpClient, peerID)
 
-	test.IndexContent(t, httpClient, providerIdent, ind)
+	test.IndexContent(t, httpClient, peerID, privKey, ind)
+
+	test.IndexContentNewAddr(t, httpClient, peerID, privKey, ind, "/ip4/127.0.0.1/tcp/7777", reg)
 }

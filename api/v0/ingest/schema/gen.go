@@ -76,8 +76,10 @@ func main() {
 	ts.Accumulate(schema.SpawnStruct("Advertisement", []schema.StructField{
 		// Previous advertisement.
 		schema.SpawnStructField("PreviousID", "Link_Advertisement", true, false),
-		// Provider of the advertisement.
+		// Provider ID of the advertisement.
 		schema.SpawnStructField("Provider", "String", false, false),
+		// Addresses, as list of multiaddr strings, to use for content retrieval
+		schema.SpawnStructField("Addresses", "List_String", false, false),
 		// Advertisement signature.
 		schema.SpawnStructField("Signature", "Bytes", false, false),
 		// Entries with a link to the list of CIDs

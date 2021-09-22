@@ -61,10 +61,11 @@ func New(listen string, indexer indexer.Interface, registry *providers.Registry,
 }
 
 func (s *Server) Start() error {
-	log.Infow("api listening", "addr", s.l.Addr())
+	log.Infow("ingest http server listening", "addr", s.l.Addr())
 	return s.server.Serve(s.l)
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	log.Info("ingest http server shutdown")
 	return s.server.Shutdown(ctx)
 }

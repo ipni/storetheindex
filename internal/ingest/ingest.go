@@ -5,6 +5,7 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/providers"
 	pclient "github.com/filecoin-project/storetheindex/providerclient"
 	pclientp2p "github.com/filecoin-project/storetheindex/providerclient/libp2p"
 	"github.com/im7mortal/kmutex"
@@ -45,23 +46,23 @@ type legIngester struct {
 
 	newClient func(context.Context, host.Host, peer.ID) (pclient.Provider, error)
 
-	subs  map[peer.ID]*sub
+	subs  map[peer.ID]*subscriber
 	sublk *kmutex.Kmutex
 }
 
-// Subscriber datastructure for a peer.
-type sub struct {
-	p       peer.ID
+// subscriber datastructure for a peer.
+type subscriber struct {
+	peerID  peer.ID
 	ls      legs.LegSubscriber
-	watcher chan cid.Cid
+	watcher <-chan cid.Cid
 	cncl    context.CancelFunc
 }
 
 // NewLegIngester creates a new go-legs-backed ingester.
 func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
-	i *indexer.Engine, ds datastore.Batching) (LegIngester, error) {
+	idxr *indexer.Engine, reg *providers.Registry, ds datastore.Batching) (LegIngester, error) {
 
-	lsys := mkLinkSystem(ds)
+	lsys := mkLinkSystem(ds, reg)
 	lt, err := legs.MakeLegTransport(context.Background(), h, ds, lsys, cfg.PubSubTopic)
 	if err != nil {
 		log.Errorf("Failed to state LegTransport in ingester: %s", err)
@@ -70,17 +71,17 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 
 	// Function to create new client.  Setting the function allows this to be
 	// mocked for testing.
-	newClient := func(ctx context.Context, h host.Host, p peer.ID) (pclient.Provider, error) {
-		return pclientp2p.NewProvider(ctx, h, p)
+	newClient := func(ctx context.Context, h host.Host, peerID peer.ID) (pclient.Provider, error) {
+		return pclientp2p.NewProvider(ctx, h, peerID)
 	}
 
 	li := &legIngester{
 		host:      h,
 		ds:        ds,
-		indexer:   i,
+		indexer:   idxr,
 		newClient: newClient,
 		lt:        lt,
-		subs:      make(map[peer.ID]*sub),
+		subs:      make(map[peer.ID]*subscriber),
 		sublk:     kmutex.New(),
 	}
 
@@ -91,10 +92,10 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 }
 
 // Sync with a data provider up to latest ID
-func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...SyncOption) (<-chan multihash.Multihash, error) {
-	log.Debugf("Syncing with peer %s", p.String())
+func (i *legIngester) Sync(ctx context.Context, peerID peer.ID, opts ...SyncOption) (<-chan multihash.Multihash, error) {
+	log.Debugf("Syncing with peer %s", peerID)
 	// Check latest sync for provider.
-	c, err := i.getLatestAdvID(ctx, p)
+	c, err := i.getLatestAdvID(ctx, peerID)
 	if err != nil {
 		log.Errorf("Error getting latest advertisement for sync: %s", err)
 		return nil, err
@@ -108,11 +109,11 @@ func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...SyncOption) (
 	}
 	// If we have the advertisement do nothing, we already synced
 	if adv != nil {
-		log.Debugf("Alredy synced with provider %s", p.String())
+		log.Debugf("Alredy synced with provider %s", peerID)
 		return nil, nil
 	}
 	// Get subscriber for peer or create a new one
-	s, err := i.newPeerSubscriber(ctx, p)
+	sub, err := i.newPeerSubscriber(ctx, peerID)
 	if err != nil {
 		log.Errorf("Error getting a subscriber instance for provider: %s", err)
 		return nil, err
@@ -128,8 +129,8 @@ func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...SyncOption) (
 	ctx, cancel := context.WithTimeout(ctx, cfg.SyncTimeout)
 	// Start syncing. Notifications for the finished
 	// sync will be done asynchronously.
-	log.Debugf("Started syncing process with provider %s", s)
-	watcher, cncl, err := s.ls.Sync(ctx, p, c)
+	log.Debugf("Started syncing process with provider %s", sub)
+	watcher, cncl, err := sub.ls.Sync(ctx, peerID, c)
 	if err != nil {
 		log.Errorf("Errored while syncing: %s", err)
 		cancel()
@@ -141,13 +142,13 @@ func (i *legIngester) Sync(ctx context.Context, p peer.ID, opts ...SyncOption) (
 	out := make(chan multihash.Multihash)
 	// Listen when the sync is done to update latestSync and
 	// notify the channel.
-	go i.listenSyncUpdates(ctx, p, watcher, cncl, out)
-	log.Infof("Waiting for sync to finish for provider %s", p.String())
+	go i.listenSyncUpdate(peerID, watcher, cncl, out)
+	log.Infof("Waiting for sync to finish for provider %s", peerID)
 	return out, nil
 }
 
-func (i *legIngester) getLatestAdvID(ctx context.Context, p peer.ID) (cid.Cid, error) {
-	client, err := i.newClient(ctx, i.host, p)
+func (i *legIngester) getLatestAdvID(ctx context.Context, peerID peer.ID) (cid.Cid, error) {
+	client, err := i.newClient(ctx, i.host, peerID)
 	if err != nil {
 		log.Errorf("Error creating new libp2p provider client in ingester: %s", err)
 		return cid.Undef, err
@@ -162,10 +163,10 @@ func (i *legIngester) getLatestAdvID(ctx context.Context, p peer.ID) (cid.Cid, e
 }
 
 // Subscribe to advertisements of a specific provider in the pubsub channel
-func (i *legIngester) Subscribe(ctx context.Context, p peer.ID) error {
-	log.Debugf("Subscribing to provider %s", p.String())
+func (i *legIngester) Subscribe(ctx context.Context, peerID peer.ID) error {
+	log.Infow("Subscribing to provider", "id", peerID)
 	sctx, cancel := context.WithCancel(ctx)
-	s, err := i.newPeerSubscriber(sctx, p)
+	sub, err := i.newPeerSubscriber(sctx, peerID)
 	if err != nil {
 		log.Errorf("Error getting a subscriber instance for provider: %s", err)
 		cancel()
@@ -173,95 +174,83 @@ func (i *legIngester) Subscribe(ctx context.Context, p peer.ID) error {
 	}
 
 	// If already subscribed do nothing.
-	if s.watcher != nil {
-		log.Infof("Already subscribed to provider %s", p.String())
+	if sub.watcher != nil {
+		log.Infow("Already subscribed to provider", "id", peerID)
 		cancel()
 		return nil
 	}
 
 	var cncl context.CancelFunc
-	s.watcher, cncl = s.ls.OnChange()
-	s.cncl = cancelFunc(cncl, cancel)
+	sub.watcher, cncl = sub.ls.OnChange()
+	sub.cncl = cancelFunc(cncl, cancel)
 
 	// Listen updates persist latestSync when sync is done.
-	go i.listenSubUpdates(ctx, s)
+	go i.listenSubUpdates(sub)
 	return nil
 }
 
-func (i *legIngester) listenSubUpdates(ctx context.Context, s *sub) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
+func (i *legIngester) listenSubUpdates(sub *subscriber) {
+	for c := range sub.watcher {
 		// Persist the latest sync
-		case c := <-s.watcher:
-			err := i.putLatestSync(s.p, c)
-			if err != nil {
-				log.Errorf("Error persisting latest sync: %w", err)
-			}
+		if err := i.putLatestSync(sub.peerID, c); err != nil {
+			log.Errorf("Error persisting latest sync: %s", err)
 		}
 	}
 }
 
-func (i *legIngester) listenSyncUpdates(ctx context.Context, p peer.ID,
-	watcher <-chan cid.Cid, cncl context.CancelFunc, out chan<- multihash.Multihash) {
-
-	defer func() {
-		cncl()
-		close(out)
-	}()
-
-	select {
-	case <-ctx.Done():
-		return
-	// Persist the latest sync
-	case c := <-watcher:
-		err := i.putLatestSync(p, c)
+func (i *legIngester) listenSyncUpdate(peerID peer.ID, watcher <-chan cid.Cid, cncl context.CancelFunc, out chan<- multihash.Multihash) {
+	c, ok := <-watcher
+	if ok {
+		// Persist the latest sync
+		err := i.putLatestSync(peerID, c)
 		if err != nil {
-			log.Errorf("Error persisting latest sync: %w", err)
+			log.Errorf("Error persisting latest sync: %s", err)
 		}
 		out <- c.Hash()
 	}
+
+	cncl()
+	close(out)
 }
 
 // Unsubscribe to stop listening to advertisement from a specific provider.
-func (i *legIngester) Unsubscribe(ctx context.Context, p peer.ID) error {
-	log.Debugf("Unsubscribing from provider %s", p.String())
-	i.sublk.Lock(p)
-	defer i.sublk.Unlock(p)
+func (i *legIngester) Unsubscribe(ctx context.Context, peerID peer.ID) error {
+	log.Debugf("Unsubscribing from provider %s", peerID)
+	i.sublk.Lock(peerID)
+	defer i.sublk.Unlock(peerID)
 	// Check if subscriber exists.
-	s, ok := i.subs[p]
+	sub, ok := i.subs[peerID]
 	if !ok {
-		log.Infof("Not subscribed to provider %s. Nothing to do", p.String())
+		log.Infof("Not subscribed to provider %s. Nothing to do", peerID)
 		// If not we have nothing to do.
 		return nil
 	}
 	// Close subscriber
-	s.ls.Close()
+	sub.ls.Close()
 	// Check if we are subscribed
-	if s.cncl != nil {
+	if sub.cncl != nil {
 		// If yes, run cancel
-		s.cncl()
+		sub.cncl()
 	}
 	// Delete from map
-	delete(i.subs, p)
-	log.Infof("Unsubscribed from provider %s successfully", p.String())
+	delete(i.subs, peerID)
+	log.Infof("Unsubscribed from provider %s successfully", peerID)
 
 	return nil
 }
 
 // Creates a new subscriber for a peer according to its latest sync.
-func (i *legIngester) newPeerSubscriber(ctx context.Context, p peer.ID) (*sub, error) {
-	i.sublk.Lock(p)
-	defer i.sublk.Unlock(p)
-	s, ok := i.subs[p]
+func (i *legIngester) newPeerSubscriber(ctx context.Context, peerID peer.ID) (*subscriber, error) {
+	i.sublk.Lock(peerID)
+	defer i.sublk.Unlock(peerID)
+	sub, ok := i.subs[peerID]
 	// If there is already a subscriber for the peer, do nothing.
 	if ok {
-		return s, nil
+		return sub, nil
 	}
 
 	// See if we already synced with this peer.
-	c, err := i.getLatestSync(p)
+	c, err := i.getLatestSync(peerID)
 	if err != nil {
 		return nil, err
 	}
@@ -270,23 +259,22 @@ func (i *legIngester) newPeerSubscriber(ctx context.Context, p peer.ID) (*sub, e
 	// and sync before initializing subscriber?
 
 	// If not synced start a brand new subscriber
+	var ls legs.LegSubscriber
 	if c == cid.Undef {
-		ls, err := legs.NewSubscriber(ctx, i.lt, legs.FilterPeerPolicy(p))
-		if err != nil {
-			return nil, err
-		}
-		s = &sub{p: p, ls: ls}
-		i.subs[p] = s
-		return s, nil
+		ls, err = legs.NewSubscriber(ctx, i.lt, legs.FilterPeerPolicy(peerID))
+	} else {
+		// If yes, start a partially synced subscriber.
+		ls, err = legs.NewSubscriberPartiallySynced(ctx, i.lt, legs.FilterPeerPolicy(peerID), c)
 	}
-	// If yes, start a partially synced subscriber.
-	ls, err := legs.NewSubscriberPartiallySynced(ctx, i.lt, legs.FilterPeerPolicy(p), c)
 	if err != nil {
 		return nil, err
 	}
-	s = &sub{p: p, ls: ls}
-	i.subs[p] = s
-	return s, nil
+	sub = &subscriber{
+		peerID: peerID,
+		ls:     ls,
+	}
+	i.subs[peerID] = sub
+	return sub, nil
 }
 
 func (i *legIngester) Close(ctx context.Context) error {
@@ -302,8 +290,8 @@ func (i *legIngester) Close(ctx context.Context) error {
 }
 
 // Get the latest cid synced for the peer.
-func (i *legIngester) getLatestSync(p peer.ID) (cid.Cid, error) {
-	b, err := i.ds.Get(datastore.NewKey(syncPrefix + p.String()))
+func (i *legIngester) getLatestSync(peerID peer.ID) (cid.Cid, error) {
+	b, err := i.ds.Get(datastore.NewKey(syncPrefix + peerID.String()))
 	if err != nil {
 		if err == datastore.ErrNotFound {
 			return cid.Undef, nil
@@ -315,13 +303,13 @@ func (i *legIngester) getLatestSync(p peer.ID) (cid.Cid, error) {
 }
 
 // Tracks latest sync for a specific peer.
-func (i *legIngester) putLatestSync(p peer.ID, c cid.Cid) error {
+func (i *legIngester) putLatestSync(peerID peer.ID, c cid.Cid) error {
 	// Do not save if empty CIDs are received. Closing the channel
 	// may lead to receiving empty CIDs.
 	if c == cid.Undef {
 		return nil
 	}
-	return i.ds.Put(datastore.NewKey(syncPrefix+p.String()), c.Bytes())
+	return i.ds.Put(datastore.NewKey(syncPrefix+peerID.String()), c.Bytes())
 }
 
 // cancelfunc for subscribers. Combines context cancel and LegSubscriber

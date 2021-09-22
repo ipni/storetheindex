@@ -10,6 +10,7 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
 	pb "github.com/filecoin-project/storetheindex/api/v0/ingest/pb"
 	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
+	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
@@ -72,7 +73,7 @@ func (cl *Ingest) GetProvider(ctx context.Context, providerID peer.ID) (*models.
 	return &providerInfo, nil
 }
 
-func (cl *Ingest) Register(ctx context.Context, providerID, privateKey string, addrs []string) error {
+func (cl *Ingest) Register(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, addrs []string) error {
 	data, err := models.MakeRegisterRequest(providerID, privateKey, addrs)
 	if err != nil {
 		return err
@@ -91,8 +92,8 @@ func (cl *Ingest) Register(ctx context.Context, providerID, privateKey string, a
 	return nil
 }
 
-func (cl *Ingest) IndexContent(ctx context.Context, providerID, privateKey string, m multihash.Multihash, protocol uint64, metadata []byte) error {
-	data, err := models.MakeIngestRequest(providerID, privateKey, m, protocol, metadata)
+func (cl *Ingest) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, protocol uint64, metadata []byte, addrs []string) error {
+	data, err := models.MakeIngestRequest(providerID, privateKey, m, protocol, metadata, addrs)
 	if err != nil {
 		return err
 	}

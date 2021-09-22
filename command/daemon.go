@@ -25,6 +25,7 @@ import (
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/urfave/cli/v2"
@@ -149,7 +150,7 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Infow("ingest server initialized", "address", finderAddr)
+	log.Infow("ingest server initialized", "address", ingestAddr)
 
 	var (
 		cancelP2pServers context.CancelFunc
@@ -184,12 +185,24 @@ func daemonCommand(cctx *cli.Context) error {
 		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)
 
 		// Initialize ingester if libp2p enabled.
-		ingester, err = legingest.NewLegIngester(ctx, cfg.Ingest, p2pHost, indexerCore, dstore)
+		ingester, err = legingest.NewLegIngester(ctx, cfg.Ingest, p2pHost, indexerCore, registry, dstore)
 		if err != nil {
 			return err
 		}
 		log.Infow("libp2p ingester initialized")
-		// TODO: Make some initial subscriptions using providers from the registry?
+
+		// Subscribe to PubSub channel if a pubsub host is configured
+		if cfg.Ingest.PubSubPeer != "" {
+			peerID, err := peer.Decode(cfg.Ingest.PubSubPeer)
+			if err != nil {
+				return fmt.Errorf("bad PubSubPeer in config: %s", err)
+			}
+			log.Infow("Subscribing to provider", "provider", peerID.String())
+			err = ingester.Subscribe(context.Background(), peerID)
+			if err != nil {
+				log.Errorf("Cannot subscribe to provider", "err", err)
+			}
+		}
 	}
 
 	// Create admin HTTP server

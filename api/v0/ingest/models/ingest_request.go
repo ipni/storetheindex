@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/config"
+	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/record"
 	"github.com/multiformats/go-multihash"
@@ -17,6 +17,7 @@ import (
 type IngestRequest struct {
 	Multihash multihash.Multihash
 	Value     indexer.Value
+	Addrs     []string
 	Seq       uint64
 }
 
@@ -55,25 +56,15 @@ func (r *IngestRequest) MarshalRecord() ([]byte, error) {
 }
 
 // MakeIngestRequest creates a signed IngestRequest and marshals it into bytes
-func MakeIngestRequest(providerID, privateKey string, m multihash.Multihash, protocol uint64, metadata []byte) ([]byte, error) {
-	providerIdent := config.Identity{
-		PeerID:  providerID,
-		PrivKey: privateKey,
-	}
-	peerID, privKey, err := providerIdent.Decode()
-	if err != nil {
-		return nil, err
-	}
-
-	value := indexer.MakeValue(peerID, protocol, metadata)
-
+func MakeIngestRequest(providerID peer.ID, privateKey crypto.PrivKey, m multihash.Multihash, protocol uint64, metadata []byte, addrs []string) ([]byte, error) {
 	req := &IngestRequest{
 		Multihash: m,
-		Value:     value,
+		Value:     indexer.MakeValue(providerID, protocol, metadata),
+		Addrs:     addrs,
 		Seq:       peer.TimestampSeq(),
 	}
 
-	return makeRequestEnvelop(req, privKey)
+	return makeRequestEnvelop(req, privateKey)
 }
 
 // ReadIngestRequest unmarshals an IngestRequest from bytes, verifies the

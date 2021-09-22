@@ -16,7 +16,9 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/filecoin-project/storetheindex/internal/utils"
+	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
 
@@ -83,37 +85,35 @@ func PopulateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 	}
 }
 
-func RegisterProviderTest(t *testing.T, c client.Ingest, providerIdent config.Identity, addrs []string, reg *providers.Registry) {
+func RegisterProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *providers.Registry) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	t.Log("registering provider")
-	err := c.Register(ctx, providerIdent.PeerID, providerIdent.PrivKey, addrs)
+	err := c.Register(ctx, providerID, privateKey, []string{addr})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	p, err := peer.Decode(providerIdent.PeerID)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !reg.IsRegistered(p) {
+	if !reg.IsRegistered(providerID) {
 		t.Fatal("provider not registered")
 	}
 
 	// Test signature fail
 	t.Log("registering provider with bad signature")
-	badIdent := providerIdent
-	badIdent.PeerID = "12D3KooWBckWLKiYoUX4k3HTrbrSe4DD5SPNTKgP6vKTva1NaXXX"
-	err = c.Register(ctx, badIdent.PeerID, badIdent.PrivKey, addrs)
+	badPeerID, err := peer.Decode("12D3KooWD1XypSuBmhebQcvq7Sf1XJZ1hKSfYCED4w6eyxhzwqnV")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = c.Register(ctx, badPeerID, privateKey, []string{addr})
 	if err == nil {
 		t.Fatal("expected bad signature error")
 	}
 
 	// Test error if context canceled
 	cancel()
-	err = c.Register(ctx, providerIdent.PeerID, providerIdent.PrivKey, addrs)
+	err = c.Register(ctx, providerID, privateKey, []string{addr})
 	if err == nil {
 		t.Fatal("expected send to failed due to canceled context")
 	}
@@ -152,7 +152,7 @@ func ListProvidersTest(t *testing.T, c client.Ingest, providerID peer.ID) {
 	}
 }
 
-func IndexContent(t *testing.T, cl client.Ingest, providerIdent config.Identity, ind indexer.Interface) {
+func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -163,7 +163,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerIdent config.Identity,
 
 	metadata := []byte("hello")
 
-	err = cl.IndexContent(ctx, providerIdent.PeerID, providerIdent.PrivKey, mhs[0], 0, metadata)
+	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], 0, metadata, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,12 +179,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerIdent config.Identity,
 		t.Fatal("no content values returned")
 	}
 
-	p, err := peer.Decode(providerIdent.PeerID)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expectValue := indexer.MakeValue(p, 0, metadata)
+	expectValue := indexer.MakeValue(providerID, 0, metadata)
 	ok = false
 	for i := range vals {
 		if vals[i].Equal(expectValue) {
@@ -194,5 +189,37 @@ func IndexContent(t *testing.T, cl client.Ingest, providerIdent config.Identity,
 	}
 	if !ok {
 		t.Fatal("did not get expected content")
+	}
+}
+
+func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface, newAddr string, reg *providers.Registry) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mhs, err := utils.RandomMultihashes(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	metadata := []byte("hello")
+	addrs := []string{newAddr}
+
+	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], 0, metadata, addrs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	info := reg.ProviderInfo(providerID)
+	if info == nil {
+		t.Fatal("did not get infor for provider:", providerID)
+	}
+
+	maddr, err := multiaddr.NewMultiaddr(newAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !info.AddrInfo.Addrs[0].Equal(maddr) {
+		t.Fatalf("Did not update address.  Have %q, want %q", info.AddrInfo.Addrs[0].String(), maddr.String())
 	}
 }

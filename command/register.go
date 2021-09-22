@@ -25,11 +25,17 @@ func registerCommand(cctx *cli.Context) error {
 		return fmt.Errorf("cannot load config file: %w", err)
 	}
 
+	peerID, privKey, err := cfg.Identity.Decode()
+	if err != nil {
+		return err
+	}
+
 	client, err := v0client.NewIngest(cctx.String("indexer"))
 	if err != nil {
 		return err
 	}
-	err = client.Register(cctx.Context, cfg.Identity.PeerID, cfg.Identity.PrivKey, cctx.StringSlice("addr"))
+
+	err = client.Register(cctx.Context, peerID, privKey, cctx.StringSlice("addr"))
 	if err != nil {
 		return fmt.Errorf("failed to register providers: %s", err)
 	}

@@ -52,6 +52,11 @@ func TestRegisterProvider(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	peerID, privKey, err := providerIdent.Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t, providerIdent.PeerID)
@@ -59,17 +64,13 @@ func TestRegisterProvider(t *testing.T) {
 	p2pClient, ch := setupClient(ctx, s.ID(), t)
 	connect(ctx, t, ch, sh)
 
-	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
-	test.RegisterProviderTest(t, p2pClient, providerIdent, addrs, reg)
-
-	peerID, err := peer.Decode(providerIdent.PeerID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	test.RegisterProviderTest(t, p2pClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
 
 	test.GetProviderTest(t, p2pClient, peerID)
 
 	test.ListProvidersTest(t, p2pClient, peerID)
 
-	test.IndexContent(t, p2pClient, providerIdent, ind)
+	test.IndexContent(t, p2pClient, peerID, privKey, ind)
+
+	test.IndexContentNewAddr(t, p2pClient, peerID, privKey, ind, "/ip4/127.0.0.1/tcp/7777", reg)
 }

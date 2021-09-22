@@ -6,7 +6,6 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/utils"
-	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 func TestIngestRequest(t *testing.T) {
@@ -17,17 +16,18 @@ func TestIngestRequest(t *testing.T) {
 
 	metadata := []byte("hello")
 
-	data, err := MakeIngestRequest(providerIdent.PeerID, providerIdent.PrivKey, mhs[0], 0, metadata)
+	peerID, privKey, err := providerIdent.Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	address := "/ip4/127.0.0.1/tcp/7777"
+	data, err := MakeIngestRequest(peerID, privKey, mhs[0], 0, metadata, []string{address})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	ingReq, err := ReadIngestRequest(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	peerID, err := peer.Decode(providerIdent.PeerID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,5 +40,9 @@ func TestIngestRequest(t *testing.T) {
 
 	if !bytes.Equal([]byte(ingReq.Multihash), []byte(mhs[0])) {
 		t.Fatal("multihash in request not same as original")
+	}
+
+	if address != ingReq.Addrs[0] {
+		t.Fatal("Address in reqest is not same as original")
 	}
 }
