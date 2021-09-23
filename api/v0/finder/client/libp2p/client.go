@@ -8,7 +8,6 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
-	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 )
@@ -17,8 +16,8 @@ type Finder struct {
 	p2pc *libp2pclient.Client
 }
 
-func NewFinder(ctx context.Context, h host.Host, peerID peer.ID, options ...libp2pclient.ClientOption) (*Finder, error) {
-	client, err := libp2pclient.NewClient(h, peerID, v0.FinderProtocolID, options...)
+func NewFinder(ctx context.Context, peerID peer.ID, options ...libp2pclient.Option) (*Finder, error) {
+	client, err := libp2pclient.NewClient(ctx, peerID, v0.FinderProtocolID, options...)
 	if err != nil {
 		return nil, err
 	}

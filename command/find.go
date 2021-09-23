@@ -63,7 +63,7 @@ func findCmd(cctx *cli.Context) error {
 
 	switch protocol {
 	case "http":
-		cl, err = httpclient.NewFinder(cctx.String("indexerer"))
+		cl, err = httpclient.NewFinder(cctx.String("indexer"))
 		if err != nil {
 			return err
 		}

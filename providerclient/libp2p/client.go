@@ -9,7 +9,6 @@ import (
 	"github.com/filecoin-project/storetheindex/providerclient"
 	pb "github.com/filecoin-project/storetheindex/providerclient/libp2p/pb"
 	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -17,8 +16,8 @@ type Provider struct {
 	p2pc *libp2pclient.Client
 }
 
-func NewProvider(ctx context.Context, h host.Host, p peer.ID, options ...libp2pclient.ClientOption) (*Provider, error) {
-	client, err := libp2pclient.NewClient(h, p, client.ProviderProtocolID, options...)
+func NewProvider(ctx context.Context, p peer.ID, options ...libp2pclient.Option) (*Provider, error) {
+	client, err := libp2pclient.NewClient(ctx, p, client.ProviderProtocolID, options...)
 	if err != nil {
 		return nil, err
 	}

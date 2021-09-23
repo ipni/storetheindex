@@ -7,11 +7,13 @@ import (
 
 	"github.com/filecoin-project/storetheindex/internal/p2putil"
 	"github.com/gogo/protobuf/proto"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/libp2p/go-msgio"
+	"github.com/multiformats/go-multiaddr"
 )
 
 // Client is responsible for sending requests and receiving responses to and
@@ -41,27 +43,57 @@ var ErrReadTimeout = fmt.Errorf("timed out reading response")
 
 // NewClient creates a new libp2pclient Client that connects to a specific peer
 // and protocolID
-func NewClient(h host.Host, peerID peer.ID, protoID protocol.ID, options ...ClientOption) (*Client, error) {
+func NewClient(ctx context.Context, peerID peer.ID, protoID protocol.ID, options ...Option) (*Client, error) {
 	var cfg clientConfig
-	if err := cfg.apply(options...); err != nil {
+	err := cfg.apply(options...)
+	if err != nil {
 		return nil, err
+	}
+
+	// If no host was given, create one.
+	p2pHost := cfg.p2pHost
+	if p2pHost == nil {
+		p2pHost, err = libp2p.New(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// If a hostname to connect to was specified, connect host.
+	if cfg.hostname != "" {
+		maddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", cfg.netProto, cfg.hostname, cfg.port))
+		if err != nil {
+			return nil, err
+		}
+
+		addrInfo := peer.AddrInfo{
+			ID:    peerID,
+			Addrs: []multiaddr.Multiaddr{maddr},
+		}
+
+		err = p2pHost.Connect(ctx, addrInfo)
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Println("---> connecting to", maddr)
 	}
 
 	// Start a client
 	return &Client{
 		ctxLock: newCtxMutex(),
-		host:    h,
+		host:    p2pHost,
 		peerID:  peerID,
 		protoID: protoID,
 	}, nil
 }
 
-// Self return the peer ID of this client
+// Self return the peer ID of this client.
 func (c *Client) Self() peer.ID {
 	return c.host.ID()
 }
 
-// Close resets and closes the network stream if one exists
+// Close resets and closes the network stream if one exists,
 func (c *Client) Close() error {
 	err := c.ctxLock.Lock(context.Background())
 	if err != nil {
@@ -76,7 +108,7 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// SendRequest sends out a request
+// SendRequest sends out a request.
 func (c *Client) SendRequest(ctx context.Context, msg proto.Message, decodeRsp DecodeResponseFunc) error {
 	err := c.ctxLock.Lock(ctx)
 	if err != nil {

@@ -11,7 +11,6 @@ import (
 	pb "github.com/filecoin-project/storetheindex/api/v0/ingest/pb"
 	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
 	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 )
@@ -20,8 +19,8 @@ type Ingest struct {
 	p2pc *libp2pclient.Client
 }
 
-func NewIngest(ctx context.Context, h host.Host, peerID peer.ID, options ...libp2pclient.ClientOption) (*Ingest, error) {
-	client, err := libp2pclient.NewClient(h, peerID, v0.IngestProtocolID, options...)
+func NewIngest(ctx context.Context, peerID peer.ID, options ...libp2pclient.Option) (*Ingest, error) {
+	client, err := libp2pclient.NewClient(ctx, peerID, v0.IngestProtocolID, options...)
 	if err != nil {
 		return nil, err
 	}

@@ -63,7 +63,7 @@ func newIngestClient(baseurl string) (*ingestClient, error) {
 }
 
 func sendRequest(cctx *cli.Context, action string) error {
-	cl, err := newIngestClient(cctx.String("indexer-host"))
+	cl, err := newIngestClient(cctx.String("indexer"))
 	if err != nil {
 		return err
 	}

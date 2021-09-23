@@ -7,6 +7,7 @@ import (
 	indexer "github.com/filecoin-project/go-indexer-core"
 	p2pclient "github.com/filecoin-project/storetheindex/api/v0/ingest/client/libp2p"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
 	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	p2pserver "github.com/filecoin-project/storetheindex/server/ingest/libp2p"
@@ -31,11 +32,11 @@ func setupServer(ctx context.Context, ind indexer.Interface, reg *providers.Regi
 }
 
 func setupClient(ctx context.Context, peerID peer.ID, t *testing.T) (*p2pclient.Ingest, host.Host) {
-	h, err := libp2p.New(context.Background(), libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	h, err := libp2p.New(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := p2pclient.NewIngest(ctx, h, peerID)
+	c, err := p2pclient.NewIngest(ctx, peerID, libp2pclient.P2PHost(h))
 	if err != nil {
 		t.Fatal(err)
 	}
