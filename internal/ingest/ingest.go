@@ -6,7 +6,6 @@ import (
 	indexer "github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	pclient "github.com/filecoin-project/storetheindex/providerclient"
 	pclientp2p "github.com/filecoin-project/storetheindex/providerclient/libp2p"
@@ -73,7 +72,7 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 	// Function to create new client.  Setting the function allows this to be
 	// mocked for testing.
 	newClient := func(ctx context.Context, h host.Host, peerID peer.ID) (pclient.Provider, error) {
-		return pclientp2p.NewProvider(ctx, peerID, libp2pclient.P2PHost(h))
+		return pclientp2p.New(h, peerID)
 	}
 
 	li := &legIngester{

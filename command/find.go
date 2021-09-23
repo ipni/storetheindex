@@ -4,11 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
@@ -63,35 +60,26 @@ func findCmd(cctx *cli.Context) error {
 
 	switch protocol {
 	case "http":
-		cl, err = httpclient.NewFinder(cctx.String("indexer"))
+		cl, err = httpclient.New(cctx.String("indexer"))
 		if err != nil {
 			return err
 		}
 	case "libp2p":
-		var options []libp2pclient.Option
-		hostname := cctx.String("indexerer")
-		if hostname != "" {
-			hostport := strings.SplitN(hostname, ":", 2)
-			var port int
-			if len(hostport) > 1 {
-				hostname = hostport[0]
-				port, err = strconv.Atoi(hostport[1])
-				if err != nil {
-					return err
-				}
-				options = append(options, libp2pclient.Port(port))
-			}
-			options = append(options, libp2pclient.Hostname(hostname))
-		}
 		peerID, err := peer.Decode(cctx.String("peerid"))
 		if err != nil {
 			return err
 		}
 
-		cl, err = p2pclient.NewFinder(ctx, peerID, options...)
+		c, err := p2pclient.New(nil, peerID)
 		if err != nil {
 			return err
 		}
+
+		err = c.Connect(cctx.Context, cctx.String("indexerer"))
+		if err != nil {
+			return err
+		}
+		cl = c
 	default:
 		return fmt.Errorf("unrecognized protocol type for client interaction: %s", protocol)
 	}

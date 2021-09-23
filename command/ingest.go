@@ -52,7 +52,7 @@ type ingestClient struct {
 }
 
 func newIngestClient(baseurl string) (*ingestClient, error) {
-	url, c, err := httpclient.NewClient(baseurl, ingestResource, adminPort)
+	url, c, err := httpclient.New(baseurl, ingestResource, adminPort)
 	if err != nil {
 		return nil, err
 	}

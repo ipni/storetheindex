@@ -3,6 +3,9 @@ package libp2pclient
 import (
 	"context"
 	"fmt"
+	"net"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/filecoin-project/storetheindex/internal/p2putil"
@@ -34,49 +37,27 @@ type Client struct {
 // only know to a specific libp2p client using this generic client.
 type DecodeResponseFunc func([]byte) error
 
-// Timeout to wait for a response after a request is sent
-const readMessageTimeout = 10 * time.Second
+const (
+	// default port for libp2p client to connect to
+	defaultLibp2pPort = 3003
+	// Timeout to wait for a response after a request is sent
+	readMessageTimeout = 10 * time.Second
+)
 
 // ErrReadTimeout is an error that occurs when no message is read within the
 // timeout period
 var ErrReadTimeout = fmt.Errorf("timed out reading response")
 
-// NewClient creates a new libp2pclient Client that connects to a specific peer
-// and protocolID
-func NewClient(ctx context.Context, peerID peer.ID, protoID protocol.ID, options ...Option) (*Client, error) {
-	var cfg clientConfig
-	err := cfg.apply(options...)
-	if err != nil {
-		return nil, err
-	}
-
+// New creates a new libp2pclient Client that communicates with a specific peer identified by
+// protocolID.  If host is nil, then one is created.
+func New(p2pHost host.Host, peerID peer.ID, protoID protocol.ID) (*Client, error) {
 	// If no host was given, create one.
-	p2pHost := cfg.p2pHost
 	if p2pHost == nil {
-		p2pHost, err = libp2p.New(ctx)
+		var err error
+		p2pHost, err = libp2p.New(context.Background())
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	// If a hostname to connect to was specified, connect host.
-	if cfg.hostname != "" {
-		maddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", cfg.netProto, cfg.hostname, cfg.port))
-		if err != nil {
-			return nil, err
-		}
-
-		addrInfo := peer.AddrInfo{
-			ID:    peerID,
-			Addrs: []multiaddr.Multiaddr{maddr},
-		}
-
-		err = p2pHost.Connect(ctx, addrInfo)
-		if err != nil {
-			return nil, err
-		}
-
-		fmt.Println("---> connecting to", maddr)
 	}
 
 	// Start a client
@@ -86,6 +67,56 @@ func NewClient(ctx context.Context, peerID peer.ID, protoID protocol.ID, options
 		peerID:  peerID,
 		protoID: protoID,
 	}, nil
+}
+
+// Connect connects the client to the host at the location specified by
+// hostname.  The value of hostname is a host or host:port, where the host is a
+// hostname or IP address.
+func (c *Client) Connect(ctx context.Context, hostname string) error {
+	port := defaultLibp2pPort
+	var netProto string
+	if hostname == "" {
+		hostname = "127.0.0.1"
+		netProto = "ip4"
+	} else {
+		hostport := strings.SplitN(hostname, ":", 2)
+		if len(hostport) > 1 {
+			hostname = hostport[0]
+			var err error
+			port, err = strconv.Atoi(hostport[1])
+			if err != nil {
+				return err
+			}
+		}
+
+		// Determine if hostname is a host name or IP address.
+		ip := net.ParseIP(hostname)
+		if ip == nil {
+			netProto = "dns"
+		} else if ip.To4() != nil {
+			netProto = "ip4"
+		} else if ip.To16() != nil {
+			netProto = "ip6"
+		} else {
+			return fmt.Errorf("host %q does not appear to be a hostname or ip address", hostname)
+		}
+	}
+
+	maddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", netProto, hostname, port))
+	if err != nil {
+		return err
+	}
+
+	return c.ConnectAddrs(ctx, maddr)
+}
+
+func (c *Client) ConnectAddrs(ctx context.Context, maddrs ...multiaddr.Multiaddr) error {
+	addrInfo := peer.AddrInfo{
+		ID:    c.peerID,
+		Addrs: maddrs,
+	}
+
+	return c.host.Connect(ctx, addrInfo)
 }
 
 // Self return the peer ID of this client.

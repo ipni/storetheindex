@@ -30,7 +30,7 @@ func registerCommand(cctx *cli.Context) error {
 		return err
 	}
 
-	client, err := v0client.NewIngest(cctx.String("indexer"))
+	client, err := v0client.New(cctx.String("indexer"))
 	if err != nil {
 		return err
 	}

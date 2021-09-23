@@ -10,8 +10,8 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/syserr"
 )
 
-// NewClient creates a base URL and a new http.Client
-func NewClient(baseURL, resource string, defaultPort int, options ...ClientOption) (*url.URL, *http.Client, error) {
+// New creates a base URL and a new http.Client
+func New(baseURL, resource string, defaultPort int, options ...Option) (*url.URL, *http.Client, error) {
 	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		baseURL = "http://" + baseURL
 	}

@@ -7,7 +7,6 @@ import (
 	indexer "github.com/filecoin-project/go-indexer-core"
 	p2pclient "github.com/filecoin-project/storetheindex/api/v0/ingest/client/libp2p"
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
 	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	p2pserver "github.com/filecoin-project/storetheindex/server/ingest/libp2p"
@@ -31,16 +30,12 @@ func setupServer(ctx context.Context, ind indexer.Interface, reg *providers.Regi
 	return s, h
 }
 
-func setupClient(ctx context.Context, peerID peer.ID, t *testing.T) (*p2pclient.Ingest, host.Host) {
-	h, err := libp2p.New(context.Background())
+func setupClient(peerID peer.ID, t *testing.T) *p2pclient.Client {
+	c, err := p2pclient.New(nil, peerID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := p2pclient.NewIngest(ctx, peerID, libp2pclient.P2PHost(h))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return c, h
+	return c
 }
 
 func connect(ctx context.Context, t *testing.T, h1 host.Host, h2 host.Host) {
@@ -62,8 +57,11 @@ func TestRegisterProvider(t *testing.T) {
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t, providerIdent.PeerID)
 	s, sh := setupServer(ctx, ind, reg, t)
-	p2pClient, ch := setupClient(ctx, s.ID(), t)
-	connect(ctx, t, ch, sh)
+	p2pClient := setupClient(s.ID(), t)
+	err = p2pClient.ConnectAddrs(ctx, sh.Addrs()...)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	test.RegisterProviderTest(t, p2pClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
 

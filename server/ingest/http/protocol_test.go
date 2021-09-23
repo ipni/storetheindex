@@ -25,8 +25,8 @@ func setupServer(ind indexer.Interface, reg *providers.Registry, t *testing.T) *
 	return s
 }
 
-func setupClient(host string, t *testing.T) *httpclient.IngestClient {
-	c, err := httpclient.NewIngest(host)
+func setupClient(host string, t *testing.T) *httpclient.Client {
+	c, err := httpclient.New(host)
 	if err != nil {
 		t.Fatal(err)
 	}

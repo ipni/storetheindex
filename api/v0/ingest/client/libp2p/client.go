@@ -11,30 +11,43 @@ import (
 	pb "github.com/filecoin-project/storetheindex/api/v0/ingest/pb"
 	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
 	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
 
-type Ingest struct {
+type Client struct {
 	p2pc *libp2pclient.Client
 }
 
-func NewIngest(ctx context.Context, peerID peer.ID, options ...libp2pclient.Option) (*Ingest, error) {
-	client, err := libp2pclient.NewClient(ctx, peerID, v0.IngestProtocolID, options...)
+func New(p2pHost host.Host, peerID peer.ID) (*Client, error) {
+	client, err := libp2pclient.New(p2pHost, peerID, v0.IngestProtocolID)
 	if err != nil {
 		return nil, err
 	}
-	return &Ingest{
+	return &Client{
 		p2pc: client,
 	}, nil
 }
 
-func (cl *Ingest) ListProviders(ctx context.Context) ([]*models.ProviderInfo, error) {
+// Connect connects the client to the host at the location specified by
+// hostname.  The value of hostname is a host or host:port, where the host is a
+// hostname or IP address.
+func (c *Client) Connect(ctx context.Context, hostname string) error {
+	return c.p2pc.Connect(ctx, hostname)
+}
+
+func (c *Client) ConnectAddrs(ctx context.Context, maddrs ...multiaddr.Multiaddr) error {
+	return c.p2pc.ConnectAddrs(ctx, maddrs...)
+}
+
+func (c *Client) ListProviders(ctx context.Context) ([]*models.ProviderInfo, error) {
 	req := &pb.IngestMessage{
 		Type: pb.IngestMessage_LIST_PROVIDERS,
 	}
 
-	data, err := cl.sendRecv(ctx, req, pb.IngestMessage_LIST_PROVIDERS_RESPONSE)
+	data, err := c.sendRecv(ctx, req, pb.IngestMessage_LIST_PROVIDERS_RESPONSE)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +61,7 @@ func (cl *Ingest) ListProviders(ctx context.Context) ([]*models.ProviderInfo, er
 	return providers, nil
 }
 
-func (cl *Ingest) GetProvider(ctx context.Context, providerID peer.ID) (*models.ProviderInfo, error) {
+func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*models.ProviderInfo, error) {
 	data, err := json.Marshal(providerID)
 	if err != nil {
 		return nil, err
@@ -59,7 +72,7 @@ func (cl *Ingest) GetProvider(ctx context.Context, providerID peer.ID) (*models.
 		Data: data,
 	}
 
-	data, err = cl.sendRecv(ctx, req, pb.IngestMessage_GET_PROVIDER_RESPONSE)
+	data, err = c.sendRecv(ctx, req, pb.IngestMessage_GET_PROVIDER_RESPONSE)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +85,7 @@ func (cl *Ingest) GetProvider(ctx context.Context, providerID peer.ID) (*models.
 	return &providerInfo, nil
 }
 
-func (cl *Ingest) Register(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, addrs []string) error {
+func (c *Client) Register(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, addrs []string) error {
 	data, err := models.MakeRegisterRequest(providerID, privateKey, addrs)
 	if err != nil {
 		return err
@@ -83,7 +96,7 @@ func (cl *Ingest) Register(ctx context.Context, providerID peer.ID, privateKey p
 		Data: data,
 	}
 
-	_, err = cl.sendRecv(ctx, req, pb.IngestMessage_REGISTER_PROVIDER_RESPONSE)
+	_, err = c.sendRecv(ctx, req, pb.IngestMessage_REGISTER_PROVIDER_RESPONSE)
 	if err != nil {
 		return err
 	}
@@ -91,7 +104,7 @@ func (cl *Ingest) Register(ctx context.Context, providerID peer.ID, privateKey p
 	return nil
 }
 
-func (cl *Ingest) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, protocol uint64, metadata []byte, addrs []string) error {
+func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, protocol uint64, metadata []byte, addrs []string) error {
 	data, err := models.MakeIngestRequest(providerID, privateKey, m, protocol, metadata, addrs)
 	if err != nil {
 		return err
@@ -102,7 +115,7 @@ func (cl *Ingest) IndexContent(ctx context.Context, providerID peer.ID, privateK
 		Data: data,
 	}
 
-	_, err = cl.sendRecv(ctx, req, pb.IngestMessage_INDEX_CONTENT_RESPONSE)
+	_, err = c.sendRecv(ctx, req, pb.IngestMessage_INDEX_CONTENT_RESPONSE)
 	if err != nil {
 		return err
 	}
@@ -110,9 +123,9 @@ func (cl *Ingest) IndexContent(ctx context.Context, providerID peer.ID, privateK
 	return nil
 }
 
-func (cl *Ingest) sendRecv(ctx context.Context, req *pb.IngestMessage, expectRspType pb.IngestMessage_MessageType) ([]byte, error) {
+func (c *Client) sendRecv(ctx context.Context, req *pb.IngestMessage, expectRspType pb.IngestMessage_MessageType) ([]byte, error) {
 	resp := new(pb.IngestMessage)
-	err := cl.p2pc.SendRequest(ctx, req, func(data []byte) error {
+	err := c.p2pc.SendRequest(ctx, req, func(data []byte) error {
 		return resp.Unmarshal(data)
 	})
 	if err != nil {
@@ -128,11 +141,11 @@ func (cl *Ingest) sendRecv(ctx context.Context, req *pb.IngestMessage, expectRsp
 }
 
 // Sync with a data provider up to latest ID
-func (cl *Ingest) Sync(ctx context.Context, p peer.ID, m multihash.Multihash) error {
+func (c *Client) Sync(ctx context.Context, p peer.ID, m multihash.Multihash) error {
 	return errors.New("not implemented")
 }
 
 // Subscribe to advertisements of a specific provider in the pubsub channel
-func (cl *Ingest) Subscribe(ctx context.Context, p peer.ID) error {
+func (c *Client) Subscribe(ctx context.Context, p peer.ID) error {
 	return errors.New("not implemented")
 }

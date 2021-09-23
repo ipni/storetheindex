@@ -21,8 +21,8 @@ func setupServer(ind indexer.Interface, reg *providers.Registry, t *testing.T) *
 	return s
 }
 
-func setupClient(host string, t *testing.T) *httpclient.Finder {
-	c, err := httpclient.NewFinder(host)
+func setupClient(host string, t *testing.T) *httpclient.Client {
+	c, err := httpclient.New(host)
 	if err != nil {
 		t.Fatal(err)
 	}

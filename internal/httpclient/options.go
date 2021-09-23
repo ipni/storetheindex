@@ -5,14 +5,12 @@ import (
 	"time"
 )
 
-// NOTE: Placeholder to add client options.
-
 type clientConfig struct {
 	timeout time.Duration
 }
 
-// ClientOption is the option type for httpclient
-type ClientOption func(*clientConfig) error
+// Option is the option type for httpclient
+type Option func(*clientConfig) error
 
 var clientDefaults = func(c *clientConfig) error {
 	// As a fallback, never take more than a minute.
@@ -22,7 +20,7 @@ var clientDefaults = func(c *clientConfig) error {
 }
 
 // apply applies the given options to this clientConfig
-func (c *clientConfig) apply(opts ...ClientOption) error {
+func (c *clientConfig) apply(opts ...Option) error {
 	err := clientDefaults(c)
 	if err != nil {
 		// Failure of default option should panic
@@ -34,4 +32,12 @@ func (c *clientConfig) apply(opts ...ClientOption) error {
 		}
 	}
 	return nil
+}
+
+// Timeout configures the timeout to wait for a response
+func Timeout(timeout time.Duration) Option {
+	return func(cfg *clientConfig) error {
+		cfg.timeout = timeout
+		return nil
+	}
 }
