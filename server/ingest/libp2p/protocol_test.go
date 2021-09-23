@@ -38,12 +38,6 @@ func setupClient(peerID peer.ID, t *testing.T) *p2pclient.Client {
 	return c
 }
 
-func connect(ctx context.Context, t *testing.T, h1 host.Host, h2 host.Host) {
-	if err := h1.Connect(ctx, *host.InfoFromHost(h2)); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestRegisterProvider(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
