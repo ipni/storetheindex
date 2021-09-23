@@ -9,7 +9,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/providers"
 	pclient "github.com/filecoin-project/storetheindex/providerclient"
 	pclientp2p "github.com/filecoin-project/storetheindex/providerclient/libp2p"
-	"github.com/im7mortal/kmutex"
+	"github.com/gammazero/keymutex"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
@@ -47,7 +47,7 @@ type legIngester struct {
 	newClient func(context.Context, host.Host, peer.ID) (pclient.Provider, error)
 
 	subs  map[peer.ID]*subscriber
-	sublk *kmutex.Kmutex
+	sublk *keymutex.KeyMutex
 }
 
 // subscriber datastructure for a peer.
@@ -82,7 +82,7 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 		newClient: newClient,
 		lt:        lt,
 		subs:      make(map[peer.ID]*subscriber),
-		sublk:     kmutex.New(),
+		sublk:     keymutex.New(0),
 	}
 
 	// Register storage hook to index data as we receive it.
@@ -216,8 +216,8 @@ func (i *legIngester) listenSyncUpdate(peerID peer.ID, watcher <-chan cid.Cid, c
 // Unsubscribe to stop listening to advertisement from a specific provider.
 func (i *legIngester) Unsubscribe(ctx context.Context, peerID peer.ID) error {
 	log.Debugf("Unsubscribing from provider %s", peerID)
-	i.sublk.Lock(peerID)
-	defer i.sublk.Unlock(peerID)
+	i.sublk.Lock(string(peerID))
+	defer i.sublk.Unlock(string(peerID))
 	// Check if subscriber exists.
 	sub, ok := i.subs[peerID]
 	if !ok {
@@ -241,8 +241,8 @@ func (i *legIngester) Unsubscribe(ctx context.Context, peerID peer.ID) error {
 
 // Creates a new subscriber for a peer according to its latest sync.
 func (i *legIngester) newPeerSubscriber(ctx context.Context, peerID peer.ID) (*subscriber, error) {
-	i.sublk.Lock(peerID)
-	defer i.sublk.Unlock(peerID)
+	i.sublk.Lock(string(peerID))
+	defer i.sublk.Unlock(string(peerID))
 	sub, ok := i.subs[peerID]
 	// If there is already a subscriber for the peer, do nothing.
 	if ok {

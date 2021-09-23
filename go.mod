@@ -5,11 +5,11 @@ go 1.16
 require (
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
-	github.com/filecoin-project/go-indexer-core v0.1.4
+	github.com/filecoin-project/go-indexer-core v0.1.5
 	github.com/filecoin-project/go-legs v0.0.0-20210922204025-c6f68b62ab16
+	github.com/gammazero/keymutex v0.0.0-20210923122432-72239b58243f
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.4
-	github.com/im7mortal/kmutex v1.0.1
 	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-ds-leveldb v0.4.2
