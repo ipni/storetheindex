@@ -12,7 +12,7 @@ import (
 var InitCmd = &cli.Command{
 	Name:   "init",
 	Usage:  "Initialize indexer node config file and identity",
-	Flags:  InitFlags,
+	Flags:  initFlags,
 	Action: initCommand,
 }
 

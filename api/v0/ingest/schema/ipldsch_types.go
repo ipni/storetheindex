@@ -59,6 +59,7 @@ type Advertisement = *_Advertisement
 type _Advertisement struct {
 	PreviousID _Link_Advertisement__Maybe
 	Provider   _String
+	Addresses  _List_String
 	Signature  _Bytes
 	Entries    _Link
 	Metadata   _Bytes

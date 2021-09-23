@@ -18,21 +18,21 @@ const (
 var subscribe = &cli.Command{
 	Name:   "subscribe",
 	Usage:  "Subscribe indexer with provider",
-	Flags:  IngestFlags,
+	Flags:  ingestFlags,
 	Action: subscribeCmd,
 }
 
 var unsubscribe = &cli.Command{
 	Name:   "unsubscribe",
 	Usage:  "Unsubscribe indexer from provider",
-	Flags:  IngestFlags,
+	Flags:  ingestFlags,
 	Action: unsubscribeCmd,
 }
 
 var sync = &cli.Command{
 	Name:   "sync",
 	Usage:  "Sync indexer with provider",
-	Flags:  IngestFlags,
+	Flags:  ingestFlags,
 	Action: syncCmd,
 }
 
@@ -52,7 +52,7 @@ type ingestClient struct {
 }
 
 func newIngestClient(baseurl string) (*ingestClient, error) {
-	url, c, err := httpclient.NewClient(baseurl, ingestResource, adminPort)
+	url, c, err := httpclient.New(baseurl, ingestResource, adminPort)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func newIngestClient(baseurl string) (*ingestClient, error) {
 }
 
 func sendRequest(cctx *cli.Context, action string) error {
-	cl, err := newIngestClient(cctx.String("indexer-host"))
+	cl, err := newIngestClient(cctx.String("indexer"))
 	if err != nil {
 		return err
 	}

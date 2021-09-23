@@ -11,32 +11,44 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 )
 
-type Provider struct {
+type Client struct {
 	p2pc *libp2pclient.Client
 }
 
-func NewProvider(ctx context.Context, h host.Host, p peer.ID, options ...libp2pclient.ClientOption) (*Provider, error) {
-	client, err := libp2pclient.NewClient(h, p, client.ProviderProtocolID, options...)
+func New(p2pHost host.Host, peerID peer.ID) (*Client, error) {
+	client, err := libp2pclient.New(p2pHost, peerID, client.ProviderProtocolID)
 	if err != nil {
 		return nil, err
 	}
-	return &Provider{
+	return &Client{
 		p2pc: client,
 	}, nil
 }
 
-func (cl *Provider) Close() error {
-	return cl.p2pc.Close()
+// Connect connects the client to the host at the location specified by
+// hostname.  The value of hostname is a host or host:port, where the host is a
+// hostname or IP address.
+func (c *Client) Connect(ctx context.Context, hostname string) error {
+	return c.p2pc.Connect(ctx, hostname)
 }
 
-func (cl *Provider) GetLatestAdv(ctx context.Context) (*client.AdResponse, error) {
+func (c *Client) ConnectAddrs(ctx context.Context, maddrs ...multiaddr.Multiaddr) error {
+	return c.p2pc.ConnectAddrs(ctx, maddrs...)
+}
+
+func (c *Client) Close() error {
+	return c.p2pc.Close()
+}
+
+func (c *Client) GetLatestAdv(ctx context.Context) (*client.AdResponse, error) {
 	req := &pb.ProviderMessage{
 		Type: pb.ProviderMessage_GET_LATEST,
 	}
 
-	data, err := cl.sendRecv(ctx, req, pb.ProviderMessage_AD_RESPONSE)
+	data, err := c.sendRecv(ctx, req, pb.ProviderMessage_AD_RESPONSE)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +56,7 @@ func (cl *Provider) GetLatestAdv(ctx context.Context) (*client.AdResponse, error
 	return client.UnmarshalAdResponse(data)
 }
 
-func (cl *Provider) GetAdv(ctx context.Context, id cid.Cid) (*client.AdResponse, error) {
+func (c *Client) GetAdv(ctx context.Context, id cid.Cid) (*client.AdResponse, error) {
 	data, err := client.MarshalAdRequest(&client.AdRequest{ID: id})
 	if err != nil {
 		return nil, err
@@ -54,7 +66,7 @@ func (cl *Provider) GetAdv(ctx context.Context, id cid.Cid) (*client.AdResponse,
 		Data: data,
 	}
 
-	data, err = cl.sendRecv(ctx, req, pb.ProviderMessage_AD_RESPONSE)
+	data, err = c.sendRecv(ctx, req, pb.ProviderMessage_AD_RESPONSE)
 	if err != nil {
 		return nil, err
 	}
@@ -62,9 +74,9 @@ func (cl *Provider) GetAdv(ctx context.Context, id cid.Cid) (*client.AdResponse,
 	return client.UnmarshalAdResponse(data)
 }
 
-func (cl *Provider) sendRecv(ctx context.Context, req *pb.ProviderMessage, expectRspType pb.ProviderMessage_MessageType) ([]byte, error) {
+func (c *Client) sendRecv(ctx context.Context, req *pb.ProviderMessage, expectRspType pb.ProviderMessage_MessageType) ([]byte, error) {
 	resp := new(pb.ProviderMessage)
-	err := cl.p2pc.SendRequest(ctx, req, func(data []byte) error {
+	err := c.p2pc.SendRequest(ctx, req, func(data []byte) error {
 		return resp.Unmarshal(data)
 	})
 	if err != nil {

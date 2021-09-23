@@ -15,8 +15,10 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	"github.com/filecoin-project/go-legs"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/providers"
 	"github.com/filecoin-project/storetheindex/internal/utils"
 	pclient "github.com/filecoin-project/storetheindex/providerclient"
 	"github.com/ipfs/go-cid"
@@ -28,11 +30,10 @@ import (
 	"github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/test"
-	mh "github.com/multiformats/go-multihash"
+	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
-	"github.com/willscott/go-legs"
 )
 
 var ingestCfg = config.Ingest{
@@ -57,7 +58,7 @@ func TestSubscribe(t *testing.T) {
 
 	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
-	time.Sleep(time.Second)
+	time.Sleep(2 * time.Second)
 
 	t.Cleanup(func() {
 		lp.Close()
@@ -157,7 +158,7 @@ func TestMultipleSubscriptions(t *testing.T) {
 
 	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
-	time.Sleep(time.Second)
+	time.Sleep(2 * time.Second)
 
 	t.Cleanup(func() {
 		lp1.Close()
@@ -209,6 +210,22 @@ func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
 	return engine.New(resultCache, valueStore)
 }
 
+func mkRegistry(t *testing.T) *providers.Registry {
+	discoveryCfg := config.Discovery{
+		Policy: config.Policy{
+			Allow: true,
+			Trust: true,
+		},
+		PollInterval:   config.Duration(time.Minute),
+		RediscoverWait: config.Duration(time.Minute),
+	}
+	reg, err := providers.NewRegistry(discoveryCfg, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return reg
+}
+
 func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
@@ -242,7 +259,7 @@ func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.
 
 func mkIngest(t *testing.T, h host.Host) *legIngester {
 	store := dssync.MutexWrap(datastore.NewMapDatastore())
-	i, err := NewLegIngester(context.Background(), ingestCfg, h, mkIndexer(t, true), store)
+	i, err := NewLegIngester(context.Background(), ingestCfg, h, mkIndexer(t, true), mkRegistry(t), store)
 	require.NoError(t, err)
 	return i.(*legIngester)
 }
@@ -271,8 +288,8 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 	}
 }
 
-func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []mh.Multihash) {
-	out := []mh.Multihash{}
+func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash) {
+	out := []multihash.Multihash{}
 	mhs, _ := utils.RandomMultihashes(10)
 	out = append(out, mhs...)
 	nextLnk, _, err := schema.NewLinkedListOfMhs(lsys, mhs, nil)
@@ -286,16 +303,17 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 	return nextLnk, out
 }
 
-func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []mh.Multihash) {
+func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash) {
 	mhs, _ := utils.RandomMultihashes(1)
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
+	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 	val := indexer.MakeValue(p, 0, mhs[0])
 	mhsLnk, mhs := newRandomLinkedList(t, lsys, 3)
-	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, mhsLnk, val.Metadata, false, p.String())
+	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, mhsLnk, val.Metadata, false, p.String(), addrs)
 	if fakeSig {
-		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, mhsLnk, val.Metadata, false, p.String())
+		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, mhsLnk, val.Metadata, false, p.String(), addrs)
 	}
 	require.NoError(t, err)
 	lnk, err := advLnk.AsLink()
@@ -305,7 +323,7 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.Lin
 	return lnk.(cidlink.Link).Cid, mhs
 }
 
-func (i *legIngester) checkMhsIndexed(t *testing.T, p peer.ID, mhs []mh.Multihash) {
+func (i *legIngester) checkMhsIndexed(t *testing.T, p peer.ID, mhs []multihash.Multihash) {
 	for x := range mhs {
 		v, b, err := i.indexer.Get(mhs[x])
 		require.NoError(t, err)
@@ -313,12 +331,12 @@ func (i *legIngester) checkMhsIndexed(t *testing.T, p peer.ID, mhs []mh.Multihas
 		require.Equal(t, v[0].ProviderID, p)
 	}
 }
-func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []mh.Multihash) {
+func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash) {
 	c, mhs := publishRandomIndexAndAdv(t, lp, lsys, fakeSig)
 
 	// TODO: fix this - do not rely on sleep time
 	// Give some time for the advertisement to propagate
-	time.Sleep(2 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	// Check if advertisement in datastore.
 	adv, err := i.ds.Get(datastore.NewKey(c.String()))

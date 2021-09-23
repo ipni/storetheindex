@@ -10,28 +10,40 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
 
-type Finder struct {
+type Client struct {
 	p2pc *libp2pclient.Client
 }
 
-func NewFinder(ctx context.Context, h host.Host, peerID peer.ID, options ...libp2pclient.ClientOption) (*Finder, error) {
-	client, err := libp2pclient.NewClient(h, peerID, v0.FinderProtocolID, options...)
+func New(p2pHost host.Host, peerID peer.ID) (*Client, error) {
+	client, err := libp2pclient.New(p2pHost, peerID, v0.FinderProtocolID)
 	if err != nil {
 		return nil, err
 	}
-	return &Finder{
+	return &Client{
 		p2pc: client,
 	}, nil
 }
 
-func (cl *Finder) Find(ctx context.Context, m multihash.Multihash) (*models.FindResponse, error) {
-	return cl.FindBatch(ctx, []multihash.Multihash{m})
+// Connect connects the client to the host at the location specified by
+// hostname.  The value of hostname is a host or host:port, where the host is a
+// hostname or IP address.
+func (c *Client) Connect(ctx context.Context, hostname string) error {
+	return c.p2pc.Connect(ctx, hostname)
 }
 
-func (cl *Finder) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*models.FindResponse, error) {
+func (c *Client) ConnectAddrs(ctx context.Context, maddrs ...multiaddr.Multiaddr) error {
+	return c.p2pc.ConnectAddrs(ctx, maddrs...)
+}
+
+func (c *Client) Find(ctx context.Context, m multihash.Multihash) (*models.FindResponse, error) {
+	return c.FindBatch(ctx, []multihash.Multihash{m})
+}
+
+func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*models.FindResponse, error) {
 	if len(mhs) == 0 {
 		return &models.FindResponse{}, nil
 	}
@@ -45,7 +57,7 @@ func (cl *Finder) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*mo
 		Data: data,
 	}
 
-	data, err = cl.sendRecv(ctx, req, pb.FinderMessage_GET_RESPONSE)
+	data, err = c.sendRecv(ctx, req, pb.FinderMessage_GET_RESPONSE)
 	if err != nil {
 		return nil, err
 	}
@@ -53,9 +65,9 @@ func (cl *Finder) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*mo
 	return models.UnmarshalFindResponse(data)
 }
 
-func (cl *Finder) sendRecv(ctx context.Context, req *pb.FinderMessage, expectRspType pb.FinderMessage_MessageType) ([]byte, error) {
+func (c *Client) sendRecv(ctx context.Context, req *pb.FinderMessage, expectRspType pb.FinderMessage_MessageType) ([]byte, error) {
 	resp := new(pb.FinderMessage)
-	err := cl.p2pc.SendRequest(ctx, req, func(data []byte) error {
+	err := c.p2pc.SendRequest(ctx, req, func(data []byte) error {
 		return resp.Unmarshal(data)
 	})
 	if err != nil {

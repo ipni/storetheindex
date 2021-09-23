@@ -1,3 +1,4 @@
+//go:generate go run gen.go .
 package schema
 
 import (
@@ -85,7 +86,6 @@ func NewLinkedListOfMhs(lsys ipld.LinkSystem, mhs []mh.Multihash, next ipld.Link
 	if next == nil {
 		cStr.Next = _Link_EntryChunk__Maybe{m: schema.Maybe_Absent}
 	} else {
-
 		cStr.Next = _Link_EntryChunk__Maybe{m: schema.Maybe_Value, v: _Link_EntryChunk{x: next}}
 	}
 
@@ -101,10 +101,11 @@ func NewAdvertisement(
 	entries ipld.Link,
 	metadata []byte,
 	isRm bool,
-	provider string) (Advertisement, error) {
+	provider string,
+	addrs []string) (Advertisement, error) {
 
 	// Create advertisement
-	return newAdvertisement(signKey, previousID, entries, metadata, isRm, provider)
+	return newAdvertisement(signKey, previousID, entries, metadata, isRm, provider, addrs)
 
 }
 
@@ -117,10 +118,11 @@ func NewAdvertisementWithLink(
 	entries ipld.Link,
 	metadata []byte,
 	isRm bool,
-	provider string) (Advertisement, Link_Advertisement, error) {
+	provider string,
+	addrs []string) (Advertisement, Link_Advertisement, error) {
 
 	// Create advertisement
-	adv, err := newAdvertisement(signKey, previousID, entries, metadata, isRm, provider)
+	adv, err := newAdvertisement(signKey, previousID, entries, metadata, isRm, provider, addrs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -153,13 +155,15 @@ func NewAdvertisementWithFakeSig(
 	entries ipld.Link,
 	metadata []byte,
 	isRm bool,
-	provider string) (Advertisement, Link_Advertisement, error) {
+	provider string,
+	addrs []string) (Advertisement, Link_Advertisement, error) {
 
 	var ad Advertisement
 	if previousID != nil {
 		ad = &_Advertisement{
 			PreviousID: _Link_Advertisement__Maybe{m: schema.Maybe_Value, v: *previousID},
 			Provider:   _String{x: provider},
+			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
 			Metadata:   _Bytes{x: metadata},
 			IsRm:       _Bool{x: isRm},
@@ -168,6 +172,7 @@ func NewAdvertisementWithFakeSig(
 		ad = &_Advertisement{
 			PreviousID: _Link_Advertisement__Maybe{m: schema.Maybe_Absent},
 			Provider:   _String{x: provider},
+			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
 			Metadata:   _Bytes{x: metadata},
 			IsRm:       _Bool{x: isRm},
@@ -193,13 +198,15 @@ func newAdvertisement(
 	entries ipld.Link,
 	metadata []byte,
 	isRm bool,
-	provider string) (Advertisement, error) {
+	provider string,
+	addrs []string) (Advertisement, error) {
 
 	var ad Advertisement
 	if previousID != nil {
 		ad = &_Advertisement{
 			PreviousID: _Link_Advertisement__Maybe{m: schema.Maybe_Value, v: *previousID},
 			Provider:   _String{x: provider},
+			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
 			Metadata:   _Bytes{x: metadata},
 			IsRm:       _Bool{x: isRm},
@@ -208,6 +215,7 @@ func newAdvertisement(
 		ad = &_Advertisement{
 			PreviousID: _Link_Advertisement__Maybe{m: schema.Maybe_Absent},
 			Provider:   _String{x: provider},
+			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
 			Metadata:   _Bytes{x: metadata},
 			IsRm:       _Bool{x: isRm},
@@ -224,4 +232,31 @@ func newAdvertisement(
 	ad.Signature = _Bytes{x: sig}
 
 	return ad, nil
+}
+
+func IpldToGoStrings(listString List_String) ([]string, error) {
+	ipldStrs := listString.x
+	if len(ipldStrs) == 0 {
+		return nil, nil
+	}
+
+	strs := make([]string, len(ipldStrs))
+	for i := range ipldStrs {
+		s, err := ipldStrs[i].AsString()
+		if err != nil {
+			return nil, err
+		}
+		strs[i] = s
+	}
+	return strs, nil
+}
+
+func GoToIpldStrings(strs []string) _List_String {
+	ipldStrs := make([]_String, len(strs))
+	for i := range strs {
+		ipldStrs[i] = _String{strs[i]}
+	}
+	return _List_String{
+		x: ipldStrs,
+	}
 }

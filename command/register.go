@@ -12,7 +12,7 @@ import (
 var RegisterCmd = &cli.Command{
 	Name:   "register",
 	Usage:  "Register provider information with an indexer that trusts the provider",
-	Flags:  RegisterFlags,
+	Flags:  registerFlags,
 	Action: registerCommand,
 }
 
@@ -25,11 +25,17 @@ func registerCommand(cctx *cli.Context) error {
 		return fmt.Errorf("cannot load config file: %w", err)
 	}
 
-	client, err := v0client.NewIngest(cctx.String("indexer"))
+	peerID, privKey, err := cfg.Identity.Decode()
 	if err != nil {
 		return err
 	}
-	err = client.Register(cctx.Context, cfg.Identity.PeerID, cfg.Identity.PrivKey, cctx.StringSlice("addr"))
+
+	client, err := v0client.New(cctx.String("indexer"))
+	if err != nil {
+		return err
+	}
+
+	err = client.Register(cctx.Context, peerID, privKey, cctx.StringSlice("addr"))
 	if err != nil {
 		return fmt.Errorf("failed to register providers: %s", err)
 	}

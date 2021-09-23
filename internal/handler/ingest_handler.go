@@ -85,6 +85,9 @@ func (h *IngestHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 	return json.Marshal(&rsp)
 }
 
+// IndexContent handles an IngestRequest
+//
+// Returning error is the same as return syserr.New(err, http.StatusBadRequest)
 func (h *IngestHandler) IndexContent(data []byte) (bool, error) {
 	ingReq, err := models.ReadIngestRequest(data)
 	if err != nil {
@@ -96,10 +99,10 @@ func (h *IngestHandler) IndexContent(data []byte) (bool, error) {
 		return false, err
 	}
 
-	// Check that the provider has been discovered and validated
-	if !h.registry.IsRegistered(providerID) {
-		err = errors.New("cannot accept ingest request from unverified provider")
-		return false, syserr.New(err, http.StatusForbidden)
+	// Register provider if not registered, or update addreses if already registered
+	err = h.registry.RegisterOrUpdate(providerID, ingReq.Addrs)
+	if err != nil {
+		return false, err
 	}
 
 	ok, err := h.indexer.Put(ingReq.Multihash, ingReq.Value)

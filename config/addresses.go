@@ -9,14 +9,14 @@ const (
 
 // Addresses stores the (string) multiaddr addresses for the node.
 type Addresses struct {
-	// Admin is the admin API listen address
+	// Admin is the admin http listen address
 	Admin string
-	// Finder is the finder API isten address
+	// Finder is the finder http isten address
 	Finder string
-	// Ingest is the index data ingestion API listen address
+	// Ingest is the index data ingestion http listen address
 	Ingest string
 	// DisbleP2P disables libp2p hosting
 	DisableP2P bool
-	// P2PMaddr is the libp2p host multiaddr
+	// P2PMaddr is the libp2p host multiaddr for all servers
 	P2PAddr string
 }

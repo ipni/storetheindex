@@ -8,4 +8,6 @@ const (
 type Ingest struct {
 	// PubSubTopic used to advertise ingestion announcements.
 	PubSubTopic string
+	// PubSubPeer is the libp2p peer ID of the host to subscribe to
+	PubSubPeer string
 }

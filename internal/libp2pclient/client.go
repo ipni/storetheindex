@@ -3,15 +3,20 @@ package libp2pclient
 import (
 	"context"
 	"fmt"
+	"net"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/filecoin-project/storetheindex/internal/p2putil"
 	"github.com/gogo/protobuf/proto"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/libp2p/go-msgio"
+	"github.com/multiformats/go-multiaddr"
 )
 
 // Client is responsible for sending requests and receiving responses to and
@@ -32,36 +37,94 @@ type Client struct {
 // only know to a specific libp2p client using this generic client.
 type DecodeResponseFunc func([]byte) error
 
-// Timeout to wait for a response after a request is sent
-const readMessageTimeout = 10 * time.Second
+const (
+	// default port for libp2p client to connect to
+	defaultLibp2pPort = 3003
+	// Timeout to wait for a response after a request is sent
+	readMessageTimeout = 10 * time.Second
+)
 
 // ErrReadTimeout is an error that occurs when no message is read within the
 // timeout period
 var ErrReadTimeout = fmt.Errorf("timed out reading response")
 
-// NewClient creates a new libp2pclient Client that connects to a specific peer
-// and protocolID
-func NewClient(h host.Host, peerID peer.ID, protoID protocol.ID, options ...ClientOption) (*Client, error) {
-	var cfg clientConfig
-	if err := cfg.apply(options...); err != nil {
-		return nil, err
+// New creates a new libp2pclient Client that communicates with a specific peer identified by
+// protocolID.  If host is nil, then one is created.
+func New(p2pHost host.Host, peerID peer.ID, protoID protocol.ID) (*Client, error) {
+	// If no host was given, create one.
+	if p2pHost == nil {
+		var err error
+		p2pHost, err = libp2p.New(context.Background())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Start a client
 	return &Client{
 		ctxLock: newCtxMutex(),
-		host:    h,
+		host:    p2pHost,
 		peerID:  peerID,
 		protoID: protoID,
 	}, nil
 }
 
-// Self return the peer ID of this client
+// Connect connects the client to the host at the location specified by
+// hostname.  The value of hostname is a host or host:port, where the host is a
+// hostname or IP address.
+func (c *Client) Connect(ctx context.Context, hostname string) error {
+	port := defaultLibp2pPort
+	var netProto string
+	if hostname == "" {
+		hostname = "127.0.0.1"
+		netProto = "ip4"
+	} else {
+		hostport := strings.SplitN(hostname, ":", 2)
+		if len(hostport) > 1 {
+			hostname = hostport[0]
+			var err error
+			port, err = strconv.Atoi(hostport[1])
+			if err != nil {
+				return err
+			}
+		}
+
+		// Determine if hostname is a host name or IP address.
+		ip := net.ParseIP(hostname)
+		if ip == nil {
+			netProto = "dns"
+		} else if ip.To4() != nil {
+			netProto = "ip4"
+		} else if ip.To16() != nil {
+			netProto = "ip6"
+		} else {
+			return fmt.Errorf("host %q does not appear to be a hostname or ip address", hostname)
+		}
+	}
+
+	maddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", netProto, hostname, port))
+	if err != nil {
+		return err
+	}
+
+	return c.ConnectAddrs(ctx, maddr)
+}
+
+func (c *Client) ConnectAddrs(ctx context.Context, maddrs ...multiaddr.Multiaddr) error {
+	addrInfo := peer.AddrInfo{
+		ID:    c.peerID,
+		Addrs: maddrs,
+	}
+
+	return c.host.Connect(ctx, addrInfo)
+}
+
+// Self return the peer ID of this client.
 func (c *Client) Self() peer.ID {
 	return c.host.ID()
 }
 
-// Close resets and closes the network stream if one exists
+// Close resets and closes the network stream if one exists,
 func (c *Client) Close() error {
 	err := c.ctxLock.Lock(context.Background())
 	if err != nil {
@@ -76,7 +139,7 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// SendRequest sends out a request
+// SendRequest sends out a request.
 func (c *Client) SendRequest(ctx context.Context, msg proto.Message, decodeRsp DecodeResponseFunc) error {
 	err := c.ctxLock.Lock(ctx)
 	if err != nil {

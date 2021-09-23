@@ -25,37 +25,37 @@ const (
 	finderPort     = 3000
 )
 
-// Finder is an http client for the indexer finder API
-type Finder struct {
+// Client is an http client for the indexer finder API
+type Client struct {
 	c       *http.Client
 	baseURL string
 }
 
-// NewFinder creates a new finder client
-func NewFinder(baseURL string, options ...httpclient.ClientOption) (*Finder, error) {
-	u, c, err := httpclient.NewClient(baseURL, finderResource, finderPort, options...)
+// New creates a new finder HTTP client.
+func New(baseURL string, options ...httpclient.Option) (*Client, error) {
+	u, c, err := httpclient.New(baseURL, finderResource, finderPort, options...)
 	if err != nil {
 		return nil, err
 	}
-	return &Finder{
+	return &Client{
 		c:       c,
 		baseURL: u.String(),
 	}, nil
 }
 
 // Find queries indexer entries for a multihash
-func (cl *Finder) Find(ctx context.Context, m multihash.Multihash) (*models.FindResponse, error) {
-	u := cl.baseURL + "/" + m.B58String()
+func (c *Client) Find(ctx context.Context, m multihash.Multihash) (*models.FindResponse, error) {
+	u := c.baseURL + "/" + m.B58String()
 	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return cl.sendRequest(req)
+	return c.sendRequest(req)
 }
 
 // FindBatch queries indexer entries for a batch of multihashes
-func (cl *Finder) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*models.FindResponse, error) {
+func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*models.FindResponse, error) {
 	if len(mhs) == 0 {
 		return &models.FindResponse{}, nil
 	}
@@ -63,16 +63,16 @@ func (cl *Finder) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*mo
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", cl.baseURL, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL, bytes.NewBuffer(data))
 	if err != nil {
 		return nil, err
 	}
-	return cl.sendRequest(req)
+	return c.sendRequest(req)
 }
 
-func (cl *Finder) sendRequest(req *http.Request) (*models.FindResponse, error) {
+func (c *Client) sendRequest(req *http.Request) (*models.FindResponse, error) {
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := cl.c.Do(req)
+	resp, err := c.c.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -96,13 +96,13 @@ func (cl *Finder) sendRequest(req *http.Request) (*models.FindResponse, error) {
 
 // ImportFromManifest processes entries from manifest and imports them into the
 // indexer
-func (cl *Finder) ImportFromManifest(ctx context.Context, dir string, provID peer.ID) error {
-	u := cl.baseURL + path.Join("/import", "manifest", provID.String())
-	req, err := cl.newUploadRequest(dir, u)
+func (c *Client) ImportFromManifest(ctx context.Context, dir string, provID peer.ID) error {
+	u := c.baseURL + path.Join("/import", "manifest", provID.String())
+	req, err := c.newUploadRequest(dir, u)
 	if err != nil {
 		return err
 	}
-	resp, err := cl.c.Do(req)
+	resp, err := c.c.Do(req)
 	if err != nil {
 		return err
 	}
@@ -117,13 +117,13 @@ func (cl *Finder) ImportFromManifest(ctx context.Context, dir string, provID pee
 
 // ImportFromCidList process entries from a cidlist and imprts it into the
 // indexer
-func (cl *Finder) ImportFromCidList(ctx context.Context, dir string, provID peer.ID) error {
-	u := cl.baseURL + path.Join("/import", "cidlist", provID.String())
-	req, err := cl.newUploadRequest(dir, u)
+func (c *Client) ImportFromCidList(ctx context.Context, dir string, provID peer.ID) error {
+	u := c.baseURL + path.Join("/import", "cidlist", provID.String())
+	req, err := c.newUploadRequest(dir, u)
 	if err != nil {
 		return err
 	}
-	resp, err := cl.c.Do(req)
+	resp, err := c.c.Do(req)
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func (cl *Finder) ImportFromCidList(ctx context.Context, dir string, provID peer
 	return nil
 }
 
-func (cl *Finder) newUploadRequest(dir string, uri string) (*http.Request, error) {
+func (c *Client) newUploadRequest(dir string, uri string) (*http.Request, error) {
 	file, err := os.Open(dir)
 	if err != nil {
 		return nil, err

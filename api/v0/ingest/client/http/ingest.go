@@ -10,6 +10,7 @@ import (
 
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
 	httpclient "github.com/filecoin-project/storetheindex/internal/httpclient"
+	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 )
@@ -20,35 +21,35 @@ const (
 	indexContentPath = "/ingest/content"
 )
 
-// IndestClient is an http client for the indexer ingest API
-type IngestClient struct {
+// Client is an http client for the indexer ingest API
+type Client struct {
 	c               *http.Client
 	indexContentURL string
 	providersURL    string
 }
 
-// NewIngest creates a new IngestClient
-func NewIngest(baseURL string, options ...httpclient.ClientOption) (*IngestClient, error) {
-	u, c, err := httpclient.NewClient(baseURL, "", ingestPort, options...)
+// New creates a new ingest http Client
+func New(baseURL string, options ...httpclient.Option) (*Client, error) {
+	u, c, err := httpclient.New(baseURL, "", ingestPort, options...)
 	if err != nil {
 		return nil, err
 	}
 	baseURL = u.String()
-	return &IngestClient{
+	return &Client{
 		c:               c,
 		indexContentURL: baseURL + indexContentPath,
 		providersURL:    baseURL + providersPath,
 	}, nil
 }
 
-func (cl *IngestClient) ListProviders(ctx context.Context) ([]*models.ProviderInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", cl.providersURL, nil)
+func (c *Client) ListProviders(ctx context.Context) ([]*models.ProviderInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.providersURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Add("Accept", "application/json")
 
-	resp, err := cl.c.Do(req)
+	resp, err := c.c.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -72,14 +73,14 @@ func (cl *IngestClient) ListProviders(ctx context.Context) ([]*models.ProviderIn
 	return providers, nil
 }
 
-func (cl *IngestClient) GetProvider(ctx context.Context, providerID peer.ID) (*models.ProviderInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", cl.providersURL+"/"+providerID.String(), nil)
+func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*models.ProviderInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.providersURL+"/"+providerID.String(), nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Add("Accept", "application/json")
 
-	resp, err := cl.c.Do(req)
+	resp, err := c.c.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -102,19 +103,19 @@ func (cl *IngestClient) GetProvider(ctx context.Context, providerID peer.ID) (*m
 	return &providerInfo, nil
 }
 
-func (cl *IngestClient) IndexContent(ctx context.Context, providerID, privateKey string, m multihash.Multihash, protocol uint64, metadata []byte) error {
-	data, err := models.MakeIngestRequest(providerID, privateKey, m, protocol, metadata)
+func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, protocol uint64, metadata []byte, addrs []string) error {
+	data, err := models.MakeIngestRequest(providerID, privateKey, m, protocol, metadata, addrs)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", cl.indexContentURL, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.indexContentURL, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
 
-	resp, err := cl.c.Do(req)
+	resp, err := c.c.Do(req)
 	if err != nil {
 		return err
 	}
@@ -131,19 +132,19 @@ func (cl *IngestClient) IndexContent(ctx context.Context, providerID, privateKey
 	return nil
 }
 
-func (cl *IngestClient) Register(ctx context.Context, providerID, privateKey string, addrs []string) error {
+func (c *Client) Register(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, addrs []string) error {
 	data, err := models.MakeRegisterRequest(providerID, privateKey, addrs)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", cl.providersURL, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.providersURL, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
 
-	resp, err := cl.c.Do(req)
+	resp, err := c.c.Do(req)
 	if err != nil {
 		return err
 	}
@@ -161,11 +162,11 @@ func (cl *IngestClient) Register(ctx context.Context, providerID, privateKey str
 }
 
 // Sync with a data provider up to latest ID
-func (cl *IngestClient) Sync(ctx context.Context, p peer.ID, m multihash.Multihash) error {
+func (c *Client) Sync(ctx context.Context, p peer.ID, m multihash.Multihash) error {
 	return errors.New("not implemented")
 }
 
 // Subscribe to advertisements of a specific provider in the pubsub channel
-func (cl *IngestClient) Subscribe(ctx context.Context, p peer.ID) error {
+func (c *Client) Subscribe(ctx context.Context, p peer.ID) error {
 	return errors.New("not implemented")
 }
