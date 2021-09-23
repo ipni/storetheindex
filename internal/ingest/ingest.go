@@ -91,7 +91,7 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 	return li, nil
 }
 
-// Sync with a data provider up to latest ID
+// Sync with a data provider up to latest ID.
 func (i *legIngester) Sync(ctx context.Context, peerID peer.ID, opts ...SyncOption) (<-chan multihash.Multihash, error) {
 	log.Debugf("Syncing with peer %s", peerID)
 	// Check latest sync for provider.
@@ -140,8 +140,9 @@ func (i *legIngester) Sync(ctx context.Context, peerID peer.ID, opts ...SyncOpti
 	cncl = cancelFunc(cncl, cancel)
 	// Notification channel.
 	out := make(chan multihash.Multihash)
-	// Listen when the sync is done to update latestSync and
-	// notify the channel.
+	// Listen when the sync is done to update latestSync and notify the
+	// channel. No need to pass ctx here, because if ctx is canceled, then
+	// watcher is closed.
 	go i.listenSyncUpdate(peerID, watcher, cncl, out)
 	log.Infof("Waiting for sync to finish for provider %s", peerID)
 	return out, nil
@@ -162,7 +163,7 @@ func (i *legIngester) getLatestAdvID(ctx context.Context, peerID peer.ID) (cid.C
 	return res.ID, nil
 }
 
-// Subscribe to advertisements of a specific provider in the pubsub channel
+// Subscribe to advertisements of a specific provider in the pubsub channel.
 func (i *legIngester) Subscribe(ctx context.Context, peerID peer.ID) error {
 	log.Infow("Subscribing to advertisement pub-sub channel", "host_id", peerID)
 	sctx, cancel := context.WithCancel(ctx)
@@ -199,6 +200,12 @@ func (i *legIngester) listenSubUpdates(sub *subscriber) {
 }
 
 func (i *legIngester) listenSyncUpdate(peerID peer.ID, watcher <-chan cid.Cid, cncl context.CancelFunc, out chan<- multihash.Multihash) {
+
+	defer func() {
+		cncl()
+		close(out)
+	}()
+
 	c, ok := <-watcher
 	if ok {
 		// Persist the latest sync
@@ -208,9 +215,6 @@ func (i *legIngester) listenSyncUpdate(peerID peer.ID, watcher <-chan cid.Cid, c
 		}
 		out <- c.Hash()
 	}
-
-	cncl()
-	close(out)
 }
 
 // Unsubscribe to stop listening to advertisement from a specific provider.
