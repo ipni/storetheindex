@@ -17,7 +17,7 @@ const DAG_MAX = 3200000
 var SyntheticCmd = &cli.Command{
 	Name:   "synthetic",
 	Usage:  "Generate synthetic load to import in indexer",
-	Flags:  SyntheticFlags,
+	Flags:  syntheticFlags,
 	Action: syntheticCmd,
 }
 

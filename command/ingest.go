@@ -18,21 +18,21 @@ const (
 var subscribe = &cli.Command{
 	Name:   "subscribe",
 	Usage:  "Subscribe indexer with provider",
-	Flags:  IngestFlags,
+	Flags:  ingestFlags,
 	Action: subscribeCmd,
 }
 
 var unsubscribe = &cli.Command{
 	Name:   "unsubscribe",
 	Usage:  "Unsubscribe indexer from provider",
-	Flags:  IngestFlags,
+	Flags:  ingestFlags,
 	Action: unsubscribeCmd,
 }
 
 var sync = &cli.Command{
 	Name:   "sync",
 	Usage:  "Sync indexer with provider",
-	Flags:  IngestFlags,
+	Flags:  ingestFlags,
 	Action: syncCmd,
 }
 

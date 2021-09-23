@@ -5,12 +5,19 @@ import (
 	"github.com/urfave/cli/v2/altsrc"
 )
 
-var IndexerHostFlag = altsrc.NewStringFlag(&cli.StringFlag{
+var indexerHostFlag = altsrc.NewStringFlag(&cli.StringFlag{
 	Name:     "indexer",
 	Usage:    "Host or host:port of indexer to use",
 	EnvVars:  []string{"INDEXER"},
 	Required: false,
 	Value:    "localhost",
+})
+
+var indexerIDFlag = altsrc.NewStringFlag(&cli.StringFlag{
+	Name:     "peerid",
+	Usage:    "Peer ID of indexer to use, when using libp2p",
+	EnvVars:  []string{"INDEXER_ID"},
+	Required: false,
 })
 
 var CacheSizeFlag = &cli.Int64Flag{
@@ -20,14 +27,14 @@ var CacheSizeFlag = &cli.Int64Flag{
 	Value:    -1,
 }
 
-var DirFlag = &cli.StringFlag{
+var dirFlag = &cli.StringFlag{
 	Name:     "dir",
 	Usage:    "Source directory for import",
 	Aliases:  []string{"d"},
 	Required: true,
 }
 
-var DaemonFlags = []cli.Flag{
+var daemonFlags = []cli.Flag{
 	CacheSizeFlag,
 	&cli.BoolFlag{
 		Name:     "disablep2p",
@@ -38,7 +45,7 @@ var DaemonFlags = []cli.Flag{
 	},
 }
 
-var ClientCmdFlags = []cli.Flag{
+var findFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:     "cid",
 		Usage:    "Specify cid to use as indexer key",
@@ -49,7 +56,8 @@ var ClientCmdFlags = []cli.Flag{
 		Usage:    "Specify multihash to use as indexer key",
 		Required: false,
 	},
-	IndexerHostFlag,
+	indexerHostFlag,
+	indexerIDFlag,
 	&cli.StringFlag{
 		Name:     "protocol",
 		Usage:    "Protocol to query the indexer (http, libp2p currently supported)",
@@ -58,7 +66,7 @@ var ClientCmdFlags = []cli.Flag{
 	},
 }
 
-var ImportFlags = []cli.Flag{
+var importFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:     "provider",
 		Usage:    "Provider of the data imported",
@@ -71,21 +79,21 @@ var ImportFlags = []cli.Flag{
 		Aliases:  []string{"m"},
 		Required: false,
 	},
-	DirFlag,
-	IndexerHostFlag,
+	dirFlag,
+	indexerHostFlag,
 }
 
-var IngestFlags = []cli.Flag{
+var ingestFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:     "provider",
 		Usage:    "Provider to interact with",
 		Aliases:  []string{"prov"},
 		Required: true,
 	},
-	IndexerHostFlag,
+	indexerHostFlag,
 }
 
-var InitFlags = []cli.Flag{
+var initFlags = []cli.Flag{
 	CacheSizeFlag,
 	&cli.StringFlag{
 		Name:     "store",
@@ -120,23 +128,23 @@ var InitFlags = []cli.Flag{
 	},
 }
 
-var RegisterFlags = []cli.Flag{
+var registerFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:     "config",
 		Usage:    "Config file containing provider's peer ID and private key",
 		Required: true,
 	},
-	IndexerHostFlag,
+	indexerHostFlag,
 	&cli.StringSliceFlag{
 		Name:     "provider-addr",
-		Usage:    "Provider address as multiaddr string, example: \"/ip4/127.0.0.1/tcp/3333\"",
+		Usage:    "Provider address as multiaddr string, example: \"/ip4/127.0.0.1/tcp/3102\"",
 		Aliases:  []string{"pa"},
 		Required: true,
 	},
 }
 
-var SyntheticFlags = []cli.Flag{
-	DirFlag,
+var syntheticFlags = []cli.Flag{
+	dirFlag,
 	&cli.StringFlag{
 		Name:     "type",
 		Usage:    "Type of synthetic load to generate (manifest, cidlist, car)",
