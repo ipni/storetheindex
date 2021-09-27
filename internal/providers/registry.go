@@ -19,6 +19,7 @@ import (
 	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"go.opencensus.io/stats"
 )
 
 const (
@@ -230,7 +231,7 @@ func (r *Registry) ProviderInfoByAddr(discoAddr string) *ProviderInfo {
 func (r *Registry) ProviderInfo(providerID peer.ID) *ProviderInfo {
 	infoChan := make(chan *ProviderInfo)
 	r.actions <- func() {
-		metrics.ProviderCounter.Set(float64(len(r.providers)))
+		stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(r.providers))))
 		info, ok := r.providers[providerID]
 		if ok {
 			infoChan <- info

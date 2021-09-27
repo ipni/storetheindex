@@ -15,8 +15,9 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/willscott/go-legs"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 )
 
 var log = logging.Logger("indexer/ingest")
@@ -197,7 +198,9 @@ func (i *legIngester) listenSubUpdates(ctx context.Context, s *sub) {
 			return
 		// Persist the latest sync
 		case c := <-s.watcher:
-			metrics.IngestCounter.With(prometheus.Labels{"method": "libp2p"}).Add(1)
+			stats.RecordWithOptions(ctx,
+				stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
+				stats.WithMeasurements(metrics.IngestChange.M(1)))
 			err := i.putLatestSync(s.p, c)
 			if err != nil {
 				log.Errorf("Error persisting latest sync: %w", err)

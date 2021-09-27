@@ -3,6 +3,7 @@ module github.com/filecoin-project/storetheindex
 go 1.16
 
 require (
+	contrib.go.opencensus.io/exporter/prometheus v0.4.0
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.1.1
@@ -27,4 +28,5 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/willscott/go-legs v0.0.0-20210901151650-83e866a4d54a
 	github.com/ybbus/jsonrpc/v2 v2.1.6
+	go.opencensus.io v0.23.0
 )
