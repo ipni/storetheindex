@@ -39,8 +39,6 @@ var ingestCfg = config.Ingest{
 	PubSubTopic: "test/ingest",
 }
 
-var prefix = schema.Linkproto.Prefix
-
 func TestSubscribe(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
