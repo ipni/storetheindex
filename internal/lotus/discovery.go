@@ -8,7 +8,7 @@ import (
 	"net/url"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/storetheindex/internal/providers/discovery"
+	"github.com/filecoin-project/storetheindex/internal/registry/discovery"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"

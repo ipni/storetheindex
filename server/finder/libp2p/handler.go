@@ -6,11 +6,11 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/api/v0"
-	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/handler"
 	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gogo/protobuf/proto"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -27,7 +27,7 @@ type libp2pHandler struct {
 // handlerFunc is the function signature required by handlers in this package
 type handlerFunc func(context.Context, peer.ID, *pb.FinderMessage) ([]byte, error)
 
-func newHandler(indexer indexer.Interface, registry *providers.Registry) *libp2pHandler {
+func newHandler(indexer indexer.Interface, registry *registry.Registry) *libp2pHandler {
 	return &libp2pHandler{
 		finderHandler: handler.NewFinderHandler(indexer, registry),
 	}
@@ -71,7 +71,7 @@ func (h *libp2pHandler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgb
 }
 
 func (h *libp2pHandler) get(ctx context.Context, p peer.ID, msg *pb.FinderMessage) ([]byte, error) {
-	req, err := models.UnmarshalFindRequest(msg.GetData())
+	req, err := model.UnmarshalFindRequest(msg.GetData())
 	if err != nil {
 		return nil, err
 	}
@@ -80,5 +80,5 @@ func (h *libp2pHandler) get(ctx context.Context, p peer.ID, msg *pb.FinderMessag
 	if err != nil {
 		return nil, err
 	}
-	return models.MarshalFindResponse(r)
+	return model.MarshalFindResponse(r)
 }

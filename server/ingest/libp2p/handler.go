@@ -12,7 +12,7 @@ import (
 	pb "github.com/filecoin-project/storetheindex/api/v0/ingest/pb"
 	"github.com/filecoin-project/storetheindex/internal/handler"
 	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/gogo/protobuf/proto"
 	logging "github.com/ipfs/go-log/v2"
@@ -30,7 +30,7 @@ type libp2pHandler struct {
 // handlerFunc is the function signature required by handlers in this package
 type handlerFunc func(context.Context, peer.ID, *pb.IngestMessage) ([]byte, error)
 
-func newHandler(indexer indexer.Interface, registry *providers.Registry) *libp2pHandler {
+func newHandler(indexer indexer.Interface, registry *registry.Registry) *libp2pHandler {
 	return &libp2pHandler{
 		ingestHandler: handler.NewIngestHandler(indexer, registry),
 	}

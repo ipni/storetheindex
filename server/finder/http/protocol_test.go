@@ -8,12 +8,12 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	httpserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	"github.com/filecoin-project/storetheindex/server/finder/test"
 )
 
-func setupServer(ind indexer.Interface, reg *providers.Registry, t *testing.T) *httpserver.Server {
+func setupServer(ind indexer.Interface, reg *registry.Registry, t *testing.T) *httpserver.Server {
 	s, err := httpserver.New("127.0.0.1:0", ind, reg)
 	if err != nil {
 		t.Fatal(err)

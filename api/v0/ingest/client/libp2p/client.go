@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/filecoin-project/storetheindex/api/v0"
-	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
+	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	pb "github.com/filecoin-project/storetheindex/api/v0/ingest/pb"
 	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
 	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
@@ -42,7 +42,7 @@ func (c *Client) ConnectAddrs(ctx context.Context, maddrs ...multiaddr.Multiaddr
 	return c.p2pc.ConnectAddrs(ctx, maddrs...)
 }
 
-func (c *Client) ListProviders(ctx context.Context) ([]*models.ProviderInfo, error) {
+func (c *Client) ListProviders(ctx context.Context) ([]*model.ProviderInfo, error) {
 	req := &pb.IngestMessage{
 		Type: pb.IngestMessage_LIST_PROVIDERS,
 	}
@@ -52,7 +52,7 @@ func (c *Client) ListProviders(ctx context.Context) ([]*models.ProviderInfo, err
 		return nil, err
 	}
 
-	var providers []*models.ProviderInfo
+	var providers []*model.ProviderInfo
 	err = json.Unmarshal(data, &providers)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func (c *Client) ListProviders(ctx context.Context) ([]*models.ProviderInfo, err
 	return providers, nil
 }
 
-func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*models.ProviderInfo, error) {
+func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*model.ProviderInfo, error) {
 	data, err := json.Marshal(providerID)
 	if err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*models.P
 		return nil, err
 	}
 
-	var providerInfo models.ProviderInfo
+	var providerInfo model.ProviderInfo
 	err = json.Unmarshal(data, &providerInfo)
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*models.P
 }
 
 func (c *Client) Register(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, addrs []string) error {
-	data, err := models.MakeRegisterRequest(providerID, privateKey, addrs)
+	data, err := model.MakeRegisterRequest(providerID, privateKey, addrs)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (c *Client) Register(ctx context.Context, providerID peer.ID, privateKey p2
 }
 
 func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, protocol uint64, metadata []byte, addrs []string) error {
-	data, err := models.MakeIngestRequest(providerID, privateKey, m, protocol, metadata, addrs)
+	data, err := model.MakeIngestRequest(providerID, privateKey, m, protocol, metadata, addrs)
 	if err != nil {
 		return err
 	}

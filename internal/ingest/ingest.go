@@ -7,7 +7,7 @@ import (
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	pclient "github.com/filecoin-project/storetheindex/providerclient"
 	pclientp2p "github.com/filecoin-project/storetheindex/providerclient/libp2p"
 	"github.com/gammazero/keymutex"
@@ -63,7 +63,7 @@ type subscriber struct {
 
 // NewLegIngester creates a new go-legs-backed ingester.
 func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
-	idxr *indexer.Engine, reg *providers.Registry, ds datastore.Batching) (LegIngester, error) {
+	idxr *indexer.Engine, reg *registry.Registry, ds datastore.Batching) (LegIngester, error) {
 
 	lsys := mkLinkSystem(ds, reg)
 	lt, err := legs.MakeLegTransport(context.Background(), h, ds, lsys, cfg.PubSubTopic)

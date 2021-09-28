@@ -15,10 +15,10 @@ import (
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/client"
-	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/providers"
-	"github.com/filecoin-project/storetheindex/internal/utils"
+	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -50,7 +50,7 @@ func InitIndex(t *testing.T, withCache bool) indexer.Interface {
 }
 
 // InitRegistry initializes a new registry
-func InitRegistry(t *testing.T) *providers.Registry {
+func InitRegistry(t *testing.T) *registry.Registry {
 	var discoveryCfg = config.Discovery{
 		Policy: config.Policy{
 			Allow:       false,
@@ -61,7 +61,7 @@ func InitRegistry(t *testing.T) *providers.Registry {
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),
 	}
-	reg, err := providers.NewRegistry(discoveryCfg, nil, nil)
+	reg, err := registry.NewRegistry(discoveryCfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,9 +89,9 @@ func PopulateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 	}
 }
 
-func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *providers.Registry) {
+func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
-	mhs, err := utils.RandomMultihashes(15)
+	mhs, err := util.RandomMultihashes(15)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	PopulateIndex(ind, mhs[:10], v, t)
 
 	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
-	info := &providers.ProviderInfo{
+	info := &registry.ProviderInfo{
 		AddrInfo: peer.AddrInfo{
 			ID:    p,
 			Addrs: []multiaddr.Multiaddr{a},
@@ -150,7 +150,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = checkResponse(&models.FindResponse{}, []multihash.Multihash{}, []indexer.Value{})
+	err = checkResponse(&model.FindResponse{}, []multihash.Multihash{}, []indexer.Value{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,13 +160,13 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = checkResponse(&models.FindResponse{}, []multihash.Multihash{}, []indexer.Value{})
+	err = checkResponse(&model.FindResponse{}, []multihash.Multihash{}, []indexer.Value{})
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func checkResponse(r *models.FindResponse, mhs []multihash.Multihash, v []indexer.Value) error {
+func checkResponse(r *model.FindResponse, mhs []multihash.Multihash, v []indexer.Value) error {
 	// Check if everything was returned.
 	if len(r.MultihashResults) != len(mhs) {
 		return fmt.Errorf("number of values send in responses not correct, expected %d got %d", len(mhs), len(r.MultihashResults))
@@ -178,7 +178,7 @@ func checkResponse(r *models.FindResponse, mhs []multihash.Multihash, v []indexe
 		}
 
 		// Check if same value
-		if !utils.EqualValues(r.MultihashResults[i].Values, v) {
+		if !util.EqualValues(r.MultihashResults[i].Values, v) {
 			return fmt.Errorf("wrong value included for a multihash: %s", v)
 		}
 	}

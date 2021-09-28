@@ -8,7 +8,7 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -27,7 +27,7 @@ func dsKey(k string) datastore.Key {
 // mkLinkSystem makes the indexer linkSystem which checks advertisement
 // signatures at storage. If the signature is not valid the traversal/exchange
 // is terminated.
-func mkLinkSystem(ds datastore.Batching, reg *providers.Registry) ipld.LinkSystem {
+func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
