@@ -246,13 +246,6 @@ func progressCids(n int64) {
 	}
 }
 
-var prefix = cid.Prefix{
-	Version:  1,
-	Codec:    cid.Raw,
-	MhType:   multihash.SHA2_256,
-	MhLength: -1, // default length
-}
-
 func randomCids(n int) ([]cid.Cid, error) {
 	prefix := cid.Prefix{
 		Version:  1,
