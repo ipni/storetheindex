@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/filecoin-project/storetheindex/internal/utils"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/record"
+	"github.com/multiformats/go-multiaddr"
 )
 
 // MakeRegisterRequest creates a signed peer.PeerRecord as a register request
@@ -16,9 +16,14 @@ func MakeRegisterRequest(providerID peer.ID, privateKey crypto.PrivKey, addrs []
 	if len(addrs) == 0 {
 		return nil, errors.New("missing address")
 	}
-	maddrs, err := utils.StringsToMultiaddrs(addrs)
-	if err != nil {
-		return nil, err
+
+	maddrs := make([]multiaddr.Multiaddr, len(addrs))
+	for i, m := range addrs {
+		var err error
+		maddrs[i], err = multiaddr.NewMultiaddr(m)
+		if err != nil {
+			return nil, fmt.Errorf("bad address: %s", err)
+		}
 	}
 
 	rec := peer.NewPeerRecord()

@@ -9,7 +9,12 @@ import (
 func TestDiscoverRequest(t *testing.T) {
 	const discoAddr = "td11223344"
 
-	data, err := MakeDiscoverRequest(providerIdent, discoAddr)
+	providerID, privKey, err := providerIdent.Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := MakeDiscoverRequest(providerID, privKey, discoAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
