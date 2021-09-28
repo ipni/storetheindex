@@ -7,7 +7,7 @@ import (
 	indexer "github.com/filecoin-project/go-indexer-core"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	httpserver "github.com/filecoin-project/storetheindex/server/ingest/http"
 	"github.com/filecoin-project/storetheindex/server/ingest/test"
 )
@@ -17,7 +17,7 @@ var providerIdent = config.Identity{
 	PrivKey: "CAESQLypOCKYR7HGwVl4ngNhEqMZ7opchNOUA4Qc1QDpxsARGr2pWUgkXFXKU27TgzIHXqw0tXaUVx2GIbUuLitq22c=",
 }
 
-func setupServer(ind indexer.Interface, reg *providers.Registry, t *testing.T) *httpserver.Server {
+func setupServer(ind indexer.Interface, reg *registry.Registry, t *testing.T) *httpserver.Server {
 	s, err := httpserver.New("127.0.0.1:0", ind, reg)
 	if err != nil {
 		t.Fatal(err)

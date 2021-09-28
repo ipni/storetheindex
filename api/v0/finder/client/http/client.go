@@ -11,7 +11,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/internal/httpclient"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -44,7 +44,7 @@ func New(baseURL string, options ...httpclient.Option) (*Client, error) {
 }
 
 // Find queries indexer entries for a multihash
-func (c *Client) Find(ctx context.Context, m multihash.Multihash) (*models.FindResponse, error) {
+func (c *Client) Find(ctx context.Context, m multihash.Multihash) (*model.FindResponse, error) {
 	u := c.baseURL + "/" + m.B58String()
 	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
@@ -55,11 +55,11 @@ func (c *Client) Find(ctx context.Context, m multihash.Multihash) (*models.FindR
 }
 
 // FindBatch queries indexer entries for a batch of multihashes
-func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*models.FindResponse, error) {
+func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*model.FindResponse, error) {
 	if len(mhs) == 0 {
-		return &models.FindResponse{}, nil
+		return &model.FindResponse{}, nil
 	}
-	data, err := models.MarshalFindRequest(&models.FindRequest{Multihashes: mhs})
+	data, err := model.MarshalFindRequest(&model.FindRequest{Multihashes: mhs})
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*mod
 	return c.sendRequest(req)
 }
 
-func (c *Client) sendRequest(req *http.Request) (*models.FindResponse, error) {
+func (c *Client) sendRequest(req *http.Request) (*model.FindResponse, error) {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.c.Do(req)
 	if err != nil {
@@ -80,7 +80,7 @@ func (c *Client) sendRequest(req *http.Request) (*models.FindResponse, error) {
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
 			log.Info("Entry not found in indexer")
-			return &models.FindResponse{}, nil
+			return &model.FindResponse{}, nil
 		}
 		return nil, fmt.Errorf("batch find query failed: %v", http.StatusText(resp.StatusCode))
 	}
@@ -91,7 +91,7 @@ func (c *Client) sendRequest(req *http.Request) (*models.FindResponse, error) {
 		return nil, err
 	}
 
-	return models.UnmarshalFindResponse(b)
+	return model.UnmarshalFindResponse(b)
 }
 
 // ImportFromManifest processes entries from manifest and imports them into the

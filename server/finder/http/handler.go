@@ -5,10 +5,10 @@ import (
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/internal/handler"
 	"github.com/filecoin-project/storetheindex/internal/httpserver"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gorilla/mux"
 	"github.com/multiformats/go-multihash"
 )
@@ -18,7 +18,7 @@ type httpHandler struct {
 	finderHandler *handler.FinderHandler
 }
 
-func newHandler(indexer indexer.Interface, registry *providers.Registry) *httpHandler {
+func newHandler(indexer indexer.Interface, registry *registry.Registry) *httpHandler {
 	return &httpHandler{
 		finderHandler: handler.NewFinderHandler(indexer, registry),
 	}
@@ -43,7 +43,7 @@ func (h *httpHandler) findBatch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
-	req, err := models.UnmarshalFindRequest(body)
+	req, err := model.UnmarshalFindRequest(body)
 	if err != nil {
 		log.Errorw("error unmarshalling get batch request", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
@@ -65,7 +65,7 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 		return
 	}
 
-	rb, err := models.MarshalFindResponse(response)
+	rb, err := model.MarshalFindResponse(response)
 	if err != nil {
 		log.Errorw("failed marshalling query response", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)

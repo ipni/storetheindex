@@ -8,7 +8,7 @@ import (
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/handler"
 	"github.com/filecoin-project/storetheindex/internal/httpserver"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gorilla/mux"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -17,7 +17,7 @@ type httpHandler struct {
 	ingestHandler *handler.IngestHandler
 }
 
-func newHandler(indexer indexer.Interface, registry *providers.Registry) *httpHandler {
+func newHandler(indexer indexer.Interface, registry *registry.Registry) *httpHandler {
 	return &httpHandler{
 		ingestHandler: handler.NewIngestHandler(indexer, registry),
 	}
@@ -106,7 +106,7 @@ func (h *httpHandler) RemoveProvider(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		unregReq := new(models.UnregisterRequest)
+		unregReq := new(model.UnregisterRequest)
 		err = unregReq.UnmarshalJSON(body)
 		if err != nil {
 			log.Errorw("error unmarshalling unregistration request", "err", err)

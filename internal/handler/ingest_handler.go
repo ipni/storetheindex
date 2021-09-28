@@ -7,8 +7,8 @@ import (
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -17,10 +17,10 @@ import (
 // that is common to all protocols
 type IngestHandler struct {
 	indexer  indexer.Interface
-	registry *providers.Registry
+	registry *registry.Registry
 }
 
-func NewIngestHandler(indexer indexer.Interface, registry *providers.Registry) *IngestHandler {
+func NewIngestHandler(indexer indexer.Interface, registry *registry.Registry) *IngestHandler {
 	return &IngestHandler{
 		indexer:  indexer,
 		registry: registry,
@@ -28,7 +28,7 @@ func NewIngestHandler(indexer indexer.Interface, registry *providers.Registry) *
 }
 
 func (h *IngestHandler) DiscoverProvider(data []byte) error {
-	discoReq, err := models.ReadDiscoverRequest(data)
+	discoReq, err := model.ReadDiscoverRequest(data)
 	if err != nil {
 		return fmt.Errorf("connot read discover request: %s", err)
 	}
@@ -41,7 +41,7 @@ func (h *IngestHandler) DiscoverProvider(data []byte) error {
 }
 
 func (h *IngestHandler) RegisterProvider(data []byte) error {
-	peerRec, err := models.ReadRegisterRequest(data)
+	peerRec, err := model.ReadRegisterRequest(data)
 	if err != nil {
 		return fmt.Errorf("cannot read register request: %s", err)
 	}
@@ -54,7 +54,7 @@ func (h *IngestHandler) RegisterProvider(data []byte) error {
 		return err
 	}
 
-	info := &providers.ProviderInfo{
+	info := &registry.ProviderInfo{
 		AddrInfo: peer.AddrInfo{
 			ID:    peerRec.PeerID,
 			Addrs: peerRec.Addrs,
@@ -66,9 +66,9 @@ func (h *IngestHandler) RegisterProvider(data []byte) error {
 func (h *IngestHandler) ListProviders() ([]byte, error) {
 	infos := h.registry.AllProviderInfo()
 
-	responses := make([]models.ProviderInfo, len(infos))
+	responses := make([]model.ProviderInfo, len(infos))
 	for i := range infos {
-		responses[i] = models.MakeProviderInfo(infos[i].AddrInfo, infos[i].LastIndex, infos[i].LastIndexTime)
+		responses[i] = model.MakeProviderInfo(infos[i].AddrInfo, infos[i].LastIndex, infos[i].LastIndexTime)
 	}
 
 	return json.Marshal(responses)
@@ -80,7 +80,7 @@ func (h *IngestHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 		return nil, nil
 	}
 
-	rsp := models.MakeProviderInfo(info.AddrInfo, info.LastIndex, info.LastIndexTime)
+	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastIndex, info.LastIndexTime)
 
 	return json.Marshal(&rsp)
 }
@@ -89,7 +89,7 @@ func (h *IngestHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 //
 // Returning error is the same as return syserr.New(err, http.StatusBadRequest)
 func (h *IngestHandler) IndexContent(data []byte) (bool, error) {
-	ingReq, err := models.ReadIngestRequest(data)
+	ingReq, err := model.ReadIngestRequest(data)
 	if err != nil {
 		return false, fmt.Errorf("cannot read ingest request: %s", err)
 	}

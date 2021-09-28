@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )
@@ -23,7 +23,7 @@ func (s *Server) URL() string {
 	return fmt.Sprint("http://", s.l.Addr().String())
 }
 
-func New(listen string, indexer indexer.Interface, registry *providers.Registry, options ...ServerOption) (*Server, error) {
+func New(listen string, indexer indexer.Interface, registry *registry.Registry, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err

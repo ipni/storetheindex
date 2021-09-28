@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/internal/utils"
+	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-datastore"
 	ipld "github.com/ipld/go-ipld-prime"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
@@ -44,7 +44,7 @@ func genCidsAndAdv(t *testing.T, lsys ipld.LinkSystem,
 
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	addr := "/ip4/127.0.0.1/tcp/9999"
-	mhs, _ := utils.RandomMultihashes(10)
+	mhs, _ := util.RandomMultihashes(10)
 	val := indexer.MakeValue(p, 0, mhs[0])
 	cidsLnk, err := NewListOfMhs(lsys, mhs)
 	if err != nil {
@@ -85,7 +85,7 @@ func TestChainAdvertisements(t *testing.T) {
 func TestLinkedList(t *testing.T) {
 	dstore := datastore.NewMapDatastore()
 	lsys := mkLinkSystem(dstore)
-	mhs, _ := utils.RandomMultihashes(10)
+	mhs, _ := util.RandomMultihashes(10)
 	lnk1, ch1, err := NewLinkedListOfMhs(lsys, mhs, nil)
 	if err != nil {
 		t.Fatal(err)

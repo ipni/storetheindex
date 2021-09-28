@@ -14,8 +14,8 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/client"
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/providers"
-	"github.com/filecoin-project/storetheindex/internal/utils"
+	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -46,7 +46,7 @@ func InitIndex(t *testing.T, withCache bool) indexer.Interface {
 }
 
 // InitRegistry initializes a new registry
-func InitRegistry(t *testing.T, trustedID string) *providers.Registry {
+func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 	var discoveryCfg = config.Discovery{
 		Policy: config.Policy{
 			Allow:       false,
@@ -57,7 +57,7 @@ func InitRegistry(t *testing.T, trustedID string) *providers.Registry {
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),
 	}
-	reg, err := providers.NewRegistry(discoveryCfg, nil, nil)
+	reg, err := registry.NewRegistry(discoveryCfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func PopulateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 	}
 }
 
-func RegisterProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *providers.Registry) {
+func RegisterProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -156,7 +156,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs, err := utils.RandomMultihashes(1)
+	mhs, err := util.RandomMultihashes(1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,11 +192,11 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 	}
 }
 
-func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface, newAddr string, reg *providers.Registry) {
+func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface, newAddr string, reg *registry.Registry) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs, err := utils.RandomMultihashes(1)
+	mhs, err := util.RandomMultihashes(1)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v0/ingest/models"
+	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 )
@@ -22,7 +22,7 @@ var ident = config.Identity{
 var providerID peer.ID
 
 var hnd *httpHandler
-var reg *providers.Registry
+var reg *registry.Registry
 
 type mockIndexer struct {
 	store map[string][]indexer.Value
@@ -65,7 +65,7 @@ func init() {
 	}
 
 	var err error
-	reg, err = providers.NewRegistry(discoveryCfg, nil, nil)
+	reg, err = registry.NewRegistry(discoveryCfg, nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -88,7 +88,7 @@ func TestRegisterProvider(t *testing.T) {
 	}
 
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
-	data, err := models.MakeRegisterRequest(peerID, privKey, addrs)
+	data, err := model.MakeRegisterRequest(peerID, privKey, addrs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestIndexContent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := models.MakeIngestRequest(peerID, privKey, m, 0, metadata, nil)
+	data, err := model.MakeIngestRequest(peerID, privKey, m, 0, metadata, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
