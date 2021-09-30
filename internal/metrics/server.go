@@ -21,15 +21,15 @@ var (
 
 // Measures
 var (
-	IngestCIDs    = stats.Int64("ingest/cids", "Number of CIDs ingested", stats.UnitDimensionless)
-	IngestChange  = stats.Int64("ingest/change", "Number of ingest triggers received", stats.UnitDimensionless)
-	ProviderCount = stats.Int64("provider/count", "Number of know (registered) providers", stats.UnitDimensionless)
+	IngestMultihashes = stats.Int64("ingest/mh", "Number of Multihashes ingested", stats.UnitDimensionless)
+	IngestChange      = stats.Int64("ingest/change", "Number of ingest triggers received", stats.UnitDimensionless)
+	ProviderCount     = stats.Int64("provider/count", "Number of know (registered) providers", stats.UnitDimensionless)
 )
 
 // Views
 var (
-	IngestCIDView = &view.View{
-		Measure:     IngestCIDs,
+	IngestMHView = &view.View{
+		Measure:     IngestMultihashes,
 		Aggregation: view.Count(),
 	}
 	IngestChangeView = &view.View{
@@ -44,7 +44,7 @@ var (
 )
 
 var DefaultViews = []*view.View{
-	IngestCIDView,
+	IngestMHView,
 	IngestChangeView,
 	ProviderView,
 }
