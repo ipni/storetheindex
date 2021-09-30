@@ -16,7 +16,7 @@ jobs:
       - run:
           name: docker build
           command: |
-            DOCKER_REPO=dealbot/storetheindex
+            DOCKER_REPO=filecoin/storetheindex
             DOCKER_TAG=$CIRCLE_SHA1
             echo "export DOCKER_REPO=$DOCKER_REPO" >> $BASH_ENV
             echo "export DOCKER_TAG=$DOCKER_TAG" >> $BASH_ENV
@@ -77,8 +77,8 @@ workflows:
               only: /^v[0-9]+(\.[0-9]+)*$/
       - deploy-lotusinfra:
           name: deploy-mainnet-storetheindex
-          chart: filecoin/dealbot
-          chart_version: 0.0.12
+          chart: filecoin/lotus-bundle
+          chart_version: 0.0.10
           circle_context: sentinel-staging-deploy
           kubernetes_cluster: mainnet-us-east-2-dev-eks
           aws_region: us-east-2
