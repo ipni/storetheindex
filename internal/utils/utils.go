@@ -2,12 +2,14 @@ package utils
 
 import (
 	"bytes"
+	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
 
@@ -85,4 +87,21 @@ func HasValue(values []indexer.Value, v indexer.Value) bool {
 
 func TestPeerID() (peer.ID, error) {
 	return peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
+}
+
+// StringsToMultiaddrs converts a slice of string into a slice of Multiaddr
+func StringsToMultiaddrs(addrs []string) ([]multiaddr.Multiaddr, error) {
+	if len(addrs) == 0 {
+		return nil, nil
+	}
+
+	maddrs := make([]multiaddr.Multiaddr, len(addrs))
+	for i, m := range addrs {
+		var err error
+		maddrs[i], err = multiaddr.NewMultiaddr(m)
+		if err != nil {
+			return nil, fmt.Errorf("bad address: %s", err)
+		}
+	}
+	return maddrs, nil
 }

@@ -12,21 +12,21 @@ import (
 var importCidList = &cli.Command{
 	Name:   "cidlist",
 	Usage:  "Import indexer data from cidList",
-	Flags:  ImportFlags,
+	Flags:  importFlags,
 	Action: importListCmd,
 }
 
 var importCar = &cli.Command{
 	Name:   "car",
 	Usage:  "Import indexer data from car",
-	Flags:  ImportFlags,
+	Flags:  importFlags,
 	Action: importCarCmd,
 }
 
 var importManifest = &cli.Command{
 	Name:   "manifest",
 	Usage:  "Import manifest of CID aggregator",
-	Flags:  ImportFlags,
+	Flags:  importFlags,
 	Action: importManifestCmd,
 }
 var ImportCmd = &cli.Command{
@@ -42,7 +42,7 @@ var ImportCmd = &cli.Command{
 func importListCmd(cctx *cli.Context) error {
 	// NOTE: Importing manually from CLI only supported for http protocol
 	// for now. This feature is mainly for testing purposes
-	cl, err := httpclient.NewFinder(cctx.String("indexer-host"))
+	cl, err := httpclient.New(cctx.String("indexer-host"))
 	if err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func importCarCmd(c *cli.Context) error {
 }
 
 func importManifestCmd(cctx *cli.Context) error {
-	cl, err := httpclient.NewFinder(cctx.String("indexer-host"))
+	cl, err := httpclient.New(cctx.String("indexer-host"))
 	if err != nil {
 		return err
 	}

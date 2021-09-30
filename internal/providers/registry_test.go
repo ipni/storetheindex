@@ -81,9 +81,14 @@ func TestNewRegistryDiscovery(t *testing.T) {
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
+	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/3002")
+	if err != nil {
+		t.Fatalf("Cannot create multiaddr: %s", err)
+	}
 	info := &ProviderInfo{
 		AddrInfo: peer.AddrInfo{
-			ID: peerID,
+			ID:    peerID,
+			Addrs: []multiaddr.Multiaddr{maddr},
 		},
 	}
 
@@ -139,9 +144,14 @@ func TestDiscoveryAllowed(t *testing.T) {
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
+	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/3002")
+	if err != nil {
+		t.Fatalf("Cannot create multiaddr: %s", err)
+	}
 	info = &ProviderInfo{
 		AddrInfo: peer.AddrInfo{
-			ID: peerID,
+			ID:    peerID,
+			Addrs: []multiaddr.Multiaddr{maddr},
 		},
 	}
 	err = r.Register(info)

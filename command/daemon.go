@@ -25,6 +25,7 @@ import (
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/urfave/cli/v2"
@@ -43,7 +44,7 @@ var (
 var DaemonCmd = &cli.Command{
 	Name:   "daemon",
 	Usage:  "Start an indexer daemon, accepting http requests",
-	Flags:  DaemonFlags,
+	Flags:  daemonFlags,
 	Action: daemonCommand,
 }
 
@@ -82,14 +83,13 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 	if cacheSize > 0 {
 		resultCache = radixcache.New(cacheSize)
-		log.Infow("result cache enabled", "size", cacheSize)
+		log.Infow("Result cache enabled", "size", cacheSize)
 	} else {
-		log.Info("result cache disabled")
+		log.Info("Result cache disabled")
 	}
 
 	// Create indexer core
 	indexerCore := engine.New(resultCache, valueStore)
-	log.Infow("Indexer engine initialized")
 
 	// Create datastore
 	dataStorePath, err := config.Path("", cfg.Datastore.Dir)
@@ -134,7 +134,6 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Infow("finder server initialized", "address", finderAddr)
 
 	// Create ingest HTTP server
 	maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Ingest)
@@ -149,7 +148,6 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Infow("ingest server initialized", "address", finderAddr)
 
 	var (
 		cancelP2pServers context.CancelFunc
@@ -184,12 +182,23 @@ func daemonCommand(cctx *cli.Context) error {
 		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)
 
 		// Initialize ingester if libp2p enabled.
-		ingester, err = legingest.NewLegIngester(ctx, cfg.Ingest, p2pHost, indexerCore, dstore)
+		ingester, err = legingest.NewLegIngester(ctx, cfg.Ingest, p2pHost, indexerCore, registry, dstore)
 		if err != nil {
 			return err
 		}
-		log.Infow("libp2p ingester initialized")
-		// TODO: Make some initial subscriptions using providers from the registry?
+		log.Info("libp2p ingester initialized")
+
+		// Subscribe to pubsub channel if a pubsub host is configured
+		if cfg.Ingest.PubSubPeer != "" {
+			peerID, err := peer.Decode(cfg.Ingest.PubSubPeer)
+			if err != nil {
+				return fmt.Errorf("bad PubSubPeer in config: %s", err)
+			}
+			err = ingester.Subscribe(context.Background(), peerID)
+			if err != nil {
+				log.Errorf("Cannot subscribe to provider", "err", err)
+			}
+		}
 	}
 
 	// Create admin HTTP server
@@ -205,9 +214,8 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Infow("admin server initialized", "address", adminAddr)
 
-	log.Info("Starting daemon servers")
+	log.Info("Starting http servers")
 	errChan := make(chan error, 3)
 	go func() {
 		errChan <- adminSvr.Start()
@@ -274,7 +282,7 @@ func daemonCommand(cctx *cli.Context) error {
 
 	cancel()
 
-	log.Infow("node stopped")
+	log.Info("Indexer stopped")
 	return finalErr
 }
 

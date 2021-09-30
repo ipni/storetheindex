@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 	"github.com/urfave/cli/v2"
@@ -23,7 +21,7 @@ const getTimeout = 15 * time.Second
 var FindCmd = &cli.Command{
 	Name:   "find",
 	Usage:  "Find value by multihash in idexer",
-	Flags:  ClientCmdFlags,
+	Flags:  findFlags,
 	Action: findCmd,
 }
 
@@ -62,30 +60,26 @@ func findCmd(cctx *cli.Context) error {
 
 	switch protocol {
 	case "http":
-		cl, err = httpclient.NewFinder(cctx.String("indexer-host"))
+		cl, err = httpclient.New(cctx.String("indexer"))
 		if err != nil {
 			return err
 		}
 	case "libp2p":
-		// NOTE: Creaeting a new host just for querying purposes.
-		// Libp2p protocol requests from CLI should only be used
-		// for testing purposes. This interface is in place
-		// for long-running peers.
-		var host host.Host
-		host, err = libp2p.New(ctx)
+		peerID, err := peer.Decode(cctx.String("peerid"))
 		if err != nil {
 			return err
 		}
 
-		peerID, err := peer.Decode(cctx.String("indexer-host"))
+		c, err := p2pclient.New(nil, peerID)
 		if err != nil {
 			return err
 		}
 
-		cl, err = p2pclient.NewFinder(ctx, host, peerID)
+		err = c.Connect(cctx.Context, cctx.String("indexerer"))
 		if err != nil {
 			return err
 		}
+		cl = c
 	default:
 		return fmt.Errorf("unrecognized protocol type for client interaction: %s", protocol)
 	}

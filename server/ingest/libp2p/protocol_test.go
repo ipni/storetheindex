@@ -30,46 +30,40 @@ func setupServer(ctx context.Context, ind indexer.Interface, reg *providers.Regi
 	return s, h
 }
 
-func setupClient(ctx context.Context, peerID peer.ID, t *testing.T) (*p2pclient.Ingest, host.Host) {
-	h, err := libp2p.New(context.Background(), libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+func setupClient(peerID peer.ID, t *testing.T) *p2pclient.Client {
+	c, err := p2pclient.New(nil, peerID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := p2pclient.NewIngest(ctx, h, peerID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return c, h
-}
-
-func connect(ctx context.Context, t *testing.T, h1 host.Host, h2 host.Host) {
-	if err := h1.Connect(ctx, *host.InfoFromHost(h2)); err != nil {
-		t.Fatal(err)
-	}
+	return c
 }
 
 func TestRegisterProvider(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	peerID, privKey, err := providerIdent.Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t, providerIdent.PeerID)
 	s, sh := setupServer(ctx, ind, reg, t)
-	p2pClient, ch := setupClient(ctx, s.ID(), t)
-	connect(ctx, t, ch, sh)
-
-	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
-	test.RegisterProviderTest(t, p2pClient, providerIdent, addrs, reg)
-
-	peerID, err := peer.Decode(providerIdent.PeerID)
+	p2pClient := setupClient(s.ID(), t)
+	err = p2pClient.ConnectAddrs(ctx, sh.Addrs()...)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	test.RegisterProviderTest(t, p2pClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
 
 	test.GetProviderTest(t, p2pClient, peerID)
 
 	test.ListProvidersTest(t, p2pClient, peerID)
 
-	test.IndexContent(t, p2pClient, providerIdent, ind)
+	test.IndexContent(t, p2pClient, peerID, privKey, ind)
+
+	test.IndexContentNewAddr(t, p2pClient, peerID, privKey, ind, "/ip4/127.0.0.1/tcp/7777", reg)
 }

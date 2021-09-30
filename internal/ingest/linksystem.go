@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"encoding/base64"
 	"io"
+	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
+	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-graphsync"
@@ -24,7 +27,7 @@ func dsKey(k string) datastore.Key {
 // mkLinkSystem makes the indexer linkSystem which checks advertisement
 // signatures at storage. If the signature is not valid the traversal/exchange
 // is terminated.
-func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
+func mkLinkSystem(ds datastore.Batching, reg *providers.Registry) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
@@ -56,10 +59,36 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 					return err
 				}
 
+				addrs, err := schema.IpldToGoStrings(ad.FieldAddresses())
+				if err != nil {
+					log.Error("Could not get addresses from advertisement")
+					return syserr.New(err, http.StatusBadRequest)
+				}
+
+				// If addresses are included with the advertisement
+				if len(addrs) != 0 {
+					provider, err := ad.FieldProvider().AsString()
+					if err != nil {
+						log.Errorf("Could not get provider from advertisement: %s", err)
+						return err
+					}
+
+					provID, err := peer.Decode(provider)
+					if err != nil {
+						log.Errorf("Could not decode advertisement provider ID: %s", err)
+						return syserr.New(err, http.StatusBadRequest)
+					}
+
+					err = reg.RegisterOrUpdate(provID, addrs)
+					if err != nil {
+						return err
+					}
+				}
+
 				// Store entries link into the reverse map
 				// so we have a way of identifying what advertisementID
 				// announced these entries when we come across the link
-				log.Debugf("Setting reverse map for entries after receiving advertisement")
+				log.Debug("Setting reverse map for entries after receiving advertisement")
 				elnk, err := ad.FieldEntries().AsLink()
 				if err != nil {
 
@@ -72,11 +101,11 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 					return err
 				}
 
-				log.Debugf("lsys - Persisting new advertisement")
+				log.Debug("Persisting new advertisement")
 				// Persist the advertisement
 				return ds.Put(dsKey(c.String()), origBuf)
 			}
-			log.Debugf("lsys - Persisting an IPLD node not of type advertisement")
+			log.Debug("Persisting an IPLD node not of type advertisement")
 			// Any other type of node (like entries) are stored right away.
 			return ds.Put(dsKey(c.String()), origBuf)
 		}, nil
@@ -116,7 +145,7 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, error) {
 // to process them and ingest into the indexer core.
 func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 	return func(p peer.ID, responseData graphsync.ResponseData, blockData graphsync.BlockData, hookActions graphsync.IncomingBlockHookActions) {
-		log.Debugf("hook - Triggering hooko after a block has been stored")
+		log.Debug("hook - Triggering hooko after a block has been stored")
 		// Get cid of the node received.
 		c := blockData.Link().(cidlink.Link).Cid
 
@@ -139,7 +168,7 @@ func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 		if !isAdvertisement(nentries) {
 			// Get the advertisement ID corresponding to the link.
 			// From the reverse map.
-			log.Debugf("hook - Not an advertisement, let's start ingesting entries")
+			log.Debug("hook - Not an advertisement, let's start ingesting entries")
 			val, err := i.ds.Get(dsKey(admapPrefix + c.String()))
 			if err != nil {
 				log.Errorf("Error while fetching the advertisementID for entries map: %s", err)
@@ -149,7 +178,7 @@ func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 				log.Errorf("Error casting Cid for advertisement: %s", err)
 			}
 
-			log.Debugf("hook - Processing entries from an advertisement")
+			log.Debug("hook - Processing entries from an advertisement")
 			// Process entries and ingest them.
 			err = i.processEntries(adCid, p, nentries)
 			if err != nil {
@@ -164,7 +193,7 @@ func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 				log.Errorf("Error deleting cid-advertisement mapping for entries: %s", err)
 			}
 
-			log.Debugf("hook - Removing entries from datastore to prevent entries from being stored redundantly")
+			log.Debug("hook - Removing entries from datastore to prevent entries from being stored redundantly")
 			// When we are finished processing the index we can remove
 			// it from the datastore (we don't want redundant information
 			// in several datastores).
@@ -245,7 +274,7 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 				return err
 			}
 		}
-		log.Debugf("Success processing entry", "multihash", base64.StdEncoding.EncodeToString(h))
+		log.Debugw("Processed entry", "multihash", base64.StdEncoding.EncodeToString(h))
 	}
 
 	// If there is a next link, update the mapping so we know the AdID

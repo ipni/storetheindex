@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -14,11 +15,13 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/providers/discovery"
 	"github.com/filecoin-project/storetheindex/internal/providers/policy"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
+	"github.com/filecoin-project/storetheindex/internal/utils"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"go.opencensus.io/stats"
 )
 
@@ -174,6 +177,10 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 // Register is used to directly register a provider, bypassing discovery and
 // adding discovered data directly to the registry.
 func (r *Registry) Register(info *ProviderInfo) error {
+	if len(info.AddrInfo.Addrs) == 0 {
+		return syserr.New(errors.New("missing provider address"), http.StatusBadRequest)
+	}
+
 	// If provider is not allowed, then ignore request
 	if !r.policy.Allowed(info.AddrInfo.ID) {
 		return syserr.New(ErrNotAllowed, http.StatusForbidden)
@@ -194,8 +201,76 @@ func (r *Registry) Register(info *ProviderInfo) error {
 		return err
 	}
 
-	log.Infow("registered provider", "id", info.AddrInfo.ID)
+	log.Infow("registered provider", "id", info.AddrInfo.ID, "addrs", info.AddrInfo.Addrs)
 	return nil
+}
+
+// RegisterOrUpdate attempts to register an unregistered provider, or updates
+// the addresses of an already registered provider
+func (r *Registry) RegisterOrUpdate(providerID peer.ID, addrs []string) error {
+	// Check that the provider has been discovered and validated
+	info := r.ProviderInfo(providerID)
+	if info == nil {
+		if len(addrs) == 0 {
+			return errors.New("cannot regiser provider with no address")
+		}
+
+		maddrs, err := utils.StringsToMultiaddrs(addrs)
+		if err != nil {
+			return err
+		}
+
+		info = &ProviderInfo{
+			AddrInfo: peer.AddrInfo{
+				ID:    providerID,
+				Addrs: maddrs,
+			},
+		}
+
+		return r.Register(info)
+	}
+
+	if len(addrs) == 0 {
+		// Nothing to update
+		return nil
+	}
+
+	// If the registered addresses are different than those provided, then
+	// re-register with new address
+	var (
+		err    error
+		maddrs []multiaddr.Multiaddr
+		update bool
+	)
+	if len(addrs) != len(info.AddrInfo.Addrs) {
+		update = true
+	} else {
+		maddrs, err = utils.StringsToMultiaddrs(addrs)
+		if err != nil {
+			return err
+		}
+
+		for i := range maddrs {
+			if !maddrs[i].Equal(info.AddrInfo.Addrs[i]) {
+				update = true
+				break
+			}
+		}
+	}
+
+	if !update {
+		return nil
+	}
+
+	if maddrs == nil {
+		maddrs, err = utils.StringsToMultiaddrs(addrs)
+		if err != nil {
+			return err
+		}
+	}
+	info.AddrInfo.Addrs = maddrs
+
+	return r.Register(info)
 }
 
 // IsRegistered checks if the provider is in the registry

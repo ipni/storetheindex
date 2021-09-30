@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/filecoin-project/storetheindex/config"
+	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/record"
 )
@@ -49,20 +49,16 @@ func (r *DiscoverRequest) MarshalRecord() ([]byte, error) {
 	return json.Marshal(r)
 }
 
-// MakeDiscoverRequest creates a signed DiscoverRequest and marshals it into bytes
-func MakeDiscoverRequest(providerIdent config.Identity, discoveryAddr string) ([]byte, error) {
-	providerID, privKey, err := providerIdent.Decode()
-	if err != nil {
-		return nil, err
-	}
-
+// MakeDiscoverRequest creates a signed DiscoverRequest and marshals it into
+// bytes
+func MakeDiscoverRequest(providerID peer.ID, privateKey crypto.PrivKey, discoveryAddr string) ([]byte, error) {
 	req := &DiscoverRequest{
 		ProviderID:    providerID,
 		DiscoveryAddr: discoveryAddr,
 		Seq:           peer.TimestampSeq(),
 	}
 
-	return makeRequestEnvelop(req, privKey)
+	return makeRequestEnvelop(req, privateKey)
 }
 
 // ReadDiscoverRequest unmarshals a DiscoverRequest from bytes, verifies the

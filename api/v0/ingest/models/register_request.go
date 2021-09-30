@@ -1,9 +1,10 @@
 package models
 
 import (
+	"errors"
 	"fmt"
 
-	"github.com/filecoin-project/storetheindex/config"
+	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/record"
 	"github.com/multiformats/go-multiaddr"
@@ -11,29 +12,25 @@ import (
 
 // MakeRegisterRequest creates a signed peer.PeerRecord as a register request
 // and marshals this into bytes
-func MakeRegisterRequest(providerID, privateKey string, addrs []string) ([]byte, error) {
-	providerIdent := config.Identity{
-		PeerID:  providerID,
-		PrivKey: privateKey,
-	}
-	peerID, privKey, err := providerIdent.Decode()
-	if err != nil {
-		return nil, err
+func MakeRegisterRequest(providerID peer.ID, privateKey crypto.PrivKey, addrs []string) ([]byte, error) {
+	if len(addrs) == 0 {
+		return nil, errors.New("missing address")
 	}
 
 	maddrs := make([]multiaddr.Multiaddr, len(addrs))
 	for i, m := range addrs {
+		var err error
 		maddrs[i], err = multiaddr.NewMultiaddr(m)
 		if err != nil {
-			return nil, fmt.Errorf("bad provider address: %s", err)
+			return nil, fmt.Errorf("bad address: %s", err)
 		}
 	}
 
 	rec := peer.NewPeerRecord()
-	rec.PeerID = peerID
+	rec.PeerID = providerID
 	rec.Addrs = maddrs
 
-	return makeRequestEnvelop(rec, privKey)
+	return makeRequestEnvelop(rec, privateKey)
 }
 
 // ReadRegisterRequest unmarshals a peer.PeerRequest from bytes, verifies the

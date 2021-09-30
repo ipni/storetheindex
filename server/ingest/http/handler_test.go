@@ -45,6 +45,7 @@ func (m *mockIndexer) Put(mh multihash.Multihash, value indexer.Value) (bool, er
 func (m *mockIndexer) Get(mh multihash.Multihash) ([]indexer.Value, bool, error) {
 	return nil, false, nil
 }
+func (m *mockIndexer) Iter() (indexer.Iterator, error)                              { return nil, nil }
 func (m *mockIndexer) PutMany(mhs []multihash.Multihash, value indexer.Value) error { return nil }
 func (m *mockIndexer) Remove(mh multihash.Multihash, value indexer.Value) (bool, error) {
 	return false, nil
@@ -81,7 +82,13 @@ func init() {
 }
 
 func TestRegisterProvider(t *testing.T) {
-	data, err := models.MakeRegisterRequest(ident.PeerID, ident.PrivKey, nil)
+	peerID, privKey, err := ident.Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
+	data, err := models.MakeRegisterRequest(peerID, privKey, addrs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +104,7 @@ func TestRegisterProvider(t *testing.T) {
 		t.Fatal("expected response to be", http.StatusOK)
 	}
 
-	pinfo := reg.ProviderInfo(providerID)
+	pinfo := reg.ProviderInfo(peerID)
 	if pinfo == nil {
 		t.Fatal("provider was not registered")
 	}
@@ -110,7 +117,12 @@ func TestIndexContent(t *testing.T) {
 	}
 	metadata := []byte("hello world")
 
-	data, err := models.MakeIngestRequest(ident.PeerID, ident.PrivKey, m, 0, metadata)
+	peerID, privKey, err := ident.Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := models.MakeIngestRequest(peerID, privKey, m, 0, metadata, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
