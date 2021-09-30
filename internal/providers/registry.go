@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/providers/discovery"
 	"github.com/filecoin-project/storetheindex/internal/providers/policy"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
@@ -21,6 +22,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"go.opencensus.io/stats"
 )
 
 const (
@@ -283,7 +285,7 @@ func (r *Registry) IsRegistered(providerID peer.ID) bool {
 	return found
 }
 
-// ProciverInfoByAddr finds a registered provider using its discovery address
+// ProviderInfoByAddr finds a registered provider using its discovery address
 func (r *Registry) ProviderInfoByAddr(discoAddr string) *ProviderInfo {
 	infoChan := make(chan *ProviderInfo)
 	r.actions <- func() {
@@ -304,6 +306,7 @@ func (r *Registry) ProviderInfoByAddr(discoAddr string) *ProviderInfo {
 func (r *Registry) ProviderInfo(providerID peer.ID) *ProviderInfo {
 	infoChan := make(chan *ProviderInfo)
 	r.actions <- func() {
+		stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(r.providers))))
 		info, ok := r.providers[providerID]
 		if ok {
 			infoChan <- info
