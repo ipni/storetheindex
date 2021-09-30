@@ -50,7 +50,6 @@ jobs:
             --header "Circle-Token: $CIRCLE_TOKEN" \
             --header "content-type: application/json" \
             --data "{
-              \"branch\": \"storetheindex\",
               \"parameters\":{
                 \"api_workflow_requested\": \"helm-deploy\",
                 \"circle_context\": \"<< parameters.circle_context >>\",
@@ -74,7 +73,8 @@ workflows:
             - filecoin-dockerhub-publish
           filters:
             tags:
-              only: /^v[0-9]+(\.[0-9]+)*$/
+              only:
+                - main
       - deploy-lotusinfra:
           name: deploy-mainnet-storetheindex
           chart: filecoin/lotus-bundle
@@ -86,7 +86,7 @@ workflows:
           release: storetheindex-0
           requires:
             - build-push
-          # filters:
-          #   branches:
-          #     only:
-          #       - main
+          filters:
+            branches:
+              only:
+                - main
