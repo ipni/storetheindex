@@ -31,7 +31,7 @@ func main() {
 			fmt.Println("(Hit ctrl-c again to force-shutdown the daemon.)")
 		case <-ctx.Done():
 		}
-		// Allow any forther SIGTERM or SIGING to kill process
+		// Allow any further SIGTERM or SIGINT to kill process
 		signal.Stop(interrupt)
 	}()
 
