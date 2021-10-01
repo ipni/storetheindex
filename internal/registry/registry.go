@@ -1,4 +1,4 @@
-package providers
+package registry
 
 import (
 	"context"
@@ -11,16 +11,17 @@ import (
 	"time"
 
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/providers/discovery"
-	"github.com/filecoin-project/storetheindex/internal/providers/policy"
+	"github.com/filecoin-project/storetheindex/internal/metrics"
+	"github.com/filecoin-project/storetheindex/internal/registry/discovery"
+	"github.com/filecoin-project/storetheindex/internal/registry/policy"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
-	"github.com/filecoin-project/storetheindex/internal/utils"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"go.opencensus.io/stats"
 )
 
 const (
@@ -28,7 +29,7 @@ const (
 	providerKeyPath = "/registry/pinfo"
 )
 
-var log = logging.Logger("providers")
+var log = logging.Logger("registry")
 
 // Registry stores information about discovered providers
 type Registry struct {
@@ -213,7 +214,7 @@ func (r *Registry) RegisterOrUpdate(providerID peer.ID, addrs []string) error {
 			return errors.New("cannot regiser provider with no address")
 		}
 
-		maddrs, err := utils.StringsToMultiaddrs(addrs)
+		maddrs, err := stringsToMultiaddrs(addrs)
 		if err != nil {
 			return err
 		}
@@ -233,39 +234,27 @@ func (r *Registry) RegisterOrUpdate(providerID peer.ID, addrs []string) error {
 		return nil
 	}
 
-	// If the registered addresses are different than those provided, then
-	// re-register with new address
-	var (
-		err    error
-		maddrs []multiaddr.Multiaddr
-		update bool
-	)
-	if len(addrs) != len(info.AddrInfo.Addrs) {
-		update = true
-	} else {
-		maddrs, err = utils.StringsToMultiaddrs(addrs)
-		if err != nil {
-			return err
-		}
+	maddrs, err := stringsToMultiaddrs(addrs)
+	if err != nil {
+		return err
+	}
 
+	// If the registered addresses are different than those provided, then
+	// re-register with new address.
+	if len(addrs) == len(info.AddrInfo.Addrs) {
+		var update bool
 		for i := range maddrs {
 			if !maddrs[i].Equal(info.AddrInfo.Addrs[i]) {
 				update = true
 				break
 			}
 		}
-	}
-
-	if !update {
-		return nil
-	}
-
-	if maddrs == nil {
-		maddrs, err = utils.StringsToMultiaddrs(addrs)
-		if err != nil {
-			return err
+		if !update {
+			// All addrs are the same, so nothing to update.
+			return nil
 		}
 	}
+
 	info.AddrInfo.Addrs = maddrs
 
 	return r.Register(info)
@@ -283,7 +272,7 @@ func (r *Registry) IsRegistered(providerID peer.ID) bool {
 	return found
 }
 
-// ProciverInfoByAddr finds a registered provider using its discovery address
+// ProviderInfoByAddr finds a registered provider using its discovery address
 func (r *Registry) ProviderInfoByAddr(discoAddr string) *ProviderInfo {
 	infoChan := make(chan *ProviderInfo)
 	r.actions <- func() {
@@ -304,6 +293,7 @@ func (r *Registry) ProviderInfoByAddr(discoAddr string) *ProviderInfo {
 func (r *Registry) ProviderInfo(providerID peer.ID) *ProviderInfo {
 	infoChan := make(chan *ProviderInfo)
 	r.actions <- func() {
+		stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(r.providers))))
 		info, ok := r.providers[providerID]
 		if ok {
 			infoChan <- info
@@ -501,4 +491,21 @@ func (r *Registry) cleanup() {
 
 func (r *Registry) pollProviders() {
 	// TODO: Poll providers that have not been contacted for more than pollInterval.
+}
+
+// stringsToMultiaddrs converts a slice of string into a slice of Multiaddr
+func stringsToMultiaddrs(addrs []string) ([]multiaddr.Multiaddr, error) {
+	if len(addrs) == 0 {
+		return nil, nil
+	}
+
+	maddrs := make([]multiaddr.Multiaddr, len(addrs))
+	for i, m := range addrs {
+		var err error
+		maddrs[i], err = multiaddr.NewMultiaddr(m)
+		if err != nil {
+			return nil, fmt.Errorf("bad address: %s", err)
+		}
+	}
+	return maddrs, nil
 }

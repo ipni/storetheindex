@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"runtime"
 	"testing"
 	"time"
@@ -18,9 +17,9 @@ import (
 	"github.com/filecoin-project/go-legs"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/providers"
-	"github.com/filecoin-project/storetheindex/internal/utils"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	pclient "github.com/filecoin-project/storetheindex/providerclient"
+	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
@@ -39,8 +38,6 @@ import (
 var ingestCfg = config.Ingest{
 	PubSubTopic: "test/ingest",
 }
-
-var prefix = schema.Linkproto.Prefix
 
 func TestSubscribe(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -210,7 +207,7 @@ func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
 	return engine.New(resultCache, valueStore)
 }
 
-func mkRegistry(t *testing.T) *providers.Registry {
+func mkRegistry(t *testing.T) *registry.Registry {
 	discoveryCfg := config.Discovery{
 		Policy: config.Policy{
 			Allow: true,
@@ -219,7 +216,7 @@ func mkRegistry(t *testing.T) *providers.Registry {
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),
 	}
-	reg, err := providers.NewRegistry(discoveryCfg, nil, nil)
+	reg, err := registry.NewRegistry(discoveryCfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,22 +261,6 @@ func mkIngest(t *testing.T, h host.Host) *legIngester {
 	return i.(*legIngester)
 }
 
-func RandomCids(n int) ([]cid.Cid, error) {
-	var prng = rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	res := make([]cid.Cid, n)
-	for i := 0; i < n; i++ {
-		b := make([]byte, 10*n)
-		prng.Read(b)
-		c, err := prefix.Sum(b)
-		if err != nil {
-			return nil, err
-		}
-		res[i] = c
-	}
-	return res, nil
-}
-
 func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 	srcHost.Peerstore().AddAddrs(dstHost.ID(), dstHost.Addrs(), time.Hour)
 	dstHost.Peerstore().AddAddrs(srcHost.ID(), srcHost.Addrs(), time.Hour)
@@ -290,12 +271,12 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 
 func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash) {
 	out := []multihash.Multihash{}
-	mhs, _ := utils.RandomMultihashes(10)
+	mhs, _ := util.RandomMultihashes(10)
 	out = append(out, mhs...)
 	nextLnk, _, err := schema.NewLinkedListOfMhs(lsys, mhs, nil)
 	require.NoError(t, err)
 	for i := 1; i < size; i++ {
-		mhs, _ := utils.RandomMultihashes(10)
+		mhs, _ := util.RandomMultihashes(10)
 		nextLnk, _, err = schema.NewLinkedListOfMhs(lsys, mhs, nextLnk)
 		require.NoError(t, err)
 		out = append(out, mhs...)
@@ -304,7 +285,7 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 }
 
 func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash) {
-	mhs, _ := utils.RandomMultihashes(1)
+	mhs, _ := util.RandomMultihashes(1)
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")

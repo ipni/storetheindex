@@ -1,15 +1,15 @@
-package models
+package model
 
 import (
 	"bytes"
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/internal/utils"
+	"github.com/filecoin-project/storetheindex/test/util"
 )
 
 func TestIngestRequest(t *testing.T) {
-	mhs, err := utils.RandomMultihashes(1)
+	mhs, err := util.RandomMultihashes(1)
 	if err != nil {
 		t.Fatal(err)
 	}

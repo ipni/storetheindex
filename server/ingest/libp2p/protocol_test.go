@@ -8,7 +8,7 @@ import (
 	p2pclient "github.com/filecoin-project/storetheindex/api/v0/ingest/client/libp2p"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	p2pserver "github.com/filecoin-project/storetheindex/server/ingest/libp2p"
 	"github.com/filecoin-project/storetheindex/server/ingest/test"
 	"github.com/libp2p/go-libp2p"
@@ -21,7 +21,7 @@ var providerIdent = config.Identity{
 	PrivKey: "CAESQLypOCKYR7HGwVl4ngNhEqMZ7opchNOUA4Qc1QDpxsARGr2pWUgkXFXKU27TgzIHXqw0tXaUVx2GIbUuLitq22c=",
 }
 
-func setupServer(ctx context.Context, ind indexer.Interface, reg *providers.Registry, t *testing.T) (*libp2pserver.Server, host.Host) {
+func setupServer(ctx context.Context, ind indexer.Interface, reg *registry.Registry, t *testing.T) (*libp2pserver.Server, host.Host) {
 	h, err := libp2p.New(context.Background(), libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
 	if err != nil {
 		t.Fatal(err)

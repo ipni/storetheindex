@@ -6,7 +6,8 @@ import (
 	indexer "github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/metrics"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	pclient "github.com/filecoin-project/storetheindex/providerclient"
 	pclientp2p "github.com/filecoin-project/storetheindex/providerclient/libp2p"
 	"github.com/gammazero/keymutex"
@@ -16,6 +17,8 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 )
 
 var log = logging.Logger("indexer/ingest")
@@ -60,7 +63,7 @@ type subscriber struct {
 
 // NewLegIngester creates a new go-legs-backed ingester.
 func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
-	idxr *indexer.Engine, reg *providers.Registry, ds datastore.Batching) (LegIngester, error) {
+	idxr *indexer.Engine, reg *registry.Registry, ds datastore.Batching) (LegIngester, error) {
 
 	lsys := mkLinkSystem(ds, reg)
 	lt, err := legs.MakeLegTransport(context.Background(), h, ds, lsys, cfg.PubSubTopic)
@@ -313,6 +316,10 @@ func (i *legIngester) putLatestSync(peerID peer.ID, c cid.Cid) error {
 	if c == cid.Undef {
 		return nil
 	}
+	stats.RecordWithOptions(context.Background(),
+		stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
+		stats.WithMeasurements(metrics.IngestChange.M(1)))
+
 	return i.ds.Put(datastore.NewKey(syncPrefix+peerID.String()), c.Bytes())
 }
 

@@ -1,4 +1,4 @@
-package models
+package model
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/go-indexer-core/store/test"
-	"github.com/filecoin-project/storetheindex/internal/utils"
+	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -32,7 +32,7 @@ func TestMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !utils.EqualMultihashes(r.Multihashes, mhs) {
+	if !util.EqualMultihashes(r.Multihashes, mhs) {
 		t.Fatal("Request marshal/unmarshal not correct")
 	}
 
@@ -73,7 +73,7 @@ func EqualMultihashResult(res1, res2 []MultihashResult) bool {
 		return false
 	}
 	for i := range res1 {
-		if !bytes.Equal([]byte(res1[i].Multihash), []byte(res2[i].Multihash)) || !utils.EqualValues(res1[i].Values, res2[i].Values) {
+		if !bytes.Equal([]byte(res1[i].Multihash), []byte(res2[i].Multihash)) || !util.EqualValues(res1[i].Values, res2[i].Values) {
 			return false
 		}
 	}

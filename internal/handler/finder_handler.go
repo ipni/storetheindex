@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
@@ -15,10 +15,10 @@ import (
 // that is common to all protocols
 type FinderHandler struct {
 	indexer  indexer.Interface
-	registry *providers.Registry
+	registry *registry.Registry
 }
 
-func NewFinderHandler(indexer indexer.Interface, registry *providers.Registry) *FinderHandler {
+func NewFinderHandler(indexer indexer.Interface, registry *registry.Registry) *FinderHandler {
 	return &FinderHandler{
 		indexer:  indexer,
 		registry: registry,
@@ -27,8 +27,8 @@ func NewFinderHandler(indexer indexer.Interface, registry *providers.Registry) *
 
 // MakeFindResponse reads from indexer core to populate a response from a
 // list of multihashes.
-func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*models.FindResponse, error) {
-	results := make([]models.MultihashResult, 0, len(mhashes))
+func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*model.FindResponse, error) {
+	results := make([]model.MultihashResult, 0, len(mhashes))
 	var providerResults []peer.AddrInfo
 	providerSeen := map[peer.ID]struct{}{}
 
@@ -41,7 +41,7 @@ func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*models
 			continue
 		}
 		// Add the result to the list of index results
-		results = append(results, models.MultihashResult{
+		results = append(results, model.MultihashResult{
 			Multihash: mhashes[i],
 			Values:    values,
 		})
@@ -63,7 +63,7 @@ func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*models
 		}
 	}
 
-	return &models.FindResponse{
+	return &model.FindResponse{
 		MultihashResults: results,
 		Providers:        providerResults,
 	}, nil

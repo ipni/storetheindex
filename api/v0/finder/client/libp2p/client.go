@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/filecoin-project/storetheindex/api/v0"
-	"github.com/filecoin-project/storetheindex/api/v0/finder/models"
+	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -39,16 +39,16 @@ func (c *Client) ConnectAddrs(ctx context.Context, maddrs ...multiaddr.Multiaddr
 	return c.p2pc.ConnectAddrs(ctx, maddrs...)
 }
 
-func (c *Client) Find(ctx context.Context, m multihash.Multihash) (*models.FindResponse, error) {
+func (c *Client) Find(ctx context.Context, m multihash.Multihash) (*model.FindResponse, error) {
 	return c.FindBatch(ctx, []multihash.Multihash{m})
 }
 
-func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*models.FindResponse, error) {
+func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*model.FindResponse, error) {
 	if len(mhs) == 0 {
-		return &models.FindResponse{}, nil
+		return &model.FindResponse{}, nil
 	}
 
-	data, err := models.MarshalFindRequest(&models.FindRequest{Multihashes: mhs})
+	data, err := model.MarshalFindRequest(&model.FindRequest{Multihashes: mhs})
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*mod
 		return nil, err
 	}
 
-	return models.UnmarshalFindResponse(data)
+	return model.UnmarshalFindResponse(data)
 }
 
 func (c *Client) sendRecv(ctx context.Context, req *pb.FinderMessage, expectRspType pb.FinderMessage_MessageType) ([]byte, error) {

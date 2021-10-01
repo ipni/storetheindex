@@ -16,7 +16,7 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	legingest "github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/lotus"
-	"github.com/filecoin-project/storetheindex/internal/providers"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	httpadminserver "github.com/filecoin-project/storetheindex/server/admin/http"
 	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	p2pfinderserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
@@ -116,7 +116,7 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create registry
-	registry, err := providers.NewRegistry(cfg.Discovery, dstore, lotusDiscoverer)
+	registry, err := registry.NewRegistry(cfg.Discovery, dstore, lotusDiscoverer)
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}

@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"math/rand"
 	"os"
+	"time"
 
 	agg "github.com/filecoin-project/go-dagaggregator-unixfs"
-	"github.com/filecoin-project/storetheindex/internal/utils"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 	"github.com/urfave/cli/v2"
 )
 
@@ -73,7 +75,7 @@ func writeCidFile(dir string, num int64) error {
 	w := bufio.NewWriter(file)
 	curr := int64(0)
 	for curr < num {
-		cids, _ := utils.RandomCids(10)
+		cids, _ := randomCids(10)
 		for i := range cids {
 			if _, err = w.WriteString(cids[i].String()); err != nil {
 				return err
@@ -108,7 +110,7 @@ func writeCidFileOfSize(dir string, size int64) error {
 	curr := int64(0)
 	for curr < size {
 		// Generate CIDs in batches of 100
-		cids, _ := utils.RandomCids(100)
+		cids, _ := randomCids(100)
 		for _, c := range cids {
 			curr += int64(len(c.Bytes()))
 
@@ -144,7 +146,7 @@ func writeManifest(dir string, num int64) error {
 
 	curr := int64(0)
 	for curr < num {
-		cids, _ := utils.RandomCids(10)
+		cids, _ := randomCids(10)
 		for i := range cids {
 			b, err := manifestEntry(cids[i])
 			if err != nil {
@@ -183,7 +185,7 @@ func writeManifestOfSize(dir string, size int64) error {
 	curr := int64(0)
 	for curr < size {
 		// Generate CIDs in batches of 100
-		cids, _ := utils.RandomCids(100)
+		cids, _ := randomCids(100)
 		for _, c := range cids {
 			curr += int64(len(c.Bytes()))
 			b, err := manifestEntry(c)
@@ -242,4 +244,27 @@ func progressCids(n int64) {
 	if n%1000 == 0 {
 		log.Infof("Generated %d cids so far", n)
 	}
+}
+
+func randomCids(n int) ([]cid.Cid, error) {
+	prefix := cid.Prefix{
+		Version:  1,
+		Codec:    cid.Raw,
+		MhType:   multihash.SHA2_256,
+		MhLength: -1, // default length
+	}
+
+	prng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	res := make([]cid.Cid, n)
+	for i := 0; i < n; i++ {
+		b := make([]byte, 10*n)
+		prng.Read(b)
+		c, err := prefix.Sum(b)
+		if err != nil {
+			return nil, err
+		}
+		res[i] = c
+	}
+	return res, nil
 }
