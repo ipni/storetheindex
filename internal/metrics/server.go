@@ -53,13 +53,14 @@ var log = logging.Logger("metrics")
 
 // Start creates an HTTP router for serving metric info
 func Start() http.Handler {
+	view.Register(DefaultViews...)
 	registry, ok := promclient.DefaultRegisterer.(*promclient.Registry)
 	if !ok {
 		log.Warnf("failed to export default prometheus registry; some metrics will be unavailable; unexpected type: %T", promclient.DefaultRegisterer)
 	}
 	exporter, err := prometheus.NewExporter(prometheus.Options{
 		Registry:  registry,
-		Namespace: "lotus",
+		Namespace: "storetheindex",
 	})
 	if err != nil {
 		log.Errorf("could not create the prometheus stats exporter: %v", err)
