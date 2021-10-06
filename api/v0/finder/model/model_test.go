@@ -18,7 +18,8 @@ func TestMarshal(t *testing.T) {
 		t.Fatal(err)
 	}
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
-	v := indexer.MakeValue(p, 0, []byte(mhs[0]))
+	ctxID := []byte("test-context-id")
+	v := indexer.MakeValue(p, ctxID, 0, []byte(mhs[0]))
 
 	// Masrhal request and check e2e
 	t.Log("e2e marshalling request")

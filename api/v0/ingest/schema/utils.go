@@ -99,13 +99,14 @@ func NewAdvertisement(
 	signKey crypto.PrivKey,
 	previousID Link_Advertisement,
 	entries ipld.Link,
+	contextID []byte,
 	metadata []byte,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, error) {
 
 	// Create advertisement
-	return newAdvertisement(signKey, previousID, entries, metadata, isRm, provider, addrs)
+	return newAdvertisement(signKey, previousID, entries, contextID, metadata, isRm, provider, addrs)
 
 }
 
@@ -116,13 +117,14 @@ func NewAdvertisementWithLink(
 	signKey crypto.PrivKey,
 	previousID Link_Advertisement,
 	entries ipld.Link,
+	contextID []byte,
 	metadata []byte,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, Link_Advertisement, error) {
 
 	// Create advertisement
-	adv, err := newAdvertisement(signKey, previousID, entries, metadata, isRm, provider, addrs)
+	adv, err := newAdvertisement(signKey, previousID, entries, contextID, metadata, isRm, provider, addrs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -153,6 +155,7 @@ func NewAdvertisementWithFakeSig(
 	signKey crypto.PrivKey,
 	previousID Link_Advertisement,
 	entries ipld.Link,
+	contextID []byte,
 	metadata []byte,
 	isRm bool,
 	provider string,
@@ -165,6 +168,7 @@ func NewAdvertisementWithFakeSig(
 			Provider:   _String{x: provider},
 			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
+			ContextID:  _Bytes{x: contextID},
 			Metadata:   _Bytes{x: metadata},
 			IsRm:       _Bool{x: isRm},
 		}
@@ -174,6 +178,7 @@ func NewAdvertisementWithFakeSig(
 			Provider:   _String{x: provider},
 			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
+			ContextID:  _Bytes{x: contextID},
 			Metadata:   _Bytes{x: metadata},
 			IsRm:       _Bool{x: isRm},
 		}
@@ -196,6 +201,7 @@ func newAdvertisement(
 	signKey crypto.PrivKey,
 	previousID Link_Advertisement,
 	entries ipld.Link,
+	contextID []byte,
 	metadata []byte,
 	isRm bool,
 	provider string,
@@ -208,6 +214,7 @@ func newAdvertisement(
 			Provider:   _String{x: provider},
 			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
+			ContextID:  _Bytes{x: contextID},
 			Metadata:   _Bytes{x: metadata},
 			IsRm:       _Bool{x: isRm},
 		}
@@ -217,6 +224,7 @@ func newAdvertisement(
 			Provider:   _String{x: provider},
 			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
+			ContextID:  _Bytes{x: contextID},
 			Metadata:   _Bytes{x: metadata},
 			IsRm:       _Bool{x: isRm},
 		}

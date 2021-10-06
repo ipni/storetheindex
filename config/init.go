@@ -51,7 +51,8 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 		},
 
 		Ingest: Ingest{
-			PubSubTopic: defaultIngestPubSubTopic,
+			PubSubTopic:    defaultIngestPubSubTopic,
+			StoreBatchSize: defaultStoreBatchSize,
 		},
 
 		Identity: identity,

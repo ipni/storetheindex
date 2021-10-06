@@ -2,7 +2,8 @@ package adminserver
 
 import (
 	"context"
-	"errors"
+	"encoding/base64"
+	"fmt"
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
@@ -107,37 +108,48 @@ func (h *adminHandler) importManifest(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	contextID, err := base64.RawURLEncoding.DecodeString(vars["contextid"])
+	if err != nil {
+		msg := "Cannot decode context ID"
+		log.Errorw(msg, "err", err)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
 	log.Infow("Import manifest for provider", "miner", provID.String())
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		log.Error("Error reading file")
-		w.WriteHeader(http.StatusInternalServerError)
+		msg := "Cannot read file"
+		log.Error(msg)
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	out := make(chan multihash.Multihash)
+	const batchSize = 64
+	out := make(chan multihash.Multihash, batchSize)
 	errOut := make(chan error, 1)
-	go importer.ReadManifest(h.ctx, file, out, errOut)
+	ctx, cancel := context.WithCancel(h.ctx)
+	defer cancel()
+	go importer.ReadManifest(ctx, file, out, errOut)
 
-	value := indexer.MakeValue(provID, 0, nil)
-	for c := range out {
-		err = h.importCallback(c, value)
-		if err != nil {
-			log.Errorw("Import callback failure", "err", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+	value := indexer.MakeValue(provID, contextID, 0, nil)
+	batchErr := batchIndexerEntries(batchSize, out, value, h.indexer)
+	err = <-batchErr
+	if err != nil {
+		log.Errorf("Error putting entries in indexer: %s", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
 	}
 
 	err = <-errOut
-	if err == nil {
-		log.Info("Success importing")
-		w.WriteHeader(http.StatusOK)
-	} else {
-		log.Errorw("Import failed", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+	if err != nil {
+		log.Error("Error reading manifest", "err", err)
+		http.Error(w, fmt.Sprintf("error reading manifest: %s", err), http.StatusBadRequest)
+		return
 	}
+
+	log.Info("Success importing")
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *adminHandler) importCidList(w http.ResponseWriter, r *http.Request) {
@@ -146,37 +158,80 @@ func (h *adminHandler) importCidList(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	contextID, err := base64.RawURLEncoding.DecodeString(vars["contextid"])
+	if err != nil {
+		msg := "Cannot decode context ID"
+		log.Errorw(msg, "err", err)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
 	log.Infow("Import multihash list for provider", "miner", provID.String())
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		log.Error("Cannot read file")
-		w.WriteHeader(http.StatusInternalServerError)
+		msg := "Cannot read file"
+		log.Error(msg)
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	out := make(chan multihash.Multihash)
+	const batchSize = 64
+	out := make(chan multihash.Multihash, batchSize)
 	errOut := make(chan error, 1)
-	go importer.ReadCids(r.Context(), file, out, errOut)
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	go importer.ReadCids(ctx, file, out, errOut)
 
-	value := indexer.MakeValue(provID, 0, nil)
-	for c := range out {
-		err = h.importCallback(c, value)
-		if err != nil {
-			log.Errorw("Import callback failed", "err", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+	value := indexer.MakeValue(provID, contextID, 0, nil)
+	batchErr := batchIndexerEntries(batchSize, out, value, h.indexer)
+	err = <-batchErr
+	if err != nil {
+		log.Errorf("Error putting entries in indexer: %s", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
 	}
 
 	err = <-errOut
-	if err == nil {
-		log.Info("Success importing")
-		w.WriteHeader(http.StatusOK)
-	} else {
-		log.Errorw("Failed importing", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+	if err != nil {
+		log.Error("Error reading CID list", "err", err)
+		http.Error(w, fmt.Sprintf("error reading cid list: %s", err), http.StatusBadRequest)
+		return
 	}
+
+	log.Info("Success importing")
+	w.WriteHeader(http.StatusOK)
+}
+
+// batchIndexerEntries read
+func batchIndexerEntries(batchSize int, putChan <-chan multihash.Multihash, value indexer.Value, idxr indexer.Interface) <-chan error {
+	errChan := make(chan error, 1)
+
+	go func() {
+		defer close(errChan)
+		puts := make([]multihash.Multihash, 0, batchSize)
+		for m := range putChan {
+			puts = append(puts, m)
+			if len(puts) == batchSize {
+				// Process full batch of puts
+				if err := idxr.Put(value, puts...); err != nil {
+					errChan <- err
+					return
+				}
+				puts = puts[:0]
+
+			}
+		}
+
+		if len(puts) != 0 {
+			// Process any remaining puts
+			if err := idxr.Put(value, puts...); err != nil {
+				errChan <- err
+				return
+			}
+		}
+	}()
+
+	return errChan
 }
 
 // ----- admin handlers -----
@@ -201,18 +256,6 @@ func (h *adminHandler) checkIngester(w http.ResponseWriter, r *http.Request) boo
 		return true
 	}
 	return false
-}
-
-func (h *adminHandler) importCallback(m multihash.Multihash, value indexer.Value) error {
-	// NOTE: We disregard errors for now
-	_, err := h.indexer.Put(m, value)
-	if err != nil {
-		log.Errorw("Indexer Put returned error", "err", err, "multihash", m.B58String())
-		return errors.New("failed to store in indexer")
-	}
-	// TODO: Change to Debug
-	log.Infow("Imported successfully", "multihash", m.B58String())
-	return nil
 }
 
 func decodeProviderID(id string, w http.ResponseWriter) (peer.ID, bool) {

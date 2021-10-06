@@ -89,11 +89,7 @@ func (h *libp2pHandler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgb
 
 func (h *libp2pHandler) DiscoverProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
 	err := h.ingestHandler.DiscoverProvider(msg.GetData())
-	if err != nil {
-		return nil, err
-	}
-
-	return nil, nil
+	return nil, err
 }
 
 func (h *libp2pHandler) ListProviders(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
@@ -116,7 +112,7 @@ func (h *libp2pHandler) GetProvider(ctx context.Context, p peer.ID, msg *pb.Inge
 
 	data, err := h.ingestHandler.GetProvider(providerID)
 	if err != nil {
-		log.Error("cannot get provider", "err", err)
+		log.Errorw("cannot get provider", "err", err)
 		return nil, syserr.New(nil, http.StatusInternalServerError)
 	}
 
@@ -129,11 +125,7 @@ func (h *libp2pHandler) GetProvider(ctx context.Context, p peer.ID, msg *pb.Inge
 
 func (h *libp2pHandler) RegisterProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
 	err := h.ingestHandler.RegisterProvider(msg.GetData())
-	if err != nil {
-		return nil, err
-	}
-
-	return nil, nil
+	return nil, err
 }
 
 func (h *libp2pHandler) RemoveProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
@@ -141,14 +133,6 @@ func (h *libp2pHandler) RemoveProvider(ctx context.Context, p peer.ID, msg *pb.I
 }
 
 func (h *libp2pHandler) IndexContent(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
-	ok, err := h.ingestHandler.IndexContent(msg.GetData())
-	if err != nil {
-		return nil, err
-	}
-
-	if ok {
-		log.Info("indexed content")
-	}
-
-	return nil, nil
+	err := h.ingestHandler.IndexContent(msg.GetData())
+	return nil, err
 }

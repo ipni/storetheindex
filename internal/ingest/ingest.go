@@ -51,6 +51,8 @@ type legIngester struct {
 
 	subs  map[peer.ID]*subscriber
 	sublk *keymutex.KeyMutex
+
+	batchSize int
 }
 
 // subscriber datastructure for a peer.
@@ -86,6 +88,7 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 		lt:        lt,
 		subs:      make(map[peer.ID]*subscriber),
 		sublk:     keymutex.New(0),
+		batchSize: cfg.StoreBatchSize,
 	}
 
 	// Register storage hook to index data as we receive it.
@@ -316,7 +319,7 @@ func (i *legIngester) putLatestSync(peerID peer.ID, c cid.Cid) error {
 	if c == cid.Undef {
 		return nil
 	}
-	stats.RecordWithOptions(context.Background(),
+	_ = stats.RecordWithOptions(context.Background(),
 		stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
 		stats.WithMeasurements(metrics.IngestChange.M(1)))
 

@@ -14,5 +14,5 @@ type Ingest interface {
 	GetProvider(ctx context.Context, providerID peer.ID) (*model.ProviderInfo, error)
 	ListProviders(ctx context.Context) ([]*model.ProviderInfo, error)
 	Register(ctx context.Context, providerID peer.ID, privateKey crypto.PrivKey, addrs []string) error
-	IndexContent(ctx context.Context, providerID peer.ID, privateKey crypto.PrivKey, m multihash.Multihash, protocol uint64, metadata []byte, addrs []string) error
+	IndexContent(ctx context.Context, providerID peer.ID, privateKey crypto.PrivKey, m multihash.Multihash, contextID []byte, protocol uint64, metadata []byte, addrs []string) error
 }

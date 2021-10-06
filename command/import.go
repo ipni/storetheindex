@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	httpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	httpclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/urfave/cli/v2"
 )
 
@@ -57,7 +57,7 @@ func importListCmd(cctx *cli.Context) error {
 	// TODO: Should there be a timeout?  Since this may take a long time, it
 	// would make sense that the request should complete immediately with a
 	// redirect to a URL where the status can be polled for.
-	return cl.ImportFromCidList(context.Background(), dir, p)
+	return cl.ImportFromCidList(context.Background(), dir, p, cctx.String("contextid"))
 }
 
 func importCarCmd(c *cli.Context) error {
@@ -81,5 +81,5 @@ func importManifestCmd(cctx *cli.Context) error {
 	// TODO: Should there be a timeout?  Since this may take a long time, it
 	// would make sense that the request should complete immediately with a
 	// redirect to a URL where the status can be polled for.
-	return cl.ImportFromManifest(context.Background(), dir, p)
+	return cl.ImportFromManifest(context.Background(), dir, p, cctx.String("contextid"))
 }

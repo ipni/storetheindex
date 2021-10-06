@@ -103,8 +103,8 @@ func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*model.Pr
 	return &providerInfo, nil
 }
 
-func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, protocol uint64, metadata []byte, addrs []string) error {
-	data, err := model.MakeIngestRequest(providerID, privateKey, m, protocol, metadata, addrs)
+func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, contextID []byte, protocol uint64, metadata []byte, addrs []string) error {
+	data, err := model.MakeIngestRequest(providerID, privateKey, m, contextID, protocol, metadata, addrs)
 	if err != nil {
 		return err
 	}

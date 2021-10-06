@@ -88,30 +88,30 @@ func (h *IngestHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 // IndexContent handles an IngestRequest
 //
 // Returning error is the same as return syserr.New(err, http.StatusBadRequest)
-func (h *IngestHandler) IndexContent(data []byte) (bool, error) {
+func (h *IngestHandler) IndexContent(data []byte) error {
 	ingReq, err := model.ReadIngestRequest(data)
 	if err != nil {
-		return false, fmt.Errorf("cannot read ingest request: %s", err)
+		return fmt.Errorf("cannot read ingest request: %s", err)
 	}
 
 	providerID := ingReq.Value.ProviderID
 	if err = h.registry.CheckSequence(providerID, ingReq.Seq); err != nil {
-		return false, err
+		return err
 	}
 
 	// Register provider if not registered, or update addreses if already registered
 	err = h.registry.RegisterOrUpdate(providerID, ingReq.Addrs)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	ok, err := h.indexer.Put(ingReq.Multihash, ingReq.Value)
+	err = h.indexer.Put(ingReq.Value, ingReq.Multihash)
 	if err != nil {
 		err = fmt.Errorf("cannot index content: %s", err)
-		return false, syserr.New(err, http.StatusInternalServerError)
+		return syserr.New(err, http.StatusInternalServerError)
 	}
 
 	// TODO: update last update time for provider
 
-	return ok, nil
+	return nil
 }

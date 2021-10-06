@@ -7,10 +7,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/go-indexer-core/cache"
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
-	"github.com/filecoin-project/go-indexer-core/store"
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/storetheindex/config"
@@ -286,7 +286,7 @@ func daemonCommand(cctx *cli.Context) error {
 	return finalErr
 }
 
-func createValueStore(dir, storeType string) (store.Interface, error) {
+func createValueStore(dir, storeType string) (indexer.Interface, error) {
 	err := checkWritable(dir)
 	if err != nil {
 		return nil, err

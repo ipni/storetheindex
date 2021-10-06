@@ -44,8 +44,8 @@ func New(ctx context.Context, listen string, indexer indexer.Interface, ingester
 
 	// Set protocol handlers
 	// Import routes
-	r.HandleFunc("/import/manifest/{minerid}", h.importManifest).Methods("POST")
-	r.HandleFunc("/import/cidlist/{minerid}", h.importCidList).Methods("POST")
+	r.HandleFunc("/import/manifest/{minerid}/{contextid}", h.importManifest).Methods("POST")
+	r.HandleFunc("/import/cidlist/{minerid}/{contextid}", h.importCidList).Methods("POST")
 
 	// Admin routes
 	r.HandleFunc("/healthcheck", h.healthCheckHandler).Methods("GET")

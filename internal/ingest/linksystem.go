@@ -2,12 +2,11 @@ package ingest
 
 import (
 	"bytes"
-	"encoding/base64"
 	"io"
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
-	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
+	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
@@ -17,7 +16,8 @@ import (
 	"github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multihash"
 )
 
 func dsKey(k string) datastore.Key {
@@ -226,6 +226,10 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 		return err
 	}
 	// Fetch data of interest.
+	contextID, err := ad.FieldContextID().AsBytes()
+	if err != nil {
+		return err
+	}
 	metadata, err := ad.FieldMetadata().AsBytes()
 	if err != nil {
 		return err
@@ -246,6 +250,18 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 		log.Errorf("Error decoding entries: %s", err)
 		return err
 	}
+
+	value := indexer.MakeValue(p, contextID, 0, metadata)
+
+	var putChan, removeChan chan multihash.Multihash
+	var errChan <-chan error
+	if i.batchSize > 1 {
+		putChan = make(chan multihash.Multihash, i.batchSize)
+		removeChan = make(chan multihash.Multihash, i.batchSize)
+		errChan = batchIndexerEntries(i.batchSize, putChan, removeChan, value, i.indexer)
+	}
+
+	var count int
 	nchunk := nb.Build().(schema.EntryChunk)
 	entries := nchunk.FieldEntries()
 	// Iterate over all entries and ingest them
@@ -255,27 +271,51 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 		h, err := cnode.AsBytes()
 		if err != nil {
 			log.Errorf("Error decoding an entry from the ingestion list: %s", err)
+			if i.batchSize > 1 {
+				close(putChan)
+				close(removeChan)
+			}
 			return err
 		}
-		val := indexer.MakeValue(p, 0, metadata)
+
 		if isRm {
 			// TODO: Remove will change once we change the syncing process
 			// because we may not receive the list of CIDs to remove and we'll
 			// have to use a routine that looks for the CIDs for a specific
 			// key.
-			if _, err := i.indexer.Remove(h, val); err != nil {
-				log.Errorf("Error removing entry from indexer: %s", err)
-				return err
+			if i.batchSize > 1 {
+				select {
+				case removeChan <- h:
+				case err = <-errChan:
+				}
+			} else {
+				err = i.indexer.Remove(value, h)
 			}
-
 		} else {
-			if _, err := i.indexer.Put(h, val); err != nil {
-				log.Errorf("Error putting entry in indexer: %s", err)
-				return err
+			if i.batchSize > 1 {
+				select {
+				case putChan <- h:
+				case err = <-errChan:
+				}
+			} else {
+				err = i.indexer.Put(value, h)
 			}
 		}
-		log.Debugw("Processed entry", "multihash", base64.StdEncoding.EncodeToString(h))
+		if err != nil {
+			return err
+		}
+
+		count++
 	}
+	if i.batchSize > 1 {
+		close(putChan)
+		close(removeChan)
+		err = <-errChan
+		if err != nil {
+			return err
+		}
+	}
+	log.Debugw("Processed entries", "count", count)
 
 	// If there is a next link, update the mapping so we know the AdID
 	// it is related to.
@@ -291,6 +331,86 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 	}
 
 	return nil
+}
+
+// batchIndexerEntries starts a goroutine that reads multihashes from two input
+// channels, putChan and removeChan.  The goroutine collects these into
+// separate slices, storing up to batchSize elements.  When a slice is at
+// capacity, a Put or Remove request is made to the indexer core.  This
+// function returns an error channel that returns an error if one occurs during
+// Put or Remove, which also indicates the goroutine has exited (and will no
+// longer read its input channels).
+//
+// The goroutine exits when both the input channels are closed.  It closes the
+// error channel to indicate completion.
+func batchIndexerEntries(batchSize int, putChan, removeChan <-chan multihash.Multihash, value indexer.Value, idxr indexer.Interface) <-chan error {
+	errChan := make(chan error, 1)
+
+	go func() {
+		defer close(errChan)
+		puts := make([]multihash.Multihash, 0, batchSize)
+		removes := make([]multihash.Multihash, 0, batchSize)
+		for {
+			select {
+			case m, open := <-putChan:
+				if !open {
+					if len(puts) != 0 {
+						// Process any remaining puts
+						if err := idxr.Put(value, puts...); err != nil {
+							errChan <- err
+							log.Errorf("Error putting entries in indexer: %s", err)
+							return
+						}
+					}
+					if removeChan == nil {
+						// All input channels closed
+						return
+					}
+					putChan = nil
+					continue
+				}
+				puts = append(puts, m)
+				if len(puts) == batchSize {
+					// Process full batch of puts
+					if err := idxr.Put(value, puts...); err != nil {
+						errChan <- err
+						log.Errorf("Error putting entries in indexer: %s", err)
+						return
+					}
+					puts = puts[:0]
+				}
+			case m, open := <-removeChan:
+				if !open {
+					if len(removes) != 0 {
+						// Process any remaining removes
+						if err := idxr.Remove(value, removes...); err != nil {
+							log.Errorf("Error removing entries from indexer: %s", err)
+							errChan <- err
+							return
+						}
+					}
+					if putChan == nil {
+						// All input channels closed
+						return
+					}
+					removeChan = nil
+					continue
+				}
+				removes = append(removes, m)
+				if len(removes) == batchSize {
+					// Process full batch of removes
+					if err := idxr.Remove(value, removes...); err != nil {
+						errChan <- err
+						log.Errorf("Error removing entries from indexer: %s", err)
+						return
+					}
+					removes = removes[:0]
+				}
+			}
+		}
+	}()
+
+	return errChan
 }
 
 func putCidToAdMapping(ds datastore.Batching, lnk ipld.Link, adCid cid.Cid) error {

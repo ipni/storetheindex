@@ -5,16 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
-	"os"
-	"path"
-	"path/filepath"
 
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/internal/httpclient"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 )
 
@@ -92,77 +87,4 @@ func (c *Client) sendRequest(req *http.Request) (*model.FindResponse, error) {
 	}
 
 	return model.UnmarshalFindResponse(b)
-}
-
-// ImportFromManifest processes entries from manifest and imports them into the
-// indexer
-func (c *Client) ImportFromManifest(ctx context.Context, dir string, provID peer.ID) error {
-	u := c.baseURL + path.Join("/import", "manifest", provID.String())
-	req, err := c.newUploadRequest(dir, u)
-	if err != nil {
-		return err
-	}
-	resp, err := c.c.Do(req)
-	if err != nil {
-		return err
-	}
-
-	// Handle failed requests
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("importing from manifest failed: %v", http.StatusText(resp.StatusCode))
-	}
-	log.Infow("Success")
-	return nil
-}
-
-// ImportFromCidList process entries from a cidlist and imprts it into the
-// indexer
-func (c *Client) ImportFromCidList(ctx context.Context, dir string, provID peer.ID) error {
-	u := c.baseURL + path.Join("/import", "cidlist", provID.String())
-	req, err := c.newUploadRequest(dir, u)
-	if err != nil {
-		return err
-	}
-	resp, err := c.c.Do(req)
-	if err != nil {
-		return err
-	}
-
-	// Handle failed requests
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("importing from cidlist failed: %v", http.StatusText(resp.StatusCode))
-	}
-	log.Infow("Success")
-	return nil
-}
-
-func (c *Client) newUploadRequest(dir string, uri string) (*http.Request, error) {
-	file, err := os.Open(dir)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", filepath.Base(dir))
-	if err != nil {
-		return nil, err
-	}
-	_, err = io.Copy(part, file)
-	if err != nil {
-		return nil, err
-	}
-
-	err = writer.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", uri, body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	return req, nil
 }
