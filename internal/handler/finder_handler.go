@@ -43,26 +43,19 @@ func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*model.
 
 		provResults := make([]model.ProviderResult, len(values))
 		for j := range values {
-			addrInfo := peer.AddrInfo{
-				ID: values[j].ProviderID,
-			}
+			provID := values[j].ProviderID
 			// Lookup provider info for each unique provider, look in local map
 			// before going to registry.
-			addrs, ok := provAddrs[addrInfo.ID]
+			addrs, ok := provAddrs[provID]
 			if !ok {
-				pinfo := h.registry.ProviderInfo(addrInfo.ID)
+				pinfo := h.registry.ProviderInfo(provID)
 				if pinfo != nil {
 					addrs = pinfo.AddrInfo.Addrs
-					provAddrs[addrInfo.ID] = addrs
+					provAddrs[provID] = addrs
 				}
 			}
-			addrInfo.Addrs = addrs
 
-			provResults[j] = model.ProviderResult{
-				ContextID: values[j].ContextID,
-				Metadata:  values[j].Metadata,
-				Provider:  addrInfo,
-			}
+			provResults[j] = model.ProviderResultFromValue(values[j], addrs)
 		}
 
 		// Add the result to the list of index results.
