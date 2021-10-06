@@ -37,22 +37,32 @@ func TestMarshal(t *testing.T) {
 		t.Fatal("Request marshal/unmarshal not correct")
 	}
 
-	// Masrhal response and check e2e
-	t.Log("e2e marshalling response")
-	resp := &FindResponse{
-		MultihashResults: make([]MultihashResult, 0),
-		Providers:        make([]peer.AddrInfo, 0),
-	}
-
-	for i := range mhs {
-		resp.MultihashResults = append(resp.MultihashResults, MultihashResult{mhs[i], []indexer.Value{v}})
-	}
 	m1, err := ma.NewMultiaddr("/ip4/127.0.0.1/udp/1234")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp.Providers = append(resp.Providers, peer.AddrInfo{ID: p, Addrs: []ma.Multiaddr{m1}})
+	// Masrhal response and check e2e
+	t.Log("e2e marshalling response")
+	resp := &FindResponse{
+		MultihashResults: make([]MultihashResult, 0),
+	}
+
+	providerResult := ProviderResult{
+		ContextID: v.ContextID,
+		Metadata:  v.Metadata,
+		Provider: peer.AddrInfo{
+			ID:    p,
+			Addrs: []ma.Multiaddr{m1},
+		},
+	}
+
+	for i := range mhs {
+		resp.MultihashResults = append(resp.MultihashResults, MultihashResult{
+			Multihash:       mhs[i],
+			ProviderResults: []ProviderResult{providerResult},
+		})
+	}
 
 	b, err = MarshalFindResponse(resp)
 	if err != nil {
@@ -73,9 +83,18 @@ func EqualMultihashResult(res1, res2 []MultihashResult) bool {
 	if len(res1) != len(res2) {
 		return false
 	}
-	for i := range res1 {
-		if !bytes.Equal([]byte(res1[i].Multihash), []byte(res2[i].Multihash)) || !util.EqualValues(res1[i].Values, res2[i].Values) {
+	for i, r1 := range res1 {
+		r2 := res2[i]
+		if !bytes.Equal([]byte(r1.Multihash), []byte(r2.Multihash)) {
 			return false
+		}
+		if len(r1.ProviderResults) != len(r2.ProviderResults) {
+			return false
+		}
+		for j, pr1 := range r1.ProviderResults {
+			if !pr1.Equal(r2.ProviderResults[j]) {
+				return false
+			}
 		}
 	}
 	return true
