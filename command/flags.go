@@ -22,7 +22,7 @@ var indexerIDFlag = altsrc.NewStringFlag(&cli.StringFlag{
 
 var CacheSizeFlag = &cli.Int64Flag{
 	Name:     "cachesize",
-	Usage:    "Maximum number of CIDs that cache can hold, 0 to disable cache",
+	Usage:    "Maximum number of multihashes that result cache can hold, 0 to disable cache",
 	Required: false,
 	Value:    -1,
 }
@@ -37,9 +37,8 @@ var dirFlag = &cli.StringFlag{
 var daemonFlags = []cli.Flag{
 	CacheSizeFlag,
 	&cli.BoolFlag{
-		Name:     "disablep2p",
+		Name:     "nop2p",
 		Usage:    "Disable libp2p client api for indexer",
-		Aliases:  []string{"nop2p"},
 		Value:    false,
 		Required: false,
 	},

@@ -20,7 +20,7 @@ const getTimeout = 15 * time.Second
 
 var FindCmd = &cli.Command{
 	Name:   "find",
-	Usage:  "Find value by multihash in idexer",
+	Usage:  "Find value by multihash in indexer",
 	Flags:  findFlags,
 	Action: findCmd,
 }
@@ -75,7 +75,7 @@ func findCmd(cctx *cli.Context) error {
 			return err
 		}
 
-		err = c.Connect(cctx.Context, cctx.String("indexerer"))
+		err = c.Connect(cctx.Context, cctx.String("indexer"))
 		if err != nil {
 			return err
 		}

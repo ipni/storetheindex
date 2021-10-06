@@ -154,7 +154,7 @@ func daemonCommand(cctx *cli.Context) error {
 		ingester         legingest.LegIngester
 	)
 	// Create libp2p host and servers
-	if !cfg.Addresses.DisableP2P && !cctx.Bool("disablep2p") {
+	if !cfg.Addresses.DisableP2P && !cctx.Bool("nop2p") {
 		ctx, cancel := context.WithCancel(cctx.Context)
 		defer cancel()
 		cancelP2pServers = cancel
