@@ -251,11 +251,15 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 		return err
 	}
 
-	const batchSize = 64
-	putChan := make(chan multihash.Multihash, batchSize)
-	removeChan := make(chan multihash.Multihash, batchSize)
 	value := indexer.MakeValue(p, contextID, 0, metadata)
-	errChan := batchIndexerEntries(batchSize, putChan, removeChan, value, i.indexer)
+
+	var putChan, removeChan chan multihash.Multihash
+	var errChan <-chan error
+	if i.batchSize > 1 {
+		putChan = make(chan multihash.Multihash, i.batchSize)
+		removeChan = make(chan multihash.Multihash, i.batchSize)
+		errChan = batchIndexerEntries(i.batchSize, putChan, removeChan, value, i.indexer)
+	}
 
 	var count int
 	nchunk := nb.Build().(schema.EntryChunk)
@@ -267,34 +271,49 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 		h, err := cnode.AsBytes()
 		if err != nil {
 			log.Errorf("Error decoding an entry from the ingestion list: %s", err)
-			close(putChan)
-			close(removeChan)
+			if i.batchSize > 1 {
+				close(putChan)
+				close(removeChan)
+			}
 			return err
 		}
+
 		if isRm {
 			// TODO: Remove will change once we change the syncing process
 			// because we may not receive the list of CIDs to remove and we'll
 			// have to use a routine that looks for the CIDs for a specific
 			// key.
-			select {
-			case removeChan <- h:
-			case err = <-errChan:
-				return err
+			if i.batchSize > 1 {
+				select {
+				case removeChan <- h:
+				case err = <-errChan:
+				}
+			} else {
+				err = i.indexer.Remove(value, h)
 			}
 		} else {
-			select {
-			case putChan <- h:
-			case err = <-errChan:
-				return err
+			if i.batchSize > 1 {
+				select {
+				case putChan <- h:
+				case err = <-errChan:
+				}
+			} else {
+				err = i.indexer.Put(value, h)
 			}
 		}
+		if err != nil {
+			return err
+		}
+
 		count++
 	}
-	close(putChan)
-	close(removeChan)
-	err = <-errChan
-	if err != nil {
-		return err
+	if i.batchSize > 1 {
+		close(putChan)
+		close(removeChan)
+		err = <-errChan
+		if err != nil {
+			return err
+		}
 	}
 	log.Debugw("Processed entries", "count", count)
 
