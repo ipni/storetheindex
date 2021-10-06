@@ -70,7 +70,7 @@ func InitRegistry(t *testing.T) *registry.Registry {
 
 // PopulateIndex with some multihashes
 func PopulateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.Value, t *testing.T) {
-	err := ind.PutMany(mhs, v)
+	err := ind.Put(v, mhs...)
 	if err != nil {
 		t.Fatal("Error putting multihashes: ", err)
 	}
@@ -99,7 +99,8 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	if err != nil {
 		t.Fatal(err)
 	}
-	v := indexer.MakeValue(p, 0, []byte(mhs[0]))
+	ctxID := []byte("test-context-id")
+	v := indexer.MakeValue(p, ctxID, 0, []byte(mhs[0]))
 	PopulateIndex(ind, mhs[:10], v, t)
 
 	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")

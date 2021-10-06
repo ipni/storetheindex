@@ -84,6 +84,8 @@ func main() {
 		schema.SpawnStructField("Signature", "Bytes", false, false),
 		// Entries with a link to the list of CIDs
 		schema.SpawnStructField("Entries", "Link", false, false),
+		// Context ID for entries.
+		schema.SpawnStructField("ContextID", "Bytes", false, false),
 		// Metadata for entries.
 		schema.SpawnStructField("Metadata", "Bytes", false, false),
 		// IsRm or Put?

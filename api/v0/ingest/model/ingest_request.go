@@ -56,10 +56,10 @@ func (r *IngestRequest) MarshalRecord() ([]byte, error) {
 }
 
 // MakeIngestRequest creates a signed IngestRequest and marshals it into bytes
-func MakeIngestRequest(providerID peer.ID, privateKey crypto.PrivKey, m multihash.Multihash, protocol uint64, metadata []byte, addrs []string) ([]byte, error) {
+func MakeIngestRequest(providerID peer.ID, privateKey crypto.PrivKey, m multihash.Multihash, contextID []byte, protocol uint64, metadata []byte, addrs []string) ([]byte, error) {
 	req := &IngestRequest{
 		Multihash: m,
-		Value:     indexer.MakeValue(providerID, protocol, metadata),
+		Value:     indexer.MakeValue(providerID, contextID, protocol, metadata),
 		Addrs:     addrs,
 		Seq:       peer.TimestampSeq(),
 	}

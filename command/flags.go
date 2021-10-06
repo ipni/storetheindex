@@ -74,6 +74,12 @@ var importFlags = []cli.Flag{
 		Required: true,
 	},
 	&cli.StringFlag{
+		Name:     "contextid",
+		Usage:    "Context ID of data imported",
+		Aliases:  []string{"ctxid"},
+		Required: true,
+	},
+	&cli.StringFlag{
 		Name:     "metadata",
 		Usage:    "Bytes of opaque metadata corresponding to protocol 0",
 		Aliases:  []string{"m"},

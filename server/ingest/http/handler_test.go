@@ -28,31 +28,32 @@ type mockIndexer struct {
 	store map[string][]indexer.Value
 }
 
-func (m *mockIndexer) Put(mh multihash.Multihash, value indexer.Value) (bool, error) {
-	k := mh.B58String()
-	vals, ok := m.store[k]
-	if ok {
-		for i := range vals {
-			if value.Equal(vals[i]) {
-				return false, nil
-			}
-		}
-	}
-	m.store[k] = append(vals, value)
-	return true, nil
-}
-
 func (m *mockIndexer) Get(mh multihash.Multihash) ([]indexer.Value, bool, error) {
 	return nil, false, nil
 }
-func (m *mockIndexer) Iter() (indexer.Iterator, error)                              { return nil, nil }
-func (m *mockIndexer) PutMany(mhs []multihash.Multihash, value indexer.Value) error { return nil }
-func (m *mockIndexer) Remove(mh multihash.Multihash, value indexer.Value) (bool, error) {
-	return false, nil
+func (m *mockIndexer) Put(value indexer.Value, mhs ...multihash.Multihash) error {
+	for _, mh := range mhs {
+		k := mh.B58String()
+		vals, ok := m.store[k]
+		if ok {
+			for i := range vals {
+				if value.Match(vals[i]) {
+					return nil
+				}
+			}
+		}
+		m.store[k] = append(vals, value)
+	}
+	return nil
 }
-func (m *mockIndexer) RemoveMany(mhs []multihash.Multihash, value indexer.Value) error { return nil }
-func (m *mockIndexer) RemoveProvider(providerID peer.ID) error                         { return nil }
-func (m *mockIndexer) Size() (int64, error)                                            { return 0, nil }
+
+func (m *mockIndexer) Remove(indexer.Value, ...multihash.Multihash) error { return nil }
+func (m *mockIndexer) RemoveProvider(peer.ID) error                       { return nil }
+func (m *mockIndexer) RemoveProviderContext(peer.ID, []byte) error        { return nil }
+func (m *mockIndexer) Size() (int64, error)                               { return 0, nil }
+func (m *mockIndexer) Flush() error                                       { return nil }
+func (m *mockIndexer) Close() error                                       { return nil }
+func (m *mockIndexer) Iter() (indexer.Iterator, error)                    { return nil, nil }
 
 func init() {
 	var discoveryCfg = config.Discovery{
@@ -115,6 +116,7 @@ func TestIndexContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ctxID := []byte("test-context-id")
 	metadata := []byte("hello world")
 
 	peerID, privKey, err := ident.Decode()
@@ -122,7 +124,7 @@ func TestIndexContent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := model.MakeIngestRequest(peerID, privKey, m, 0, metadata, nil)
+	data, err := model.MakeIngestRequest(peerID, privKey, m, ctxID, 0, metadata, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -316,7 +316,7 @@ func (i *legIngester) putLatestSync(peerID peer.ID, c cid.Cid) error {
 	if c == cid.Undef {
 		return nil
 	}
-	stats.RecordWithOptions(context.Background(),
+	_ = stats.RecordWithOptions(context.Background(),
 		stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
 		stats.WithMeasurements(metrics.IngestChange.M(1)))
 

@@ -66,7 +66,7 @@ func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 
 // PopulateIndex with some multihashes
 func PopulateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.Value, t *testing.T) {
-	err := ind.PutMany(mhs, v)
+	err := ind.Put(v, mhs...)
 	if err != nil {
 		t.Fatal("Error putting multihashes: ", err)
 	}
@@ -161,9 +161,10 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 		t.Fatal(err)
 	}
 
+	contextID := []byte("test-context-id")
 	metadata := []byte("hello")
 
-	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], 0, metadata, nil)
+	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, 0, metadata, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +180,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 		t.Fatal("no content values returned")
 	}
 
-	expectValue := indexer.MakeValue(providerID, 0, metadata)
+	expectValue := indexer.MakeValue(providerID, contextID, 0, metadata)
 	ok = false
 	for i := range vals {
 		if vals[i].Equal(expectValue) {
@@ -201,10 +202,11 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 		t.Fatal(err)
 	}
 
+	ctxID := []byte("test-context-id")
 	metadata := []byte("hello")
 	addrs := []string{newAddr}
 
-	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], 0, metadata, addrs)
+	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], ctxID, 0, metadata, addrs)
 	if err != nil {
 		t.Fatal(err)
 	}

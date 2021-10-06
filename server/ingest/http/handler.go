@@ -167,18 +167,13 @@ func (h *httpHandler) IndexContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok, err := h.ingestHandler.IndexContent(body)
+	err = h.ingestHandler.IndexContent(body)
 	if err != nil {
 		httpserver.HandleError(w, err, "ingest")
 		return
 	}
 
-	if ok {
-		log.Info("indexed new content")
-	}
-
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "new:", ok)
 }
 
 func getProviderID(r *http.Request) (peer.ID, error) {

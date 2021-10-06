@@ -23,6 +23,9 @@ func (n _Advertisement) FieldSignature() Bytes {
 func (n _Advertisement) FieldEntries() Link {
 	return &n.Entries
 }
+func (n _Advertisement) FieldContextID() Bytes {
+	return &n.ContextID
+}
 func (n _Advertisement) FieldMetadata() Bytes {
 	return &n.Metadata
 }
@@ -70,6 +73,7 @@ var (
 	fieldName__Advertisement_Addresses  = _String{"Addresses"}
 	fieldName__Advertisement_Signature  = _String{"Signature"}
 	fieldName__Advertisement_Entries    = _String{"Entries"}
+	fieldName__Advertisement_ContextID  = _String{"ContextID"}
 	fieldName__Advertisement_Metadata   = _String{"Metadata"}
 	fieldName__Advertisement_IsRm       = _String{"IsRm"}
 )
@@ -94,6 +98,8 @@ func (n Advertisement) LookupByString(key string) (datamodel.Node, error) {
 		return &n.Signature, nil
 	case "Entries":
 		return &n.Entries, nil
+	case "ContextID":
+		return &n.ContextID, nil
 	case "Metadata":
 		return &n.Metadata, nil
 	case "IsRm":
@@ -125,7 +131,7 @@ type _Advertisement__MapItr struct {
 }
 
 func (itr *_Advertisement__MapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
-	if itr.idx >= 7 {
+	if itr.idx >= 8 {
 		return nil, nil, datamodel.ErrIteratorOverread{}
 	}
 	switch itr.idx {
@@ -149,9 +155,12 @@ func (itr *_Advertisement__MapItr) Next() (k datamodel.Node, v datamodel.Node, _
 		k = &fieldName__Advertisement_Entries
 		v = &itr.n.Entries
 	case 5:
+		k = &fieldName__Advertisement_ContextID
+		v = &itr.n.ContextID
+	case 6:
 		k = &fieldName__Advertisement_Metadata
 		v = &itr.n.Metadata
-	case 6:
+	case 7:
 		k = &fieldName__Advertisement_IsRm
 		v = &itr.n.IsRm
 	default:
@@ -161,14 +170,14 @@ func (itr *_Advertisement__MapItr) Next() (k datamodel.Node, v datamodel.Node, _
 	return
 }
 func (itr *_Advertisement__MapItr) Done() bool {
-	return itr.idx >= 7
+	return itr.idx >= 8
 }
 
 func (Advertisement) ListIterator() datamodel.ListIterator {
 	return nil
 }
 func (Advertisement) Length() int64 {
-	return 7
+	return 8
 }
 func (Advertisement) IsAbsent() bool {
 	return false
@@ -235,6 +244,7 @@ type _Advertisement__Assembler struct {
 	ca_Addresses  _List_String__Assembler
 	ca_Signature  _Bytes__Assembler
 	ca_Entries    _Link__Assembler
+	ca_ContextID  _Bytes__Assembler
 	ca_Metadata   _Bytes__Assembler
 	ca_IsRm       _Bool__Assembler
 }
@@ -247,6 +257,7 @@ func (na *_Advertisement__Assembler) reset() {
 	na.ca_Addresses.reset()
 	na.ca_Signature.reset()
 	na.ca_Entries.reset()
+	na.ca_ContextID.reset()
 	na.ca_Metadata.reset()
 	na.ca_IsRm.reset()
 }
@@ -257,9 +268,10 @@ var (
 	fieldBit__Advertisement_Addresses   = 1 << 2
 	fieldBit__Advertisement_Signature   = 1 << 3
 	fieldBit__Advertisement_Entries     = 1 << 4
-	fieldBit__Advertisement_Metadata    = 1 << 5
-	fieldBit__Advertisement_IsRm        = 1 << 6
-	fieldBits__Advertisement_sufficient = 0 + 1<<1 + 1<<2 + 1<<3 + 1<<4 + 1<<5 + 1<<6
+	fieldBit__Advertisement_ContextID   = 1 << 5
+	fieldBit__Advertisement_Metadata    = 1 << 6
+	fieldBit__Advertisement_IsRm        = 1 << 7
+	fieldBits__Advertisement_sufficient = 0 + 1<<1 + 1<<2 + 1<<3 + 1<<4 + 1<<5 + 1<<6 + 1<<7
 )
 
 func (na *_Advertisement__Assembler) BeginMap(int64) (datamodel.MapAssembler, error) {
@@ -404,7 +416,7 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 	case 5:
 		switch ma.cm {
 		case schema.Maybe_Value:
-			ma.ca_Metadata.w = nil
+			ma.ca_ContextID.w = nil
 			ma.cm = schema.Maybe_Absent
 			ma.state = maState_initial
 			return true
@@ -412,6 +424,16 @@ func (ma *_Advertisement__Assembler) valueFinishTidy() bool {
 			return false
 		}
 	case 6:
+		switch ma.cm {
+		case schema.Maybe_Value:
+			ma.ca_Metadata.w = nil
+			ma.cm = schema.Maybe_Absent
+			ma.state = maState_initial
+			return true
+		default:
+			return false
+		}
+	case 7:
 		switch ma.cm {
 		case schema.Maybe_Value:
 			ma.ca_IsRm.w = nil
@@ -491,13 +513,23 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (datamodel.NodeAsse
 		ma.ca_Entries.w = &ma.w.Entries
 		ma.ca_Entries.m = &ma.cm
 		return &ma.ca_Entries, nil
+	case "ContextID":
+		if ma.s&fieldBit__Advertisement_ContextID != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ContextID}
+		}
+		ma.s += fieldBit__Advertisement_ContextID
+		ma.state = maState_midValue
+		ma.f = 5
+		ma.ca_ContextID.w = &ma.w.ContextID
+		ma.ca_ContextID.m = &ma.cm
+		return &ma.ca_ContextID, nil
 	case "Metadata":
 		if ma.s&fieldBit__Advertisement_Metadata != 0 {
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Metadata}
 		}
 		ma.s += fieldBit__Advertisement_Metadata
 		ma.state = maState_midValue
-		ma.f = 5
+		ma.f = 6
 		ma.ca_Metadata.w = &ma.w.Metadata
 		ma.ca_Metadata.m = &ma.cm
 		return &ma.ca_Metadata, nil
@@ -507,7 +539,7 @@ func (ma *_Advertisement__Assembler) AssembleEntry(k string) (datamodel.NodeAsse
 		}
 		ma.s += fieldBit__Advertisement_IsRm
 		ma.state = maState_midValue
-		ma.f = 6
+		ma.f = 7
 		ma.ca_IsRm.w = &ma.w.IsRm
 		ma.ca_IsRm.m = &ma.cm
 		return &ma.ca_IsRm, nil
@@ -568,10 +600,14 @@ func (ma *_Advertisement__Assembler) AssembleValue() datamodel.NodeAssembler {
 		ma.ca_Entries.m = &ma.cm
 		return &ma.ca_Entries
 	case 5:
+		ma.ca_ContextID.w = &ma.w.ContextID
+		ma.ca_ContextID.m = &ma.cm
+		return &ma.ca_ContextID
+	case 6:
 		ma.ca_Metadata.w = &ma.w.Metadata
 		ma.ca_Metadata.m = &ma.cm
 		return &ma.ca_Metadata
-	case 6:
+	case 7:
 		ma.ca_IsRm.w = &ma.w.IsRm
 		ma.ca_IsRm.m = &ma.cm
 		return &ma.ca_IsRm
@@ -607,6 +643,9 @@ func (ma *_Advertisement__Assembler) Finish() error {
 		}
 		if ma.s&fieldBit__Advertisement_Entries == 0 {
 			err.Missing = append(err.Missing, "Entries")
+		}
+		if ma.s&fieldBit__Advertisement_ContextID == 0 {
+			err.Missing = append(err.Missing, "ContextID")
 		}
 		if ma.s&fieldBit__Advertisement_Metadata == 0 {
 			err.Missing = append(err.Missing, "Metadata")
@@ -692,13 +731,21 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		ka.state = maState_expectValue
 		ka.f = 4
 		return nil
+	case "ContextID":
+		if ka.s&fieldBit__Advertisement_ContextID != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ContextID}
+		}
+		ka.s += fieldBit__Advertisement_ContextID
+		ka.state = maState_expectValue
+		ka.f = 5
+		return nil
 	case "Metadata":
 		if ka.s&fieldBit__Advertisement_Metadata != 0 {
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Metadata}
 		}
 		ka.s += fieldBit__Advertisement_Metadata
 		ka.state = maState_expectValue
-		ka.f = 5
+		ka.f = 6
 		return nil
 	case "IsRm":
 		if ka.s&fieldBit__Advertisement_IsRm != 0 {
@@ -706,7 +753,7 @@ func (ka *_Advertisement__KeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_IsRm
 		ka.state = maState_expectValue
-		ka.f = 6
+		ka.f = 7
 		return nil
 	default:
 		return schema.ErrInvalidKey{TypeName: "schema.Advertisement", Key: &_String{k}}
@@ -743,6 +790,7 @@ var (
 	fieldName__Advertisement_Addresses_serial  = _String{"Addresses"}
 	fieldName__Advertisement_Signature_serial  = _String{"Signature"}
 	fieldName__Advertisement_Entries_serial    = _String{"Entries"}
+	fieldName__Advertisement_ContextID_serial  = _String{"ContextID"}
 	fieldName__Advertisement_Metadata_serial   = _String{"Metadata"}
 	fieldName__Advertisement_IsRm_serial       = _String{"IsRm"}
 )
@@ -766,6 +814,8 @@ func (n *_Advertisement__Repr) LookupByString(key string) (datamodel.Node, error
 		return n.Signature.Representation(), nil
 	case "Entries":
 		return n.Entries.Representation(), nil
+	case "ContextID":
+		return n.ContextID.Representation(), nil
 	case "Metadata":
 		return n.Metadata.Representation(), nil
 	case "IsRm":
@@ -798,7 +848,7 @@ type _Advertisement__ReprMapItr struct {
 
 func (itr *_Advertisement__ReprMapItr) Next() (k datamodel.Node, v datamodel.Node, _ error) {
 advance:
-	if itr.idx >= 7 {
+	if itr.idx >= 8 {
 		return nil, nil, datamodel.ErrIteratorOverread{}
 	}
 	switch itr.idx {
@@ -822,9 +872,12 @@ advance:
 		k = &fieldName__Advertisement_Entries_serial
 		v = itr.n.Entries.Representation()
 	case 5:
+		k = &fieldName__Advertisement_ContextID_serial
+		v = itr.n.ContextID.Representation()
+	case 6:
 		k = &fieldName__Advertisement_Metadata_serial
 		v = itr.n.Metadata.Representation()
-	case 6:
+	case 7:
 		k = &fieldName__Advertisement_IsRm_serial
 		v = itr.n.IsRm.Representation()
 	default:
@@ -834,13 +887,13 @@ advance:
 	return
 }
 func (itr *_Advertisement__ReprMapItr) Done() bool {
-	return itr.idx >= 7
+	return itr.idx >= 8
 }
 func (_Advertisement__Repr) ListIterator() datamodel.ListIterator {
 	return nil
 }
 func (rn *_Advertisement__Repr) Length() int64 {
-	l := 7
+	l := 8
 	if rn.PreviousID.m == schema.Maybe_Absent {
 		l--
 	}
@@ -911,6 +964,7 @@ type _Advertisement__ReprAssembler struct {
 	ca_Addresses  _List_String__ReprAssembler
 	ca_Signature  _Bytes__ReprAssembler
 	ca_Entries    _Link__ReprAssembler
+	ca_ContextID  _Bytes__ReprAssembler
 	ca_Metadata   _Bytes__ReprAssembler
 	ca_IsRm       _Bool__ReprAssembler
 }
@@ -923,6 +977,7 @@ func (na *_Advertisement__ReprAssembler) reset() {
 	na.ca_Addresses.reset()
 	na.ca_Signature.reset()
 	na.ca_Entries.reset()
+	na.ca_ContextID.reset()
 	na.ca_Metadata.reset()
 	na.ca_IsRm.reset()
 }
@@ -1079,6 +1134,15 @@ func (ma *_Advertisement__ReprAssembler) valueFinishTidy() bool {
 		default:
 			return false
 		}
+	case 7:
+		switch ma.cm {
+		case schema.Maybe_Value:
+			ma.cm = schema.Maybe_Absent
+			ma.state = maState_initial
+			return true
+		default:
+			return false
+		}
 	default:
 		panic("unreachable")
 	}
@@ -1150,13 +1214,23 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (datamodel.Node
 		ma.ca_Entries.w = &ma.w.Entries
 		ma.ca_Entries.m = &ma.cm
 		return &ma.ca_Entries, nil
+	case "ContextID":
+		if ma.s&fieldBit__Advertisement_ContextID != 0 {
+			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ContextID_serial}
+		}
+		ma.s += fieldBit__Advertisement_ContextID
+		ma.state = maState_midValue
+		ma.f = 5
+		ma.ca_ContextID.w = &ma.w.ContextID
+		ma.ca_ContextID.m = &ma.cm
+		return &ma.ca_ContextID, nil
 	case "Metadata":
 		if ma.s&fieldBit__Advertisement_Metadata != 0 {
 			return nil, datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Metadata_serial}
 		}
 		ma.s += fieldBit__Advertisement_Metadata
 		ma.state = maState_midValue
-		ma.f = 5
+		ma.f = 6
 		ma.ca_Metadata.w = &ma.w.Metadata
 		ma.ca_Metadata.m = &ma.cm
 		return &ma.ca_Metadata, nil
@@ -1166,7 +1240,7 @@ func (ma *_Advertisement__ReprAssembler) AssembleEntry(k string) (datamodel.Node
 		}
 		ma.s += fieldBit__Advertisement_IsRm
 		ma.state = maState_midValue
-		ma.f = 6
+		ma.f = 7
 		ma.ca_IsRm.w = &ma.w.IsRm
 		ma.ca_IsRm.m = &ma.cm
 		return &ma.ca_IsRm, nil
@@ -1229,10 +1303,14 @@ func (ma *_Advertisement__ReprAssembler) AssembleValue() datamodel.NodeAssembler
 		ma.ca_Entries.m = &ma.cm
 		return &ma.ca_Entries
 	case 5:
+		ma.ca_ContextID.w = &ma.w.ContextID
+		ma.ca_ContextID.m = &ma.cm
+		return &ma.ca_ContextID
+	case 6:
 		ma.ca_Metadata.w = &ma.w.Metadata
 		ma.ca_Metadata.m = &ma.cm
 		return &ma.ca_Metadata
-	case 6:
+	case 7:
 		ma.ca_IsRm.w = &ma.w.IsRm
 		ma.ca_IsRm.m = &ma.cm
 		return &ma.ca_IsRm
@@ -1268,6 +1346,9 @@ func (ma *_Advertisement__ReprAssembler) Finish() error {
 		}
 		if ma.s&fieldBit__Advertisement_Entries == 0 {
 			err.Missing = append(err.Missing, "Entries")
+		}
+		if ma.s&fieldBit__Advertisement_ContextID == 0 {
+			err.Missing = append(err.Missing, "ContextID")
 		}
 		if ma.s&fieldBit__Advertisement_Metadata == 0 {
 			err.Missing = append(err.Missing, "Metadata")
@@ -1353,13 +1434,21 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		ka.state = maState_expectValue
 		ka.f = 4
 		return nil
+	case "ContextID":
+		if ka.s&fieldBit__Advertisement_ContextID != 0 {
+			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_ContextID_serial}
+		}
+		ka.s += fieldBit__Advertisement_ContextID
+		ka.state = maState_expectValue
+		ka.f = 5
+		return nil
 	case "Metadata":
 		if ka.s&fieldBit__Advertisement_Metadata != 0 {
 			return datamodel.ErrRepeatedMapKey{Key: &fieldName__Advertisement_Metadata_serial}
 		}
 		ka.s += fieldBit__Advertisement_Metadata
 		ka.state = maState_expectValue
-		ka.f = 5
+		ka.f = 6
 		return nil
 	case "IsRm":
 		if ka.s&fieldBit__Advertisement_IsRm != 0 {
@@ -1367,7 +1456,7 @@ func (ka *_Advertisement__ReprKeyAssembler) AssignString(k string) error {
 		}
 		ka.s += fieldBit__Advertisement_IsRm
 		ka.state = maState_expectValue
-		ka.f = 6
+		ka.f = 7
 		return nil
 	}
 	return schema.ErrInvalidKey{TypeName: "schema.Advertisement.Repr", Key: &_String{k}}

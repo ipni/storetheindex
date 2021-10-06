@@ -62,6 +62,7 @@ type _Advertisement struct {
 	Addresses  _List_String
 	Signature  _Bytes
 	Entries    _Link
+	ContextID  _Bytes
 	Metadata   _Bytes
 	IsRm       _Bool
 }
