@@ -34,7 +34,7 @@ import (
 // shutdownTimeout is the duration that a graceful shutdown has to complete
 const shutdownTimeout = 5 * time.Second
 
-var log = logging.Logger("storetheindex")
+var log = logging.Logger("indexer")
 
 var (
 	ErrDaemonStart = errors.New("daemon did not start correctly")

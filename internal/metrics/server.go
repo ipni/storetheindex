@@ -49,7 +49,7 @@ var DefaultViews = []*view.View{
 	ProviderView,
 }
 
-var log = logging.Logger("metrics")
+var log = logging.Logger("indexer/metrics")
 
 // Start creates an HTTP router for serving metric info
 func Start() http.Handler {

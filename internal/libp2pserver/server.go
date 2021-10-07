@@ -22,6 +22,8 @@ import (
 // Idle time before the stream is closed
 const streamIdleTimeout = 1 * time.Minute
 
+var log = logging.Logger("indexer/libp2p")
+
 type Handler interface {
 	HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes []byte) (proto.Message, error)
 	ProtocolID() protocol.ID
@@ -33,8 +35,6 @@ type Server struct {
 	handler Handler
 	selfID  peer.ID
 }
-
-var log = logging.Logger("libp2pserver")
 
 // ID returns the peer.ID of the protocol server.
 func (s *Server) ID() peer.ID {
