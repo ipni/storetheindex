@@ -105,7 +105,7 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 				// Persist the advertisement
 				return ds.Put(dsKey(c.String()), origBuf)
 			}
-			log.Debug("Persisting an IPLD node not of type advertisement")
+			log.Debug("Persisting IPLD node")
 			// Any other type of node (like entries) are stored right away.
 			return ds.Put(dsKey(c.String()), origBuf)
 		}, nil
@@ -145,7 +145,7 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, error) {
 // to process them and ingest into the indexer core.
 func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 	return func(p peer.ID, responseData graphsync.ResponseData, blockData graphsync.BlockData, hookActions graphsync.IncomingBlockHookActions) {
-		log.Debug("hook - Triggering hooko after a block has been stored")
+		log.Debug("hook - Triggering after a block has been stored")
 		// Get cid of the node received.
 		c := blockData.Link().(cidlink.Link).Cid
 
@@ -361,6 +361,7 @@ func batchIndexerEntries(batchSize int, putChan, removeChan <-chan multihash.Mul
 							log.Errorf("Error putting entries in indexer: %s", err)
 							return
 						}
+						log.Debugw("Put entries in value store", "count", len(puts))
 					}
 					if removeChan == nil {
 						// All input channels closed
@@ -377,6 +378,7 @@ func batchIndexerEntries(batchSize int, putChan, removeChan <-chan multihash.Mul
 						log.Errorf("Error putting entries in indexer: %s", err)
 						return
 					}
+					log.Debugw("Put entries in value store", "count", batchSize)
 					puts = puts[:0]
 				}
 			case m, open := <-removeChan:
@@ -388,6 +390,7 @@ func batchIndexerEntries(batchSize int, putChan, removeChan <-chan multihash.Mul
 							errChan <- err
 							return
 						}
+						log.Debugw("Removed entries from value store", "count", len(removes))
 					}
 					if putChan == nil {
 						// All input channels closed
@@ -404,6 +407,7 @@ func batchIndexerEntries(batchSize int, putChan, removeChan <-chan multihash.Mul
 						log.Errorf("Error removing entries from indexer: %s", err)
 						return
 					}
+					log.Debugw("Removed entries from value store", "count", batchSize)
 					removes = removes[:0]
 				}
 			}
