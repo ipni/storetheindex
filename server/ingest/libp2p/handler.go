@@ -20,7 +20,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 )
 
-var log = logging.Logger("ingestp2pserver")
+var log = logging.Logger("indexer/ingest")
 
 // handler handles requests for the providers resource
 type libp2pHandler struct {

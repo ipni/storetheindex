@@ -49,11 +49,14 @@ var DefaultViews = []*view.View{
 	ProviderView,
 }
 
-var log = logging.Logger("metrics")
+var log = logging.Logger("indexer/metrics")
 
 // Start creates an HTTP router for serving metric info
 func Start() http.Handler {
-	view.Register(DefaultViews...)
+	err := view.Register(DefaultViews...)
+	if err != nil {
+		log.Errorf("cannot register metrics default views: %s", err)
+	}
 	registry, ok := promclient.DefaultRegisterer.(*promclient.Registry)
 	if !ok {
 		log.Warnf("failed to export default prometheus registry; some metrics will be unavailable; unexpected type: %T", promclient.DefaultRegisterer)

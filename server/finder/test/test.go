@@ -121,7 +121,9 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 		t.Fatal(err)
 	}
 	t.Log("index values in resp:", len(resp.MultihashResults))
-	err = checkResponse(resp, mhs[:1], []indexer.Value{v})
+
+	expectedResults := []model.ProviderResult{model.ProviderResultFromValue(v, info.AddrInfo.Addrs)}
+	err = checkResponse(resp, mhs[:1], expectedResults)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +133,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = checkResponse(resp, mhs[:10], []indexer.Value{v})
+	err = checkResponse(resp, mhs[:10], expectedResults)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +143,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = checkResponse(resp, mhs[:10], []indexer.Value{v})
+	err = checkResponse(resp, mhs[:10], expectedResults)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +153,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = checkResponse(&model.FindResponse{}, []multihash.Multihash{}, []indexer.Value{})
+	err = checkResponse(&model.FindResponse{}, []multihash.Multihash{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,13 +163,13 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = checkResponse(&model.FindResponse{}, []multihash.Multihash{}, []indexer.Value{})
+	err = checkResponse(&model.FindResponse{}, []multihash.Multihash{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func checkResponse(r *model.FindResponse, mhs []multihash.Multihash, v []indexer.Value) error {
+func checkResponse(r *model.FindResponse, mhs []multihash.Multihash, expected []model.ProviderResult) error {
 	// Check if everything was returned.
 	if len(r.MultihashResults) != len(mhs) {
 		return fmt.Errorf("number of values send in responses not correct, expected %d got %d", len(mhs), len(r.MultihashResults))
@@ -179,13 +181,11 @@ func checkResponse(r *model.FindResponse, mhs []multihash.Multihash, v []indexer
 		}
 
 		// Check if same value
-		if !util.EqualValues(r.MultihashResults[i].Values, v) {
-			return fmt.Errorf("wrong value included for a multihash: %s", v)
+		for j, pr := range r.MultihashResults[i].ProviderResults {
+			if !pr.Equal(expected[j]) {
+				return fmt.Errorf("wrong ProviderResult included for a multihash: %s", expected[j])
+			}
 		}
-	}
-	// If there are any multihash responses, then there should be a provider
-	if len(r.MultihashResults) != 0 && len(r.Providers) != 1 {
-		return fmt.Errorf("wrong number of provider, expected 1 got %d", len(r.Providers))
 	}
 	return nil
 }

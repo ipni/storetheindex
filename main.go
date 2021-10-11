@@ -9,11 +9,8 @@ import (
 
 	"github.com/filecoin-project/storetheindex/command"
 	"github.com/filecoin-project/storetheindex/internal/version"
-	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
 )
-
-var log = logging.Logger("indexer-node")
 
 func main() {
 	// Set up a context that is canceled when the command is interrupted
@@ -34,10 +31,6 @@ func main() {
 		// Allow any forther SIGTERM or SIGING to kill process
 		signal.Stop(interrupt)
 	}()
-
-	if err := logging.SetLogLevel("*", "info"); err != nil {
-		log.Fatal(err)
-	}
 
 	app := &cli.App{
 		Name:    "indexer",

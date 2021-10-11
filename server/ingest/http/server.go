@@ -12,7 +12,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 )
 
-var log = logging.Logger("ingestserver")
+var log = logging.Logger("indexer/ingest")
 
 type Server struct {
 	server *http.Server

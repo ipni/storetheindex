@@ -34,7 +34,7 @@ import (
 // shutdownTimeout is the duration that a graceful shutdown has to complete
 const shutdownTimeout = 5 * time.Second
 
-var log = logging.Logger("command/storetheindex")
+var log = logging.Logger("indexer")
 
 var (
 	ErrDaemonStart = errors.New("daemon did not start correctly")
@@ -49,6 +49,11 @@ var DaemonCmd = &cli.Command{
 }
 
 func daemonCommand(cctx *cli.Context) error {
+	err := logging.SetLogLevel("*", cctx.String("log-level"))
+	if err != nil {
+		return err
+	}
+
 	cfg, err := config.Load("")
 	if err != nil {
 		if err == config.ErrNotInitialized {
@@ -154,7 +159,7 @@ func daemonCommand(cctx *cli.Context) error {
 		ingester         legingest.LegIngester
 	)
 	// Create libp2p host and servers
-	if !cfg.Addresses.DisableP2P && !cctx.Bool("disablep2p") {
+	if !cfg.Addresses.DisableP2P && !cctx.Bool("nop2p") {
 		ctx, cancel := context.WithCancel(cctx.Context)
 		defer cancel()
 		cancelP2pServers = cancel

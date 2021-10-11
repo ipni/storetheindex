@@ -29,7 +29,7 @@ const (
 	providerKeyPath = "/registry/pinfo"
 )
 
-var log = logging.Logger("registry")
+var log = logging.Logger("indexer/registry")
 
 // Registry stores information about discovered providers
 type Registry struct {

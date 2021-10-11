@@ -8,11 +8,12 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
 
 // FinderHandler provides request handling functionality for the finder server
-// that is common to all protocols
+// that is common to all protocols.
 type FinderHandler struct {
 	indexer  indexer.Interface
 	registry *registry.Registry
@@ -25,12 +26,11 @@ func NewFinderHandler(indexer indexer.Interface, registry *registry.Registry) *F
 	}
 }
 
-// MakeFindResponse reads from indexer core to populate a response from a
-// list of multihashes.
+// MakeFindResponse reads from indexer core to populate a response from a list
+// of multihashes.
 func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*model.FindResponse, error) {
 	results := make([]model.MultihashResult, 0, len(mhashes))
-	var providerResults []peer.AddrInfo
-	providerSeen := map[peer.ID]struct{}{}
+	provAddrs := map[peer.ID][]multiaddr.Multiaddr{}
 
 	for i := range mhashes {
 		values, found, err := h.indexer.Get(mhashes[i])
@@ -40,31 +40,32 @@ func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*model.
 		if !found {
 			continue
 		}
-		// Add the result to the list of index results
-		results = append(results, model.MultihashResult{
-			Multihash: mhashes[i],
-			Values:    values,
-		})
 
-		// Lookup provider info for each unique provider
+		provResults := make([]model.ProviderResult, len(values))
 		for j := range values {
 			provID := values[j].ProviderID
-			if _, found = providerSeen[provID]; found {
-				continue
+			// Lookup provider info for each unique provider, look in local map
+			// before going to registry.
+			addrs, ok := provAddrs[provID]
+			if !ok {
+				pinfo := h.registry.ProviderInfo(provID)
+				if pinfo != nil {
+					addrs = pinfo.AddrInfo.Addrs
+					provAddrs[provID] = addrs
+				}
 			}
-			providerSeen[provID] = struct{}{}
 
-			pinfo := h.registry.ProviderInfo(provID)
-			if pinfo == nil {
-				continue
-			}
-
-			providerResults = append(providerResults, pinfo.AddrInfo)
+			provResults[j] = model.ProviderResultFromValue(values[j], addrs)
 		}
+
+		// Add the result to the list of index results.
+		results = append(results, model.MultihashResult{
+			Multihash:       mhashes[i],
+			ProviderResults: provResults,
+		})
 	}
 
 	return &model.FindResponse{
 		MultihashResults: results,
-		Providers:        providerResults,
 	}, nil
 }

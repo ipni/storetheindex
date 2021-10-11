@@ -11,7 +11,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 )
 
-var log = logging.Logger("httpserver")
+var log = logging.Logger("indexer/http")
 
 func WriteJsonResponse(w http.ResponseWriter, status int, body []byte) {
 	w.WriteHeader(status)
