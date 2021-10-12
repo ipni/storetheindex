@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/go-indexer-core/cache"
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/go-legs"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -34,6 +34,8 @@ import (
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 )
+
+const testProtocolID = 0x300000
 
 var ingestCfg = config.Ingest{
 	PubSubTopic: "test/ingest",
@@ -290,8 +292,9 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.Lin
 	require.NoError(t, err)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
-	metadata := indexer.Metadata{
-		Data: mhs[0],
+	metadata := v0.Metadata{
+		ProtocolID: testProtocolID,
+		Data:       mhs[0],
 	}
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 	mhsLnk, mhs := newRandomLinkedList(t, lsys, 3)

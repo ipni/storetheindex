@@ -4,7 +4,7 @@ package schema
 import (
 	"context"
 
-	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -101,7 +101,7 @@ func NewAdvertisement(
 	previousID Link_Advertisement,
 	entries ipld.Link,
 	contextID []byte,
-	metadata indexer.Metadata,
+	metadata v0.Metadata,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, error) {
@@ -119,7 +119,7 @@ func NewAdvertisementWithLink(
 	previousID Link_Advertisement,
 	entries ipld.Link,
 	contextID []byte,
-	metadata indexer.Metadata,
+	metadata v0.Metadata,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, Link_Advertisement, error) {
@@ -157,7 +157,7 @@ func NewAdvertisementWithFakeSig(
 	previousID Link_Advertisement,
 	entries ipld.Link,
 	contextID []byte,
-	metadata indexer.Metadata,
+	metadata v0.Metadata,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, Link_Advertisement, error) {
@@ -203,7 +203,7 @@ func newAdvertisement(
 	previousID Link_Advertisement,
 	entries ipld.Link,
 	contextID []byte,
-	metadata indexer.Metadata,
+	metadata v0.Metadata,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, error) {

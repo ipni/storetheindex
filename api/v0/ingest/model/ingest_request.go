@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/record"
@@ -56,7 +57,7 @@ func (r *IngestRequest) MarshalRecord() ([]byte, error) {
 }
 
 // MakeIngestRequest creates a signed IngestRequest and marshals it into bytes
-func MakeIngestRequest(providerID peer.ID, privateKey crypto.PrivKey, m multihash.Multihash, contextID []byte, metadata indexer.Metadata, addrs []string) ([]byte, error) {
+func MakeIngestRequest(providerID peer.ID, privateKey crypto.PrivKey, m multihash.Multihash, contextID []byte, metadata v0.Metadata, addrs []string) ([]byte, error) {
 	req := &IngestRequest{
 		Multihash: m,
 		Value: indexer.Value{

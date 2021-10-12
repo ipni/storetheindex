@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
@@ -252,7 +253,7 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 	}
 
 	// Check for valud metadata
-	_, err = indexer.DecodeMetadata(metadataBytes)
+	_, err = v0.DecodeMetadata(metadataBytes)
 	if err != nil {
 		log.Errorf("Error decoding metadata: %s", err)
 		return err

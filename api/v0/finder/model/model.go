@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
 
@@ -23,7 +22,7 @@ type ProviderResult struct {
 	// ContextID identifies the metadata that is part of this value.
 	ContextID []byte
 	// Metadata contains information for the provider to use to retrieve data.
-	Metadata indexer.Metadata
+	Metadata v0.Metadata
 	// Provider is the peer ID and addresses of the provider.
 	Provider peer.AddrInfo
 }
@@ -54,22 +53,6 @@ func (pr ProviderResult) Equal(other ProviderResult) bool {
 		return false
 	}
 	return true
-}
-
-func ProviderResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) (ProviderResult, error) {
-	metadata, err := indexer.DecodeMetadata(value.MetadataBytes)
-	if err != nil {
-		return ProviderResult{}, fmt.Errorf("could not decode metadata: %s", err)
-	}
-
-	return ProviderResult{
-		ContextID: value.ContextID,
-		Metadata:  metadata,
-		Provider: peer.AddrInfo{
-			ID:    value.ProviderID,
-			Addrs: addrs,
-		},
-	}, nil
 }
 
 // MarshalReq serializes the request. Currently uses JSON, but could use

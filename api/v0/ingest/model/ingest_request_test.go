@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/test/util"
 )
 
@@ -14,7 +15,7 @@ func TestIngestRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	metadata := indexer.Metadata{
+	metadata := v0.Metadata{
 		Data: []byte("hello"),
 	}
 

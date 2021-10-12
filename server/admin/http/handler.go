@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/internal/importer"
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/gorilla/mux"
@@ -135,7 +136,7 @@ func (h *adminHandler) importManifest(w http.ResponseWriter, r *http.Request) {
 	value := indexer.Value{
 		ProviderID:    provID,
 		ContextID:     contextID,
-		MetadataBytes: indexer.Metadata{}.Encode(),
+		MetadataBytes: v0.Metadata{}.Encode(),
 	}
 	batchErr := batchIndexerEntries(batchSize, out, value, h.indexer)
 	err = <-batchErr
@@ -189,7 +190,7 @@ func (h *adminHandler) importCidList(w http.ResponseWriter, r *http.Request) {
 	value := indexer.Value{
 		ProviderID:    provID,
 		ContextID:     contextID,
-		MetadataBytes: indexer.Metadata{}.Encode(),
+		MetadataBytes: v0.Metadata{}.Encode(),
 	}
 	batchErr := batchIndexerEntries(batchSize, out, value, h.indexer)
 	err = <-batchErr

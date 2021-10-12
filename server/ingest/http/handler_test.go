@@ -7,12 +7,15 @@ import (
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 )
+
+const testProtocolID = 0x300000
 
 var ident = config.Identity{
 	PeerID:  "12D3KooWPw6bfQbJHfKa2o5XpusChoq67iZoqgfnhecygjKsQRmG",
@@ -117,8 +120,9 @@ func TestIndexContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctxID := []byte("test-context-id")
-	metadata := indexer.Metadata{
-		Data: []byte("hello world"),
+	metadata := v0.Metadata{
+		ProtocolID: testProtocolID,
+		Data:       []byte("hello world"),
 	}
 
 	peerID, privKey, err := ident.Decode()

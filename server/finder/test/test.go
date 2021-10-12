@@ -14,6 +14,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/client"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/config"
@@ -24,7 +25,10 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
-const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
+const (
+	providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
+	protocolID = 0x300000
+)
 
 //InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
@@ -100,8 +104,9 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 		t.Fatal(err)
 	}
 	ctxID := []byte("test-context-id")
-	metadata := indexer.Metadata{
-		Data: []byte(mhs[0]),
+	metadata := v0.Metadata{
+		ProtocolID: protocolID,
+		Data:       []byte(mhs[0]),
 	}
 	v := indexer.Value{
 		ProviderID:    p,
@@ -129,10 +134,19 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	}
 	t.Log("index values in resp:", len(resp.MultihashResults))
 
-	provResult, err := model.ProviderResultFromValue(v, info.AddrInfo.Addrs)
+	provResult := model.ProviderResult{
+		ContextID: v.ContextID,
+		Metadata:  metadata,
+		Provider: peer.AddrInfo{
+			ID:    v.ProviderID,
+			Addrs: info.AddrInfo.Addrs,
+		},
+	}
+	provResult.Metadata, err = v0.DecodeMetadata(v.MetadataBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	expectedResults := []model.ProviderResult{provResult}
 	err = checkResponse(resp, mhs[:1], expectedResults)
 	if err != nil {

@@ -12,6 +12,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/client"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -21,6 +22,8 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
+
+const testProtocolID = 0x300000
 
 //InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
@@ -162,8 +165,9 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 	}
 
 	contextID := []byte("test-context-id")
-	metadata := indexer.Metadata{
-		Data: []byte("hello"),
+	metadata := v0.Metadata{
+		ProtocolID: testProtocolID,
+		Data:       []byte("hello"),
 	}
 
 	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
@@ -209,8 +213,9 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 	}
 
 	ctxID := []byte("test-context-id")
-	metadata := indexer.Metadata{
-		Data: []byte("hello"),
+	metadata := v0.Metadata{
+		ProtocolID: testProtocolID,
+		Data:       []byte("hello"),
 	}
 	addrs := []string{newAddr}
 

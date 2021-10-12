@@ -6,10 +6,13 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/go-indexer-core/store/test"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 )
+
+const testProtoID = 0x300000
 
 func TestMarshal(t *testing.T) {
 	// Generate some multihashes and populate indexer
@@ -19,8 +22,8 @@ func TestMarshal(t *testing.T) {
 	}
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
-	metadata := indexer.Metadata{
-		ProtocolID: 0,
+	metadata := v0.Metadata{
+		ProtocolID: testProtoID,
 		Data:       []byte(mhs[0]),
 	}
 	v := indexer.Value{
@@ -56,7 +59,7 @@ func TestMarshal(t *testing.T) {
 		MultihashResults: make([]MultihashResult, 0),
 	}
 
-	metadata, err = indexer.DecodeMetadata(v.MetadataBytes)
+	metadata, err = v0.DecodeMetadata(v.MetadataBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
