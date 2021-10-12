@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	httpclient "github.com/filecoin-project/storetheindex/internal/httpclient"
 	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
@@ -103,8 +104,8 @@ func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*model.Pr
 	return &providerInfo, nil
 }
 
-func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, contextID []byte, protocol uint64, metadata []byte, addrs []string) error {
-	data, err := model.MakeIngestRequest(providerID, privateKey, m, contextID, protocol, metadata, addrs)
+func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, contextID []byte, metadata indexer.Metadata, addrs []string) error {
+	data, err := model.MakeIngestRequest(providerID, privateKey, m, contextID, metadata, addrs)
 	if err != nil {
 		return err
 	}

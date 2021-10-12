@@ -78,7 +78,7 @@ func main() {
 		schema.SpawnStructField("PreviousID", "Link_Advertisement", true, false),
 		// Provider ID of the advertisement.
 		schema.SpawnStructField("Provider", "String", false, false),
-		// Addresses, as list of multiaddr strings, to use for content retrieval
+		// Addresses, as list of multiaddr strings, to use for content retrieval.
 		schema.SpawnStructField("Addresses", "List_String", false, false),
 		// Advertisement signature.
 		schema.SpawnStructField("Signature", "Bytes", false, false),
@@ -86,7 +86,7 @@ func main() {
 		schema.SpawnStructField("Entries", "Link", false, false),
 		// Context ID for entries.
 		schema.SpawnStructField("ContextID", "Bytes", false, false),
-		// Metadata for entries.
+		// Serialized indexer.Metadata for all entries in advertisement.
 		schema.SpawnStructField("Metadata", "Bytes", false, false),
 		// IsRm or Put?
 		schema.SpawnStructField("IsRm", "Bool", false, false),

@@ -17,13 +17,14 @@ type FindRequest struct {
 	Multihashes []multihash.Multihash
 }
 
+// ProviderResult is a one of possibly multiple results when looking up a
+// provider of indexed context.
 type ProviderResult struct {
-	// ContextID identifies the metadata that is part of this value
+	// ContextID identifies the metadata that is part of this value.
 	ContextID []byte
-	// Metadata is serialized data that provides information about retrieving
-	// data, for the indexed CID, from the identified provider.
-	Metadata []byte `json:",omitempty"`
-	// Privider is the peer ID of the provider and its multiaddrs
+	// Metadata contains information for the provider to use to retrieve data.
+	Metadata indexer.Metadata
+	// Privider is the peer ID of the provider and its multiaddrs.
 	Provider peer.AddrInfo
 }
 
@@ -46,7 +47,7 @@ func (pr ProviderResult) Equal(other ProviderResult) bool {
 	if !bytes.Equal(pr.ContextID, other.ContextID) {
 		return false
 	}
-	if !bytes.Equal(pr.Metadata, other.Metadata) {
+	if !pr.Metadata.Equal(other.Metadata) {
 		return false
 	}
 	if pr.Provider.ID != other.Provider.ID {
@@ -56,9 +57,11 @@ func (pr ProviderResult) Equal(other ProviderResult) bool {
 }
 
 func ProviderResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) ProviderResult {
+	metadata, _ := indexer.DecodeMetadata(value.MetadataBytes)
+
 	return ProviderResult{
 		ContextID: value.ContextID,
-		Metadata:  value.Metadata,
+		Metadata:  metadata,
 		Provider: peer.AddrInfo{
 			ID:    value.ProviderID,
 			Addrs: addrs,

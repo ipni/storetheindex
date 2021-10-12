@@ -162,9 +162,9 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 	}
 
 	contextID := []byte("test-context-id")
-	metadata := []byte("hello")
+	metadata := indexer.Metadata{0, []byte("hello")}
 
-	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, 0, metadata, nil)
+	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 		t.Fatal("no content values returned")
 	}
 
-	expectValue := indexer.MakeValue(providerID, contextID, 0, metadata)
+	expectValue := indexer.Value{providerID, contextID, metadata.Encode()}
 	ok = false
 	for i := range vals {
 		if vals[i].Equal(expectValue) {
@@ -203,10 +203,10 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 	}
 
 	ctxID := []byte("test-context-id")
-	metadata := []byte("hello")
+	metadata := indexer.Metadata{0, []byte("hello")}
 	addrs := []string{newAddr}
 
-	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], ctxID, 0, metadata, addrs)
+	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], ctxID, metadata, addrs)
 	if err != nil {
 		t.Fatal(err)
 	}

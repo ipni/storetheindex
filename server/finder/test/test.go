@@ -100,7 +100,8 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 		t.Fatal(err)
 	}
 	ctxID := []byte("test-context-id")
-	v := indexer.MakeValue(p, ctxID, 0, []byte(mhs[0]))
+	metadata := indexer.Metadata{0, []byte(mhs[0])}
+	v := indexer.Value{p, ctxID, metadata.Encode()}
 	PopulateIndex(ind, mhs[:10], v, t)
 
 	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")

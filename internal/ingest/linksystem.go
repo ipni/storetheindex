@@ -230,7 +230,7 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 	if err != nil {
 		return err
 	}
-	metadata, err := ad.FieldMetadata().AsBytes()
+	metadataBytes, err := ad.FieldMetadata().AsBytes()
 	if err != nil {
 		return err
 	}
@@ -251,7 +251,14 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 		return err
 	}
 
-	value := indexer.MakeValue(p, contextID, 0, metadata)
+	// Check for valud metadata
+	_, err = indexer.DecodeMetadata(metadataBytes)
+	if err != nil {
+		log.Errorf("Error decoding metadata: %s", err)
+		return err
+	}
+
+	value := indexer.Value{p, contextID, metadataBytes}
 
 	var putChan, removeChan chan multihash.Multihash
 	var errChan <-chan error

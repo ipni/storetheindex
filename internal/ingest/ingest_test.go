@@ -290,12 +290,12 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.Lin
 	require.NoError(t, err)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
+	metadata := indexer.Metadata{0, mhs[0]}
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
-	val := indexer.MakeValue(p, ctxID, 0, mhs[0])
 	mhsLnk, mhs := newRandomLinkedList(t, lsys, 3)
-	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, mhsLnk, val.ContextID, val.Metadata, false, p.String(), addrs)
+	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, mhsLnk, ctxID, metadata, false, p.String(), addrs)
 	if fakeSig {
-		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, mhsLnk, val.ContextID, val.Metadata, false, p.String(), addrs)
+		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, mhsLnk, ctxID, metadata, false, p.String(), addrs)
 	}
 	require.NoError(t, err)
 	lnk, err := advLnk.AsLink()
