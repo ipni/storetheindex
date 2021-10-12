@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	indexer "github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
@@ -94,18 +94,22 @@ func (h *IngestHandler) IndexContent(data []byte) error {
 		return fmt.Errorf("cannot read ingest request: %s", err)
 	}
 
-	providerID := ingReq.Value.ProviderID
-	if err = h.registry.CheckSequence(providerID, ingReq.Seq); err != nil {
+	if err = h.registry.CheckSequence(ingReq.ProviderID, ingReq.Seq); err != nil {
 		return err
 	}
 
 	// Register provider if not registered, or update addreses if already registered
-	err = h.registry.RegisterOrUpdate(providerID, ingReq.Addrs)
+	err = h.registry.RegisterOrUpdate(ingReq.ProviderID, ingReq.Addrs)
 	if err != nil {
 		return err
 	}
 
-	err = h.indexer.Put(ingReq.Value, ingReq.Multihash)
+	value := indexer.Value{
+		ProviderID:    ingReq.ProviderID,
+		ContextID:     ingReq.ContextID,
+		MetadataBytes: ingReq.Metadata.Encode(),
+	}
+	err = h.indexer.Put(value, ingReq.Multihash)
 	if err != nil {
 		err = fmt.Errorf("cannot index content: %s", err)
 		return syserr.New(err, http.StatusInternalServerError)

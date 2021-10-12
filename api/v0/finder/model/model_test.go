@@ -4,19 +4,17 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/go-indexer-core/store/test"
 	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p-core/peer"
-	ma "github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multiaddr"
 )
 
 const testProtoID = 0x300000
 
 func TestMarshal(t *testing.T) {
 	// Generate some multihashes and populate indexer
-	mhs, err := test.RandomMultihashes(3)
+	mhs, err := util.RandomMultihashes(3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,11 +23,6 @@ func TestMarshal(t *testing.T) {
 	metadata := v0.Metadata{
 		ProtocolID: testProtoID,
 		Data:       []byte(mhs[0]),
-	}
-	v := indexer.Value{
-		ProviderID:    p,
-		ContextID:     ctxID,
-		MetadataBytes: metadata.Encode(),
 	}
 
 	// Masrhal request and check e2e
@@ -48,7 +41,7 @@ func TestMarshal(t *testing.T) {
 		t.Fatal("Request marshal/unmarshal not correct")
 	}
 
-	m1, err := ma.NewMultiaddr("/ip4/127.0.0.1/udp/1234")
+	m1, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/udp/1234")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,17 +52,12 @@ func TestMarshal(t *testing.T) {
 		MultihashResults: make([]MultihashResult, 0),
 	}
 
-	metadata, err = v0.DecodeMetadata(v.MetadataBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	providerResult := ProviderResult{
-		ContextID: v.ContextID,
+		ContextID: ctxID,
 		Metadata:  metadata,
 		Provider: peer.AddrInfo{
 			ID:    p,
-			Addrs: []ma.Multiaddr{m1},
+			Addrs: []multiaddr.Multiaddr{m1},
 		},
 	}
 
