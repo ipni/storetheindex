@@ -24,7 +24,7 @@ type ProviderResult struct {
 	ContextID []byte
 	// Metadata contains information for the provider to use to retrieve data.
 	Metadata indexer.Metadata
-	// Privider is the peer ID of the provider and its multiaddrs.
+	// Provider is the peer ID and addresses of the provider.
 	Provider peer.AddrInfo
 }
 
