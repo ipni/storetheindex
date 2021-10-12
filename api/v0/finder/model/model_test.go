@@ -19,8 +19,15 @@ func TestMarshal(t *testing.T) {
 	}
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
-	metadata := indexer.Metadata{0, []byte(mhs[0])}
-	v := indexer.Value{p, ctxID, metadata.Encode()}
+	metadata := indexer.Metadata{
+		ProtocolID: 0,
+		Data:       []byte(mhs[0]),
+	}
+	v := indexer.Value{
+		ProviderID:    p,
+		ContextID:     ctxID,
+		MetadataBytes: metadata.Encode(),
+	}
 
 	// Masrhal request and check e2e
 	t.Log("e2e marshalling request")

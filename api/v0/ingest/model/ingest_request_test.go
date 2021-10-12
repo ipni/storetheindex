@@ -35,7 +35,11 @@ func TestIngestRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	value := indexer.Value{peerID, ctxID, metadata.Encode()}
+	value := indexer.Value{
+		ProviderID:    peerID,
+		ContextID:     ctxID,
+		MetadataBytes: metadata.Encode(),
+	}
 
 	if !ingReq.Value.Equal(value) {
 		t.Fatal("value in request not same as original")

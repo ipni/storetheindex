@@ -117,7 +117,9 @@ func TestIndexContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctxID := []byte("test-context-id")
-	metadata := indexer.Metadata{0, []byte("hello world")}
+	metadata := indexer.Metadata{
+		Data: []byte("hello world"),
+	}
 
 	peerID, privKey, err := ident.Decode()
 	if err != nil {

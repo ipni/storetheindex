@@ -42,7 +42,9 @@ func genCidsAndAdv(t *testing.T, lsys ipld.LinkSystem, priv crypto.PrivKey, prev
 	mhs, _ := util.RandomMultihashes(10)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
-	metadata := indexer.Metadata{0, mhs[0]}
+	metadata := indexer.Metadata{
+		Data: mhs[0],
+	}
 	addr := "/ip4/127.0.0.1/tcp/9999"
 	cidsLnk, err := NewListOfMhs(lsys, mhs)
 	if err != nil {

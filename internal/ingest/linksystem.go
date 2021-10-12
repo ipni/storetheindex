@@ -258,7 +258,11 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 		return err
 	}
 
-	value := indexer.Value{p, contextID, metadataBytes}
+	value := indexer.Value{
+		ProviderID:    p,
+		ContextID:     contextID,
+		MetadataBytes: metadataBytes,
+	}
 
 	var putChan, removeChan chan multihash.Multihash
 	var errChan <-chan error
