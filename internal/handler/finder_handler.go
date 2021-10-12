@@ -55,7 +55,10 @@ func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*model.
 				}
 			}
 
-			provResults[j] = model.ProviderResultFromValue(values[j], addrs)
+			provResults[j], err = model.ProviderResultFromValue(values[j], addrs)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		// Add the result to the list of index results.

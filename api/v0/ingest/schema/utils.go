@@ -4,13 +4,14 @@ package schema
 import (
 	"context"
 
+	"github.com/filecoin-project/go-indexer-core"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/schema"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/multiformats/go-multicodec"
-	mh "github.com/multiformats/go-multihash"
+	"github.com/multiformats/go-multihash"
 )
 
 // Linkproto is the ipld.LinkProtocol used for the ingestion protocol.
@@ -24,7 +25,7 @@ var Linkproto = cidlink.LinkPrototype{
 	},
 }
 
-var mhCode = mh.Names["sha2-256"]
+var mhCode = multihash.Names["sha2-256"]
 
 // LinkContextKey used to propagate link info through the linkSystem context
 type LinkContextKey string
@@ -39,7 +40,7 @@ const (
 	IsAdKey = LinkContextKey("isAdLink")
 )
 
-func mhsToBytes(mhs []mh.Multihash) []_Bytes {
+func mhsToBytes(mhs []multihash.Multihash) []_Bytes {
 	out := make([]_Bytes, len(mhs))
 	for i := range mhs {
 		out[i] = _Bytes{x: mhs[i]}
@@ -66,19 +67,19 @@ func (l Advertisement) LinkContext(ctx context.Context) ipld.LinkContext {
 
 // NewListOfMhs is a convenient method to create a new list of bytes
 // from a list of multihashes that may be consumed by a linksystem.
-func NewListOfMhs(lsys ipld.LinkSystem, mhs []mh.Multihash) (ipld.Link, error) {
+func NewListOfMhs(lsys ipld.LinkSystem, mhs []multihash.Multihash) (ipld.Link, error) {
 	cStr := &_List_Bytes{x: mhsToBytes(mhs)}
 	return lsys.Store(ipld.LinkContext{}, Linkproto, cStr)
 }
 
 // NewListBytesFromMhs converts multihashes to a list of bytes
-func NewListBytesFromMhs(mhs []mh.Multihash) List_Bytes {
+func NewListBytesFromMhs(mhs []multihash.Multihash) List_Bytes {
 	return &_List_Bytes{x: mhsToBytes(mhs)}
 }
 
 // NewLinkedListOfMhs creates a new element of a linked list that
 // can be used to paginate large lists.
-func NewLinkedListOfMhs(lsys ipld.LinkSystem, mhs []mh.Multihash, next ipld.Link) (ipld.Link, EntryChunk, error) {
+func NewLinkedListOfMhs(lsys ipld.LinkSystem, mhs []multihash.Multihash, next ipld.Link) (ipld.Link, EntryChunk, error) {
 	cStr := &_EntryChunk{
 		Entries: _List_Bytes{x: mhsToBytes(mhs)},
 	}
@@ -100,7 +101,7 @@ func NewAdvertisement(
 	previousID Link_Advertisement,
 	entries ipld.Link,
 	contextID []byte,
-	metadata []byte,
+	metadata indexer.Metadata,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, error) {
@@ -118,7 +119,7 @@ func NewAdvertisementWithLink(
 	previousID Link_Advertisement,
 	entries ipld.Link,
 	contextID []byte,
-	metadata []byte,
+	metadata indexer.Metadata,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, Link_Advertisement, error) {
@@ -156,7 +157,7 @@ func NewAdvertisementWithFakeSig(
 	previousID Link_Advertisement,
 	entries ipld.Link,
 	contextID []byte,
-	metadata []byte,
+	metadata indexer.Metadata,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, Link_Advertisement, error) {
@@ -169,7 +170,7 @@ func NewAdvertisementWithFakeSig(
 			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
 			ContextID:  _Bytes{x: contextID},
-			Metadata:   _Bytes{x: metadata},
+			Metadata:   _Bytes{x: metadata.Encode()},
 			IsRm:       _Bool{x: isRm},
 		}
 	} else {
@@ -179,7 +180,7 @@ func NewAdvertisementWithFakeSig(
 			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
 			ContextID:  _Bytes{x: contextID},
-			Metadata:   _Bytes{x: metadata},
+			Metadata:   _Bytes{x: metadata.Encode()},
 			IsRm:       _Bool{x: isRm},
 		}
 	}
@@ -202,7 +203,7 @@ func newAdvertisement(
 	previousID Link_Advertisement,
 	entries ipld.Link,
 	contextID []byte,
-	metadata []byte,
+	metadata indexer.Metadata,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, error) {
@@ -215,7 +216,7 @@ func newAdvertisement(
 			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
 			ContextID:  _Bytes{x: contextID},
-			Metadata:   _Bytes{x: metadata},
+			Metadata:   _Bytes{x: metadata.Encode()},
 			IsRm:       _Bool{x: isRm},
 		}
 	} else {
@@ -225,7 +226,7 @@ func newAdvertisement(
 			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
 			ContextID:  _Bytes{x: contextID},
-			Metadata:   _Bytes{x: metadata},
+			Metadata:   _Bytes{x: metadata.Encode()},
 			IsRm:       _Bool{x: isRm},
 		}
 	}

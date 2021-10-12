@@ -14,7 +14,9 @@ func TestIngestRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	metadata := []byte("hello")
+	metadata := indexer.Metadata{
+		Data: []byte("hello"),
+	}
 
 	peerID, privKey, err := providerIdent.Decode()
 	if err != nil {
@@ -23,7 +25,7 @@ func TestIngestRequest(t *testing.T) {
 
 	ctxID := []byte("test-context-id")
 	address := "/ip4/127.0.0.1/tcp/7777"
-	data, err := MakeIngestRequest(peerID, privKey, mhs[0], ctxID, 0, metadata, []string{address})
+	data, err := MakeIngestRequest(peerID, privKey, mhs[0], ctxID, metadata, []string{address})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +35,11 @@ func TestIngestRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	value := indexer.MakeValue(peerID, ctxID, 0, metadata)
+	value := indexer.Value{
+		ProviderID:    peerID,
+		ContextID:     ctxID,
+		MetadataBytes: metadata.Encode(),
+	}
 
 	if !ingReq.Value.Equal(value) {
 		t.Fatal("value in request not same as original")

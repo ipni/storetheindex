@@ -132,7 +132,11 @@ func (h *adminHandler) importManifest(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	go importer.ReadManifest(ctx, file, out, errOut)
 
-	value := indexer.MakeValue(provID, contextID, 0, nil)
+	value := indexer.Value{
+		ProviderID:    provID,
+		ContextID:     contextID,
+		MetadataBytes: indexer.Metadata{}.Encode(),
+	}
 	batchErr := batchIndexerEntries(batchSize, out, value, h.indexer)
 	err = <-batchErr
 	if err != nil {
@@ -182,7 +186,11 @@ func (h *adminHandler) importCidList(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	go importer.ReadCids(ctx, file, out, errOut)
 
-	value := indexer.MakeValue(provID, contextID, 0, nil)
+	value := indexer.Value{
+		ProviderID:    provID,
+		ContextID:     contextID,
+		MetadataBytes: indexer.Metadata{}.Encode(),
+	}
 	batchErr := batchIndexerEntries(batchSize, out, value, h.indexer)
 	err = <-batchErr
 	if err != nil {

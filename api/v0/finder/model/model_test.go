@@ -19,7 +19,15 @@ func TestMarshal(t *testing.T) {
 	}
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
-	v := indexer.MakeValue(p, ctxID, 0, []byte(mhs[0]))
+	metadata := indexer.Metadata{
+		ProtocolID: 0,
+		Data:       []byte(mhs[0]),
+	}
+	v := indexer.Value{
+		ProviderID:    p,
+		ContextID:     ctxID,
+		MetadataBytes: metadata.Encode(),
+	}
 
 	// Masrhal request and check e2e
 	t.Log("e2e marshalling request")
@@ -48,9 +56,14 @@ func TestMarshal(t *testing.T) {
 		MultihashResults: make([]MultihashResult, 0),
 	}
 
+	metadata, err = indexer.DecodeMetadata(v.MetadataBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	providerResult := ProviderResult{
 		ContextID: v.ContextID,
-		Metadata:  v.Metadata,
+		Metadata:  metadata,
 		Provider: peer.AddrInfo{
 			ID:    p,
 			Addrs: []ma.Multiaddr{m1},

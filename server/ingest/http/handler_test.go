@@ -117,14 +117,16 @@ func TestIndexContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctxID := []byte("test-context-id")
-	metadata := []byte("hello world")
+	metadata := indexer.Metadata{
+		Data: []byte("hello world"),
+	}
 
 	peerID, privKey, err := ident.Decode()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	data, err := model.MakeIngestRequest(peerID, privKey, m, ctxID, 0, metadata, nil)
+	data, err := model.MakeIngestRequest(peerID, privKey, m, ctxID, metadata, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

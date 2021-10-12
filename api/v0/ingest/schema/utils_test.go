@@ -12,7 +12,7 @@ import (
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/test"
-	mh "github.com/multiformats/go-multihash"
+	"github.com/multiformats/go-multihash"
 
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -38,20 +38,19 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	return lsys
 }
 
-func genCidsAndAdv(t *testing.T, lsys ipld.LinkSystem,
-	priv crypto.PrivKey,
-	previous Link_Advertisement) ([]mh.Multihash, ipld.Link, Advertisement, Link_Advertisement) {
-
+func genCidsAndAdv(t *testing.T, lsys ipld.LinkSystem, priv crypto.PrivKey, previous Link_Advertisement) ([]multihash.Multihash, ipld.Link, Advertisement, Link_Advertisement) {
+	mhs, _ := util.RandomMultihashes(10)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
+	metadata := indexer.Metadata{
+		Data: mhs[0],
+	}
 	addr := "/ip4/127.0.0.1/tcp/9999"
-	mhs, _ := util.RandomMultihashes(10)
-	val := indexer.MakeValue(p, ctxID, 0, mhs[0])
 	cidsLnk, err := NewListOfMhs(lsys, mhs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, previous, cidsLnk, val.ContextID, val.Metadata, false, p.String(), []string{addr})
+	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, previous, cidsLnk, ctxID, metadata, false, p.String(), []string{addr})
 	if err != nil {
 		t.Fatal(err)
 	}
