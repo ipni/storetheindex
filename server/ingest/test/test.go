@@ -20,7 +20,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/multiformats/go-multihash"
 )
 
 const testProtocolID = 0x300000
@@ -65,27 +64,6 @@ func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 		t.Fatal(err)
 	}
 	return reg
-}
-
-// populateIndex with some multihashes
-func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.Value, t *testing.T) {
-	err := ind.Put(v, mhs...)
-	if err != nil {
-		t.Fatal("Error putting multihashes: ", err)
-	}
-	vals, ok, err := ind.Get(mhs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatal("multihash not found")
-	}
-	if len(vals) == 0 {
-		t.Fatal("no values returned")
-	}
-	if !v.Equal(vals[0]) {
-		t.Fatal("stored and retrieved values are different")
-	}
 }
 
 func RegisterProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {
