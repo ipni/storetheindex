@@ -67,8 +67,8 @@ func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 	return reg
 }
 
-// PopulateIndex with some multihashes
-func PopulateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.Value, t *testing.T) {
+// populateIndex with some multihashes
+func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.Value, t *testing.T) {
 	err := ind.Put(v, mhs...)
 	if err != nil {
 		t.Fatal("Error putting multihashes: ", err)

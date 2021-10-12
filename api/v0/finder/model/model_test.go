@@ -8,6 +8,7 @@ import (
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multihash"
 )
 
 const testProtoID = 0x300000
@@ -37,7 +38,7 @@ func TestMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !util.EqualMultihashes(r.Multihashes, mhs) {
+	if !equalMultihashes(r.Multihashes, mhs) {
 		t.Fatal("Request marshal/unmarshal not correct")
 	}
 
@@ -77,13 +78,13 @@ func TestMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !EqualMultihashResult(resp.MultihashResults, r2.MultihashResults) {
+	if !equalMultihashResult(resp.MultihashResults, r2.MultihashResults) {
 		t.Fatal("failed marshal/unmarshaling response")
 	}
 
 }
 
-func EqualMultihashResult(res1, res2 []MultihashResult) bool {
+func equalMultihashResult(res1, res2 []MultihashResult) bool {
 	if len(res1) != len(res2) {
 		return false
 	}
@@ -99,6 +100,18 @@ func EqualMultihashResult(res1, res2 []MultihashResult) bool {
 			if !pr1.Equal(r2.ProviderResults[j]) {
 				return false
 			}
+		}
+	}
+	return true
+}
+
+func equalMultihashes(m1, m2 []multihash.Multihash) bool {
+	if len(m1) != len(m2) {
+		return false
+	}
+	for i := range m1 {
+		if !bytes.Equal([]byte(m1[i]), []byte(m2[i])) {
+			return false
 		}
 	}
 	return true
