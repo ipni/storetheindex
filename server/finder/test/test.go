@@ -129,7 +129,11 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	}
 	t.Log("index values in resp:", len(resp.MultihashResults))
 
-	expectedResults := []model.ProviderResult{model.ProviderResultFromValue(v, info.AddrInfo.Addrs)}
+	provResult, err := model.ProviderResultFromValue(v, info.AddrInfo.Addrs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedResults := []model.ProviderResult{provResult}
 	err = checkResponse(resp, mhs[:1], expectedResults)
 	if err != nil {
 		t.Fatal(err)

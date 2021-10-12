@@ -56,8 +56,11 @@ func (pr ProviderResult) Equal(other ProviderResult) bool {
 	return true
 }
 
-func ProviderResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) ProviderResult {
-	metadata, _ := indexer.DecodeMetadata(value.MetadataBytes)
+func ProviderResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) (ProviderResult, error) {
+	metadata, err := indexer.DecodeMetadata(value.MetadataBytes)
+	if err != nil {
+		return ProviderResult{}, fmt.Errorf("could not decode metadata: %s", err)
+	}
 
 	return ProviderResult{
 		ContextID: value.ContextID,
@@ -66,7 +69,7 @@ func ProviderResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) P
 			ID:    value.ProviderID,
 			Addrs: addrs,
 		},
-	}
+	}, nil
 }
 
 // MarshalReq serializes the request. Currently uses JSON, but could use
