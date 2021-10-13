@@ -15,10 +15,7 @@ const testProtoID = 0x300000
 
 func TestMarshal(t *testing.T) {
 	// Generate some multihashes and populate indexer
-	mhs, err := util.RandomMultihashes(3)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mhs := util.RandomMultihashes(3)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
 	metadata := v0.Metadata{

@@ -9,10 +9,7 @@ import (
 )
 
 func TestIngestRequest(t *testing.T) {
-	mhs, err := util.RandomMultihashes(1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mhs := util.RandomMultihashes(1)
 
 	metadata := v0.Metadata{
 		Data: []byte("hello"),

@@ -95,10 +95,7 @@ func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 
 func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
-	mhs, err := util.RandomMultihashes(15)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mhs := util.RandomMultihashes(15)
 	p, err := peer.Decode(providerID)
 	if err != nil {
 		t.Fatal(err)

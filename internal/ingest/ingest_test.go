@@ -273,12 +273,12 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 
 func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash) {
 	out := []multihash.Multihash{}
-	mhs, _ := util.RandomMultihashes(10)
+	mhs := util.RandomMultihashes(10)
 	out = append(out, mhs...)
 	nextLnk, _, err := schema.NewLinkedListOfMhs(lsys, mhs, nil)
 	require.NoError(t, err)
 	for i := 1; i < size; i++ {
-		mhs, _ := util.RandomMultihashes(10)
+		mhs := util.RandomMultihashes(10)
 		nextLnk, _, err = schema.NewLinkedListOfMhs(lsys, mhs, nextLnk)
 		require.NoError(t, err)
 		out = append(out, mhs...)
@@ -287,7 +287,7 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 }
 
 func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash) {
-	mhs, _ := util.RandomMultihashes(1)
+	mhs := util.RandomMultihashes(1)
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")

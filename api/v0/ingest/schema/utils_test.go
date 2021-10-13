@@ -39,7 +39,7 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 }
 
 func genCidsAndAdv(t *testing.T, lsys ipld.LinkSystem, priv crypto.PrivKey, previous Link_Advertisement) ([]multihash.Multihash, ipld.Link, Advertisement, Link_Advertisement) {
-	mhs, _ := util.RandomMultihashes(10)
+	mhs := util.RandomMultihashes(10)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
 	metadata := v0.Metadata{
@@ -85,7 +85,7 @@ func TestChainAdvertisements(t *testing.T) {
 func TestLinkedList(t *testing.T) {
 	dstore := datastore.NewMapDatastore()
 	lsys := mkLinkSystem(dstore)
-	mhs, _ := util.RandomMultihashes(10)
+	mhs := util.RandomMultihashes(10)
 	lnk1, ch1, err := NewLinkedListOfMhs(lsys, mhs, nil)
 	if err != nil {
 		t.Fatal(err)

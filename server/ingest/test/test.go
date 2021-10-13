@@ -137,10 +137,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs, err := util.RandomMultihashes(1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mhs := util.RandomMultihashes(1)
 
 	contextID := []byte("test-context-id")
 	metadata := v0.Metadata{
@@ -148,7 +145,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 		Data:       []byte("hello"),
 	}
 
-	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
+	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,10 +182,7 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs, err := util.RandomMultihashes(1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mhs := util.RandomMultihashes(1)
 
 	ctxID := []byte("test-context-id")
 	metadata := v0.Metadata{
@@ -197,7 +191,7 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 	}
 	addrs := []string{newAddr}
 
-	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], ctxID, metadata, addrs)
+	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], ctxID, metadata, addrs)
 	if err != nil {
 		t.Fatal(err)
 	}
