@@ -11,7 +11,6 @@ const (
 	defaultPollInterval     = Duration(24 * time.Hour)
 	defaultRediscoverWait   = Duration(5 * time.Minute)
 	defaultDiscoveryTimeout = Duration(2 * time.Minute)
-	defaultTopic            = "ContentIndex"
 )
 
 // Discovery holds addresses of peers to from which to receive index
@@ -37,6 +36,4 @@ type Discovery struct {
 	// Timeout is the maximum amount of time that the indexer will spend trying
 	// to discover and verify a new provider.
 	Timeout Duration
-	// Topic is the pubsub topic to subscribe to
-	Topic string
 }
