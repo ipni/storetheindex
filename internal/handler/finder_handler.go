@@ -3,7 +3,8 @@ package handler
 import (
 	"fmt"
 
-	indexer "github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
@@ -55,7 +56,7 @@ func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*model.
 				}
 			}
 
-			provResults[j], err = model.ProviderResultFromValue(values[j], addrs)
+			provResults[j], err = providerResultFromValue(values[j], addrs)
 			if err != nil {
 				return nil, err
 			}
@@ -70,5 +71,21 @@ func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*model.
 
 	return &model.FindResponse{
 		MultihashResults: results,
+	}, nil
+}
+
+func providerResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) (model.ProviderResult, error) {
+	metadata, err := v0.DecodeMetadata(value.MetadataBytes)
+	if err != nil {
+		return model.ProviderResult{}, fmt.Errorf("could not decode metadata: %s", err)
+	}
+
+	return model.ProviderResult{
+		ContextID: value.ContextID,
+		Metadata:  metadata,
+		Provider: peer.AddrInfo{
+			ID:    value.ProviderID,
+			Addrs: addrs,
+		},
 	}, nil
 }

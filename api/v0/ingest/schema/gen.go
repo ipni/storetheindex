@@ -86,7 +86,7 @@ func main() {
 		schema.SpawnStructField("Entries", "Link", false, false),
 		// Context ID for entries.
 		schema.SpawnStructField("ContextID", "Bytes", false, false),
-		// Serialized indexer.Metadata for all entries in advertisement.
+		// Serialized v0.Metadata for all entries in advertisement.
 		schema.SpawnStructField("Metadata", "Bytes", false, false),
 		// IsRm or Put?
 		schema.SpawnStructField("IsRm", "Bool", false, false),

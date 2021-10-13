@@ -14,6 +14,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/client"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/config"
@@ -24,7 +25,10 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
-const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
+const (
+	providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
+	protocolID = 0x300000
+)
 
 //InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
@@ -68,8 +72,8 @@ func InitRegistry(t *testing.T) *registry.Registry {
 	return reg
 }
 
-// PopulateIndex with some multihashes
-func PopulateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.Value, t *testing.T) {
+// populateIndex with some multihashes
+func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.Value, t *testing.T) {
 	err := ind.Put(v, mhs...)
 	if err != nil {
 		t.Fatal("Error putting multihashes: ", err)
@@ -91,24 +95,22 @@ func PopulateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 
 func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
-	mhs, err := util.RandomMultihashes(15)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mhs := util.RandomMultihashes(15)
 	p, err := peer.Decode(providerID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctxID := []byte("test-context-id")
-	metadata := indexer.Metadata{
-		Data: []byte(mhs[0]),
+	metadata := v0.Metadata{
+		ProtocolID: protocolID,
+		Data:       []byte(mhs[0]),
 	}
 	v := indexer.Value{
 		ProviderID:    p,
 		ContextID:     ctxID,
 		MetadataBytes: metadata.Encode(),
 	}
-	PopulateIndex(ind, mhs[:10], v, t)
+	populateIndex(ind, mhs[:10], v, t)
 
 	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	info := &registry.ProviderInfo{
@@ -129,10 +131,19 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	}
 	t.Log("index values in resp:", len(resp.MultihashResults))
 
-	provResult, err := model.ProviderResultFromValue(v, info.AddrInfo.Addrs)
+	provResult := model.ProviderResult{
+		ContextID: v.ContextID,
+		Metadata:  metadata,
+		Provider: peer.AddrInfo{
+			ID:    v.ProviderID,
+			Addrs: info.AddrInfo.Addrs,
+		},
+	}
+	provResult.Metadata, err = v0.DecodeMetadata(v.MetadataBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	expectedResults := []model.ProviderResult{provResult}
 	err = checkResponse(resp, mhs[:1], expectedResults)
 	if err != nil {

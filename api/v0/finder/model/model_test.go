@@ -4,29 +4,23 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/go-indexer-core/store/test"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p-core/peer"
-	ma "github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multihash"
 )
+
+const testProtoID = 0x300000
 
 func TestMarshal(t *testing.T) {
 	// Generate some multihashes and populate indexer
-	mhs, err := test.RandomMultihashes(3)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mhs := util.RandomMultihashes(3)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
-	metadata := indexer.Metadata{
-		ProtocolID: 0,
+	metadata := v0.Metadata{
+		ProtocolID: testProtoID,
 		Data:       []byte(mhs[0]),
-	}
-	v := indexer.Value{
-		ProviderID:    p,
-		ContextID:     ctxID,
-		MetadataBytes: metadata.Encode(),
 	}
 
 	// Masrhal request and check e2e
@@ -41,11 +35,11 @@ func TestMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !util.EqualMultihashes(r.Multihashes, mhs) {
+	if !equalMultihashes(r.Multihashes, mhs) {
 		t.Fatal("Request marshal/unmarshal not correct")
 	}
 
-	m1, err := ma.NewMultiaddr("/ip4/127.0.0.1/udp/1234")
+	m1, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/udp/1234")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,17 +50,12 @@ func TestMarshal(t *testing.T) {
 		MultihashResults: make([]MultihashResult, 0),
 	}
 
-	metadata, err = indexer.DecodeMetadata(v.MetadataBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	providerResult := ProviderResult{
-		ContextID: v.ContextID,
+		ContextID: ctxID,
 		Metadata:  metadata,
 		Provider: peer.AddrInfo{
 			ID:    p,
-			Addrs: []ma.Multiaddr{m1},
+			Addrs: []multiaddr.Multiaddr{m1},
 		},
 	}
 
@@ -86,13 +75,13 @@ func TestMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !EqualMultihashResult(resp.MultihashResults, r2.MultihashResults) {
+	if !equalMultihashResult(resp.MultihashResults, r2.MultihashResults) {
 		t.Fatal("failed marshal/unmarshaling response")
 	}
 
 }
 
-func EqualMultihashResult(res1, res2 []MultihashResult) bool {
+func equalMultihashResult(res1, res2 []MultihashResult) bool {
 	if len(res1) != len(res2) {
 		return false
 	}
@@ -108,6 +97,18 @@ func EqualMultihashResult(res1, res2 []MultihashResult) bool {
 			if !pr1.Equal(r2.ProviderResults[j]) {
 				return false
 			}
+		}
+	}
+	return true
+}
+
+func equalMultihashes(m1, m2 []multihash.Multihash) bool {
+	if len(m1) != len(m2) {
+		return false
+	}
+	for i := range m1 {
+		if !bytes.Equal([]byte(m1[i]), []byte(m2[i])) {
+			return false
 		}
 	}
 	return true

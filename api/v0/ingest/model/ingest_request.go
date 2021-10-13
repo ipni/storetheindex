@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/record"
@@ -15,10 +15,12 @@ import (
 // intentionally limited to one multihash as bulk ingestion should be done via
 // advertisement ingestion method.
 type IngestRequest struct {
-	Multihash multihash.Multihash
-	Value     indexer.Value
-	Addrs     []string
-	Seq       uint64
+	Multihash  multihash.Multihash
+	ProviderID peer.ID
+	ContextID  []byte
+	Metadata   v0.Metadata
+	Addrs      []string
+	Seq        uint64
 }
 
 // IngestRequestEnvelopeDomain is the domain string used for ingest requests contained in a Envelope.
@@ -56,16 +58,14 @@ func (r *IngestRequest) MarshalRecord() ([]byte, error) {
 }
 
 // MakeIngestRequest creates a signed IngestRequest and marshals it into bytes
-func MakeIngestRequest(providerID peer.ID, privateKey crypto.PrivKey, m multihash.Multihash, contextID []byte, metadata indexer.Metadata, addrs []string) ([]byte, error) {
+func MakeIngestRequest(providerID peer.ID, privateKey crypto.PrivKey, m multihash.Multihash, contextID []byte, metadata v0.Metadata, addrs []string) ([]byte, error) {
 	req := &IngestRequest{
-		Multihash: m,
-		Value: indexer.Value{
-			ProviderID:    providerID,
-			ContextID:     contextID,
-			MetadataBytes: metadata.Encode(),
-		},
-		Addrs: addrs,
-		Seq:   peer.TimestampSeq(),
+		Multihash:  m,
+		ProviderID: providerID,
+		ContextID:  contextID,
+		Metadata:   metadata,
+		Addrs:      addrs,
+		Seq:        peer.TimestampSeq(),
 	}
 
 	return makeRequestEnvelop(req, privateKey)

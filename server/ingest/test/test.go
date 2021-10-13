@@ -12,6 +12,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/client"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -19,8 +20,9 @@ import (
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/multiformats/go-multihash"
 )
+
+const testProtocolID = 0x300000
 
 //InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
@@ -62,27 +64,6 @@ func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 		t.Fatal(err)
 	}
 	return reg
-}
-
-// PopulateIndex with some multihashes
-func PopulateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.Value, t *testing.T) {
-	err := ind.Put(v, mhs...)
-	if err != nil {
-		t.Fatal("Error putting multihashes: ", err)
-	}
-	vals, ok, err := ind.Get(mhs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatal("multihash not found")
-	}
-	if len(vals) == 0 {
-		t.Fatal("no values returned")
-	}
-	if !v.Equal(vals[0]) {
-		t.Fatal("stored and retrieved values are different")
-	}
 }
 
 func RegisterProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {
@@ -156,17 +137,15 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs, err := util.RandomMultihashes(1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mhs := util.RandomMultihashes(1)
 
 	contextID := []byte("test-context-id")
-	metadata := indexer.Metadata{
-		Data: []byte("hello"),
+	metadata := v0.Metadata{
+		ProtocolID: testProtocolID,
+		Data:       []byte("hello"),
 	}
 
-	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
+	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,18 +182,16 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs, err := util.RandomMultihashes(1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mhs := util.RandomMultihashes(1)
 
 	ctxID := []byte("test-context-id")
-	metadata := indexer.Metadata{
-		Data: []byte("hello"),
+	metadata := v0.Metadata{
+		ProtocolID: testProtocolID,
+		Data:       []byte("hello"),
 	}
 	addrs := []string{newAddr}
 
-	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], ctxID, metadata, addrs)
+	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], ctxID, metadata, addrs)
 	if err != nil {
 		t.Fatal(err)
 	}
