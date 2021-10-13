@@ -12,7 +12,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/client"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -161,10 +161,15 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 		t.Fatal("no content values returned")
 	}
 
+	encMetadata, err := metadata.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	expectValue := indexer.Value{
 		ProviderID:    providerID,
 		ContextID:     contextID,
-		MetadataBytes: metadata.Encode(),
+		MetadataBytes: encMetadata,
 	}
 	ok = false
 	for i := range vals {

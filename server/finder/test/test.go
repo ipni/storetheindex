@@ -14,7 +14,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/client"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/config"
@@ -105,10 +105,14 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 		ProtocolID: protocolID,
 		Data:       []byte(mhs[0]),
 	}
+	encMetadata, err := metadata.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
 	v := indexer.Value{
 		ProviderID:    p,
 		ContextID:     ctxID,
-		MetadataBytes: metadata.Encode(),
+		MetadataBytes: encMetadata,
 	}
 	populateIndex(ind, mhs[:10], v, t)
 
@@ -133,13 +137,12 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 
 	provResult := model.ProviderResult{
 		ContextID: v.ContextID,
-		Metadata:  metadata,
 		Provider: peer.AddrInfo{
 			ID:    v.ProviderID,
 			Addrs: info.AddrInfo.Addrs,
 		},
 	}
-	provResult.Metadata, err = v0.DecodeMetadata(v.MetadataBytes)
+	err = provResult.Metadata.UnmarshalBinary(v.MetadataBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
