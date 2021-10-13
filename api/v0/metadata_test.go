@@ -12,14 +12,17 @@ func TestEncodeDecode(t *testing.T) {
 		ProtocolID: testProtoID,
 		Data:       []byte("test-data"),
 	}
-	metadataBytes := origMetadata.Encode()
+	metadataBytes, err := origMetadata.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(metadataBytes) == 0 {
 		t.Fatal("did not encode metadata")
 	}
 
-	metadata, err := DecodeMetadata(metadataBytes)
-	if err != nil {
+	var metadata Metadata
+	if err := metadata.UnmarshalBinary(metadataBytes); err != nil {
 		t.Fatal(err)
 	}
 	if metadata.ProtocolID != origMetadata.ProtocolID {
@@ -30,6 +33,13 @@ func TestEncodeDecode(t *testing.T) {
 	}
 	if !metadata.Equal(origMetadata) {
 		t.Fatal("metadata no equal after decode")
+	}
+
+	// Zero the bytes and ensure the decoded struct still works.
+	// This will fail if UnmarshalBinary did not copy the inner data bytes.
+	copy(metadataBytes, make([]byte, 1024))
+	if !metadata.Equal(origMetadata) {
+		t.Fatal("metadata no equal after buffer zeroing")
 	}
 
 	metadata.ProtocolID = origMetadata.ProtocolID + 1

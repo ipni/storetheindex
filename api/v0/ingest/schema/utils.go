@@ -4,7 +4,7 @@ package schema
 import (
 	"context"
 
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -162,6 +162,11 @@ func NewAdvertisementWithFakeSig(
 	provider string,
 	addrs []string) (Advertisement, Link_Advertisement, error) {
 
+	encMetadata, err := metadata.MarshalBinary()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var ad Advertisement
 	if previousID != nil {
 		ad = &_Advertisement{
@@ -170,7 +175,7 @@ func NewAdvertisementWithFakeSig(
 			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
 			ContextID:  _Bytes{x: contextID},
-			Metadata:   _Bytes{x: metadata.Encode()},
+			Metadata:   _Bytes{x: encMetadata},
 			IsRm:       _Bool{x: isRm},
 		}
 	} else {
@@ -180,7 +185,7 @@ func NewAdvertisementWithFakeSig(
 			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
 			ContextID:  _Bytes{x: contextID},
-			Metadata:   _Bytes{x: metadata.Encode()},
+			Metadata:   _Bytes{x: encMetadata},
 			IsRm:       _Bool{x: isRm},
 		}
 	}
@@ -208,6 +213,11 @@ func newAdvertisement(
 	provider string,
 	addrs []string) (Advertisement, error) {
 
+	encMetadata, err := metadata.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
 	var ad Advertisement
 	if previousID != nil {
 		ad = &_Advertisement{
@@ -216,7 +226,7 @@ func newAdvertisement(
 			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
 			ContextID:  _Bytes{x: contextID},
-			Metadata:   _Bytes{x: metadata.Encode()},
+			Metadata:   _Bytes{x: encMetadata},
 			IsRm:       _Bool{x: isRm},
 		}
 	} else {
@@ -226,7 +236,7 @@ func newAdvertisement(
 			Addresses:  GoToIpldStrings(addrs),
 			Entries:    _Link{x: entries},
 			ContextID:  _Bytes{x: contextID},
-			Metadata:   _Bytes{x: metadata.Encode()},
+			Metadata:   _Bytes{x: encMetadata},
 			IsRm:       _Bool{x: isRm},
 		}
 	}

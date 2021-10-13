@@ -103,11 +103,15 @@ func (h *IngestHandler) IndexContent(data []byte) error {
 	if err != nil {
 		return err
 	}
+	encMetadata, err := ingReq.Metadata.MarshalBinary()
+	if err != nil {
+		return err
+	}
 
 	value := indexer.Value{
 		ProviderID:    ingReq.ProviderID,
 		ContextID:     ingReq.ContextID,
-		MetadataBytes: ingReq.Metadata.Encode(),
+		MetadataBytes: encMetadata,
 	}
 	err = h.indexer.Put(value, ingReq.Multihash)
 	if err != nil {
