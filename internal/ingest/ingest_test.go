@@ -14,7 +14,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/go-legs"
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -247,11 +247,7 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.LegPublisher, ipld.LinkSystem) {
 	ctx := context.Background()
 	lsys := mkProvLinkSystem(store)
-	lt, err := legs.MakeLegTransport(context.Background(), h, store, lsys, ingestCfg.PubSubTopic)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ls, err := legs.NewPublisher(ctx, lt)
+	ls, err := legs.NewPublisher(ctx, h, store, lsys, ingestCfg.PubSubTopic)
 	require.NoError(t, err)
 	return ls, lsys
 }

@@ -44,7 +44,7 @@ type LegIngester interface {
 type legIngester struct {
 	host    host.Host
 	ds      datastore.Batching
-	lt      *legs.LegTransport
+	lms     legs.LegMultiSubscriber
 	indexer *indexer.Engine
 
 	newClient func(context.Context, host.Host, peer.ID) (pclient.Provider, error)
@@ -68,7 +68,7 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 	idxr *indexer.Engine, reg *registry.Registry, ds datastore.Batching) (LegIngester, error) {
 
 	lsys := mkLinkSystem(ds, reg)
-	lt, err := legs.MakeLegTransport(context.Background(), h, ds, lsys, cfg.PubSubTopic)
+	lms, err := legs.NewMultiSubscriber(ctx, h, ds, lsys, cfg.PubSubTopic)
 	if err != nil {
 		log.Errorf("Failed to state LegTransport in ingester: %s", err)
 		return nil, err
@@ -85,14 +85,14 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 		ds:        ds,
 		indexer:   idxr,
 		newClient: newClient,
-		lt:        lt,
+		lms:       lms,
 		subs:      make(map[peer.ID]*subscriber),
 		sublk:     keymutex.New(0),
 		batchSize: cfg.StoreBatchSize,
 	}
 
 	// Register storage hook to index data as we receive it.
-	lt.Gs.RegisterIncomingBlockHook(li.storageHook())
+	lms.GraphSync().RegisterIncomingBlockHook(li.storageHook())
 	log.Debugf("LegIngester started and all hooks and linksystem registered")
 	return li, nil
 }
@@ -271,10 +271,10 @@ func (i *legIngester) newPeerSubscriber(ctx context.Context, peerID peer.ID) (*s
 	// If not synced start a brand new subscriber
 	var ls legs.LegSubscriber
 	if c == cid.Undef {
-		ls, err = legs.NewSubscriber(ctx, i.lt, legs.FilterPeerPolicy(peerID))
+		ls, err = i.lms.NewSubscriber(legs.FilterPeerPolicy(peerID))
 	} else {
 		// If yes, start a partially synced subscriber.
-		ls, err = legs.NewSubscriberPartiallySynced(ctx, i.lt, legs.FilterPeerPolicy(peerID), c)
+		ls, err = i.lms.NewSubscriberPartiallySynced(legs.FilterPeerPolicy(peerID), c)
 	}
 	if err != nil {
 		return nil, err
@@ -296,7 +296,7 @@ func (i *legIngester) Close(ctx context.Context) error {
 		}
 	}
 	// Close leg transport.
-	return i.lt.Close(ctx)
+	return i.lms.Close(ctx)
 }
 
 // Get the latest cid synced for the peer.
