@@ -1,0 +1,92 @@
+version: 2.1
+
+commands:
+  docker-login:
+    steps:
+      - run:
+          command: echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin
+
+jobs:
+  build-push:
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - checkout
+      - docker-login
+      - run:
+          name: docker build
+          command: |
+            DOCKER_REPO=filecoin/storetheindex
+            DOCKER_TAG=$CIRCLE_SHA1
+            echo "export DOCKER_REPO=$DOCKER_REPO" >> $BASH_ENV
+            echo "export DOCKER_TAG=$DOCKER_TAG" >> $BASH_ENV
+            docker build -t "${DOCKER_REPO}:${DOCKER_TAG}" .
+            docker push "${DOCKER_REPO}:${DOCKER_TAG}"
+
+  deploy-lotusinfra:
+    docker:
+      - image: cimg/base:2021.04
+    parameters:
+      chart:
+        type: string
+      chart_version:
+        type: string
+      namespace:
+        type: string
+      release:
+        type: string
+      circle_context:
+        type: string
+      kubernetes_cluster:
+        type: string
+      aws_region:
+        type: string
+    steps:
+      - run:
+          name: submit deploy job
+          command: |
+            curl --request POST \
+            --url https://circleci.com/api/v2/project/gh/filecoin-project/lotus-infra/pipeline \
+            --header "Circle-Token: $CIRCLE_TOKEN" \
+            --header "content-type: application/json" \
+            --data "{
+              \"parameters\":{
+                \"api_workflow_requested\": \"helm-deploy\",
+                \"circle_context\": \"<< parameters.circle_context >>\",
+                \"kubernetes_cluster\": \"<< parameters.kubernetes_cluster >>\",
+                \"aws_region\": \"<< parameters.aws_region >>\",
+                \"namespace\": \"<< parameters.namespace >>\",
+                \"release\": \"<< parameters.release >>\",
+                \"chart\": \"<< parameters.chart >>\",
+                \"chart_version\": \"<< parameters.chart_version >>\",
+                \"override_repository\": \"filecoin/storetheindex\",
+                \"override_tag\": \"$CIRCLE_SHA1\"
+              }}"
+
+
+workflows:
+  version: 2.1
+  ci:
+    jobs:
+      - build-push:
+          context:
+            - filecoin-dockerhub-publish
+          filters:
+            tags:
+              only:
+                - main
+      - deploy-lotusinfra:
+          name: deploy-mainnet-storetheindex
+          chart: filecoin/lotus-bundle
+          chart_version: 0.0.10
+          circle_context: sentinel-staging-deploy
+          kubernetes_cluster: mainnet-us-east-2-dev-eks
+          aws_region: us-east-2
+          namespace: ntwk-mainnet-storetheindex
+          release: storetheindex-0
+          requires:
+            - build-push
+          filters:
+            branches:
+              only:
+                - main
