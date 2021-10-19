@@ -116,6 +116,10 @@ func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
 }
 
 func TestEndToEndWithReferenceProvider(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skipf("TODO: fix test for Windows")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	e := &e2eTestRunner{
