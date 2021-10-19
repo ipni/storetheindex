@@ -5,15 +5,17 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/filecoin-project/storetheindex/config"
 	qt "github.com/frankban/quicktest"
 )
 
@@ -29,8 +31,9 @@ type e2eTestRunner struct {
 	ctx context.Context
 	env []string
 
-	indexerHost     chan string
-	providerHasPeer chan bool
+	indexerReady    chan struct{}
+	providerReady   chan struct{}
+	providerHasPeer chan struct{}
 }
 
 func (e *e2eTestRunner) run(name string, args ...string) []byte {
@@ -44,8 +47,6 @@ func (e *e2eTestRunner) run(name string, args ...string) []byte {
 	qt.Assert(e.t, err, qt.IsNil, qt.Commentf("output: %s", out))
 	return out
 }
-
-var rxLibp2pHostID = regexp.MustCompile(`"host_id": "([^"]*)"`)
 
 func (e *e2eTestRunner) start(prog string, args ...string) *exec.Cmd {
 	e.t.Helper()
@@ -72,13 +73,14 @@ func (e *e2eTestRunner) start(prog string, args ...string) *exec.Cmd {
 
 			switch name {
 			case "storetheindex":
-				if m := rxLibp2pHostID.FindStringSubmatch(line); m != nil {
-					e.indexerHost <- m[1]
-					close(e.indexerHost)
+				if strings.Contains(line, "Indexer ready") {
+					close(e.indexerReady)
 				}
 			case "provider":
 				if strings.Contains(line, "Connected successfully to peer") {
 					close(e.providerHasPeer)
+				} else if strings.Contains(line, "admin http server listening") {
+					close(e.providerReady)
 				}
 			}
 		}
@@ -121,9 +123,14 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		dir: t.TempDir(),
 		ctx: ctx,
 
-		indexerHost:     make(chan string, 1),
-		providerHasPeer: make(chan bool),
+		indexerReady:    make(chan struct{}),
+		providerReady:   make(chan struct{}),
+		providerHasPeer: make(chan struct{}),
 	}
+
+	carPath := filepath.Join(e.dir, "sample-wrapped-v2.car")
+	err := downloadFile("https://github.com/filecoin-project/indexer-reference-provider/raw/main/testdata/sample-wrapped-v2.car", carPath)
+	qt.Assert(t, err, qt.IsNil)
 
 	// Use a clean environment, with the host's PATH, and a temporary HOME.
 	// We also tell "go install" to place binaries there.
@@ -148,20 +155,30 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	provider := filepath.Join(e.dir, "provider")
 	e.run("go", "install", "github.com/filecoin-project/indexer-reference-provider/cmd/provider@main")
 
-	e.run(indexer, "init")
 	e.run(provider, "init")
+	cfg, err := config.Load(filepath.Join(e.dir, ".reference-provider", "config"))
+	qt.Assert(t, err, qt.IsNil)
+	t.Logf("Initialized provider ID: %s", cfg.Identity.PeerID)
 
-	cmdIndexer := e.start(indexer, "daemon")
+	e.run(indexer, "init", "--pubsub-peer", cfg.Identity.PeerID)
+	cfg, err = config.Load(filepath.Join(e.dir, ".storetheindex", "config"))
+	qt.Assert(t, err, qt.IsNil)
+	indexerHost := cfg.Identity.PeerID
 
 	cmdProvider := e.start(provider, "daemon")
-
-	var indexerHost string
 	select {
-	case s := <-e.indexerHost:
-		indexerHost = s
+	case <-e.providerReady:
 	case <-ctx.Done():
-		t.Fatal("timed out waiting for indexer host")
+		t.Fatal("timed out waiting for provider to start")
 	}
+
+	cmdIndexer := e.start(indexer, "daemon")
+	select {
+	case <-e.indexerReady:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for indexer to start")
+	}
+
 	e.run(provider, "connect",
 		"--imaddr", fmt.Sprintf("/dns/localhost/tcp/3003/p2p/%s", indexerHost),
 		"--listen-admin", "http://localhost:3102",
@@ -178,7 +195,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 	outImport := e.run(provider, "import", "car",
-		"-i", "testdata/sample-wrapped-v2.car",
+		"-i", carPath,
 		"--listen-admin", "http://localhost:3102",
 	)
 	t.Logf("import output:\n%s\n", outImport)
@@ -197,4 +214,25 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 	e.stop(cmdIndexer, time.Second)
 	e.stop(cmdProvider, time.Second)
+}
+
+func downloadFile(fileURL, filePath string) error {
+	rsp, err := http.Get(fileURL)
+	if err != nil {
+		return err
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != 200 {
+		return fmt.Errorf("error response getting file: %d", rsp.StatusCode)
+	}
+
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, rsp.Body)
+	return err
 }

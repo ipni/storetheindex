@@ -184,14 +184,12 @@ func daemonCommand(cctx *cli.Context) error {
 
 		p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
 		p2pingestserver.New(ctx, p2pHost, indexerCore, registry)
-		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)
 
-		// Initialize ingester if libp2p enabled.
+		// Initialize ingester.
 		ingester, err = legingest.NewLegIngester(ctx, cfg.Ingest, p2pHost, indexerCore, registry, dstore)
 		if err != nil {
 			return err
 		}
-		log.Info("libp2p ingester initialized")
 
 		// Subscribe to pubsub channel if a pubsub host is configured
 		if cfg.Ingest.PubSubPeer != "" {
@@ -204,6 +202,8 @@ func daemonCommand(cctx *cli.Context) error {
 				log.Errorf("Cannot subscribe to provider", "err", err)
 			}
 		}
+
+		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)
 	}
 
 	// Create admin HTTP server
@@ -231,6 +231,8 @@ func daemonCommand(cctx *cli.Context) error {
 	go func() {
 		errChan <- ingestSvr.Start()
 	}()
+
+	log.Info("Indexer ready")
 
 	var finalErr error
 	select {

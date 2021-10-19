@@ -8,6 +8,7 @@ require (
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.2.2
 	github.com/filecoin-project/go-legs v0.0.0-20211013165050-9ab325b6d2eb
+	github.com/frankban/quicktest v1.11.3
 	github.com/gammazero/keymutex v0.0.2
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.4

@@ -92,5 +92,10 @@ func initCommand(cctx *cli.Context) error {
 		cfg.Discovery.LotusGateway = lotusGateway
 	}
 
+	pubsubPeer := cctx.String("pubsub-peer")
+	if pubsubPeer != "" {
+		cfg.Ingest.PubSubPeer = pubsubPeer
+	}
+
 	return cfg.Save(configFile)
 }
