@@ -140,6 +140,12 @@ var initFlags = []cli.Flag{
 		EnvVars:  []string{"STORETHEINDEX_LOTUS_GATEWAY"},
 		Required: false,
 	},
+	&cli.StringFlag{
+		Name:     "pubsub-peer",
+		Usage:    "Subscribe to pubsub from this libp2p peer ID",
+		EnvVars:  []string{"STORETHEINDE_PUBSUB_PEER"},
+		Required: false,
+	},
 }
 
 var registerFlags = []cli.Flag{
