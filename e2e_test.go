@@ -197,24 +197,29 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	// "import" seems to work on the provider side,
 	// but the indexer doesn't seem to show anything at all.
 
-	time.Sleep(2 * time.Second)
 	outImport := e.run(provider, "import", "car",
 		"-i", carPath,
 		"--listen-admin", "http://localhost:3102",
 	)
 	t.Logf("import output:\n%s\n", outImport)
-	time.Sleep(5 * time.Second)
-	findOutput := e.run(provider, "find",
-		"-i", "localhost",
-		"-mh", "2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
-	)
+
+	// TODO: use some other way to wait for the CAR to be indexed.
 	time.Sleep(2 * time.Second)
-	t.Logf("import output:\n%s\n", findOutput)
-	findOutput = e.run(provider, "find",
-		"-i", "localhost",
-		"-mh", "2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
-	)
-	t.Logf("import output:\n%s\n", findOutput)
+
+	for _, mh := range []string{
+		"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
+		"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
+	} {
+		findOutput := e.run(provider, "find", "-i", "localhost", "-mh", mh)
+		t.Logf("import output:\n%s\n", findOutput)
+
+		if bytes.Contains(findOutput, []byte("not found")) {
+			t.Errorf("%s: index not found", mh)
+		} else if !bytes.Contains(findOutput, []byte("Provider:")) {
+			t.Errorf("%s: unexpected error: %s", mh, findOutput)
+		}
+
+	}
 
 	e.stop(cmdIndexer, time.Second)
 	e.stop(cmdProvider, time.Second)
