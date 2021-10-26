@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
+	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/metrics/pprof"
@@ -56,7 +57,7 @@ func New(ctx context.Context, listen string, indexer indexer.Interface, ingester
 	r.HandleFunc("/ingest/sync/{provider}", h.sync).Methods("GET")
 
 	// Metrics routes
-	r.Handle("/metrics", metrics.Start())
+	r.Handle("/metrics", metrics.Start(coremetrics.DefaultViews))
 	r.Handle("/debug/pprof", pprof.WithProfile())
 
 	return s, nil

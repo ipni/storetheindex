@@ -3,18 +3,23 @@ package p2pfinderserver
 import (
 	"context"
 	"fmt"
+	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
+	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/handler"
 	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
+	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gogo/protobuf/proto"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 )
 
 var log = logging.Logger("indexer/finder")
@@ -71,6 +76,8 @@ func (h *libp2pHandler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgb
 }
 
 func (h *libp2pHandler) get(ctx context.Context, p peer.ID, msg *pb.FinderMessage) ([]byte, error) {
+	startTime := time.Now()
+
 	req, err := model.UnmarshalFindRequest(msg.GetData())
 	if err != nil {
 		return nil, err
@@ -80,5 +87,14 @@ func (h *libp2pHandler) get(ctx context.Context, p peer.ID, msg *pb.FinderMessag
 	if err != nil {
 		return nil, err
 	}
-	return model.MarshalFindResponse(r)
+	data, err := model.MarshalFindResponse(r)
+	if err != nil {
+		return nil, err
+	}
+
+	_ = stats.RecordWithOptions(context.Background(),
+		stats.WithTags(tag.Insert(metrics.Method, "libp2p")),
+		stats.WithMeasurements(metrics.FindLatency.M(coremetrics.MsecSince(startTime))))
+
+	return data, nil
 }
