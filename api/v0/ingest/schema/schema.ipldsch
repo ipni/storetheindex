@@ -1,0 +1,42 @@
+type Map {String:nullable Any}
+type List [nullable Any]
+type Any union {
+	| Bool bool
+	| Int int
+	| Float float
+	| String string
+	| Bytes bytes
+	| Map map
+	| List list
+	| Link link
+} representation kinded
+
+type EntryChunk struct {
+	Entries List_Bytes
+	Next optional Link_EntryChunk
+}
+
+type Link_EntryChunk &EntryChunk
+type List_String [String]
+type List_Bytes [Bytes]
+
+type Advertisement struct {
+	# Previous advertisement.
+	PreviousID optional Link_Advertisement
+	# Provider ID of the advertisement.
+	Provider String
+	# Addresses, as list of multiaddr strings, to use for content retrieval.
+	Addresses List_String
+	# Advertisement signature.
+	Signature Bytes
+	# Entries with a link to the list of CIDs
+	Entries Link
+	# Context ID for entries.
+	ContextID Bytes
+	# Serialized v0.Metadata for all entries in advertisement.
+	Metadata Bytes
+	# IsRm or Put?
+	IsRm Bool
+}
+
+type Link_Advertisement &Advertisement
