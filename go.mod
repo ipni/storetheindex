@@ -8,7 +8,7 @@ require (
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.2.2
 	github.com/filecoin-project/go-legs v0.0.0-20211013165050-9ab325b6d2eb
-	github.com/frankban/quicktest v1.11.3
+	github.com/frankban/quicktest v1.14.0
 	github.com/gammazero/keymutex v0.0.2
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.4
@@ -17,7 +17,7 @@ require (
 	github.com/ipfs/go-ds-leveldb v0.4.2
 	github.com/ipfs/go-graphsync v0.9.3
 	github.com/ipfs/go-log/v2 v2.3.0
-	github.com/ipld/go-ipld-prime v0.12.0
+	github.com/ipld/go-ipld-prime v0.12.4-0.20211026094848-168715526f2d
 	github.com/libp2p/go-libp2p v0.15.0
 	github.com/libp2p/go-libp2p-core v0.9.0
 	github.com/libp2p/go-msgio v0.0.6

@@ -1996,7 +1996,7 @@ func (ma *_Any__Assembler) AssembleValue() datamodel.NodeAssembler {
 	}
 	ma.state = maState_midValue
 	switch ma.ca {
-	case 0:
+	case 1:
 		x := &_Bool{}
 		ma.w.x = x
 		if ma.ca1 == nil {
@@ -2005,7 +2005,7 @@ func (ma *_Any__Assembler) AssembleValue() datamodel.NodeAssembler {
 		ma.ca1.w = x
 		ma.ca1.m = &ma.cm
 		return ma.ca1
-	case 1:
+	case 2:
 		x := &_Int{}
 		ma.w.x = x
 		if ma.ca2 == nil {
@@ -2014,7 +2014,7 @@ func (ma *_Any__Assembler) AssembleValue() datamodel.NodeAssembler {
 		ma.ca2.w = x
 		ma.ca2.m = &ma.cm
 		return ma.ca2
-	case 2:
+	case 3:
 		x := &_Float{}
 		ma.w.x = x
 		if ma.ca3 == nil {
@@ -2023,7 +2023,7 @@ func (ma *_Any__Assembler) AssembleValue() datamodel.NodeAssembler {
 		ma.ca3.w = x
 		ma.ca3.m = &ma.cm
 		return ma.ca3
-	case 3:
+	case 4:
 		x := &_String{}
 		ma.w.x = x
 		if ma.ca4 == nil {
@@ -2032,7 +2032,7 @@ func (ma *_Any__Assembler) AssembleValue() datamodel.NodeAssembler {
 		ma.ca4.w = x
 		ma.ca4.m = &ma.cm
 		return ma.ca4
-	case 4:
+	case 5:
 		x := &_Bytes{}
 		ma.w.x = x
 		if ma.ca5 == nil {
@@ -2041,7 +2041,7 @@ func (ma *_Any__Assembler) AssembleValue() datamodel.NodeAssembler {
 		ma.ca5.w = x
 		ma.ca5.m = &ma.cm
 		return ma.ca5
-	case 5:
+	case 6:
 		x := &_Map{}
 		ma.w.x = x
 		if ma.ca6 == nil {
@@ -2050,7 +2050,7 @@ func (ma *_Any__Assembler) AssembleValue() datamodel.NodeAssembler {
 		ma.ca6.w = x
 		ma.ca6.m = &ma.cm
 		return ma.ca6
-	case 6:
+	case 7:
 		x := &_List{}
 		ma.w.x = x
 		if ma.ca7 == nil {
@@ -2059,7 +2059,7 @@ func (ma *_Any__Assembler) AssembleValue() datamodel.NodeAssembler {
 		ma.ca7.w = x
 		ma.ca7.m = &ma.cm
 		return ma.ca7
-	case 7:
+	case 8:
 		x := &_Link{}
 		ma.w.x = x
 		if ma.ca8 == nil {
@@ -6921,7 +6921,7 @@ func (Map) Kind() datamodel.Kind {
 }
 func (n Map) LookupByString(k string) (datamodel.Node, error) {
 	var k2 _String
-	if err := (_String__Prototype{}).fromString(&k2, k); err != nil {
+	if err := (_String__ReprPrototype{}).fromString(&k2, k); err != nil {
 		return nil, err // TODO wrap in some kind of ErrInvalidKey
 	}
 	v, exists := n.m[k2]
@@ -7191,7 +7191,7 @@ func (ma *_Map__Assembler) AssembleEntry(k string) (datamodel.NodeAssembler, err
 	}
 
 	var k2 _String
-	if err := (_String__Prototype{}).fromString(&k2, k); err != nil {
+	if err := (_String__ReprPrototype{}).fromString(&k2, k); err != nil {
 		return nil, err // TODO wrap in some kind of ErrInvalidKey
 	}
 	if _, exists := ma.w.m[k2]; exists {

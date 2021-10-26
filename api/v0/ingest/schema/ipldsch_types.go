@@ -54,7 +54,7 @@ type typeSlab struct {
 
 // --- type definitions follow ---
 
-// Advertisement matches the IPLD Schema type "Advertisement".  It has Struct type-kind, and may be interrogated like map kind.
+// Advertisement matches the IPLD Schema type "Advertisement".  It has struct type-kind, and may be interrogated like map kind.
 type Advertisement = *_Advertisement
 type _Advertisement struct {
 	PreviousID _Link_Advertisement__Maybe
@@ -68,7 +68,7 @@ type _Advertisement struct {
 }
 
 // Any matches the IPLD Schema type "Any".
-// Any has Union typekind, which means its data model behaviors are that of a map kind.
+// Any has union typekind, which means its data model behaviors are that of a map kind.
 type Any = *_Any
 type _Any struct {
 	x _Any__iface
@@ -94,7 +94,7 @@ type _Bool struct{ x bool }
 type Bytes = *_Bytes
 type _Bytes struct{ x []byte }
 
-// EntryChunk matches the IPLD Schema type "EntryChunk".  It has Struct type-kind, and may be interrogated like map kind.
+// EntryChunk matches the IPLD Schema type "EntryChunk".  It has struct type-kind, and may be interrogated like map kind.
 type EntryChunk = *_EntryChunk
 type _EntryChunk struct {
 	Entries _List_Bytes
