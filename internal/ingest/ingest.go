@@ -2,8 +2,10 @@ package ingest
 
 import (
 	"context"
+	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core/engine"
+	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
@@ -144,13 +146,12 @@ func (i *legIngester) Sync(ctx context.Context, peerID peer.ID, opts ...SyncOpti
 	}
 	// Merge cancelfuncs
 	cncl = cancelFunc(cncl, cancel)
-	// Notification channel.
-	out := make(chan multihash.Multihash)
+	// Notification channel; buffered so as not to block if no reader.
+	out := make(chan multihash.Multihash, 1)
 	// Listen when the sync is done to update latestSync and notify the
 	// channel. No need to pass ctx here, because if ctx is canceled, then
 	// watcher is closed.
 	go i.listenSyncUpdate(peerID, watcher, cncl, out)
-	log.Infof("Waiting for sync to finish for provider %s", peerID)
 	return out, nil
 }
 
@@ -206,12 +207,14 @@ func (i *legIngester) listenSubUpdates(sub *subscriber) {
 }
 
 func (i *legIngester) listenSyncUpdate(peerID peer.ID, watcher <-chan cid.Cid, cncl context.CancelFunc, out chan<- multihash.Multihash) {
-
 	defer func() {
 		cncl()
 		close(out)
 	}()
 
+	startTime := time.Now()
+
+	log.Infof("Waiting for sync to finish for provider %s", peerID)
 	c, ok := <-watcher
 	if ok {
 		// Persist the latest sync
@@ -220,6 +223,16 @@ func (i *legIngester) listenSyncUpdate(peerID peer.ID, watcher <-chan cid.Cid, c
 			log.Errorf("Error persisting latest sync: %s", err)
 		}
 		out <- c.Hash()
+
+		// Update value store size metric after sync.
+		size, err := i.indexer.Size()
+		if err != nil {
+			log.Errorf("Error getting indexer value store size: %s", err)
+			return
+		}
+		stats.Record(context.Background(),
+			metrics.SyncLatency.M(coremetrics.MsecSince(startTime)),
+			coremetrics.StoreSize.M(size))
 	}
 }
 

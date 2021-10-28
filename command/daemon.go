@@ -157,6 +157,7 @@ func daemonCommand(cctx *cli.Context) error {
 	var (
 		cancelP2pServers context.CancelFunc
 		ingester         legingest.LegIngester
+		ingestCancel     context.CancelFunc
 	)
 	// Create libp2p host and servers
 	if !cfg.Addresses.DisableP2P && !cctx.Bool("nop2p") {
@@ -186,7 +187,10 @@ func daemonCommand(cctx *cli.Context) error {
 		p2pingestserver.New(ctx, p2pHost, indexerCore, registry)
 
 		// Initialize ingester.
-		ingester, err = legingest.NewLegIngester(ctx, cfg.Ingest, p2pHost, indexerCore, registry, dstore)
+		var ingestCtx context.Context
+		ingestCtx, ingestCancel = context.WithCancel(context.Background())
+		defer ingestCancel()
+		ingester, err = legingest.NewLegIngester(ingestCtx, cfg.Ingest, p2pHost, indexerCore, registry, dstore)
 		if err != nil {
 			return err
 		}
@@ -251,6 +255,9 @@ func daemonCommand(cctx *cli.Context) error {
 	go func() {
 		// Wait for context to be canceled.  If timeout, then exit with error.
 		<-ctx.Done()
+		if ingestCancel != nil {
+			ingestCancel()
+		}
 		if ctx.Err() == context.DeadlineExceeded {
 			fmt.Println("Timed out on shutdown, terminating...")
 			os.Exit(-1)

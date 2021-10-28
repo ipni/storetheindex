@@ -1,16 +1,22 @@
 package httpfinderserver
 
 import (
+	"context"
 	"io"
 	"net/http"
+	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
+	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/internal/handler"
 	"github.com/filecoin-project/storetheindex/internal/httpserver"
+	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gorilla/mux"
 	"github.com/multiformats/go-multihash"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 )
 
 // handler handles requests for the finder resource
@@ -53,6 +59,8 @@ func (h *httpHandler) findBatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash) {
+	startTime := time.Now()
+
 	response, err := h.finderHandler.MakeFindResponse(mhs)
 	if err != nil {
 		httpserver.HandleError(w, err, "get")
@@ -71,6 +79,10 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
+
+	_ = stats.RecordWithOptions(context.Background(),
+		stats.WithTags(tag.Insert(metrics.Method, "http")),
+		stats.WithMeasurements(metrics.FindLatency.M(coremetrics.MsecSince(startTime))))
 
 	httpserver.WriteJsonResponse(w, http.StatusOK, rb)
 }
