@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core/engine"
 	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
@@ -211,6 +212,8 @@ func (i *legIngester) listenSyncUpdate(peerID peer.ID, watcher <-chan cid.Cid, c
 		close(out)
 	}()
 
+	startTime := time.Now()
+
 	log.Infof("Waiting for sync to finish for provider %s", peerID)
 	c, ok := <-watcher
 	if ok {
@@ -220,13 +223,16 @@ func (i *legIngester) listenSyncUpdate(peerID peer.ID, watcher <-chan cid.Cid, c
 			log.Errorf("Error persisting latest sync: %s", err)
 		}
 		out <- c.Hash()
+
 		// Update value store size metric after sync.
 		size, err := i.indexer.Size()
 		if err != nil {
 			log.Errorf("Error getting indexer value store size: %s", err)
 			return
 		}
-		coremetrics.StoreSize.M(size)
+		stats.Record(context.Background(),
+			metrics.SyncLatency.M(coremetrics.MsecSince(startTime)),
+			coremetrics.StoreSize.M(size))
 	}
 }
 
