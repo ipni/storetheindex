@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -52,6 +53,8 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 			}
 			// If it is an advertisement.
 			if isAdvertisement(n) {
+				log.Infow("Received advertisement", "cid", c)
+
 				// Verify if the signature is correct.
 				// And the advertisement valid.
 				ad, err := verifyAdvertisement(n)
@@ -66,24 +69,21 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 					return syserr.New(err, http.StatusBadRequest)
 				}
 
-				// If addresses are included with the advertisement
-				if len(addrs) != 0 {
-					provider, err := ad.FieldProvider().AsString()
-					if err != nil {
-						log.Errorf("Could not get provider from advertisement: %s", err)
-						return err
-					}
-
-					provID, err := peer.Decode(provider)
-					if err != nil {
-						log.Errorf("Could not decode advertisement provider ID: %s", err)
-						return syserr.New(err, http.StatusBadRequest)
-					}
-
-					err = reg.RegisterOrUpdate(provID, addrs)
-					if err != nil {
-						return err
-					}
+				// Register or update provider info with addresses from
+				// advertisement.
+				provider, err := ad.FieldProvider().AsString()
+				if err != nil {
+					log.Errorf("Could not get provider from advertisement: %s", err)
+					return err
+				}
+				provID, err := peer.Decode(provider)
+				if err != nil {
+					log.Errorf("Could not decode advertisement provider ID: %s", err)
+					return syserr.New(err, http.StatusBadRequest)
+				}
+				err = reg.RegisterOrUpdate(provID, addrs, c)
+				if err != nil {
+					return err
 				}
 
 				// Store entries link into the reverse map
@@ -92,7 +92,6 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 				log.Debug("Setting reverse map for entries after receiving advertisement")
 				elnk, err := ad.FieldEntries().AsLink()
 				if err != nil {
-
 					log.Errorf("Error getting link for entries from advertisement: %s", err)
 					return err
 				}
@@ -103,7 +102,9 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 				}
 
 				log.Debug("Persisting new advertisement")
-				// Persist the advertisement
+				// Persist the advertisement.  This is read later when
+				// processing each chunk of entries, to get info common to all
+				// entries in a chunk.
 				return ds.Put(dsKey(c.String()), origBuf)
 			}
 			log.Debug("Persisting IPLD node")
@@ -144,14 +145,14 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, error) {
 // When we receive a block, if it is not an advertisement it means that we
 // finished storing the list of entries of the advertisement, so we are ready
 // to process them and ingest into the indexer core.
-func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
+func (li *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 	return func(p peer.ID, responseData graphsync.ResponseData, blockData graphsync.BlockData, hookActions graphsync.IncomingBlockHookActions) {
 		log.Debug("hook - Triggering after a block has been stored")
 		// Get cid of the node received.
 		c := blockData.Link().(cidlink.Link).Cid
 
 		// Get entries node from datastore.
-		val, err := i.ds.Get(dsKey(c.String()))
+		val, err := li.ds.Get(dsKey(c.String()))
 		if err != nil {
 			log.Errorf("Error while fetching the node from datastore: %s", err)
 			return
@@ -164,53 +165,53 @@ func (i *legIngester) storageHook() graphsync.OnIncomingBlockHook {
 			return
 		}
 
-		// If it is not an advertisement, is the list of Cids.
-		// Let's ingest it!
-		if !isAdvertisement(nentries) {
-			// Get the advertisement ID corresponding to the link.
-			// From the reverse map.
-			log.Debug("hook - Not an advertisement, let's start ingesting entries")
-			val, err := i.ds.Get(dsKey(admapPrefix + c.String()))
-			if err != nil {
-				log.Errorf("Error while fetching the advertisementID for entries map: %s", err)
-			}
-			adCid, err := cid.Cast(val)
-			if err != nil {
-				log.Errorf("Error casting Cid for advertisement: %s", err)
-			}
+		// If this is an advertisement, then nothing to do yet.  Wait for the
+		// list of CIDs to ingest.
+		if isAdvertisement(nentries) {
+			return
+		}
 
-			log.Debug("hook - Processing entries from an advertisement")
-			// Process entries and ingest them.
-			err = i.processEntries(adCid, p, nentries)
-			if err != nil {
-				log.Errorf("Error processing entries for advertisement: %s", err)
+		// Get the advertisement ID corresponding to the link.
+		// From the reverse map.
+		log.Debug("hook - Not an advertisement, let's start ingesting entries")
+		adCid, err := getCidToAdMapping(li.ds, c)
+		if err != nil {
+			log.Errorf("Error getting advertisementID for entries map: %s", err)
+			return
+		}
 
-			}
+		log.Infow("hook - Processing entries", "ad", adCid, "link", c)
+		// Process entries and ingest them.
+		err = li.processEntries(adCid, p, nentries)
+		if err != nil {
+			log.Errorf("Error processing entries for advertisement: %s", err)
+			return
+		}
 
-			// We can remove the datastore entry between chunk and CID once
-			// we've process it.
-			err = deleteCidToAdMapping(i.ds, c)
-			if err != nil {
-				log.Errorf("Error deleting cid-advertisement mapping for entries: %s", err)
-			}
+		li.sigUpdate <- struct{}{}
 
-			log.Debug("hook - Removing entries from datastore to prevent entries from being stored redundantly")
-			// When we are finished processing the index we can remove
-			// it from the datastore (we don't want redundant information
-			// in several datastores).
-			err = i.ds.Delete(dsKey(c.String()))
-			if err != nil {
-				log.Errorf("Error deleting index from datastore: %s", err)
-				return
-			}
+		// Remove the datastore entry that maps a chunk to an advertisement
+		// now that the chunk is processed.
+		err = deleteCidToAdMapping(li.ds, c)
+		if err != nil {
+			log.Errorf("Error deleting cid-advertisement mapping for entries: %s", err)
+		}
+
+		log.Debug("hook - Removing processed entries from datastore")
+		// Remove the index from the data store now that processing it has
+		// finished.  This prevents storing redundant information in
+		// several datastore.
+		err = li.ds.Delete(dsKey(c.String()))
+		if err != nil {
+			log.Errorf("Error deleting index from datastore: %s", err)
 		}
 	}
 }
 
-func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Node) error {
+func (li *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Node) error {
 	// Getting the advertisement for the entries so we know
 	// what metadata and related information we need to use for ingestion.
-	adb, err := i.ds.Get(dsKey(adCid.String()))
+	adb, err := li.ds.Get(dsKey(adCid.String()))
 	if err != nil {
 		log.Errorf("Error while fetching advertisement for entry: %s", err)
 		return err
@@ -265,13 +266,11 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 		MetadataBytes: metadataBytes,
 	}
 
-	var putChan, removeChan chan multihash.Multihash
-	var errChan <-chan error
-	if i.batchSize > 1 {
-		putChan = make(chan multihash.Multihash, i.batchSize)
-		removeChan = make(chan multihash.Multihash, i.batchSize)
-		errChan = batchIndexerEntries(i.batchSize, putChan, removeChan, value, i.indexer)
-	}
+	mhChan := make(chan multihash.Multihash, li.batchSize)
+	// TODO: Once we change the syncing process, there may never be a need
+	// to remove individual entries, and only a need remove all entries for
+	// the context ID in the advertisement.  For now, handle both cases.
+	errChan := li.batchIndexerEntries(mhChan, value, isRm)
 
 	var count int
 	nchunk := nb.Build().(schema.EntryChunk)
@@ -283,51 +282,31 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 		h, err := cnode.AsBytes()
 		if err != nil {
 			log.Errorf("Error decoding an entry from the ingestion list: %s", err)
-			if i.batchSize > 1 {
-				close(putChan)
-				close(removeChan)
-			}
+			close(mhChan)
 			return err
 		}
 
-		if isRm {
-			// TODO: Remove will change once we change the syncing process
-			// because we may not receive the list of CIDs to remove and we'll
-			// have to use a routine that looks for the CIDs for a specific
-			// key.
-			if i.batchSize > 1 {
-				select {
-				case removeChan <- h:
-				case err = <-errChan:
-				}
-			} else {
-				err = i.indexer.Remove(value, h)
-			}
-		} else {
-			if i.batchSize > 1 {
-				select {
-				case putChan <- h:
-				case err = <-errChan:
-				}
-			} else {
-				err = i.indexer.Put(value, h)
-			}
-		}
-		if err != nil {
+		select {
+		case mhChan <- h:
+		case err = <-errChan:
 			return err
 		}
 
 		count++
 	}
-	if i.batchSize > 1 {
-		close(putChan)
-		close(removeChan)
-		err = <-errChan
+	close(mhChan)
+	err = <-errChan
+	if err != nil {
+		return err
+	}
+
+	// Handle remove in the case where there are no individual entries.
+	if isRm && count == 0 {
+		err = li.indexer.RemoveProviderContext(p, contextID)
 		if err != nil {
 			return err
 		}
 	}
-	log.Debugw("Processed entries", "count", count)
 
 	// If there is a next link, update the mapping so we know the AdID
 	// it is related to.
@@ -336,7 +315,7 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 		if err != nil {
 			return err
 		}
-		err = putCidToAdMapping(i.ds, lnk, adCid)
+		err = putCidToAdMapping(li.ds, lnk, adCid)
 		if err != nil {
 			return err
 		}
@@ -345,92 +324,79 @@ func (i *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Nod
 	return nil
 }
 
-// batchIndexerEntries starts a goroutine that reads multihashes from two input
-// channels, putChan and removeChan.  The goroutine collects these into
-// separate slices, storing up to batchSize elements.  When a slice is at
-// capacity, a Put or Remove request is made to the indexer core.  This
-// function returns an error channel that returns an error if one occurs during
-// Put or Remove, which also indicates the goroutine has exited (and will no
-// longer read its input channels).
+// batchIndexerEntries starts a goroutine that processes batches of multihashes
+// from an input channels.  The goroutine collects these into a slice, storing
+// up to batchSize elements.  When the slice is at capacity, a Put or Remove
+// request is made to the indexer core depending on the whether isRm is true
+// or false.  This function returns an error channel that returns an error if
+// one occurs during processing.  This also indicates the goroutine has exited
+// (and will no longer read its input channel).
 //
-// The goroutine exits when both the input channels are closed.  It closes the
-// error channel to indicate completion.
-func batchIndexerEntries(batchSize int, putChan, removeChan <-chan multihash.Multihash, value indexer.Value, idxr indexer.Interface) <-chan error {
+// The goroutine exits when the input channel is closed.  It closes the error
+// channel to indicate completion.
+func (li *legIngester) batchIndexerEntries(mhChan <-chan multihash.Multihash, value indexer.Value, isRm bool) <-chan error {
+	var indexFunc func(indexer.Value, ...multihash.Multihash) error
+	var opName string
+	if isRm {
+		indexFunc = li.indexer.Remove
+		opName = "remove"
+	} else {
+		indexFunc = li.indexer.Put
+		opName = "put"
+	}
+
 	errChan := make(chan error, 1)
 
-	go func() {
+	go func(batchSize int) {
 		defer close(errChan)
-		puts := make([]multihash.Multihash, 0, batchSize)
-		removes := make([]multihash.Multihash, 0, batchSize)
-		for {
-			select {
-			case m, open := <-putChan:
-				if !open {
-					if len(puts) != 0 {
-						// Process any remaining puts
-						if err := idxr.Put(value, puts...); err != nil {
-							errChan <- err
-							log.Errorf("Error putting entries in indexer: %s", err)
-							return
-						}
-						log.Debugw("Put entries in value store", "count", len(puts))
-					}
-					if removeChan == nil {
-						// All input channels closed
-						return
-					}
-					putChan = nil
-					continue
+		batch := make([]multihash.Multihash, 0, batchSize)
+		var count int
+		for m := range mhChan {
+			batch = append(batch, m)
+			if len(batch) == batchSize {
+				// Process full batch of multihashes
+				if err := indexFunc(value, batch...); err != nil {
+					errChan <- err
+					log.Errorf("Cannot %s entries in indexer: %s", opName, err)
+					return
 				}
-				puts = append(puts, m)
-				if len(puts) == batchSize {
-					// Process full batch of puts
-					if err := idxr.Put(value, puts...); err != nil {
-						errChan <- err
-						log.Errorf("Error putting entries in indexer: %s", err)
-						return
-					}
-					log.Debugw("Put entries in value store", "count", batchSize)
-					puts = puts[:0]
-				}
-			case m, open := <-removeChan:
-				if !open {
-					if len(removes) != 0 {
-						// Process any remaining removes
-						if err := idxr.Remove(value, removes...); err != nil {
-							log.Errorf("Error removing entries from indexer: %s", err)
-							errChan <- err
-							return
-						}
-						log.Debugw("Removed entries from value store", "count", len(removes))
-					}
-					if putChan == nil {
-						// All input channels closed
-						return
-					}
-					removeChan = nil
-					continue
-				}
-				removes = append(removes, m)
-				if len(removes) == batchSize {
-					// Process full batch of removes
-					if err := idxr.Remove(value, removes...); err != nil {
-						errChan <- err
-						log.Errorf("Error removing entries from indexer: %s", err)
-						return
-					}
-					log.Debugw("Removed entries from value store", "count", batchSize)
-					removes = removes[:0]
-				}
+				batch = batch[:0]
+				count += batchSize
+				log.Debugf("%s %d entries in value store", opName, batchSize)
 			}
 		}
-	}()
+
+		if len(batch) != 0 {
+			// Process any remaining puts
+			if err := indexFunc(value, batch...); err != nil {
+				errChan <- err
+				log.Errorf("Cannot %s entries in indexer: %s", opName, err)
+				return
+			}
+			count += len(batch)
+			log.Debugf("%s %d entries in value store", opName, len(batch))
+		}
+
+		log.Debugw("Processed entries", "count", count, "operation", opName)
+	}(li.batchSize)
 
 	return errChan
 }
 
 func putCidToAdMapping(ds datastore.Batching, lnk ipld.Link, adCid cid.Cid) error {
 	return ds.Put(dsKey(admapPrefix+lnk.(cidlink.Link).Cid.String()), adCid.Bytes())
+}
+
+func getCidToAdMapping(ds datastore.Batching, linkCid cid.Cid) (cid.Cid, error) {
+	val, err := ds.Get(dsKey(admapPrefix + linkCid.String()))
+	if err != nil {
+		return cid.Undef, fmt.Errorf("cannot read advertisement CID for entries CID from datastore: %s", err)
+	}
+	adCid, err := cid.Cast(val)
+	if err != nil {
+		return cid.Undef, fmt.Errorf("cannot cast advertisement CID: %s", err)
+	}
+	return adCid, nil
 }
 
 func deleteCidToAdMapping(ds datastore.Batching, entries cid.Cid) error {

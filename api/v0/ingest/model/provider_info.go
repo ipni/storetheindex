@@ -7,22 +7,21 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-// ProviderData aggregates provider-related data that wants to
-// be added in a response
+// ProviderData describes a provider.
 type ProviderInfo struct {
-	AddrInfo      peer.AddrInfo
-	LastIndex     cid.Cid `json:",omitempty"`
-	LastIndexTime string  `json:",omitempty"`
+	AddrInfo              peer.AddrInfo
+	LastAdvertisement     cid.Cid `json:",omitempty"`
+	LastAdvertisementTime string  `json:",omitempty"`
 }
 
-func MakeProviderInfo(addrInfo peer.AddrInfo, lastIndex cid.Cid, lastIndexTime time.Time) ProviderInfo {
+func MakeProviderInfo(addrInfo peer.AddrInfo, lastAd cid.Cid, lastAdTime time.Time) ProviderInfo {
 	pinfo := ProviderInfo{
-		AddrInfo:  addrInfo,
-		LastIndex: lastIndex,
+		AddrInfo:          addrInfo,
+		LastAdvertisement: lastAd,
 	}
 
-	if lastIndex.Defined() {
-		pinfo.LastIndexTime = iso8601(lastIndexTime)
+	if lastAd != cid.Undef && !lastAdTime.IsZero() {
+		pinfo.LastAdvertisementTime = iso8601(lastAdTime)
 	}
 	return pinfo
 }

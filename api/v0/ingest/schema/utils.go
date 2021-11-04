@@ -167,27 +167,18 @@ func NewAdvertisementWithFakeSig(
 		return nil, nil, err
 	}
 
-	var ad Advertisement
-	if previousID != nil {
-		ad = &_Advertisement{
-			PreviousID: _Link_Advertisement__Maybe{m: schema.Maybe_Value, v: *previousID},
-			Provider:   _String{x: provider},
-			Addresses:  GoToIpldStrings(addrs),
-			Entries:    _Link{x: entries},
-			ContextID:  _Bytes{x: contextID},
-			Metadata:   _Bytes{x: encMetadata},
-			IsRm:       _Bool{x: isRm},
-		}
+	ad := &_Advertisement{
+		Provider:  _String{x: provider},
+		Addresses: GoToIpldStrings(addrs),
+		Entries:   _Link{x: entries},
+		ContextID: _Bytes{x: contextID},
+		Metadata:  _Bytes{x: encMetadata},
+		IsRm:      _Bool{x: isRm},
+	}
+	if previousID == nil {
+		ad.PreviousID = _Link_Advertisement__Maybe{m: schema.Maybe_Absent}
 	} else {
-		ad = &_Advertisement{
-			PreviousID: _Link_Advertisement__Maybe{m: schema.Maybe_Absent},
-			Provider:   _String{x: provider},
-			Addresses:  GoToIpldStrings(addrs),
-			Entries:    _Link{x: entries},
-			ContextID:  _Bytes{x: contextID},
-			Metadata:   _Bytes{x: encMetadata},
-			IsRm:       _Bool{x: isRm},
-		}
+		ad.PreviousID = _Link_Advertisement__Maybe{m: schema.Maybe_Value, v: *previousID}
 	}
 
 	// Add signature
@@ -218,27 +209,18 @@ func newAdvertisement(
 		return nil, err
 	}
 
-	var ad Advertisement
-	if previousID != nil {
-		ad = &_Advertisement{
-			PreviousID: _Link_Advertisement__Maybe{m: schema.Maybe_Value, v: *previousID},
-			Provider:   _String{x: provider},
-			Addresses:  GoToIpldStrings(addrs),
-			Entries:    _Link{x: entries},
-			ContextID:  _Bytes{x: contextID},
-			Metadata:   _Bytes{x: encMetadata},
-			IsRm:       _Bool{x: isRm},
-		}
+	ad := &_Advertisement{
+		Provider:  _String{x: provider},
+		Addresses: GoToIpldStrings(addrs),
+		Entries:   _Link{x: entries},
+		ContextID: _Bytes{x: contextID},
+		Metadata:  _Bytes{x: encMetadata},
+		IsRm:      _Bool{x: isRm},
+	}
+	if previousID == nil {
+		ad.PreviousID = _Link_Advertisement__Maybe{m: schema.Maybe_Absent}
 	} else {
-		ad = &_Advertisement{
-			PreviousID: _Link_Advertisement__Maybe{m: schema.Maybe_Absent},
-			Provider:   _String{x: provider},
-			Addresses:  GoToIpldStrings(addrs),
-			Entries:    _Link{x: entries},
-			ContextID:  _Bytes{x: contextID},
-			Metadata:   _Bytes{x: encMetadata},
-			IsRm:       _Bool{x: isRm},
-		}
+		ad.PreviousID = _Link_Advertisement__Maybe{m: schema.Maybe_Value, v: *previousID}
 	}
 
 	// Sign advertisement
