@@ -104,7 +104,8 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 	return li, nil
 }
 
-// metricsUpdate periodically updates certains metrics
+// metricsUpdate periodically updates metrics.  This goroutine exits when the
+// sigUpdate channel is closed, when Close is called.
 func (li *legIngester) metricsUpdater() {
 	var hasUpdate bool
 	t := time.NewTimer(time.Minute)
