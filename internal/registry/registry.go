@@ -57,14 +57,16 @@ type Registry struct {
 // is created to update its contents.  This means existing references remain
 // valid.
 type ProviderInfo struct {
-	// AddrInfo contains a peer.ID and set of Multiaddr addresses
+	// AddrInfo contains a peer.ID and set of Multiaddr addresses.
 	AddrInfo peer.AddrInfo
-	// DiscoveryAddr is the address that is used for discovery of the provider
+	// DiscoveryAddr is the address that is used for discovery of the provider.
 	DiscoveryAddr string
-	// LastIndex identifies the latest advertised data the indexer has ingested
-	LastIndex cid.Cid
-	// LastIndexTime is the time indexed data was added to the indexer
-	LastIndexTime time.Time
+	// LastAdvertisement identifies the latest advertizement the indexer has ingested.
+	LastAdvertisement cid.Cid
+	// LastAdvertisementTime is the time the latest advertisement was received.
+	LastAdvertisementTime time.Time
+
+	lastContactTime time.Time
 }
 
 func (p *ProviderInfo) dsKey() datastore.Key {
@@ -205,8 +207,8 @@ func (r *Registry) Register(info *ProviderInfo) error {
 }
 
 // RegisterOrUpdate attempts to register an unregistered provider, or updates
-// the addresses of an already registered provider
-func (r *Registry) RegisterOrUpdate(providerID peer.ID, addrs []string) error {
+// the addresses and latest advertisement of an already registered provider.
+func (r *Registry) RegisterOrUpdate(providerID peer.ID, addrs []string, adID cid.Cid) error {
 	// Check that the provider has been discovered and validated
 	info := r.ProviderInfo(providerID)
 	if info == nil {
@@ -219,43 +221,58 @@ func (r *Registry) RegisterOrUpdate(providerID peer.ID, addrs []string) error {
 			return err
 		}
 
+		now := time.Now()
 		info = &ProviderInfo{
 			AddrInfo: peer.AddrInfo{
 				ID:    providerID,
 				Addrs: maddrs,
 			},
+			lastContactTime: now,
+		}
+
+		if adID != cid.Undef {
+			info.LastAdvertisement = adID
+			info.LastAdvertisementTime = now
 		}
 
 		return r.Register(info)
 	}
 
-	if len(addrs) == 0 {
-		// Nothing to update
+	var update bool
+
+	if len(addrs) != 0 {
+		maddrs, err := stringsToMultiaddrs(addrs)
+		if err != nil {
+			return err
+		}
+
+		// If the registered addresses are different than those provided, then
+		// re-register with new address.
+		if len(addrs) != len(info.AddrInfo.Addrs) {
+			info.AddrInfo.Addrs = maddrs
+			update = true
+		} else {
+			for i := range maddrs {
+				if !maddrs[i].Equal(info.AddrInfo.Addrs[i]) {
+					info.AddrInfo.Addrs = maddrs
+					update = true
+					break
+				}
+			}
+		}
+	}
+
+	if !update && adID == cid.Undef {
 		return nil
 	}
 
-	maddrs, err := stringsToMultiaddrs(addrs)
-	if err != nil {
-		return err
-	}
+	now := time.Now()
 
-	// If the registered addresses are different than those provided, then
-	// re-register with new address.
-	if len(addrs) == len(info.AddrInfo.Addrs) {
-		var update bool
-		for i := range maddrs {
-			if !maddrs[i].Equal(info.AddrInfo.Addrs[i]) {
-				update = true
-				break
-			}
-		}
-		if !update {
-			// All addrs are the same, so nothing to update.
-			return nil
-		}
+	if adID != cid.Undef {
+		info.LastAdvertisement = adID
+		info.LastAdvertisementTime = now
 	}
-
-	info.AddrInfo.Addrs = maddrs
+	info.lastContactTime = now
 
 	return r.Register(info)
 }

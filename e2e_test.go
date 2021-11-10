@@ -77,7 +77,8 @@ func (e *e2eTestRunner) start(prog string, args ...string) *exec.Cmd {
 					close(e.indexerReady)
 				}
 			case "provider":
-				if strings.Contains(line, "Connected successfully to peer") {
+				line = strings.ToLower(line)
+				if strings.Contains(line, "connected to peer successfully") {
 					close(e.providerHasPeer)
 				} else if strings.Contains(line, "admin http server listening") {
 					close(e.providerReady)
@@ -108,10 +109,7 @@ func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
 		err := cmd.Process.Kill()
 		qt.Assert(e.t, err, qt.IsNil)
 	case err := <-waitErr:
-		_ = err
-		// TODO: uncomment once the daemons stop with ^C without erroring.
-		// See: https://github.com/filecoin-project/indexer-reference-provider/issues/61
-		// qt.Assert(e.t, err, qt.IsNil)
+		qt.Assert(e.t, err, qt.IsNil)
 	}
 }
 

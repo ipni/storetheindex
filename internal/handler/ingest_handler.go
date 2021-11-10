@@ -10,6 +10,7 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
+	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -68,7 +69,7 @@ func (h *IngestHandler) ListProviders() ([]byte, error) {
 
 	responses := make([]model.ProviderInfo, len(infos))
 	for i := range infos {
-		responses[i] = model.MakeProviderInfo(infos[i].AddrInfo, infos[i].LastIndex, infos[i].LastIndexTime)
+		responses[i] = model.MakeProviderInfo(infos[i].AddrInfo, infos[i].LastAdvertisement, infos[i].LastAdvertisementTime)
 	}
 
 	return json.Marshal(responses)
@@ -80,7 +81,7 @@ func (h *IngestHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 		return nil, nil
 	}
 
-	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastIndex, info.LastIndexTime)
+	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastAdvertisement, info.LastAdvertisementTime)
 
 	return json.Marshal(&rsp)
 }
@@ -99,7 +100,7 @@ func (h *IngestHandler) IndexContent(data []byte) error {
 	}
 
 	// Register provider if not registered, or update addreses if already registered
-	err = h.registry.RegisterOrUpdate(ingReq.ProviderID, ingReq.Addrs)
+	err = h.registry.RegisterOrUpdate(ingReq.ProviderID, ingReq.Addrs, cid.Undef)
 	if err != nil {
 		return err
 	}

@@ -10,7 +10,7 @@ const (
 	apiReadTimeout  = 30 * time.Second
 )
 
-// Options is a structure containing all the options that can be used when constructing an http server
+// serverConfig is a structure containing all the options that can be used when constructing an http server
 type serverConfig struct {
 	apiWriteTimeout time.Duration
 	apiReadTimeout  time.Duration
@@ -27,7 +27,7 @@ var serverDefaults = func(o *serverConfig) error {
 	return nil
 }
 
-// apply applies the given options to this Option
+// apply applies the given options to this config
 func (c *serverConfig) apply(opts ...ServerOption) error {
 	err := serverDefaults(c)
 	if err != nil {
