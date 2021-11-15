@@ -123,7 +123,7 @@ func TestSync(t *testing.T) {
 	select {
 	case m := <-end:
 		// We receive the CID that we synced.
-		require.True(t, bytes.Equal([]byte(c1.Hash()), []byte(m)))
+		require.True(t, bytes.Equal(c1.Hash(), m))
 		i.checkMhsIndexed(t, lph.ID(), mhs)
 		lcid, err := i.getLatestSync(lph.ID())
 		require.NoError(t, err)
@@ -307,10 +307,10 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.Lin
 }
 
 func (i *legIngester) checkMhsIndexed(t *testing.T, p peer.ID, mhs []multihash.Multihash) {
-	for x := range mhs {
-		v, b, err := i.indexer.Get(mhs[x])
+	for _, mh := range mhs {
+		v, b, err := i.indexer.Get(mh)
 		require.NoError(t, err)
-		require.True(t, b)
+		require.True(t, b, "mh should be present: %s", mh.String())
 		require.Equal(t, v[0].ProviderID, p)
 	}
 }
@@ -324,7 +324,7 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 	// Check if advertisement in datastore.
 	adv, err := i.ds.Get(datastore.NewKey(c.String()))
 	if !fakeSig {
-		require.NoError(t, err)
+		require.NoError(t, err, "err getting %s", c.String())
 		require.NotNil(t, adv)
 	} else {
 		// If the signature is invalid we shouldn't have store it.

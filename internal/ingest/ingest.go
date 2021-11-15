@@ -16,6 +16,8 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/ipld/go-ipld-prime/node/basicnode"
+	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
@@ -71,7 +73,18 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 	idxr *indexer.Engine, reg *registry.Registry, ds datastore.Batching) (LegIngester, error) {
 
 	lsys := mkLinkSystem(ds, reg)
-	lms, err := legs.NewMultiSubscriber(ctx, h, ds, lsys, cfg.PubSubTopic)
+
+	// Construct a selector that recursively looks for nodes with field
+	// "PreviousID" as per Advertisement schema.
+	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
+	advAndChunkSel := ssb.ExploreFields(
+		func(efsb builder.ExploreFieldsSpecBuilder) {
+			efsb.Insert("Entries", ssb.ExploreRecursiveEdge())
+			efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
+			efsb.Insert("Next", ssb.ExploreRecursiveEdge())
+		}).Node()
+
+	lms, err := legs.NewMultiSubscriber(ctx, h, ds, lsys, cfg.PubSubTopic, advAndChunkSel)
 	if err != nil {
 		log.Errorf("Failed to state LegTransport in ingester: %s", err)
 		return nil, err
@@ -144,7 +157,7 @@ func (li *legIngester) Sync(ctx context.Context, peerID peer.ID, opts ...SyncOpt
 	}
 
 	// Check if the advertisement is already stored.
-	adv, err := li.ds.Get(datastore.NewKey(c.String()))
+	adv, err := li.ds.Get(dsKey(c.String()))
 	if err != nil && err != datastore.ErrNotFound {
 		log.Errorf("Error fetching advertisement from datastore: %s", err)
 		return nil, err
@@ -173,7 +186,8 @@ func (li *legIngester) Sync(ctx context.Context, peerID peer.ID, opts ...SyncOpt
 	// Start syncing. Notifications for the finished
 	// sync will be done asynchronously.
 	log.Debugf("Started syncing process with provider %s", sub)
-	watcher, cncl, err := sub.ls.Sync(ctx, peerID, c)
+	// Note that nil selector is used to fallback on default selector sequence.
+	watcher, cncl, err := sub.ls.Sync(ctx, peerID, c, nil)
 	if err != nil {
 		log.Errorf("Errored while syncing: %s", err)
 		cancel()
