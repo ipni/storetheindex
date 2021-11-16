@@ -20,7 +20,7 @@ import (
 )
 
 // This is a full end-to-end test with storetheindex as the indexer daemon,
-// and indexer-reference-provider as a client.
+// and index-provider/cmd/provider as a client.
 // We build both programs, noting that we always build the latest provider.
 // We initialize their setup, start the two daemons, and connect the peers.
 // We then import a CAR file and query its CIDs.
@@ -131,7 +131,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	}
 
 	carPath := filepath.Join(e.dir, "sample-wrapped-v2.car")
-	err := downloadFile("https://github.com/filecoin-project/indexer-reference-provider/raw/main/testdata/sample-wrapped-v2.car", carPath)
+	err := downloadFile("https://github.com/filecoin-project/index-provider/raw/main/testdata/sample-wrapped-v2.car", carPath)
 	qt.Assert(t, err, qt.IsNil)
 
 	// Use a clean environment, with the host's PATH, and a temporary HOME.
@@ -155,7 +155,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	e.run("go", "install", ".")
 
 	provider := filepath.Join(e.dir, "provider")
-	e.run("go", "install", "github.com/filecoin-project/indexer-reference-provider/cmd/provider@main")
+	e.run("go", "install", "github.com/filecoin-project/index-provider/cmd/provider@main")
 
 	e.run(provider, "init")
 	cfg, err := config.Load(filepath.Join(e.dir, ".reference-provider", "config"))
