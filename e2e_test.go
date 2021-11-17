@@ -155,10 +155,19 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	e.run("go", "install", ".")
 
 	provider := filepath.Join(e.dir, "provider")
-	e.run("go", "install", "github.com/filecoin-project/index-provider/cmd/provider@main")
+
+	cwd, err := os.Getwd()
+	qt.Assert(t, err, qt.IsNil)
+	err = os.Chdir(e.dir)
+	qt.Assert(t, err, qt.IsNil)
+	e.run("git", "clone", "https://github.com/filecoin-project/index-provider.git")
+	err = os.Chdir("index-provider/cmd/provider")
+	qt.Assert(t, err, qt.IsNil)
+	e.run("go", "install")
+	os.Chdir(cwd)
 
 	e.run(provider, "init")
-	cfg, err := config.Load(filepath.Join(e.dir, ".reference-provider", "config"))
+	cfg, err := config.Load(filepath.Join(e.dir, ".index-provider", "config"))
 	qt.Assert(t, err, qt.IsNil)
 	t.Logf("Initialized provider ID: %s", cfg.Identity.PeerID)
 
