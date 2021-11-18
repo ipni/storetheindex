@@ -71,10 +71,10 @@ workflows:
       - build-push:
           context:
             - filecoin-dockerhub-publish
-          filters:
-            tags:
-              only:
-                - main
+          # filters:
+          #   tags:
+          #     only:
+          #       - main
       - deploy-lotusinfra:
           name: deploy-mainnet-storetheindex
           chart: filecoin/lotus-bundle
@@ -85,8 +85,8 @@ workflows:
           namespace: ntwk-mainnet-storetheindex
           release: storetheindex-0
           requires:
-            - build-push
-          filters:
-            branches:
-              only:
-                - main
+            # - build-push
+          # filters:
+            # branches:
+            #   only:
+            #     - main
