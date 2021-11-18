@@ -11,6 +11,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache"
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
+	"github.com/filecoin-project/go-indexer-core/store/memory"
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/storetheindex/config"
@@ -31,8 +32,15 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// shutdownTimeout is the duration that a graceful shutdown has to complete
+// shutdownTimeout is the duration that a graceful shutdown has to complete.
 const shutdownTimeout = 5 * time.Second
+
+// Recognized valuestore type names.
+const (
+	vstoreMemory       = "memory"
+	vstorePogreb       = "pogreb"
+	vstoreStorethehash = "sth"
+)
 
 var log = logging.Logger("indexer")
 
@@ -68,17 +76,17 @@ func daemonCommand(cctx *cli.Context) error {
 		return fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Datastore.Type)
 	}
 
-	// Create value store
+	// Create a valuestore of the configured type.
 	valueStorePath, err := config.Path("", cfg.Indexer.ValueStoreDir)
 	if err != nil {
 		return err
 	}
-	valueStoreType := cfg.Indexer.ValueStoreType
-	valueStore, err := createValueStore(valueStorePath, valueStoreType)
+	log.Infow("Valuestore initializing/opening", "type", cfg.Indexer.ValueStoreType, "path", valueStorePath)
+	valueStore, err := createValueStore(valueStorePath, cfg.Indexer.ValueStoreType)
 	if err != nil {
 		return err
 	}
-	log.Infow("Value storage initialized", "type", valueStoreType, "path", valueStorePath)
+	log.Info("Valuestore initialized")
 
 	// Create result cache
 	var resultCache cache.Interface
@@ -306,11 +314,13 @@ func createValueStore(dir, storeType string) (indexer.Interface, error) {
 		return nil, err
 	}
 
-	if storeType == "sth" {
+	switch storeType {
+	case vstoreStorethehash:
 		return storethehash.New(dir)
-	}
-	if storeType == "prgreb" {
+	case vstorePogreb:
 		return pogreb.New(dir)
+	case vstoreMemory:
+		return memory.New(), nil
 	}
 
 	return nil, fmt.Errorf("unrecognized store type: %s", storeType)
