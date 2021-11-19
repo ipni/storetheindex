@@ -43,7 +43,7 @@ func checkWritable(dir string) error {
 	}
 
 	if os.IsPermission(err) {
-		return fmt.Errorf("cannot write to %s, incorrect permissions", err)
+		return fmt.Errorf("cannot write to %s, incorrect permissions", dir)
 	}
 
 	return err
