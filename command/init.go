@@ -53,7 +53,7 @@ func initCommand(cctx *cli.Context) error {
 	switch storeType {
 	case "":
 		// Use config default
-	case "sth", "pogreb":
+	case vstoreMemory, vstorePogreb, vstoreStorethehash:
 		// These are good
 		cfg.Indexer.ValueStoreType = storeType
 	default:
