@@ -14,6 +14,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gorilla/mux"
+	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
@@ -40,6 +41,18 @@ func (h *httpHandler) find(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.getIndexes(w, []multihash.Multihash{m})
+}
+
+func (h *httpHandler) findCid(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	cidVar := vars["cid"]
+	c, err := cid.Decode(cidVar)
+	if err != nil {
+		log.Errorw("error decoding cid", "cid", cidVar, "err", err)
+		httpserver.HandleError(w, err, "find")
+		return
+	}
+	h.getIndexes(w, []multihash.Multihash{c.Hash()})
 }
 
 func (h *httpHandler) findBatch(w http.ResponseWriter, r *http.Request) {
