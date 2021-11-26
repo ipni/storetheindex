@@ -29,6 +29,11 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 			P2PAddr: defaultP2PAddr,
 		},
 
+		Bootstrap: Bootstrap{
+			Peers:        defaultBootstrapPeers(),
+			MinimumPeers: defaultMinimumPeers,
+		},
+
 		Datastore: Datastore{
 			Type: defaultDatastoreType,
 			Dir:  defaultDatastoreDir,
