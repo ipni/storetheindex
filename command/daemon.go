@@ -204,9 +204,12 @@ func daemonCommand(cctx *cli.Context) error {
 			return err
 		}
 
-		// Subscribe to pubsub channel if a pubsub host is configured
-		if cfg.Ingest.PubSubPeer != "" {
-			peerID, err := peer.Decode(cfg.Ingest.PubSubPeer)
+		// Allow listed peers to be pubsub message originators.
+		//
+		// TODO: This is temporary until go-legs can automatically allow peers
+		// based on the indexer's allow/deny policy.
+		for _, pubSubPeer := range cfg.Ingest.PubSubPeers {
+			peerID, err := peer.Decode(pubSubPeer)
 			if err != nil {
 				return fmt.Errorf("bad PubSubPeer in config: %s", err)
 			}

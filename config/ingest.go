@@ -9,8 +9,8 @@ const (
 type Ingest struct {
 	// PubSubTopic used to advertise ingestion announcements.
 	PubSubTopic string
-	// PubSubPeer is the libp2p peer ID of the host to subscribe to.
-	PubSubPeer string
+	// PubSubPeers is a list of peer IDs to allow pubsub messages to originate from.
+	PubSubPeers []string
 	// StoreBatchSize is the number of entries in each write to the value
 	// store.  Specifying a value less than 2 disables batching.
 	StoreBatchSize int

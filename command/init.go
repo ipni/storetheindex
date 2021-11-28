@@ -94,7 +94,7 @@ func initCommand(cctx *cli.Context) error {
 
 	pubsubPeer := cctx.String("pubsub-peer")
 	if pubsubPeer != "" {
-		cfg.Ingest.PubSubPeer = pubsubPeer
+		cfg.Ingest.PubSubPeers = []string{pubsubPeer}
 	}
 
 	return cfg.Save(configFile)
