@@ -146,6 +146,12 @@ var initFlags = []cli.Flag{
 		EnvVars:  []string{"STORETHEINDE_PUBSUB_PEER"},
 		Required: false,
 	},
+	&cli.BoolFlag{
+		Name:     "no-bootstrap",
+		Usage:    "Do not configure bootstrap peers",
+		EnvVars:  []string{"NO_BOOTSTRAP"},
+		Required: false,
+	},
 }
 
 var registerFlags = []cli.Flag{
