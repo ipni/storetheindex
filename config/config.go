@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Identity  Identity  // peer identity
 	Addresses Addresses // addresses to listen on
+	Bootstrap Bootstrap // Peers to connect to for gossip
 	Datastore Datastore // datastore config
 	Discovery Discovery // provider pubsub peers
 	Indexer   Indexer   // indexer code configuration

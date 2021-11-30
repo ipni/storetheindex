@@ -24,6 +24,7 @@ import (
 	httpingestserver "github.com/filecoin-project/storetheindex/server/ingest/http"
 	p2pingestserver "github.com/filecoin-project/storetheindex/server/ingest/libp2p"
 	leveldb "github.com/ipfs/go-ds-leveldb"
+	"github.com/ipfs/go-ipfs/core/bootstrap"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -173,7 +174,7 @@ func daemonCommand(cctx *cli.Context) error {
 		defer cancel()
 		cancelP2pServers = cancel
 
-		privKey, err := cfg.Identity.DecodePrivateKey("")
+		peerID, privKey, err := cfg.Identity.Decode()
 		if err != nil {
 			return err
 		}
@@ -203,9 +204,12 @@ func daemonCommand(cctx *cli.Context) error {
 			return err
 		}
 
-		// Subscribe to pubsub channel if a pubsub host is configured
-		if cfg.Ingest.PubSubPeer != "" {
-			peerID, err := peer.Decode(cfg.Ingest.PubSubPeer)
+		// Allow listed peers to be pubsub message originators.
+		//
+		// TODO: This is temporary until go-legs can automatically allow peers
+		// based on the indexer's allow/deny policy.
+		for _, pubSubPeer := range cfg.Ingest.PubSubPeers {
+			peerID, err := peer.Decode(pubSubPeer)
 			if err != nil {
 				return fmt.Errorf("bad PubSubPeer in config: %s", err)
 			}
@@ -213,6 +217,26 @@ func daemonCommand(cctx *cli.Context) error {
 			if err != nil {
 				log.Errorf("Cannot subscribe to provider", "err", err)
 			}
+		}
+
+		// If there are bootstrap peers and bootstrapping is enabled, then try to
+		// connect to the minimum set of peers.  This connects the indexer to other
+		// nodes in the gossip mesh, allowing it to receive advertisements from
+		// providers.
+		if len(cfg.Bootstrap.Peers) != 0 && cfg.Bootstrap.MinimumPeers != 0 {
+			addrs, err := cfg.Bootstrap.PeerAddrs()
+			if err != nil {
+				return fmt.Errorf("bad bootstrap peer: %s", err)
+			}
+
+			bootCfg := bootstrap.BootstrapConfigWithPeers(addrs)
+			bootCfg.MinPeerThreshold = cfg.Bootstrap.MinimumPeers
+
+			bootstrapper, err := bootstrap.Bootstrap(peerID, p2pHost, nil, bootCfg)
+			if err != nil {
+				return fmt.Errorf("bootstrap failed: %s", err)
+			}
+			defer bootstrapper.Close()
 		}
 
 		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)

@@ -16,13 +16,14 @@ require (
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-ds-leveldb v0.4.2
 	github.com/ipfs/go-graphsync v0.10.0
+	github.com/ipfs/go-ipfs v0.10.0
 	github.com/ipfs/go-log/v2 v2.3.0
 	github.com/ipld/go-ipld-prime v0.12.4-0.20211026094848-168715526f2d
 	github.com/libp2p/go-libp2p v0.15.0
 	github.com/libp2p/go-libp2p-core v0.9.0
 	github.com/libp2p/go-msgio v0.0.6
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/multiformats/go-multiaddr v0.4.0
+	github.com/multiformats/go-multiaddr v0.4.1
 	github.com/multiformats/go-multicodec v0.3.0
 	github.com/multiformats/go-multihash v0.0.16
 	github.com/multiformats/go-varint v0.0.6

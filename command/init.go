@@ -94,7 +94,13 @@ func initCommand(cctx *cli.Context) error {
 
 	pubsubPeer := cctx.String("pubsub-peer")
 	if pubsubPeer != "" {
-		cfg.Ingest.PubSubPeer = pubsubPeer
+		cfg.Ingest.PubSubPeers = []string{pubsubPeer}
+	}
+
+	noBootstrap := cctx.Bool("no-bootstrap")
+	if noBootstrap {
+		cfg.Bootstrap.Peers = []string{}
+		cfg.Bootstrap.MinimumPeers = 1
 	}
 
 	return cfg.Save(configFile)
