@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 
@@ -160,14 +159,4 @@ func (c *Client) Register(ctx context.Context, providerID peer.ID, privateKey p2
 		return httpclient.ReadError(resp.StatusCode, body)
 	}
 	return nil
-}
-
-// Sync with a data provider up to latest ID
-func (c *Client) Sync(ctx context.Context, p peer.ID, m multihash.Multihash) error {
-	return errors.New("not implemented")
-}
-
-// Subscribe to advertisements of a specific provider in the pubsub channel
-func (c *Client) Subscribe(ctx context.Context, p peer.ID) error {
-	return errors.New("not implemented")
 }

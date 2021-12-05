@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/rand"
 	"os"
 	"time"
@@ -24,82 +25,118 @@ var SyntheticCmd = &cli.Command{
 }
 
 func syntheticCmd(c *cli.Context) error {
-	dir := c.String("dir")
-	num := c.Int64("num")
-	size := c.Int64("size")
+	fileName := c.String("file")
+	num := int(c.Int64("num"))
+	size := int(c.Int64("size"))
 	t := c.String("type")
+
+	if num == 0 && size == 0 {
+		return errors.New("no size or number of cids provided to command")
+	}
+
 	switch t {
 	case "manifest":
-		return genManifest(dir, num, size)
+		return genManifest(fileName, num, size)
 	case "cidlist":
-		return genCidList(dir, num, size)
-	default:
-		return errors.New("export type not implemented, try types manifest or cidlist")
+		return genCidList(fileName, num, size)
 	}
-
+	return errors.New("export type not implemented, try types manifest or cidlist")
 }
 
-func genCidList(dir string, num int64, size int64) error {
-	log.Infow("Starting to synthetize cidlist file")
+func genCidList(fileName string, num int, size int) error {
+	fmt.Println("Generating cidlist file")
 	if size != 0 {
-		return writeCidFileOfSize(dir, size)
+		return writeCidFileOfSize(fileName, size)
 	}
-	if num != 0 {
-		return writeCidFile(dir, num)
-	}
-
-	return errors.New("no size or number of cids provided to command")
-
+	return writeCidFile(fileName, num)
 }
 
-func genManifest(dir string, num int64, size int64) error {
-	log.Infow("Starting to synthetize manifest file")
+func genManifest(fileName string, num int, size int) error {
+	fmt.Println("Generating manifest file")
 	if size != 0 {
-		return writeManifestOfSize(dir, size)
+		return writeManifestOfSize(fileName, size)
 	}
-	if num != 0 {
-		return writeManifest(dir, num)
+	return writeManifest(fileName, num)
+}
+
+type progress struct {
+	count int
+	incr  float64
+	next  float64
+}
+
+func newProgress(total int) *progress {
+	const percentIncr = 2
+
+	fmt.Fprintln(os.Stderr, "|         25%|        50%|         75%|        100%|")
+	fmt.Fprint(os.Stderr, "|")
+	incr := float64(total*percentIncr) / 100.0
+	return &progress{
+		incr:  incr,
+		next:  incr,
+		count: 100 / percentIncr,
 	}
-	return errors.New("no size or number of cids provided to command")
+}
+
+func (p *progress) update(curr int) {
+	for p.count > 0 && float64(curr) >= p.next {
+		fmt.Fprint(os.Stderr, ".")
+		p.next += p.incr
+		p.count--
+	}
+}
+
+func (p *progress) done() {
+	for p.count > 0 {
+		fmt.Fprint(os.Stderr, ".")
+		p.count--
+	}
+	fmt.Fprintln(os.Stderr, "|")
 }
 
 // writeCidFile creates a file and appends a list of cids.
-func writeCidFile(dir string, num int64) error {
-	file, err := os.OpenFile(dir,
-		os.O_CREATE|os.O_WRONLY, 0644)
+func writeCidFile(fileName string, num int) error {
+	file, err := os.Create(fileName)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
 	w := bufio.NewWriter(file)
-	curr := int64(0)
+
+	prog := newProgress(num)
+
+	var cids []cid.Cid
+	var curr, i int
 	for curr < num {
-		cids, _ := randomCids(10)
-		for i := range cids {
-			if _, err = w.WriteString(cids[i].String()); err != nil {
-				return err
-			}
-			if _, err = w.WriteString("\n"); err != nil {
-				return err
-			}
+		if i == len(cids) {
+			// Refil cids
+			cids, _ = randomCids(100)
+			i = 0
 		}
-		curr += 10
-		progressCids(curr)
+		if _, err = w.WriteString(cids[i].String()); err != nil {
+			return err
+		}
+		if _, err = w.WriteString("\n"); err != nil {
+			return err
+		}
+		curr++
+		i++
+		prog.update(curr)
 	}
 
 	if err = w.Flush(); err != nil {
 		return err
 	}
+	prog.done()
 
-	log.Infof("Created cidList successfully")
+	fmt.Println("Created cidList successfully")
 	return nil
 }
 
 // writeCidFileOfSize creates a new file of a specific size
-func writeCidFileOfSize(dir string, size int64) error {
-	file, err := os.OpenFile(dir,
-		os.O_CREATE|os.O_WRONLY, 0644)
+func writeCidFileOfSize(fileName string, size int) error {
+	file, err := os.Create(fileName)
 	if err != nil {
 		return err
 	}
@@ -107,36 +144,40 @@ func writeCidFileOfSize(dir string, size int64) error {
 
 	w := bufio.NewWriter(file)
 
-	curr := int64(0)
+	prog := newProgress(size)
+
+	var cids []cid.Cid
+	var curr, i int
 	for curr < size {
-		// Generate CIDs in batches of 100
-		cids, _ := randomCids(100)
-		for _, c := range cids {
-			curr += int64(len(c.Bytes()))
-
-			if _, err = w.WriteString(c.String()); err != nil {
-				return err
-			}
-			if _, err = w.WriteString("\n"); err != nil {
-				return err
-			}
-			progressBytes(curr)
+		if i == len(cids) {
+			// Refil cids
+			cids, _ = randomCids(100)
+			i = 0
 		}
-
+		c := cids[i]
+		i++
+		if _, err = w.WriteString(c.String()); err != nil {
+			return err
+		}
+		if _, err = w.WriteString("\n"); err != nil {
+			return err
+		}
+		curr += len(c.Bytes())
+		prog.update(curr)
 	}
 
 	if err = w.Flush(); err != nil {
 		return err
 	}
+	prog.done()
 
-	log.Infof("Created cidList successfully of size: %d", size)
+	fmt.Println("Created cidList successfully of size:", size)
 	return nil
 }
 
 // writeManifest appends new entries to existing manifest
-func writeManifest(dir string, num int64) error {
-	file, err := os.OpenFile(dir,
-		os.O_CREATE|os.O_WRONLY, 0644)
+func writeManifest(fileName string, num int) error {
+	file, err := os.Create(fileName)
 	if err != nil {
 		return err
 	}
@@ -144,37 +185,44 @@ func writeManifest(dir string, num int64) error {
 
 	w := bufio.NewWriter(file)
 
-	curr := int64(0)
+	prog := newProgress(num)
+
+	var cids []cid.Cid
+	var curr, i int
 	for curr < num {
-		cids, _ := randomCids(10)
-		for i := range cids {
-			b, err := manifestEntry(cids[i])
-			if err != nil {
-				return err
-			}
-			if _, err = w.Write(b); err != nil {
-				return err
-			}
-			if _, err = w.WriteString("\n"); err != nil {
-				return err
-			}
+		if i == len(cids) {
+			// Refil cids
+			cids, _ = randomCids(100)
+			i = 0
 		}
-		curr += 10
-		progressCids(curr)
+
+		b, err := manifestEntry(cids[i])
+		if err != nil {
+			return err
+		}
+		if _, err = w.Write(b); err != nil {
+			return err
+		}
+		if _, err = w.WriteString("\n"); err != nil {
+			return err
+		}
+		i++
+		curr++
+		prog.update(curr)
 	}
 
 	if err = w.Flush(); err != nil {
 		return err
 	}
+	prog.done()
 
-	log.Infof("Created Manifest successfully")
+	fmt.Println("Created Manifest successfully")
 	return nil
 }
 
 // writeManifestOfSize creates a manifest for certain size of CIDs
-func writeManifestOfSize(dir string, size int64) error {
-	file, err := os.OpenFile(dir,
-		os.O_CREATE|os.O_WRONLY, 0644)
+func writeManifestOfSize(fileName string, size int) error {
+	file, err := os.Create(fileName)
 	if err != nil {
 		return err
 	}
@@ -182,33 +230,37 @@ func writeManifestOfSize(dir string, size int64) error {
 
 	w := bufio.NewWriter(file)
 
-	curr := int64(0)
+	prog := newProgress(size)
+
+	var cids []cid.Cid
+	var curr, i int
 	for curr < size {
-		// Generate CIDs in batches of 100
-		cids, _ := randomCids(100)
-		for _, c := range cids {
-			curr += int64(len(c.Bytes()))
-			b, err := manifestEntry(c)
-			if err != nil {
-				return err
-			}
-
-			if _, err = w.Write(b); err != nil {
-				return err
-			}
-			if _, err = w.WriteString("\n"); err != nil {
-				return err
-			}
-			progressBytes(curr)
+		if i == len(cids) {
+			// Refil cids
+			cids, _ = randomCids(100)
+			i = 0
 		}
-
+		c := cids[i]
+		i++
+		b, err := manifestEntry(c)
+		if err != nil {
+			return err
+		}
+		if _, err = w.Write(b); err != nil {
+			return err
+		}
+		if _, err = w.WriteString("\n"); err != nil {
+			return err
+		}
+		curr += len(c.Bytes())
+		prog.update(curr)
 	}
-
 	if err = w.Flush(); err != nil {
 		return err
 	}
+	prog.done()
 
-	log.Infof("Created Manifest successfully")
+	fmt.Println("Created Manifest successfully")
 	return nil
 }
 
@@ -232,18 +284,6 @@ func manifestEntry(c cid.Cid) ([]byte, error) {
 	}
 
 	return json.Marshal(e)
-}
-
-func progressBytes(n int64) {
-	if n%50000 == 0 {
-		log.Infof("Generated %dB so far", n)
-	}
-}
-
-func progressCids(n int64) {
-	if n%1000 == 0 {
-		log.Infof("Generated %d cids so far", n)
-	}
 }
 
 func randomCids(n int) ([]cid.Cid, error) {

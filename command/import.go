@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -29,6 +30,7 @@ var importManifest = &cli.Command{
 	Flags:  importFlags,
 	Action: importManifestCmd,
 }
+
 var ImportCmd = &cli.Command{
 	Name:  "import",
 	Usage: "Imports data to indexer from different sources",
@@ -42,7 +44,7 @@ var ImportCmd = &cli.Command{
 func importListCmd(cctx *cli.Context) error {
 	// NOTE: Importing manually from CLI only supported for http protocol
 	// for now. This feature is mainly for testing purposes
-	cl, err := httpclient.New(cctx.String("indexer-host"))
+	cl, err := httpclient.New(cctx.String("indexer"))
 	if err != nil {
 		return err
 	}
@@ -51,9 +53,9 @@ func importListCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	dir := cctx.String("dir")
+	dir := cctx.String("file")
 
-	log.Infow("Starting to import from cidlist file")
+	fmt.Println("Starting to import from cidlist file")
 	// TODO: Should there be a timeout?  Since this may take a long time, it
 	// would make sense that the request should complete immediately with a
 	// redirect to a URL where the status can be polled for.
@@ -61,12 +63,12 @@ func importListCmd(cctx *cli.Context) error {
 }
 
 func importCarCmd(c *cli.Context) error {
-	//log.Infow("Starting to import from CAR file")
+	//fmt.Println("Starting to import from CAR file")
 	return errors.New("importing from car not implemented yet")
 }
 
 func importManifestCmd(cctx *cli.Context) error {
-	cl, err := httpclient.New(cctx.String("indexer-host"))
+	cl, err := httpclient.New(cctx.String("indexer"))
 	if err != nil {
 		return err
 	}
@@ -75,9 +77,9 @@ func importManifestCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	dir := cctx.String("dir")
+	dir := cctx.String("file")
 
-	log.Infow("Starting to import from manifest file")
+	fmt.Println("Starting to import from manifest file")
 	// TODO: Should there be a timeout?  Since this may take a long time, it
 	// would make sense that the request should complete immediately with a
 	// redirect to a URL where the status can be polled for.

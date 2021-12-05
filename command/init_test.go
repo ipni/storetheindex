@@ -28,17 +28,17 @@ func TestInit(t *testing.T) {
 	badAddr := "ip3/127.0.0.1/tcp/9999"
 	err := app.RunContext(ctx, []string{"storetheindex", "init", "-listen-admin", badAddr})
 	if err == nil {
-		log.Fatal("expected error")
+		t.Fatal("expected error")
 	}
 
 	err = app.RunContext(ctx, []string{"storetheindex", "init", "-listen-finder", badAddr})
 	if err == nil {
-		log.Fatal("expected error")
+		t.Fatal("expected error")
 	}
 
 	err = app.RunContext(ctx, []string{"storetheindex", "init", "-listen-ingest", badAddr})
 	if err == nil {
-		log.Fatal("expected error")
+		t.Fatal("expected error")
 	}
 
 	goodAddr := "/ip4/127.0.0.1/tcp/7777"
@@ -54,12 +54,12 @@ func TestInit(t *testing.T) {
 	}
 	err = app.RunContext(ctx, args)
 	if err != nil {
-		log.Fatal(err)
+		t.Fatal(err)
 	}
 
 	cfg, err := config.Load("")
 	if err != nil {
-		log.Fatal(err)
+		t.Fatal(err)
 	}
 
 	if cfg.Addresses.Finder != goodAddr {

@@ -3,7 +3,6 @@ package p2pclient
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/filecoin-project/storetheindex/api/v0"
@@ -138,14 +137,4 @@ func (c *Client) sendRecv(ctx context.Context, req *pb.IngestMessage, expectRspT
 		return nil, fmt.Errorf("response type is not %s", expectRspType.String())
 	}
 	return resp.GetData(), nil
-}
-
-// Sync with a data provider up to latest ID
-func (c *Client) Sync(ctx context.Context, p peer.ID, m multihash.Multihash) error {
-	return errors.New("not implemented")
-}
-
-// Subscribe to advertisements of a specific provider in the pubsub channel
-func (c *Client) Subscribe(ctx context.Context, p peer.ID) error {
-	return errors.New("not implemented")
 }

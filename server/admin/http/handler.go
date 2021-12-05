@@ -44,7 +44,8 @@ func (h *adminHandler) subscribe(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := "Cannot subscribe to provider"
 		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusInternalServerError)
+		http.Error(w, msg, http.StatusBadGateway)
+		return
 	}
 
 	// Return OK
@@ -65,7 +66,8 @@ func (h *adminHandler) unsubscribe(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := "Cannot unsubscribe to provider"
 		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusInternalServerError)
+		http.Error(w, msg, http.StatusBadGateway)
+		return
 	}
 
 	// Return OK
@@ -91,7 +93,8 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := "Cannot sync with provider"
 		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusInternalServerError)
+		http.Error(w, msg, http.StatusBadGateway)
+		return
 	}
 
 	// Return (202) Accepted
