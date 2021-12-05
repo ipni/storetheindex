@@ -28,7 +28,7 @@ def random_sample(cids, is_zipf=True):
 
 
 # Importing CIDs to request
-cids = read_cids("cids.data")
+cids = read_cids("/tmp/cids.data")
 print("Reading CIDs complete!")
 
 # Test case
