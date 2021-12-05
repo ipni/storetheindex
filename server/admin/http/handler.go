@@ -2,9 +2,12 @@ package adminserver
 
 import (
 	"context"
-	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/importer"
@@ -28,6 +31,8 @@ func newHandler(ctx context.Context, indexer indexer.Interface, ingester ingest.
 	}
 }
 
+const importBatchSize = 64
+
 // ----- ingest handlers -----
 
 func (h *adminHandler) subscribe(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +49,8 @@ func (h *adminHandler) subscribe(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := "Cannot subscribe to provider"
 		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusInternalServerError)
+		http.Error(w, msg, http.StatusBadGateway)
+		return
 	}
 
 	// Return OK
@@ -65,7 +71,8 @@ func (h *adminHandler) unsubscribe(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := "Cannot unsubscribe to provider"
 		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusInternalServerError)
+		http.Error(w, msg, http.StatusBadGateway)
+		return
 	}
 
 	// Return OK
@@ -91,7 +98,8 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := "Cannot sync with provider"
 		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusInternalServerError)
+		http.Error(w, msg, http.StatusBadGateway)
+		return
 	}
 
 	// Return (202) Accepted
@@ -104,29 +112,33 @@ func (h *adminHandler) importManifest(w http.ResponseWriter, r *http.Request) {
 	// TODO: This code is the same for all import handlers.
 	// We probably can take it out to its own function to deduplicate.
 	vars := mux.Vars(r)
-	provID, ok := decodeProviderID(vars["minerid"], w)
+	provID, ok := decodeProviderID(vars["provider"], w)
 	if !ok {
 		return
 	}
-	contextID, err := base64.RawURLEncoding.DecodeString(vars["contextid"])
+
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		msg := "Cannot decode context ID"
-		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusBadRequest)
+		log.Errorw("failed reading import cidlist request", "err", err)
+		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
-	log.Infow("Import manifest for provider", "miner", provID.String())
-	file, _, err := r.FormFile("file")
+
+	fileName, contextID, metadata, err := getParams(body)
 	if err != nil {
-		msg := "Cannot read file"
-		log.Error(msg)
-		http.Error(w, msg, http.StatusBadRequest)
+		log.Error(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Errorw("Cannot open cidlist file", "err", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 	defer file.Close()
 
-	const batchSize = 64
-	out := make(chan multihash.Multihash, batchSize)
+	out := make(chan multihash.Multihash, importBatchSize)
 	errOut := make(chan error, 1)
 	ctx, cancel := context.WithCancel(h.ctx)
 	defer cancel()
@@ -135,9 +147,9 @@ func (h *adminHandler) importManifest(w http.ResponseWriter, r *http.Request) {
 	value := indexer.Value{
 		ProviderID:    provID,
 		ContextID:     contextID,
-		MetadataBytes: nil, // TODO: redesign into endpoints that take metadata too
+		MetadataBytes: metadata,
 	}
-	batchErr := batchIndexerEntries(batchSize, out, value, h.indexer)
+	batchErr := batchIndexerEntries(importBatchSize, out, value, h.indexer)
 	err = <-batchErr
 	if err != nil {
 		log.Errorf("Error putting entries in indexer: %s", err)
@@ -147,7 +159,7 @@ func (h *adminHandler) importManifest(w http.ResponseWriter, r *http.Request) {
 
 	err = <-errOut
 	if err != nil {
-		log.Error("Error reading manifest", "err", err)
+		log.Errorw("Error reading manifest", "err", err)
 		http.Error(w, fmt.Sprintf("error reading manifest: %s", err), http.StatusBadRequest)
 		return
 	}
@@ -156,31 +168,62 @@ func (h *adminHandler) importManifest(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func getParams(data []byte) (string, []byte, []byte, error) {
+	var params map[string][]byte
+	err := json.Unmarshal(data, &params)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("cannot unmarshal import cidlist params: %s", err)
+	}
+	fileName, ok := params["file"]
+	if !ok {
+		return "", nil, nil, errors.New("missing file in request")
+	}
+	contextID, ok := params["context_id"]
+	if !ok {
+		return "", nil, nil, errors.New("missing context_id in request")
+	}
+	metadata, ok := params["metadata"]
+	if !ok {
+		return "", nil, nil, errors.New("missing metadata in request")
+	}
+
+	return string(fileName), contextID, metadata, nil
+}
+
 func (h *adminHandler) importCidList(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	provID, ok := decodeProviderID(vars["minerid"], w)
+	provID, ok := decodeProviderID(vars["provider"], w)
 	if !ok {
 		return
 	}
-	contextID, err := base64.RawURLEncoding.DecodeString(vars["contextid"])
+	log.Infow("Import multihash list for provider", "provider", provID.String())
+
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		msg := "Cannot decode context ID"
-		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusBadRequest)
+		log.Errorw("failed reading import cidlist request", "err", err)
+		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
-	log.Infow("Import multihash list for provider", "miner", provID.String())
-	file, _, err := r.FormFile("file")
+
+	fileName, contextID, metadata, err := getParams(body)
 	if err != nil {
-		msg := "Cannot read file"
-		log.Error(msg)
-		http.Error(w, msg, http.StatusBadRequest)
+		log.Error(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	fmt.Println("file:", fileName)
+	fmt.Println("contextID:", contextID)
+	fmt.Println("metadata:", metadata)
+
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Errorw("Cannot open cidlist file", "err", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 	defer file.Close()
 
-	const batchSize = 64
-	out := make(chan multihash.Multihash, batchSize)
+	out := make(chan multihash.Multihash, importBatchSize)
 	errOut := make(chan error, 1)
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
@@ -189,9 +232,9 @@ func (h *adminHandler) importCidList(w http.ResponseWriter, r *http.Request) {
 	value := indexer.Value{
 		ProviderID:    provID,
 		ContextID:     contextID,
-		MetadataBytes: nil, // TODO: redesign into endpoints that take metadata too
+		MetadataBytes: metadata,
 	}
-	batchErr := batchIndexerEntries(batchSize, out, value, h.indexer)
+	batchErr := batchIndexerEntries(importBatchSize, out, value, h.indexer)
 	err = <-batchErr
 	if err != nil {
 		log.Errorf("Error putting entries in indexer: %s", err)
@@ -201,7 +244,7 @@ func (h *adminHandler) importCidList(w http.ResponseWriter, r *http.Request) {
 
 	err = <-errOut
 	if err != nil {
-		log.Error("Error reading CID list", "err", err)
+		log.Errorw("Error reading CID list", "err", err)
 		http.Error(w, fmt.Sprintf("error reading cid list: %s", err), http.StatusBadRequest)
 		return
 	}

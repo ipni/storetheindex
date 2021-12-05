@@ -2,7 +2,7 @@ package config
 
 const (
 	defaultIngestPubSubTopic = "indexer/ingest"
-	defaultStoreBatchSize    = 64
+	defaultStoreBatchSize    = 256
 )
 
 // Ingest tracks the configuration related to the ingestion protocol.

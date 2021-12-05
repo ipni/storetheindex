@@ -27,10 +27,10 @@ var cacheSizeFlag = &cli.Int64Flag{
 	Value:    -1,
 }
 
-var dirFlag = &cli.StringFlag{
-	Name:     "dir",
-	Usage:    "Source directory for import",
-	Aliases:  []string{"d"},
+var fileFlag = &cli.StringFlag{
+	Name:     "file",
+	Usage:    "Source file for import",
+	Aliases:  []string{"f"},
 	Required: true,
 }
 
@@ -40,6 +40,13 @@ var logLevelFlag = &cli.StringFlag{
 	EnvVars:  []string{"GOLOG_LOG_LEVEL"},
 	Value:    "info",
 	Required: false,
+}
+
+var providerFlag = &cli.StringFlag{
+	Name:     "provider",
+	Usage:    "Provider's peer ID to interact with",
+	Aliases:  []string{"p"},
+	Required: true,
 }
 
 var daemonFlags = []cli.Flag{
@@ -54,14 +61,14 @@ var daemonFlags = []cli.Flag{
 }
 
 var findFlags = []cli.Flag{
-	&cli.StringFlag{
-		Name:     "cid",
-		Usage:    "Specify cid to use as indexer key",
+	&cli.StringSliceFlag{
+		Name:     "mh",
+		Usage:    "Specify multihash to use as indexer key, multiple OK",
 		Required: false,
 	},
-	&cli.StringFlag{
-		Name:     "mh",
-		Usage:    "Specify multihash to use as indexer key",
+	&cli.StringSliceFlag{
+		Name:     "cid",
+		Usage:    "Specify CID to use as indexer key, multiple OK",
 		Required: false,
 	},
 	indexerHostFlag,
@@ -75,16 +82,11 @@ var findFlags = []cli.Flag{
 }
 
 var importFlags = []cli.Flag{
+	providerFlag,
 	&cli.StringFlag{
-		Name:     "provider",
-		Usage:    "Provider of the data imported",
-		Aliases:  []string{"prov"},
-		Required: true,
-	},
-	&cli.StringFlag{
-		Name:     "contextid",
+		Name:     "ctxid",
 		Usage:    "Context ID of data imported",
-		Aliases:  []string{"ctxid"},
+		Aliases:  []string{"c"},
 		Required: true,
 	},
 	&cli.StringFlag{
@@ -93,17 +95,12 @@ var importFlags = []cli.Flag{
 		Aliases:  []string{"m"},
 		Required: false,
 	},
-	dirFlag,
+	fileFlag,
 	indexerHostFlag,
 }
 
 var ingestFlags = []cli.Flag{
-	&cli.StringFlag{
-		Name:     "provider",
-		Usage:    "Provider to interact with",
-		Aliases:  []string{"prov"},
-		Required: true,
-	},
+	providerFlag,
 	indexerHostFlag,
 }
 
@@ -170,7 +167,7 @@ var registerFlags = []cli.Flag{
 }
 
 var syntheticFlags = []cli.Flag{
-	dirFlag,
+	fileFlag,
 	&cli.StringFlag{
 		Name:     "type",
 		Usage:    "Type of synthetic load to generate (manifest, cidlist, car)",

@@ -2,18 +2,18 @@ package command
 
 import (
 	"fmt"
-	httpclient "github.com/filecoin-project/storetheindex/internal/httpclient"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+
+	httpclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/urfave/cli/v2"
-	"io"
-	"net/http"
-	"net/url"
 )
 
-const (
-	adminPort      = 3002
-	ingestResource = "ingest"
-)
+var sync = &cli.Command{
+	Name:   "sync",
+	Usage:  "Sync indexer with provider",
+	Flags:  ingestFlags,
+	Action: syncCmd,
+}
 
 var subscribe = &cli.Command{
 	Name:   "subscribe",
@@ -29,41 +29,18 @@ var unsubscribe = &cli.Command{
 	Action: unsubscribeCmd,
 }
 
-var sync = &cli.Command{
-	Name:   "sync",
-	Usage:  "Sync indexer with provider",
-	Flags:  ingestFlags,
-	Action: syncCmd,
-}
-
 var IngestCmd = &cli.Command{
 	Name:  "ingest",
-	Usage: "Admin commands to manage ingestion config of indexer",
+	Usage: "Admin commands to sync indexer with a provider",
 	Subcommands: []*cli.Command{
+		sync,
 		subscribe,
 		unsubscribe,
-		sync,
 	},
 }
 
-type ingestClient struct {
-	c       *http.Client
-	baseurl *url.URL
-}
-
-func newIngestClient(baseurl string) (*ingestClient, error) {
-	url, c, err := httpclient.New(baseurl, ingestResource, adminPort)
-	if err != nil {
-		return nil, err
-	}
-	return &ingestClient{
-		c,
-		url,
-	}, nil
-}
-
-func sendRequest(cctx *cli.Context, action string) error {
-	cl, err := newIngestClient(cctx.String("indexer"))
+func syncCmd(cctx *cli.Context) error {
+	cl, err := httpclient.New(cctx.String("indexer"))
 	if err != nil {
 		return err
 	}
@@ -72,52 +49,46 @@ func sendRequest(cctx *cli.Context, action string) error {
 	if err != nil {
 		return err
 	}
-	dest := fmt.Sprintf("%s/ingest/%s/%s", cl.baseurl, action, p.String())
-	req, err := http.NewRequestWithContext(cctx.Context, "GET", dest, nil)
+	err = cl.Sync(cctx.Context, p)
 	if err != nil {
 		return err
 	}
-
-	resp, err := cl.c.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return httpclient.ReadError(resp.StatusCode, body)
-	}
+	fmt.Println("Syncing request accepted. Come back later to check if syncing was successful")
 	return nil
 }
 
 func subscribeCmd(cctx *cli.Context) error {
-	err := sendRequest(cctx, "subscribe")
+	cl, err := httpclient.New(cctx.String("indexer"))
 	if err != nil {
 		return err
 	}
-	log.Errorf("Successfully subscribed to provider")
+	prov := cctx.String("provider")
+	p, err := peer.Decode(prov)
+	if err != nil {
+		return err
+	}
+	err = cl.Subscribe(cctx.Context, p)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Successfully subscribed to provider")
 	return nil
 }
 
 func unsubscribeCmd(cctx *cli.Context) error {
-	err := sendRequest(cctx, "unsubscribe")
+	cl, err := httpclient.New(cctx.String("indexer"))
 	if err != nil {
 		return err
 	}
-	log.Errorf("Successfully unsubscribed from provider")
-	return nil
-}
-
-func syncCmd(cctx *cli.Context) error {
-	err := sendRequest(cctx, "sync")
+	prov := cctx.String("provider")
+	p, err := peer.Decode(prov)
 	if err != nil {
 		return err
 	}
-	log.Errorf("Syncing request accepted. Come back later to check if syncing was successful")
+	err = cl.Unsubscribe(cctx.Context, p)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Successfully unsubscribed from provider")
 	return nil
 }

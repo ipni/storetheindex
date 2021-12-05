@@ -1,10 +1,7 @@
 package command
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -16,8 +13,6 @@ import (
 	p2pclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/libp2p"
 )
 
-const getTimeout = 15 * time.Second
-
 var FindCmd = &cli.Command{
 	Name:   "find",
 	Usage:  "Find value by multihash in indexer",
@@ -28,35 +23,26 @@ var FindCmd = &cli.Command{
 func findCmd(cctx *cli.Context) error {
 	protocol := cctx.String("protocol")
 
-	mhArg := cctx.String("mh")
-	cidArg := cctx.String("cid")
-	if mhArg == "" && cidArg == "" {
-		return errors.New("must specify --cid or --mh")
-	}
-	if mhArg != "" && cidArg != "" {
-		return errors.New("only one --cid or --mh allowed")
-	}
-	var mh multihash.Multihash
-	var err error
-
-	if mhArg != "" {
-		mh, err = multihash.FromB58String(mhArg)
+	mhArgs := cctx.StringSlice("mh")
+	cidArgs := cctx.StringSlice("cid")
+	mhs := make([]multihash.Multihash, 0, len(mhArgs)+len(cidArgs))
+	for i := range mhArgs {
+		m, err := multihash.FromB58String(mhArgs[i])
 		if err != nil {
 			return err
 		}
-	} else if cidArg != "" {
-		var ccid cid.Cid
-		ccid, err = cid.Decode(cidArg)
+		mhs = append(mhs, m)
+	}
+	for i := range cidArgs {
+		c, err := cid.Decode(cidArgs[i])
 		if err != nil {
 			return err
 		}
-		mh = ccid.Hash()
+		mhs = append(mhs, c.Hash())
 	}
 
 	var cl client.Finder
-
-	ctx, cancel := context.WithTimeout(context.Background(), getTimeout)
-	defer cancel()
+	var err error
 
 	switch protocol {
 	case "http":
@@ -84,10 +70,25 @@ func findCmd(cctx *cli.Context) error {
 		return fmt.Errorf("unrecognized protocol type for client interaction: %s", protocol)
 	}
 
-	resp, err := cl.Find(ctx, mh)
+	resp, err := cl.FindBatch(cctx.Context, mhs)
 	if err != nil {
 		return err
 	}
-	log.Info("Response: %v", resp)
+
+	if len(resp.MultihashResults) == 0 {
+		fmt.Println("index not found")
+		return nil
+	}
+
+	fmt.Println("Content providers:")
+	for i := range resp.MultihashResults {
+		fmt.Println("   Multihash:", resp.MultihashResults[i].Multihash.B58String(), "==>")
+		for _, pr := range resp.MultihashResults[i].ProviderResults {
+			fmt.Println("       Provider:", pr.Provider)
+			fmt.Println("       ContextID:", string(pr.ContextID))
+			fmt.Println("       Proto:", pr.Metadata.ProtocolID)
+			fmt.Println("       Metadata:", string(pr.Metadata.Data))
+		}
+	}
 	return nil
 }

@@ -10,7 +10,8 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/syserr"
 )
 
-// New creates a base URL and a new http.Client
+// New creates a base URL and a new http.Client.  The default port is only used
+// if baseURL does not contain a port.
 func New(baseURL, resource string, defaultPort int, options ...Option) (*url.URL, *http.Client, error) {
 	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		baseURL = "http://" + baseURL

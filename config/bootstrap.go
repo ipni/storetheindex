@@ -3,16 +3,13 @@ package config
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 )
 
 const (
-	defaultMinimumPeers     = 4
-	defaultBootstrapPeriod  = 30 * time.Second
-	defaulConnectionTimeout = defaultBootstrapPeriod / 3
+	defaultMinimumPeers = 4
 )
 
 // defaultBootstrapAddresses are the hardcoded bootstrap addresses.

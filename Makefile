@@ -2,15 +2,13 @@ BIN := storetheindex
 
 .PHONY: all build clean test
 
-all: build
+all: vet test build
 
-build: $(BIN)
+build:
+	go build -o $(BIN)
 
 docker: Dockerfile clean
 	docker build . --force-rm -f Dockerfile -t storetheindex:$(shell git rev-parse --short HEAD)
-
-$(BIN): vet test
-	go build -o $@
 
 lint:
 	golangci-lint run
