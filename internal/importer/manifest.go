@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 
 	agg "github.com/filecoin-project/go-dagaggregator-unixfs"
@@ -16,6 +17,7 @@ import (
 func ReadManifest(ctx context.Context, in io.Reader, out chan<- multihash.Multihash, errOut chan error) {
 	defer close(errOut)
 
+	var badEntryCount, entryCount int
 	scanner := bufio.NewScanner(in)
 	for scanner.Scan() {
 		e := agg.ManifestDagEntry{}
@@ -26,6 +28,7 @@ func ReadManifest(ctx context.Context, in io.Reader, out chan<- multihash.Multih
 		// if it makes sense to change the implementation.
 		err := json.Unmarshal(scanner.Bytes(), &e)
 		if err != nil {
+			badEntryCount++
 			continue
 		}
 		// Check if DagEntry
@@ -36,20 +39,27 @@ func ReadManifest(ctx context.Context, in io.Reader, out chan<- multihash.Multih
 			if err != nil {
 				c, err = cid.Decode(e.DagCidV0)
 				if err != nil {
+					badEntryCount++
 					continue // ignore malformet CIDs
 				}
 			}
 			if !c.Defined() {
+				badEntryCount++
 				continue
 			}
 			select {
 			case out <- c.Hash():
+				entryCount++
 			case <-ctx.Done():
 				close(out) // close out first in case errOut not buffered
 				errOut <- ctx.Err()
 				return
 			}
-		} else if ctx.Err() != nil {
+		} else {
+			badEntryCount++
+		}
+
+		if ctx.Err() != nil {
 			close(out) // close out first in case errOut not buffered
 			errOut <- ctx.Err()
 			return
@@ -62,4 +72,12 @@ func ReadManifest(ctx context.Context, in io.Reader, out chan<- multihash.Multih
 	if err := scanner.Err(); err != nil {
 		errOut <- err
 	}
+	if badEntryCount != 0 {
+		log.Errorf("Skipped %d bad manifest entries", badEntryCount)
+	}
+	if entryCount == 0 {
+		errOut <- errors.New("no entries imported")
+		return
+	}
+	log.Infof("Imported %d manifest cid entries", entryCount)
 }

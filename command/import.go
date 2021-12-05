@@ -1,7 +1,6 @@
 package command
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -53,17 +52,19 @@ func importListCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	dir := cctx.String("file")
+	fileName := cctx.String("file")
 
-	fmt.Println("Starting to import from cidlist file")
-	// TODO: Should there be a timeout?  Since this may take a long time, it
-	// would make sense that the request should complete immediately with a
-	// redirect to a URL where the status can be polled for.
-	return cl.ImportFromCidList(context.Background(), dir, p, cctx.String("contextid"))
+	fmt.Println("Telling indexer to import cidlist file:", fileName)
+	err = cl.ImportFromCidList(cctx.Context, fileName, p, []byte(cctx.String("ctxid")), []byte(cctx.String("metadata")))
+	if err != nil {
+		return fmt.Errorf("Error from indexer: %s", err)
+	}
+	fmt.Println("Indexer imported manifest file")
+	return nil
 }
 
 func importCarCmd(c *cli.Context) error {
-	//fmt.Println("Starting to import from CAR file")
+	//fmt.Println("Telling indexer to import manifest file:", fileName)
 	return errors.New("importing from car not implemented yet")
 }
 
@@ -77,11 +78,16 @@ func importManifestCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	dir := cctx.String("file")
+	fileName := cctx.String("file")
 
-	fmt.Println("Starting to import from manifest file")
+	fmt.Println("Telling indexer to import manifest file:", fileName)
 	// TODO: Should there be a timeout?  Since this may take a long time, it
 	// would make sense that the request should complete immediately with a
 	// redirect to a URL where the status can be polled for.
-	return cl.ImportFromManifest(context.Background(), dir, p, cctx.String("contextid"))
+	err = cl.ImportFromManifest(cctx.Context, fileName, p, []byte(cctx.String("ctxid")), []byte(cctx.String("metadata")))
+	if err != nil {
+		return fmt.Errorf("Error from indexer: %s", err)
+	}
+	fmt.Println("Indexer imported manifest file")
+	return nil
 }

@@ -3,14 +3,12 @@ package adminhttpclient
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 
 	"github.com/filecoin-project/storetheindex/internal/httpclient"
 	logging "github.com/ipfs/go-log/v2"
@@ -46,9 +44,9 @@ func New(baseURL string, options ...httpclient.Option) (*Client, error) {
 
 // ImportFromManifest processes entries from manifest and imports them into the
 // indexer.
-func (c *Client) ImportFromManifest(ctx context.Context, dir string, provID peer.ID, contextID string) error {
-	u := c.baseURL + path.Join(importResource, "manifest", provID.String(), base64.RawURLEncoding.EncodeToString([]byte(contextID)))
-	req, err := c.newUploadRequest(ctx, dir, u)
+func (c *Client) ImportFromManifest(ctx context.Context, fileName string, provID peer.ID, contextID, metadata []byte) error {
+	u := c.baseURL + path.Join(importResource, "manifest", provID.String())
+	req, err := c.newUploadRequest(ctx, u, fileName, contextID, metadata)
 	if err != nil {
 		return err
 	}
@@ -68,9 +66,9 @@ func (c *Client) ImportFromManifest(ctx context.Context, dir string, provID peer
 
 // ImportFromCidList process entries from a cidlist and imprts it into the
 // indexer.
-func (c *Client) ImportFromCidList(ctx context.Context, dir string, provID peer.ID, contextID string) error {
-	u := c.baseURL + path.Join(importResource, "cidlist", provID.String(), base64.RawURLEncoding.EncodeToString([]byte(contextID)))
-	req, err := c.newUploadRequest(ctx, dir, u)
+func (c *Client) ImportFromCidList(ctx context.Context, fileName string, provID peer.ID, contextID, metadata []byte) error {
+	u := c.baseURL + path.Join(importResource, "cidlist", provID.String())
+	req, err := c.newUploadRequest(ctx, u, fileName, contextID, metadata)
 	if err != nil {
 		return err
 	}
@@ -128,33 +126,30 @@ func (c *Client) ingestRequest(ctx context.Context, provID peer.ID, action strin
 	return nil
 }
 
-func (c *Client) newUploadRequest(ctx context.Context, dir string, uri string) (*http.Request, error) {
-	file, err := os.Open(dir)
+func (c *Client) newUploadRequest(ctx context.Context, uri, fileName string, contextID, metadata []byte) (*http.Request, error) {
+	file, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", filepath.Base(dir))
-	if err != nil {
-		return nil, err
+	params := map[string][]byte{
+		"file":       []byte(fileName),
+		"context_id": contextID,
+		"metadata":   metadata,
 	}
-	_, err = io.Copy(part, file)
+
+	bodyData, err := json.Marshal(&params)
 	if err != nil {
 		return nil, err
 	}
 
-	err = writer.Close()
-	if err != nil {
-		return nil, err
-	}
+	body := bytes.NewBuffer(bodyData)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", uri, body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Type", "application/json")
 	return req, nil
 }

@@ -84,7 +84,7 @@ var findFlags = []cli.Flag{
 var importFlags = []cli.Flag{
 	providerFlag,
 	&cli.StringFlag{
-		Name:     "ctxtid",
+		Name:     "ctxid",
 		Usage:    "Context ID of data imported",
 		Aliases:  []string{"c"},
 		Required: true,
