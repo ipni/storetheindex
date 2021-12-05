@@ -164,7 +164,8 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	err = os.Chdir("index-provider/cmd/provider")
 	qt.Assert(t, err, qt.IsNil)
 	e.run("go", "install")
-	os.Chdir(cwd)
+	err = os.Chdir(cwd)
+	qt.Assert(t, err, qt.IsNil)
 
 	e.run(provider, "init")
 	cfg, err := config.Load(filepath.Join(e.dir, ".index-provider", "config"))
