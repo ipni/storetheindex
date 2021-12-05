@@ -58,7 +58,12 @@ func (c *Client) ImportFromManifest(ctx context.Context, fileName string, provID
 
 	// Handle failed requests
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("importing from manifest failed: %v", http.StatusText(resp.StatusCode))
+		var errMsg string
+		body, err := io.ReadAll(resp.Body)
+		if err == nil && len(body) != 0 {
+			errMsg = ": " + string(body)
+		}
+		return fmt.Errorf("importing from manifest failed: %v%s", http.StatusText(resp.StatusCode), errMsg)
 	}
 	log.Infow("Success")
 	return nil
@@ -80,7 +85,12 @@ func (c *Client) ImportFromCidList(ctx context.Context, fileName string, provID 
 
 	// Handle failed requests
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("importing from cidlist failed: %v", http.StatusText(resp.StatusCode))
+		var errMsg string
+		body, err := io.ReadAll(resp.Body)
+		if err == nil && len(body) != 0 {
+			errMsg = ": " + string(body)
+		}
+		return fmt.Errorf("importing from cidlist failed: %v%s", http.StatusText(resp.StatusCode), errMsg)
 	}
 	log.Infow("Success")
 	return nil
