@@ -45,20 +45,24 @@ func New(ctx context.Context, listen string, indexer indexer.Interface, ingester
 
 	// Set protocol handlers
 	// Import routes
-	r.HandleFunc("/import/manifest/{provider}", h.importManifest).Methods("POST")
-	r.HandleFunc("/import/cidlist/{provider}", h.importCidList).Methods("POST")
+	r.HandleFunc("/import/manifest/{provider}", h.importManifest).Methods(http.MethodPost)
+	r.HandleFunc("/import/cidlist/{provider}", h.importCidList).Methods(http.MethodPost)
 
 	// Admin routes
-	r.HandleFunc("/healthcheck", h.healthCheckHandler).Methods("GET")
+	r.HandleFunc("/healthcheck", h.healthCheckHandler).Methods(http.MethodGet)
 
 	// Ingester routes
-	r.HandleFunc("/ingest/subscribe/{provider}", h.subscribe).Methods("GET")
-	r.HandleFunc("/ingest/unsubscribe/{provider}", h.unsubscribe).Methods("GET")
-	r.HandleFunc("/ingest/sync/{provider}", h.sync).Methods("GET")
+	r.HandleFunc("/ingest/subscribe/{provider}", h.subscribe).Methods(http.MethodGet)
+	r.HandleFunc("/ingest/unsubscribe/{provider}", h.unsubscribe).Methods(http.MethodGet)
+	r.HandleFunc("/ingest/sync/{provider}", h.sync).Methods(http.MethodGet)
 
 	// Metrics routes
 	r.Handle("/metrics", metrics.Start(coremetrics.DefaultViews))
 	r.Handle("/debug/pprof", pprof.WithProfile())
+
+	//Config routes
+	registerSetLogLevelHandler(r)
+	registerListLogSubSystems(r)
 
 	return s, nil
 }

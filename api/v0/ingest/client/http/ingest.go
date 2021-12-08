@@ -43,7 +43,7 @@ func New(baseURL string, options ...httpclient.Option) (*Client, error) {
 }
 
 func (c *Client) ListProviders(ctx context.Context) ([]*model.ProviderInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.providersURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.providersURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (c *Client) ListProviders(ctx context.Context) ([]*model.ProviderInfo, erro
 }
 
 func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*model.ProviderInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.providersURL+"/"+providerID.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.providersURL+"/"+providerID.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKe
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.indexContentURL, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.indexContentURL, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (c *Client) Register(ctx context.Context, providerID peer.ID, privateKey p2
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.providersURL, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.providersURL, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
