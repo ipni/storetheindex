@@ -44,6 +44,7 @@ func main() {
 			command.RegisterCmd,
 			command.SyntheticCmd,
 			command.IngestCmd,
+			command.ConfigCmd,
 		},
 	}
 

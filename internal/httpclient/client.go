@@ -3,6 +3,8 @@ package httpclient
 import (
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -38,6 +40,14 @@ func New(baseURL, resource string, defaultPort int, options ...Option) (*url.URL
 		Timeout: cfg.timeout,
 	}
 	return u, cl, nil
+}
+
+func ReadErrorFrom(status int, r io.Reader) error {
+	body, err := ioutil.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	return ReadError(status, body)
 }
 
 func ReadError(status int, body []byte) error {

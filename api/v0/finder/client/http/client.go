@@ -41,7 +41,7 @@ func New(baseURL string, options ...httpclient.Option) (*Client, error) {
 // Find queries indexer entries for a multihash
 func (c *Client) Find(ctx context.Context, m multihash.Multihash) (*model.FindResponse, error) {
 	u := c.baseURL + "/" + m.B58String()
-	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*mod
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewBuffer(data))
 	if err != nil {
 		return nil, err
 	}

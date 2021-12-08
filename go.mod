@@ -32,4 +32,5 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/ybbus/jsonrpc/v2 v2.1.6
 	go.opencensus.io v0.23.0
+	go.uber.org/zap v1.19.0
 )

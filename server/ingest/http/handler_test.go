@@ -98,7 +98,7 @@ func TestRegisterProvider(t *testing.T) {
 	}
 	reqBody := bytes.NewBuffer(data)
 
-	req := httptest.NewRequest("POST", "http://example.com/providers", reqBody)
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/providers", reqBody)
 	w := httptest.NewRecorder()
 	hnd.RegisterProvider(w, req)
 
@@ -136,7 +136,7 @@ func TestIndexContent(t *testing.T) {
 	}
 	reqBody := bytes.NewBuffer(data)
 
-	req := httptest.NewRequest("POST", "http://example.com/providers", reqBody)
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/providers", reqBody)
 	w := httptest.NewRecorder()
 	hnd.IndexContent(w, req)
 

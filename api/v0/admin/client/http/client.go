@@ -1,12 +1,14 @@
 package adminhttpclient
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 
@@ -111,9 +113,59 @@ func (c *Client) Unsubscribe(ctx context.Context, provID peer.ID) error {
 	return c.ingestRequest(ctx, provID, "unsubscribe")
 }
 
+func (c *Client) ListLogSubSystems(ctx context.Context) ([]string, error) {
+	u := c.baseURL + "/config/log/subsystems"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	var subsystems []string
+	for scanner.Scan() {
+		subsystems = append(subsystems, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return subsystems, nil
+}
+
+func (c *Client) SetLogLevels(ctx context.Context, sysLvl map[string]string) error {
+	u := c.baseURL + "/config/log/level"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, nil)
+	if err != nil {
+		return err
+	}
+
+	q := url.Values{}
+	for ss, l := range sysLvl {
+		q.Add(ss, l)
+	}
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
+	}
+	return nil
+}
+
 func (c *Client) ingestRequest(ctx context.Context, provID peer.ID, action string) error {
 	u := c.baseURL + path.Join(ingestResource, action, provID.String())
-	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return err
 	}
@@ -124,13 +176,8 @@ func (c *Client) ingestRequest(ctx context.Context, provID peer.ID, action strin
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return httpclient.ReadError(resp.StatusCode, body)
+		return httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
 	}
 
 	return nil
@@ -156,7 +203,7 @@ func (c *Client) newUploadRequest(ctx context.Context, uri, fileName string, con
 
 	body := bytes.NewBuffer(bodyData)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", uri, body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uri, body)
 	if err != nil {
 		return nil, err
 	}
