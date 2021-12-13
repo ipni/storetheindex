@@ -211,26 +211,49 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	)
 	t.Logf("import output:\n%s\n", outImport)
 
-	// TODO: use some other way to wait for the CAR to be indexed.
-	time.Sleep(2 * time.Second)
+	// Wait for the CAR to be indexed
+	retryWithTimeout(t, 10*time.Second, time.Second, func() error {
+		for _, mh := range []string{
+			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
+			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
+		} {
+			findOutput := e.run(provider, "find", "-i", "localhost", "-mh", mh)
+			t.Logf("import output:\n%s\n", findOutput)
 
-	for _, mh := range []string{
-		"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
-		"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
-	} {
-		findOutput := e.run(provider, "find", "-i", "localhost", "-mh", mh)
-		t.Logf("import output:\n%s\n", findOutput)
-
-		if bytes.Contains(findOutput, []byte("not found")) {
-			t.Errorf("%s: index not found", mh)
-		} else if !bytes.Contains(findOutput, []byte("Provider:")) {
-			t.Errorf("%s: unexpected error: %s", mh, findOutput)
+			if bytes.Contains(findOutput, []byte("not found")) {
+				return fmt.Errorf("%s: index not found", mh)
+			} else if !bytes.Contains(findOutput, []byte("Provider:")) {
+				return fmt.Errorf("%s: unexpected error: %s", mh, findOutput)
+			}
 		}
 
-	}
+		return nil
+	})
 
 	e.stop(cmdIndexer, time.Second)
 	e.stop(cmdProvider, time.Second)
+}
+
+func retryWithTimeout(t *testing.T, timeout time.Duration, timeBetweenRetries time.Duration, retryableFn func() error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	var errs []error
+	// Loop until context is done
+	for {
+		err := retryableFn()
+		if err == nil {
+			return
+		}
+
+		errs = append(errs, err)
+		select {
+		case <-ctx.Done():
+			t.Fatalf("hit timeout while retrying. Errs seen: %s", errs)
+			return
+		case <-time.After(timeBetweenRetries):
+		}
+	}
 }
 
 func downloadFile(fileURL, filePath string) error {
