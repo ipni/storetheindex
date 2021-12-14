@@ -18,7 +18,6 @@ import (
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
-	pclient "github.com/filecoin-project/storetheindex/providerclient"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -107,11 +106,6 @@ func TestSync(t *testing.T) {
 
 	// Publish an advertisement without
 	c1, mhs := publishRandomIndexAndAdv(t, lp, lsys, false)
-	// Set mockClient in ingester with latest Cid to avoid trying to contact
-	// a real provider.
-	i.newClient = func(ctx context.Context, h host.Host, p peer.ID) (pclient.Provider, error) {
-		return newMockClient(c1), nil
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	end, err := i.Sync(ctx, lph.ID())
 	t.Cleanup(func() {
@@ -131,7 +125,6 @@ func TestSync(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("sync timeout")
 	}
-
 }
 
 func TestMultipleSubscriptions(t *testing.T) {
@@ -339,26 +332,4 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 		require.Equal(t, lcid, c)
 	}
 	return c, mhs
-}
-
-// Implementation of a mock provider client.
-var _ pclient.Provider = &mockClient{}
-
-type mockClient struct {
-	cid.Cid
-}
-
-func newMockClient(c cid.Cid) *mockClient {
-	return &mockClient{c}
-}
-func (c *mockClient) GetAdv(ctx context.Context, id cid.Cid) (*pclient.AdResponse, error) {
-	return nil, nil
-}
-
-func (c *mockClient) GetLatestAdv(ctx context.Context) (*pclient.AdResponse, error) {
-	return &pclient.AdResponse{ID: c.Cid}, nil
-}
-
-func (c *mockClient) Close() error {
-	return nil
 }

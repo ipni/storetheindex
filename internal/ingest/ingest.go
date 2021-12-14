@@ -10,8 +10,6 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
-	pclient "github.com/filecoin-project/storetheindex/providerclient"
-	pclientp2p "github.com/filecoin-project/storetheindex/providerclient/libp2p"
 	"github.com/gammazero/keymutex"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -51,8 +49,6 @@ type legIngester struct {
 	lms     legs.LegMultiSubscriber
 	indexer *indexer.Engine
 
-	newClient func(context.Context, host.Host, peer.ID) (pclient.Provider, error)
-
 	subs  map[peer.ID]*subscriber
 	sublk *keymutex.KeyMutex
 
@@ -90,17 +86,10 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 		return nil, err
 	}
 
-	// Function to create new client.  Setting the function allows this to be
-	// mocked for testing.
-	newClient := func(ctx context.Context, h host.Host, peerID peer.ID) (pclient.Provider, error) {
-		return pclientp2p.New(h, peerID)
-	}
-
 	li := &legIngester{
 		host:      h,
 		ds:        ds,
 		indexer:   idxr,
-		newClient: newClient,
 		lms:       lms,
 		subs:      make(map[peer.ID]*subscriber),
 		sublk:     keymutex.New(0),
@@ -149,24 +138,6 @@ func (li *legIngester) metricsUpdater() {
 // Sync with a data provider up to latest ID.
 func (li *legIngester) Sync(ctx context.Context, peerID peer.ID, opts ...SyncOption) (<-chan multihash.Multihash, error) {
 	log.Debugf("Syncing with peer %s", peerID)
-	// Check latest sync for provider.
-	c, err := li.getLatestAdvID(ctx, peerID)
-	if err != nil {
-		log.Errorf("Error getting latest advertisement for sync: %s", err)
-		return nil, err
-	}
-
-	// Check if the advertisement is already stored.
-	adv, err := li.ds.Get(dsKey(c.String()))
-	if err != nil && err != datastore.ErrNotFound {
-		log.Errorf("Error fetching advertisement from datastore: %s", err)
-		return nil, err
-	}
-	// Advertisement already stored; do nothing, already synced.
-	if adv != nil {
-		log.Debugf("Alredy synced with provider %s", peerID)
-		return nil, nil
-	}
 
 	// Get subscriber for peer or create a new one
 	sub, err := li.newPeerSubscriber(ctx, peerID)
@@ -186,8 +157,11 @@ func (li *legIngester) Sync(ctx context.Context, peerID peer.ID, opts ...SyncOpt
 	// Start syncing. Notifications for the finished
 	// sync will be done asynchronously.
 	log.Debugf("Started syncing process with provider %s", sub)
-	// Note that nil selector is used to fallback on default selector sequence.
-	watcher, cncl, err := sub.ls.Sync(ctx, peerID, c, nil)
+
+	// Sync with cid.Undef and nil selector so that:
+	//   1. the latest head is queried by go-legs via head-publisher
+	//   2. the default selector is used where traversal stops at the latest known head.
+	watcher, cncl, err := sub.ls.Sync(ctx, peerID, cid.Undef, nil)
 	if err != nil {
 		log.Errorf("Errored while syncing: %s", err)
 		cancel()
@@ -202,21 +176,6 @@ func (li *legIngester) Sync(ctx context.Context, peerID peer.ID, opts ...SyncOpt
 	// watcher is closed.
 	go li.listenSyncUpdate(peerID, watcher, cncl, out)
 	return out, nil
-}
-
-func (li *legIngester) getLatestAdvID(ctx context.Context, peerID peer.ID) (cid.Cid, error) {
-	client, err := li.newClient(ctx, li.host, peerID)
-	if err != nil {
-		log.Errorf("Error creating new libp2p provider client in ingester: %s", err)
-		return cid.Undef, err
-	}
-	defer client.Close()
-
-	res, err := client.GetLatestAdv(ctx)
-	if err != nil {
-		return cid.Undef, err
-	}
-	return res.ID, nil
 }
 
 // Subscribe to advertisements of a specific provider in the pubsub channel.
