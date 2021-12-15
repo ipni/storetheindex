@@ -95,7 +95,7 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	// We can include an ingestion API to check the latest sync for
 	// a provider in the indexer. This would show if the indexer
 	// has finally synced or not.
-	err := h.ingester.Sync(h.ctx, provID)
+	_, err := h.ingester.Sync(h.ctx, provID)
 	if err != nil {
 		msg := "Cannot sync with provider"
 		log.Errorw(msg, "err", err)

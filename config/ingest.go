@@ -1,7 +1,7 @@
 package config
 
 const (
-	defaultIngestPubSubTopic = "indexer/ingest"
+	defaultIngestPubSubTopic = "/indexer/ingest/mainnet"
 	defaultStoreBatchSize    = 256
 )
 
