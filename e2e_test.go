@@ -73,7 +73,7 @@ func (e *e2eTestRunner) start(prog string, args ...string) *exec.Cmd {
 
 			switch name {
 			case "storetheindex":
-				if strings.Contains(line, "Indexer ready") {
+				if strings.Contains(line, "Indexer is ready") {
 					close(e.indexerReady)
 				}
 			case "provider":
