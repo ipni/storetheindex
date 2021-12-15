@@ -72,15 +72,15 @@ func NewLegIngester(ctx context.Context, cfg config.Ingest, h host.Host,
 
 	// Construct a selector that recursively looks for nodes with field
 	// "PreviousID" as per Advertisement schema.
+	// Note that the entries within an advertisement are synced separately triggered by
+	// storage hook, so that we can check if a chain of chunks exist already before syncing it.
 	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
-	advAndChunkSel := ssb.ExploreFields(
+	adSel := ssb.ExploreFields(
 		func(efsb builder.ExploreFieldsSpecBuilder) {
-			efsb.Insert("Entries", ssb.ExploreRecursiveEdge())
 			efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
-			efsb.Insert("Next", ssb.ExploreRecursiveEdge())
 		}).Node()
 
-	lms, err := legs.NewMultiSubscriber(ctx, h, ds, lsys, cfg.PubSubTopic, advAndChunkSel)
+	lms, err := legs.NewMultiSubscriber(ctx, h, ds, lsys, cfg.PubSubTopic, adSel)
 	if err != nil {
 		log.Errorf("Failed to state LegTransport in ingester: %s", err)
 		return nil, err
@@ -135,38 +135,44 @@ func (li *legIngester) metricsUpdater() {
 	}
 }
 
-// Sync with a data provider up to latest ID.
+// Sync syncs the latest advertisement from peerID.
+// This is done by first fetching the latest advertisement ID from the given peer and sync it
+// until the traversal reaches the last seen advertisement.
+//
+// Note that the multihash entries corresponding to the advertisement are synced in the background.
+// The completion of advertisement sync does not necessarily mean that the entries corresponding to
+// the advertisement are synced.
 func (li *legIngester) Sync(ctx context.Context, peerID peer.ID, opts ...SyncOption) (<-chan multihash.Multihash, error) {
-	log.Debugf("Syncing with peer %s", peerID)
+	log := log.With("peerID", peerID)
+	log.Debug("Explicitly syncing the latest advertisement from peer")
 
 	// Get subscriber for peer or create a new one
 	sub, err := li.newPeerSubscriber(ctx, peerID)
 	if err != nil {
-		log.Errorf("Error getting a subscriber instance for provider: %s", err)
+		log.Errorw("Error getting a subscriber instance for provider", "err", err)
 		return nil, err
 	}
 
 	// Apply options to syncConfig or use defaults
 	var cfg SyncConfig
 	if err := cfg.Apply(append([]SyncOption{SyncDefaults}, opts...)...); err != nil {
+		log.Errorw("Error applying sync options", "err", err)
 		return nil, err
 	}
 
 	// Configure timeout for syncing process
 	ctx, cancel := context.WithTimeout(ctx, cfg.SyncTimeout)
-	// Start syncing. Notifications for the finished
-	// sync will be done asynchronously.
-	log.Debugf("Started syncing process with provider %s", sub)
-
+	// Start syncing. Notifications for the finished sync will be done asynchronously.
 	// Sync with cid.Undef and nil selector so that:
 	//   1. the latest head is queried by go-legs via head-publisher
 	//   2. the default selector is used where traversal stops at the latest known head.
 	watcher, cncl, err := sub.ls.Sync(ctx, peerID, cid.Undef, nil)
 	if err != nil {
-		log.Errorf("Errored while syncing: %s", err)
+		log.Errorw("Failed to start sync with provider", "err", err)
 		cancel()
 		return nil, err
 	}
+	log.Debug("Started syncing process with provider")
 	// Merge cancelfuncs
 	cncl = cancelFunc(cncl, cancel)
 	// Notification channel; buffered so as not to block if no reader.
@@ -222,14 +228,16 @@ func (li *legIngester) listenSyncUpdate(peerID peer.ID, watcher <-chan cid.Cid, 
 
 	startTime := time.Now()
 
-	log.Infof("Waiting for sync to finish for provider %s", peerID)
+	log := log.With("peerID", peerID)
+	log.Info("Waiting for sync to finish for provider")
 	c, ok := <-watcher
 	if ok {
 		// Persist the latest sync
 		err := li.putLatestSync(peerID, c)
 		if err != nil {
-			log.Errorf("Error persisting latest sync: %s", err)
+			log.Errorw("Error persisting latest sync", "err", err)
 		}
+		log.Debug("Persisted the latest sync")
 		out <- c.Hash()
 
 		stats.Record(context.Background(), metrics.SyncLatency.M(coremetrics.MsecSince(startTime)))
