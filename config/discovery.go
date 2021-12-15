@@ -37,3 +37,14 @@ type Discovery struct {
 	// to discover and verify a new provider.
 	Timeout Duration
 }
+
+// NewDiscovery returns Discovery with values set to their defaults.
+func NewDiscovery() Discovery {
+	return Discovery{
+		LotusGateway:   "https://api.chain.love",
+		Policy:         NewPolicy(),
+		PollInterval:   Duration(24 * time.Hour),
+		RediscoverWait: Duration(5 * time.Minute),
+		Timeout:        Duration(2 * time.Minute),
+	}
+}

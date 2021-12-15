@@ -22,46 +22,13 @@ func Init(out io.Writer) (*Config, error) {
 func InitWithIdentity(identity Identity) (*Config, error) {
 	conf := &Config{
 		// setup the node's default addresses.
-		Addresses: Addresses{
-			Admin:   defaultAdminAddr,
-			Finder:  defaultFinderAddr,
-			Ingest:  defaultIngestAddr,
-			P2PAddr: defaultP2PAddr,
-		},
-
-		Bootstrap: Bootstrap{
-			Peers:        defaultBootstrapPeers(),
-			MinimumPeers: defaultMinimumPeers,
-		},
-
-		Datastore: Datastore{
-			Type: defaultDatastoreType,
-			Dir:  defaultDatastoreDir,
-		},
-
-		Discovery: Discovery{
-			LotusGateway: defaultLotusGateway,
-			Policy: Policy{
-				Allow: defaultAllow,
-				Trust: defaultTrust,
-			},
-			PollInterval:   defaultPollInterval,
-			RediscoverWait: defaultRediscoverWait,
-			Timeout:        defaultDiscoveryTimeout,
-		},
-
-		Ingest: Ingest{
-			PubSubTopic:    defaultIngestPubSubTopic,
-			StoreBatchSize: defaultStoreBatchSize,
-		},
-
-		Identity: identity,
-
-		Indexer: Indexer{
-			CacheSize:      defaultCacheSize,
-			ValueStoreDir:  defaultValueStoreDir,
-			ValueStoreType: defaultValueStoreType,
-		},
+		Addresses: NewAddresses(),
+		Bootstrap: NewBootstrap(),
+		Datastore: NewDatastore(),
+		Discovery: NewDiscovery(),
+		Identity:  identity,
+		Indexer:   NewIndexer(),
+		Ingest:    NewIngest(),
 	}
 
 	return conf, nil

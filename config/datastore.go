@@ -14,3 +14,11 @@ type Datastore struct {
 	// directory.
 	Dir string
 }
+
+// NewDatastore returns Datastore with values set to their defaults.
+func NewDatastore() Datastore {
+	return Datastore{
+		Type: "levelds",
+		Dir:  "datastore",
+	}
+}

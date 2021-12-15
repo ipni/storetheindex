@@ -1,12 +1,5 @@
 package config
 
-const (
-	defaultAdminAddr  = "/ip4/127.0.0.1/tcp/3002"
-	defaultFinderAddr = "/ip4/0.0.0.0/tcp/3000"
-	defaultIngestAddr = "/ip4/0.0.0.0/tcp/3001"
-	defaultP2PAddr    = "/ip4/0.0.0.0/tcp/3003"
-)
-
 // Addresses stores the (string) multiaddr addresses for the node.
 type Addresses struct {
 	// Admin is the admin http listen address
@@ -19,4 +12,14 @@ type Addresses struct {
 	DisableP2P bool
 	// P2PMaddr is the libp2p host multiaddr for all servers
 	P2PAddr string
+}
+
+// NewAddresses returns Addresses with values set to their defaults.
+func NewAddresses() Addresses {
+	return Addresses{
+		Admin:   "/ip4/127.0.0.1/tcp/3002",
+		Finder:  "/ip4/0.0.0.0/tcp/3000",
+		Ingest:  "/ip4/0.0.0.0/tcp/3001",
+		P2PAddr: "/ip4/0.0.0.0/tcp/3003",
+	}
 }

@@ -8,10 +8,6 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-const (
-	defaultMinimumPeers = 4
-)
-
 // defaultBootstrapAddresses are the hardcoded bootstrap addresses.
 var defaultBootstrapAddresses = []string{
 	"/dns4/bootstrap-0.mainnet.filops.net/tcp/1347/p2p/12D3KooWCVe8MmsEMes2FzgTpt9fXtmCY7wrq91GRiaC8PHSCCBj",
@@ -42,6 +38,14 @@ type Bootstrap struct {
 	// has less open connections than this number, it will open connections to
 	// the bootstrap nodes.  Set to 0 to disable bootstrapping.
 	MinimumPeers int
+}
+
+// NewBootstrap returns Bootstrap with values set to their defaults.
+func NewBootstrap() Bootstrap {
+	return Bootstrap{
+		Peers:        defaultBootstrapPeers(),
+		MinimumPeers: 4,
+	}
 }
 
 // ErrInvalidPeerAddr signals an address is not a valid peer address.
