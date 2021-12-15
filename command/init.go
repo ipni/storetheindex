@@ -103,5 +103,10 @@ func initCommand(cctx *cli.Context) error {
 		cfg.Bootstrap.MinimumPeers = 1
 	}
 
+	topic := cctx.String("pubsub-topic")
+	if topic != "" {
+		cfg.Ingest.PubSubTopic = topic
+	}
+
 	return cfg.Save(configFile)
 }

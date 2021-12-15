@@ -149,6 +149,12 @@ var initFlags = []cli.Flag{
 		EnvVars:  []string{"NO_BOOTSTRAP"},
 		Required: false,
 	},
+	&cli.StringFlag{
+		Name:     "pubsub-topic",
+		Usage:    "Subscribe to this pubsub topic to receive advertisement notification",
+		EnvVars:  []string{"STORETHEINDE_PUBSUB_TOPIC"},
+		Required: false,
+	},
 }
 
 var registerFlags = []cli.Flag{

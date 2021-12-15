@@ -1,10 +1,5 @@
 package config
 
-const (
-	defaultDatastoreType = "levelds"
-	defaultDatastoreDir  = "datastore"
-)
-
 // Datastore tracks the configuration of the datastore.
 type Datastore struct {
 	// Type is the type of datastore.
@@ -13,4 +8,12 @@ type Datastore struct {
 	// absolute path then the location is relative to the indexer repo
 	// directory.
 	Dir string
+}
+
+// NewDatastore returns Datastore with values set to their defaults.
+func NewDatastore() Datastore {
+	return Datastore{
+		Type: "levelds",
+		Dir:  "datastore",
+	}
 }

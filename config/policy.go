@@ -1,10 +1,5 @@
 package config
 
-const (
-	defaultAllow = true
-	defaultTrust = true
-)
-
 // Policy configures which providers are allowed and blocked, and which allowed
 // providers require verification or are trusted
 type Policy struct {
@@ -24,4 +19,12 @@ type Policy struct {
 	// verified, except those listed here.  If Trust is true, then only the
 	// providers listed here require verification.
 	TrustExcept []string
+}
+
+// NewPolicy returns Policy with values set to their defaults.
+func NewPolicy() Policy {
+	return Policy{
+		Allow: true,
+		Trust: true,
+	}
 }

@@ -268,7 +268,11 @@ func daemonCommand(cctx *cli.Context) error {
 		errChan <- ingestSvr.Start()
 	}()
 
-	log.Info("Indexer ready")
+	// Out message to user (not to log).
+	fmt.Println("Finder server:\t", cfg.Addresses.Finder)
+	fmt.Println("Ingest server:\t", cfg.Addresses.Ingest)
+	fmt.Println("Admin server:\t", cfg.Addresses.Admin)
+	fmt.Println("Indexer is ready")
 
 	var finalErr error
 	select {

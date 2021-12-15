@@ -90,7 +90,8 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Infow("Syncing with provider", "provider", provID.String())
 
-	// We accept the request but do nothing with the channel.
+	// Start the sync, but do not wait for it to complete.
+	//
 	// We can include an ingestion API to check the latest sync for
 	// a provider in the indexer. This would show if the indexer
 	// has finally synced or not.
