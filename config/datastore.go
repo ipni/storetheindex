@@ -1,10 +1,5 @@
 package config
 
-const (
-	defaultDatastoreType = "levelds"
-	defaultDatastoreDir  = "datastore"
-)
-
 // Datastore tracks the configuration of the datastore.
 type Datastore struct {
 	// Type is the type of datastore.

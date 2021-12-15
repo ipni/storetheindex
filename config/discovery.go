@@ -6,13 +6,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-const (
-	defaultLotusGateway     = "https://api.chain.love"
-	defaultPollInterval     = Duration(24 * time.Hour)
-	defaultRediscoverWait   = Duration(5 * time.Minute)
-	defaultDiscoveryTimeout = Duration(2 * time.Minute)
-)
-
 // Discovery holds addresses of peers to from which to receive index
 // advertisements, which peers to allow and block, and time related settings
 // for provider discovery
