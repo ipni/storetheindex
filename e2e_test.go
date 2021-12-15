@@ -240,6 +240,7 @@ func retryWithTimeout(t *testing.T, timeout time.Duration, timeBetweenRetries ti
 
 	var errs []error
 	// Loop until context is done
+	timer := time.NewTimer(timeBetweenRetries)
 	for {
 		err := retryableFn()
 		if err == nil {
@@ -251,7 +252,8 @@ func retryWithTimeout(t *testing.T, timeout time.Duration, timeBetweenRetries ti
 		case <-ctx.Done():
 			t.Fatalf("hit timeout while retrying. Errs seen: %s", errs)
 			return
-		case <-time.After(timeBetweenRetries):
+		case <-timer.C:
+			timer.Reset(timeBetweenRetries)
 		}
 	}
 }

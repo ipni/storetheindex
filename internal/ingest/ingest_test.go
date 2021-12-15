@@ -34,7 +34,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testProtocolID = 0x300000
+const (
+	testProtocolID    = 0x300000
+	testRetryInterval = 2 * time.Second
+	testRetryTimeout  = 10 * time.Second
+)
 
 var ingestCfg = config.Ingest{
 	PubSubTopic: "test/ingest",
@@ -66,10 +70,10 @@ func TestSubscribe(t *testing.T) {
 	// Test with two random advertisement publications.
 	_, mhs := publishRandomAdv(t, i, lph, lp, lsys, false)
 	// Check that the mhs have been indexed correctly.
-	i.checkMhsIndexed(t, lph.ID(), mhs)
+	i.checkMhsIndexedEventually(t, lph.ID(), mhs)
 	_, mhs = publishRandomAdv(t, i, lph, lp, lsys, false)
 	// Check that the mhs have been indexed correctly.
-	i.checkMhsIndexed(t, lph.ID(), mhs)
+	i.checkMhsIndexedEventually(t, lph.ID(), mhs)
 
 	// Test advertisement with fake signature
 	// of them.
@@ -118,13 +122,13 @@ func TestSync(t *testing.T) {
 	case m := <-end:
 		// We receive the CID that we synced.
 		require.True(t, bytes.Equal(c1.Hash(), m))
-		i.checkMhsIndexed(t, lph.ID(), mhs)
 		lcid, err := i.getLatestSync(lph.ID())
 		require.NoError(t, err)
 		require.Equal(t, lcid, c1)
 	case <-ctx.Done():
 		t.Fatal("sync timeout")
 	}
+	i.checkMhsIndexedEventually(t, lph.ID(), mhs)
 }
 
 func TestMultipleSubscriptions(t *testing.T) {
@@ -161,9 +165,9 @@ func TestMultipleSubscriptions(t *testing.T) {
 	// Test with two random advertisement publications for each
 	// of them.
 	c1, mhs := publishRandomAdv(t, i, lph1, lp1, lsys1, false)
-	i.checkMhsIndexed(t, lph1.ID(), mhs)
+	i.checkMhsIndexedEventually(t, lph1.ID(), mhs)
 	c2, mhs := publishRandomAdv(t, i, lph2, lp2, lsys2, false)
-	i.checkMhsIndexed(t, lph2.ID(), mhs)
+	i.checkMhsIndexedEventually(t, lph2.ID(), mhs)
 
 	lcid, err := i.getLatestSync(lph1.ID())
 	require.NoError(t, err)
@@ -299,20 +303,40 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.Lin
 	return lnk.(cidlink.Link).Cid, mhs
 }
 
-func (i *legIngester) checkMhsIndexed(t *testing.T, p peer.ID, mhs []multihash.Multihash) {
-	for _, mh := range mhs {
-		v, b, err := i.indexer.Get(mh)
-		require.NoError(t, err)
-		require.True(t, b, "mh should be present: %s", mh.String())
-		require.Equal(t, v[0].ProviderID, p)
-	}
+func (i *legIngester) checkMhsIndexedEventually(t *testing.T, p peer.ID, mhs []multihash.Multihash) {
+	requireTrueEventually(t, func() bool { return i.providesAll(t, p, mhs...) }, testRetryInterval, testRetryTimeout, "multihashes were not indexed")
 }
+
+func (i *legIngester) providesAll(t *testing.T, p peer.ID, mhs ...multihash.Multihash) bool {
+	for _, mh := range mhs {
+		values, exists, err := i.indexer.Get(mh)
+		if err != nil || !exists {
+			t.Logf("err: %s, exists: %v", err, exists)
+			return false
+		}
+		var found bool
+		for _, v := range values {
+			if v.ProviderID == p {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
 func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash) {
 	c, mhs := publishRandomIndexAndAdv(t, lp, lsys, fakeSig)
 
-	// TODO: fix this - do not rely on sleep time
-	// Give some time for the advertisement to propagate
-	time.Sleep(3 * time.Second)
+	if !fakeSig {
+		requireTrueEventually(t, func() bool {
+			has, err := i.ds.Has(datastore.NewKey(c.String()))
+			return err == nil && has
+		}, 2*time.Second, 10*time.Second, "expected advertisement with ID %s was not received", c)
+	}
 
 	// Check if advertisement in datastore.
 	adv, err := i.ds.Get(datastore.NewKey(c.String()))
@@ -332,4 +356,22 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 		require.Equal(t, lcid, c)
 	}
 	return c, mhs
+}
+
+func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Duration, timeout time.Duration, msgAndArgs ...interface{}) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	timer := time.NewTimer(interval)
+	for {
+		if attempt() {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			require.FailNow(t, "timed out awaiting eventual success", msgAndArgs...)
+			return
+		case <-timer.C:
+			timer.Reset(interval)
+		}
+	}
 }
