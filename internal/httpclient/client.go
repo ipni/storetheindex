@@ -51,6 +51,6 @@ func ReadErrorFrom(status int, r io.Reader) error {
 }
 
 func ReadError(status int, body []byte) error {
-	se := syserr.New(errors.New(string(body)), status)
+	se := syserr.New(errors.New(strings.TrimSpace(string(body))), status)
 	return errors.New(se.Text())
 }

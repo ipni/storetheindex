@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/ioutil"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,8 +15,10 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/client"
+	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -213,5 +216,34 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 
 	if !info.AddrInfo.Addrs[0].Equal(maddr) {
 		t.Fatalf("Did not update address.  Have %q, want %q", info.AddrInfo.Addrs[0].String(), maddr.String())
+	}
+}
+
+func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mhs := util.RandomMultihashes(1)
+
+	contextID := make([]byte, schema.MaxContextIDLen+1)
+	metadata := v0.Metadata{
+		ProtocolID: testProtocolID,
+		Data:       []byte("too-long"),
+	}
+
+	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	if !strings.HasSuffix(err.Error(), "context id too long") {
+		t.Fatalf("expected erroe message: \"context id too long\", got %q", err.Error())
+	}
+
+	se, ok := err.(*syserr.SysError)
+	if ok {
+		if se.Status() != 400 {
+			t.Fatalf("expected status 400, got %d", se.Status())
+		}
 	}
 }

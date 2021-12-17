@@ -3,6 +3,7 @@ package schema
 
 import (
 	"context"
+	"errors"
 
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/ipfs/go-cid"
@@ -38,6 +39,8 @@ const (
 	// link belongs to. This is used to understand what callback to trigger
 	// in the linksystem when we come across a specific linkType.
 	IsAdKey = LinkContextKey("isAdLink")
+	// ContextID must not exceed this number of bytes.
+	MaxContextIDLen = 64
 )
 
 func mhsToBytes(mhs []multihash.Multihash) []_Bytes {
@@ -162,6 +165,10 @@ func NewAdvertisementWithFakeSig(
 	provider string,
 	addrs []string) (Advertisement, Link_Advertisement, error) {
 
+	if len(contextID) > MaxContextIDLen {
+		return nil, nil, errors.New("context id too long")
+	}
+
 	encMetadata, err := metadata.MarshalBinary()
 	if err != nil {
 		return nil, nil, err
@@ -203,6 +210,10 @@ func newAdvertisement(
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, error) {
+
+	if len(contextID) > MaxContextIDLen {
+		return nil, errors.New("context id too long")
+	}
 
 	encMetadata, err := metadata.MarshalBinary()
 	if err != nil {
