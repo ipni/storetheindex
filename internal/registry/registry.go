@@ -210,7 +210,7 @@ func (r *Registry) Register(info *ProviderInfo) error {
 
 // Check if the provider is trusted by policy, or if it has been previously
 // verified and registered.
-func (r Registry) Authorized(providerID peer.ID) (bool, error) {
+func (r *Registry) Authorized(providerID peer.ID) (bool, error) {
 	if !r.policy.Allowed(providerID) {
 		return false, nil
 	}
