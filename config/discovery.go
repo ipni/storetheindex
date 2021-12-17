@@ -13,7 +13,7 @@ type Discovery struct {
 	// Bootstrap is a Set of nodes to try to connect to at startup
 	Bootstrap []string
 	// LotusGateway is the host or host:port for a lotus gateway used to
-	// collect chain information when discovering providers
+	// verify providers on the blockchain.
 	LotusGateway string
 	// Peers lists nodes to attempt to stay connected with
 	Peers []peer.AddrInfo
