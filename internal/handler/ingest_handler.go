@@ -8,6 +8,7 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
+	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
@@ -93,6 +94,10 @@ func (h *IngestHandler) IndexContent(data []byte) error {
 	ingReq, err := model.ReadIngestRequest(data)
 	if err != nil {
 		return fmt.Errorf("cannot read ingest request: %s", err)
+	}
+
+	if len(ingReq.ContextID) > schema.MaxContextIDLen {
+		return errors.New("context id too long")
 	}
 
 	if err = h.registry.CheckSequence(ingReq.ProviderID, ingReq.Seq); err != nil {

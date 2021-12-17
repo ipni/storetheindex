@@ -44,12 +44,15 @@ type MinerInfo struct {
 
 // New creates a new lotus Discoverer
 func NewDiscoverer(gateway string) (*Discoverer, error) {
-	u, err := url.Parse(gateway)
-	if err != nil {
-		return nil, err
+	if gateway == "" {
+		return nil, errors.New("empty gateway")
 	}
-	u.Scheme = "https"
-	u.Path = "/rpc/v1"
+
+	u := url.URL{
+		Host:   gateway,
+		Scheme: "https",
+		Path:   "/rpc/v1",
+	}
 
 	return &Discoverer{
 		gatewayURL: u.String(),
@@ -63,7 +66,7 @@ func (d *Discoverer) Discover(ctx context.Context, peerID peer.ID, minerAddr str
 		return nil, fmt.Errorf("invalid provider filecoin address: %s", err)
 	}
 
-	jrpcClient := jrpc.NewClient("https://api.chain.love/rpc/v1")
+	jrpcClient := jrpc.NewClient(d.gatewayURL)
 
 	var ets ExpTipSet
 	err = jrpcClient.CallFor(&ets, "Filecoin.ChainHead")

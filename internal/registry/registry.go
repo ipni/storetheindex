@@ -182,13 +182,15 @@ func (r *Registry) Register(info *ProviderInfo) error {
 		return syserr.New(errors.New("missing provider address"), http.StatusBadRequest)
 	}
 
-	// If provider is not allowed, then ignore request
+	// If provider is not allowed, then ignore request.
 	if !r.policy.Allowed(info.AddrInfo.ID) {
 		return syserr.New(ErrNotAllowed, http.StatusForbidden)
 	}
 
-	// If provider is trusted, register immediately without verification
+	// If allowed provider is trusted, register immediately without verification.
 	if !r.policy.Trusted(info.AddrInfo.ID) {
+		// If allowed provider is not trusted, then they require authorization
+		// before being registered.
 		return syserr.New(ErrNotTrusted, http.StatusUnauthorized)
 	}
 
@@ -204,6 +206,28 @@ func (r *Registry) Register(info *ProviderInfo) error {
 
 	log.Infow("registered provider", "id", info.AddrInfo.ID, "addrs", info.AddrInfo.Addrs)
 	return nil
+}
+
+// Check if the provider is trusted by policy, or if it has been previously
+// verified and registered.
+func (r Registry) Authorized(providerID peer.ID) (bool, error) {
+	if !r.policy.Allowed(providerID) {
+		return false, nil
+	}
+
+	// If provider is trusted, consider them authorized.
+	if r.policy.Trusted(providerID) {
+		return true, nil
+	}
+
+	// Provider is not trusted, so see if they are already registered.
+	regOk := make(chan bool)
+	r.actions <- func() {
+		_, ok := r.providers[providerID]
+		regOk <- ok
+	}
+
+	return <-regOk, nil
 }
 
 // RegisterOrUpdate attempts to register an unregistered provider, or updates
