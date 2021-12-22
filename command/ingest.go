@@ -5,28 +5,29 @@ import (
 
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 )
 
 var sync = &cli.Command{
 	Name:   "sync",
 	Usage:  "Sync indexer with provider",
-	Flags:  ingestFlags,
+	Flags:  ingestSyncFlags,
 	Action: syncCmd,
 }
 
-var subscribe = &cli.Command{
-	Name:   "subscribe",
-	Usage:  "Subscribe indexer with provider",
-	Flags:  ingestFlags,
-	Action: subscribeCmd,
+var allow = &cli.Command{
+	Name:   "allow",
+	Usage:  "Allow advertisements from provider",
+	Flags:  ingestPolicyFlags,
+	Action: allowCmd,
 }
 
-var unsubscribe = &cli.Command{
-	Name:   "unsubscribe",
-	Usage:  "Unsubscribe indexer from provider",
-	Flags:  ingestFlags,
-	Action: unsubscribeCmd,
+var block = &cli.Command{
+	Name:   "block",
+	Usage:  "Block advertisements from provider",
+	Flags:  ingestPolicyFlags,
+	Action: blockCmd,
 }
 
 var IngestCmd = &cli.Command{
@@ -34,8 +35,8 @@ var IngestCmd = &cli.Command{
 	Usage: "Admin commands to sync indexer with a provider",
 	Subcommands: []*cli.Command{
 		sync,
-		subscribe,
-		unsubscribe,
+		allow,
+		block,
 	},
 }
 
@@ -49,7 +50,15 @@ func syncCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	err = cl.Sync(cctx.Context, p)
+	var addr multiaddr.Multiaddr
+	addrStr := cctx.String("addr")
+	if addrStr != "" {
+		addr, err = multiaddr.NewMultiaddr(addrStr)
+		if err != nil {
+			return err
+		}
+	}
+	err = cl.Sync(cctx.Context, p, addr)
 	if err != nil {
 		return err
 	}
@@ -57,7 +66,7 @@ func syncCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func subscribeCmd(cctx *cli.Context) error {
+func allowCmd(cctx *cli.Context) error {
 	cl, err := httpclient.New(cctx.String("indexer"))
 	if err != nil {
 		return err
@@ -67,15 +76,15 @@ func subscribeCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	err = cl.Subscribe(cctx.Context, p)
+	err = cl.Allow(cctx.Context, p)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Successfully subscribed to provider")
+	fmt.Println("Allowed advertisements from provider")
 	return nil
 }
 
-func unsubscribeCmd(cctx *cli.Context) error {
+func blockCmd(cctx *cli.Context) error {
 	cl, err := httpclient.New(cctx.String("indexer"))
 	if err != nil {
 		return err
@@ -85,10 +94,10 @@ func unsubscribeCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	err = cl.Unsubscribe(cctx.Context, p)
+	err = cl.Block(cctx.Context, p)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Successfully unsubscribed from provider")
+	fmt.Println("Blocked advertisements from provider")
 	return nil
 }

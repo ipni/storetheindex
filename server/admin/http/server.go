@@ -10,6 +10,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/metrics/pprof"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )
@@ -17,11 +18,15 @@ import (
 var log = logging.Logger("indexer/admin")
 
 type Server struct {
-	server *http.Server
+	cancel context.CancelFunc
 	l      net.Listener
+	server *http.Server
 }
 
-func New(ctx context.Context, listen string, indexer indexer.Interface, ingester ingest.Ingester, options ...ServerOption) (*Server, error) {
+func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, options ...ServerOption) (*Server, error) {
+	if ingester == nil {
+		panic("ingester cannot be nil")
+	}
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
@@ -39,9 +44,16 @@ func New(ctx context.Context, listen string, indexer indexer.Interface, ingester
 		WriteTimeout: cfg.apiWriteTimeout,
 		ReadTimeout:  cfg.apiReadTimeout,
 	}
-	s := &Server{server, l}
 
-	h := newHandler(ctx, indexer, ingester)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	s := &Server{
+		cancel: cancel,
+		l:      l,
+		server: server,
+	}
+
+	h := newHandler(ctx, indexer, ingester, reg)
 
 	// Set protocol handlers
 	// Import routes
@@ -52,9 +64,9 @@ func New(ctx context.Context, listen string, indexer indexer.Interface, ingester
 	r.HandleFunc("/healthcheck", h.healthCheckHandler).Methods(http.MethodGet)
 
 	// Ingester routes
-	r.HandleFunc("/ingest/subscribe/{provider}", h.subscribe).Methods(http.MethodGet)
-	r.HandleFunc("/ingest/unsubscribe/{provider}", h.unsubscribe).Methods(http.MethodGet)
-	r.HandleFunc("/ingest/sync/{provider}", h.sync).Methods(http.MethodGet)
+	r.HandleFunc("/ingest/allow/{provider}", h.allowProvider).Methods(http.MethodPut)
+	r.HandleFunc("/ingest/block/{provider}", h.blockProvider).Methods(http.MethodPut)
+	r.HandleFunc("/ingest/sync/{provider}", h.sync).Methods(http.MethodPost)
 
 	// Metrics routes
 	r.Handle("/metrics", metrics.Start(coremetrics.DefaultViews))
@@ -74,5 +86,6 @@ func (s *Server) Start() error {
 
 func (s *Server) Shutdown(ctx context.Context) error {
 	log.Info("admin http server shutdown")
+	s.cancel() // stop any sync in progress
 	return s.server.Shutdown(ctx)
 }

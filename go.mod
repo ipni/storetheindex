@@ -7,15 +7,13 @@ require (
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.2.6
-	github.com/filecoin-project/go-legs v0.1.0
+	github.com/filecoin-project/go-legs v0.1.1-0.20211222094616-bfa51a79453a
 	github.com/frankban/quicktest v1.14.0
-	github.com/gammazero/keymutex v0.0.2
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.4
 	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-ds-leveldb v0.4.2
-	github.com/ipfs/go-graphsync v0.10.0
 	github.com/ipfs/go-ipfs v0.10.0
 	github.com/ipfs/go-log/v2 v2.3.0
 	github.com/ipld/go-ipld-prime v0.12.4-0.20211026094848-168715526f2d

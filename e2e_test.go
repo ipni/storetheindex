@@ -172,7 +172,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	qt.Assert(t, err, qt.IsNil)
 	t.Logf("Initialized provider ID: %s", cfg.Identity.PeerID)
 
-	e.run(indexer, "init", "--pubsub-peer", cfg.Identity.PeerID, "--store", "sth", "--pubsub-topic", "indexer/ingest", "--no-bootstrap")
+	e.run(indexer, "init", "--store", "sth", "--pubsub-topic", "indexer/ingest", "--no-bootstrap")
 	cfg, err = config.Load(filepath.Join(e.dir, ".storetheindex", "config"))
 	qt.Assert(t, err, qt.IsNil)
 	indexerHost := cfg.Identity.PeerID

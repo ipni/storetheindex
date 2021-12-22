@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/httpclient"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 )
 
 var log = logging.Logger("adminhttpclient")
@@ -99,18 +100,27 @@ func (c *Client) ImportFromCidList(ctx context.Context, fileName string, provID 
 }
 
 // Sync with a data provider up to latest ID.
-func (c *Client) Sync(ctx context.Context, provID peer.ID) error {
-	return c.ingestRequest(ctx, provID, "sync")
+func (c *Client) Sync(ctx context.Context, provID peer.ID, provAddr multiaddr.Multiaddr) error {
+	var data []byte
+	var err error
+	if provAddr != nil {
+		data, err = provAddr.MarshalJSON()
+		if err != nil {
+			return err
+		}
+	}
+
+	return c.ingestRequest(ctx, provID, "sync", http.MethodPost, data)
 }
 
-// Subscribe to advertisements of a specific provider in the pubsub channel
-func (c *Client) Subscribe(ctx context.Context, provID peer.ID) error {
-	return c.ingestRequest(ctx, provID, "subscribe")
+// Allow advertisements from the specified provider from the pubsub channel.
+func (c *Client) Allow(ctx context.Context, provID peer.ID) error {
+	return c.ingestRequest(ctx, provID, "allow", http.MethodPut, nil)
 }
 
-// Unsubscribe from advertisements of a specific provider in the pubsub channel
-func (c *Client) Unsubscribe(ctx context.Context, provID peer.ID) error {
-	return c.ingestRequest(ctx, provID, "unsubscribe")
+// Block advertisements from the specified provider from the pubsub channel.
+func (c *Client) Block(ctx context.Context, provID peer.ID) error {
+	return c.ingestRequest(ctx, provID, "block", http.MethodPut, nil)
 }
 
 func (c *Client) ListLogSubSystems(ctx context.Context) ([]string, error) {
@@ -163,9 +173,14 @@ func (c *Client) SetLogLevels(ctx context.Context, sysLvl map[string]string) err
 	return nil
 }
 
-func (c *Client) ingestRequest(ctx context.Context, provID peer.ID, action string) error {
+func (c *Client) ingestRequest(ctx context.Context, provID peer.ID, action, method string, data []byte) error {
 	u := c.baseURL + path.Join(ingestResource, action, provID.String())
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+
+	var body io.Reader
+	if data != nil {
+		body = bytes.NewBuffer(data)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, body)
 	if err != nil {
 		return err
 	}

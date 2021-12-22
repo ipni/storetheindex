@@ -12,70 +12,52 @@ import (
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/importer"
 	"github.com/filecoin-project/storetheindex/internal/ingest"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gorilla/mux"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
 
 type adminHandler struct {
 	ctx      context.Context
 	indexer  indexer.Interface
-	ingester ingest.Ingester
+	ingester *ingest.Ingester
+	reg      *registry.Registry
 }
 
-func newHandler(ctx context.Context, indexer indexer.Interface, ingester ingest.Ingester) *adminHandler {
+func newHandler(ctx context.Context, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry) *adminHandler {
 	return &adminHandler{
 		ctx:      ctx,
 		indexer:  indexer,
 		ingester: ingester,
+		reg:      reg,
 	}
 }
 
-const importBatchSize = 64
+const importBatchSize = 256
 
 // ----- ingest handlers -----
 
-func (h *adminHandler) subscribe(w http.ResponseWriter, r *http.Request) {
-	if ret := h.checkIngester(w, r); ret {
-		return
-	}
+func (h *adminHandler) allowProvider(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	provID, ok := decodeProviderID(vars["provider"], w)
 	if !ok {
 		return
 	}
-	log.Infow("Subscribing to provider", "provider", provID.String())
-	err := h.ingester.Subscribe(h.ctx, provID)
-	if err != nil {
-		msg := "Cannot subscribe to provider"
-		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusBadGateway)
-		return
-	}
-
-	// Return OK
+	log.Infow("Allowing provider", "provider", provID.String())
+	h.reg.AllowProvider(provID)
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *adminHandler) unsubscribe(w http.ResponseWriter, r *http.Request) {
-	if ret := h.checkIngester(w, r); ret {
-		return
-	}
+func (h *adminHandler) blockProvider(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	provID, ok := decodeProviderID(vars["provider"], w)
 	if !ok {
 		return
 	}
-	log.Infow("Unsubscribing to provider", "provider", provID.String())
-	err := h.ingester.Unsubscribe(h.ctx, provID)
-	if err != nil {
-		msg := "Cannot unsubscribe to provider"
-		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusBadGateway)
-		return
-	}
-
-	// Return OK
+	log.Infow("Blocking provider", "provider", provID.String())
+	h.reg.BlockProvider(provID)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -88,14 +70,30 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	log.Infow("Syncing with provider", "provider", provID.String())
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Errorw("failed reading body", "err", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	var syncAddr multiaddr.Multiaddr
+	err = syncAddr.UnmarshalJSON(data)
+	if err != nil {
+		log.Errorw("Cannot unmarshal sync addr", "err", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	log.Infow("Syncing with provider", "provider", provID.String(), "address", syncAddr)
 
 	// Start the sync, but do not wait for it to complete.
 	//
 	// We can include an ingestion API to check the latest sync for
 	// a provider in the indexer. This would show if the indexer
 	// has finally synced or not.
-	_, err := h.ingester.Sync(h.ctx, provID)
+	_, err = h.ingester.Sync(h.ctx, provID, syncAddr)
 	if err != nil {
 		msg := "Cannot sync with provider"
 		log.Errorw(msg, "err", err)

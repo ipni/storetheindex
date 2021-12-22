@@ -159,9 +159,11 @@ func (r *Registry) run() {
 // indicate where/how discovery is done.
 func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) error {
 	// If provider is not allowed, then ignore request
-	if !r.policy.Allowed(peerID) {
+	allowed, _ := r.policy.Check(peerID)
+	if !allowed {
 		return syserr.New(ErrNotAllowed, http.StatusForbidden)
 	}
+
 	// It does not matter if the provider is trusted or not, since verification
 	// is necessary to get the provider's address
 
@@ -182,18 +184,20 @@ func (r *Registry) Register(info *ProviderInfo) error {
 		return syserr.New(errors.New("missing provider address"), http.StatusBadRequest)
 	}
 
+	allowed, trusted := r.policy.Check(info.AddrInfo.ID)
+
 	// If provider is not allowed, then ignore request.
-	if !r.policy.Allowed(info.AddrInfo.ID) {
+	if !allowed {
 		return syserr.New(ErrNotAllowed, http.StatusForbidden)
 	}
 
-	// If allowed provider is trusted, register immediately without verification.
-	if !r.policy.Trusted(info.AddrInfo.ID) {
-		// If allowed provider is not trusted, then they require authorization
-		// before being registered.
+	// If allowed provider is not trusted, then they require authorization
+	// before being registered.
+	if !trusted {
 		return syserr.New(ErrNotTrusted, http.StatusUnauthorized)
 	}
 
+	// If allowed provider is trusted, register immediately without verification.
 	errCh := make(chan error, 1)
 	r.actions <- func() {
 		r.syncRegister(info, errCh)
@@ -211,23 +215,35 @@ func (r *Registry) Register(info *ProviderInfo) error {
 // Check if the provider is trusted by policy, or if it has been previously
 // verified and registered.
 func (r *Registry) Authorized(providerID peer.ID) (bool, error) {
-	if !r.policy.Allowed(providerID) {
+	allowed, trusted := r.policy.Check(providerID)
+
+	if !allowed {
 		return false, nil
 	}
 
-	// If provider is trusted, consider them authorized.
-	if r.policy.Trusted(providerID) {
-		return true, nil
+	// Provider is allowed but not trusted, see if they are already registered.
+	if !trusted {
+		regOk := make(chan bool)
+		r.actions <- func() {
+			_, ok := r.providers[providerID]
+			regOk <- ok
+		}
+		return <-regOk, nil
 	}
 
-	// Provider is not trusted, so see if they are already registered.
-	regOk := make(chan bool)
-	r.actions <- func() {
-		_, ok := r.providers[providerID]
-		regOk <- ok
-	}
+	return true, nil
+}
 
-	return <-regOk, nil
+func (r *Registry) SetPolicy(policyCfg config.Policy) error {
+	return r.policy.Config(policyCfg)
+}
+
+func (r *Registry) AllowProvider(providerID peer.ID) {
+	r.policy.Allow(providerID)
+}
+
+func (r *Registry) BlockProvider(providerID peer.ID) {
+	r.policy.Block(providerID)
 }
 
 // RegisterOrUpdate attempts to register an unregistered provider, or updates

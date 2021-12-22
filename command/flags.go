@@ -99,9 +99,19 @@ var importFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
-var ingestFlags = []cli.Flag{
+var ingestPolicyFlags = []cli.Flag{
 	providerFlag,
 	indexerHostFlag,
+}
+
+var ingestSyncFlags = []cli.Flag{
+	providerFlag,
+	indexerHostFlag,
+	&cli.StringFlag{
+		Name:     "addr",
+		Usage:    "Multiaddr address of provider to sync with",
+		Required: false,
+	},
 }
 
 var initFlags = []cli.Flag{
@@ -135,12 +145,6 @@ var initFlags = []cli.Flag{
 		Name:     "lotus-gateway",
 		Usage:    "Address for a lotus gateway to collect chain information",
 		EnvVars:  []string{"STORETHEINDEX_LOTUS_GATEWAY"},
-		Required: false,
-	},
-	&cli.StringFlag{
-		Name:     "pubsub-peer",
-		Usage:    "Subscribe to pubsub from this libp2p peer ID",
-		EnvVars:  []string{"STORETHEINDE_PUBSUB_PEER"},
 		Required: false,
 	},
 	&cli.BoolFlag{

@@ -102,9 +102,19 @@ func TestPolicyAccess(t *testing.T) {
 		t.Error("peer ID", trustedID, "should be trusted")
 	}
 
+	p.Allow(trustedID)
+	if !p.Allowed(trustedID) {
+		t.Error("peer ID should be allowed by policy")
+	}
+
+	p.Block(exceptID)
+	if p.Allowed(exceptID) {
+		t.Error("peer ID should not be allowed")
+	}
+
 	policyCfg.Allow = true
 	policyCfg.Trust = true
-	p, err = New(policyCfg)
+	err = p.Config(policyCfg)
 	if err != nil {
 		t.Fatal(err)
 	}

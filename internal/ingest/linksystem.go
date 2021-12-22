@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/filecoin-project/go-indexer-core"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
+	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-graphsync"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -22,6 +23,7 @@ import (
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
+	"go.opencensus.io/stats"
 )
 
 func dsKey(k string) datastore.Key {
@@ -141,94 +143,97 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, error) {
 	return ad, nil
 }
 
+//func (ing *Ingester) makeStorageHook() graphsync.OnIncomingBlockHook {
+//	return func(p peer.ID, responseData graphsync.ResponseData, blockData graphsync.BlockData, hookActions graphsync.IncomingBlockHookActions) {
+//		ing.storageHook(blockData.Link().(cidlink.Link).Cid)
+//	}
+//}
+
 // storageHook determines the logic to run when a new block is received through
 // graphsync.
 //
 // When we receive a block, if it is not an advertisement it means that we
 // finished storing the list of entries of the advertisement, so we are ready
 // to process them and ingest into the indexer core.
-func (li *legIngester) storageHook() graphsync.OnIncomingBlockHook {
-	return func(p peer.ID, responseData graphsync.ResponseData, blockData graphsync.BlockData, hookActions graphsync.IncomingBlockHookActions) {
-		c := blockData.Link().(cidlink.Link).Cid
-		log := log.With("peerID", p, "cid", c)
-		log.Debug("Incoming block hook triggered")
+func (ing *Ingester) storageHook(p peer.ID, c cid.Cid) {
+	log := log.With("peerID", p, "cid", c)
+	log.Debug("Incoming block hook triggered")
 
-		// Get data corresponding to the block.
-		val, err := li.ds.Get(dsKey(c.String()))
+	// Get data corresponding to the block.
+	val, err := ing.ds.Get(dsKey(c.String()))
+	if err != nil {
+		log.Errorw("Error while fetching the node from datastore", "err", err)
+		return
+	}
+
+	// Decode block to IPLD node
+	node, err := decodeIPLDNode(bytes.NewBuffer(val))
+	if err != nil {
+		log.Errorw("Error decoding ipldNode", "err", err)
+		return
+	}
+
+	// If this is an advertisement, sync entries within it.
+	if isAdvertisement(node) {
+		log.Debug("Incoming block is an advertisement")
+		ad, err := decodeAd(node)
 		if err != nil {
-			log.Errorf("Error while fetching the node from datastore: %s", err)
+			log.Errorw("Error decoding advertosement", "err", err)
 			return
 		}
+		log.Infow("Syncing content blocks for advertisement", "ad_cid", c)
 
-		// Decode block to IPLD node
-		node, err := decodeIPLDNode(bytes.NewBuffer(val))
+		// TODO: consider exposing config value for maximum sync timeout then set in context.
+		err = ing.syncAdEntries(context.TODO(), p, ad)
 		if err != nil {
-			log.Errorf("Error decoding ipldNode: %s", err)
-			return
+			log.Errorw("Error syncing advertosement entries", "err", err)
 		}
+		return
+	}
 
-		// If this is an advertisement, sync entries within it.
-		if isAdvertisement(node) {
-			log.Debug("Incoming block is an advertisement")
-			ad, err := decodeAd(node)
-			if err != nil {
-				log.Errorf("Error decoding advertosement: %s", err)
-				return
-			}
-			log.Debug("Syncing entries")
-			// TODO: consider exposing config value for maximum sync timeout then set in context.
-			err = li.syncAdEntries(context.TODO(), p, ad)
-			if err != nil {
-				log.Errorf("Error syncing advertosement entries: %s", err)
-			}
-			return
-		}
+	// The incoming block is not an advertisement.  This means it is a
+	// block of content CIDs to index.  Get the advertisement CID
+	// corresponding to the link CID, from the reverse map.  Then load the
+	// advertisement to get the metadata for indexing all the content in
+	// the incoming block.
+	log.Debug("Incoming block is not an advertisement; processing entries")
+	adCid, err := getCidToAdMapping(ing.ds, c)
+	if err != nil {
+		log.Errorw("Error getting advertisementID for entries map", "err", err)
+		return
+	}
+	log = log.With("adCid", adCid)
 
-		// Get the advertisement ID corresponding to the link.
-		// From the reverse map.
-		log.Debug("Incoming block is not an advertisement; processing entries")
-		adCid, err := getCidToAdMapping(li.ds, c)
-		if err != nil {
-			log.Errorf("Error getting advertisementID for entries map: %s", err)
-			return
-		}
-		log = log.With("adCid", adCid)
+	log.Infow("Indexing content in block", "ad_cid", adCid)
+	err = ing.indexContentBlock(adCid, p, node)
+	if err != nil {
+		log.Errorw("Error processing entries for advertisement", "err", err)
+		return
+	}
 
-		log.Infow("Processing entries")
-		err = li.processEntries(adCid, p, node)
-		if err != nil {
-			log.Errorw("Error processing entries for advertisement", "err", err)
-			return
-		}
+	ing.signalMetricsUpdate()
 
-		li.sigUpdate <- struct{}{}
+	// Remove the datastore entry that maps a chunk to an advertisement
+	// now that the chunk is processed.
+	log.Debug("Removing mapping to advertisement for processed entries")
+	err = deleteCidToAdMapping(ing.ds, c)
+	if err != nil {
+		log.Errorw("Error deleting cid-advertisement mapping for entries", "err", err)
+	}
 
-		// Remove the datastore entry that maps a chunk to an advertisement
-		// now that the chunk is processed.
-		log.Debug("Removing mapping to advertisement for processed entries")
-		err = deleteCidToAdMapping(li.ds, c)
-		if err != nil {
-			log.Errorw("Error deleting cid-advertisement mapping for entries", "err", err)
-		}
-
-		// Remove the index from the data store now that processing it has
-		// finished.  This prevents storing redundant information in
-		// several datastore.
-		log.Debug("Removing processed entries from datastore")
-		err = li.ds.Delete(dsKey(c.String()))
-		if err != nil {
-			log.Errorw("Error deleting index from datastore", "err", err)
-		}
+	// Remove the content block from the data store now that processing it
+	// has finished.  This prevents storing redundant information in
+	// several datastores.
+	log.Debug("Removing processed entries from datastore")
+	err = ing.ds.Delete(dsKey(c.String()))
+	if err != nil {
+		log.Errorw("Error deleting index from datastore", "err", err)
 	}
 }
 
-func (li *legIngester) syncAdEntries(ctx context.Context, from peer.ID, ad schema.Advertisement) error {
+// syncAdEntries fetches all the entries for a single advertisement
+func (ing *Ingester) syncAdEntries(ctx context.Context, from peer.ID, ad schema.Advertisement) error {
 	log := log.With("peerID", from)
-	sub, err := li.newPeerSubscriber(ctx, from)
-	if err != nil {
-		log.Errorw("Error getting subscriber by peer ID", "err", err)
-		return err
-	}
 
 	elink, err := ad.FieldEntries().AsLink()
 	if err != nil {
@@ -238,7 +243,7 @@ func (li *legIngester) syncAdEntries(ctx context.Context, from peer.ID, ad schem
 	entriesCid := elink.(cidlink.Link).Cid
 
 	log = log.With("entriesCid", entriesCid)
-	exists, err := li.ds.Has(dsKey(entriesCid.String()))
+	exists, err := ing.ds.Has(dsKey(entriesCid.String()))
 	if err != nil && err != datastore.ErrNotFound {
 		log.Errorf("Error chekcing if entries exist ", "err", err)
 		return err
@@ -248,29 +253,34 @@ func (li *legIngester) syncAdEntries(ctx context.Context, from peer.ID, ad schem
 		return nil
 	}
 
-	log.Info("Instantiating sync for entries")
-	// Fully traverse the entries, because:
-	//  * if the head is not persisted locally the chance are we do not have it.
-	//  * chain of entries as specified by EntryChunk schema only contain entries.
-	done, cancel, err := sub.ls.Sync(ctx, from, entriesCid, selectorparse.CommonSelector_ExploreAllRecursively)
-	if err != nil {
-		log.Errorw("Error instantiating sync", "err", err)
-		return err
-	}
+	log.Info("Starting sync for entries")
 	go func() {
-		defer cancel()
-		<-done
-		log.Info("Finished syncing entries")
+		startTime := time.Now()
+		// Fully traverse the entries, because:
+		//  * if the head is not persisted locally there is a chance we do not have it.
+		//  * chain of entries as specified by EntryChunk schema only contain entries.
+		_, err = ing.sub.Sync(ctx, from, entriesCid, selectorparse.CommonSelector_ExploreAllRecursively, nil)
+		if err != nil {
+			log.Errorw("Failed to sync", "err", err)
+			return
+		}
+		elapsed := time.Since(startTime)
+		// Record how long sync tool.
+		stats.Record(context.Background(), metrics.SyncLatency.M(float64(elapsed.Nanoseconds())/1e6))
+		log.Infow("Finished syncing entries", "elapsed", elapsed)
 	}()
 	return nil
 }
 
-func (li *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.Node) error {
+// indexContentBlock indexes the content CIDs in a block of data.  First the
+// advertisement is loaded to get the context ID and metadata, and then that
+// and the CIDs in the content block are indexed by the indexer-core.
+func (ing *Ingester) indexContentBlock(adCid cid.Cid, p peer.ID, nentries ipld.Node) error {
 	// Getting the advertisement for the entries so we know
 	// what metadata and related information we need to use for ingestion.
-	adb, err := li.ds.Get(dsKey(adCid.String()))
+	adb, err := ing.ds.Get(dsKey(adCid.String()))
 	if err != nil {
-		log.Errorf("Error while fetching advertisement for entry: %s", err)
+		log.Errorw("Error while fetching advertisement for entry", "err", err)
 		return err
 	}
 	// Decode the advertisement.
@@ -323,11 +333,11 @@ func (li *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.No
 		MetadataBytes: metadataBytes,
 	}
 
-	mhChan := make(chan multihash.Multihash, li.batchSize)
+	mhChan := make(chan multihash.Multihash, ing.batchSize)
 	// TODO: Once we change the syncing process, there may never be a need
 	// to remove individual entries, and only a need remove all entries for
 	// the context ID in the advertisement.  For now, handle both cases.
-	errChan := li.batchIndexerEntries(mhChan, value, isRm)
+	errChan := ing.batchIndexerEntries(mhChan, value, isRm)
 
 	var count int
 	nchunk := nb.Build().(schema.EntryChunk)
@@ -359,7 +369,7 @@ func (li *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.No
 
 	// Handle remove in the case where there are no individual entries.
 	if isRm && count == 0 {
-		err = li.indexer.RemoveProviderContext(p, contextID)
+		err = ing.indexer.RemoveProviderContext(p, contextID)
 		if err != nil {
 			return err
 		}
@@ -372,7 +382,7 @@ func (li *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.No
 		if err != nil {
 			return err
 		}
-		err = putCidToAdMapping(li.ds, lnk, adCid)
+		err = putCidToAdMapping(ing.ds, lnk, adCid)
 		if err != nil {
 			return err
 		}
@@ -391,14 +401,14 @@ func (li *legIngester) processEntries(adCid cid.Cid, p peer.ID, nentries ipld.No
 //
 // The goroutine exits when the input channel is closed.  It closes the error
 // channel to indicate completion.
-func (li *legIngester) batchIndexerEntries(mhChan <-chan multihash.Multihash, value indexer.Value, isRm bool) <-chan error {
+func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, value indexer.Value, isRm bool) <-chan error {
 	var indexFunc func(indexer.Value, ...multihash.Multihash) error
 	var opName string
 	if isRm {
-		indexFunc = li.indexer.Remove
+		indexFunc = ing.indexer.Remove
 		opName = "remove"
 	} else {
-		indexFunc = li.indexer.Put
+		indexFunc = ing.indexer.Put
 		opName = "put"
 	}
 
@@ -435,7 +445,7 @@ func (li *legIngester) batchIndexerEntries(mhChan <-chan multihash.Multihash, va
 		}
 
 		log.Debugw("Processed entries", "count", count, "operation", opName)
-	}(li.batchSize)
+	}(ing.batchSize)
 
 	return errChan
 }
