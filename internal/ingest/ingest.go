@@ -45,7 +45,6 @@ type Ingester struct {
 	sigUpdate chan struct{}
 
 	sub           *legs.Subscriber
-	watcher       <-chan legs.SyncFinished
 	cancelSyncFin context.CancelFunc
 }
 
