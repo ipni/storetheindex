@@ -34,8 +34,7 @@ const (
 	admapPrefix = "/admap/"
 )
 
-// Ingester is an ingester type that leverages go-legs for the
-// ingestion protocol.
+// Ingester is a type that uses go-legs for the ingestion protocol.
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
@@ -46,6 +45,8 @@ type Ingester struct {
 
 	sub           *legs.Subscriber
 	cancelSyncFin context.CancelFunc
+	syncTimeout   time.Duration
+	adLocks       *lockChain
 }
 
 // NewIngester creates a new go-legs-backed ingester.
@@ -53,9 +54,9 @@ func NewIngester(ctx context.Context, cfg config.Ingest, h host.Host, idxr *inde
 	lsys := mkLinkSystem(ds, reg)
 
 	// Construct a selector that recursively looks for nodes with field
-	// "PreviousID" as per Advertisement schema.
-	// Note that the entries within an advertisement are synced separately triggered by
-	// storage hook, so that we can check if a chain of chunks exist already before syncing it.
+	// "PreviousID" as per Advertisement schema.  Note that the entries within
+	// an advertisement are synced separately triggered by storage hook, so
+	// that we can check if a chain of chunks exist already before syncing it.
 	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
 	adSel := ssb.ExploreFields(
 		func(efsb builder.ExploreFieldsSpecBuilder) {
@@ -63,11 +64,13 @@ func NewIngester(ctx context.Context, cfg config.Ingest, h host.Host, idxr *inde
 		}).Node()
 
 	ing := &Ingester{
-		host:      h,
-		ds:        ds,
-		indexer:   idxr,
-		batchSize: cfg.StoreBatchSize,
-		sigUpdate: make(chan struct{}, 1),
+		host:        h,
+		ds:          ds,
+		indexer:     idxr,
+		batchSize:   cfg.StoreBatchSize,
+		sigUpdate:   make(chan struct{}, 1),
+		syncTimeout: time.Duration(cfg.SyncTimeout),
+		adLocks:     newLockChain(),
 	}
 
 	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Authorized), legs.BlockHook(ing.storageHook))
@@ -104,9 +107,11 @@ func (ing *Ingester) Close() error {
 	return err
 }
 
-// Sync syncs the latest advertisement from the provider identified by peerID.
-// This is done by first fetching the latest advertisement ID from the provider
-// and traversing it until traversal gets to the last seen advertisement.
+// Sync syncs the latest advertisement from the provider.  This is done by
+// first fetching the latest advertisement ID from the provider and traversing
+// it until traversal gets to the last seen advertisement.  Then then entries
+// in each advertisement are synced and the multihashes in each entry are
+// indexed.
 //
 // The Context that is passes in controlls the lifetime of the sync.  Canceling
 // it will cancel the sync and cause the multihash channel to close without any
@@ -202,6 +207,8 @@ func (ing *Ingester) metricsUpdater() {
 	}
 }
 
+// restoreLatestSync reads the latest sync for each previously synced provider,
+// from the datastore, and sets this in the Subscriber.
 func (ing *Ingester) restoreLatestSync(ctx context.Context) error {
 	// Load all pins from the datastore.
 	q := query.Query{

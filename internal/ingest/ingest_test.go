@@ -96,10 +96,12 @@ func TestSync(t *testing.T) {
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	// Publish an advertisement without
 	c1, mhs := publishRandomIndexAndAdv(t, pub, lsys, false)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	// The explicit sync will happen concurrently with the sycn triggered by
+	// the published advertisement.  These will be serialized in the go-legs
+	// handler for the provider.
 	end, err := i.Sync(ctx, pubHost.ID(), nil)
 	require.NoError(t, err)
 	select {
@@ -284,7 +286,7 @@ func providesAll(t *testing.T, ix *engine.Engine, p peer.ID, mhs ...multihash.Mu
 	for _, mh := range mhs {
 		values, exists, err := ix.Get(mh)
 		if err != nil || !exists {
-			t.Logf("err: %s, exists: %v", err, exists)
+			t.Logf("err: %v, exists: %v", err, exists)
 			return false
 		}
 		var found bool

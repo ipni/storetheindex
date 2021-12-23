@@ -26,6 +26,9 @@ import (
 	"go.opencensus.io/stats"
 )
 
+// TODO:
+const syncTimeout = 2 * time.Hour
+
 func dsKey(k string) datastore.Key {
 	return datastore.NewKey(k)
 }
@@ -59,8 +62,8 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 			if isAdvertisement(n) {
 				log.Infow("Received advertisement", "cid", c)
 
-				// Verify if the signature is correct.
-				// And the advertisement valid.
+				// Verify that the signature is correct and the advertisement
+				// is valid.
 				ad, err := verifyAdvertisement(n)
 				if err != nil {
 					log.Errorf("Error verifying if node is of type advertisement: %s", err)
@@ -90,9 +93,9 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 					return err
 				}
 
-				// Store entries link into the reverse map
-				// so we have a way of identifying what advertisementID
-				// announced these entries when we come across the link
+				// Store entries link into the reverse map so there is a way of
+				// identifying what advertisementID announced these entries
+				// when we come across the link.
 				log.Debug("Setting reverse map for entries after receiving advertisement")
 				elnk, err := ad.FieldEntries().AsLink()
 				if err != nil {
@@ -146,9 +149,15 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, error) {
 // storageHook determines the logic to run when a new block is received through
 // graphsync.
 //
-// When we receive a block, if it is not an advertisement it means that we
-// finished storing the list of entries of the advertisement, so we are ready
-// to process them and ingest into the indexer core.
+// When an advertisement block is received, it means that all the
+// advertisements, from the most recent to the last seen, have been traversed
+// and stored.  Now this hook is being called for each advertisement.  Start a
+// background sync for the chain of entries in the advertisement.
+//
+// When a non-advertisement block is received, it means that all the entries
+// for an advertisement have been traversed and stored.  Now this hook is being
+// called for each entry in an advertisement's chain of entries.  Process the
+// entry and save all the multihashes in it as indexes in the indexer-core.
 func (ing *Ingester) storageHook(p peer.ID, c cid.Cid) {
 	log := log.With("peerID", p, "cid", c)
 	log.Debug("Incoming block hook triggered")
@@ -170,18 +179,14 @@ func (ing *Ingester) storageHook(p peer.ID, c cid.Cid) {
 	// If this is an advertisement, sync entries within it.
 	if isAdvertisement(node) {
 		log.Debug("Incoming block is an advertisement")
+
 		ad, err := decodeAd(node)
 		if err != nil {
 			log.Errorw("Error decoding advertosement", "err", err)
 			return
 		}
-		log.Infow("Syncing content blocks for advertisement", "ad_cid", c)
 
-		// TODO: consider exposing config value for maximum sync timeout then set in context.
-		err = ing.syncAdEntries(context.TODO(), p, ad)
-		if err != nil {
-			log.Errorw("Error syncing advertosement entries", "err", err)
-		}
+		go ing.syncAdEntries(p, ad, c)
 		return
 	}
 
@@ -198,7 +203,7 @@ func (ing *Ingester) storageHook(p peer.ID, c cid.Cid) {
 	}
 	log = log.With("adCid", adCid)
 
-	log.Infow("Indexing content in block", "ad_cid", adCid)
+	log.Infow("Indexing content in block")
 	err = ing.indexContentBlock(adCid, p, node)
 	if err != nil {
 		log.Errorw("Error processing entries for advertisement", "err", err)
@@ -226,44 +231,102 @@ func (ing *Ingester) storageHook(p peer.ID, c cid.Cid) {
 }
 
 // syncAdEntries fetches all the entries for a single advertisement
-func (ing *Ingester) syncAdEntries(ctx context.Context, from peer.ID, ad schema.Advertisement) error {
-	log := log.With("peerID", from)
+func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid cid.Cid) {
+	log := log.With("provider", from, "adCid", adCid)
+
+	// It is possible that entries for a previous advertisement are still being
+	// synced, and the current advertisement deletes those entries or updates
+	// the metadata.  The delete or update does not need to wait on a sync, and
+	// so may be done before the previous advertisement is finished syncing.
+	// The continued sync of the previous advertisement could undo the delete
+	// or update.
+	//
+	// Therefore it is necessary to ensure the ad syncs execute in the order
+	// that the advertisements occur on their chain.  This is done using a
+	// lockChain to lock the current advertisement and wait for the previous
+	// advertisement to finish being processed and unlock.
+	var prevCid cid.Cid
+	if ad.FieldPreviousID().Exists() {
+		lnk, err := ad.FieldPreviousID().Must().AsLink()
+		if err != nil {
+			log.Errorw("Cannot read previous link from advertisement", "err", err)
+		} else {
+			prevCid = lnk.(cidlink.Link).Cid
+		}
+	}
+	// Singal this ad is busy and wait for any sync on the previous ad to
+	// finish.  Signal this ad is done at function return.
+	unlock := ing.adLocks.lockWait(adCid, prevCid)
+	defer unlock()
 
 	elink, err := ad.FieldEntries().AsLink()
 	if err != nil {
 		log.Errorw("Error decoding advertisement entries link", "err", err)
-		return err
+		return
 	}
 	entriesCid := elink.(cidlink.Link).Cid
+
+	log.Infow("Syncing content blocks for advertisement")
+
+	// If advertisement is for removal of everything for a context ID, it will
+	// not have any entries.  In that case, remove everything from the
+	// indexer-core with the contextID from this advertisement.
+	if entriesCid == cid.Undef {
+		isRm, err := ad.FieldIsRm().AsBool()
+		if err != nil {
+			log.Error("Cannot read IsRm field", "err", err)
+			return
+		}
+		if !isRm {
+			log.Error("Advertisement entries link is undefined and ad is not removal")
+			return
+		}
+
+		contextID, err := ad.FieldContextID().AsBytes()
+		if err != nil {
+			log.Error("Cannot read context ID from advertisement", "err", err)
+			return
+		}
+
+		err = ing.indexer.RemoveProviderContext(from, contextID)
+		if err != nil {
+			log.Error("Failed to removed content by context ID", "contextID", contextID)
+			return
+		}
+		log.Infow("Removed content by context ID", "contextID", contextID)
+		return
+	}
 
 	log = log.With("entriesCid", entriesCid)
 	exists, err := ing.ds.Has(dsKey(entriesCid.String()))
 	if err != nil && err != datastore.ErrNotFound {
-		log.Errorf("Error chekcing if entries exist ", "err", err)
-		return err
+		log.Errorw("Failed chekcing if entries exist", "err", err)
 	}
 	if exists {
 		log.Debugw("Entries already exist; skipping sync")
-		return nil
+		return
 	}
 
 	log.Info("Starting sync for entries")
-	go func() {
-		startTime := time.Now()
-		// Fully traverse the entries, because:
-		//  * if the head is not persisted locally there is a chance we do not have it.
-		//  * chain of entries as specified by EntryChunk schema only contain entries.
-		_, err = ing.sub.Sync(ctx, from, entriesCid, selectorparse.CommonSelector_ExploreAllRecursively, nil)
-		if err != nil {
-			log.Errorw("Failed to sync", "err", err)
-			return
-		}
-		elapsed := time.Since(startTime)
-		// Record how long sync tool.
-		stats.Record(context.Background(), metrics.SyncLatency.M(float64(elapsed.Nanoseconds())/1e6))
-		log.Infow("Finished syncing entries", "elapsed", elapsed)
-	}()
-	return nil
+	ctx := context.Background()
+	if ing.syncTimeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, ing.syncTimeout)
+		defer cancel()
+	}
+	startTime := time.Now()
+	// Fully traverse the entries, because:
+	//  * if the head is not persisted locally there is a chance we do not have it.
+	//  * chain of entries as specified by EntryChunk schema only contain entries.
+	_, err = ing.sub.Sync(ctx, from, entriesCid, selectorparse.CommonSelector_ExploreAllRecursively, nil)
+	if err != nil {
+		log.Errorw("Failed to sync", "err", err)
+		return
+	}
+	elapsed := time.Since(startTime)
+	// Record how long sync took.
+	stats.Record(context.Background(), metrics.SyncLatency.M(float64(elapsed.Nanoseconds())/1e6))
+	log.Infow("Finished syncing entries", "elapsed", elapsed)
 }
 
 // indexContentBlock indexes the content CIDs in a block of data.  First the
@@ -359,14 +422,6 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, p peer.ID, nentries ipld.N
 	err = <-errChan
 	if err != nil {
 		return err
-	}
-
-	// Handle remove in the case where there are no individual entries.
-	if isRm && count == 0 {
-		err = ing.indexer.RemoveProviderContext(p, contextID)
-		if err != nil {
-			return err
-		}
 	}
 
 	// If there is a next link, update the mapping so we know the AdID
