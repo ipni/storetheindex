@@ -26,9 +26,6 @@ import (
 	"go.opencensus.io/stats"
 )
 
-// TODO:
-const syncTimeout = 2 * time.Hour
-
 func dsKey(k string) datastore.Key {
 	return datastore.NewKey(k)
 }
