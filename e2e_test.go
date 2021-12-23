@@ -170,12 +170,13 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	e.run(provider, "init")
 	cfg, err := config.Load(filepath.Join(e.dir, ".index-provider", "config"))
 	qt.Assert(t, err, qt.IsNil)
-	t.Logf("Initialized provider ID: %s", cfg.Identity.PeerID)
+	providerID := cfg.Identity.PeerID
+	t.Logf("Initialized provider ID: %s", providerID)
 
 	e.run(indexer, "init", "--store", "sth", "--pubsub-topic", "indexer/ingest", "--no-bootstrap")
 	cfg, err = config.Load(filepath.Join(e.dir, ".storetheindex", "config"))
 	qt.Assert(t, err, qt.IsNil)
-	indexerHost := cfg.Identity.PeerID
+	indexerID := cfg.Identity.PeerID
 
 	cmdProvider := e.start(provider, "daemon")
 	select {
@@ -192,7 +193,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	}
 
 	e.run(provider, "connect",
-		"--imaddr", fmt.Sprintf("/dns/localhost/tcp/3003/p2p/%s", indexerHost),
+		"--imaddr", fmt.Sprintf("/dns/localhost/tcp/3003/p2p/%s", indexerID),
 		"--listen-admin", "http://localhost:3102",
 	)
 	select {
@@ -201,10 +202,12 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		t.Fatal("timed out waiting for provider to connect to indexer")
 	}
 
-	// TODO: "find" always returns "index not found".
-	// "import" seems to work on the provider side,
-	// but the indexer doesn't seem to show anything at all.
+	// Allow provider advertisements, regardless of default policy.
+	e.run(indexer, "ingest", "allow", "--provider", providerID)
 
+	// Import a car file into the provider.  This will cause the provider to
+	// publish an advertisement that the indexer will read.  The indexer will
+	// then import the advertised content.
 	outImport := e.run(provider, "import", "car",
 		"-i", carPath,
 		"--listen-admin", "http://localhost:3102",

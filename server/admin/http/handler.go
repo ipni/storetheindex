@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/importer"
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -45,8 +46,10 @@ func (h *adminHandler) allowProvider(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	log.Infow("Allowing provider", "provider", provID.String())
-	h.reg.AllowProvider(provID)
+	log.Infow("Allowing content from provider", "provider", provID)
+	if h.reg.AllowProvider(provID) {
+		log.Infow("Update config to persist allowing provider", "provider", provID)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -56,15 +59,14 @@ func (h *adminHandler) blockProvider(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	log.Infow("Blocking provider", "provider", provID.String())
-	h.reg.BlockProvider(provID)
+	log.Infow("Blocking content from provider", "provider", provID.String())
+	if h.reg.BlockProvider(provID) {
+		log.Infow("Update config to persist blocking provider", "provider", provID)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
 func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
-	if ret := h.checkIngester(w, r); ret {
-		return
-	}
 	vars := mux.Vars(r)
 	provID, ok := decodeProviderID(vars["provider"], w)
 	if !ok {
@@ -74,7 +76,7 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading body", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
@@ -103,6 +105,25 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 
 	// Return (202) Accepted
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (h *adminHandler) reloadPolicy(w http.ResponseWriter, r *http.Request) {
+	cfg, err := config.Load("")
+	if err != nil {
+		log.Errorw("Failed to load config", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	err = h.reg.SetPolicy(cfg.Discovery.Policy)
+	if err != nil {
+		log.Errorw("Failed to set policy config", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	log.Info("Reloaded policy from configuration file")
+	w.WriteHeader(http.StatusOK)
 }
 
 // ----- import handlers -----
@@ -297,16 +318,6 @@ func (h *adminHandler) healthCheckHandler(w http.ResponseWriter, r *http.Request
 }
 
 // ----- utility functions -----
-
-func (h *adminHandler) checkIngester(w http.ResponseWriter, r *http.Request) bool {
-	if h.ingester == nil {
-		msg := "No ingester set in indexer"
-		log.Error(msg)
-		http.Error(w, msg, http.StatusInternalServerError)
-		return true
-	}
-	return false
-}
 
 func decodeProviderID(id string, w http.ResponseWriter) (peer.ID, bool) {
 	provID, err := peer.Decode(id)

@@ -44,7 +44,7 @@ var logLevelFlag = &cli.StringFlag{
 
 var providerFlag = &cli.StringFlag{
 	Name:     "provider",
-	Usage:    "Provider's peer ID to interact with",
+	Usage:    "Provider's peer ID",
 	Aliases:  []string{"p"},
 	Required: true,
 }
@@ -101,6 +101,10 @@ var importFlags = []cli.Flag{
 
 var ingestPolicyFlags = []cli.Flag{
 	providerFlag,
+	indexerHostFlag,
+}
+
+var ingestReloadPolicyFlags = []cli.Flag{
 	indexerHostFlag,
 }
 

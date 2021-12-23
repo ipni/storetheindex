@@ -143,12 +143,6 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, error) {
 	return ad, nil
 }
 
-//func (ing *Ingester) makeStorageHook() graphsync.OnIncomingBlockHook {
-//	return func(p peer.ID, responseData graphsync.ResponseData, blockData graphsync.BlockData, hookActions graphsync.IncomingBlockHookActions) {
-//		ing.storageHook(blockData.Link().(cidlink.Link).Cid)
-//	}
-//}
-
 // storageHook determines the logic to run when a new block is received through
 // graphsync.
 //

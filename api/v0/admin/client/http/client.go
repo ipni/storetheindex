@@ -113,12 +113,34 @@ func (c *Client) Sync(ctx context.Context, provID peer.ID, provAddr multiaddr.Mu
 	return c.ingestRequest(ctx, provID, "sync", http.MethodPost, data)
 }
 
-// Allow advertisements from the specified provider from the pubsub channel.
+// ReloadPolicy reloads the policy from the configuration file.
+func (c *Client) ReloadPolicy(ctx context.Context) error {
+	u := c.baseURL + path.Join(ingestResource, "reloadpolicy")
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
+	}
+
+	return nil
+}
+
+// Allow configures the indexer to allow content from the provider.
 func (c *Client) Allow(ctx context.Context, provID peer.ID) error {
 	return c.ingestRequest(ctx, provID, "allow", http.MethodPut, nil)
 }
 
-// Block advertisements from the specified provider from the pubsub channel.
+// Block configures indexer to block content from the provider.
 func (c *Client) Block(ctx context.Context, provID peer.ID) error {
 	return c.ingestRequest(ctx, provID, "block", http.MethodPut, nil)
 }
@@ -133,6 +155,7 @@ func (c *Client) ListLogSubSystems(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
@@ -167,6 +190,8 @@ func (c *Client) SetLogLevels(ctx context.Context, sysLvl map[string]string) err
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		return httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
 	}

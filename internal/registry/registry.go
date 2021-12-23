@@ -238,12 +238,12 @@ func (r *Registry) SetPolicy(policyCfg config.Policy) error {
 	return r.policy.Config(policyCfg)
 }
 
-func (r *Registry) AllowProvider(providerID peer.ID) {
-	r.policy.Allow(providerID)
+func (r *Registry) AllowProvider(providerID peer.ID) bool {
+	return r.policy.Allow(providerID)
 }
 
-func (r *Registry) BlockProvider(providerID peer.ID) {
-	r.policy.Block(providerID)
+func (r *Registry) BlockProvider(providerID peer.ID) bool {
+	return r.policy.Block(providerID)
 }
 
 // RegisterOrUpdate attempts to register an unregistered provider, or updates

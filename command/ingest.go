@@ -30,6 +30,13 @@ var block = &cli.Command{
 	Action: blockCmd,
 }
 
+var reload = &cli.Command{
+	Name:   "reload-policy",
+	Usage:  "Reload the policy from the configuration file",
+	Flags:  ingestReloadPolicyFlags,
+	Action: reloadPolicyCmd,
+}
+
 var IngestCmd = &cli.Command{
 	Name:  "ingest",
 	Usage: "Admin commands to sync indexer with a provider",
@@ -37,6 +44,7 @@ var IngestCmd = &cli.Command{
 		sync,
 		allow,
 		block,
+		reload,
 	},
 }
 
@@ -80,7 +88,7 @@ func allowCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("Allowed advertisements from provider")
+	fmt.Println("Allowing content from provider", prov)
 	return nil
 }
 
@@ -98,6 +106,19 @@ func blockCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("Blocked advertisements from provider")
+	fmt.Println("Blocking content from provider", prov)
+	return nil
+}
+
+func reloadPolicyCmd(cctx *cli.Context) error {
+	cl, err := httpclient.New(cctx.String("indexer"))
+	if err != nil {
+		return err
+	}
+	err = cl.ReloadPolicy(cctx.Context)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Reloaded policy from configuration file")
 	return nil
 }

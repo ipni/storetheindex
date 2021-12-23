@@ -81,36 +81,52 @@ func (p *Policy) Check(providerID peer.ID) (bool, bool) {
 	return true, true
 }
 
-// Allow alters the policy to allow the specified peer.
-func (p *Policy) Allow(providerID peer.ID) {
+// Allow alters the policy to allow the specified peer.  Returns true if the
+// policy needed to be updated.
+func (p *Policy) Allow(providerID peer.ID) bool {
 	p.rwmutex.Lock()
 	defer p.rwmutex.Unlock()
 
+	var updated bool
 	if p.allow {
 		if len(p.except) != 0 {
+			prevLen := len(p.except)
 			delete(p.except, providerID)
+			updated = len(p.except) != prevLen
 		}
 	} else {
 		if p.except == nil {
 			p.except = make(map[peer.ID]struct{})
 		}
+		prevLen := len(p.except)
 		p.except[providerID] = struct{}{}
+		updated = len(p.except) != prevLen
 	}
+
+	return updated
 }
 
-// Block alters the policy to not allow the specified peer.
-func (p *Policy) Block(providerID peer.ID) {
+// Block alters the policy to not allow the specified peer.  Returns true if the
+// policy needed to be updated.
+func (p *Policy) Block(providerID peer.ID) bool {
 	p.rwmutex.Lock()
 	defer p.rwmutex.Unlock()
 
+	var updated bool
 	if p.allow {
 		if p.except == nil {
 			p.except = make(map[peer.ID]struct{})
 		}
+		prevLen := len(p.except)
 		p.except[providerID] = struct{}{}
+		updated = len(p.except) != prevLen
 	} else if len(p.except) != 0 {
+		prevLen := len(p.except)
 		delete(p.except, providerID)
+		updated = len(p.except) != prevLen
 	}
+
+	return updated
 }
 
 // Config applies the configuration.
