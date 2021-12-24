@@ -109,7 +109,12 @@ func TestSync(t *testing.T) {
 	case m := <-end:
 		// We receive the CID that we synced.
 		require.True(t, bytes.Equal(c1.Hash(), m))
-		lcid, err := i.getLatestSync(pubHost.ID())
+		// Check that subscriber recorded latest sync.
+		lnk := i.sub.GetLatestSync(pubHost.ID())
+		lcid := lnk.(cidlink.Link).Cid
+		require.Equal(t, lcid, c1)
+		// Check that latest sync recorded in datastore
+		lcid, err = i.getLatestSync(pubHost.ID())
 		require.NoError(t, err)
 		require.Equal(t, lcid, c1)
 	case <-ctx.Done():
@@ -146,12 +151,20 @@ func TestMultiplePublishers(t *testing.T) {
 	c2, mhs, providerID := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
 	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
 
+	// Check that subscriber recorded latest sync.
+	lnk := i.sub.GetLatestSync(pubHost1.ID())
+	lcid := lnk.(cidlink.Link).Cid
+	require.Equal(t, lcid, c1)
+	lnk = i.sub.GetLatestSync(pubHost2.ID())
+	lcid = lnk.(cidlink.Link).Cid
+	require.Equal(t, lcid, c2)
+
 	lcid, err := i.getLatestSync(pubHost1.ID())
 	require.NoError(t, err)
 	require.Equal(t, lcid, c1)
-	lcid2, err := i.getLatestSync(pubHost2.ID())
+	lcid, err = i.getLatestSync(pubHost2.ID())
 	require.NoError(t, err)
-	require.Equal(t, lcid2, c2)
+	require.Equal(t, lcid, c2)
 }
 
 func mkTestHost() host.Host {
@@ -320,9 +333,15 @@ func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Pub
 		require.NoError(t, err, "err getting %s", c.String())
 		require.NotNil(t, adv)
 	} else {
-		// If the signature is invalid we shouldn't have store it.
+		// If the signature is invalid is should not be stored.
 		require.Nil(t, adv)
 	}
+	if !fakeSig {
+		lnk := i.sub.GetLatestSync(pubHost.ID())
+		lcid := lnk.(cidlink.Link).Cid
+		require.Equal(t, lcid, c)
+	}
+
 	// Check if latest sync updated.
 	lcid, err := i.getLatestSync(pubHost.ID())
 	require.NoError(t, err)
@@ -337,7 +356,8 @@ func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Pub
 func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Duration, timeout time.Duration, msgAndArgs ...interface{}) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	timer := time.NewTimer(interval)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	for {
 		if attempt() {
 			return
@@ -346,8 +366,7 @@ func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Dura
 		case <-ctx.Done():
 			require.FailNow(t, "timed out awaiting eventual success", msgAndArgs...)
 			return
-		case <-timer.C:
-			timer.Reset(interval)
+		case <-ticker.C:
 		}
 	}
 }
