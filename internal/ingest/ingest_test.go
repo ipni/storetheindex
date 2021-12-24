@@ -324,7 +324,7 @@ func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Pub
 		requireTrueEventually(t, func() bool {
 			has, err := i.ds.Has(datastore.NewKey(c.String()))
 			return err == nil && has
-		}, 2*time.Second, 10*time.Second, "expected advertisement with ID %s was not received", c)
+		}, 2*time.Second, 15*time.Second, "expected advertisement with ID %s was not received", c)
 	}
 
 	// Check if advertisement in datastore.
