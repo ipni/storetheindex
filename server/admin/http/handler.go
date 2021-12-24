@@ -40,35 +40,35 @@ const importBatchSize = 256
 
 // ----- ingest handlers -----
 
-func (h *adminHandler) allowProvider(w http.ResponseWriter, r *http.Request) {
+func (h *adminHandler) allowPeer(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	provID, ok := decodeProviderID(vars["provider"], w)
+	peerID, ok := decodePeerID(vars["peer"], w)
 	if !ok {
 		return
 	}
-	log.Infow("Allowing content from provider", "provider", provID)
-	if h.reg.AllowProvider(provID) {
-		log.Infow("Update config to persist allowing provider", "provider", provID)
+	log.Infow("Allowing peer to publish and provide content", "peer", peerID)
+	if h.reg.AllowPeer(peerID) {
+		log.Infow("Update config to persist allowing peer", "peerr", peerID)
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *adminHandler) blockProvider(w http.ResponseWriter, r *http.Request) {
+func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	provID, ok := decodeProviderID(vars["provider"], w)
+	peerID, ok := decodePeerID(vars["peer"], w)
 	if !ok {
 		return
 	}
-	log.Infow("Blocking content from provider", "provider", provID.String())
-	if h.reg.BlockProvider(provID) {
-		log.Infow("Update config to persist blocking provider", "provider", provID)
+	log.Infow("Blocking peer from publishing or providing content", "peer", peerID.String())
+	if h.reg.BlockPeer(peerID) {
+		log.Infow("Update config to persist blocking peer", "provider", peerID)
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
 func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	provID, ok := decodeProviderID(vars["provider"], w)
+	peerID, ok := decodePeerID(vars["peerr"], w)
 	if !ok {
 		return
 	}
@@ -88,16 +88,14 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Infow("Syncing with provider", "provider", provID.String(), "address", syncAddr)
+	log.Infow("Syncing with peer", "peer", peerID.String(), "address", syncAddr)
 
 	// Start the sync, but do not wait for it to complete.
 	//
-	// We can include an ingestion API to check the latest sync for
-	// a provider in the indexer. This would show if the indexer
-	// has finally synced or not.
-	_, err = h.ingester.Sync(h.ctx, provID, syncAddr)
+	// TODO: Provide some way for the client to see if the indexer has synced.
+	_, err = h.ingester.Sync(h.ctx, peerID, syncAddr)
 	if err != nil {
-		msg := "Cannot sync with provider"
+		msg := "Cannot sync with peer"
 		log.Errorw(msg, "err", err)
 		http.Error(w, msg, http.StatusBadGateway)
 		return
@@ -132,7 +130,7 @@ func (h *adminHandler) importManifest(w http.ResponseWriter, r *http.Request) {
 	// TODO: This code is the same for all import handlers.
 	// We probably can take it out to its own function to deduplicate.
 	vars := mux.Vars(r)
-	provID, ok := decodeProviderID(vars["provider"], w)
+	provID, ok := decodePeerID(vars["provider"], w)
 	if !ok {
 		return
 	}
@@ -212,7 +210,7 @@ func getParams(data []byte) (string, []byte, []byte, error) {
 
 func (h *adminHandler) importCidList(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	provID, ok := decodeProviderID(vars["provider"], w)
+	provID, ok := decodePeerID(vars["provider"], w)
 	if !ok {
 		return
 	}
@@ -319,13 +317,13 @@ func (h *adminHandler) healthCheckHandler(w http.ResponseWriter, r *http.Request
 
 // ----- utility functions -----
 
-func decodeProviderID(id string, w http.ResponseWriter) (peer.ID, bool) {
-	provID, err := peer.Decode(id)
+func decodePeerID(id string, w http.ResponseWriter) (peer.ID, bool) {
+	peerID, err := peer.Decode(id)
 	if err != nil {
-		msg := "Cannot decode provider id"
+		msg := "Cannot decode peer id"
 		log.Errorw(msg, "id", id, "err", err)
 		http.Error(w, msg, http.StatusBadRequest)
-		return provID, false
+		return peerID, false
 	}
-	return provID, true
+	return peerID, true
 }

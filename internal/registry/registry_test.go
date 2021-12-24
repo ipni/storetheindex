@@ -180,7 +180,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 	defer r.Close()
 	t.Log("created new registry")
 
-	r.BlockProvider(peerID)
+	r.BlockPeer(peerID)
 
 	err = r.Discover(peerID, minerDiscoAddr, true)
 	if !errors.Is(err, ErrNotAllowed) {

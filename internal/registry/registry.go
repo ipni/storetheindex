@@ -191,8 +191,9 @@ func (r *Registry) Register(info *ProviderInfo) error {
 		return syserr.New(ErrNotAllowed, http.StatusForbidden)
 	}
 
-	// If allowed provider is not trusted, then they require authorization
-	// before being registered.
+	// If allowed provider is not trusted, then they require authentication
+	// before being registered.  This means going through discovery and looking
+	// up a miner ID on-chain.
 	if !trusted {
 		return syserr.New(ErrNotTrusted, http.StatusUnauthorized)
 	}
@@ -212,20 +213,20 @@ func (r *Registry) Register(info *ProviderInfo) error {
 	return nil
 }
 
-// Check if the provider is trusted by policy, or if it has been previously
-// verified and registered.
-func (r *Registry) Authorized(providerID peer.ID) (bool, error) {
-	allowed, trusted := r.policy.Check(providerID)
+// Check if the peer is trusted by policy, or if it has been previously
+// verified and registered as a provider.
+func (r *Registry) Authorized(peerID peer.ID) (bool, error) {
+	allowed, trusted := r.policy.Check(peerID)
 
 	if !allowed {
 		return false, nil
 	}
 
-	// Provider is allowed but not trusted, see if they are already registered.
+	// Peer is allowed but not trusted, see if it is a registered provider.
 	if !trusted {
 		regOk := make(chan bool)
 		r.actions <- func() {
-			_, ok := r.providers[providerID]
+			_, ok := r.providers[peerID]
 			regOk <- ok
 		}
 		return <-regOk, nil
@@ -238,12 +239,16 @@ func (r *Registry) SetPolicy(policyCfg config.Policy) error {
 	return r.policy.Config(policyCfg)
 }
 
-func (r *Registry) AllowProvider(providerID peer.ID) bool {
-	return r.policy.Allow(providerID)
+// AllowPeer configures the policy to allow messages published by the
+// identified peer, or allow the peer to register as a provider.
+func (r *Registry) AllowPeer(peerID peer.ID) bool {
+	return r.policy.Allow(peerID)
 }
 
-func (r *Registry) BlockProvider(providerID peer.ID) bool {
-	return r.policy.Block(providerID)
+// BlockPeer configures the policy to block messages published by the
+// identified peer, and block the peer from registering as a provider.
+func (r *Registry) BlockPeer(peerID peer.ID) bool {
+	return r.policy.Block(peerID)
 }
 
 // RegisterOrUpdate attempts to register an unregistered provider, or updates

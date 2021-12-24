@@ -99,18 +99,18 @@ func (c *Client) ImportFromCidList(ctx context.Context, fileName string, provID 
 	return nil
 }
 
-// Sync with a data provider up to latest ID.
-func (c *Client) Sync(ctx context.Context, provID peer.ID, provAddr multiaddr.Multiaddr) error {
+// Sync with a data peeer up to latest ID.
+func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr) error {
 	var data []byte
 	var err error
-	if provAddr != nil {
-		data, err = provAddr.MarshalJSON()
+	if peerAddr != nil {
+		data, err = peerAddr.MarshalJSON()
 		if err != nil {
 			return err
 		}
 	}
 
-	return c.ingestRequest(ctx, provID, "sync", http.MethodPost, data)
+	return c.ingestRequest(ctx, peerID, "sync", http.MethodPost, data)
 }
 
 // ReloadPolicy reloads the policy from the configuration file.
@@ -135,14 +135,16 @@ func (c *Client) ReloadPolicy(ctx context.Context) error {
 	return nil
 }
 
-// Allow configures the indexer to allow content from the provider.
-func (c *Client) Allow(ctx context.Context, provID peer.ID) error {
-	return c.ingestRequest(ctx, provID, "allow", http.MethodPut, nil)
+// Allow configures the indexer to allow the peer to publish messages and
+// provide content.
+func (c *Client) Allow(ctx context.Context, peerID peer.ID) error {
+	return c.ingestRequest(ctx, peerID, "allow", http.MethodPut, nil)
 }
 
-// Block configures indexer to block content from the provider.
-func (c *Client) Block(ctx context.Context, provID peer.ID) error {
-	return c.ingestRequest(ctx, provID, "block", http.MethodPut, nil)
+// Block configures indexer to block the peer from publishing messages and
+// providing content.
+func (c *Client) Block(ctx context.Context, peerID peer.ID) error {
+	return c.ingestRequest(ctx, peerID, "block", http.MethodPut, nil)
 }
 
 func (c *Client) ListLogSubSystems(ctx context.Context) ([]string, error) {
@@ -198,8 +200,8 @@ func (c *Client) SetLogLevels(ctx context.Context, sysLvl map[string]string) err
 	return nil
 }
 
-func (c *Client) ingestRequest(ctx context.Context, provID peer.ID, action, method string, data []byte) error {
-	u := c.baseURL + path.Join(ingestResource, action, provID.String())
+func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, method string, data []byte) error {
+	u := c.baseURL + path.Join(ingestResource, action, peerID.String())
 
 	var body io.Reader
 	if data != nil {

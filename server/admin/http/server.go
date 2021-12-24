@@ -64,9 +64,9 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 	r.HandleFunc("/healthcheck", h.healthCheckHandler).Methods(http.MethodGet)
 
 	// Ingester routes
-	r.HandleFunc("/ingest/allow/{provider}", h.allowProvider).Methods(http.MethodPut)
-	r.HandleFunc("/ingest/block/{provider}", h.blockProvider).Methods(http.MethodPut)
-	r.HandleFunc("/ingest/sync/{provider}", h.sync).Methods(http.MethodPost)
+	r.HandleFunc("/ingest/allow/{peer}", h.allowPeer).Methods(http.MethodPut)
+	r.HandleFunc("/ingest/block/{peer}", h.blockPeer).Methods(http.MethodPut)
+	r.HandleFunc("/ingest/sync/{peer}", h.sync).Methods(http.MethodPost)
 	r.HandleFunc("/ingest/reloadpolicy", h.reloadPolicy).Methods(http.MethodPost)
 
 	// Metrics routes

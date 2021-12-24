@@ -18,14 +18,14 @@ var sync = &cli.Command{
 
 var allow = &cli.Command{
 	Name:   "allow",
-	Usage:  "Allow advertisements from provider",
+	Usage:  "Allow advertisements and content from peer",
 	Flags:  ingestPolicyFlags,
 	Action: allowCmd,
 }
 
 var block = &cli.Command{
 	Name:   "block",
-	Usage:  "Block advertisements from provider",
+	Usage:  "Block advertisements and content from peer",
 	Flags:  ingestPolicyFlags,
 	Action: blockCmd,
 }
@@ -53,8 +53,7 @@ func syncCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	prov := cctx.String("provider")
-	p, err := peer.Decode(prov)
+	peerID, err := peer.Decode(cctx.String("peer"))
 	if err != nil {
 		return err
 	}
@@ -66,7 +65,7 @@ func syncCmd(cctx *cli.Context) error {
 			return err
 		}
 	}
-	err = cl.Sync(cctx.Context, p, addr)
+	err = cl.Sync(cctx.Context, peerID, addr)
 	if err != nil {
 		return err
 	}
@@ -79,16 +78,15 @@ func allowCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	prov := cctx.String("provider")
-	p, err := peer.Decode(prov)
+	peerID, err := peer.Decode(cctx.String("peer"))
 	if err != nil {
 		return err
 	}
-	err = cl.Allow(cctx.Context, p)
+	err = cl.Allow(cctx.Context, peerID)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Allowing content from provider", prov)
+	fmt.Println("Allowing advertisements and content from peer", peerID)
 	return nil
 }
 
@@ -97,16 +95,15 @@ func blockCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	prov := cctx.String("provider")
-	p, err := peer.Decode(prov)
+	peerID, err := peer.Decode(cctx.String("peer"))
 	if err != nil {
 		return err
 	}
-	err = cl.Block(cctx.Context, p)
+	err = cl.Block(cctx.Context, peerID)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Blocking content from provider", prov)
+	fmt.Println("Blocking advertisements and content from peer", peerID)
 	return nil
 }
 

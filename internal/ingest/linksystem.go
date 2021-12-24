@@ -61,10 +61,23 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 
 				// Verify that the signature is correct and the advertisement
 				// is valid.
-				ad, err := verifyAdvertisement(n)
+				ad, signerID, err := verifyAdvertisement(n)
 				if err != nil {
 					log.Errorf("Error verifying if node is of type advertisement: %s", err)
 					return err
+				}
+
+				// TODO: Need to check that the advertisement was signed by the
+				// correct peer ID.  Who should the advertisement be signed by:
+				// - The peer that published the advertisement?
+				// - The provider specidied by the advertisement?
+				// - Any allowed publisher or provider?
+				log.Infof("Advertisement signed by %s", signerID)
+				// For now check that the signer is any allowed publisher or provider.
+				allowed, _ := reg.Authorized(signerID)
+				if !allowed {
+					err = fmt.Errorf("advertisement signer %q not allowed by policy", signerID)
+					return syserr.New(err, http.StatusForbidden)
 				}
 
 				addrs, err := schema.IpldToGoStrings(ad.FieldAddresses())
@@ -128,19 +141,21 @@ func decodeAd(n ipld.Node) (schema.Advertisement, error) {
 	return nb.Build().(schema.Advertisement), nil
 }
 
-func verifyAdvertisement(n ipld.Node) (schema.Advertisement, error) {
+func verifyAdvertisement(n ipld.Node) (schema.Advertisement, peer.ID, error) {
 	ad, err := decodeAd(n)
 	if err != nil {
 		log.Errorf("Error decoding advertisement: %s", err)
-		return nil, err
+		return nil, peer.ID(""), err
 	}
 	// Verify advertisement signature
-	if err := schema.VerifyAdvertisement(ad); err != nil {
+	signerID, err := schema.VerifyAdvertisement(ad)
+	if err != nil {
 		// stop exchange, verification of signature failed.
 		log.Errorf("Signature verification failed for advertisement: %s", err)
-		return nil, err
+		return nil, peer.ID(""), err
 	}
-	return ad, nil
+
+	return ad, signerID, nil
 }
 
 // storageHook determines the logic to run when a new block is received through
@@ -155,8 +170,8 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, error) {
 // for an advertisement have been traversed and stored.  Now this hook is being
 // called for each entry in an advertisement's chain of entries.  Process the
 // entry and save all the multihashes in it as indexes in the indexer-core.
-func (ing *Ingester) storageHook(p peer.ID, c cid.Cid) {
-	log := log.With("peerID", p, "cid", c)
+func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
+	log := log.With("publisher", pubID, "cid", c)
 	log.Debug("Incoming block hook triggered")
 
 	// Get data corresponding to the block.
@@ -179,11 +194,11 @@ func (ing *Ingester) storageHook(p peer.ID, c cid.Cid) {
 
 		ad, err := decodeAd(node)
 		if err != nil {
-			log.Errorw("Error decoding advertosement", "err", err)
+			log.Errorw("Error decoding advertisement", "err", err)
 			return
 		}
 
-		go ing.syncAdEntries(p, ad, c)
+		go ing.syncAdEntries(pubID, ad, c)
 		return
 	}
 
@@ -201,7 +216,7 @@ func (ing *Ingester) storageHook(p peer.ID, c cid.Cid) {
 	log = log.With("adCid", adCid)
 
 	log.Infow("Indexing content in block")
-	err = ing.indexContentBlock(adCid, p, node)
+	err = ing.indexContentBlock(adCid, pubID, node)
 	if err != nil {
 		log.Errorw("Error processing entries for advertisement", "err", err)
 		return
@@ -251,7 +266,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 			prevCid = lnk.(cidlink.Link).Cid
 		}
 	}
-	// Singal this ad is busy and wait for any sync on the previous ad to
+	// Signal this ad is busy and wait for any sync on the previous ad to
 	// finish.  Signal this ad is done at function return.
 	unlock := ing.adLocks.lockWait(adCid, prevCid)
 	defer unlock()
@@ -271,7 +286,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 	if entriesCid == cid.Undef {
 		isRm, err := ad.FieldIsRm().AsBool()
 		if err != nil {
-			log.Error("Cannot read IsRm field", "err", err)
+			log.Errorw("Cannot read IsRm field", "err", err)
 			return
 		}
 		if !isRm {
@@ -297,7 +312,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 	log = log.With("entriesCid", entriesCid)
 	exists, err := ing.ds.Has(dsKey(entriesCid.String()))
 	if err != nil && err != datastore.ErrNotFound {
-		log.Errorw("Failed chekcing if entries exist", "err", err)
+		log.Errorw("Failed checking if entries exist", "err", err)
 	}
 	if exists {
 		log.Debugw("Entries already exist; skipping sync")
@@ -329,24 +344,27 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 // indexContentBlock indexes the content CIDs in a block of data.  First the
 // advertisement is loaded to get the context ID and metadata, and then that
 // and the CIDs in the content block are indexed by the indexer-core.
-func (ing *Ingester) indexContentBlock(adCid cid.Cid, p peer.ID, nentries ipld.Node) error {
+//
+// The pubID is the peer ID of the message publisher.  This is not necessarily
+// the same as the provider ID in the advertisement.  The publisher is the
+// source of the indexed content, the provider is where content can be
+// retrieved from.  It is the provider ID that needs to be stored by the
+// indexer.
+func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ipld.Node) error {
 	// Getting the advertisement for the entries so we know
 	// what metadata and related information we need to use for ingestion.
 	adb, err := ing.ds.Get(dsKey(adCid.String()))
 	if err != nil {
-		log.Errorw("Error while fetching advertisement for entry", "err", err)
-		return err
+		return fmt.Errorf("cannot read advertisement for entry from datastore: %s", err)
 	}
 	// Decode the advertisement.
 	adn, err := decodeIPLDNode(bytes.NewBuffer(adb))
 	if err != nil {
-		log.Errorf("Error decoding ipldNode: %s", err)
-		return err
+		return fmt.Errorf("cannot decode ipld node: %s", err)
 	}
 	ad, err := decodeAd(adn)
 	if err != nil {
-		log.Errorf("Error decoding advertisement: %s", err)
-		return err
+		return fmt.Errorf("cannot decode advertisement: %s", err)
 	}
 	// Fetch data of interest.
 	contextID, err := ad.FieldContextID().AsBytes()
@@ -361,28 +379,35 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, p peer.ID, nentries ipld.N
 	if err != nil {
 		return err
 	}
-	// NOTE: No need to get provider from the advertisement
-	// we have in the message source. We could add an additional
-	// check here if needed.
-	// provider, err := ad.FieldProvider().AsString()
+
+	// The peerID passed into the storage hook is the source of the
+	// advertisement, and not necessarily the same as the provider in the
+	// advertisement.  Read the provider from the advertisement to create the
+	// indexed value.
+	provider, err := ad.FieldProvider().AsString()
+	if err != nil {
+		return fmt.Errorf("cannot read provider from advertisement: %s", err)
+	}
+	providerID, err := peer.Decode(provider)
+	if err != nil {
+		return fmt.Errorf("cannot decode provider peer id: %s", err)
+	}
 
 	// Decode the list of cids into a List_String
 	nb := schema.Type.EntryChunk.NewBuilder()
 	err = nb.AssignNode(nentries)
 	if err != nil {
-		log.Errorf("Error decoding entries: %s", err)
-		return err
+		return fmt.Errorf("cannot decode entries: %s", err)
 	}
 
 	// Check for valid metadata
 	err = new(v0.Metadata).UnmarshalBinary(metadataBytes)
 	if err != nil {
-		log.Errorf("Error decoding metadata: %s", err)
-		return err
+		return fmt.Errorf("cannot decoding metadata: %s", err)
 	}
 
 	value := indexer.Value{
-		ProviderID:    p,
+		ProviderID:    providerID,
 		ContextID:     contextID,
 		MetadataBytes: metadataBytes,
 	}
@@ -402,9 +427,8 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, p peer.ID, nentries ipld.N
 		_, cnode, _ := cit.Next()
 		h, err := cnode.AsBytes()
 		if err != nil {
-			log.Errorf("Error decoding an entry from the ingestion list: %s", err)
 			close(mhChan)
-			return err
+			return fmt.Errorf("cannot decode an entry from the ingestion list: %s", err)
 		}
 
 		select {
@@ -516,12 +540,11 @@ func deleteCidToAdMapping(ds datastore.Batching, entries cid.Cid) error {
 	return ds.Delete(dsKey(admapPrefix + entries.String()))
 }
 
-// decodeIPLDNode from a reaed
-// This is used to get the ipld.Node from a set of raw bytes.
+// decodeIPLDNode decodes an ipld.Node from bytes read from an io.Reader.
 func decodeIPLDNode(r io.Reader) (ipld.Node, error) {
-	// NOTE: Considering using the schema prototypes.
-	// This was failing, using a map gives flexibility.
-	// Maybe is worth revisiting this again in the future.
+	// NOTE: Considering using the schema prototypes.  This was failing, using
+	// a map gives flexibility.  Maybe is worth revisiting this again in the
+	// future.
 	nb := basicnode.Prototype.Any.NewBuilder()
 	err := dagjson.Decode(nb, r)
 	if err != nil {
@@ -530,10 +553,9 @@ func decodeIPLDNode(r io.Reader) (ipld.Node, error) {
 	return nb.Build(), nil
 }
 
-// Checks if an IPLD node is an advertisement or
-// an index.
-// (We may need additional checks if we extend
-// the schema with new types that are traversable)
+// Checks if an IPLD node is an advertisement, by looking to see if it has a
+// "Signature" field.  We may need additional checks if we extend the schema
+// with new types that are traversable.
 func isAdvertisement(n ipld.Node) bool {
 	indexID, _ := n.LookupByString("Signature")
 	return indexID != nil

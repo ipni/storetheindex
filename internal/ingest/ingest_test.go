@@ -60,27 +60,28 @@ func TestSubscribe(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	// Test with two random advertisement publications.
-	_, mhs := publishRandomAdv(t, i, pubHost, pub, lsys, false)
-	// Check that the mhs have been indexed correctly.
-	checkMhsIndexedEventually(t, i.indexer, pubHost.ID(), mhs)
-	_, mhs = publishRandomAdv(t, i, pubHost, pub, lsys, false)
-	// Check that the mhs have been indexed correctly.
-	checkMhsIndexedEventually(t, i.indexer, pubHost.ID(), mhs)
+	_, mhs, providerID := publishRandomAdv(t, i, pubHost, pub, lsys, false)
 
-	// Test advertisement with fake signature
-	// of them.
-	_, mhs = publishRandomAdv(t, i, pubHost, pub, lsys, true)
+	// Check that the mhs have been indexed correctly.  Check providerID, not
+	// pupHost.ID(), since provider is what was put into advertisement.
+	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+	_, mhs, providerID = publishRandomAdv(t, i, pubHost, pub, lsys, false)
+	// Check that the mhs have been indexed correctly.
+	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+
+	// Test advertisement with fake signature of them.
+	_, mhs, _ = publishRandomAdv(t, i, pubHost, pub, lsys, true)
 	// No mhs should have been saved for related index
 	for x := range mhs {
 		_, b, _ := i.indexer.Get(mhs[x])
 		require.False(t, b)
 	}
 
-	reg.BlockProvider(pubHost.ID())
+	reg.BlockPeer(pubHost.ID())
 
-	// Check that no advertisement is retrieved from
-	// publisher once it is no longer allowed.
-	c, _ := publishRandomIndexAndAdv(t, pub, lsys, false)
+	// Check that no advertisement is retrieved from publisher once it is no
+	// longer allowed.
+	c, _, _ := publishRandomIndexAndAdv(t, pub, lsys, false)
 	adv, err := i.ds.Get(datastore.NewKey(c.String()))
 	require.Error(t, err, datastore.ErrNotFound)
 	require.Nil(t, adv)
@@ -96,7 +97,7 @@ func TestSync(t *testing.T) {
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	c1, mhs := publishRandomIndexAndAdv(t, pub, lsys, false)
+	c1, mhs, providerID := publishRandomIndexAndAdv(t, pub, lsys, false)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	// The explicit sync will happen concurrently with the sycn triggered by
@@ -114,7 +115,8 @@ func TestSync(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("sync timeout")
 	}
-	checkMhsIndexedEventually(t, i.indexer, pubHost.ID(), mhs)
+	// Checking providerID, since that was what was put in the advertisement, not pubhost.ID()
+	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
 }
 
 func TestMultiplePublishers(t *testing.T) {
@@ -138,12 +140,11 @@ func TestMultiplePublishers(t *testing.T) {
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
 	time.Sleep(2 * time.Second)
 
-	// Test with two random advertisement publications for each
-	// of them.
-	c1, mhs := publishRandomAdv(t, i, pubHost1, pub1, lsys1, false)
-	checkMhsIndexedEventually(t, i.indexer, pubHost1.ID(), mhs)
-	c2, mhs := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
-	checkMhsIndexedEventually(t, i.indexer, pubHost2.ID(), mhs)
+	// Test with two random advertisement publications for each of them.
+	c1, mhs, providerID := publishRandomAdv(t, i, pubHost1, pub1, lsys1, false)
+	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+	c2, mhs, providerID := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
+	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
 
 	lcid, err := i.getLatestSync(pubHost1.ID())
 	require.NoError(t, err)
@@ -254,7 +255,7 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 	return nextLnk, out
 }
 
-func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash) {
+func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash, peer.ID) {
 	mhs := util.RandomMultihashes(1)
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
@@ -275,7 +276,7 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSy
 	require.NoError(t, err)
 	err = pub.UpdateRoot(context.Background(), lnk.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	return lnk.(cidlink.Link).Cid, mhs
+	return lnk.(cidlink.Link).Cid, mhs, p
 }
 
 func checkMhsIndexedEventually(t *testing.T, ix *engine.Engine, p peer.ID, mhs []multihash.Multihash) {
@@ -303,8 +304,8 @@ func providesAll(t *testing.T, ix *engine.Engine, p peer.ID, mhs ...multihash.Mu
 	return true
 }
 
-func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash) {
-	c, mhs := publishRandomIndexAndAdv(t, pub, lsys, fakeSig)
+func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash, peer.ID) {
+	c, mhs, providerID := publishRandomIndexAndAdv(t, pub, lsys, fakeSig)
 
 	if !fakeSig {
 		requireTrueEventually(t, func() bool {
@@ -330,7 +331,7 @@ func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Pub
 	if !fakeSig {
 		require.Equal(t, lcid, c)
 	}
-	return c, mhs
+	return c, mhs, providerID
 }
 
 func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Duration, timeout time.Duration, msgAndArgs ...interface{}) {

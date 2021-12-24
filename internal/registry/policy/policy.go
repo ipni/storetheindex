@@ -30,51 +30,51 @@ func New(cfg config.Policy) (*Policy, error) {
 	return policy, nil
 }
 
-// Allowed returns true if the policy allows the provider to index content.
-// This check does not check whether the provider is trusted. An allowed
-// provider must still be verified.
-func (p *Policy) Allowed(providerID peer.ID) bool {
+// Allowed returns true if the policy allows the peer to index content.  This
+// check does not check whether the peer is trusted. An allowed peer must still
+// be verified.
+func (p *Policy) Allowed(peerID peer.ID) bool {
 	p.rwmutex.RLock()
 	defer p.rwmutex.RUnlock()
-	return p.allowed(providerID)
+	return p.allowed(peerID)
 }
 
-func (p *Policy) allowed(providerID peer.ID) bool {
-	_, ok := p.except[providerID]
+func (p *Policy) allowed(peerID peer.ID) bool {
+	_, ok := p.except[peerID]
 	if p.allow {
 		return !ok
 	}
 	return ok
 }
 
-// Trusted returns true if the provider is explicitly trusted.  A trusted
-// provider is allowed to register without requiring verification.
-func (p *Policy) Trusted(providerID peer.ID) bool {
+// Trusted returns true if the peer is explicitly trusted.  A trusted peer is
+// allowed to register without requiring verification.
+func (p *Policy) Trusted(peerID peer.ID) bool {
 	p.rwmutex.RLock()
 	defer p.rwmutex.RUnlock()
-	return p.trusted(providerID)
+	return p.trusted(peerID)
 }
 
-func (p *Policy) trusted(providerID peer.ID) bool {
-	_, ok := p.trustExcept[providerID]
+func (p *Policy) trusted(peerID peer.ID) bool {
+	_, ok := p.trustExcept[peerID]
 	if p.trust {
 		return !ok
 	}
 	return ok
 }
 
-// Check returns whether the two bool values. The fisrt is true if the peer is
+// Check returns whether the two bool values.  The fisrt is true if the peer is
 // allowed.  The second is true if the peer is allowed and is trusted (does not
 // require verification).
-func (p *Policy) Check(providerID peer.ID) (bool, bool) {
+func (p *Policy) Check(peerID peer.ID) (bool, bool) {
 	p.rwmutex.RLock()
 	defer p.rwmutex.RUnlock()
 
-	if !p.allowed(providerID) {
+	if !p.allowed(peerID) {
 		return false, false
 	}
 
-	if !p.trusted(providerID) {
+	if !p.trusted(peerID) {
 		return true, false
 	}
 
@@ -83,7 +83,7 @@ func (p *Policy) Check(providerID peer.ID) (bool, bool) {
 
 // Allow alters the policy to allow the specified peer.  Returns true if the
 // policy needed to be updated.
-func (p *Policy) Allow(providerID peer.ID) bool {
+func (p *Policy) Allow(peerID peer.ID) bool {
 	p.rwmutex.Lock()
 	defer p.rwmutex.Unlock()
 
@@ -91,7 +91,7 @@ func (p *Policy) Allow(providerID peer.ID) bool {
 	if p.allow {
 		if len(p.except) != 0 {
 			prevLen := len(p.except)
-			delete(p.except, providerID)
+			delete(p.except, peerID)
 			updated = len(p.except) != prevLen
 		}
 	} else {
@@ -99,16 +99,16 @@ func (p *Policy) Allow(providerID peer.ID) bool {
 			p.except = make(map[peer.ID]struct{})
 		}
 		prevLen := len(p.except)
-		p.except[providerID] = struct{}{}
+		p.except[peerID] = struct{}{}
 		updated = len(p.except) != prevLen
 	}
 
 	return updated
 }
 
-// Block alters the policy to not allow the specified peer.  Returns true if the
-// policy needed to be updated.
-func (p *Policy) Block(providerID peer.ID) bool {
+// Block alters the policy to not allow the specified peer.  Returns true if
+// the policy needed to be updated.
+func (p *Policy) Block(peerID peer.ID) bool {
 	p.rwmutex.Lock()
 	defer p.rwmutex.Unlock()
 
@@ -118,11 +118,11 @@ func (p *Policy) Block(providerID peer.ID) bool {
 			p.except = make(map[peer.ID]struct{})
 		}
 		prevLen := len(p.except)
-		p.except[providerID] = struct{}{}
+		p.except[peerID] = struct{}{}
 		updated = len(p.except) != prevLen
 	} else if len(p.except) != 0 {
 		prevLen := len(p.except)
-		delete(p.except, providerID)
+		delete(p.except, peerID)
 		updated = len(p.except) != prevLen
 	}
 
@@ -145,7 +145,7 @@ func (p *Policy) Config(cfg config.Policy) error {
 
 	// Error if no peers are allowed
 	if !p.allow && len(p.except) == 0 {
-		return errors.New("policy does not allow any providers")
+		return errors.New("policy does not allow any peers")
 	}
 
 	p.trustExcept, err = getExceptPeerIDs(cfg.TrustExcept)
