@@ -47,9 +47,13 @@ type Ingester struct {
 	cancelSyncFin context.CancelFunc
 	syncTimeout   time.Duration
 	adLocks       *lockChain
+	watchDone     chan struct{}
 }
 
-// NewIngester creates a new go-legs-backed ingester.
+// NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
+// communication with providers.
+//
+// The context is only used for cancellation of this function.
 func NewIngester(ctx context.Context, cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
 	lsys := mkLinkSystem(ds, reg)
 
@@ -71,11 +75,12 @@ func NewIngester(ctx context.Context, cfg config.Ingest, h host.Host, idxr *inde
 		sigUpdate:   make(chan struct{}, 1),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		adLocks:     newLockChain(),
+		watchDone:   make(chan struct{}),
 	}
 
 	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Authorized), legs.BlockHook(ing.storageHook))
 	if err != nil {
-		log.Errorf("Failed to state LegTransport in ingester: %s", err)
+		log.Errorw("Failed to start leg.Subscriber", "err", err)
 		return nil, err
 	}
 	ing.sub = sub
@@ -100,6 +105,7 @@ func NewIngester(ctx context.Context, cfg config.Ingest, h host.Host, idxr *inde
 
 func (ing *Ingester) Close() error {
 	ing.cancelSyncFin()
+	<-ing.watchDone
 
 	// Close leg transport.
 	err := ing.sub.Close()
@@ -113,7 +119,7 @@ func (ing *Ingester) Close() error {
 // in each advertisement are synced and the multihashes in each entry are
 // indexed.
 //
-// The Context that is passes in controlls the lifetime of the sync.  Canceling
+// The Context that is passes in controls the lifetime of the sync.  Canceling
 // it will cancel the sync and cause the multihash channel to close without any
 // data.
 //
@@ -167,9 +173,10 @@ func (ing *Ingester) watchSyncFinished(onSyncFin <-chan legs.SyncFinished) {
 
 		ing.signalMetricsUpdate()
 	}
+	close(ing.watchDone)
 }
 
-// signalMetricsUpdate signal that metrics should be updated.
+// signalMetricsUpdate signals that metrics should be updated.
 func (ing *Ingester) signalMetricsUpdate() {
 	select {
 	case ing.sigUpdate <- struct{}{}:
@@ -255,7 +262,7 @@ func (ing *Ingester) restoreLatestSync(ctx context.Context) error {
 	return nil
 }
 
-// Get the latest cid synced for the peer.
+// Get the latest CID synced for the peer.
 func (ing *Ingester) getLatestSync(peerID peer.ID) (cid.Cid, error) {
 	b, err := ing.ds.Get(datastore.NewKey(syncPrefix + peerID.String()))
 	if err != nil {
