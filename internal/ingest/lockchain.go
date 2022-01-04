@@ -8,8 +8,8 @@ import (
 )
 
 // lockChain orders the processing of items on a linked list so that they are
-// run in the order that the items occur in the list, when the items processed
-// by concurrent goroutines.
+// run in the order that the items occur in the list, when the items are
+// processed by concurrent goroutines.
 type lockChain struct {
 	mutex     sync.Mutex
 	linkLocks map[cid.Cid]chan struct{}
@@ -31,8 +31,9 @@ func (lc *lockChain) lockWait(curCid, prevCid cid.Cid) context.CancelFunc {
 	var prevChan chan struct{}
 	var prevLocked bool
 
-	// Wait if the current CID is already busy. This can happen when two syncs for the
-	// same content are happening concurrently.  Make one sync wait for the other.
+	// Wait if the current CID is already busy. This can happen when two syncs
+	// for the same content are happening concurrently.  Make one sync wait for
+	// the other.
 	for {
 		lc.mutex.Lock()
 		curChan, curLocked := lc.linkLocks[curCid]

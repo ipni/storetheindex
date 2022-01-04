@@ -10,8 +10,8 @@ type Ingest struct {
 	// store.  Specifying a value less than 2 disables batching.
 	StoreBatchSize int
 	// SyncTimeout is the maximum amount of time allowed for a sync to complete
-	// before it is canceled. This can be a sync of a chain od advertisements
-	// or a chain of advertisement entries.  Values are an integer string
+	// before it is canceled. This can be a sync of a chain of advertisements
+	// or a chain of advertisement entries.  The value is an integer string
 	// ending in "s", "m", "h" for seconds. minutes, hours.
 	SyncTimeout Duration
 }

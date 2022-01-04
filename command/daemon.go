@@ -194,7 +194,7 @@ func daemonCommand(cctx *cli.Context) error {
 		p2pingestserver.New(ctx, p2pHost, indexerCore, reg)
 
 		// Initialize ingester.
-		ingester, err = legingest.NewIngester(cctx.Context, cfg.Ingest, p2pHost, indexerCore, reg, dstore)
+		ingester, err = legingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore)
 		if err != nil {
 			return err
 		}

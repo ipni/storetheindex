@@ -67,27 +67,7 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 					return err
 				}
 
-				// TODO: Need to check that the advertisement was signed by the
-				// correct peer ID.  Who should the advertisement be signed by:
-				// - The peer that published the advertisement?
-				// - The provider specidied by the advertisement?
-				// - Any allowed publisher or provider?
-				log.Infof("Advertisement signed by %s", signerID)
-				// For now check that the signer is any allowed publisher or provider.
-				allowed, _ := reg.Authorized(signerID)
-				if !allowed {
-					err = fmt.Errorf("advertisement signer %q not allowed by policy", signerID)
-					return syserr.New(err, http.StatusForbidden)
-				}
-
-				addrs, err := schema.IpldToGoStrings(ad.FieldAddresses())
-				if err != nil {
-					log.Error("Could not get addresses from advertisement")
-					return syserr.New(err, http.StatusBadRequest)
-				}
-
-				// Register or update provider info with addresses from
-				// advertisement.
+				// Get provider ID from advertisement.
 				provider, err := ad.FieldProvider().AsString()
 				if err != nil {
 					log.Errorf("Could not get provider from advertisement: %s", err)
@@ -98,6 +78,29 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 					log.Errorf("Could not decode advertisement provider ID: %s", err)
 					return syserr.New(err, http.StatusBadRequest)
 				}
+
+				// Verify that the advertised provider has signed, and
+				// therefore approved, the advertisement regardless of who
+				// published the advertisement.
+				if signerID != provID {
+					// TODO: Have policy that allows a signer (publisher) to
+					// sign advertisements for certain providers.  This will
+					// allow that signer to add, update, and delete indexed
+					// content on behalf of those providers.
+					log.Errorw("Advertisement not signed by provider", "provider", provID, "signer", signerID)
+					return syserr.New(err, http.StatusForbidden)
+				}
+
+				log.Infow("Advertisement signature is valid", "provider", provID)
+
+				addrs, err := schema.IpldToGoStrings(ad.FieldAddresses())
+				if err != nil {
+					log.Error("Could not get addresses from advertisement")
+					return syserr.New(err, http.StatusBadRequest)
+				}
+
+				// Register provider or update existing registration.  The
+				// provider must be allowed by policy to be registered.
 				err = reg.RegisterOrUpdate(provID, addrs, c)
 				if err != nil {
 					return err
@@ -280,9 +283,10 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 
 	log.Infow("Syncing content blocks for advertisement")
 
-	// If advertisement is for removal of everything for a context ID, it will
-	// not have any entries.  In that case, remove everything from the
-	// indexer-core with the contextID from this advertisement.
+	// If advertisement is for removal of everything identified by context ID,
+	// then the advertisement will not have any entries.  In that case, remove
+	// everything from the indexer-core with the contextID from this
+	// advertisement.
 	if entriesCid == cid.Undef {
 		isRm, err := ad.FieldIsRm().AsBool()
 		if err != nil {
@@ -381,9 +385,9 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 	}
 
 	// The peerID passed into the storage hook is the source of the
-	// advertisement, and not necessarily the same as the provider in the
-	// advertisement.  Read the provider from the advertisement to create the
-	// indexed value.
+	// advertisement (the publisher), and not necessarily the same as the
+	// provider in the advertisement.  Read the provider from the advertisement
+	// to create the indexed value.
 	provider, err := ad.FieldProvider().AsString()
 	if err != nil {
 		return fmt.Errorf("cannot read provider from advertisement: %s", err)
@@ -413,15 +417,14 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 	}
 
 	mhChan := make(chan multihash.Multihash, ing.batchSize)
-	// TODO: Once we change the syncing process, there may never be a need
-	// to remove individual entries, and only a need remove all entries for
-	// the context ID in the advertisement.  For now, handle both cases.
+	// The isRm parameter is passed in for an advertisement that contains
+	// entries, to allow for removal of individual entries.
 	errChan := ing.batchIndexerEntries(mhChan, value, isRm)
 
 	var count int
 	nchunk := nb.Build().(schema.EntryChunk)
 	entries := nchunk.FieldEntries()
-	// Iterate over all entries and ingest them
+	// Iterate over all entries and ingest (or remove) them.
 	cit := entries.ListIterator()
 	for !cit.Done() {
 		_, cnode, _ := cit.Next()

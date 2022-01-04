@@ -52,9 +52,7 @@ type Ingester struct {
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
 // communication with providers.
-//
-// The context is only used for cancellation of this function.
-func NewIngester(ctx context.Context, cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
+func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
 	lsys := mkLinkSystem(ds, reg)
 
 	// Construct a selector that recursively looks for nodes with field
@@ -85,7 +83,7 @@ func NewIngester(ctx context.Context, cfg config.Ingest, h host.Host, idxr *inde
 	}
 	ing.sub = sub
 
-	err = ing.restoreLatestSync(ctx)
+	err = ing.restoreLatestSync()
 	if err != nil {
 		sub.Close()
 		return nil, err
@@ -113,15 +111,13 @@ func (ing *Ingester) Close() error {
 	return err
 }
 
-// Sync syncs the latest advertisement from the provider.  This is done by
-// first fetching the latest advertisement ID from the provider and traversing
-// it until traversal gets to the last seen advertisement.  Then then entries
-// in each advertisement are synced and the multihashes in each entry are
-// indexed.
+// Sync syncs the latest advertisement from a publisher.  This is done by first
+// fetching the latest advertisement ID from and traversing it until traversal
+// gets to the last seen advertisement.  Then the entries in each advertisement
+// are synced and the multihashes in each entry are indexed.
 //
-// The Context that is passes in controls the lifetime of the sync.  Canceling
-// it will cancel the sync and cause the multihash channel to close without any
-// data.
+// The Context argument controls the lifetime of the sync.  Canceling it
+// cancels the sync and causes the multihash channel to close without any data.
 //
 // Note that the multihash entries corresponding to the advertisement are
 // synced in the background.  The completion of advertisement sync does not
@@ -135,10 +131,12 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	go func() {
 		defer close(out)
 
-		// Start syncing. Notifications for the finished sync will be done
-		// asynchronously.  Sync with cid.Undef and nil selector so that:
-		//   1. the latest head is queried by go-legs via head-publisher
-		//   2. the default selector is used where traversal stops at the
+		// Start syncing. Notifications for the finished sync are sent
+		// asynchronously.  Sync with cid.Undef and a nil selector so that:
+		//
+		//   1. The latest head is queried by go-legs via head-publisher.
+		//
+		//   2. The default selector is used where traversal stops at the
 		//      latest known head.
 		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, nil, peerAddr)
 		if err != nil {
@@ -216,7 +214,7 @@ func (ing *Ingester) metricsUpdater() {
 
 // restoreLatestSync reads the latest sync for each previously synced provider,
 // from the datastore, and sets this in the Subscriber.
-func (ing *Ingester) restoreLatestSync(ctx context.Context) error {
+func (ing *Ingester) restoreLatestSync() error {
 	// Load all pins from the datastore.
 	q := query.Query{
 		Prefix: syncPrefix,
@@ -229,9 +227,6 @@ func (ing *Ingester) restoreLatestSync(ctx context.Context) error {
 
 	var count int
 	for r := range results.Next() {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
 		if r.Error != nil {
 			return fmt.Errorf("cannot read latest syncs: %w", r.Error)
 		}

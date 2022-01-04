@@ -240,7 +240,7 @@ func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.
 func mkIngest(t *testing.T, h host.Host) (*Ingester, *registry.Registry) {
 	store := dssync.MutexWrap(datastore.NewMapDatastore())
 	reg := mkRegistry(t)
-	ing, err := NewIngester(context.Background(), ingestCfg, h, mkIndexer(t, true), reg, store)
+	ing, err := NewIngester(ingestCfg, h, mkIndexer(t, true), reg, store)
 	require.NoError(t, err)
 	return ing, reg
 }
@@ -270,9 +270,12 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 
 func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash, peer.ID) {
 	mhs := util.RandomMultihashes(1)
-	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	priv, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
-	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
+
+	p, err := peer.IDFromPublicKey(pubKey)
+	require.NoError(t, err)
+
 	ctxID := []byte("test-context-id")
 	metadata := v0.Metadata{
 		ProtocolID: testProtocolID,
