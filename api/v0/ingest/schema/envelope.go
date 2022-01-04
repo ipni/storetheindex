@@ -103,11 +103,11 @@ func signAdvertisement(privkey crypto.PrivKey, ad Advertisement) ([]byte, error)
 	if err != nil {
 		return nil, err
 	}
-	env, err := record.Seal(&advSignatureRecord{advID: advID}, privkey)
+	envelope, err := record.Seal(&advSignatureRecord{advID: advID}, privkey)
 	if err != nil {
 		return nil, err
 	}
-	return env.Marshal()
+	return envelope.Marshal()
 }
 
 // VerifyAdvertisement verifies that the advertisement has been signed and
@@ -131,7 +131,7 @@ func VerifyAdvertisement(ad Advertisement) (peer.ID, error) {
 
 	// Consume envelope
 	rec := &advSignatureRecord{}
-	env, err := record.ConsumeTypedEnvelope(sig, rec)
+	envelope, err := record.ConsumeTypedEnvelope(sig, rec)
 	if err != nil {
 		return peer.ID(""), err
 	}
@@ -139,7 +139,7 @@ func VerifyAdvertisement(ad Advertisement) (peer.ID, error) {
 		return peer.ID(""), errors.New("envelope signed with the wrong ID")
 	}
 
-	signerID, err := peer.IDFromPublicKey(env.PublicKey)
+	signerID, err := peer.IDFromPublicKey(envelope.PublicKey)
 	if err != nil {
 		return peer.ID(""), fmt.Errorf("cannot convert public key to peer ID: %s", err)
 	}

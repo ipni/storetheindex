@@ -37,6 +37,7 @@ func (lc *lockChain) lockWait(prevCid, curCid cid.Cid) (<-chan struct{}, context
 	}
 	newChan := make(chan struct{})
 	var prevChan chan struct{}
+	var prevLocked bool
 	var unlockFunc context.CancelFunc
 
 	// Wait if the current CID is already busy. This can happen when two syncs
@@ -65,11 +66,11 @@ func (lc *lockChain) lockWait(prevCid, curCid cid.Cid) (<-chan struct{}, context
 
 	if prevCid != cid.Undef {
 		// Lookup the previous wait channel.
-		prevChan = lc.linkLocks[prevCid]
+		prevChan, prevLocked = lc.linkLocks[prevCid]
 	}
 	lc.mutex.Unlock()
 
-	if prevChan == nil {
+	if !prevLocked {
 		prevChan = closedchan
 	}
 
