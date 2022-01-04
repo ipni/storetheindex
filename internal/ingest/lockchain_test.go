@@ -1,17 +1,16 @@
 package ingest
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/ipfs/go-cid"
 )
 
 func TestLockChain(t *testing.T) {
-	mutex := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
 	wg.Add(5)
 	runList := make([]int, 0, 5)
@@ -30,68 +29,75 @@ func TestLockChain(t *testing.T) {
 
 	lc := newLockChain()
 
-	go func() {
-		unlock := lc.lockWait(cid.Undef, cids[0])
+	w, u, err := lc.lockWait(cid.Undef, cids[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func(wait <-chan struct{}, unlock context.CancelFunc) {
+		<-start
+		<-wait
 		defer unlock()
 
-		mutex.Lock()
-		defer mutex.Unlock()
-
-		<-start
-
+		// No mutext around runList, since wait() should serialize access.
 		runList = append(runList, 1)
 		wg.Done()
-	}()
+	}(w, u)
 
-	time.Sleep(250 * time.Millisecond)
-	go func() {
-		unlock := lc.lockWait(cids[1], cids[0])
+	w, u, err = lc.lockWait(cids[0], cids[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func(wait <-chan struct{}, unlock context.CancelFunc) {
+		<-wait
 		defer unlock()
 
-		mutex.Lock()
-		defer mutex.Unlock()
 		runList = append(runList, 2)
 		wg.Done()
-	}()
+	}(w, u)
 
-	time.Sleep(250 * time.Millisecond)
-	go func() {
-		unlock := lc.lockWait(cids[2], cids[1])
+	w, u, err = lc.lockWait(cids[1], cids[2])
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func(wait <-chan struct{}, unlock context.CancelFunc) {
+		<-wait
 		defer unlock()
 
 		runList = append(runList, 3)
 		wg.Done()
-	}()
+	}(w, u)
 
-	time.Sleep(250 * time.Millisecond)
-	go func() {
-		unlock := lc.lockWait(cids[3], cids[2])
+	w, u, err = lc.lockWait(cids[2], cids[3])
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func(wait <-chan struct{}, unlock context.CancelFunc) {
+		<-wait
 		defer unlock()
 
-		mutex.Lock()
-		defer mutex.Unlock()
 		runList = append(runList, 4)
 		wg.Done()
-	}()
+	}(w, u)
 
-	time.Sleep(250 * time.Millisecond)
 	ready := make(chan struct{})
-	go func() {
+	w, u, err = lc.lockWait(cids[3], cids[4])
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func(wait <-chan struct{}, unlock context.CancelFunc) {
 		close(ready)
-		unlock := lc.lockWait(cids[4], cids[3])
+		<-wait
 		defer unlock()
 
-		mutex.Lock()
-		defer mutex.Unlock()
 		runList = append(runList, 5)
 		wg.Done()
-	}()
+	}(w, u)
 
 	<-ready
 	close(start)
 	wg.Wait()
 	if !sort.IsSorted(sort.IntSlice(runList)) {
-		t.Fatal("goroutines did not run in order")
+		t.Fatal("goroutines did not run in order", runList)
 	}
 	fmt.Println("done")
 }

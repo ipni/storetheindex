@@ -2,10 +2,18 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/ipfs/go-cid"
 )
+
+// closedchan is a reusable closed channel.
+var closedchan = make(chan struct{})
+
+func init() {
+	close(closedchan)
+}
 
 // lockChain orders the processing of items on a linked list so that they are
 // run in the order that the items occur in the list, when the items are
@@ -21,46 +29,50 @@ func newLockChain() *lockChain {
 	}
 }
 
-// lockWait locks the current CID then waits for the previous CID to unlock.
-// Then a function is returned that unlocks the current CID.
-func (lc *lockChain) lockWait(curCid, prevCid cid.Cid) context.CancelFunc {
+// lockWait locks the current CID and returns a channel to wait for the previous CID to unlock.
+// A function is also returned that unlocks the current CID.
+func (lc *lockChain) lockWait(prevCid, curCid cid.Cid) (<-chan struct{}, context.CancelFunc, error) {
 	if prevCid == curCid {
 		panic("previous and current CIDs cannot be equal")
 	}
 	newChan := make(chan struct{})
 	var prevChan chan struct{}
-	var prevLocked bool
+	var unlockFunc context.CancelFunc
 
 	// Wait if the current CID is already busy. This can happen when two syncs
 	// for the same content are happening concurrently.  Make one sync wait for
 	// the other.
-	for {
-		lc.mutex.Lock()
-		curChan, curLocked := lc.linkLocks[curCid]
-		if !curLocked {
-			break
+	lc.mutex.Lock()
+	if curCid != cid.Undef {
+		_, curLocked := lc.linkLocks[curCid]
+		if curLocked {
+			lc.mutex.Unlock()
+			return nil, nil, errors.New("already locked")
 		}
-		lc.mutex.Unlock()
-		<-curChan
+
+		// Add wait channel for the current CID.
+		lc.linkLocks[curCid] = newChan
+
+		unlockFunc = func() {
+			close(newChan)
+			lc.mutex.Lock()
+			delete(lc.linkLocks, curCid)
+			lc.mutex.Unlock()
+		}
+	} else {
+		unlockFunc = func() {}
 	}
 
-	// Add the new current chan and look up the previous channel.
-	lc.linkLocks[curCid] = newChan
 	if prevCid != cid.Undef {
-		prevChan, prevLocked = lc.linkLocks[prevCid]
+		// Lookup the previous wait channel.
+		prevChan = lc.linkLocks[prevCid]
 	}
 	lc.mutex.Unlock()
 
-	// Wait for previous CID channel, if there is one.
-	if prevLocked {
-		<-prevChan
+	if prevChan == nil {
+		prevChan = closedchan
 	}
 
-	// Return a function to unlock the current CID.
-	return func() {
-		close(newChan)
-		lc.mutex.Lock()
-		delete(lc.linkLocks, curCid)
-		lc.mutex.Unlock()
-	}
+	// Return wait channel and function to unlock the current CID.
+	return prevChan, unlockFunc, nil
 }

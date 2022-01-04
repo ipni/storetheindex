@@ -174,7 +174,7 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, peer.ID, error) {
 // called for each entry in an advertisement's chain of entries.  Process the
 // entry and save all the multihashes in it as indexes in the indexer-core.
 func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
-	log := log.With("publisher", pubID, "cid", c)
+	log := log.With("publisher", pubID, "adCid", c)
 	log.Debug("Incoming block hook triggered")
 
 	// Get data corresponding to the block.
@@ -201,7 +201,35 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 			return
 		}
 
-		go ing.syncAdEntries(pubID, ad, c)
+		// It is possible that entries for a previous advertisement are still being
+		// synced, and the current advertisement deletes those entries or updates
+		// the metadata.  The delete or update does not need to wait on a sync, and
+		// so may be done before the previous advertisement is finished syncing.
+		// The continued sync of the previous advertisement could undo the delete
+		// or update.
+		//
+		// Therefore it is necessary to ensure the ad syncs execute in the order
+		// that the advertisements occur on their chain.  This is done using a
+		// lockChain to lock the current advertisement and wait for the previous
+		// advertisement to finish being processed and unlock.
+		var prevCid cid.Cid
+		if ad.FieldPreviousID().Exists() {
+			lnk, err := ad.FieldPreviousID().Must().AsLink()
+			if err != nil {
+				log.Errorw("Cannot read previous link from advertisement", "err", err)
+			} else {
+				prevCid = lnk.(cidlink.Link).Cid
+			}
+		}
+		// Signal this ad is busy and wait for any sync on the previous ad to
+		// finish.  Signal this ad is done at function return.
+		prevWait, unlock, err := ing.adLocks.lockWait(prevCid, c)
+		if err != nil {
+			log.Error("Advertisement already being synced")
+			return
+		}
+
+		go ing.syncAdEntries(pubID, ad, c, prevWait, unlock)
 		return
 	}
 
@@ -246,33 +274,11 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 }
 
 // syncAdEntries fetches all the entries for a single advertisement
-func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid cid.Cid) {
-	log := log.With("provider", from, "adCid", adCid)
-
-	// It is possible that entries for a previous advertisement are still being
-	// synced, and the current advertisement deletes those entries or updates
-	// the metadata.  The delete or update does not need to wait on a sync, and
-	// so may be done before the previous advertisement is finished syncing.
-	// The continued sync of the previous advertisement could undo the delete
-	// or update.
-	//
-	// Therefore it is necessary to ensure the ad syncs execute in the order
-	// that the advertisements occur on their chain.  This is done using a
-	// lockChain to lock the current advertisement and wait for the previous
-	// advertisement to finish being processed and unlock.
-	var prevCid cid.Cid
-	if ad.FieldPreviousID().Exists() {
-		lnk, err := ad.FieldPreviousID().Must().AsLink()
-		if err != nil {
-			log.Errorw("Cannot read previous link from advertisement", "err", err)
-		} else {
-			prevCid = lnk.(cidlink.Link).Cid
-		}
-	}
-	// Signal this ad is busy and wait for any sync on the previous ad to
-	// finish.  Signal this ad is done at function return.
-	unlock := ing.adLocks.lockWait(adCid, prevCid)
+func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid cid.Cid, prevWait <-chan struct{}, unlock context.CancelFunc) {
+	<-prevWait
 	defer unlock()
+
+	log := log.With("publisher", from, "adCid", adCid)
 
 	elink, err := ad.FieldEntries().AsLink()
 	if err != nil {
