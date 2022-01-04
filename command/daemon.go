@@ -27,7 +27,6 @@ import (
 	"github.com/ipfs/go-ipfs/core/bootstrap"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/urfave/cli/v2"
@@ -130,7 +129,7 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create registry
-	registry, err := registry.NewRegistry(cfg.Discovery, dstore, lotusDiscoverer)
+	reg, err := registry.NewRegistry(cfg.Discovery, dstore, lotusDiscoverer)
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}
@@ -144,7 +143,7 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	finderSvr, err := httpfinderserver.New(finderAddr.String(), indexerCore, registry)
+	finderSvr, err := httpfinderserver.New(finderAddr.String(), indexerCore, reg)
 	if err != nil {
 		return err
 	}
@@ -158,15 +157,14 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	ingestSvr, err := httpingestserver.New(ingestAddr.String(), indexerCore, registry)
+	ingestSvr, err := httpingestserver.New(ingestAddr.String(), indexerCore, reg)
 	if err != nil {
 		return err
 	}
 
 	var (
 		cancelP2pServers context.CancelFunc
-		ingester         legingest.LegIngester
-		ingestCancel     context.CancelFunc
+		ingester         *legingest.Ingester
 	)
 	// Create libp2p host and servers
 	if !cfg.Addresses.DisableP2P && !cctx.Bool("nop2p") {
@@ -192,31 +190,13 @@ func daemonCommand(cctx *cli.Context) error {
 			return err
 		}
 
-		p2pfinderserver.New(ctx, p2pHost, indexerCore, registry)
-		p2pingestserver.New(ctx, p2pHost, indexerCore, registry)
+		p2pfinderserver.New(ctx, p2pHost, indexerCore, reg)
+		p2pingestserver.New(ctx, p2pHost, indexerCore, reg)
 
 		// Initialize ingester.
-		var ingestCtx context.Context
-		ingestCtx, ingestCancel = context.WithCancel(context.Background())
-		defer ingestCancel()
-		ingester, err = legingest.NewLegIngester(ingestCtx, cfg.Ingest, p2pHost, indexerCore, registry, dstore)
+		ingester, err = legingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore)
 		if err != nil {
 			return err
-		}
-
-		// Allow listed peers to be pubsub message originators.
-		//
-		// TODO: This is temporary until go-legs can automatically allow peers
-		// based on the indexer's allow/deny policy.
-		for _, pubSubPeer := range cfg.Ingest.PubSubPeers {
-			peerID, err := peer.Decode(pubSubPeer)
-			if err != nil {
-				return fmt.Errorf("bad PubSubPeer in config: %s", err)
-			}
-			err = ingester.Subscribe(context.Background(), peerID)
-			if err != nil {
-				log.Errorf("Cannot subscribe to provider", "err", err)
-			}
 		}
 
 		// If there are bootstrap peers and bootstrapping is enabled, then try to
@@ -251,7 +231,7 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	adminSvr, err := httpadminserver.New(cctx.Context, adminAddr.String(), indexerCore, ingester)
+	adminSvr, err := httpadminserver.New(adminAddr.String(), indexerCore, ingester, reg)
 	if err != nil {
 		return err
 	}
@@ -291,9 +271,6 @@ func daemonCommand(cctx *cli.Context) error {
 	go func() {
 		// Wait for context to be canceled.  If timeout, then exit with error.
 		<-ctx.Done()
-		if ingestCancel != nil {
-			ingestCancel()
-		}
 		if ctx.Err() == context.DeadlineExceeded {
 			fmt.Println("Timed out on shutdown, terminating...")
 			os.Exit(-1)
@@ -319,7 +296,7 @@ func daemonCommand(cctx *cli.Context) error {
 
 	// If ingester set, close ingester
 	if ingester != nil {
-		if err = ingester.Close(ctx); err != nil {
+		if err = ingester.Close(); err != nil {
 			log.Errorw("Error closing ingester", "err", err)
 			finalErr = ErrDaemonStop
 		}

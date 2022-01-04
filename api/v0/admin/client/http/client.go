@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/httpclient"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 )
 
 var log = logging.Logger("adminhttpclient")
@@ -98,19 +99,52 @@ func (c *Client) ImportFromCidList(ctx context.Context, fileName string, provID 
 	return nil
 }
 
-// Sync with a data provider up to latest ID.
-func (c *Client) Sync(ctx context.Context, provID peer.ID) error {
-	return c.ingestRequest(ctx, provID, "sync")
+// Sync with a data peeer up to latest ID.
+func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr) error {
+	var data []byte
+	var err error
+	if peerAddr != nil {
+		data, err = peerAddr.MarshalJSON()
+		if err != nil {
+			return err
+		}
+	}
+
+	return c.ingestRequest(ctx, peerID, "sync", http.MethodPost, data)
 }
 
-// Subscribe to advertisements of a specific provider in the pubsub channel
-func (c *Client) Subscribe(ctx context.Context, provID peer.ID) error {
-	return c.ingestRequest(ctx, provID, "subscribe")
+// ReloadPolicy reloads the policy from the configuration file.
+func (c *Client) ReloadPolicy(ctx context.Context) error {
+	u := c.baseURL + path.Join(ingestResource, "reloadpolicy")
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
+	}
+
+	return nil
 }
 
-// Unsubscribe from advertisements of a specific provider in the pubsub channel
-func (c *Client) Unsubscribe(ctx context.Context, provID peer.ID) error {
-	return c.ingestRequest(ctx, provID, "unsubscribe")
+// Allow configures the indexer to allow the peer to publish messages and
+// provide content.
+func (c *Client) Allow(ctx context.Context, peerID peer.ID) error {
+	return c.ingestRequest(ctx, peerID, "allow", http.MethodPut, nil)
+}
+
+// Block configures indexer to block the peer from publishing messages and
+// providing content.
+func (c *Client) Block(ctx context.Context, peerID peer.ID) error {
+	return c.ingestRequest(ctx, peerID, "block", http.MethodPut, nil)
 }
 
 func (c *Client) ListLogSubSystems(ctx context.Context) ([]string, error) {
@@ -123,6 +157,7 @@ func (c *Client) ListLogSubSystems(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
@@ -157,15 +192,22 @@ func (c *Client) SetLogLevels(ctx context.Context, sysLvl map[string]string) err
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		return httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
 	}
 	return nil
 }
 
-func (c *Client) ingestRequest(ctx context.Context, provID peer.ID, action string) error {
-	u := c.baseURL + path.Join(ingestResource, action, provID.String())
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, method string, data []byte) error {
+	u := c.baseURL + path.Join(ingestResource, action, peerID.String())
+
+	var body io.Reader
+	if data != nil {
+		body = bytes.NewBuffer(data)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, body)
 	if err != nil {
 		return err
 	}

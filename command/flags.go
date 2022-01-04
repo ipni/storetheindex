@@ -44,7 +44,14 @@ var logLevelFlag = &cli.StringFlag{
 
 var providerFlag = &cli.StringFlag{
 	Name:     "provider",
-	Usage:    "Provider's peer ID to interact with",
+	Usage:    "Provider's peer ID",
+	Aliases:  []string{"p"},
+	Required: true,
+}
+
+var peerFlag = &cli.StringFlag{
+	Name:     "peer",
+	Usage:    "Peer ID of publisher or provider",
 	Aliases:  []string{"p"},
 	Required: true,
 }
@@ -99,9 +106,23 @@ var importFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
-var ingestFlags = []cli.Flag{
-	providerFlag,
+var ingestPolicyFlags = []cli.Flag{
+	peerFlag,
 	indexerHostFlag,
+}
+
+var ingestReloadPolicyFlags = []cli.Flag{
+	indexerHostFlag,
+}
+
+var ingestSyncFlags = []cli.Flag{
+	peerFlag,
+	indexerHostFlag,
+	&cli.StringFlag{
+		Name:     "addr",
+		Usage:    "Multiaddr address of peer to sync with",
+		Required: false,
+	},
 }
 
 var initFlags = []cli.Flag{
@@ -135,12 +156,6 @@ var initFlags = []cli.Flag{
 		Name:     "lotus-gateway",
 		Usage:    "Address for a lotus gateway to collect chain information",
 		EnvVars:  []string{"STORETHEINDEX_LOTUS_GATEWAY"},
-		Required: false,
-	},
-	&cli.StringFlag{
-		Name:     "pubsub-peer",
-		Usage:    "Subscribe to pubsub from this libp2p peer ID",
-		EnvVars:  []string{"STORETHEINDE_PUBSUB_PEER"},
 		Required: false,
 	},
 	&cli.BoolFlag{

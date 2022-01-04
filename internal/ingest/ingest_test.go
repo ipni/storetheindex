@@ -14,6 +14,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/go-legs"
+	"github.com/filecoin-project/go-legs/dtsync"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
@@ -47,135 +48,123 @@ var ingestCfg = config.Ingest{
 func TestSubscribe(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
-	lph := mkTestHost()
-	i := mkIngest(t, h)
-	lp, lsys := mkMockPublisher(t, lph, srcStore)
-
-	connectHosts(t, h, lph)
-
-	// Subscribe to provider
-	err := i.Subscribe(context.Background(), lph.ID())
-	require.NoError(t, err)
-	require.NotNil(t, i.subs[lph.ID()])
+	pubHost := mkTestHost()
+	i, reg := mkIngest(t, h)
+	defer i.Close()
+	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	defer pub.Close()
+	connectHosts(t, h, pubHost)
 
 	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
 	time.Sleep(2 * time.Second)
 
-	t.Cleanup(func() {
-		lp.Close()
-		i.Close(context.Background())
-	})
-
 	// Test with two random advertisement publications.
-	_, mhs := publishRandomAdv(t, i, lph, lp, lsys, false)
-	// Check that the mhs have been indexed correctly.
-	i.checkMhsIndexedEventually(t, lph.ID(), mhs)
-	_, mhs = publishRandomAdv(t, i, lph, lp, lsys, false)
-	// Check that the mhs have been indexed correctly.
-	i.checkMhsIndexedEventually(t, lph.ID(), mhs)
+	_, mhs, providerID := publishRandomAdv(t, i, pubHost, pub, lsys, false)
 
-	// Test advertisement with fake signature
-	// of them.
-	_, mhs = publishRandomAdv(t, i, lph, lp, lsys, true)
+	// Check that the mhs have been indexed correctly.  Check providerID, not
+	// pupHost.ID(), since provider is what was put into advertisement.
+	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+	_, mhs, providerID = publishRandomAdv(t, i, pubHost, pub, lsys, false)
+	// Check that the mhs have been indexed correctly.
+	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+
+	// Test advertisement with fake signature of them.
+	_, mhs, _ = publishRandomAdv(t, i, pubHost, pub, lsys, true)
 	// No mhs should have been saved for related index
 	for x := range mhs {
 		_, b, _ := i.indexer.Get(mhs[x])
 		require.False(t, b)
 	}
 
-	err = i.Unsubscribe(context.Background(), lph.ID())
-	require.NoError(t, err)
+	reg.BlockPeer(pubHost.ID())
 
-	// Check that no advertisement is retrieved from
-	// peer once it has been unsubscribed.
-	c, _ := publishRandomIndexAndAdv(t, lp, lsys, false)
+	// Check that no advertisement is retrieved from publisher once it is no
+	// longer allowed.
+	c, _, _ := publishRandomIndexAndAdv(t, pub, lsys, false)
 	adv, err := i.ds.Get(datastore.NewKey(c.String()))
 	require.Error(t, err, datastore.ErrNotFound)
 	require.Nil(t, adv)
-
-	// Unsubscribing twice shouldn't break anything.
-	err = i.Unsubscribe(context.Background(), lph.ID())
-	require.NoError(t, err)
 }
 
 func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
-	lph := mkTestHost()
-	i := mkIngest(t, h)
-	lp, lsys := mkMockPublisher(t, lph, srcStore)
+	pubHost := mkTestHost()
+	i, _ := mkIngest(t, h)
+	defer i.Close()
+	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	defer pub.Close()
+	connectHosts(t, h, pubHost)
 
-	connectHosts(t, h, lph)
-
-	// Publish an advertisement without
-	c1, mhs := publishRandomIndexAndAdv(t, lp, lsys, false)
+	c1, mhs, providerID := publishRandomIndexAndAdv(t, pub, lsys, false)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	end, err := i.Sync(ctx, lph.ID())
-	t.Cleanup(func() {
-		cancel()
-		lp.Close()
-		i.Close(context.Background())
-	})
+	defer cancel()
+	// The explicit sync will happen concurrently with the sycn triggered by
+	// the published advertisement.  These will be serialized in the go-legs
+	// handler for the provider.
+	end, err := i.Sync(ctx, pubHost.ID(), nil)
 	require.NoError(t, err)
 	select {
 	case m := <-end:
 		// We receive the CID that we synced.
 		require.True(t, bytes.Equal(c1.Hash(), m))
-		lcid, err := i.getLatestSync(lph.ID())
+		// Check that subscriber recorded latest sync.
+		lnk := i.sub.GetLatestSync(pubHost.ID())
+		lcid := lnk.(cidlink.Link).Cid
+		require.Equal(t, lcid, c1)
+		// Check that latest sync recorded in datastore
+		lcid, err = i.getLatestSync(pubHost.ID())
 		require.NoError(t, err)
 		require.Equal(t, lcid, c1)
 	case <-ctx.Done():
 		t.Fatal("sync timeout")
 	}
-	i.checkMhsIndexedEventually(t, lph.ID(), mhs)
+	// Checking providerID, since that was what was put in the advertisement, not pubhost.ID()
+	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
 }
 
-func TestMultipleSubscriptions(t *testing.T) {
+func TestMultiplePublishers(t *testing.T) {
 	srcStore1 := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcStore2 := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
-	lph1 := mkTestHost()
-	lph2 := mkTestHost()
-	i := mkIngest(t, h)
-	lp1, lsys1 := mkMockPublisher(t, lph1, srcStore1)
-	lp2, lsys2 := mkMockPublisher(t, lph2, srcStore2)
+	pubHost1 := mkTestHost()
+	pubHost2 := mkTestHost()
+	i, _ := mkIngest(t, h)
+	defer i.Close()
+	pub1, lsys1 := mkMockPublisher(t, pubHost1, srcStore1)
+	defer pub1.Close()
+	pub2, lsys2 := mkMockPublisher(t, pubHost2, srcStore2)
+	defer pub2.Close()
 
-	// Subscribe to both providers
-	connectHosts(t, h, lph1)
-	err := i.Subscribe(context.Background(), lph1.ID())
-	require.NoError(t, err)
-	require.NotNil(t, i.subs[lph1.ID()])
-
-	connectHosts(t, h, lph2)
-	err = i.Subscribe(context.Background(), lph2.ID())
-	require.NoError(t, err)
-	require.NotNil(t, i.subs[lph2.ID()])
+	// connect both providers
+	connectHosts(t, h, pubHost1)
+	connectHosts(t, h, pubHost2)
 
 	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
 	time.Sleep(2 * time.Second)
 
-	t.Cleanup(func() {
-		lp1.Close()
-		lp2.Close()
-		i.Close(context.Background())
-	})
+	// Test with two random advertisement publications for each of them.
+	c1, mhs, providerID := publishRandomAdv(t, i, pubHost1, pub1, lsys1, false)
+	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+	c2, mhs, providerID := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
+	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
 
-	// Test with two random advertisement publications for each
-	// of them.
-	c1, mhs := publishRandomAdv(t, i, lph1, lp1, lsys1, false)
-	i.checkMhsIndexedEventually(t, lph1.ID(), mhs)
-	c2, mhs := publishRandomAdv(t, i, lph2, lp2, lsys2, false)
-	i.checkMhsIndexedEventually(t, lph2.ID(), mhs)
+	// Check that subscriber recorded latest sync.
+	lnk := i.sub.GetLatestSync(pubHost1.ID())
+	lcid := lnk.(cidlink.Link).Cid
+	require.Equal(t, lcid, c1)
+	lnk = i.sub.GetLatestSync(pubHost2.ID())
+	lcid = lnk.(cidlink.Link).Cid
+	require.Equal(t, lcid, c2)
 
-	lcid, err := i.getLatestSync(lph1.ID())
+	lcid, err := i.getLatestSync(pubHost1.ID())
 	require.NoError(t, err)
 	require.Equal(t, lcid, c1)
-	lcid2, err := i.getLatestSync(lph2.ID())
+	lcid, err = i.getLatestSync(pubHost2.ID())
 	require.NoError(t, err)
-	require.Equal(t, lcid2, c2)
-
+	require.Equal(t, lcid, c2)
 }
 
 func mkTestHost() host.Host {
@@ -241,19 +230,19 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	}
 	return lsys
 }
-func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.LegPublisher, ipld.LinkSystem) {
-	ctx := context.Background()
+func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.Publisher, ipld.LinkSystem) {
 	lsys := mkProvLinkSystem(store)
-	ls, err := legs.NewPublisher(ctx, h, store, lsys, ingestCfg.PubSubTopic)
+	ls, err := dtsync.NewPublisher(h, store, lsys, ingestCfg.PubSubTopic)
 	require.NoError(t, err)
 	return ls, lsys
 }
 
-func mkIngest(t *testing.T, h host.Host) *legIngester {
+func mkIngest(t *testing.T, h host.Host) (*Ingester, *registry.Registry) {
 	store := dssync.MutexWrap(datastore.NewMapDatastore())
-	i, err := NewLegIngester(context.Background(), ingestCfg, h, mkIndexer(t, true), mkRegistry(t), store)
+	reg := mkRegistry(t)
+	ing, err := NewIngester(ingestCfg, h, mkIndexer(t, true), reg, store)
 	require.NoError(t, err)
-	return i.(*legIngester)
+	return ing, reg
 }
 
 func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
@@ -279,11 +268,14 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 	return nextLnk, out
 }
 
-func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash) {
+func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash, peer.ID) {
 	mhs := util.RandomMultihashes(1)
-	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	priv, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
-	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
+
+	p, err := peer.IDFromPublicKey(pubKey)
+	require.NoError(t, err)
+
 	ctxID := []byte("test-context-id")
 	metadata := v0.Metadata{
 		ProtocolID: testProtocolID,
@@ -300,18 +292,18 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.LegPublisher, lsys ipld.Lin
 	require.NoError(t, err)
 	err = pub.UpdateRoot(context.Background(), lnk.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	return lnk.(cidlink.Link).Cid, mhs
+	return lnk.(cidlink.Link).Cid, mhs, p
 }
 
-func (i *legIngester) checkMhsIndexedEventually(t *testing.T, p peer.ID, mhs []multihash.Multihash) {
-	requireTrueEventually(t, func() bool { return i.providesAll(t, p, mhs...) }, testRetryInterval, testRetryTimeout, "multihashes were not indexed")
+func checkMhsIndexedEventually(t *testing.T, ix *engine.Engine, p peer.ID, mhs []multihash.Multihash) {
+	requireTrueEventually(t, func() bool { return providesAll(t, ix, p, mhs...) }, testRetryInterval, testRetryTimeout, "multihashes were not indexed")
 }
 
-func (i *legIngester) providesAll(t *testing.T, p peer.ID, mhs ...multihash.Multihash) bool {
+func providesAll(t *testing.T, ix *engine.Engine, p peer.ID, mhs ...multihash.Multihash) bool {
 	for _, mh := range mhs {
-		values, exists, err := i.indexer.Get(mh)
+		values, exists, err := ix.Get(mh)
 		if err != nil || !exists {
-			t.Logf("err: %s, exists: %v", err, exists)
+			t.Logf("err: %v, exists: %v", err, exists)
 			return false
 		}
 		var found bool
@@ -328,14 +320,14 @@ func (i *legIngester) providesAll(t *testing.T, p peer.ID, mhs ...multihash.Mult
 	return true
 }
 
-func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPublisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash) {
-	c, mhs := publishRandomIndexAndAdv(t, lp, lsys, fakeSig)
+func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash, peer.ID) {
+	c, mhs, providerID := publishRandomIndexAndAdv(t, pub, lsys, fakeSig)
 
 	if !fakeSig {
 		requireTrueEventually(t, func() bool {
 			has, err := i.ds.Has(datastore.NewKey(c.String()))
 			return err == nil && has
-		}, 2*time.Second, 10*time.Second, "expected advertisement with ID %s was not received", c)
+		}, 2*time.Second, 15*time.Second, "expected advertisement with ID %s was not received", c)
 	}
 
 	// Check if advertisement in datastore.
@@ -344,24 +336,31 @@ func publishRandomAdv(t *testing.T, i *legIngester, lph host.Host, lp legs.LegPu
 		require.NoError(t, err, "err getting %s", c.String())
 		require.NotNil(t, adv)
 	} else {
-		// If the signature is invalid we shouldn't have store it.
+		// If the signature is invalid is should not be stored.
 		require.Nil(t, adv)
 	}
+	if !fakeSig {
+		lnk := i.sub.GetLatestSync(pubHost.ID())
+		lcid := lnk.(cidlink.Link).Cid
+		require.Equal(t, lcid, c)
+	}
+
 	// Check if latest sync updated.
-	lcid, err := i.getLatestSync(lph.ID())
+	lcid, err := i.getLatestSync(pubHost.ID())
 	require.NoError(t, err)
 
 	// If fakeSig Cids should not be saved.
 	if !fakeSig {
 		require.Equal(t, lcid, c)
 	}
-	return c, mhs
+	return c, mhs, providerID
 }
 
 func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Duration, timeout time.Duration, msgAndArgs ...interface{}) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	timer := time.NewTimer(interval)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	for {
 		if attempt() {
 			return
@@ -370,8 +369,7 @@ func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Dura
 		case <-ctx.Done():
 			require.FailNow(t, "timed out awaiting eventual success", msgAndArgs...)
 			return
-		case <-timer.C:
-			timer.Reset(interval)
+		case <-ticker.C:
 		}
 	}
 }

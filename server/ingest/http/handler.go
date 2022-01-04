@@ -136,7 +136,7 @@ func (h *httpHandler) RemoveProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 // ----- ingest handlers -----
-// PUT /ingestion/advertisement
+// PUT /ingest/advertisement
 func (h *httpHandler) Advertise(w http.ResponseWriter, r *http.Request) {
 	/*
 		w.Header().Set("Content-Type", "application/json")
@@ -158,7 +158,7 @@ func (h *httpHandler) Advertise(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// POST /ingestion
+// POST /ingest/content
 func (h *httpHandler) IndexContent(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {

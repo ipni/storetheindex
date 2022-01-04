@@ -10,94 +10,92 @@ import (
 	"os"
 
 	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/importer"
 	"github.com/filecoin-project/storetheindex/internal/ingest"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gorilla/mux"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
 
 type adminHandler struct {
 	ctx      context.Context
 	indexer  indexer.Interface
-	ingester ingest.Ingester
+	ingester *ingest.Ingester
+	reg      *registry.Registry
 }
 
-func newHandler(ctx context.Context, indexer indexer.Interface, ingester ingest.Ingester) *adminHandler {
+func newHandler(ctx context.Context, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry) *adminHandler {
 	return &adminHandler{
 		ctx:      ctx,
 		indexer:  indexer,
 		ingester: ingester,
+		reg:      reg,
 	}
 }
 
-const importBatchSize = 64
+const importBatchSize = 256
 
 // ----- ingest handlers -----
 
-func (h *adminHandler) subscribe(w http.ResponseWriter, r *http.Request) {
-	if ret := h.checkIngester(w, r); ret {
-		return
-	}
+func (h *adminHandler) allowPeer(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	provID, ok := decodeProviderID(vars["provider"], w)
+	peerID, ok := decodePeerID(vars["peer"], w)
 	if !ok {
 		return
 	}
-	log.Infow("Subscribing to provider", "provider", provID.String())
-	err := h.ingester.Subscribe(h.ctx, provID)
-	if err != nil {
-		msg := "Cannot subscribe to provider"
-		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusBadGateway)
-		return
+	log.Infow("Allowing peer to publish and provide content", "peer", peerID)
+	if h.reg.AllowPeer(peerID) {
+		log.Infow("Update config to persist allowing peer", "peerr", peerID)
 	}
-
-	// Return OK
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *adminHandler) unsubscribe(w http.ResponseWriter, r *http.Request) {
-	if ret := h.checkIngester(w, r); ret {
-		return
-	}
+func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	provID, ok := decodeProviderID(vars["provider"], w)
+	peerID, ok := decodePeerID(vars["peer"], w)
 	if !ok {
 		return
 	}
-	log.Infow("Unsubscribing to provider", "provider", provID.String())
-	err := h.ingester.Unsubscribe(h.ctx, provID)
-	if err != nil {
-		msg := "Cannot unsubscribe to provider"
-		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusBadGateway)
-		return
+	log.Infow("Blocking peer from publishing or providing content", "peer", peerID.String())
+	if h.reg.BlockPeer(peerID) {
+		log.Infow("Update config to persist blocking peer", "provider", peerID)
 	}
-
-	// Return OK
 	w.WriteHeader(http.StatusOK)
 }
 
 func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
-	if ret := h.checkIngester(w, r); ret {
-		return
-	}
 	vars := mux.Vars(r)
-	provID, ok := decodeProviderID(vars["provider"], w)
+	peerID, ok := decodePeerID(vars["peerr"], w)
 	if !ok {
 		return
 	}
-	log.Infow("Syncing with provider", "provider", provID.String())
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Errorw("failed reading body", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	var syncAddr multiaddr.Multiaddr
+	err = syncAddr.UnmarshalJSON(data)
+	if err != nil {
+		log.Errorw("Cannot unmarshal sync addr", "err", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	log.Infow("Syncing with peer", "peer", peerID.String(), "address", syncAddr)
 
 	// Start the sync, but do not wait for it to complete.
 	//
-	// We can include an ingestion API to check the latest sync for
-	// a provider in the indexer. This would show if the indexer
-	// has finally synced or not.
-	_, err := h.ingester.Sync(h.ctx, provID)
+	// TODO: Provide some way for the client to see if the indexer has synced.
+	_, err = h.ingester.Sync(h.ctx, peerID, syncAddr)
 	if err != nil {
-		msg := "Cannot sync with provider"
+		msg := "Cannot sync with peer"
 		log.Errorw(msg, "err", err)
 		http.Error(w, msg, http.StatusBadGateway)
 		return
@@ -107,13 +105,32 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
+func (h *adminHandler) reloadPolicy(w http.ResponseWriter, r *http.Request) {
+	cfg, err := config.Load("")
+	if err != nil {
+		log.Errorw("Failed to load config", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	err = h.reg.SetPolicy(cfg.Discovery.Policy)
+	if err != nil {
+		log.Errorw("Failed to set policy config", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	log.Info("Reloaded policy from configuration file")
+	w.WriteHeader(http.StatusOK)
+}
+
 // ----- import handlers -----
 
 func (h *adminHandler) importManifest(w http.ResponseWriter, r *http.Request) {
 	// TODO: This code is the same for all import handlers.
 	// We probably can take it out to its own function to deduplicate.
 	vars := mux.Vars(r)
-	provID, ok := decodeProviderID(vars["provider"], w)
+	provID, ok := decodePeerID(vars["provider"], w)
 	if !ok {
 		return
 	}
@@ -193,7 +210,7 @@ func getParams(data []byte) (string, []byte, []byte, error) {
 
 func (h *adminHandler) importCidList(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	provID, ok := decodeProviderID(vars["provider"], w)
+	provID, ok := decodePeerID(vars["provider"], w)
 	if !ok {
 		return
 	}
@@ -300,23 +317,13 @@ func (h *adminHandler) healthCheckHandler(w http.ResponseWriter, r *http.Request
 
 // ----- utility functions -----
 
-func (h *adminHandler) checkIngester(w http.ResponseWriter, r *http.Request) bool {
-	if h.ingester == nil {
-		msg := "No ingester set in indexer"
-		log.Error(msg)
-		http.Error(w, msg, http.StatusInternalServerError)
-		return true
-	}
-	return false
-}
-
-func decodeProviderID(id string, w http.ResponseWriter) (peer.ID, bool) {
-	provID, err := peer.Decode(id)
+func decodePeerID(id string, w http.ResponseWriter) (peer.ID, bool) {
+	peerID, err := peer.Decode(id)
 	if err != nil {
-		msg := "Cannot decode provider id"
+		msg := "Cannot decode peer id"
 		log.Errorw(msg, "id", id, "err", err)
 		http.Error(w, msg, http.StatusBadRequest)
-		return provID, false
+		return peerID, false
 	}
-	return provID, true
+	return peerID, true
 }

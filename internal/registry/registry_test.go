@@ -173,17 +173,14 @@ func TestDiscoveryBlocked(t *testing.T) {
 		t.Fatal("bad provider ID:", err)
 	}
 
-	discoveryCfg.Policy.Allow = true
-	defer func() {
-		discoveryCfg.Policy.Allow = false
-	}()
-
 	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer r.Close()
 	t.Log("created new registry")
+
+	r.BlockPeer(peerID)
 
 	err = r.Discover(peerID, minerDiscoAddr, true)
 	if !errors.Is(err, ErrNotAllowed) {

@@ -115,23 +115,32 @@ func TestLinkedList(t *testing.T) {
 }
 
 func TestAdvSignature(t *testing.T) {
-	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	priv, pub, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	if err != nil {
 		t.Fatal(err)
 	}
+	peerID, err := peer.IDFromPublicKey(pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	dstore := datastore.NewMapDatastore()
 	lsys := mkLinkSystem(dstore)
 	_, _, adv, _ := genCidsAndAdv(t, lsys, priv, nil)
 
 	// Successful verification
-	err = VerifyAdvertisement(adv)
+	signerID, err := VerifyAdvertisement(adv)
 	if err != nil {
 		t.Fatal("verification should have been successful", err)
 	}
 
+	if signerID != peerID {
+		t.Fatal("should have been signed by peerID")
+	}
+
 	// Verification fails if something in the advertisement changes
 	adv.Provider = _String{x: ""}
-	err = VerifyAdvertisement(adv)
+	_, err = VerifyAdvertisement(adv)
 	if err == nil {
 		t.Fatal("verification should have failed")
 	}

@@ -3,10 +3,12 @@ package schema
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/ipfs/go-cid"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/record"
 	mh "github.com/multiformats/go-multihash"
 )
@@ -101,21 +103,21 @@ func signAdvertisement(privkey crypto.PrivKey, ad Advertisement) ([]byte, error)
 	if err != nil {
 		return nil, err
 	}
-	env, err := record.Seal(&advSignatureRecord{advID: advID}, privkey)
+	envelope, err := record.Seal(&advSignatureRecord{advID: advID}, privkey)
 	if err != nil {
 		return nil, err
 	}
-	return env.Marshal()
+	return envelope.Marshal()
 }
 
-// VerifyAdvertisement verifies that the advertisement has been
-// signed and generated correctly.
-func VerifyAdvertisement(ad Advertisement) error {
+// VerifyAdvertisement verifies that the advertisement has been signed and
+// generated correctly.  Returns the peer ID of the signer.
+func VerifyAdvertisement(ad Advertisement) (peer.ID, error) {
 	previousID := ad.FieldPreviousID().v
 	provider := ad.FieldProvider().x
 	addrs, err := IpldToGoStrings(ad.FieldAddresses())
 	if err != nil {
-		return err
+		return peer.ID(""), err
 	}
 	isRm := ad.FieldIsRm().x
 	entries := ad.FieldEntries()
@@ -124,17 +126,23 @@ func VerifyAdvertisement(ad Advertisement) error {
 
 	genID, err := signaturePayload(&previousID, provider, addrs, entries, metadata, isRm)
 	if err != nil {
-		return err
+		return peer.ID(""), err
 	}
 
 	// Consume envelope
 	rec := &advSignatureRecord{}
-	_, err = record.ConsumeTypedEnvelope(sig, rec)
+	envelope, err := record.ConsumeTypedEnvelope(sig, rec)
 	if err != nil {
-		return err
+		return peer.ID(""), err
 	}
 	if !bytes.Equal(genID, rec.advID) {
-		return errors.New("envelope signed with the wrong ID")
+		return peer.ID(""), errors.New("envelope signed with the wrong ID")
 	}
-	return nil
+
+	signerID, err := peer.IDFromPublicKey(envelope.PublicKey)
+	if err != nil {
+		return peer.ID(""), fmt.Errorf("cannot convert public key to peer ID: %s", err)
+	}
+
+	return signerID, nil
 }

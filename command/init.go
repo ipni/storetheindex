@@ -92,11 +92,6 @@ func initCommand(cctx *cli.Context) error {
 		cfg.Discovery.LotusGateway = lotusGateway
 	}
 
-	pubsubPeer := cctx.String("pubsub-peer")
-	if pubsubPeer != "" {
-		cfg.Ingest.PubSubPeers = []string{pubsubPeer}
-	}
-
 	noBootstrap := cctx.Bool("no-bootstrap")
 	if noBootstrap {
 		cfg.Bootstrap.Peers = []string{}
