@@ -4,10 +4,9 @@ package httpserver
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
-	"github.com/filecoin-project/storetheindex/internal/syserr"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	logging "github.com/ipfs/go-log/v2"
 )
 
@@ -25,15 +24,15 @@ func WriteJsonResponse(w http.ResponseWriter, status int, body []byte) {
 
 func HandleError(w http.ResponseWriter, err error, reqType string) {
 	status := http.StatusBadRequest
-	var se *syserr.SysError
-	if errors.As(err, &se) {
-		if se.Status() >= 500 {
-			log.Errorw(fmt.Sprint("cannot handle", reqType, "request"), "err", se.Error(), "status", se.Status())
-			http.Error(w, "", se.Status())
+	var apierr *v0.Error
+	if errors.As(err, &apierr) {
+		if apierr.Status() >= 500 {
+			log.Errorw("Cannot handle request", "regType", reqType, "err", apierr.Error(), "status", apierr.Status())
+			http.Error(w, "", apierr.Status())
 			return
 		}
-		status = se.Status()
+		status = apierr.Status()
 	}
-	log.Infow(fmt.Sprint("bad", reqType, "request"), "err", err.Error(), "status", status)
+	log.Infow("Bad request", "reqType", reqType, "err", err, "status", status)
 	http.Error(w, err.Error(), status)
 }

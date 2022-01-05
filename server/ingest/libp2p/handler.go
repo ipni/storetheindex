@@ -13,7 +13,6 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/handler"
 	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
 	"github.com/filecoin-project/storetheindex/internal/registry"
-	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/gogo/protobuf/proto"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -96,7 +95,7 @@ func (h *libp2pHandler) ListProviders(ctx context.Context, p peer.ID, msg *pb.In
 	data, err := h.ingestHandler.ListProviders()
 	if err != nil {
 		log.Errorw("cannot list providers", "err", err)
-		return nil, syserr.New(nil, http.StatusInternalServerError)
+		return nil, v0.NewError(nil, http.StatusInternalServerError)
 	}
 
 	return data, nil
@@ -107,17 +106,17 @@ func (h *libp2pHandler) GetProvider(ctx context.Context, p peer.ID, msg *pb.Inge
 	err := json.Unmarshal(msg.GetData(), &providerID)
 	if err != nil {
 		log.Errorw("error unmarshalling GetProvider request", "err", err)
-		return nil, syserr.New(errors.New("cannot decode request"), http.StatusBadRequest)
+		return nil, v0.NewError(errors.New("cannot decode request"), http.StatusBadRequest)
 	}
 
 	data, err := h.ingestHandler.GetProvider(providerID)
 	if err != nil {
 		log.Errorw("cannot get provider", "err", err)
-		return nil, syserr.New(nil, http.StatusInternalServerError)
+		return nil, v0.NewError(nil, http.StatusInternalServerError)
 	}
 
 	if len(data) == 0 {
-		return nil, syserr.New(errors.New("provider not found"), http.StatusNotFound)
+		return nil, v0.NewError(errors.New("provider not found"), http.StatusNotFound)
 	}
 
 	return data, nil
@@ -129,7 +128,7 @@ func (h *libp2pHandler) RegisterProvider(ctx context.Context, p peer.ID, msg *pb
 }
 
 func (h *libp2pHandler) RemoveProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
-	return nil, syserr.New(nil, http.StatusNotImplemented)
+	return nil, v0.NewError(nil, http.StatusNotImplemented)
 }
 
 func (h *libp2pHandler) IndexContent(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {

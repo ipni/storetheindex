@@ -1,4 +1,4 @@
-package syserr
+package v0
 
 import (
 	"fmt"
@@ -6,25 +6,25 @@ import (
 	"strings"
 )
 
-// SysError is the type of error used when it is necessary to convey a specific
+// Error is the type of error used when it is necessary to convey a specific
 // status code so that it can be handled correctly higher in the call stack.
 //
 // For example, differentiating between a bad request and an internal server
 // error allows a server to determine whether the error should be returned to a
 // client or not.
-type SysError struct {
+type Error struct {
 	err    error
 	status int
 }
 
-func New(err error, status int) *SysError {
-	return &SysError{
+func NewError(err error, status int) *Error {
+	return &Error{
 		err:    err,
 		status: status,
 	}
 }
 
-func (e *SysError) Error() string {
+func (e *Error) Error() string {
 	if e.err != nil {
 		return e.err.Error()
 	}
@@ -38,11 +38,11 @@ func (e *SysError) Error() string {
 	return fmt.Sprintf("%d", e.status)
 }
 
-func (e *SysError) Status() int {
+func (e *Error) Status() int {
 	return e.status
 }
 
-func (e *SysError) Text() string {
+func (e *Error) Text() string {
 	parts := make([]string, 0, 5)
 	if e.status != 0 {
 		parts = append(parts, fmt.Sprintf("%d", e.status))
@@ -62,6 +62,6 @@ func (e *SysError) Text() string {
 	return strings.Join(parts, "")
 }
 
-func (e *SysError) Unwrap() error {
+func (e *Error) Unwrap() error {
 	return e.err
 }

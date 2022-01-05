@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-
-	"github.com/filecoin-project/storetheindex/internal/syserr"
 )
 
-type Error struct {
+type ErrorMessage struct {
 	Message string `json:",omitempty"`
 	Status  int    `json:",omitempty"`
 }
@@ -18,7 +16,7 @@ var serverError []byte
 
 func init() {
 	// Make sure there is always an error to return in case encoding fails
-	e := Error{
+	e := ErrorMessage{
 		Message: http.StatusText(http.StatusInternalServerError),
 	}
 
@@ -34,12 +32,12 @@ func EncodeError(err error) []byte {
 		return nil
 	}
 
-	e := Error{
+	e := ErrorMessage{
 		Message: err.Error(),
 	}
-	var se *syserr.SysError
-	if errors.As(err, &se) {
-		e.Status = se.Status()
+	var apierr *Error
+	if errors.As(err, &apierr) {
+		e.Status = apierr.Status()
 	}
 
 	data, err := json.Marshal(&e)
@@ -53,12 +51,12 @@ func DecodeError(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
-	var e Error
+	var e ErrorMessage
 	err := json.Unmarshal(data, &e)
 	if err != nil {
 		return fmt.Errorf("cannot decode error message: %s", err)
 	}
 
-	se := syserr.New(errors.New(e.Message), e.Status)
-	return errors.New(se.Text())
+	apierr := NewError(errors.New(e.Message), e.Status)
+	return errors.New(apierr.Text())
 }

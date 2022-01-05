@@ -8,8 +8,8 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/storetheindex/api/v0"
+	httpclient "github.com/filecoin-project/storetheindex/api/v0/httpclient"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
-	httpclient "github.com/filecoin-project/storetheindex/internal/httpclient"
 	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"

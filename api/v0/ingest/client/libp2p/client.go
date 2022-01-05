@@ -8,7 +8,7 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	pb "github.com/filecoin-project/storetheindex/api/v0/ingest/pb"
-	"github.com/filecoin-project/storetheindex/internal/libp2pclient"
+	"github.com/filecoin-project/storetheindex/api/v0/libp2pclient"
 	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"

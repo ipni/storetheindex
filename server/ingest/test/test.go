@@ -18,7 +18,6 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
-	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -240,10 +239,10 @@ func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privat
 		t.Fatalf("expected erroe message: \"context id too long\", got %q", err.Error())
 	}
 
-	se, ok := err.(*syserr.SysError)
+	apierr, ok := err.(*v0.Error)
 	if ok {
-		if se.Status() != 400 {
-			t.Fatalf("expected status 400, got %d", se.Status())
+		if apierr.Status() != 400 {
+			t.Fatalf("expected status 400, got %d", apierr.Status())
 		}
 	}
 }

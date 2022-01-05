@@ -7,10 +7,10 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/internal/registry"
-	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -89,7 +89,7 @@ func (h *IngestHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 
 // IndexContent handles an IngestRequest
 //
-// Returning error is the same as return syserr.New(err, http.StatusBadRequest)
+// Returning error is the same as return v0.NewError(err, http.StatusBadRequest)
 func (h *IngestHandler) IndexContent(data []byte) error {
 	ingReq, err := model.ReadIngestRequest(data)
 	if err != nil {
@@ -122,7 +122,7 @@ func (h *IngestHandler) IndexContent(data []byte) error {
 	err = h.indexer.Put(value, ingReq.Multihash)
 	if err != nil {
 		err = fmt.Errorf("cannot index content: %s", err)
-		return syserr.New(err, http.StatusInternalServerError)
+		return v0.NewError(err, http.StatusInternalServerError)
 	}
 
 	// TODO: update last update time for provider
