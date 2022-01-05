@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry/discovery"
 	"github.com/filecoin-project/storetheindex/internal/registry/policy"
-	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
@@ -161,7 +161,7 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 	// If provider is not allowed, then ignore request
 	allowed, _ := r.policy.Check(peerID)
 	if !allowed {
-		return syserr.New(ErrNotAllowed, http.StatusForbidden)
+		return v0.NewError(ErrNotAllowed, http.StatusForbidden)
 	}
 
 	// It does not matter if the provider is trusted or not, since verification
@@ -181,21 +181,21 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 // adding discovered data directly to the registry.
 func (r *Registry) Register(info *ProviderInfo) error {
 	if len(info.AddrInfo.Addrs) == 0 {
-		return syserr.New(errors.New("missing provider address"), http.StatusBadRequest)
+		return errors.New("missing provider address")
 	}
 
 	allowed, trusted := r.policy.Check(info.AddrInfo.ID)
 
 	// If provider is not allowed, then ignore request.
 	if !allowed {
-		return syserr.New(ErrNotAllowed, http.StatusForbidden)
+		return v0.NewError(ErrNotAllowed, http.StatusForbidden)
 	}
 
 	// If allowed provider is not trusted, then they require authentication
 	// before being registered.  This means going through discovery and looking
 	// up a miner ID on-chain.
 	if !trusted {
-		return syserr.New(ErrNotTrusted, http.StatusUnauthorized)
+		return v0.NewError(ErrNotTrusted, http.StatusForbidden)
 	}
 
 	// If allowed provider is trusted, register immediately without verification.
@@ -430,7 +430,7 @@ func (r *Registry) syncRegister(info *ProviderInfo, errCh chan<- error) {
 	err := r.syncPersistProvider(info)
 	if err != nil {
 		err = fmt.Errorf("could not persist provider: %s", err)
-		errCh <- syserr.New(err, http.StatusInternalServerError)
+		errCh <- v0.NewError(err, http.StatusInternalServerError)
 	}
 	close(errCh)
 }

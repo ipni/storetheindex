@@ -8,8 +8,8 @@ import (
 	"net/url"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/internal/registry/discovery"
-	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -71,13 +71,13 @@ func (d *Discoverer) Discover(ctx context.Context, peerID peer.ID, minerAddr str
 	var ets ExpTipSet
 	err = jrpcClient.CallFor(&ets, "Filecoin.ChainHead")
 	if err != nil {
-		return nil, syserr.New(err, http.StatusBadGateway)
+		return nil, v0.NewError(err, http.StatusBadGateway)
 	}
 
 	var minerInfo MinerInfo
 	err = jrpcClient.CallFor(&minerInfo, "Filecoin.StateMinerInfo", minerAddress, ets.Cids)
 	if err != nil {
-		return nil, syserr.New(err, http.StatusBadGateway)
+		return nil, v0.NewError(err, http.StatusBadGateway)
 	}
 
 	if minerInfo.PeerId == nil {

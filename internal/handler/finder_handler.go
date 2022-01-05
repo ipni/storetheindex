@@ -2,12 +2,12 @@ package handler
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
-	v0 "github.com/filecoin-project/storetheindex/api/v0"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/internal/registry"
-	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -36,7 +36,8 @@ func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*model.
 	for i := range mhashes {
 		values, found, err := h.indexer.Get(mhashes[i])
 		if err != nil {
-			return nil, syserr.New(fmt.Errorf("failed to query %q: %s", mhashes[i], err), 500)
+			err = fmt.Errorf("failed to query %q: %s", mhashes[i], err)
+			return nil, v0.NewError(err, http.StatusInternalServerError)
 		}
 		if !found {
 			continue

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/internal/p2putil"
 	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -178,7 +177,7 @@ func (c *Client) sendMessage(ctx context.Context, msg proto.Message) error {
 		return err
 	}
 
-	if err = p2putil.WriteMsg(c.stream, msg); err != nil {
+	if err = writeMsg(c.stream, msg); err != nil {
 		c.closeStream()
 		return err
 	}

@@ -8,8 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/internal/p2putil"
-	"github.com/filecoin-project/storetheindex/internal/syserr"
+	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/gogo/protobuf/proto"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -20,7 +19,7 @@ import (
 )
 
 // Idle time before the stream is closed
-const streamIdleTimeout = 1 * time.Minute
+const streamIdleTimeout = time.Minute
 
 var log = logging.Logger("indexer/libp2p")
 
@@ -55,19 +54,19 @@ func New(ctx context.Context, h host.Host, messageHandler Handler) *Server {
 	return s
 }
 
-func HandleError(err error, reqType string) *syserr.SysError {
-	var se *syserr.SysError
-	if errors.As(err, &se) {
-		if se.Status() >= 500 {
-			log.Errorw(fmt.Sprint("cannot handle", reqType, "request"), "err", se.Error(), "status", se.Status())
+func HandleError(err error, reqType string) *v0.Error {
+	var apierr *v0.Error
+	if errors.As(err, &apierr) {
+		if apierr.Status() >= 500 {
+			log.Errorw(fmt.Sprint("cannot handle", reqType, "request"), "err", apierr.Error(), "status", apierr.Status())
 			// Log the error and return only the 5xx status.
-			return syserr.New(nil, se.Status())
+			return v0.NewError(nil, apierr.Status())
 		}
 	} else {
-		se = syserr.New(err, http.StatusBadRequest)
+		apierr = v0.NewError(err, http.StatusBadRequest)
 	}
-	log.Infow(fmt.Sprint("bad", reqType, "request"), "err", se.Error(), "status", se.Status())
-	return se
+	log.Infow(fmt.Sprint("bad", reqType, "request"), "err", apierr.Error(), "status", apierr.Status())
+	return apierr
 }
 
 // handleNewStream implements the network.StreamHandler
@@ -107,7 +106,7 @@ func (s *Server) handleNewMessages(stream network.Stream) bool {
 		}
 
 		// send out response msg
-		err = p2putil.WriteMsg(stream, resp)
+		err = writeMsg(stream, resp)
 		if err != nil {
 			return false
 		}

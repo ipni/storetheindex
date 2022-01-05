@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/filecoin-project/storetheindex/internal/syserr"
+	"github.com/filecoin-project/storetheindex/api/v0"
 )
 
 // New creates a base URL and a new http.Client.  The default port is only used
@@ -51,6 +51,6 @@ func ReadErrorFrom(status int, r io.Reader) error {
 }
 
 func ReadError(status int, body []byte) error {
-	se := syserr.New(errors.New(strings.TrimSpace(string(body))), status)
+	se := v0.NewError(errors.New(strings.TrimSpace(string(body))), status)
 	return errors.New(se.Text())
 }

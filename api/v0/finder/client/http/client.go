@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
-	"github.com/filecoin-project/storetheindex/internal/httpclient"
+	"github.com/filecoin-project/storetheindex/api/v0/httpclient"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/multiformats/go-multihash"
 )

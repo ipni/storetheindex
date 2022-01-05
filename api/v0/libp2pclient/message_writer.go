@@ -1,4 +1,4 @@
-package p2putil
+package libp2pclient
 
 import (
 	"bufio"
@@ -28,8 +28,8 @@ var writerPool = sync.Pool{
 	},
 }
 
-// WriteMsg handles sending messages through the wire.
-func WriteMsg(w io.Writer, msg proto.Message) error {
+// writeMsg handles sending messages through the wire.
+func writeMsg(w io.Writer, msg proto.Message) error {
 	if w == nil {
 		return errors.New("io writer is nil")
 	}

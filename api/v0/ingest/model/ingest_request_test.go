@@ -6,6 +6,9 @@ import (
 
 	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/test/util"
+	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/test"
 )
 
 func TestIngestRequest(t *testing.T) {
@@ -15,7 +18,11 @@ func TestIngestRequest(t *testing.T) {
 		Data: []byte("hello"),
 	}
 
-	peerID, privKey, err := providerIdent.Decode()
+	privKey, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	peerID, err := peer.IDFromPublicKey(pubKey)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,9 +3,9 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"time"
 
 	"github.com/filecoin-project/go-indexer-core"
@@ -13,7 +13,6 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
-	"github.com/filecoin-project/storetheindex/internal/syserr"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipld/go-ipld-prime"
@@ -24,6 +23,11 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
+)
+
+var (
+	errBadAdvert              = errors.New("bad advertisement")
+	errInvalidAdvertSignature = errors.New("invalid advertisement signature")
 )
 
 func dsKey(k string) datastore.Key {
@@ -53,7 +57,7 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 			n, err := decodeIPLDNode(buf)
 			if err != nil {
 				log.Errorf("Error decoding IPLD node in linksystem: %s", err)
-				return err
+				return errors.New("bad ipld data")
 			}
 			// If it is an advertisement.
 			if isAdvertisement(n) {
@@ -61,42 +65,15 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 
 				// Verify that the signature is correct and the advertisement
 				// is valid.
-				ad, signerID, err := verifyAdvertisement(n)
+				ad, provID, err := verifyAdvertisement(n)
 				if err != nil {
-					log.Errorf("Error verifying if node is of type advertisement: %s", err)
 					return err
 				}
-
-				// Get provider ID from advertisement.
-				provider, err := ad.FieldProvider().AsString()
-				if err != nil {
-					log.Errorf("Could not get provider from advertisement: %s", err)
-					return err
-				}
-				provID, err := peer.Decode(provider)
-				if err != nil {
-					log.Errorf("Could not decode advertisement provider ID: %s", err)
-					return syserr.New(err, http.StatusBadRequest)
-				}
-
-				// Verify that the advertised provider has signed, and
-				// therefore approved, the advertisement regardless of who
-				// published the advertisement.
-				if signerID != provID {
-					// TODO: Have policy that allows a signer (publisher) to
-					// sign advertisements for certain providers.  This will
-					// allow that signer to add, update, and delete indexed
-					// content on behalf of those providers.
-					log.Errorw("Advertisement not signed by provider", "provider", provID, "signer", signerID)
-					return syserr.New(err, http.StatusForbidden)
-				}
-
-				log.Infow("Advertisement signature is valid", "provider", provID)
 
 				addrs, err := schema.IpldToGoStrings(ad.FieldAddresses())
 				if err != nil {
-					log.Error("Could not get addresses from advertisement")
-					return syserr.New(err, http.StatusBadRequest)
+					log.Errorw("Could not get addresses from advertisement", err)
+					return errBadAdvert
 				}
 
 				// Register provider or update existing registration.  The
@@ -112,13 +89,13 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 				log.Debug("Setting reverse map for entries after receiving advertisement")
 				elnk, err := ad.FieldEntries().AsLink()
 				if err != nil {
-					log.Errorf("Error getting link for entries from advertisement: %s", err)
-					return err
+					log.Errorw("Error getting link for entries from advertisement", "err", err)
+					return errBadAdvert
 				}
 				err = putCidToAdMapping(ds, elnk, c)
 				if err != nil {
-					log.Errorf("Error storing reverse map for entries in datastore: %s", err)
-					return err
+					log.Errorw("Error storing reverse map for entries in datastore", "err", err)
+					return errors.New("cannot process advertisement")
 				}
 
 				log.Debug("Persisting new advertisement")
@@ -147,18 +124,44 @@ func decodeAd(n ipld.Node) (schema.Advertisement, error) {
 func verifyAdvertisement(n ipld.Node) (schema.Advertisement, peer.ID, error) {
 	ad, err := decodeAd(n)
 	if err != nil {
-		log.Errorf("Error decoding advertisement: %s", err)
-		return nil, peer.ID(""), err
+		log.Errorw("Cannot decode advertisement", "err", err)
+		return nil, peer.ID(""), errBadAdvert
 	}
 	// Verify advertisement signature
 	signerID, err := schema.VerifyAdvertisement(ad)
 	if err != nil {
 		// stop exchange, verification of signature failed.
-		log.Errorf("Signature verification failed for advertisement: %s", err)
-		return nil, peer.ID(""), err
+		log.Errorw("Advertisement signature verification failed", "err", err)
+		return nil, peer.ID(""), errInvalidAdvertSignature
 	}
 
-	return ad, signerID, nil
+	// Get provider ID from advertisement.
+	provider, err := ad.FieldProvider().AsString()
+	if err != nil {
+		log.Errorw("Cannot read provider from advertisement", "err", err)
+		return nil, peer.ID(""), errBadAdvert
+	}
+	provID, err := peer.Decode(provider)
+	if err != nil {
+		log.Errorw("Cannot decode provider ID", "err", err)
+		return nil, peer.ID(""), errBadAdvert
+	}
+
+	// Verify that the advertised provider has signed, and
+	// therefore approved, the advertisement regardless of who
+	// published the advertisement.
+	if signerID != provID {
+		// TODO: Have policy that allows a signer (publisher) to
+		// sign advertisements for certain providers.  This will
+		// allow that signer to add, update, and delete indexed
+		// content on behalf of those providers.
+		log.Errorw("Advertisement not signed by provider", "provider", provID, "signer", signerID)
+		return nil, peer.ID(""), errInvalidAdvertSignature
+	}
+
+	log.Infow("Advertisement signature is valid", "provider", provID)
+
+	return ad, provID, nil
 }
 
 // storageHook determines the logic to run when a new block is received through
