@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -76,10 +77,12 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *regi
 		watchDone:   make(chan struct{}),
 	}
 
+	// Create and start pubsub subscriber.  This also registers the storage
+	// hook to index data as it is received.
 	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Authorized), legs.BlockHook(ing.storageHook))
 	if err != nil {
-		log.Errorw("Failed to start leg.Subscriber", "err", err)
-		return nil, err
+		log.Errorw("Failed to start pubsub subscriber", "err", err)
+		return nil, errors.New("ingester subscriber failed")
 	}
 	ing.sub = sub
 
@@ -92,11 +95,10 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *regi
 	onSyncFin, cancelSyncFin := sub.OnSyncFinished()
 	ing.cancelSyncFin = cancelSyncFin
 
-	// Register storage hook to index data as we receive it.
-	log.Debugf("Ingester started and all hooks and linksystem registered")
-
 	go ing.watchSyncFinished(onSyncFin)
 	go ing.metricsUpdater()
+
+	log.Debugf("Ingester started and all hooks and linksystem registered")
 
 	return ing, nil
 }

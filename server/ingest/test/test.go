@@ -93,13 +93,6 @@ func RegisterProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, pri
 	if err == nil {
 		t.Fatal("expected bad signature error")
 	}
-
-	// Test error if context canceled
-	cancel()
-	err = c.Register(ctx, providerID, privateKey, []string{addr})
-	if err == nil {
-		t.Fatal("expected send to failed due to canceled context")
-	}
 }
 
 func GetProviderTest(t *testing.T, c client.Ingest, providerID peer.ID) {

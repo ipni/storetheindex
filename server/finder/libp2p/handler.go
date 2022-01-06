@@ -15,14 +15,11 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gogo/protobuf/proto"
-	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 )
-
-var log = logging.Logger("indexer/finder")
 
 // handler handles requests for the providers resource
 type libp2pHandler struct {
@@ -53,13 +50,10 @@ func (h *libp2pHandler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgb
 	var handle handlerFunc
 	switch req.GetType() {
 	case pb.FinderMessage_GET:
-		log.Debug("Handle new GET message")
 		handle = h.get
 		rspType = pb.FinderMessage_GET_RESPONSE
 	default:
-		msg := "ussupported message type"
-		log.Errorw(msg, "type", req.GetType())
-		return nil, fmt.Errorf("%s %d", msg, req.GetType())
+		return nil, fmt.Errorf("unsupported message type %d", req.GetType())
 	}
 
 	data, err := handle(ctx, msgPeer, &req)
