@@ -1,16 +1,16 @@
 package command
 
 import (
+	"encoding/base64"
 	"fmt"
-
-	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/multiformats/go-multihash"
-	"github.com/urfave/cli/v2"
 
 	"github.com/filecoin-project/storetheindex/api/v0/finder/client"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
 	p2pclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/libp2p"
+	"github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multihash"
+	"github.com/urfave/cli/v2"
 )
 
 var FindCmd = &cli.Command{
@@ -85,9 +85,9 @@ func findCmd(cctx *cli.Context) error {
 		fmt.Println("   Multihash:", resp.MultihashResults[i].Multihash.B58String(), "==>")
 		for _, pr := range resp.MultihashResults[i].ProviderResults {
 			fmt.Println("       Provider:", pr.Provider)
-			fmt.Println("       ContextID:", string(pr.ContextID))
+			fmt.Println("       ContextID:", base64.StdEncoding.EncodeToString(pr.ContextID))
 			fmt.Println("       Proto:", pr.Metadata.ProtocolID)
-			fmt.Println("       Metadata:", string(pr.Metadata.Data))
+			fmt.Println("       Metadata:", base64.StdEncoding.EncodeToString(pr.Metadata.Data))
 		}
 	}
 	return nil

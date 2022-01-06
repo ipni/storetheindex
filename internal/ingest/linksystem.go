@@ -3,6 +3,7 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -283,6 +284,46 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 
 	log := log.With("publisher", from, "adCid", adCid)
 
+	log.Infow("Syncing content for advertisement")
+
+	isRm, err := ad.FieldIsRm().AsBool()
+	if err != nil {
+		log.Errorw("Cannot read IsRm field", "err", err)
+		return
+	}
+
+	contextID, err := ad.FieldContextID().AsBytes()
+	if err != nil {
+		log.Error("Cannot read context ID from advertisement", "err", err)
+		return
+	}
+
+	// If advertisement is for removal and has a contextID, then remove
+	// everything from the indexer-core with the contextID and provider from
+	// this advertisement.
+	if isRm && len(contextID) != 0 {
+		provider, err := ad.FieldProvider().AsString()
+		if err != nil {
+			log.Errorw("cannot read provider from advertisement", "err", err)
+			return
+		}
+		providerID, err := peer.Decode(provider)
+		if err != nil {
+			log.Errorw("Cannot decode provider peer id", "err", err)
+			return
+		}
+		log := log.With("contextID", base64.StdEncoding.EncodeToString(contextID), "provider", providerID)
+		err = ing.indexer.RemoveProviderContext(providerID, contextID)
+		if err != nil {
+			log.Error("Failed to removed content by context ID")
+			return
+		}
+		log.Infow("Removed content by context ID")
+		return
+	}
+
+	log.Infow("Syncing content blocks for advertisement", "for_removal", isRm)
+
 	elink, err := ad.FieldEntries().AsLink()
 	if err != nil {
 		log.Errorw("Error decoding advertisement entries link", "err", err)
@@ -290,35 +331,8 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 	}
 	entriesCid := elink.(cidlink.Link).Cid
 
-	log.Infow("Syncing content blocks for advertisement")
-
-	// If advertisement is for removal of everything identified by context ID,
-	// then the advertisement will not have any entries.  In that case, remove
-	// everything from the indexer-core with the contextID from this
-	// advertisement.
 	if entriesCid == cid.Undef {
-		isRm, err := ad.FieldIsRm().AsBool()
-		if err != nil {
-			log.Errorw("Cannot read IsRm field", "err", err)
-			return
-		}
-		if !isRm {
-			log.Error("Advertisement entries link is undefined and ad is not removal")
-			return
-		}
-
-		contextID, err := ad.FieldContextID().AsBytes()
-		if err != nil {
-			log.Error("Cannot read context ID from advertisement", "err", err)
-			return
-		}
-
-		err = ing.indexer.RemoveProviderContext(from, contextID)
-		if err != nil {
-			log.Error("Failed to removed content by context ID", "contextID", contextID)
-			return
-		}
-		log.Infow("Removed content by context ID", "contextID", contextID)
+		log.Error("Advertisement entries link is undefined and ad is not removal")
 		return
 	}
 

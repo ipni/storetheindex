@@ -233,6 +233,33 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		return nil
 	})
 
+	// Remove a car file from the provider.  This will cause the provider to
+	// publish an advertisement that tells the indexer to remove the car file
+	// content by contextID.  The indexer will then import the advertisement
+	// and remove content.
+	outRemove := e.run(provider, "remove", "car",
+		"-i", carPath,
+		"--listen-admin", "http://localhost:3102",
+	)
+	t.Logf("remove output:\n%s\n", outRemove)
+
+	// Wait for the CAR indexes to be removed
+	retryWithTimeout(t, 10*time.Second, time.Second, func() error {
+		for _, mh := range []string{
+			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
+			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
+		} {
+			findOutput := e.run(provider, "find", "-i", "localhost", "-mh", mh)
+			t.Logf("import output:\n%s\n", findOutput)
+
+			if !bytes.Contains(findOutput, []byte("not found")) {
+				return fmt.Errorf("%s: index not removed", mh)
+			}
+		}
+
+		return nil
+	})
+
 	e.stop(cmdIndexer, time.Second)
 	e.stop(cmdProvider, time.Second)
 }
