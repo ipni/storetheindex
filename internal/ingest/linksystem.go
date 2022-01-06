@@ -322,7 +322,11 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 		return
 	}
 
-	log.Infow("Syncing content blocks for advertisement", "for_removal", isRm)
+	if isRm {
+		log.Warnw("Syncing content blocks to remove for removal advertisement with no context ID")
+	} else {
+		log.Infow("Syncing content blocks for advertisement")
+	}
 
 	elink, err := ad.FieldEntries().AsLink()
 	if err != nil {
