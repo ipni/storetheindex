@@ -4,11 +4,14 @@ StoreTheIndex 🗂️
 > The first place to go in order to find a CID stored in Filecoin
 
 
-This repo provides an indexer implementation that can be used to index data stored by different data providers (miners and eventually IPFS).
+This repo provides an indexer implementation that can be used to index data stored by a range of participating storage providers.
 
+## Design
+
+A design discussion of the ingestion and content routing interfaces exposed by store the index is [here](https://protocollabs.notion.site/Indexer-Node-Design-4fb94471b6be4352b6849dc9b9527825).
 
 ## Current status 🚧
-This implementation is currently under development and interfaces are no yet stable.
+This implementation is under development. Instances of it are running and functioning, but interfaces may continue to evolve.
 
 
 ## Install
@@ -25,12 +28,12 @@ storetheindex init
 ```
 
 
-## Running Indexer Service
-The run storetheindex as an indexer service, run the `daemon` command.  The service lets clients connect, and index content and find that content.
+## Running the Indexer Service
+To run storetheindex as a service, run the `daemon` command.  The service watches for providers to index, and exposes a query / content routing client interface.
 
-The daemon is configured by the config file in the storetheindex repository.  The config file and repo are created when storetheindex is initialized, using the `init` command. This repo is located in the local file system. By default, the repo is located at ~/.storetheindex.  To change the repo location, set the `$STORETHEINDEX_PATH` environment variable:
+The daemon is configured by the config file in the storetheindex repository.  The config file and repo are created when storetheindex is initialized, using the `init` command. This repo is located in the local file system. By default, the repo is located at ~/.storetheindex.  To change the repo location, set the `$STORETHEINDEX_PATH` environmental variable.
 
-## Indexer Client Commands
+## Indexer CLI Commands
 
 There are a number of client commands included with storetheindex.  Their purpose is to perform simple indexing and lookup actions against a running daemon.  These can be helpful to test that an indexer is working.  These include the following commands:
 
