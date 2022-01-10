@@ -2,6 +2,7 @@ package httpingestserver
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -69,7 +70,7 @@ func init() {
 	}
 
 	var err error
-	reg, err = registry.NewRegistry(discoveryCfg, nil, nil)
+	reg, err = registry.NewRegistry(context.Background(), discoveryCfg, nil, nil)
 	if err != nil {
 		panic(err)
 	}
