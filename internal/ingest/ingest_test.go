@@ -82,7 +82,7 @@ func TestSubscribe(t *testing.T) {
 	// Check that no advertisement is retrieved from publisher once it is no
 	// longer allowed.
 	c, _, _ := publishRandomIndexAndAdv(t, pub, lsys, false)
-	adv, err := i.ds.Get(datastore.NewKey(c.String()))
+	adv, err := i.ds.Get(context.Background(), datastore.NewKey(c.String()))
 	require.Error(t, err, datastore.ErrNotFound)
 	require.Nil(t, adv)
 }
@@ -168,7 +168,7 @@ func TestMultiplePublishers(t *testing.T) {
 }
 
 func mkTestHost() host.Host {
-	h, _ := libp2p.New(context.Background(), libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	h, _ := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
 	return h
 }
 
@@ -215,7 +215,7 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
-		val, err := ds.Get(dsKey(c.String()))
+		val, err := ds.Get(lctx.Ctx, dsKey(c.String()))
 		if err != nil {
 			return nil, err
 		}
@@ -225,7 +225,7 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 		buf := bytes.NewBuffer(nil)
 		return buf, func(lnk ipld.Link) error {
 			c := lnk.(cidlink.Link).Cid
-			return ds.Put(dsKey(c.String()), buf.Bytes())
+			return ds.Put(lctx.Ctx, dsKey(c.String()), buf.Bytes())
 		}, nil
 	}
 	return lsys
@@ -325,13 +325,13 @@ func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Pub
 
 	if !fakeSig {
 		requireTrueEventually(t, func() bool {
-			has, err := i.ds.Has(datastore.NewKey(c.String()))
+			has, err := i.ds.Has(context.Background(), datastore.NewKey(c.String()))
 			return err == nil && has
 		}, 2*time.Second, 15*time.Second, "expected advertisement with ID %s was not received", c)
 	}
 
 	// Check if advertisement in datastore.
-	adv, err := i.ds.Get(datastore.NewKey(c.String()))
+	adv, err := i.ds.Get(context.Background(), datastore.NewKey(c.String()))
 	if !fakeSig {
 		require.NoError(t, err, "err getting %s", c.String())
 		require.NotNil(t, adv)

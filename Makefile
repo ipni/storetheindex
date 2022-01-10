@@ -5,10 +5,13 @@ BIN := storetheindex
 all: vet test build
 
 build:
-	go build -o $(BIN)
+	go build
 
 docker: Dockerfile clean
 	docker build . --force-rm -f Dockerfile -t storetheindex:$(shell git rev-parse --short HEAD)
+
+install:
+	go install
 
 lint:
 	golangci-lint run
@@ -20,5 +23,4 @@ vet:
 	go vet ./...
 
 clean:
-	rm -f $(BIN)
 	go clean

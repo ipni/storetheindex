@@ -92,7 +92,10 @@ func TestNewRegistryDiscovery(t *testing.T) {
 		},
 	}
 
-	err = r.Register(info)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = r.Register(ctx, info)
 	if err != nil {
 		t.Error("failed to register directly:", err)
 	}
@@ -154,7 +157,11 @@ func TestDiscoveryAllowed(t *testing.T) {
 			Addrs: []multiaddr.Multiaddr{maddr},
 		},
 	}
-	err = r.Register(info)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = r.Register(ctx, info)
 	if err != nil {
 		t.Error("failed to register directly:", err)
 	}
@@ -237,11 +244,14 @@ func TestDatastore(t *testing.T) {
 	}
 	t.Log("created new registry with datastore")
 
-	err = r.Register(info1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = r.Register(ctx, info1)
 	if err != nil {
 		t.Fatal("failed to register directly:", err)
 	}
-	err = r.Register(info2)
+	err = r.Register(ctx, info2)
 	if err != nil {
 		t.Fatal("failed to register directly:", err)
 	}

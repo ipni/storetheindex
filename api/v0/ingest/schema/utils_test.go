@@ -22,7 +22,7 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
-		val, err := ds.Get(datastore.NewKey(c.String()))
+		val, err := ds.Get(lctx.Ctx, datastore.NewKey(c.String()))
 		if err != nil {
 			return nil, err
 		}
@@ -32,7 +32,7 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 		buf := bytes.NewBuffer(nil)
 		return buf, func(lnk ipld.Link) error {
 			c := lnk.(cidlink.Link).Cid
-			return ds.Put(datastore.NewKey(c.String()), buf.Bytes())
+			return ds.Put(lctx.Ctx, datastore.NewKey(c.String()), buf.Bytes())
 		}, nil
 	}
 	return lsys

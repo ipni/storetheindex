@@ -123,7 +123,7 @@ func (h *libp2pHandler) GetProvider(ctx context.Context, p peer.ID, msg *pb.Inge
 }
 
 func (h *libp2pHandler) RegisterProvider(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
-	err := h.ingestHandler.RegisterProvider(msg.GetData())
+	err := h.ingestHandler.RegisterProvider(ctx, msg.GetData())
 	return nil, err
 }
 
@@ -132,6 +132,6 @@ func (h *libp2pHandler) RemoveProvider(ctx context.Context, p peer.ID, msg *pb.I
 }
 
 func (h *libp2pHandler) IndexContent(ctx context.Context, p peer.ID, msg *pb.IngestMessage) ([]byte, error) {
-	err := h.ingestHandler.IndexContent(msg.GetData())
+	err := h.ingestHandler.IndexContent(ctx, msg.GetData())
 	return nil, err
 }

@@ -180,7 +180,7 @@ func daemonCommand(cctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("bad p2p address in config %s: %s", cfg.Addresses.P2PAddr, err)
 		}
-		p2pHost, err := libp2p.New(ctx,
+		p2pHost, err := libp2p.New(
 			// Use the keypair generated during init
 			libp2p.Identity(privKey),
 			// Listen at specific address

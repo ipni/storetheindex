@@ -123,7 +123,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 			Addrs: []multiaddr.Multiaddr{a},
 		},
 	}
-	err = reg.Register(info)
+	err = reg.Register(ctx, info)
 	if err != nil {
 		t.Fatal("could not register provider info:", err)
 	}
