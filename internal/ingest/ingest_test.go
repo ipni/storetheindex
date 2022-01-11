@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
-	"runtime"
 	"testing"
 	"time"
 
@@ -49,7 +47,8 @@ func TestSubscribe(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	i, reg := mkIngest(t, h)
+	i, core, reg := mkIngest(t, h)
+	defer core.Close()
 	defer i.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
 	defer pub.Close()
@@ -82,7 +81,7 @@ func TestSubscribe(t *testing.T) {
 	// Check that no advertisement is retrieved from publisher once it is no
 	// longer allowed.
 	c, _, _ := publishRandomIndexAndAdv(t, pub, lsys, false)
-	adv, err := i.ds.Get(datastore.NewKey(c.String()))
+	adv, err := i.ds.Get(context.Background(), datastore.NewKey(c.String()))
 	require.Error(t, err, datastore.ErrNotFound)
 	require.Nil(t, adv)
 }
@@ -91,7 +90,8 @@ func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	i, _ := mkIngest(t, h)
+	i, core, _ := mkIngest(t, h)
+	defer core.Close()
 	defer i.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
 	defer pub.Close()
@@ -130,7 +130,8 @@ func TestMultiplePublishers(t *testing.T) {
 	h := mkTestHost()
 	pubHost1 := mkTestHost()
 	pubHost2 := mkTestHost()
-	i, _ := mkIngest(t, h)
+	i, core, _ := mkIngest(t, h)
+	defer core.Close()
 	defer i.Close()
 	pub1, lsys1 := mkMockPublisher(t, pubHost1, srcStore1)
 	defer pub1.Close()
@@ -168,23 +169,13 @@ func TestMultiplePublishers(t *testing.T) {
 }
 
 func mkTestHost() host.Host {
-	h, _ := libp2p.New(context.Background(), libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	h, _ := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
 	return h
 }
 
 // Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
-	var tmpDir string
-	var err error
-	if runtime.GOOS == "windows" {
-		tmpDir, err = ioutil.TempDir("", "sth")
-		if err != nil {
-			t.Fatal(err)
-		}
-	} else {
-		tmpDir = t.TempDir()
-	}
-	valueStore, err := storethehash.New(tmpDir)
+	valueStore, err := storethehash.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +195,7 @@ func mkRegistry(t *testing.T) *registry.Registry {
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),
 	}
-	reg, err := registry.NewRegistry(discoveryCfg, nil, nil)
+	reg, err := registry.NewRegistry(context.Background(), discoveryCfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +206,7 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
-		val, err := ds.Get(dsKey(c.String()))
+		val, err := ds.Get(lctx.Ctx, dsKey(c.String()))
 		if err != nil {
 			return nil, err
 		}
@@ -225,7 +216,7 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 		buf := bytes.NewBuffer(nil)
 		return buf, func(lnk ipld.Link) error {
 			c := lnk.(cidlink.Link).Cid
-			return ds.Put(dsKey(c.String()), buf.Bytes())
+			return ds.Put(lctx.Ctx, dsKey(c.String()), buf.Bytes())
 		}, nil
 	}
 	return lsys
@@ -237,12 +228,13 @@ func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.
 	return ls, lsys
 }
 
-func mkIngest(t *testing.T, h host.Host) (*Ingester, *registry.Registry) {
+func mkIngest(t *testing.T, h host.Host) (*Ingester, *engine.Engine, *registry.Registry) {
 	store := dssync.MutexWrap(datastore.NewMapDatastore())
 	reg := mkRegistry(t)
-	ing, err := NewIngester(ingestCfg, h, mkIndexer(t, true), reg, store)
+	core := mkIndexer(t, true)
+	ing, err := NewIngester(ingestCfg, h, core, reg, store)
 	require.NoError(t, err)
-	return ing, reg
+	return ing, core, reg
 }
 
 func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
@@ -325,13 +317,13 @@ func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Pub
 
 	if !fakeSig {
 		requireTrueEventually(t, func() bool {
-			has, err := i.ds.Has(datastore.NewKey(c.String()))
+			has, err := i.ds.Has(context.Background(), datastore.NewKey(c.String()))
 			return err == nil && has
 		}, 2*time.Second, 15*time.Second, "expected advertisement with ID %s was not received", c)
 	}
 
 	// Check if advertisement in datastore.
-	adv, err := i.ds.Get(datastore.NewKey(c.String()))
+	adv, err := i.ds.Get(context.Background(), datastore.NewKey(c.String()))
 	if !fakeSig {
 		require.NoError(t, err, "err getting %s", c.String())
 		require.NotNil(t, adv)

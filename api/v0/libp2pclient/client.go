@@ -53,7 +53,7 @@ func New(p2pHost host.Host, peerID peer.ID, protoID protocol.ID) (*Client, error
 	// If no host was given, create one.
 	if p2pHost == nil {
 		var err error
-		p2pHost, err = libp2p.New(context.Background())
+		p2pHost, err = libp2p.New()
 		if err != nil {
 			return nil, err
 		}

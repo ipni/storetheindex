@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,7 +43,7 @@ func (h *IngestHandler) DiscoverProvider(data []byte) error {
 	return h.registry.Discover(discoReq.ProviderID, discoReq.DiscoveryAddr, false)
 }
 
-func (h *IngestHandler) RegisterProvider(data []byte) error {
+func (h *IngestHandler) RegisterProvider(ctx context.Context, data []byte) error {
 	peerRec, err := model.ReadRegisterRequest(data)
 	if err != nil {
 		return fmt.Errorf("cannot read register request: %s", err)
@@ -62,7 +63,7 @@ func (h *IngestHandler) RegisterProvider(data []byte) error {
 			Addrs: peerRec.Addrs,
 		},
 	}
-	return h.registry.Register(info)
+	return h.registry.Register(ctx, info)
 }
 
 func (h *IngestHandler) ListProviders() ([]byte, error) {
@@ -90,7 +91,7 @@ func (h *IngestHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 // IndexContent handles an IngestRequest
 //
 // Returning error is the same as return v0.NewError(err, http.StatusBadRequest)
-func (h *IngestHandler) IndexContent(data []byte) error {
+func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 	ingReq, err := model.ReadIngestRequest(data)
 	if err != nil {
 		return fmt.Errorf("cannot read ingest request: %s", err)
@@ -105,7 +106,7 @@ func (h *IngestHandler) IndexContent(data []byte) error {
 	}
 
 	// Register provider if not registered, or update addreses if already registered
-	err = h.registry.RegisterOrUpdate(ingReq.ProviderID, ingReq.Addrs, cid.Undef)
+	err = h.registry.RegisterOrUpdate(ctx, ingReq.ProviderID, ingReq.Addrs, cid.Undef)
 	if err != nil {
 		return err
 	}

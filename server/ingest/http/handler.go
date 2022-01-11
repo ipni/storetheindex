@@ -88,7 +88,7 @@ func (h *httpHandler) RegisterProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.ingestHandler.RegisterProvider(body)
+	err = h.ingestHandler.RegisterProvider(r.Context(), body)
 	if err != nil {
 		httpserver.HandleError(w, err, "register")
 		return
@@ -167,7 +167,7 @@ func (h *httpHandler) IndexContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.ingestHandler.IndexContent(body)
+	err = h.ingestHandler.IndexContent(r.Context(), body)
 	if err != nil {
 		httpserver.HandleError(w, err, "ingest")
 		return

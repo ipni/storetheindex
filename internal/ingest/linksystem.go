@@ -42,7 +42,7 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
-		val, err := ds.Get(dsKey(c.String()))
+		val, err := ds.Get(lctx.Ctx, dsKey(c.String()))
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +79,7 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 
 				// Register provider or update existing registration.  The
 				// provider must be allowed by policy to be registered.
-				err = reg.RegisterOrUpdate(provID, addrs, c)
+				err = reg.RegisterOrUpdate(lctx.Ctx, provID, addrs, c)
 				if err != nil {
 					return err
 				}
@@ -103,11 +103,11 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 				// Persist the advertisement.  This is read later when
 				// processing each chunk of entries, to get info common to all
 				// entries in a chunk.
-				return ds.Put(dsKey(c.String()), origBuf)
+				return ds.Put(lctx.Ctx, dsKey(c.String()), origBuf)
 			}
 			log.Debug("Persisting IPLD node")
 			// Any other type of node (like entries) are stored right away.
-			return ds.Put(dsKey(c.String()), origBuf)
+			return ds.Put(lctx.Ctx, dsKey(c.String()), origBuf)
 		}, nil
 	}
 	return lsys
@@ -182,7 +182,7 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 	log.Debug("Incoming block hook triggered")
 
 	// Get data corresponding to the block.
-	val, err := ing.ds.Get(dsKey(c.String()))
+	val, err := ing.ds.Get(context.Background(), dsKey(c.String()))
 	if err != nil {
 		log.Errorw("Error while fetching the node from datastore", "err", err)
 		return
@@ -271,7 +271,7 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 	// has finished.  This prevents storing redundant information in
 	// several datastores.
 	log.Debug("Removing processed entries from datastore")
-	err = ing.ds.Delete(dsKey(c.String()))
+	err = ing.ds.Delete(context.Background(), dsKey(c.String()))
 	if err != nil {
 		log.Errorw("Error deleting index from datastore", "err", err)
 	}
@@ -341,7 +341,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 	}
 
 	log = log.With("entriesCid", entriesCid)
-	exists, err := ing.ds.Has(dsKey(entriesCid.String()))
+	exists, err := ing.ds.Has(context.Background(), dsKey(entriesCid.String()))
 	if err != nil && err != datastore.ErrNotFound {
 		log.Errorw("Failed checking if entries exist", "err", err)
 	}
@@ -384,7 +384,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ipld.Node) error {
 	// Getting the advertisement for the entries so we know
 	// what metadata and related information we need to use for ingestion.
-	adb, err := ing.ds.Get(dsKey(adCid.String()))
+	adb, err := ing.ds.Get(context.Background(), dsKey(adCid.String()))
 	if err != nil {
 		return fmt.Errorf("cannot read advertisement for entry from datastore: %s", err)
 	}
@@ -551,11 +551,11 @@ func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, valu
 }
 
 func putCidToAdMapping(ds datastore.Batching, lnk ipld.Link, adCid cid.Cid) error {
-	return ds.Put(dsKey(admapPrefix+lnk.(cidlink.Link).Cid.String()), adCid.Bytes())
+	return ds.Put(context.Background(), dsKey(admapPrefix+lnk.(cidlink.Link).Cid.String()), adCid.Bytes())
 }
 
 func getCidToAdMapping(ds datastore.Batching, linkCid cid.Cid) (cid.Cid, error) {
-	val, err := ds.Get(dsKey(admapPrefix + linkCid.String()))
+	val, err := ds.Get(context.Background(), dsKey(admapPrefix+linkCid.String()))
 	if err != nil {
 		return cid.Undef, fmt.Errorf("cannot read advertisement CID for entries CID from datastore: %s", err)
 	}
@@ -567,7 +567,7 @@ func getCidToAdMapping(ds datastore.Batching, linkCid cid.Cid) (cid.Cid, error) 
 }
 
 func deleteCidToAdMapping(ds datastore.Batching, entries cid.Cid) error {
-	return ds.Delete(dsKey(admapPrefix + entries.String()))
+	return ds.Delete(context.Background(), dsKey(admapPrefix+entries.String()))
 }
 
 // decodeIPLDNode decodes an ipld.Node from bytes read from an io.Reader.

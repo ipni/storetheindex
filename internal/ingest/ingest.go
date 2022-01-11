@@ -161,7 +161,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 func (ing *Ingester) watchSyncFinished(onSyncFin <-chan legs.SyncFinished) {
 	for syncFin := range onSyncFin {
 		// Persist the latest sync
-		err := ing.ds.Put(datastore.NewKey(syncPrefix+syncFin.PeerID.String()), syncFin.Cid.Bytes())
+		err := ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+syncFin.PeerID.String()), syncFin.Cid.Bytes())
 		if err != nil {
 			log.Errorw("Error persisting latest sync", "err", err, "peer", syncFin.PeerID)
 			continue
@@ -221,7 +221,7 @@ func (ing *Ingester) restoreLatestSync() error {
 	q := query.Query{
 		Prefix: syncPrefix,
 	}
-	results, err := ing.ds.Query(q)
+	results, err := ing.ds.Query(context.Background(), q)
 	if err != nil {
 		return err
 	}
@@ -261,7 +261,7 @@ func (ing *Ingester) restoreLatestSync() error {
 
 // Get the latest CID synced for the peer.
 func (ing *Ingester) getLatestSync(peerID peer.ID) (cid.Cid, error) {
-	b, err := ing.ds.Get(datastore.NewKey(syncPrefix + peerID.String()))
+	b, err := ing.ds.Get(context.Background(), datastore.NewKey(syncPrefix+peerID.String()))
 	if err != nil {
 		if err == datastore.ErrNotFound {
 			return cid.Undef, nil

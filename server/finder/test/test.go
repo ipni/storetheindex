@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
-	"runtime"
 	"testing"
 	"time"
 
@@ -32,17 +30,7 @@ const (
 
 //InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
-	var err error
-	var tmpDir string
-	if runtime.GOOS == "windows" {
-		tmpDir, err = ioutil.TempDir("", "sth_test")
-		if err != nil {
-			t.Fatal(err)
-		}
-	} else {
-		tmpDir = t.TempDir()
-	}
-	valueStore, err := storethehash.New(tmpDir)
+	valueStore, err := storethehash.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +53,7 @@ func InitRegistry(t *testing.T) *registry.Registry {
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),
 	}
-	reg, err := registry.NewRegistry(discoveryCfg, nil, nil)
+	reg, err := registry.NewRegistry(context.Background(), discoveryCfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +111,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 			Addrs: []multiaddr.Multiaddr{a},
 		},
 	}
-	err = reg.Register(info)
+	err = reg.Register(ctx, info)
 	if err != nil {
 		t.Fatal("could not register provider info:", err)
 	}

@@ -52,7 +52,7 @@ type Registry struct {
 	periodicTimer *time.Timer
 }
 
-// ProviderInfo is an immutable data sturcture that holds information about a
+// ProviderInfo is an immutable data structure that holds information about a
 // provider.  A ProviderInfo instance is never modified, but rather a new one
 // is created to update its contents.  This means existing references remain
 // valid.
@@ -61,7 +61,7 @@ type ProviderInfo struct {
 	AddrInfo peer.AddrInfo
 	// DiscoveryAddr is the address that is used for discovery of the provider.
 	DiscoveryAddr string
-	// LastAdvertisement identifies the latest advertizement the indexer has ingested.
+	// LastAdvertisement identifies the latest advertisement the indexer has ingested.
 	LastAdvertisement cid.Cid
 	// LastAdvertisementTime is the time the latest advertisement was received.
 	LastAdvertisementTime time.Time
@@ -75,10 +75,10 @@ func (p *ProviderInfo) dsKey() datastore.Key {
 
 // NewRegistry creates a new provider registry, giving it provider policy
 // configuration, a datastore to persist provider data, and a Discoverer
-// interface.
+// interface.  The context is only used for cancellation of this function.
 //
 // TODO: It is probably necessary to have multiple discoverer interfaces
-func NewRegistry(cfg config.Discovery, dstore datastore.Datastore, disco discovery.Discoverer) (*Registry, error) {
+func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, disco discovery.Discoverer) (*Registry, error) {
 	// Create policy from config
 	discoPolicy, err := policy.New(cfg.Policy)
 	if err != nil {
@@ -102,7 +102,7 @@ func NewRegistry(cfg config.Discovery, dstore datastore.Datastore, disco discove
 		dstore: dstore,
 	}
 
-	count, err := r.loadPersistedProviders()
+	count, err := r.loadPersistedProviders(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (r *Registry) Close() error {
 	r.closeOnce.Do(func() {
 		r.periodicTimer.Stop()
 		// Wait for any pending discoveries to complete, then stop the main run
-		// goroutine
+		// goroutine.
 		r.discoWait.Wait()
 		close(r.actions)
 
@@ -136,7 +136,7 @@ func (r *Registry) Close() error {
 	return err
 }
 
-// run executs functions that need to be executed on the same goroutine
+// run executes functions that need to be executed on the same goroutine
 //
 // Running actions here is a substitute for mutex-locking the sections of code
 // run as an action and allows the caller to decide whether or not to wait for
@@ -164,8 +164,8 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 		return v0.NewError(ErrNotAllowed, http.StatusForbidden)
 	}
 
-	// It does not matter if the provider is trusted or not, since verification
-	// is necessary to get the provider's address
+	// If provider is already trusted, then discovery is being done only to get
+	// the provider's address.
 
 	errCh := make(chan error, 1)
 	r.actions <- func() {
@@ -179,7 +179,7 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 
 // Register is used to directly register a provider, bypassing discovery and
 // adding discovered data directly to the registry.
-func (r *Registry) Register(info *ProviderInfo) error {
+func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 	if len(info.AddrInfo.Addrs) == 0 {
 		return errors.New("missing provider address")
 	}
@@ -201,7 +201,7 @@ func (r *Registry) Register(info *ProviderInfo) error {
 	// If allowed provider is trusted, register immediately without verification.
 	errCh := make(chan error, 1)
 	r.actions <- func() {
-		r.syncRegister(info, errCh)
+		errCh <- r.syncRegister(ctx, info)
 	}
 
 	err := <-errCh
@@ -253,12 +253,12 @@ func (r *Registry) BlockPeer(peerID peer.ID) bool {
 
 // RegisterOrUpdate attempts to register an unregistered provider, or updates
 // the addresses and latest advertisement of an already registered provider.
-func (r *Registry) RegisterOrUpdate(providerID peer.ID, addrs []string, adID cid.Cid) error {
+func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, addrs []string, adID cid.Cid) error {
 	// Check that the provider has been discovered and validated
 	info := r.ProviderInfo(providerID)
 	if info == nil {
 		if len(addrs) == 0 {
-			return errors.New("cannot regiser provider with no address")
+			return errors.New("cannot register provider with no address")
 		}
 
 		maddrs, err := stringsToMultiaddrs(addrs)
@@ -280,7 +280,7 @@ func (r *Registry) RegisterOrUpdate(providerID peer.ID, addrs []string, adID cid
 			info.LastAdvertisementTime = now
 		}
 
-		return r.Register(info)
+		return r.Register(ctx, info)
 	}
 
 	var update bool
@@ -319,7 +319,7 @@ func (r *Registry) RegisterOrUpdate(providerID peer.ID, addrs []string, adID cid
 	}
 	info.lastContactTime = now
 
-	return r.Register(info)
+	return r.Register(ctx, info)
 }
 
 // IsRegistered checks if the provider is in the registry
@@ -390,7 +390,7 @@ func (r *Registry) CheckSequence(peerID peer.ID, seq uint64) error {
 func (r *Registry) syncStartDiscover(peerID peer.ID, discoAddr string, errCh chan<- error) {
 	err := r.syncNeedDiscover(discoAddr)
 	if err != nil {
-		r.syncEndDiscover(discoAddr, nil, err, errCh)
+		errCh <- err
 		return
 	}
 
@@ -400,39 +400,45 @@ func (r *Registry) syncStartDiscover(peerID peer.ID, discoAddr string, errCh cha
 
 	// Do discovery asynchronously; do not block other discovery requests
 	go func() {
-		discoData, discoErr := r.discover(peerID, discoAddr)
+		ctx := context.Background()
+		if r.discoveryTimeout != 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, r.discoveryTimeout)
+			defer cancel()
+		}
+
+		discoData, discoErr := r.discover(ctx, peerID, discoAddr)
 		r.actions <- func() {
-			r.syncEndDiscover(discoAddr, discoData, discoErr, errCh)
-			r.discoWait.Done()
+			defer close(errCh)
+			defer r.discoWait.Done()
+
+			// Update discovery completion time.
+			r.discoTimes[discoAddr] = time.Now()
+			if discoErr != nil {
+				errCh <- discoErr
+				return
+			}
+
+			info := &ProviderInfo{
+				AddrInfo:      discoData.AddrInfo,
+				DiscoveryAddr: discoAddr,
+			}
+			if err := r.syncRegister(ctx, info); err != nil {
+				errCh <- err
+				return
+			}
 		}
 	}()
 }
 
-func (r *Registry) syncEndDiscover(discoAddr string, discoData *discovery.Discovered, err error, errCh chan<- error) {
-	r.discoTimes[discoAddr] = time.Now()
-
-	if err != nil {
-		errCh <- err
-		close(errCh)
-		return
-	}
-
-	info := &ProviderInfo{
-		AddrInfo:      discoData.AddrInfo,
-		DiscoveryAddr: discoAddr,
-	}
-
-	r.syncRegister(info, errCh)
-}
-
-func (r *Registry) syncRegister(info *ProviderInfo, errCh chan<- error) {
+func (r *Registry) syncRegister(ctx context.Context, info *ProviderInfo) error {
 	r.providers[info.AddrInfo.ID] = info
-	err := r.syncPersistProvider(info)
+	err := r.syncPersistProvider(ctx, info)
 	if err != nil {
 		err = fmt.Errorf("could not persist provider: %s", err)
-		errCh <- v0.NewError(err, http.StatusInternalServerError)
+		return v0.NewError(err, http.StatusInternalServerError)
 	}
-	close(errCh)
+	return nil
 }
 
 func (r *Registry) syncNeedDiscover(discoAddr string) error {
@@ -451,7 +457,7 @@ func (r *Registry) syncNeedDiscover(discoAddr string) error {
 	return nil
 }
 
-func (r *Registry) syncPersistProvider(info *ProviderInfo) error {
+func (r *Registry) syncPersistProvider(ctx context.Context, info *ProviderInfo) error {
 	if r.dstore == nil {
 		return nil
 	}
@@ -461,16 +467,16 @@ func (r *Registry) syncPersistProvider(info *ProviderInfo) error {
 	}
 
 	dsKey := info.dsKey()
-	if err = r.dstore.Put(dsKey, value); err != nil {
+	if err = r.dstore.Put(ctx, dsKey, value); err != nil {
 		return err
 	}
-	if err = r.dstore.Sync(dsKey); err != nil {
+	if err = r.dstore.Sync(ctx, dsKey); err != nil {
 		return fmt.Errorf("cannot sync provider info: %s", err)
 	}
 	return nil
 }
 
-func (r *Registry) loadPersistedProviders() (int, error) {
+func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 	if r.dstore == nil {
 		return 0, nil
 	}
@@ -479,7 +485,7 @@ func (r *Registry) loadPersistedProviders() (int, error) {
 	q := query.Query{
 		Prefix: providerKeyPath,
 	}
-	results, err := r.dstore.Query(q)
+	results, err := r.dstore.Query(ctx, q)
 	if err != nil {
 		return 0, err
 	}
@@ -509,17 +515,9 @@ func (r *Registry) loadPersistedProviders() (int, error) {
 	return count, nil
 }
 
-func (r *Registry) discover(peerID peer.ID, discoAddr string) (*discovery.Discovered, error) {
+func (r *Registry) discover(ctx context.Context, peerID peer.ID, discoAddr string) (*discovery.Discovered, error) {
 	if r.discoverer == nil {
 		return nil, ErrNoDiscovery
-	}
-
-	ctx := context.Background()
-	discoTimeout := r.discoveryTimeout
-	if discoTimeout != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, discoTimeout)
-		defer cancel()
 	}
 
 	discoData, err := r.discoverer.Discover(ctx, peerID, discoAddr)

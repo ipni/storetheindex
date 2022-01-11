@@ -93,11 +93,12 @@ func (e *e2eTestRunner) start(prog string, args ...string) *exec.Cmd {
 }
 
 func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
+	sig := os.Interrupt
 	if runtime.GOOS == "windows" {
 		// Windows can't send SIGINT.
-		timeout = 0
+		sig = os.Kill
 	}
-	err := cmd.Process.Signal(os.Interrupt)
+	err := cmd.Process.Signal(sig)
 	qt.Assert(e.t, err, qt.IsNil)
 
 	waitErr := make(chan error, 1)
@@ -115,9 +116,8 @@ func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
 
 func TestEndToEndWithReferenceProvider(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skipf("TODO: fix test for Windows")
+		t.Skip("skipping test on windows")
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	e := &e2eTestRunner{
@@ -141,6 +141,14 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		"GOBIN=" + e.dir,
 		"PATH=" + os.Getenv("PATH"),
 	}
+	if runtime.GOOS == "windows" {
+		const gopath = "C:\\Projects\\Go"
+		err := os.MkdirAll(gopath, 0666)
+		qt.Assert(t, err, qt.IsNil)
+		e.env = append(e.env, fmt.Sprintf("GOPATH=%s", gopath))
+	}
+	t.Logf("Env: %s", strings.Join(e.env, " "))
+
 	// Reuse the host's build and module download cache.
 	// This should allow "go install" to reuse work.
 	for _, name := range []string{"GOCACHE", "GOMODCACHE"} {
@@ -149,7 +157,6 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		out = bytes.TrimSpace(out)
 		e.env = append(e.env, fmt.Sprintf("%s=%s", name, out))
 	}
-	t.Logf("Env: %s", strings.Join(e.env, " "))
 
 	indexer := filepath.Join(e.dir, "storetheindex")
 	e.run("go", "install", ".")

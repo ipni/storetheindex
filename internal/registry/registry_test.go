@@ -70,8 +70,10 @@ func (m *mockDiscoverer) Discover(ctx context.Context, peerID peer.ID, filecoinA
 
 func TestNewRegistryDiscovery(t *testing.T) {
 	mockDisco := newMockDiscoverer(t, exceptID)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
+	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +94,7 @@ func TestNewRegistryDiscovery(t *testing.T) {
 		},
 	}
 
-	err = r.Register(info)
+	err = r.Register(ctx, info)
 	if err != nil {
 		t.Error("failed to register directly:", err)
 	}
@@ -111,8 +113,10 @@ func TestNewRegistryDiscovery(t *testing.T) {
 
 func TestDiscoveryAllowed(t *testing.T) {
 	mockDisco := newMockDiscoverer(t, exceptID)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
+	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +158,8 @@ func TestDiscoveryAllowed(t *testing.T) {
 			Addrs: []multiaddr.Multiaddr{maddr},
 		},
 	}
-	err = r.Register(info)
+
+	err = r.Register(ctx, info)
 	if err != nil {
 		t.Error("failed to register directly:", err)
 	}
@@ -167,13 +172,15 @@ func TestDiscoveryAllowed(t *testing.T) {
 
 func TestDiscoveryBlocked(t *testing.T) {
 	mockDisco := newMockDiscoverer(t, exceptID)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	peerID, err := peer.Decode(exceptID)
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
 
-	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
+	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,6 +203,8 @@ func TestDiscoveryBlocked(t *testing.T) {
 func TestDatastore(t *testing.T) {
 	dataStorePath := t.TempDir()
 	mockDisco := newMockDiscoverer(t, exceptID)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	peerID, err := peer.Decode(trustedID)
 	if err != nil {
@@ -231,17 +240,17 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewRegistry(discoveryCfg, dstore, mockDisco)
+	r, err := NewRegistry(ctx, discoveryCfg, dstore, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log("created new registry with datastore")
 
-	err = r.Register(info1)
+	err = r.Register(ctx, info1)
 	if err != nil {
 		t.Fatal("failed to register directly:", err)
 	}
-	err = r.Register(info2)
+	err = r.Register(ctx, info2)
 	if err != nil {
 		t.Fatal("failed to register directly:", err)
 	}
@@ -261,7 +270,7 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err = NewRegistry(discoveryCfg, dstore, mockDisco)
+	r, err = NewRegistry(ctx, discoveryCfg, dstore, mockDisco)
 	if err != nil {
 		t.Fatal(err)
 	}
