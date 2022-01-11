@@ -46,4 +46,11 @@ func TestFindIndexData(t *testing.T) {
 		t.Fatal(err)
 	}
 	test.FindIndexTest(ctx, t, c, ind, reg)
+
+	if err = reg.Close(); err != nil {
+		t.Errorf("Error closing registry: %s", err)
+	}
+	if err = ind.Close(); err != nil {
+		t.Errorf("Error closing indexer core: %s", err)
+	}
 }

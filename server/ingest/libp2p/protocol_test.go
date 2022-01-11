@@ -68,4 +68,11 @@ func TestRegisterProvider(t *testing.T) {
 	test.IndexContentNewAddr(t, p2pClient, peerID, privKey, ind, "/ip4/127.0.0.1/tcp/7777", reg)
 
 	test.IndexContentFail(t, p2pClient, peerID, privKey, ind)
+
+	if err = reg.Close(); err != nil {
+		t.Errorf("Error closing registry: %s", err)
+	}
+	if err = ind.Close(); err != nil {
+		t.Errorf("Error closing indexer core: %s", err)
+	}
 }

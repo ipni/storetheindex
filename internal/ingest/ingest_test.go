@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
-	"runtime"
 	"testing"
 	"time"
 
@@ -49,7 +47,8 @@ func TestSubscribe(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	i, reg := mkIngest(t, h)
+	i, core, reg := mkIngest(t, h)
+	defer core.Close()
 	defer i.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
 	defer pub.Close()
@@ -91,7 +90,8 @@ func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	i, _ := mkIngest(t, h)
+	i, core, _ := mkIngest(t, h)
+	defer core.Close()
 	defer i.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
 	defer pub.Close()
@@ -130,7 +130,8 @@ func TestMultiplePublishers(t *testing.T) {
 	h := mkTestHost()
 	pubHost1 := mkTestHost()
 	pubHost2 := mkTestHost()
-	i, _ := mkIngest(t, h)
+	i, core, _ := mkIngest(t, h)
+	defer core.Close()
 	defer i.Close()
 	pub1, lsys1 := mkMockPublisher(t, pubHost1, srcStore1)
 	defer pub1.Close()
@@ -174,17 +175,7 @@ func mkTestHost() host.Host {
 
 // Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
-	var tmpDir string
-	var err error
-	if runtime.GOOS == "windows" {
-		tmpDir, err = ioutil.TempDir("", "sth")
-		if err != nil {
-			t.Fatal(err)
-		}
-	} else {
-		tmpDir = t.TempDir()
-	}
-	valueStore, err := storethehash.New(tmpDir)
+	valueStore, err := storethehash.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,12 +228,13 @@ func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.
 	return ls, lsys
 }
 
-func mkIngest(t *testing.T, h host.Host) (*Ingester, *registry.Registry) {
+func mkIngest(t *testing.T, h host.Host) (*Ingester, *engine.Engine, *registry.Registry) {
 	store := dssync.MutexWrap(datastore.NewMapDatastore())
 	reg := mkRegistry(t)
-	ing, err := NewIngester(ingestCfg, h, mkIndexer(t, true), reg, store)
+	core := mkIndexer(t, true)
+	ing, err := NewIngester(ingestCfg, h, core, reg, store)
 	require.NoError(t, err)
-	return ing, reg
+	return ing, core, reg
 }
 
 func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
