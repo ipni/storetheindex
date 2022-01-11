@@ -137,6 +137,14 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		"GOBIN=" + e.dir,
 		"PATH=" + os.Getenv("PATH"),
 	}
+	if runtime.GOOS == "windows" {
+		const gopath = "C:\\Projects\\Go"
+		err := os.MkdirAll(gopath, 0666)
+		qt.Assert(t, err, qt.IsNil)
+		e.env = append(e.env, fmt.Sprintf("GOPATH=%s", gopath))
+	}
+	t.Logf("Env: %s", strings.Join(e.env, " "))
+
 	// Reuse the host's build and module download cache.
 	// This should allow "go install" to reuse work.
 	for _, name := range []string{"GOCACHE", "GOMODCACHE"} {
@@ -145,7 +153,6 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		out = bytes.TrimSpace(out)
 		e.env = append(e.env, fmt.Sprintf("%s=%s", name, out))
 	}
-	t.Logf("Env: %s", strings.Join(e.env, " "))
 
 	indexer := filepath.Join(e.dir, "storetheindex")
 	e.run("go", "install", ".")
