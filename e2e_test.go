@@ -93,13 +93,14 @@ func (e *e2eTestRunner) start(prog string, args ...string) *exec.Cmd {
 }
 
 func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
-	sig := os.Interrupt
 	if runtime.GOOS == "windows" {
 		// Windows can't send SIGINT.
-		sig = os.Kill
+		err := cmd.Process.Kill()
+		qt.Assert(e.t, err, qt.IsNil)
+	} else {
+		err := cmd.Process.Signal(os.Interrupt)
+		qt.Assert(e.t, err, qt.IsNil)
 	}
-	err := cmd.Process.Signal(sig)
-	qt.Assert(e.t, err, qt.IsNil)
 
 	waitErr := make(chan error, 1)
 	go func() { waitErr <- cmd.Wait() }()
