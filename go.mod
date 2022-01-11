@@ -8,7 +8,7 @@ require (
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-data-transfer v1.12.1 // indirect
 	github.com/filecoin-project/go-ds-versioning v0.1.1 // indirect
-	github.com/filecoin-project/go-indexer-core v0.2.6
+	github.com/filecoin-project/go-indexer-core v0.2.7
 	github.com/filecoin-project/go-legs v0.2.1
 	github.com/frankban/quicktest v1.14.0
 	github.com/gogo/protobuf v1.3.2
