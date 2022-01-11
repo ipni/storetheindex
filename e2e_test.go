@@ -93,14 +93,13 @@ func (e *e2eTestRunner) start(prog string, args ...string) *exec.Cmd {
 }
 
 func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
+	sig := os.Interrupt
 	if runtime.GOOS == "windows" {
 		// Windows can't send SIGINT.
-		err := cmd.Process.Kill()
-		qt.Assert(e.t, err, qt.IsNil)
-	} else {
-		err := cmd.Process.Signal(os.Interrupt)
-		qt.Assert(e.t, err, qt.IsNil)
+		sig = os.Kill
 	}
+	err := cmd.Process.Signal(sig)
+	qt.Assert(e.t, err, qt.IsNil)
 
 	waitErr := make(chan error, 1)
 	go func() { waitErr <- cmd.Wait() }()
@@ -116,6 +115,9 @@ func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
 }
 
 func TestEndToEndWithReferenceProvider(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping test on windows")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	e := &e2eTestRunner{
