@@ -106,7 +106,6 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 					log.Errorw("Error storing reverse map for entries in datastore", "err", err)
 					return errors.New("cannot process advertisement")
 				}
-				ds.Sync(lctx.Ctx, dsKey(admapPrefix))
 
 				// Persist the advertisement.  This is read later when
 				// processing each chunk of entries, to get info common to all
@@ -255,7 +254,7 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 	}
 	log = log.With("adCid", adCid)
 
-	log.Infow("Indexing content in incoming entry block")
+	log.Info("Indexing content in incoming entry block")
 	err = ing.indexContentBlock(adCid, pubID, node)
 	if err != nil {
 		log.Errorw("Error processing entries for advertisement", "err", err)
@@ -396,18 +395,9 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 	// If this entry chunk hash a next link, add a mapping from the next
 	// entries CID to the ad CID so that the ad can be loaded when that chunk
 	// is received.
-	var hasNextLink bool
-	if !(nchunk.Next.IsAbsent() || nchunk.Next.IsNull()) {
-		lnk, err := nchunk.Next.AsNode().AsLink()
-		if err != nil {
-			return err
-		}
-		err = putCidToAdMapping(context.Background(), ing.ds, lnk, adCid)
-		if err != nil {
-			return err
-		}
-		hasNextLink = true
-	}
+	//
+	// Do not return here if error; try to index content in this chunk.
+	hasNextLink, linkErr := ing.setNextCidToAd(nchunk, adCid)
 
 	// Load the advertisement data for this chunk.  If there are more chunks to
 	// follow, then cache the ad data.
@@ -450,7 +440,24 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 		return fmt.Errorf("cannot put multihashes into indexer: %s", err)
 	}
 
-	return nil
+	return linkErr
+}
+
+func (ing *Ingester) setNextCidToAd(nchunk schema.EntryChunk, adCid cid.Cid) (bool, error) {
+	if nchunk.Next.IsAbsent() || nchunk.Next.IsNull() {
+		return false, nil
+	}
+
+	lnk, err := nchunk.Next.AsNode().AsLink()
+	if err != nil {
+		return false, err
+	}
+	err = putCidToAdMapping(context.Background(), ing.ds, lnk, adCid)
+	if err == nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (ing *Ingester) loadAdData(adCid cid.Cid, keepCache bool) (indexer.Value, bool, error) {
@@ -594,7 +601,11 @@ func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, valu
 }
 
 func putCidToAdMapping(ctx context.Context, ds datastore.Batching, lnk ipld.Link, adCid cid.Cid) error {
-	return ds.Put(ctx, dsKey(admapPrefix+lnk.(cidlink.Link).Cid.String()), adCid.Bytes())
+	err := ds.Put(ctx, dsKey(admapPrefix+lnk.(cidlink.Link).Cid.String()), adCid.Bytes())
+	if err != nil {
+		return err
+	}
+	return ds.Sync(ctx, dsKey(admapPrefix))
 }
 
 func getCidToAdMapping(ctx context.Context, ds datastore.Batching, linkCid cid.Cid) (cid.Cid, error) {
