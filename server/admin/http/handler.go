@@ -68,7 +68,7 @@ func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
 
 func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	peerID, ok := decodePeerID(vars["peerr"], w)
+	peerID, ok := decodePeerID(vars["peer"], w)
 	if !ok {
 		return
 	}
@@ -81,11 +81,17 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var syncAddr multiaddr.Multiaddr
-	err = syncAddr.UnmarshalJSON(data)
-	if err != nil {
-		log.Errorw("Cannot unmarshal sync addr", "err", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	if len(data) != 0 {
+		var v string
+		err = json.Unmarshal(data, &v)
+		if err == nil {
+			syncAddr, err = multiaddr.NewMultiaddr(v)
+		}
+		if err != nil {
+			log.Errorw("Cannot unmarshal sync multiaddr", "err", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 
 	log.Infow("Syncing with peer", "peer", peerID.String(), "address", syncAddr)
