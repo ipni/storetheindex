@@ -26,6 +26,11 @@ import (
 	"go.opencensus.io/stats"
 )
 
+type adCacheItem struct {
+	value indexer.Value
+	isRm  bool
+}
+
 var (
 	errBadAdvert              = errors.New("bad advertisement")
 	errInvalidAdvertSignature = errors.New("invalid advertisement signature")
@@ -54,15 +59,18 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 		return buf, func(lnk ipld.Link) error {
 			c := lnk.(cidlink.Link).Cid
 			origBuf := buf.Bytes()
+
+			log := log.With("cid", c)
+
 			// Decode the node to check its type.
 			n, err := decodeIPLDNode(buf)
 			if err != nil {
-				log.Errorf("Error decoding IPLD node in linksystem: %s", err)
+				log.Errorw("Error decoding IPLD node in linksystem", "err", err)
 				return errors.New("bad ipld data")
 			}
 			// If it is an advertisement.
 			if isAdvertisement(n) {
-				log.Infow("Received advertisement", "cid", c)
+				log.Infow("Received advertisement")
 
 				// Verify that the signature is correct and the advertisement
 				// is valid.
@@ -87,7 +95,7 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 				// Store entries link into the reverse map so there is a way of
 				// identifying what advertisementID announced these entries
 				// when we come across the link.
-				log.Debug("Setting reverse map for entries after receiving advertisement")
+				log.Debug("Saving map of entries to advertisement and advertisement data")
 				elnk, err := ad.FieldEntries().AsLink()
 				if err != nil {
 					log.Errorw("Error getting link for entries from advertisement", "err", err)
@@ -99,13 +107,12 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 					return errors.New("cannot process advertisement")
 				}
 
-				log.Debug("Persisting new advertisement")
 				// Persist the advertisement.  This is read later when
 				// processing each chunk of entries, to get info common to all
 				// entries in a chunk.
 				return ds.Put(lctx.Ctx, dsKey(c.String()), origBuf)
 			}
-			log.Debug("Persisting IPLD node")
+			log.Debug("Received IPLD node")
 			// Any other type of node (like entries) are stored right away.
 			return ds.Put(lctx.Ctx, dsKey(c.String()), origBuf)
 		}, nil
@@ -160,8 +167,6 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, peer.ID, error) {
 		return nil, peer.ID(""), errInvalidAdvertSignature
 	}
 
-	log.Infow("Advertisement signature is valid", "provider", provID)
-
 	return ad, provID, nil
 }
 
@@ -178,8 +183,7 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, peer.ID, error) {
 // called for each entry in an advertisement's chain of entries.  Process the
 // entry and save all the multihashes in it as indexes in the indexer-core.
 func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
-	log := log.With("publisher", pubID, "adCid", c)
-	log.Debug("Incoming block hook triggered")
+	log := log.With("publisher", pubID, "cid", c)
 
 	// Get data corresponding to the block.
 	val, err := ing.ds.Get(context.Background(), dsKey(c.String()))
@@ -197,8 +201,6 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 
 	// If this is an advertisement, sync entries within it.
 	if isAdvertisement(node) {
-		log.Debug("Incoming block is an advertisement")
-
 		ad, err := decodeAd(node)
 		if err != nil {
 			log.Errorw("Error decoding advertisement", "err", err)
@@ -225,6 +227,9 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 				prevCid = lnk.(cidlink.Link).Cid
 			}
 		}
+
+		log.Infow("Incoming block is an advertisement", "prevAd", prevCid)
+
 		// Signal this ad is busy and wait for any sync on the previous ad to
 		// finish.  Signal this ad is done at function return.
 		prevWait, unlock, err := ing.adLocks.lockWait(prevCid, c)
@@ -242,26 +247,25 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 	// corresponding to the link CID, from the reverse map.  Then load the
 	// advertisement to get the metadata for indexing all the content in
 	// the incoming block.
-	log.Debug("Incoming block is not an advertisement; processing entries")
 	adCid, err := getCidToAdMapping(ing.ds, c)
 	if err != nil {
-		log.Errorw("Error getting advertisementID for entries map", "err", err)
+		log.Errorw("Error getting advertisement CID for entry CID", "err", err)
 		return
 	}
 	log = log.With("adCid", adCid)
 
-	log.Infow("Indexing content in block")
+	log.Infow("Indexing content in incoming entry block")
 	err = ing.indexContentBlock(adCid, pubID, node)
 	if err != nil {
 		log.Errorw("Error processing entries for advertisement", "err", err)
 		return
 	}
+	log.Debug("Done indexing content in entry block; removing entry-to-ad mapping and entry block")
 
 	ing.signalMetricsUpdate()
 
 	// Remove the datastore entry that maps a chunk to an advertisement
 	// now that the chunk is processed.
-	log.Debug("Removing mapping to advertisement for processed entries")
 	err = deleteCidToAdMapping(ing.ds, c)
 	if err != nil {
 		log.Errorw("Error deleting cid-advertisement mapping for entries", "err", err)
@@ -270,7 +274,6 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 	// Remove the content block from the data store now that processing it
 	// has finished.  This prevents storing redundant information in
 	// several datastores.
-	log.Debug("Removing processed entries from datastore")
 	err = ing.ds.Delete(context.Background(), dsKey(c.String()))
 	if err != nil {
 		log.Errorw("Error deleting index from datastore", "err", err)
@@ -281,10 +284,7 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid cid.Cid, prevWait <-chan struct{}, unlock context.CancelFunc) {
 	<-prevWait
 	defer unlock()
-
 	log := log.With("publisher", from, "adCid", adCid)
-
-	log.Infow("Syncing content for advertisement")
 
 	isRm, err := ad.FieldIsRm().AsBool()
 	if err != nil {
@@ -302,6 +302,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 	// everything from the indexer-core with the contextID and provider from
 	// this advertisement.
 	if isRm && len(contextID) != 0 {
+		log.Infow("Removing content by context ID")
 		provider, err := ad.FieldProvider().AsString()
 		if err != nil {
 			log.Errorw("cannot read provider from advertisement", "err", err)
@@ -318,14 +319,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 			log.Error("Failed to removed content by context ID")
 			return
 		}
-		log.Infow("Removed content by context ID")
 		return
-	}
-
-	if isRm {
-		log.Warnw("Syncing content blocks to remove for removal advertisement with no context ID")
-	} else {
-		log.Infow("Syncing content blocks for advertisement")
 	}
 
 	elink, err := ad.FieldEntries().AsLink()
@@ -341,6 +335,13 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 	}
 
 	log = log.With("entriesCid", entriesCid)
+
+	if isRm {
+		log.Warnw("Syncing content entries for removal advertisement with no context ID")
+	} else {
+		log.Infow("Syncing content entries for advertisement")
+	}
+
 	exists, err := ing.ds.Has(context.Background(), dsKey(entriesCid.String()))
 	if err != nil && err != datastore.ErrNotFound {
 		log.Errorw("Failed checking if entries exist", "err", err)
@@ -350,7 +351,6 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 		return
 	}
 
-	log.Info("Starting sync for entries")
 	ctx := context.Background()
 	if ing.syncTimeout != 0 {
 		var cancel context.CancelFunc
@@ -382,65 +382,36 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 // retrieved from.  It is the provider ID that needs to be stored by the
 // indexer.
 func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ipld.Node) error {
-	// Getting the advertisement for the entries so we know
-	// what metadata and related information we need to use for ingestion.
-	adb, err := ing.ds.Get(context.Background(), dsKey(adCid.String()))
-	if err != nil {
-		return fmt.Errorf("cannot read advertisement for entry from datastore: %s", err)
-	}
-	// Decode the advertisement.
-	adn, err := decodeIPLDNode(bytes.NewBuffer(adb))
-	if err != nil {
-		return fmt.Errorf("cannot decode ipld node: %s", err)
-	}
-	ad, err := decodeAd(adn)
-	if err != nil {
-		return fmt.Errorf("cannot decode advertisement: %s", err)
-	}
-	// Fetch data of interest.
-	contextID, err := ad.FieldContextID().AsBytes()
-	if err != nil {
-		return err
-	}
-	metadataBytes, err := ad.FieldMetadata().AsBytes()
-	if err != nil {
-		return err
-	}
-	isRm, err := ad.FieldIsRm().AsBool()
-	if err != nil {
-		return err
-	}
-
-	// The peerID passed into the storage hook is the source of the
-	// advertisement (the publisher), and not necessarily the same as the
-	// provider in the advertisement.  Read the provider from the advertisement
-	// to create the indexed value.
-	provider, err := ad.FieldProvider().AsString()
-	if err != nil {
-		return fmt.Errorf("cannot read provider from advertisement: %s", err)
-	}
-	providerID, err := peer.Decode(provider)
-	if err != nil {
-		return fmt.Errorf("cannot decode provider peer id: %s", err)
-	}
-
 	// Decode the list of cids into a List_String
 	nb := schema.Type.EntryChunk.NewBuilder()
-	err = nb.AssignNode(nentries)
+	err := nb.AssignNode(nentries)
 	if err != nil {
 		return fmt.Errorf("cannot decode entries: %s", err)
 	}
 
-	// Check for valid metadata
-	err = new(v0.Metadata).UnmarshalBinary(metadataBytes)
-	if err != nil {
-		return fmt.Errorf("cannot decoding metadata: %s", err)
+	nchunk := nb.Build().(schema.EntryChunk)
+
+	// If this entry chunk hash a next link, add a mapping from the next
+	// entries CID to the ad CID so that the ad can be loaded when that chunk
+	// is received.
+	var hasNextLink bool
+	if !(nchunk.Next.IsAbsent() || nchunk.Next.IsNull()) {
+		lnk, err := nchunk.Next.AsNode().AsLink()
+		if err != nil {
+			return err
+		}
+		err = putCidToAdMapping(ing.ds, lnk, adCid)
+		if err != nil {
+			return err
+		}
+		hasNextLink = true
 	}
 
-	value := indexer.Value{
-		ProviderID:    providerID,
-		ContextID:     contextID,
-		MetadataBytes: metadataBytes,
+	// Load the advertisement data for this chunk.  If there are more chunks to
+	// follow, then cache the ad data.
+	value, isRm, err := ing.loadAdData(adCid, hasNextLink)
+	if err != nil {
+		return err
 	}
 
 	mhChan := make(chan multihash.Multihash, ing.batchSize)
@@ -448,11 +419,10 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 	// entries, to allow for removal of individual entries.
 	errChan := ing.batchIndexerEntries(mhChan, value, isRm)
 
-	var count int
-	nchunk := nb.Build().(schema.EntryChunk)
-	entries := nchunk.FieldEntries()
 	// Iterate over all entries and ingest (or remove) them.
+	entries := nchunk.FieldEntries()
 	cit := entries.ListIterator()
+	var count int
 	for !cit.Done() {
 		_, cnode, _ := cit.Next()
 		h, err := cnode.AsBytes()
@@ -472,23 +442,98 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 	close(mhChan)
 	err = <-errChan
 	if err != nil {
-		return err
-	}
-
-	// If there is a next link, update the mapping so we know the AdID
-	// it is related to.
-	if !(nchunk.Next.IsAbsent() || nchunk.Next.IsNull()) {
-		lnk, err := nchunk.Next.AsNode().AsLink()
-		if err != nil {
-			return err
+		if isRm {
+			return fmt.Errorf("cannot remove multihashes from indexer: %s", err)
 		}
-		err = putCidToAdMapping(ing.ds, lnk, adCid)
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("cannot put multihashes into indexer: %s", err)
 	}
 
 	return nil
+}
+
+func (ing *Ingester) loadAdData(adCid cid.Cid, keepCache bool) (indexer.Value, bool, error) {
+	ing.adCacheMutex.Lock()
+	adData, ok := ing.adCache[adCid]
+	if !keepCache && ok {
+		if len(ing.adCache) == 1 {
+			ing.adCache = nil
+		} else {
+			delete(ing.adCache, adCid)
+		}
+	}
+	ing.adCacheMutex.Unlock()
+
+	if ok {
+		return adData.value, adData.isRm, nil
+	}
+
+	// Getting the advertisement for the entries so we know
+	// what metadata and related information we need to use for ingestion.
+	adb, err := ing.ds.Get(context.Background(), dsKey(adCid.String()))
+	if err != nil {
+		return indexer.Value{}, false, fmt.Errorf("cannot read advertisement for entry from datastore: %s", err)
+	}
+	// Decode the advertisement.
+	adn, err := decodeIPLDNode(bytes.NewBuffer(adb))
+	if err != nil {
+		return indexer.Value{}, false, fmt.Errorf("cannot decode ipld node: %s", err)
+	}
+	ad, err := decodeAd(adn)
+	if err != nil {
+		return indexer.Value{}, false, fmt.Errorf("cannot decode advertisement: %s", err)
+	}
+	// Fetch data of interest.
+	contextID, err := ad.FieldContextID().AsBytes()
+	if err != nil {
+		return indexer.Value{}, false, err
+	}
+	metadataBytes, err := ad.FieldMetadata().AsBytes()
+	if err != nil {
+		return indexer.Value{}, false, err
+	}
+	isRm, err := ad.FieldIsRm().AsBool()
+	if err != nil {
+		return indexer.Value{}, false, err
+	}
+
+	// The peerID passed into the storage hook is the source of the
+	// advertisement (the publisher), and not necessarily the same as the
+	// provider in the advertisement.  Read the provider from the advertisement
+	// to create the indexed value.
+	provider, err := ad.FieldProvider().AsString()
+	if err != nil {
+		return indexer.Value{}, false, fmt.Errorf("cannot read provider from advertisement: %s", err)
+	}
+	providerID, err := peer.Decode(provider)
+	if err != nil {
+		return indexer.Value{}, false, fmt.Errorf("cannot decode provider peer id: %s", err)
+	}
+
+	// Check for valid metadata
+	err = new(v0.Metadata).UnmarshalBinary(metadataBytes)
+	if err != nil {
+		return indexer.Value{}, false, fmt.Errorf("cannot decoding metadata: %s", err)
+	}
+
+	value := indexer.Value{
+		ProviderID:    providerID,
+		ContextID:     contextID,
+		MetadataBytes: metadataBytes,
+	}
+
+	if keepCache {
+		ing.adCacheMutex.Lock()
+		if ing.adCache == nil {
+			ing.adCache = make(map[cid.Cid]adCacheItem)
+		}
+		ing.adCache[adCid] = adCacheItem{
+			value: value,
+			isRm:  isRm,
+		}
+		ing.adCacheMutex.Unlock()
+	}
+
+	return value, isRm, nil
 }
 
 // batchIndexerEntries starts a goroutine that processes batches of multihashes
@@ -524,12 +569,10 @@ func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, valu
 				// Process full batch of multihashes
 				if err := indexFunc(value, batch...); err != nil {
 					errChan <- err
-					log.Errorf("Cannot %s entries in indexer: %s", opName, err)
 					return
 				}
 				batch = batch[:0]
 				count += batchSize
-				log.Debugf("%s %d entries in value store", opName, batchSize)
 			}
 		}
 
@@ -537,14 +580,12 @@ func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, valu
 			// Process any remaining puts
 			if err := indexFunc(value, batch...); err != nil {
 				errChan <- err
-				log.Errorf("Cannot %s entries in indexer: %s", opName, err)
 				return
 			}
 			count += len(batch)
-			log.Debugf("%s %d entries in value store", opName, len(batch))
 		}
 
-		log.Debugw("Processed entries", "count", count, "operation", opName)
+		log.Infow("Processed multihashes in entry chunk", "count", count, "operation", opName)
 	}(ing.batchSize)
 
 	return errChan
@@ -557,7 +598,7 @@ func putCidToAdMapping(ds datastore.Batching, lnk ipld.Link, adCid cid.Cid) erro
 func getCidToAdMapping(ds datastore.Batching, linkCid cid.Cid) (cid.Cid, error) {
 	val, err := ds.Get(context.Background(), dsKey(admapPrefix+linkCid.String()))
 	if err != nil {
-		return cid.Undef, fmt.Errorf("cannot read advertisement CID for entries CID from datastore: %s", err)
+		return cid.Undef, fmt.Errorf("cannot load advertisement CID for entries CID from datastore: %s", err)
 	}
 	adCid, err := cid.Cast(val)
 	if err != nil {

@@ -7,7 +7,9 @@ type Ingest struct {
 	// PubSubTopic used to advertise ingestion announcements.
 	PubSubTopic string
 	// StoreBatchSize is the number of entries in each write to the value
-	// store.  Specifying a value less than 2 disables batching.
+	// store.  Specifying a value less than 2 disables batching.  This should
+	// be smaller than the maximum number of multihashes in an entry block to
+	// write concurrently to the value store.
 	StoreBatchSize int
 	// SyncTimeout is the maximum amount of time allowed for a sync to complete
 	// before it is canceled. This can be a sync of a chain of advertisements
@@ -20,7 +22,7 @@ type Ingest struct {
 func NewIngest() Ingest {
 	return Ingest{
 		PubSubTopic:    "/indexer/ingest/mainnet",
-		StoreBatchSize: 256,
+		StoreBatchSize: 64,
 		SyncTimeout:    Duration(2 * time.Hour),
 	}
 }
