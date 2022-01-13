@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core/engine"
@@ -49,6 +50,9 @@ type Ingester struct {
 	syncTimeout   time.Duration
 	adLocks       *lockChain
 	watchDone     chan struct{}
+
+	adCache      map[cid.Cid]adCacheItem
+	adCacheMutex sync.Mutex
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
