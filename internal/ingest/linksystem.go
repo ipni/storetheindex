@@ -260,9 +260,11 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 	if err != nil {
 		log.Errorw("Error processing entries for advertisement", "err", err)
 	} else {
-		log.Debug("Done indexing content in entry block; removing entry-to-ad mapping and entry block")
+		log.Info("Done indexing content in entry block")
 		ing.signalMetricsUpdate()
 	}
+
+	log.Debug("removing entry-to-ad mapping and entry block")
 
 	// Remove the mapping of an entry chunk CID to an advertisement CID now
 	// that the chunk is processed.
