@@ -44,13 +44,13 @@ func NewDiscovery() Discovery {
 }
 
 // populateUnset replaces zero-values in the config with default values.
-func (cfg *Discovery) populateUnset() {
-	defCfg := NewDiscovery()
+func (c *Discovery) populateUnset() {
+	def := NewDiscovery()
 
-	if cfg.PollInterval == 0 {
-		cfg.PollInterval = defCfg.PollInterval
+	if c.PollInterval == 0 {
+		c.PollInterval = def.PollInterval
 	}
-	if cfg.Timeout == 0 {
-		cfg.Timeout = defCfg.Timeout
+	if c.Timeout == 0 {
+		c.Timeout = def.Timeout
 	}
 }

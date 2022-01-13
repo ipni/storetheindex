@@ -21,16 +21,16 @@ func NewIndexer() Indexer {
 }
 
 // populateUnset replaces zero-values in the config with default values.
-func (cfg *Indexer) populateUnset() {
-	defCfg := NewIndexer()
+func (c *Indexer) populateUnset() {
+	def := NewIndexer()
 
-	if cfg.CacheSize == 0 {
-		cfg.CacheSize = defCfg.CacheSize
+	if c.CacheSize == 0 {
+		c.CacheSize = def.CacheSize
 	}
-	if cfg.ValueStoreDir == "" {
-		cfg.ValueStoreDir = defCfg.ValueStoreDir
+	if c.ValueStoreDir == "" {
+		c.ValueStoreDir = def.ValueStoreDir
 	}
-	if cfg.ValueStoreType == "" {
-		cfg.ValueStoreType = defCfg.ValueStoreType
+	if c.ValueStoreType == "" {
+		c.ValueStoreType = def.ValueStoreType
 	}
 }

@@ -19,13 +19,13 @@ func NewDatastore() Datastore {
 }
 
 // populateUnset replaces zero-values in the config with default values.
-func (cfg *Datastore) populateUnset() {
-	defCfg := NewDatastore()
+func (c *Datastore) populateUnset() {
+	def := NewDatastore()
 
-	if cfg.Type == "" {
-		cfg.Type = defCfg.Type
+	if c.Type == "" {
+		c.Type = def.Type
 	}
-	if cfg.Dir == "" {
-		cfg.Dir = defCfg.Dir
+	if c.Dir == "" {
+		c.Dir = def.Dir
 	}
 }

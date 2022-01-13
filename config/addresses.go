@@ -25,19 +25,19 @@ func NewAddresses() Addresses {
 }
 
 // populateUnset replaces zero-values in the config with default values.
-func (cfg *Addresses) populateUnset() {
-	defCfg := NewAddresses()
+func (c *Addresses) populateUnset() {
+	def := NewAddresses()
 
-	if cfg.Admin == "" {
-		cfg.Admin = defCfg.Admin
+	if c.Admin == "" {
+		c.Admin = def.Admin
 	}
-	if cfg.Finder == "" {
-		cfg.Finder = defCfg.Finder
+	if c.Finder == "" {
+		c.Finder = def.Finder
 	}
-	if cfg.Ingest == "" {
-		cfg.Ingest = defCfg.Ingest
+	if c.Ingest == "" {
+		c.Ingest = def.Ingest
 	}
-	if cfg.P2PAddr == "" {
-		cfg.P2PAddr = defCfg.P2PAddr
+	if c.P2PAddr == "" {
+		c.P2PAddr = def.P2PAddr
 	}
 }

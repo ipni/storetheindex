@@ -28,15 +28,16 @@ func NewIngest() Ingest {
 }
 
 // populateUnset replaces zero-values in the config with default values.
-func (cfg *Ingest) populateUnset() {
-	defCfg := NewIngest()
-	if cfg.PubSubTopic == "" {
-		cfg.PubSubTopic = defCfg.PubSubTopic
+func (c *Ingest) populateUnset() {
+	def := NewIngest()
+
+	if c.PubSubTopic == "" {
+		c.PubSubTopic = def.PubSubTopic
 	}
-	if cfg.StoreBatchSize == 0 {
-		cfg.StoreBatchSize = defCfg.StoreBatchSize
+	if c.StoreBatchSize == 0 {
+		c.StoreBatchSize = def.StoreBatchSize
 	}
-	if cfg.SyncTimeout == 0 {
-		cfg.SyncTimeout = defCfg.SyncTimeout
+	if c.SyncTimeout == 0 {
+		c.SyncTimeout = def.SyncTimeout
 	}
 }
