@@ -24,7 +24,8 @@ type Discovery struct {
 	// Values are a number ending in "s", "m", "h" for seconds. minutes, hours.
 	PollInterval Duration
 	// RediscoverWait is the amount of time that must pass before a provider
-	// can be discovered following a previous discovery attempt
+	// can be discovered following a previous discovery attempt.  A value of 0
+	// means there is no wait time.
 	RediscoverWait Duration
 	// Timeout is the maximum amount of time that the indexer will spend trying
 	// to discover and verify a new provider.
@@ -39,5 +40,17 @@ func NewDiscovery() Discovery {
 		PollInterval:   Duration(24 * time.Hour),
 		RediscoverWait: Duration(5 * time.Minute),
 		Timeout:        Duration(2 * time.Minute),
+	}
+}
+
+// populateUnset replaces zero-values in the config with default values.
+func (cfg *Discovery) populateUnset() {
+	defCfg := NewDiscovery()
+
+	if cfg.PollInterval == 0 {
+		cfg.PollInterval = defCfg.PollInterval
+	}
+	if cfg.Timeout == 0 {
+		cfg.Timeout = defCfg.Timeout
 	}
 }

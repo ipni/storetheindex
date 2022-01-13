@@ -26,3 +26,17 @@ func NewIngest() Ingest {
 		SyncTimeout:    Duration(2 * time.Hour),
 	}
 }
+
+// populateUnset replaces zero-values in the config with default values.
+func (cfg *Ingest) populateUnset() {
+	defCfg := NewIngest()
+	if cfg.PubSubTopic == "" {
+		cfg.PubSubTopic = defCfg.PubSubTopic
+	}
+	if cfg.StoreBatchSize == 0 {
+		cfg.StoreBatchSize = defCfg.StoreBatchSize
+	}
+	if cfg.SyncTimeout == 0 {
+		cfg.SyncTimeout = defCfg.SyncTimeout
+	}
+}

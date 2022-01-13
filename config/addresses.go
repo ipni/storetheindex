@@ -23,3 +23,21 @@ func NewAddresses() Addresses {
 		P2PAddr: "/ip4/0.0.0.0/tcp/3003",
 	}
 }
+
+// populateUnset replaces zero-values in the config with default values.
+func (cfg *Addresses) populateUnset() {
+	defCfg := NewAddresses()
+
+	if cfg.Admin == "" {
+		cfg.Admin = defCfg.Admin
+	}
+	if cfg.Finder == "" {
+		cfg.Finder = defCfg.Finder
+	}
+	if cfg.Ingest == "" {
+		cfg.Ingest = defCfg.Ingest
+	}
+	if cfg.P2PAddr == "" {
+		cfg.P2PAddr = defCfg.P2PAddr
+	}
+}
