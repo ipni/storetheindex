@@ -101,11 +101,12 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 					log.Errorw("Error getting link for entries from advertisement", "err", err)
 					return errBadAdvert
 				}
-				err = putCidToAdMapping(ds, elnk, c)
+				err = putCidToAdMapping(lctx.Ctx, ds, elnk, c)
 				if err != nil {
 					log.Errorw("Error storing reverse map for entries in datastore", "err", err)
 					return errors.New("cannot process advertisement")
 				}
+				ds.Sync(lctx.Ctx, dsKey(admapPrefix))
 
 				// Persist the advertisement.  This is read later when
 				// processing each chunk of entries, to get info common to all
@@ -247,7 +248,7 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 	// corresponding to the link CID, from the reverse map.  Then load the
 	// advertisement to get the metadata for indexing all the content in
 	// the incoming block.
-	adCid, err := getCidToAdMapping(ing.ds, c)
+	adCid, err := getCidToAdMapping(context.Background(), ing.ds, c)
 	if err != nil {
 		log.Errorw("Error getting advertisement CID for entry CID", "err", err)
 		return
@@ -258,15 +259,14 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 	err = ing.indexContentBlock(adCid, pubID, node)
 	if err != nil {
 		log.Errorw("Error processing entries for advertisement", "err", err)
-		return
+	} else {
+		log.Debug("Done indexing content in entry block; removing entry-to-ad mapping and entry block")
+		ing.signalMetricsUpdate()
 	}
-	log.Debug("Done indexing content in entry block; removing entry-to-ad mapping and entry block")
 
-	ing.signalMetricsUpdate()
-
-	// Remove the datastore entry that maps a chunk to an advertisement
-	// now that the chunk is processed.
-	err = deleteCidToAdMapping(ing.ds, c)
+	// Remove the mapping of an entry chunk CID to an advertisement CID now
+	// that the chunk is processed.
+	err = deleteCidToAdMapping(context.Background(), ing.ds, c)
 	if err != nil {
 		log.Errorw("Error deleting cid-advertisement mapping for entries", "err", err)
 	}
@@ -400,7 +400,7 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 		if err != nil {
 			return err
 		}
-		err = putCidToAdMapping(ing.ds, lnk, adCid)
+		err = putCidToAdMapping(context.Background(), ing.ds, lnk, adCid)
 		if err != nil {
 			return err
 		}
@@ -591,12 +591,12 @@ func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, valu
 	return errChan
 }
 
-func putCidToAdMapping(ds datastore.Batching, lnk ipld.Link, adCid cid.Cid) error {
-	return ds.Put(context.Background(), dsKey(admapPrefix+lnk.(cidlink.Link).Cid.String()), adCid.Bytes())
+func putCidToAdMapping(ctx context.Context, ds datastore.Batching, lnk ipld.Link, adCid cid.Cid) error {
+	return ds.Put(ctx, dsKey(admapPrefix+lnk.(cidlink.Link).Cid.String()), adCid.Bytes())
 }
 
-func getCidToAdMapping(ds datastore.Batching, linkCid cid.Cid) (cid.Cid, error) {
-	val, err := ds.Get(context.Background(), dsKey(admapPrefix+linkCid.String()))
+func getCidToAdMapping(ctx context.Context, ds datastore.Batching, linkCid cid.Cid) (cid.Cid, error) {
+	val, err := ds.Get(ctx, dsKey(admapPrefix+linkCid.String()))
 	if err != nil {
 		return cid.Undef, fmt.Errorf("cannot load advertisement CID for entries CID from datastore: %s", err)
 	}
@@ -607,8 +607,8 @@ func getCidToAdMapping(ds datastore.Batching, linkCid cid.Cid) (cid.Cid, error) 
 	return adCid, nil
 }
 
-func deleteCidToAdMapping(ds datastore.Batching, entries cid.Cid) error {
-	return ds.Delete(context.Background(), dsKey(admapPrefix+entries.String()))
+func deleteCidToAdMapping(ctx context.Context, ds datastore.Batching, entries cid.Cid) error {
+	return ds.Delete(ctx, dsKey(admapPrefix+entries.String()))
 }
 
 // decodeIPLDNode decodes an ipld.Node from bytes read from an io.Reader.
