@@ -22,7 +22,7 @@ type Ingest struct {
 func NewIngest() Ingest {
 	return Ingest{
 		PubSubTopic:    "/indexer/ingest/mainnet",
-		StoreBatchSize: 64,
+		StoreBatchSize: 256,
 		SyncTimeout:    Duration(2 * time.Hour),
 	}
 }
