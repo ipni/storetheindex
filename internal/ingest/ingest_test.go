@@ -3,8 +3,11 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"math/rand"
 	"testing"
+	"testing/quick"
 	"time"
 
 	"github.com/filecoin-project/go-indexer-core/cache"
@@ -41,6 +44,73 @@ const (
 
 var ingestCfg = config.Ingest{
 	PubSubTopic: "test/ingest",
+}
+
+func randomAdvChain(priv crypto.PrivKey, lsys ipld.LinkSystem, numberOfMhChunksInEachAdv []uint8) (schema.Link_Advertisement, error) {
+	var prevAdvLink schema.Link_Advertisement
+	p, err := peer.IDFromPrivateKey(priv)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, numberOfMhsChunks := range numberOfMhChunksInEachAdv {
+		r := rand.New(rand.NewSource(int64(numberOfMhsChunks)))
+		mhsLnk, mhs, err := newRandomLinkedListWithErr(r, lsys, int(numberOfMhsChunks))
+		if err != nil {
+			return nil, err
+		}
+
+		ctxID := []byte("test-context-id" + fmt.Sprint(i))
+		metadata := v0.Metadata{
+			ProtocolID: testProtocolID,
+			Data:       mhs[0],
+		}
+		addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
+		_, prevAdvLink, err = schema.NewAdvertisementWithLink(lsys, priv, prevAdvLink, mhsLnk, ctxID, metadata, false, p.String(), addrs)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return prevAdvLink, nil
+}
+
+func TestSubscribeManyAdvs(t *testing.T) {
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := mkTestHost()
+	pubHost := mkTestHost()
+	// i, core, reg := mkIngest(t, h)
+	i, core, _ := mkIngest(t, h)
+	defer core.Close()
+	defer i.Close()
+	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	defer pub.Close()
+	connectHosts(t, h, pubHost)
+	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
+
+	quick.Check(func(numberOfMhChunksInEachAdv []uint8) bool {
+		ctx := context.Background()
+		fmt.Println("numberOfMhChunksInEachAdv:", numberOfMhChunksInEachAdv)
+		advLink, err := randomAdvChain(priv, lsys, numberOfMhChunksInEachAdv)
+		if err != nil {
+			return false
+		}
+
+		pub.UpdateRoot(ctx, advLink.ToCid())
+		headChan, err := i.Sync(ctx, pubHost.ID(), pubHost.Addrs()[0])
+		if err != nil {
+			return false
+		}
+
+		head := <-headChan
+		time.Sleep(5 * time.Second)
+		fmt.Println(advLink, head)
+		return true
+	}, &quick.Config{
+		MaxCount: 3,
+	})
+
 }
 
 func TestSubscribe(t *testing.T) {
@@ -258,6 +328,29 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 		out = append(out, mhs...)
 	}
 	return nextLnk, out
+}
+
+func newRandomLinkedListWithErr(rand *rand.Rand, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash, error) {
+	out := []multihash.Multihash{}
+	mhs := util.RandomMultihashesFromRand(10, rand)
+	out = append(out, mhs...)
+	nextLnk, _, err := schema.NewLinkedListOfMhs(lsys, mhs, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for i := 1; i < size; i++ {
+		if i != 1 {
+			// Dupes
+			mhs = util.RandomMultihashesFromRand(0, rand)
+		}
+		nextLnk, _, err = schema.NewLinkedListOfMhs(lsys, mhs, nextLnk)
+		if err != nil {
+			return nil, nil, err
+		}
+		out = append(out, mhs...)
+	}
+	return nextLnk, out, err
 }
 
 func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash, peer.ID) {

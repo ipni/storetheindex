@@ -229,7 +229,7 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 		// finish.  Signal this ad is done at function return.
 		prevWait, unlock, err := ing.adLocks.lockWait(prevCid, c)
 		if err != nil {
-			log.Error("Advertisement already being synced")
+			// log.Error("Advertisement already being synced", err)
 			return
 		}
 
@@ -237,12 +237,15 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 		return
 	}
 
+	// fmt.Println("Incoming block is an entry", c.String())
+
 	// The incoming block is not an advertisement.  This means it is a
 	// block of content CIDs to index.  Get the advertisement CID
 	// corresponding to the link CID, from the reverse map.  Then load the
 	// advertisement to get the metadata for indexing all the content in
 	// the incoming block.
 	log.Debug("Incoming block is not an advertisement; processing entries")
+	// log.Errorw("getting mapping", "fo", c)
 	adCid, err := getCidToAdMapping(ing.ds, c)
 	if err != nil {
 		log.Errorw("Error getting advertisementID for entries map", "err", err)
