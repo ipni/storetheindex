@@ -15,6 +15,11 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
+// NoEntries is a special value used to explicitly indicate that an
+// advertisement does not have any entries, and serves to remove content by context ID,
+// update metadata, or update provider addresses.
+var NoEntries cidlink.Link
+
 // Linkproto is the ipld.LinkProtocol used for the ingestion protocol.
 // Refer to it if you have encoding questions.
 var Linkproto = cidlink.LinkPrototype{
@@ -27,6 +32,15 @@ var Linkproto = cidlink.LinkPrototype{
 }
 
 var mhCode = multihash.Names["sha2-256"]
+
+func init() {
+	// Define NoEntries as the CID of a sha256 hash of nil.
+	m, err := multihash.Sum(nil, multihash.SHA2_256, 32)
+	if err != nil {
+		panic(err)
+	}
+	NoEntries = cidlink.Link{Cid: cid.NewCidV0(m)}
+}
 
 // LinkContextKey used to propagate link info through the linkSystem context
 type LinkContextKey string
