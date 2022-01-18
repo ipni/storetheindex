@@ -144,14 +144,9 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, peer.ID, error) {
 	}
 
 	// Get provider ID from advertisement.
-	provider, err := ad.FieldProvider().AsString()
+	provID, err := providerFromAd(ad)
 	if err != nil {
-		log.Errorw("Cannot read provider from advertisement", "err", err)
-		return nil, peer.ID(""), errBadAdvert
-	}
-	provID, err := peer.Decode(provider)
-	if err != nil {
-		log.Errorw("Cannot decode provider ID", "err", err)
+		log.Errorw("Cannot get provider from advertisement", "err", err)
 		return nil, peer.ID(""), errBadAdvert
 	}
 
@@ -168,6 +163,21 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, peer.ID, error) {
 	}
 
 	return ad, provID, nil
+}
+
+// providerFromAd reads the provider ID from an advertisement
+func providerFromAd(ad schema.Advertisement) (peer.ID, error) {
+	provider, err := ad.FieldProvider().AsString()
+	if err != nil {
+		return peer.ID(""), fmt.Errorf("cannot read provider from advertisement: %s", err)
+	}
+
+	providerID, err := peer.Decode(provider)
+	if err != nil {
+		return peer.ID(""), fmt.Errorf("cannot decode provider peer id: %s", err)
+	}
+
+	return providerID, nil
 }
 
 // storageHook determines the logic to run when a new block is received through
@@ -299,42 +309,56 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 		return
 	}
 
-	// If advertisement is for removal and has a contextID, then remove
-	// everything from the indexer-core with the contextID and provider from
-	// this advertisement.
-	if isRm && len(contextID) != 0 {
-		log.Infow("Removing content by context ID")
-		provider, err := ad.FieldProvider().AsString()
-		if err != nil {
-			log.Errorw("cannot read provider from advertisement", "err", err)
-			return
-		}
-		providerID, err := peer.Decode(provider)
-		if err != nil {
-			log.Errorw("Cannot decode provider peer id", "err", err)
-			return
-		}
-		log := log.With("contextID", base64.StdEncoding.EncodeToString(contextID), "provider", providerID)
-		err = ing.indexer.RemoveProviderContext(providerID, contextID)
-		if err != nil {
-			log.Error("Failed to removed content by context ID")
-			return
-		}
-		return
-	}
-
 	elink, err := ad.FieldEntries().AsLink()
 	if err != nil {
 		log.Errorw("Error decoding advertisement entries link", "err", err)
 		return
 	}
-	entriesCid := elink.(cidlink.Link).Cid
 
-	if entriesCid == cid.Undef {
-		log.Error("Advertisement entries link is undefined and ad is not removal")
+	// If advertisement has no entries, then this is for removal by contextID
+	// or for updating metadata only.
+	if elink == schema.NoEntries {
+		providerID, err := providerFromAd(ad)
+		if err != nil {
+			log.Errorw("Invalid advertisement", "err", err)
+			return
+		}
+
+		log := log.With("contextID", base64.StdEncoding.EncodeToString(contextID), "provider", providerID)
+
+		if isRm {
+			log.Infow("Advertisement is for removal by context id")
+
+			err = ing.indexer.RemoveProviderContext(providerID, contextID)
+			if err != nil {
+				log.Error("Failed to removed content by context ID")
+			}
+			return
+		}
+
+		// If this is a metadata update only, then ad will not have entries.
+		metadataBytes, err := ad.FieldMetadata().AsBytes()
+		if err != nil {
+			log.Errorw("Error reading advertisement metadata", "err", err)
+			return
+		}
+
+		value := indexer.Value{
+			ContextID:     contextID,
+			MetadataBytes: metadataBytes,
+			ProviderID:    providerID,
+		}
+
+		log.Error("Advertisement is metadata update only")
+		ing.indexer.Put(value)
 		return
 	}
 
+	entriesCid := elink.(cidlink.Link).Cid
+	if entriesCid == cid.Undef {
+		log.Error("Advertisement entries link is undefined")
+		return
+	}
 	log = log.With("entriesCid", entriesCid)
 
 	if isRm {
@@ -509,13 +533,9 @@ func (ing *Ingester) loadAdData(adCid cid.Cid, keepCache bool) (indexer.Value, b
 	// advertisement (the publisher), and not necessarily the same as the
 	// provider in the advertisement.  Read the provider from the advertisement
 	// to create the indexed value.
-	provider, err := ad.FieldProvider().AsString()
+	providerID, err := providerFromAd(ad)
 	if err != nil {
-		return indexer.Value{}, false, fmt.Errorf("cannot read provider from advertisement: %s", err)
-	}
-	providerID, err := peer.Decode(provider)
-	if err != nil {
-		return indexer.Value{}, false, fmt.Errorf("cannot decode provider peer id: %s", err)
+		return indexer.Value{}, false, err
 	}
 
 	// Check for valid metadata
