@@ -34,6 +34,9 @@ import (
 	"github.com/libp2p/go-libp2p-core/test"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 const (
@@ -75,6 +78,103 @@ func randomAdvChain(priv crypto.PrivKey, lsys ipld.LinkSystem, numberOfMhChunksI
 	return prevAdvLink, nil
 }
 
+// TODO we don't need these anymore
+func replaceLogger() *observer.ObservedLogs {
+	zcore, recordedLogs := observer.New(zapcore.InfoLevel)
+	log.SugaredLogger = *zap.New(zcore).Sugar().Named("ingest-test")
+	return recordedLogs
+}
+
+func requireNoErrorInLogs(t *testing.T, logs *observer.ObservedLogs) {
+	for _, log := range logs.All() {
+		if log.Level == zapcore.ErrorLevel {
+			t.Errorf("Found error message in log: %s", log.Message)
+		}
+	}
+}
+
+type testEnv struct {
+	publisher        legs.Publisher
+	pubHost          host.Host
+	publisherPriv    crypto.PrivKey
+	publisherLinkSys ipld.LinkSystem
+	ingester         *Ingester
+}
+
+func setupTestEnv(t *testing.T, shouldConnectHosts bool) *testEnv {
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := mkTestHost()
+	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	pubHost := mkTestHost(libp2p.Identity(priv))
+	i, core, _ := mkIngest(t, h)
+	t.Cleanup(func() {
+		core.Close()
+		i.Close()
+	})
+	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	t.Cleanup(func() {
+		pub.Close()
+	})
+
+	if shouldConnectHosts {
+		connectHosts(t, h, pubHost)
+	}
+
+	require.NoError(t, err)
+
+	return &testEnv{
+		publisher:        pub,
+		publisherPriv:    priv,
+		pubHost:          pubHost,
+		publisherLinkSys: lsys,
+		ingester:         i,
+	}
+}
+
+func Test2Advs(t *testing.T) {
+	te := setupTestEnv(t, false)
+	ctx := context.Background()
+	advLink, err := randomAdvChain(te.publisherPriv, te.publisherLinkSys, []uint8{1, 2, 3})
+	{
+		l, _ := advLink.AsLink()
+		fmt.Println("ROOT ADV:", l)
+	}
+	require.NoError(t, err)
+	te.publisher.UpdateRoot(ctx, advLink.ToCid())
+
+	time.Sleep(1 * time.Second)
+	headChan, err := te.ingester.Sync(ctx, te.pubHost.ID(), te.pubHost.Addrs()[0])
+	require.NoError(t, err)
+	a, e := te.ingester.ds.Get(ctx, datastore.NewKey("asdf"))
+	fmt.Println("!!!", a, e)
+
+	head := <-headChan
+	time.Sleep(2 * time.Second)
+	fmt.Println(advLink, head)
+	require.NoError(t, err)
+}
+
+func Test2AdvsSyncMultiple(t *testing.T) {
+	te := setupTestEnv(t, true)
+	ctx := context.Background()
+	advLink, err := randomAdvChain(te.publisherPriv, te.publisherLinkSys, []uint8{1})
+	require.NoError(t, err)
+	te.publisher.UpdateRoot(ctx, advLink.ToCid())
+
+	time.Sleep(1 * time.Second)
+	headChan, err := te.ingester.Sync(ctx, te.pubHost.ID(), te.pubHost.Addrs()[0])
+	require.NoError(t, err)
+	// _, err = te.ingester.Sync(ctx, te.pubHost.ID(), te.pubHost.Addrs()[0])
+	// require.NoError(t, err)
+	// _, err = te.ingester.Sync(ctx, te.pubHost.ID(), te.pubHost.Addrs()[0])
+	// require.NoError(t, err)
+
+	head := <-headChan
+	time.Sleep(2 * time.Second)
+	fmt.Println(advLink, head)
+	require.NoError(t, err)
+}
+
 func TestSubscribeManyAdvs(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
@@ -88,6 +188,9 @@ func TestSubscribeManyAdvs(t *testing.T) {
 	connectHosts(t, h, pubHost)
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
+
+	// recordedLogs := replaceLogger()
+	// defer requireNoErrorInLogs(t, recordedLogs)
 
 	quick.Check(func(numberOfMhChunksInEachAdv []uint8) bool {
 		ctx := context.Background()
@@ -104,11 +207,11 @@ func TestSubscribeManyAdvs(t *testing.T) {
 		}
 
 		head := <-headChan
-		time.Sleep(5 * time.Second)
+		time.Sleep(2 * time.Second)
 		fmt.Println(advLink, head)
 		return true
 	}, &quick.Config{
-		MaxCount: 3,
+		MaxCount: 1,
 	})
 
 }
@@ -154,6 +257,7 @@ func TestSubscribe(t *testing.T) {
 	adv, err := i.ds.Get(context.Background(), datastore.NewKey(c.String()))
 	require.Error(t, err, datastore.ErrNotFound)
 	require.Nil(t, adv)
+	requireNoErrorsInProcessing(t, i)
 }
 
 func TestSync(t *testing.T) {
@@ -183,15 +287,19 @@ func TestSync(t *testing.T) {
 		lnk := i.sub.GetLatestSync(pubHost.ID())
 		lcid := lnk.(cidlink.Link).Cid
 		require.Equal(t, lcid, c1)
+		fmt.Println("Trying to sync to ", c1)
 		// Check that latest sync recorded in datastore
-		lcid, err = i.getLatestSync(pubHost.ID())
+		err = i.waitForAdvProcessed(ctx, providerID, c1)
 		require.NoError(t, err)
-		require.Equal(t, lcid, c1)
+		lcid, err = i.GetProcessedUpTo(ctx, providerID)
+		require.NoError(t, err)
+		require.Equal(t, c1, lcid)
 	case <-ctx.Done():
 		t.Fatal("sync timeout")
 	}
 	// Checking providerID, since that was what was put in the advertisement, not pubhost.ID()
 	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+	requireNoErrorsInProcessing(t, i)
 }
 
 func TestMultiplePublishers(t *testing.T) {
@@ -230,16 +338,20 @@ func TestMultiplePublishers(t *testing.T) {
 	lcid = lnk.(cidlink.Link).Cid
 	require.Equal(t, lcid, c2)
 
-	lcid, err := i.getLatestSync(pubHost1.ID())
+	ctx := context.Background()
+
+	lcid, err := i.GetProcessedUpTo(ctx, pubHost1.ID())
 	require.NoError(t, err)
 	require.Equal(t, lcid, c1)
-	lcid, err = i.getLatestSync(pubHost2.ID())
+	lcid, err = i.GetProcessedUpTo(ctx, pubHost2.ID())
 	require.NoError(t, err)
 	require.Equal(t, lcid, c2)
+	requireNoErrorsInProcessing(t, i)
 }
 
-func mkTestHost() host.Host {
-	h, _ := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+func mkTestHost(libp2pOpts ...libp2p.Option) host.Host {
+	libp2pOpts = append(libp2pOpts, libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	h, _ := libp2p.New(libp2pOpts...)
 	return h
 }
 
@@ -340,9 +452,8 @@ func newRandomLinkedListWithErr(rand *rand.Rand, lsys ipld.LinkSystem, size int)
 	}
 
 	for i := 1; i < size; i++ {
-		if i != 1 {
-			// Dupes
-			mhs = util.RandomMultihashesFromRand(0, rand)
+		if i == 2 {
+			mhs = util.RandomMultihashesFromRand(10, rand)
 		}
 		nextLnk, _, err = schema.NewLinkedListOfMhs(lsys, mhs, nextLnk)
 		if err != nil {
@@ -431,12 +542,12 @@ func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Pub
 	}
 
 	// Check if latest sync updated.
-	lcid, err := i.getLatestSync(pubHost.ID())
+	lcid, err := i.GetProcessedUpTo(context.Background(), pubHost.ID())
 	require.NoError(t, err)
 
 	// If fakeSig Cids should not be saved.
 	if !fakeSig {
-		require.Equal(t, lcid, c)
+		require.Equal(t, c, lcid)
 	}
 	return c, mhs, providerID
 }
@@ -456,5 +567,14 @@ func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Dura
 			return
 		case <-ticker.C:
 		}
+	}
+}
+
+func requireNoErrorsInProcessing(t *testing.T, ing *Ingester) {
+	ing.adchainprocessorErrorsLock.Lock()
+	defer ing.adchainprocessorErrorsLock.Unlock()
+
+	for _, errs := range ing.adchainprocessorErrors {
+		require.Empty(t, errs)
 	}
 }
