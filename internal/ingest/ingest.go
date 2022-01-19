@@ -56,7 +56,6 @@ type Ingester struct {
 	sub           *legs.Subscriber
 	cancelSyncFin context.CancelFunc
 	syncTimeout   time.Duration
-	adLocks       *lockChain
 	watchDone     chan struct{}
 
 	// Processors that apply ad chains to the indexer.
@@ -89,7 +88,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *regi
 		batchSize:              cfg.StoreBatchSize,
 		sigUpdate:              make(chan struct{}, 1),
 		syncTimeout:            time.Duration(cfg.SyncTimeout),
-		adLocks:                newLockChain(),
 		watchDone:              make(chan struct{}),
 		adchainprocessors:      make(map[peer.ID]*adchainprocessor.Processor),
 		adchainprocessorErrors: make(map[peer.ID][]error),
