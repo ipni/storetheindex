@@ -73,10 +73,9 @@ workflows:
             - filecoin-dockerhub-publish
           filters:
             tags:
-              only:
-                - main
+              only: /^v[0-9]+(\.[0-9]+)*$/
       - deploy-lotusinfra:
-          name: deploy-mainnet-storetheindex
+          name: deploy-mainnet-storetheindex-dev
           chart: filecoin/lotus-bundle
           chart_version: 0.0.12
           circle_context: sentinel-staging-deploy
@@ -90,3 +89,19 @@ workflows:
             branches:
               only:
                 - main
+      - deploy-lotusinfra:
+          name: deploy-mainnet-storetheindex
+          chart: filecoin/lotus-bundle
+          chart_version: 0.0.12
+          circle_context: filecoin-mainnet-aws
+          kubernetes_cluster: mainnet-us-east-1-eks
+          aws_region: us-east-1
+          namespace: ntwk-mainnet-storetheindex
+          release: storetheindex-0
+          requires:
+            - build-push
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
