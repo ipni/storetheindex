@@ -549,3 +549,16 @@ func (ing *Ingester) waitForAdvProcessed(ctx context.Context, peerID peer.ID, c 
 		}
 	}
 }
+
+// Get the latest CID synced for the peer.
+func (ing *Ingester) getLatestSync(peerID peer.ID) (cid.Cid, error) {
+	b, err := ing.ds.Get(context.Background(), datastore.NewKey(syncPrefix+peerID.String()))
+	if err != nil {
+		if err == datastore.ErrNotFound {
+			return cid.Undef, nil
+		}
+		return cid.Undef, err
+	}
+	_, c, err := cid.CidFromBytes(b)
+	return c, err
+}
