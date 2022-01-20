@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
+	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
@@ -65,7 +66,16 @@ func syncCmd(cctx *cli.Context) error {
 			return err
 		}
 	}
-	err = cl.Sync(cctx.Context, peerID, addr)
+	var syncCid cid.Cid
+	cidStr := cctx.String("cid")
+	if cidStr != "" {
+		syncCid, err = cid.Decode(cidStr)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = cl.Sync(cctx.Context, peerID, addr, syncCid)
 	if err != nil {
 		return err
 	}

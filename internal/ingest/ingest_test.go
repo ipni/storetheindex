@@ -113,7 +113,7 @@ func TestSync(t *testing.T) {
 	// The explicit sync will happen concurrently with the sycn triggered by
 	// the published advertisement.  These will be serialized in the go-legs
 	// handler for the provider.
-	end, err := i.Sync(ctx, pubHost.ID(), nil)
+	end, err := i.Sync(ctx, pubHost.ID(), nil, cid.Undef)
 	require.NoError(t, err)
 	select {
 	case m := <-end:

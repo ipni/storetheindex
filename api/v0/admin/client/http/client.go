@@ -12,7 +12,9 @@ import (
 	"os"
 	"path"
 
+	"github.com/filecoin-project/storetheindex/api/v0/admin/model"
 	"github.com/filecoin-project/storetheindex/api/v0/httpclient"
+	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -100,14 +102,14 @@ func (c *Client) ImportFromCidList(ctx context.Context, fileName string, provID 
 }
 
 // Sync with a data peeer up to latest ID.
-func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr) error {
-	var data []byte
-	var err error
-	if peerAddr != nil {
-		data, err = peerAddr.MarshalJSON()
-		if err != nil {
-			return err
-		}
+func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, syncCid cid.Cid) error {
+	syncReq := model.SyncRequest{
+		PeerAddr: peerAddr,
+		SyncCid:  syncCid,
+	}
+	data, err := model.MarshalSyncRequest(&syncReq)
+	if err != nil {
+		return err
 	}
 
 	return c.ingestRequest(ctx, peerID, "sync", http.MethodPost, data)

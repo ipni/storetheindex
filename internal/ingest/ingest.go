@@ -141,7 +141,7 @@ func (ing *Ingester) Close() error {
 // synced in the background.  The completion of advertisement sync does not
 // necessarily mean that the entries corresponding to the advertisement are
 // synced.
-func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr) (<-chan multihash.Multihash, error) {
+func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, syncCid cid.Cid) (<-chan multihash.Multihash, error) {
 	log := log.With("peerID", peerID)
 	log.Debug("Explicitly syncing the latest advertisement from peer")
 
@@ -156,7 +156,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		//
 		//   2. The default selector is used where traversal stops at the
 		//      latest known head.
-		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, nil, peerAddr)
+		c, err := ing.sub.Sync(ctx, peerID, syncCid, nil, peerAddr)
 		if err != nil {
 			log.Errorw("Failed to sync with provider", "err", err, "provider", peerID)
 			return

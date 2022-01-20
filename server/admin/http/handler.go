@@ -10,13 +10,13 @@ import (
 	"os"
 
 	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/api/v0/admin/model"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/importer"
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gorilla/mux"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
 
@@ -80,26 +80,19 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var syncAddr multiaddr.Multiaddr
-	if len(data) != 0 {
-		var v string
-		err = json.Unmarshal(data, &v)
-		if err == nil {
-			syncAddr, err = multiaddr.NewMultiaddr(v)
-		}
-		if err != nil {
-			log.Errorw("Cannot unmarshal sync multiaddr", "err", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+	syncReq, err := model.UnmarshalSyncRequest(data)
+	if err != nil {
+		log.Errorw("Cannot unmarshal sync request", "err", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
-	log.Infow("Syncing with peer", "peer", peerID.String(), "address", syncAddr)
+	log.Infow("Syncing with peer", "peer", peerID.String(), "address", syncReq.PeerAddr, "cid", syncReq.SyncCid)
 
 	// Start the sync, but do not wait for it to complete.
 	//
 	// TODO: Provide some way for the client to see if the indexer has synced.
-	_, err = h.ingester.Sync(h.ctx, peerID, syncAddr)
+	_, err = h.ingester.Sync(h.ctx, peerID, syncReq.PeerAddr, syncReq.SyncCid)
 	if err != nil {
 		msg := "Cannot sync with peer"
 		log.Errorw(msg, "err", err)
