@@ -35,9 +35,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/test"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 const (
@@ -77,21 +74,6 @@ func randomAdvChain(priv crypto.PrivKey, lsys ipld.LinkSystem, numberOfMhChunksI
 	}
 
 	return prevAdvLink, nil
-}
-
-// TODO we don't need these anymore
-func replaceLogger() *observer.ObservedLogs {
-	zcore, recordedLogs := observer.New(zapcore.InfoLevel)
-	log.SugaredLogger = *zap.New(zcore).Sugar().Named("ingest-test")
-	return recordedLogs
-}
-
-func requireNoErrorInLogs(t *testing.T, logs *observer.ObservedLogs) {
-	for _, log := range logs.All() {
-		if log.Level == zapcore.ErrorLevel {
-			t.Errorf("Found error message in log: %s", log.Message)
-		}
-	}
 }
 
 type testEnv struct {
@@ -143,7 +125,6 @@ func Test2Advs(t *testing.T) {
 	require.NoError(t, err)
 	te.publisher.UpdateRoot(ctx, advLink.ToCid())
 
-	time.Sleep(1 * time.Second)
 	headChan, err := te.ingester.Sync(ctx, te.pubHost.ID(), te.pubHost.Addrs()[0])
 	require.NoError(t, err)
 	a, e := te.ingester.ds.Get(ctx, datastore.NewKey("asdf"))
@@ -155,66 +136,33 @@ func Test2Advs(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func Test2AdvsSyncMultiple(t *testing.T) {
-	te := setupTestEnv(t, true)
-	ctx := context.Background()
-	advLink, err := randomAdvChain(te.publisherPriv, te.publisherLinkSys, []uint8{1})
-	require.NoError(t, err)
-	te.publisher.UpdateRoot(ctx, advLink.ToCid())
-
-	time.Sleep(1 * time.Second)
-	headChan, err := te.ingester.Sync(ctx, te.pubHost.ID(), te.pubHost.Addrs()[0])
-	require.NoError(t, err)
-	// _, err = te.ingester.Sync(ctx, te.pubHost.ID(), te.pubHost.Addrs()[0])
-	// require.NoError(t, err)
-	// _, err = te.ingester.Sync(ctx, te.pubHost.ID(), te.pubHost.Addrs()[0])
-	// require.NoError(t, err)
-
-	head := <-headChan
-	time.Sleep(2 * time.Second)
-	fmt.Println(advLink, head)
-	require.NoError(t, err)
-}
-
 func TestSubscribeManyAdvs(t *testing.T) {
-	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
-	h := mkTestHost()
-	pubHost := mkTestHost()
-	// i, core, reg := mkIngest(t, h)
-	i, core, _ := mkIngest(t, h)
-	defer core.Close()
-	defer i.Close()
-	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
-	defer pub.Close()
-	connectHosts(t, h, pubHost)
-	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
-	require.NoError(t, err)
-
-	// recordedLogs := replaceLogger()
-	// defer requireNoErrorInLogs(t, recordedLogs)
-
 	quick.Check(func(numberOfMhChunksInEachAdv []uint8) bool {
-		ctx := context.Background()
-		fmt.Println("numberOfMhChunksInEachAdv:", numberOfMhChunksInEachAdv)
-		advLink, err := randomAdvChain(priv, lsys, numberOfMhChunksInEachAdv)
-		if err != nil {
-			return false
-		}
+		return t.Run("quickcheck", func(t *testing.T) {
+			if len(numberOfMhChunksInEachAdv) == 0 {
+				return
+			}
 
-		pub.UpdateRoot(ctx, advLink.ToCid())
-		headChan, err := i.Sync(ctx, pubHost.ID(), pubHost.Addrs()[0])
-		if err != nil {
-			return false
-		}
+			ctx := context.Background()
+			te := setupTestEnv(t, true)
 
-		head := <-headChan
-		time.Sleep(2 * time.Second)
-		fmt.Println(advLink, head)
-		return true
+			advLink, err := randomAdvChain(te.publisherPriv, te.publisherLinkSys, numberOfMhChunksInEachAdv)
+			require.NoError(t, err)
+
+			te.publisher.UpdateRoot(ctx, advLink.ToCid())
+
+			headChan, err := te.ingester.Sync(ctx, te.pubHost.ID(), te.pubHost.Addrs()[0])
+			require.NoError(t, err)
+			<-headChan
+			err = te.ingester.waitForAdvProcessed(ctx, te.pubHost.ID(), advLink.ToCid())
+			require.NoError(t, err)
+			processedAdCid, _, err := te.ingester.GetProcessedUpTo(ctx, te.pubHost.ID())
+			require.NoError(t, err)
+			require.Equal(t, advLink.ToCid(), processedAdCid)
+		})
 	}, &quick.Config{
-		MaxCount: 1,
+		MaxCount: 5,
 	})
-
 }
 
 func TestSubscribe(t *testing.T) {
