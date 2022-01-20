@@ -42,8 +42,6 @@ const (
 	admapPrefix     = "/admap/"
 )
 
-const delayAfterAdChainProcessingError = 5 * time.Second
-
 // Ingester is a type that uses go-legs for the ingestion protocol.
 type Ingester struct {
 	host    host.Host
@@ -64,6 +62,9 @@ type Ingester struct {
 
 	adchainprocessorErrors     map[peer.ID][]error
 	adchainprocessorErrorsLock sync.Mutex
+
+	adCache      map[cid.Cid]adCacheItem
+	adCacheMutex sync.Mutex
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -252,7 +253,7 @@ func (ing *Ingester) waitForAdvProcessed(ctx context.Context, peerID peer.ID, c 
 	}
 }
 
-func (ing *Ingester) queueAdChainProcessor(publisher peer.ID, head cid.Cid) {
+func (ing *Ingester) processAdChain(publisher peer.ID, head cid.Cid) {
 	ad, err := ing.GetAd(context.Background(), head)
 	if err != nil {
 		log.Warnf("failed to get advertisement for head %s: %s", head, err)
@@ -274,6 +275,7 @@ func (ing *Ingester) queueAdChainProcessor(publisher peer.ID, head cid.Cid) {
 		ing.adchainprocessorLock.Lock()
 		ing.adchainprocessors[provID] = p
 		ing.adchainprocessorLock.Unlock()
+
 		go func() {
 			for {
 				err := p.Run()
@@ -286,7 +288,6 @@ func (ing *Ingester) queueAdChainProcessor(publisher peer.ID, head cid.Cid) {
 					ing.adchainprocessorErrors[provID] = errs
 					ing.adchainprocessorErrorsLock.Unlock()
 				}
-				time.Sleep(delayAfterAdChainProcessingError)
 			}
 		}()
 	}
@@ -298,7 +299,7 @@ func (ing *Ingester) queueAdChainProcessor(publisher peer.ID, head cid.Cid) {
 // for the peer that was synced.
 func (ing *Ingester) watchSyncFinished(onSyncFin <-chan legs.SyncFinished) {
 	for syncFin := range onSyncFin {
-		ing.queueAdChainProcessor(syncFin.PeerID, syncFin.Cid)
+		ing.processAdChain(syncFin.PeerID, syncFin.Cid)
 
 		// Persist the latest sync
 		err := ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+syncFin.PeerID.String()), syncFin.Cid.Bytes())

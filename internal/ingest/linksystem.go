@@ -21,6 +21,11 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
+type adCacheItem struct {
+	value indexer.Value
+	isRm  bool
+}
+
 var (
 	errBadAdvert              = errors.New("bad advertisement")
 	errInvalidAdvertSignature = errors.New("invalid advertisement signature")
@@ -49,15 +54,18 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 		return buf, func(lnk ipld.Link) error {
 			c := lnk.(cidlink.Link).Cid
 			origBuf := buf.Bytes()
+
+			log := log.With("cid", c)
+
 			// Decode the node to check its type.
 			n, err := decodeIPLDNode(buf)
 			if err != nil {
-				log.Errorf("Error decoding IPLD node in linksystem: %s", err)
+				log.Errorw("Error decoding IPLD node in linksystem", "err", err)
 				return errors.New("bad ipld data")
 			}
 			// If it is an advertisement.
 			if isAdvertisement(n) {
-				log.Infow("Received advertisement", "cid", c)
+				log.Infow("Received advertisement")
 
 				// Verify that the signature is correct and the advertisement
 				// is valid.
@@ -79,13 +87,12 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 					return err
 				}
 
-				log.Debug("Persisting new advertisement")
 				// Persist the advertisement.  This is read later when
 				// processing each chunk of entries, to get info common to all
 				// entries in a chunk.
 				return ds.Put(lctx.Ctx, dsKey(c.String()), origBuf)
 			}
-			log.Debug("Persisting IPLD node")
+			log.Debug("Received IPLD node")
 			// Any other type of node (like entries) are stored right away.
 			return ds.Put(lctx.Ctx, dsKey(c.String()), origBuf)
 		}, nil
@@ -117,14 +124,9 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, peer.ID, error) {
 	}
 
 	// Get provider ID from advertisement.
-	provider, err := ad.FieldProvider().AsString()
+	provID, err := providerFromAd(ad)
 	if err != nil {
-		log.Errorw("Cannot read provider from advertisement", "err", err)
-		return nil, peer.ID(""), errBadAdvert
-	}
-	provID, err := peer.Decode(provider)
-	if err != nil {
-		log.Errorw("Cannot decode provider ID", "err", err)
+		log.Errorw("Cannot get provider from advertisement", "err", err)
 		return nil, peer.ID(""), errBadAdvert
 	}
 
@@ -140,29 +142,21 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, peer.ID, error) {
 		return nil, peer.ID(""), errInvalidAdvertSignature
 	}
 
-	log.Infow("Advertisement signature is valid", "provider", provID)
-
 	return ad, provID, nil
 }
 
-func (ing *Ingester) indexContentBlockWithAdCid(adCid cid.Cid, pubID peer.ID, nentries ipld.Node) error {
-	// Getting the advertisement for the entries so we know
-	// what metadata and related information we need to use for ingestion.
-	adb, err := ing.ds.Get(context.Background(), dsKey(adCid.String()))
+func providerFromAd(ad schema.Advertisement) (peer.ID, error) {
+	provider, err := ad.FieldProvider().AsString()
 	if err != nil {
-		return fmt.Errorf("cannot read advertisement for entry from datastore: %s", err)
-	}
-	// Decode the advertisement.
-	adn, err := decodeIPLDNode(bytes.NewBuffer(adb))
-	if err != nil {
-		return fmt.Errorf("cannot decode ipld node: %s", err)
-	}
-	ad, err := decodeAd(adn)
-	if err != nil {
-		return fmt.Errorf("cannot decode advertisement: %s", err)
+		return peer.ID(""), fmt.Errorf("cannot read provider from advertisement: %s", err)
 	}
 
-	return ing.IndexContentBlock(adCid, ad, pubID, nentries)
+	providerID, err := peer.Decode(provider)
+	if err != nil {
+		return peer.ID(""), fmt.Errorf("cannot decode provider peer id: %s", err)
+	}
+
+	return providerID, nil
 }
 
 // IndexContentBlock indexes the content CIDs in a block of data.  First the
@@ -175,50 +169,27 @@ func (ing *Ingester) indexContentBlockWithAdCid(adCid cid.Cid, pubID peer.ID, ne
 // retrieved from.  It is the provider ID that needs to be stored by the
 // indexer.
 func (ing *Ingester) IndexContentBlock(adCid cid.Cid, ad schema.Advertisement, pubID peer.ID, nentries ipld.Node) error {
-	// Fetch data of interest.
-	contextID, err := ad.FieldContextID().AsBytes()
-	if err != nil {
-		return err
-	}
-	metadataBytes, err := ad.FieldMetadata().AsBytes()
-	if err != nil {
-		return err
-	}
-	isRm, err := ad.FieldIsRm().AsBool()
-	if err != nil {
-		return err
-	}
-
-	// The peerID passed into the storage hook is the source of the
-	// advertisement (the publisher), and not necessarily the same as the
-	// provider in the advertisement.  Read the provider from the advertisement
-	// to create the indexed value.
-	provider, err := ad.FieldProvider().AsString()
-	if err != nil {
-		return fmt.Errorf("cannot read provider from advertisement: %s", err)
-	}
-	providerID, err := peer.Decode(provider)
-	if err != nil {
-		return fmt.Errorf("cannot decode provider peer id: %s", err)
-	}
-
 	// Decode the list of cids into a List_String
 	nb := schema.Type.EntryChunk.NewBuilder()
-	err = nb.AssignNode(nentries)
+	err := nb.AssignNode(nentries)
 	if err != nil {
 		return fmt.Errorf("cannot decode entries: %s", err)
 	}
 
-	// Check for valid metadata
-	err = new(v0.Metadata).UnmarshalBinary(metadataBytes)
-	if err != nil {
-		return fmt.Errorf("cannot decoding metadata: %s", err)
-	}
+	nchunk := nb.Build().(schema.EntryChunk)
 
-	value := indexer.Value{
-		ProviderID:    providerID,
-		ContextID:     contextID,
-		MetadataBytes: metadataBytes,
+	// If this entry chunk hash a next link, add a mapping from the next
+	// entries CID to the ad CID so that the ad can be loaded when that chunk
+	// is received.
+	//
+	// Do not return here if error; try to index content in this chunk.
+	hasNextLink, linkErr := ing.setNextCidToAd(nchunk, adCid)
+
+	// Load the advertisement data for this chunk.  If there are more chunks to
+	// follow, then cache the ad data.
+	value, isRm, err := ing.loadAdData(adCid, hasNextLink)
+	if err != nil {
+		return err
 	}
 
 	mhChan := make(chan multihash.Multihash, ing.batchSize)
@@ -226,11 +197,10 @@ func (ing *Ingester) IndexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 	// entries, to allow for removal of individual entries.
 	errChan := ing.batchIndexerEntries(mhChan, value, isRm)
 
-	var count int
-	nchunk := nb.Build().(schema.EntryChunk)
-	entries := nchunk.FieldEntries()
 	// Iterate over all entries and ingest (or remove) them.
+	entries := nchunk.FieldEntries()
 	cit := entries.ListIterator()
+	var count int
 	for !cit.Done() {
 		_, cnode, _ := cit.Next()
 		h, err := cnode.AsBytes()
@@ -250,10 +220,94 @@ func (ing *Ingester) IndexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 	close(mhChan)
 	err = <-errChan
 	if err != nil {
-		return err
+		if isRm {
+			return fmt.Errorf("cannot remove multihashes from indexer: %s", err)
+		}
+		return fmt.Errorf("cannot put multihashes into indexer: %s", err)
 	}
 
-	return nil
+	return linkErr
+}
+
+func (ing *Ingester) loadAdData(adCid cid.Cid, keepCache bool) (indexer.Value, bool, error) {
+	ing.adCacheMutex.Lock()
+	adData, ok := ing.adCache[adCid]
+	if !keepCache && ok {
+		if len(ing.adCache) == 1 {
+			ing.adCache = nil
+		} else {
+			delete(ing.adCache, adCid)
+		}
+	}
+	ing.adCacheMutex.Unlock()
+
+	if ok {
+		return adData.value, adData.isRm, nil
+	}
+
+	// Getting the advertisement for the entries so we know
+	// what metadata and related information we need to use for ingestion.
+	adb, err := ing.ds.Get(context.Background(), dsKey(adCid.String()))
+	if err != nil {
+		return indexer.Value{}, false, fmt.Errorf("cannot read advertisement for entry from datastore: %s", err)
+	}
+	// Decode the advertisement.
+	adn, err := decodeIPLDNode(bytes.NewBuffer(adb))
+	if err != nil {
+		return indexer.Value{}, false, fmt.Errorf("cannot decode ipld node: %s", err)
+	}
+	ad, err := decodeAd(adn)
+	if err != nil {
+		return indexer.Value{}, false, fmt.Errorf("cannot decode advertisement: %s", err)
+	}
+	// Fetch data of interest.
+	contextID, err := ad.FieldContextID().AsBytes()
+	if err != nil {
+		return indexer.Value{}, false, err
+	}
+	metadataBytes, err := ad.FieldMetadata().AsBytes()
+	if err != nil {
+		return indexer.Value{}, false, err
+	}
+	isRm, err := ad.FieldIsRm().AsBool()
+	if err != nil {
+		return indexer.Value{}, false, err
+	}
+
+	// The peerID passed into the storage hook is the source of the
+	// advertisement (the publisher), and not necessarily the same as the
+	// provider in the advertisement.  Read the provider from the advertisement
+	// to create the indexed value.
+	providerID, err := providerFromAd(ad)
+	if err != nil {
+		return indexer.Value{}, false, err
+	}
+
+	// Check for valid metadata
+	err = new(v0.Metadata).UnmarshalBinary(metadataBytes)
+	if err != nil {
+		return indexer.Value{}, false, fmt.Errorf("cannot decoding metadata: %s", err)
+	}
+
+	value := indexer.Value{
+		ProviderID:    providerID,
+		ContextID:     contextID,
+		MetadataBytes: metadataBytes,
+	}
+
+	if keepCache {
+		ing.adCacheMutex.Lock()
+		if ing.adCache == nil {
+			ing.adCache = make(map[cid.Cid]adCacheItem)
+		}
+		ing.adCache[adCid] = adCacheItem{
+			value: value,
+			isRm:  isRm,
+		}
+		ing.adCacheMutex.Unlock()
+	}
+
+	return value, isRm, nil
 }
 
 // batchIndexerEntries starts a goroutine that processes batches of multihashes
@@ -289,12 +343,10 @@ func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, valu
 				// Process full batch of multihashes
 				if err := indexFunc(value, batch...); err != nil {
 					errChan <- err
-					log.Errorf("Cannot %s entries in indexer: %s", opName, err)
 					return
 				}
 				batch = batch[:0]
 				count += batchSize
-				log.Debugf("%s %d entries in value store", opName, batchSize)
 			}
 		}
 
@@ -302,14 +354,12 @@ func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, valu
 			// Process any remaining puts
 			if err := indexFunc(value, batch...); err != nil {
 				errChan <- err
-				log.Errorf("Cannot %s entries in indexer: %s", opName, err)
 				return
 			}
 			count += len(batch)
-			log.Debugf("%s %d entries in value store", opName, len(batch))
 		}
 
-		log.Debugw("Processed entries", "count", count, "operation", opName)
+		log.Infow("Processed multihashes in entry chunk", "count", count, "operation", opName)
 	}(ing.batchSize)
 
 	return errChan

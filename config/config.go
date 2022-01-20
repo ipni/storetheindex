@@ -98,6 +98,8 @@ func Load(filePath string) (*Config, error) {
 		return nil, err
 	}
 
+	cfg.populateUnset()
+
 	return &cfg, nil
 }
 
@@ -137,4 +139,12 @@ func (c *Config) String() string {
 		panic(err)
 	}
 	return string(b)
+}
+
+func (c *Config) populateUnset() {
+	c.Addresses.populateUnset()
+	c.Datastore.populateUnset()
+	c.Discovery.populateUnset()
+	c.Indexer.populateUnset()
+	c.Ingest.populateUnset()
 }

@@ -19,3 +19,18 @@ func NewIndexer() Indexer {
 		ValueStoreType: "sth",
 	}
 }
+
+// populateUnset replaces zero-values in the config with default values.
+func (c *Indexer) populateUnset() {
+	def := NewIndexer()
+
+	if c.CacheSize == 0 {
+		c.CacheSize = def.CacheSize
+	}
+	if c.ValueStoreDir == "" {
+		c.ValueStoreDir = def.ValueStoreDir
+	}
+	if c.ValueStoreType == "" {
+		c.ValueStoreType = def.ValueStoreType
+	}
+}
