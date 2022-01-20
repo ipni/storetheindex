@@ -9,9 +9,11 @@ import (
 	"sync"
 	"time"
 
-	indexer "github.com/filecoin-project/go-indexer-core/engine"
+	indexer "github.com/filecoin-project/go-indexer-core"
+	indexerengine "github.com/filecoin-project/go-indexer-core/engine"
 	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	"github.com/filecoin-project/go-legs"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/ingest/adchainprocessor"
@@ -29,6 +31,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
+	"github.com/multiformats/go-varint"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 )
@@ -46,7 +49,7 @@ const (
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
-	indexer *indexer.Engine
+	indexer *indexerengine.Engine
 
 	batchSize int
 	sigUpdate chan struct{}
@@ -58,18 +61,15 @@ type Ingester struct {
 
 	// Processors that apply ad chains to the indexer.
 	adchainprocessors    map[peer.ID]*adchainprocessor.Processor
-	adchainprocessorLock sync.RWMutex
+	adchainprocessorLock sync.Mutex
 
 	adchainprocessorErrors     map[peer.ID][]error
 	adchainprocessorErrorsLock sync.Mutex
-
-	adCache      map[cid.Cid]adCacheItem
-	adCacheMutex sync.Mutex
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
 // communication with providers.
-func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
+func NewIngester(cfg config.Ingest, h host.Host, idxr *indexerengine.Engine, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
 	lsys := mkLinkSystem(ds, reg)
 
 	// Construct a selector that recursively looks for nodes with field
@@ -121,15 +121,15 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *regi
 }
 
 func (ing *Ingester) Close() error {
-	ing.cancelSyncFin()
-	<-ing.watchDone
-
 	ing.adchainprocessorLock.Lock()
 	for _, p := range ing.adchainprocessors {
 		p.Close()
 	}
-	ing.adchainprocessors = make(map[peer.ID]*adchainprocessor.Processor)
+	ing.adchainprocessors = nil
 	ing.adchainprocessorLock.Unlock()
+
+	ing.cancelSyncFin()
+	<-ing.watchDone
 
 	// Close leg transport.
 	err := ing.sub.Close()
@@ -210,47 +210,198 @@ func (ing *Ingester) DeleteBlock(ctx context.Context, c cid.Cid) error {
 	return ing.ds.Delete(ctx, dsKey(c.String()))
 }
 
-func (ing *Ingester) GetProcessedUpTo(ctx context.Context, peerID peer.ID) (cid.Cid, error) {
+func (ing *Ingester) GetProcessedUpTo(ctx context.Context, peerID peer.ID) (cid.Cid, uint, error) {
 	b, err := ing.ds.Get(ctx, datastore.NewKey(processedPrefix+peerID.String()))
 
 	if err != nil {
 		if err == datastore.ErrNotFound {
-			return cid.Undef, nil
+			return cid.Undef, 0, nil
 		}
-		return cid.Undef, err
+		return cid.Undef, 0, err
 	}
-	_, c, err := cid.CidFromBytes(b)
-	return c, err
+
+	blockHeight, bytesRead, err := varint.FromUvarint(b)
+	if err != nil {
+		return cid.Undef, 0, err
+	}
+
+	_, c, err := cid.CidFromBytes(b[bytesRead:])
+	return c, uint(blockHeight), err
 }
 
-func (ing *Ingester) PutProcessedUpTo(ctx context.Context, peerID peer.ID, c cid.Cid) error {
-	return ing.ds.Put(ctx, datastore.NewKey(processedPrefix+peerID.String()), c.Bytes())
+func (ing *Ingester) PutProcessedUpTo(ctx context.Context, peerID peer.ID, c cid.Cid, blockHeight uint) error {
+	n := varint.ToUvarint(uint64(blockHeight))
+	out := append(n, c.Bytes()...)
+
+	err := ing.ds.Put(ctx, datastore.NewKey(processedPrefix+peerID.String()), out)
+
+	log.Debugw("Persisted latest processed", "peer", peerID, "cid", c)
+	_ = stats.RecordWithOptions(ctx,
+		stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
+		stats.WithMeasurements(metrics.IngestChange.M(1)))
+
+	ing.signalMetricsUpdate()
+	return err
 }
 
 func (ing *Ingester) SyncDag(ctx context.Context, peerID peer.ID, c cid.Cid, sel ipld.Node) (cid.Cid, error) {
 	return ing.sub.Sync(ctx, peerID, c, sel, nil)
 }
 
-func (ing *Ingester) waitForAdvProcessed(ctx context.Context, peerID peer.ID, c cid.Cid) error {
-	ing.adchainprocessorLock.RLock()
-	p, ok := ing.adchainprocessors[peerID]
-	ing.adchainprocessorLock.RUnlock()
-	if !ok {
-		return errors.New("missing processor for peer")
+// IndexContentBlock indexes the content CIDs in a block of data.  First the
+// advertisement is loaded to get the context ID and metadata, and then that
+// and the CIDs in the content block are indexed by the indexer-core.
+//
+// The pubID is the peer ID of the message publisher.  This is not necessarily
+// the same as the provider ID in the advertisement.  The publisher is the
+// source of the indexed content, the provider is where content can be
+// retrieved from.  It is the provider ID that needs to be stored by the
+// indexer.
+func (ing *Ingester) IndexContentBlock(adCid cid.Cid, ad schema.Advertisement, pubID peer.ID, nentries ipld.Node) error {
+	// Decode the list of cids into a List_String
+	nb := schema.Type.EntryChunk.NewBuilder()
+	err := nb.AssignNode(nentries)
+	if err != nil {
+		return fmt.Errorf("cannot decode entries: %s", err)
 	}
 
-	advAppliedChan, cncl := p.OnAllAdApplied()
-	defer cncl()
-	for {
+	nchunk := nb.Build().(schema.EntryChunk)
+
+	// Load the advertisement data for this chunk.
+	value, isRm, err := ing.loadAdData(ad)
+	if err != nil {
+		return err
+	}
+
+	mhChan := make(chan multihash.Multihash, ing.batchSize)
+	// The isRm parameter is passed in for an advertisement that contains
+	// entries, to allow for removal of individual entries.
+	errChan := ing.batchIndexerEntries(mhChan, value, isRm)
+
+	// Iterate over all entries and ingest (or remove) them.
+	entries := nchunk.FieldEntries()
+	cit := entries.ListIterator()
+	var count int
+	for !cit.Done() {
+		_, cnode, _ := cit.Next()
+		h, err := cnode.AsBytes()
+		if err != nil {
+			close(mhChan)
+			return fmt.Errorf("cannot decode an entry from the ingestion list: %s", err)
+		}
+
 		select {
-		case <-ctx.Done():
-			return errors.New("context cancelled while waiting for adv to be processed")
-		case appliedAdCid := <-advAppliedChan:
-			if appliedAdCid.Head == c {
-				return nil
+		case mhChan <- h:
+		case err = <-errChan:
+			return err
+		}
+
+		count++
+	}
+	close(mhChan)
+	err = <-errChan
+	if err != nil {
+		if isRm {
+			return fmt.Errorf("cannot remove multihashes from indexer: %s", err)
+		}
+		return fmt.Errorf("cannot put multihashes into indexer: %s", err)
+	}
+
+	return nil
+}
+
+func (ing *Ingester) loadAdData(ad schema.Advertisement) (indexer.Value, bool, error) {
+	// Fetch data of interest.
+	contextID, err := ad.FieldContextID().AsBytes()
+	if err != nil {
+		return indexer.Value{}, false, err
+	}
+	metadataBytes, err := ad.FieldMetadata().AsBytes()
+	if err != nil {
+		return indexer.Value{}, false, err
+	}
+	isRm, err := ad.FieldIsRm().AsBool()
+	if err != nil {
+		return indexer.Value{}, false, err
+	}
+
+	// The peerID passed into the storage hook is the source of the
+	// advertisement (the publisher), and not necessarily the same as the
+	// provider in the advertisement.  Read the provider from the advertisement
+	// to create the indexed value.
+	providerID, err := providerFromAd(ad)
+	if err != nil {
+		return indexer.Value{}, false, err
+	}
+
+	// Check for valid metadata
+	err = new(v0.Metadata).UnmarshalBinary(metadataBytes)
+	if err != nil {
+		return indexer.Value{}, false, fmt.Errorf("cannot decoding metadata: %s", err)
+	}
+
+	value := indexer.Value{
+		ProviderID:    providerID,
+		ContextID:     contextID,
+		MetadataBytes: metadataBytes,
+	}
+
+	return value, isRm, nil
+}
+
+// batchIndexerEntries starts a goroutine that processes batches of multihashes
+// from an input channels.  The goroutine collects these into a slice, storing
+// up to batchSize elements.  When the slice is at capacity, a Put or Remove
+// request is made to the indexer core depending on the whether isRm is true
+// or false.  This function returns an error channel that returns an error if
+// one occurs during processing.  This also indicates the goroutine has exited
+// (and will no longer read its input channel).
+//
+// The goroutine exits when the input channel is closed.  It closes the error
+// channel to indicate completion.
+func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, value indexer.Value, isRm bool) <-chan error {
+	var indexFunc func(indexer.Value, ...multihash.Multihash) error
+	var opName string
+	if isRm {
+		indexFunc = ing.indexer.Remove
+		opName = "remove"
+	} else {
+		indexFunc = ing.indexer.Put
+		opName = "put"
+	}
+
+	errChan := make(chan error, 1)
+
+	go func(batchSize int) {
+		defer close(errChan)
+		batch := make([]multihash.Multihash, 0, batchSize)
+		var count int
+		for m := range mhChan {
+			batch = append(batch, m)
+			if len(batch) == batchSize {
+				// Process full batch of multihashes
+				if err := indexFunc(value, batch...); err != nil {
+					errChan <- err
+					return
+				}
+				batch = batch[:0]
+				count += batchSize
 			}
 		}
-	}
+
+		if len(batch) != 0 {
+			// Process any remaining puts
+			if err := indexFunc(value, batch...); err != nil {
+				errChan <- err
+				return
+			}
+			count += len(batch)
+		}
+
+		log.Infow("Processed multihashes in entry chunk", "count", count, "operation", opName)
+	}(ing.batchSize)
+
+	return errChan
 }
 
 func (ing *Ingester) processAdChain(publisher peer.ID, head cid.Cid) {
@@ -266,33 +417,26 @@ func (ing *Ingester) processAdChain(publisher peer.ID, head cid.Cid) {
 		return
 	}
 
-	ing.adchainprocessorLock.RLock()
+	ing.adchainprocessorLock.Lock()
 	p, ok := ing.adchainprocessors[provID]
-	ing.adchainprocessorLock.RUnlock()
-	log.Debug("Starting update processor for", head)
 	if !ok {
-		p = adchainprocessor.NewUpdateProcessor(provID, ing, ing.signalMetricsUpdate, adchainprocessor.Publisher(publisher))
-		ing.adchainprocessorLock.Lock()
+		p = adchainprocessor.NewUpdateProcessor(provID, ing, adchainprocessor.Publisher(publisher))
 		ing.adchainprocessors[provID] = p
-		ing.adchainprocessorLock.Unlock()
-
-		go func() {
-			for {
-				err := p.Run()
-				if err != nil {
-					log.Errorf("Failed to run update processor for peer %s: %s", provID, err)
-
-					ing.adchainprocessorErrorsLock.Lock()
-					errs := ing.adchainprocessorErrors[provID]
-					errs = append(errs, err)
-					ing.adchainprocessorErrors[provID] = errs
-					ing.adchainprocessorErrorsLock.Unlock()
-				}
-			}
-		}()
 	}
+	ing.adchainprocessorLock.Unlock()
 
-	p.QueueUpdate(head)
+	go func() {
+		log.Debug("Starting update processor for", head)
+		err := p.Run(context.Background(), head)
+		if err != nil {
+			log.Errorf("Failed to run update processor for peer %s: %v", provID, err)
+			ing.adchainprocessorErrorsLock.Lock()
+			defer ing.adchainprocessorErrorsLock.Unlock()
+			errs := ing.adchainprocessorErrors[provID]
+			errs = append(errs, err)
+			ing.adchainprocessorErrors[provID] = errs
+		}
+	}()
 }
 
 // watchSyncFinished reads legs.SyncFinished events and records the latest sync

@@ -5,11 +5,9 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"testing/quick"
-	"time"
 
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/test/util"
@@ -18,71 +16,112 @@ import (
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/codec/dagjson"
+	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
 )
 
-func TestIt(t *testing.T) {
-	err := quick.Check(func(numberOfMhChunksInEachAdv []uint8) bool {
-		t.Log("Testing with", numberOfMhChunksInEachAdv)
+// TestApplyAtVariousHeights makes sure the process only processes each block
+// once, even if the caller to `Run` passes an older head by accident/race.
+func TestApplyAtVariousHeights(t *testing.T) {
+	err := quick.Check(func(numberOfMhChunksInEachAdv []uint8, headIdxToApply []uint8) bool {
 		if len(numberOfMhChunksInEachAdv) == 0 {
 			return true
 		}
 
-		provKey, _, err := crypto.GenerateEd25519Key(rand.Reader)
-		require.NoError(t, err)
-		provider, err := peer.IDFromPrivateKey(provKey)
-		require.NoError(t, err)
+		return t.Run("quickcheck", func(t *testing.T) {
+			te := setupTestEnv(t)
+			p := te.p
+			ctx := context.Background()
 
-		mi := newMockIngester()
+			advLink, err := util.RandomAdvChain(te.provKey, te.mi.lsys, numberOfMhChunksInEachAdv)
+			require.NoError(t, err)
+			var allAdCids []cid.Cid
 
-		p := NewUpdateProcessor(provider, mi, func() {})
-
-		processorErr := make(chan error)
-		go func() {
-			processorErr <- p.Run()
-		}()
-		defer p.Close()
-
-		advLink, err := util.RandomAdvChain(provKey, mi.lsys, numberOfMhChunksInEachAdv)
-		require.NoError(t, err)
-
-		p.QueueUpdate(advLink.ToCid())
-
-		ch, cncl := p.OnAllAdApplied()
-		defer cncl()
-
-		select {
-		case head := <-ch:
-			if head.Head != advLink.ToCid() {
-				t.Log("Didn't process to head")
-				return false
+			adCid := advLink.ToCid()
+			for {
+				ad, err := te.mi.GetAd(ctx, adCid)
+				require.NoError(t, err)
+				allAdCids = append(allAdCids, adCid)
+				if ad.PreviousID.IsAbsent() {
+					break
+				}
+				l, err := ad.PreviousID.AsNode().AsLink()
+				require.NoError(t, err)
+				adCid = l.(cidlink.Link).Cid
 			}
-		case err = <-processorErr:
-			t.Log("Processor error:", err)
-			return false
-		case <-time.After(3 * time.Second):
-			t.Log("Timed out waiting for all advertisements to be applied")
-			return false
-		}
 
-		mi.mutex.Lock()
-		defer mi.mutex.Unlock()
-		sumBlocks := 0
-		for _, b := range numberOfMhChunksInEachAdv {
-			if b == 0 {
-				sumBlocks++
-			} else {
-				sumBlocks += int(b)
+			// Randomly apply different parts of the adv chain. It should not reapply
+			// anything it already has.
+			for _, idx := range headIdxToApply {
+				headToApply := allAdCids[idx%uint8(len(allAdCids))]
+				err = p.Run(context.Background(), headToApply)
+				if err != nil {
+					t.Fatal("Processor error:", err)
+				}
 			}
+
+			// Finally, apply the head so we can check if we've applied the whole chain once.
+			err = p.Run(context.Background(), advLink.ToCid())
+			if err != nil {
+				t.Fatal("Processor error:", err)
+			}
+
+			sumBlocks := expectedNumberOfIndexedBlocks(numberOfMhChunksInEachAdv)
+
+			te.mi.mutex.Lock()
+			defer te.mi.mutex.Unlock()
+			if sumBlocks != len(te.mi.indexedBlocks) {
+				t.Fatalf("Expected %d blocks to be indexed, but got %d", sumBlocks, len(te.mi.indexedBlocks))
+			}
+		})
+
+	}, &quick.Config{
+		MaxCount: 30,
+	})
+	require.NoError(t, err)
+}
+
+func TestMultipleAdsWithEntryChunks(t *testing.T) {
+	err := quick.Check(func(numberOfMhChunksInEachAdv []uint8) bool {
+		if len(numberOfMhChunksInEachAdv) == 0 {
+			return true
 		}
 
-		if sumBlocks != len(mi.indexedBlocks) {
-			t.Logf("Expected %d blocks to be indexed, but got %d", sumBlocks, len(mi.indexedBlocks))
-			return false
-		}
-		return true
+		return t.Run("quickcheck", func(t *testing.T) {
+			te := setupTestEnv(t)
+			p := te.p
+
+			advLink, err := util.RandomAdvChain(te.provKey, te.mi.lsys, numberOfMhChunksInEachAdv)
+			require.NoError(t, err)
+
+			// Also check if we get this notification
+			ch, cncl := p.OnAllAdApplied()
+			defer cncl()
+
+			err = p.Run(context.Background(), advLink.ToCid())
+			if err != nil {
+				t.Fatal("Processor error:", err)
+			}
+
+			select {
+			case head := <-ch:
+				if head.Head != advLink.ToCid() {
+					t.Fatal("Didn't process to head")
+				}
+			default:
+				t.Fatal("Didn't get notification")
+			}
+
+			te.mi.mutex.Lock()
+			defer te.mi.mutex.Unlock()
+			sumBlocks := expectedNumberOfIndexedBlocks(numberOfMhChunksInEachAdv)
+
+			if sumBlocks != len(te.mi.indexedBlocks) {
+				t.Fatalf("Expected %d blocks to be indexed, but got %d", sumBlocks, len(te.mi.indexedBlocks))
+			}
+		})
 
 	}, &quick.Config{
 		MaxCount: 30,
@@ -97,11 +136,16 @@ type indexBlock struct {
 	entryChunk ipld.Node
 }
 
+type processedUpToMeta struct {
+	headCid     cid.Cid
+	blockHeight uint
+}
+
 type MockIngester struct {
 	mutex         sync.Mutex
 	ds            datastore.Batching
 	lsys          ipld.LinkSystem
-	processedUpTo map[peer.ID]cid.Cid
+	processedUpTo map[peer.ID]processedUpToMeta
 	indexedBlocks []indexBlock
 }
 
@@ -109,7 +153,7 @@ func newMockIngester() *MockIngester {
 	ds := dssync.MutexWrap(datastore.NewMapDatastore())
 	lsys := util.NewProvLinkSystem(ds)
 	return &MockIngester{
-		processedUpTo: make(map[peer.ID]cid.Cid),
+		processedUpTo: make(map[peer.ID]processedUpToMeta),
 		ds:            ds,
 		lsys:          lsys,
 	}
@@ -140,14 +184,7 @@ func (mi *MockIngester) GetAd(ctx context.Context, c cid.Cid) (schema.Advertisem
 }
 
 func (mi *MockIngester) GetBlock(ctx context.Context, c cid.Cid) ([]byte, error) {
-	b, err := mi.ds.Get(ctx, datastore.NewKey(c.String()))
-	if err != nil {
-		fmt.Println("Error while fetching the node from datastore", err)
-		time.Sleep(1 * time.Second)
-		b, err = mi.ds.Get(ctx, datastore.NewKey(c.String()))
-		fmt.Println("Error 2 while fetching the node from datastore", err)
-	}
-	return b, err
+	return mi.ds.Get(ctx, datastore.NewKey(c.String()))
 }
 
 func (mi *MockIngester) DeleteBlock(ctx context.Context, c cid.Cid) error {
@@ -155,16 +192,23 @@ func (mi *MockIngester) DeleteBlock(ctx context.Context, c cid.Cid) error {
 	return nil
 }
 
-func (mi *MockIngester) GetProcessedUpTo(ctx context.Context, provider peer.ID) (cid.Cid, error) {
+func (mi *MockIngester) GetProcessedUpTo(ctx context.Context, provider peer.ID) (cid.Cid, uint, error) {
 	mi.mutex.Lock()
 	defer mi.mutex.Unlock()
-	return mi.processedUpTo[provider], nil
+	m, ok := mi.processedUpTo[provider]
+	if !ok {
+		return cid.Undef, 0, nil
+	}
+	return m.headCid, m.blockHeight, nil
 }
 
-func (mi *MockIngester) PutProcessedUpTo(ctx context.Context, p peer.ID, c cid.Cid) error {
+func (mi *MockIngester) PutProcessedUpTo(ctx context.Context, p peer.ID, c cid.Cid, blockHeight uint) error {
 	mi.mutex.Lock()
 	defer mi.mutex.Unlock()
-	mi.processedUpTo[p] = c
+	mi.processedUpTo[p] = processedUpToMeta{
+		headCid:     c,
+		blockHeight: blockHeight,
+	}
 	return nil
 }
 func (mi *MockIngester) SyncDag(ctx context.Context, peerID peer.ID, c cid.Cid, sel ipld.Node) (cid.Cid, error) {
@@ -181,4 +225,36 @@ func (mi *MockIngester) IndexContentBlock(adCid cid.Cid, ad schema.Advertisement
 		entryChunk: entryChunk,
 	})
 	return nil
+}
+
+func expectedNumberOfIndexedBlocks(numberOfMhChunksInEachAdv []uint8) int {
+	sumBlocks := 0
+	for _, b := range numberOfMhChunksInEachAdv {
+		if b == 0 {
+			// even if the ad didn't have and entry chunks it still gets indexed.
+			sumBlocks++
+		} else {
+			sumBlocks += int(b)
+		}
+	}
+	return sumBlocks
+}
+
+type testEnv struct {
+	p       *Processor
+	mi      *MockIngester
+	provKey crypto.PrivKey
+}
+
+func setupTestEnv(t *testing.T) *testEnv {
+	provKey, _, err := crypto.GenerateEd25519Key(rand.Reader)
+	require.NoError(t, err)
+	provider, err := peer.IDFromPrivateKey(provKey)
+	require.NoError(t, err)
+
+	mi := newMockIngester()
+
+	p := NewUpdateProcessor(provider, mi)
+	t.Cleanup(func() { p.Close() })
+	return &testEnv{p: p, mi: mi, provKey: provKey}
 }

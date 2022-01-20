@@ -3,6 +3,7 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -291,7 +292,7 @@ func TestSync(t *testing.T) {
 		// Check that latest sync recorded in datastore
 		err = i.waitForAdvProcessed(ctx, providerID, c1)
 		require.NoError(t, err)
-		lcid, err = i.GetProcessedUpTo(ctx, providerID)
+		lcid, _, err = i.GetProcessedUpTo(ctx, providerID)
 		require.NoError(t, err)
 		require.Equal(t, c1, lcid)
 	case <-ctx.Done():
@@ -325,10 +326,10 @@ func TestMultiplePublishers(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	// Test with two random advertisement publications for each of them.
-	c1, mhs, providerID := publishRandomAdv(t, i, pubHost1, pub1, lsys1, false)
-	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
-	c2, mhs, providerID := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
-	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+	c1, mhs, providerID1 := publishRandomAdv(t, i, pubHost1, pub1, lsys1, false)
+	checkMhsIndexedEventually(t, i.indexer, providerID1, mhs)
+	c2, mhs, providerID2 := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
+	checkMhsIndexedEventually(t, i.indexer, providerID2, mhs)
 
 	// Check that subscriber recorded latest sync.
 	lnk := i.sub.GetLatestSync(pubHost1.ID())
@@ -340,10 +341,10 @@ func TestMultiplePublishers(t *testing.T) {
 
 	ctx := context.Background()
 
-	lcid, err := i.GetProcessedUpTo(ctx, pubHost1.ID())
+	lcid, _, err := i.GetProcessedUpTo(ctx, providerID1)
 	require.NoError(t, err)
 	require.Equal(t, lcid, c1)
-	lcid, err = i.GetProcessedUpTo(ctx, pubHost2.ID())
+	lcid, _, err = i.GetProcessedUpTo(ctx, providerID2)
 	require.NoError(t, err)
 	require.Equal(t, lcid, c2)
 	requireNoErrorsInProcessing(t, i)
@@ -542,7 +543,7 @@ func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Pub
 	}
 
 	// Check if latest sync updated.
-	lcid, err := i.GetProcessedUpTo(context.Background(), pubHost.ID())
+	lcid, _, err := i.GetProcessedUpTo(context.Background(), providerID)
 	require.NoError(t, err)
 
 	// If fakeSig Cids should not be saved.
@@ -576,5 +577,27 @@ func requireNoErrorsInProcessing(t *testing.T, ing *Ingester) {
 
 	for _, errs := range ing.adchainprocessorErrors {
 		require.Empty(t, errs)
+	}
+}
+
+func (ing *Ingester) waitForAdvProcessed(ctx context.Context, peerID peer.ID, c cid.Cid) error {
+	ing.adchainprocessorLock.Lock()
+	p, ok := ing.adchainprocessors[peerID]
+	ing.adchainprocessorLock.Unlock()
+	if !ok {
+		return errors.New("missing processor for peer")
+	}
+
+	advAppliedChan, cncl := p.OnAllAdApplied()
+	defer cncl()
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.New("context cancelled while waiting for adv to be processed")
+		case appliedAdCid := <-advAppliedChan:
+			if appliedAdCid.Head == c {
+				return nil
+			}
+		}
 	}
 }

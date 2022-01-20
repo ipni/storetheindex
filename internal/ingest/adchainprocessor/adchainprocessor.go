@@ -2,18 +2,20 @@ package adchainprocessor
 
 // TODO
 // 4. Remove the other dead code.
-// 6. More tests
-// 8. Differntiate between publisher/provider
 
-// TODO namings
-// s/entryChunk/entryChunk
+// Open Qs:
+//
+// BUG(marco) What happens if we get a forked chain. We originally see A1 A2 A3,
+// but then get A1' A2' A3'. What is the correct behavior?
+//
+// BUG(marco) Should we keep a track of which block has been applied? Could to
+// know if we've forked in the case of A1 A2 A3, then A1' A2'.
 
 import (
 	"bytes"
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
@@ -26,15 +28,14 @@ import (
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
 )
 
 var log = logging.Logger("indexer/ingest/adchainprocessor")
 
-const defaultUpdateProcessorUpdateChanBufferSize = 3
+var errAlreadyApplied = errors.New("already applied head")
 
 // Processor handles updating the indexer state for a given provider.
-// When a sync is completed (by go-legs or otherwise), you should call `Processor.queueUpdate`.
+// When a sync is completed (by go-legs or otherwise), you should call `Processor.Run`.
 //
 // Advertisements can be thought of as a state change. By applying an
 // advertisement you take the state of the indexer from one older state to a
@@ -52,20 +53,16 @@ const defaultUpdateProcessorUpdateChanBufferSize = 3
 // processed advertisement. After applying an advertisement it will record that
 // the advertisement has been processed.
 type Processor struct {
+	running sync.Mutex
+	closed  bool
+
 	publisher peer.ID
 	provider  peer.ID
-	// queueUpdate takes new heads and will schedule updating the indexer state to that new state
-	queueUpdateChan chan cid.Cid
-
-	nextHeadToProcess atomic.Value
-	queueRun          chan struct{}
 
 	subscribersRWMutex sync.RWMutex
 	subscribers        []chan<- AllAdBelowHeadApplied
 
 	syncTimeout time.Duration
-
-	signalMetricsUpdate func()
 
 	ingester Ingester
 }
@@ -74,36 +71,26 @@ type Ingester interface {
 	GetAd(context.Context, cid.Cid) (schema.Advertisement, error)
 	GetBlock(context.Context, cid.Cid) ([]byte, error)
 	DeleteBlock(context.Context, cid.Cid) error
-	GetProcessedUpTo(context.Context, peer.ID) (cid.Cid, error)
-	PutProcessedUpTo(context.Context, peer.ID, cid.Cid) error
-	SyncDag(ctx context.Context, peerID peer.ID, c cid.Cid, sel ipld.Node) (cid.Cid, error)
+	GetProcessedUpTo(ctx context.Context, provider peer.ID) (applied cid.Cid, blockHeight uint, err error)
+	PutProcessedUpTo(ctx context.Context, provider peer.ID, applied cid.Cid, blockHeight uint) error
+	SyncDag(ctx context.Context, provider peer.ID, c cid.Cid, sel ipld.Node) (cid.Cid, error)
 	IndexContentBlock(adCid cid.Cid, ad schema.Advertisement, provider peer.ID, entryChunk ipld.Node) error
 }
 
-func NewUpdateProcessor(provider peer.ID, ingester Ingester, signalMetricsUpdate func(), opts ...updateProcessorOpts) *Processor {
-	queueUpdateChan := make(chan cid.Cid, defaultUpdateProcessorUpdateChanBufferSize)
-
+func NewUpdateProcessor(provider peer.ID, ingester Ingester, opts ...updateProcessorOpts) *Processor {
 	c := &updateProcessorCfg{}
 	for _, o := range opts {
 		o(c)
 	}
 
-	var nextHeadToProcess atomic.Value
-	nextHeadToProcess.Store(cid.Undef)
 	return &Processor{
-		provider:        provider,
-		publisher:       c.publisher,
-		queueUpdateChan: queueUpdateChan,
-
-		nextHeadToProcess: nextHeadToProcess,
-		queueRun:          make(chan struct{}),
+		provider:  provider,
+		publisher: c.publisher,
 
 		// TODO this can be handled by the ingester when providing Sync
 		syncTimeout: c.syncTimeout,
 
 		ingester: ingester,
-
-		signalMetricsUpdate: signalMetricsUpdate,
 	}
 }
 
@@ -127,8 +114,16 @@ func Publisher(publisher peer.ID) updateProcessorOpts {
 }
 
 func (p *Processor) Close() {
-	close(p.queueUpdateChan)
-	close(p.queueRun)
+	p.subscribersRWMutex.Lock()
+	defer p.subscribersRWMutex.Unlock()
+	for _, ch := range p.subscribers {
+		close(ch)
+	}
+	p.subscribers = nil
+
+	p.running.Lock()
+	p.closed = true
+	defer p.running.Unlock()
 }
 
 type AllAdBelowHeadApplied struct {
@@ -156,64 +151,55 @@ func (p *Processor) OnAllAdApplied() (<-chan AllAdBelowHeadApplied, context.Canc
 	return c, cncl
 }
 
-func (p *Processor) QueueUpdate(newHead cid.Cid) {
-	p.queueUpdateChan <- newHead
-}
-
-// pruneNextUpdates drops older head updates. Should run this from a separate goroutine.
-func (p *Processor) pruneNextUpdates() {
-	for {
-		nextHead, ok := <-p.queueUpdateChan
-		if !ok {
-			return
-		}
-		p.nextHeadToProcess.Store(nextHead)
-		select {
-		case p.queueRun <- struct{}{}:
-		default: // Already queued
-		}
-	}
-}
-
 // adsUntilApplied returns a list of adCids until we reach an ad that we have seen.
-// The leftmost element is the head.
-func (p *Processor) adsUntilApplied(ctx context.Context, head cid.Cid) ([]cid.Cid, error) {
-	lastMarked, err := p.ingester.GetProcessedUpTo(ctx, p.provider)
+// The leftmost element is the head. And returns the blockheight of the head cid.
+func (p *Processor) adsUntilApplied(ctx context.Context, head cid.Cid) ([]cid.Cid, uint, error) {
+	lastMarked, lastBlockHeight, err := p.ingester.GetProcessedUpTo(ctx, p.provider)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	if head == lastMarked {
-		return nil, nil
+		return nil, 0, nil
 	}
 
 	ad, err := p.ingester.GetAd(ctx, head)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	var adChain []cid.Cid
 	adChain = append(adChain, head)
 	for {
 		if ad.PreviousID.IsAbsent() {
-			return adChain, nil
+			// We're at the genesis block. Is this chain longer than our block height?
+			if lastBlockHeight == 0 {
+				// We haven't seen anything before, so nothing to compare against
+				return adChain, uint(len(adChain)), nil
+			} else if len(adChain) < int(lastBlockHeight) {
+				// This chain is shorter than our block height. We've probably already applied this update.
+				return nil, 0, errAlreadyApplied
+			} else {
+				// This chain is equal to or longer than our block height, but we haven't run into any blocks we've seen before.
+				return nil, 0, errors.New("unexpected ad chain. head points to chain we haven't seen before")
+			}
 		}
 
 		prevLink, err := ad.PreviousID.AsNode().AsLink()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		prevCid := prevLink.(cidlink.Link).Cid
 
 		if prevCid == lastMarked {
-			return adChain, nil
+			return adChain, uint(len(adChain)) + lastBlockHeight, nil
 		}
 
 		adChain = append(adChain, prevCid)
 
 		ad, err = p.ingester.GetAd(ctx, prevCid)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
 }
@@ -348,57 +334,53 @@ func (p *Processor) syncEntries(ctx context.Context, ad schema.Advertisement) er
 	return nil
 }
 
-func (p *Processor) markAdApplied(ctx context.Context, adCid cid.Cid) error {
-	err := p.ingester.PutProcessedUpTo(ctx, p.provider, adCid)
-	if err != nil {
-		log.Errorw("Error persisting latest processed", "err", err, "peer", p.provider)
+// Run is the main Run loop of the update processsor. Will apply each block of
+// the adchain up to and including the head. If it realizes it has already
+// applied the head, it noops.
+func (p *Processor) Run(ctx context.Context, headAdCid cid.Cid) error {
+	// This has to happen serially since we apply blocks serially.
+	p.running.Lock()
+	defer p.running.Unlock()
+
+	if p.closed {
+		return nil
 	}
 
-	log.Debugw("Persisted latest processed", "peer", p.provider, "cid", adCid)
-	_ = stats.RecordWithOptions(ctx,
-		stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
-		stats.WithMeasurements(metrics.IngestChange.M(1)))
+	log.Debug("Processing ads to: ", headAdCid)
 
-	p.signalMetricsUpdate()
-	return err
-}
+	// Get a list of adCids to apply
+	adsToApply, newBlockHeight, err := p.adsUntilApplied(ctx, headAdCid)
+	if err == errAlreadyApplied {
+		log.Info("Aleady applied headAdCid: ", headAdCid)
+		return nil
+	} else if err != nil {
+		return err
+	}
 
-// Run is the main Run loop of the update processsor
-func (p *Processor) Run() error {
-	go p.pruneNextUpdates()
-	for range p.queueRun {
-		ctx := context.Background()
-		head := p.nextHeadToProcess.Load().(cid.Cid)
-		log.Debug("Processing ads to: ", head)
+	// TODO check if the current applied block height is greater than this headAdCid.
 
-		// Get a list of adCids to apply
-		adsToApply, err := p.adsUntilApplied(ctx, head)
+	// Apply each ad, oldest to newest.
+	for i := len(adsToApply) - 1; i >= 0; i-- {
+		err = p.applyAd(ctx, adsToApply[i])
 		if err != nil {
 			return err
 		}
 
-		// Apply each ad, oldest to newest.
-		for i := len(adsToApply) - 1; i >= 0; i-- {
-			err = p.applyAd(ctx, adsToApply[i])
-			if err != nil {
-				return err
-			}
-
-			// Mark the ad as applied
-			err = p.markAdApplied(ctx, adsToApply[i])
-			if err != nil {
-				return err
-			}
+		// Mark the ad as applied
+		err = p.ingester.PutProcessedUpTo(ctx, p.provider, adsToApply[i], newBlockHeight-uint(i))
+		if err != nil {
+			return err
 		}
-
-		// Notify all subscribers that we have applied all ads up to and including the head
-		p.subscribersRWMutex.RLock()
-		for _, ch := range p.subscribers {
-			ch <- AllAdBelowHeadApplied{Head: head}
-		}
-		p.subscribersRWMutex.RUnlock()
-
-		log.Debug("Finished processing ads", head)
 	}
+
+	// Notify all subscribers that we have applied all ads up to and including the headAdCid
+	p.subscribersRWMutex.RLock()
+	for _, ch := range p.subscribers {
+		ch <- AllAdBelowHeadApplied{Head: headAdCid}
+	}
+	p.subscribersRWMutex.RUnlock()
+
+	log.Debug("Finished processing ads", headAdCid)
+
 	return nil
 }

@@ -2,29 +2,19 @@ package ingest
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
 
-	"github.com/filecoin-project/go-indexer-core"
-	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/internal/registry"
-	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/multiformats/go-multihash"
 )
-
-type adCacheItem struct {
-	value indexer.Value
-	isRm  bool
-}
 
 var (
 	errBadAdvert              = errors.New("bad advertisement")
@@ -157,212 +147,6 @@ func providerFromAd(ad schema.Advertisement) (peer.ID, error) {
 	}
 
 	return providerID, nil
-}
-
-// IndexContentBlock indexes the content CIDs in a block of data.  First the
-// advertisement is loaded to get the context ID and metadata, and then that
-// and the CIDs in the content block are indexed by the indexer-core.
-//
-// The pubID is the peer ID of the message publisher.  This is not necessarily
-// the same as the provider ID in the advertisement.  The publisher is the
-// source of the indexed content, the provider is where content can be
-// retrieved from.  It is the provider ID that needs to be stored by the
-// indexer.
-func (ing *Ingester) IndexContentBlock(adCid cid.Cid, ad schema.Advertisement, pubID peer.ID, nentries ipld.Node) error {
-	// Decode the list of cids into a List_String
-	nb := schema.Type.EntryChunk.NewBuilder()
-	err := nb.AssignNode(nentries)
-	if err != nil {
-		return fmt.Errorf("cannot decode entries: %s", err)
-	}
-
-	nchunk := nb.Build().(schema.EntryChunk)
-
-	// If this entry chunk hash a next link, add a mapping from the next
-	// entries CID to the ad CID so that the ad can be loaded when that chunk
-	// is received.
-	//
-	// Do not return here if error; try to index content in this chunk.
-	hasNextLink, linkErr := ing.setNextCidToAd(nchunk, adCid)
-
-	// Load the advertisement data for this chunk.  If there are more chunks to
-	// follow, then cache the ad data.
-	value, isRm, err := ing.loadAdData(adCid, hasNextLink)
-	if err != nil {
-		return err
-	}
-
-	mhChan := make(chan multihash.Multihash, ing.batchSize)
-	// The isRm parameter is passed in for an advertisement that contains
-	// entries, to allow for removal of individual entries.
-	errChan := ing.batchIndexerEntries(mhChan, value, isRm)
-
-	// Iterate over all entries and ingest (or remove) them.
-	entries := nchunk.FieldEntries()
-	cit := entries.ListIterator()
-	var count int
-	for !cit.Done() {
-		_, cnode, _ := cit.Next()
-		h, err := cnode.AsBytes()
-		if err != nil {
-			close(mhChan)
-			return fmt.Errorf("cannot decode an entry from the ingestion list: %s", err)
-		}
-
-		select {
-		case mhChan <- h:
-		case err = <-errChan:
-			return err
-		}
-
-		count++
-	}
-	close(mhChan)
-	err = <-errChan
-	if err != nil {
-		if isRm {
-			return fmt.Errorf("cannot remove multihashes from indexer: %s", err)
-		}
-		return fmt.Errorf("cannot put multihashes into indexer: %s", err)
-	}
-
-	return linkErr
-}
-
-func (ing *Ingester) loadAdData(adCid cid.Cid, keepCache bool) (indexer.Value, bool, error) {
-	ing.adCacheMutex.Lock()
-	adData, ok := ing.adCache[adCid]
-	if !keepCache && ok {
-		if len(ing.adCache) == 1 {
-			ing.adCache = nil
-		} else {
-			delete(ing.adCache, adCid)
-		}
-	}
-	ing.adCacheMutex.Unlock()
-
-	if ok {
-		return adData.value, adData.isRm, nil
-	}
-
-	// Getting the advertisement for the entries so we know
-	// what metadata and related information we need to use for ingestion.
-	adb, err := ing.ds.Get(context.Background(), dsKey(adCid.String()))
-	if err != nil {
-		return indexer.Value{}, false, fmt.Errorf("cannot read advertisement for entry from datastore: %s", err)
-	}
-	// Decode the advertisement.
-	adn, err := decodeIPLDNode(bytes.NewBuffer(adb))
-	if err != nil {
-		return indexer.Value{}, false, fmt.Errorf("cannot decode ipld node: %s", err)
-	}
-	ad, err := decodeAd(adn)
-	if err != nil {
-		return indexer.Value{}, false, fmt.Errorf("cannot decode advertisement: %s", err)
-	}
-	// Fetch data of interest.
-	contextID, err := ad.FieldContextID().AsBytes()
-	if err != nil {
-		return indexer.Value{}, false, err
-	}
-	metadataBytes, err := ad.FieldMetadata().AsBytes()
-	if err != nil {
-		return indexer.Value{}, false, err
-	}
-	isRm, err := ad.FieldIsRm().AsBool()
-	if err != nil {
-		return indexer.Value{}, false, err
-	}
-
-	// The peerID passed into the storage hook is the source of the
-	// advertisement (the publisher), and not necessarily the same as the
-	// provider in the advertisement.  Read the provider from the advertisement
-	// to create the indexed value.
-	providerID, err := providerFromAd(ad)
-	if err != nil {
-		return indexer.Value{}, false, err
-	}
-
-	// Check for valid metadata
-	err = new(v0.Metadata).UnmarshalBinary(metadataBytes)
-	if err != nil {
-		return indexer.Value{}, false, fmt.Errorf("cannot decoding metadata: %s", err)
-	}
-
-	value := indexer.Value{
-		ProviderID:    providerID,
-		ContextID:     contextID,
-		MetadataBytes: metadataBytes,
-	}
-
-	if keepCache {
-		ing.adCacheMutex.Lock()
-		if ing.adCache == nil {
-			ing.adCache = make(map[cid.Cid]adCacheItem)
-		}
-		ing.adCache[adCid] = adCacheItem{
-			value: value,
-			isRm:  isRm,
-		}
-		ing.adCacheMutex.Unlock()
-	}
-
-	return value, isRm, nil
-}
-
-// batchIndexerEntries starts a goroutine that processes batches of multihashes
-// from an input channels.  The goroutine collects these into a slice, storing
-// up to batchSize elements.  When the slice is at capacity, a Put or Remove
-// request is made to the indexer core depending on the whether isRm is true
-// or false.  This function returns an error channel that returns an error if
-// one occurs during processing.  This also indicates the goroutine has exited
-// (and will no longer read its input channel).
-//
-// The goroutine exits when the input channel is closed.  It closes the error
-// channel to indicate completion.
-func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, value indexer.Value, isRm bool) <-chan error {
-	var indexFunc func(indexer.Value, ...multihash.Multihash) error
-	var opName string
-	if isRm {
-		indexFunc = ing.indexer.Remove
-		opName = "remove"
-	} else {
-		indexFunc = ing.indexer.Put
-		opName = "put"
-	}
-
-	errChan := make(chan error, 1)
-
-	go func(batchSize int) {
-		defer close(errChan)
-		batch := make([]multihash.Multihash, 0, batchSize)
-		var count int
-		for m := range mhChan {
-			batch = append(batch, m)
-			if len(batch) == batchSize {
-				// Process full batch of multihashes
-				if err := indexFunc(value, batch...); err != nil {
-					errChan <- err
-					return
-				}
-				batch = batch[:0]
-				count += batchSize
-			}
-		}
-
-		if len(batch) != 0 {
-			// Process any remaining puts
-			if err := indexFunc(value, batch...); err != nil {
-				errChan <- err
-				return
-			}
-			count += len(batch)
-		}
-
-		log.Infow("Processed multihashes in entry chunk", "count", count, "operation", opName)
-	}(ing.batchSize)
-
-	return errChan
 }
 
 // decodeIPLDNode decodes an ipld.Node from bytes read from an io.Reader.
