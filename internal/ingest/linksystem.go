@@ -24,6 +24,9 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
+
+	// Import so this codec gets registered.
+	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 )
 
 type adCacheItem struct {
