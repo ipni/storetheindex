@@ -71,7 +71,7 @@ func syncCmd(cctx *cli.Context) error {
 	if cidStr != "" {
 		syncCid, err = cid.Decode(cidStr)
 		if err != nil {
-			return fmt.Errorf("bad cid: %s", cidStr, err)
+			return fmt.Errorf("bad cid: %s", err)
 		}
 	}
 
