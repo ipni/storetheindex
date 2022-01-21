@@ -123,7 +123,7 @@ var ingestSyncFlags = []cli.Flag{
 		Usage:    "Multiaddr address of peer to sync with",
 		Required: false,
 	},
-	&cli.StringSliceFlag{
+	&cli.StringFlag{
 		Name:     "cid",
 		Usage:    "Optional CID to sync to, instead of query for head CID",
 		Required: false,

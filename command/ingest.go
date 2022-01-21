@@ -56,14 +56,14 @@ func syncCmd(cctx *cli.Context) error {
 	}
 	peerID, err := peer.Decode(cctx.String("peer"))
 	if err != nil {
-		return err
+		return fmt.Errorf("bad peer id: %s", err)
 	}
 	var addr multiaddr.Multiaddr
 	addrStr := cctx.String("addr")
 	if addrStr != "" {
 		addr, err = multiaddr.NewMultiaddr(addrStr)
 		if err != nil {
-			return err
+			return fmt.Errorf("bad address: %s", err)
 		}
 	}
 	var syncCid cid.Cid
@@ -71,7 +71,7 @@ func syncCmd(cctx *cli.Context) error {
 	if cidStr != "" {
 		syncCid, err = cid.Decode(cidStr)
 		if err != nil {
-			return err
+			return fmt.Errorf("bad cid: %s", cidStr, err)
 		}
 	}
 
