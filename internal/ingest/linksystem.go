@@ -17,8 +17,8 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipld/go-ipld-prime"
-	"github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipld/go-ipld-prime/multicodec"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -61,12 +61,13 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 		buf := bytes.NewBuffer(nil)
 		return buf, func(lnk ipld.Link) error {
 			c := lnk.(cidlink.Link).Cid
+			codec := lnk.(cidlink.Link).Prefix().Codec
 			origBuf := buf.Bytes()
 
 			log := log.With("cid", c)
 
 			// Decode the node to check its type.
-			n, err := decodeIPLDNode(buf)
+			n, err := decodeIPLDNode(codec, buf)
 			if err != nil {
 				log.Errorw("Error decoding IPLD node in linksystem", "err", err)
 				return errors.New("bad ipld data")
@@ -208,7 +209,7 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 	}
 
 	// Decode block to IPLD node
-	node, err := decodeIPLDNode(bytes.NewBuffer(val))
+	node, err := decodeIPLDNode(c.Prefix().Codec, bytes.NewBuffer(val))
 	if err != nil {
 		log.Errorw("Error decoding ipldNode", "err", err)
 		return
@@ -505,7 +506,7 @@ func (ing *Ingester) loadAdData(adCid cid.Cid, keepCache bool) (indexer.Value, b
 		return indexer.Value{}, false, fmt.Errorf("cannot read advertisement for entry from datastore: %s", err)
 	}
 	// Decode the advertisement.
-	adn, err := decodeIPLDNode(bytes.NewBuffer(adb))
+	adn, err := decodeIPLDNode(adCid.Prefix().Codec, bytes.NewBuffer(adb))
 	if err != nil {
 		return indexer.Value{}, false, fmt.Errorf("cannot decode ipld node: %s", err)
 	}
@@ -670,12 +671,16 @@ func getCidToAdMapping(ctx context.Context, ds datastore.Batching, linkCid cid.C
 }
 
 // decodeIPLDNode decodes an ipld.Node from bytes read from an io.Reader.
-func decodeIPLDNode(r io.Reader) (ipld.Node, error) {
+func decodeIPLDNode(codec uint64, r io.Reader) (ipld.Node, error) {
 	// NOTE: Considering using the schema prototypes.  This was failing, using
 	// a map gives flexibility.  Maybe is worth revisiting this again in the
 	// future.
 	nb := basicnode.Prototype.Any.NewBuilder()
-	err := dagjson.Decode(nb, r)
+	decoder, err := multicodec.LookupDecoder(codec)
+	if err != nil {
+		return nil, err
+	}
+	err = decoder(nb, r)
 	if err != nil {
 		return nil, err
 	}
