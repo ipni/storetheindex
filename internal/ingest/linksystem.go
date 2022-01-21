@@ -25,7 +25,8 @@ import (
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
 
-	// Import so this codec gets registered.
+	// Import so these codecs get registered.
+	_ "github.com/ipld/go-ipld-prime/codec/dagcbor"
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 )
 
