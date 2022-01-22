@@ -48,7 +48,7 @@ type Ingester struct {
 	sub           *legs.Subscriber
 	cancelSyncFin context.CancelFunc
 	syncTimeout   time.Duration
-	adLocks       *lockChain
+	adWaiter      *cidWaiter
 	watchDone     chan struct{}
 
 	adCache      map[cid.Cid]adCacheItem
@@ -58,7 +58,8 @@ type Ingester struct {
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
 // communication with providers.
 func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
-	lsys := mkLinkSystem(ds, reg)
+	adWaiter := newCidWaiter()
+	lsys := mkLinkSystem(ds, reg, adWaiter)
 
 	// Construct a selector that recursively looks for nodes with field
 	// "PreviousID" as per Advertisement schema.  Note that the entries within
@@ -77,7 +78,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *regi
 		batchSize:   cfg.StoreBatchSize,
 		sigUpdate:   make(chan struct{}, 1),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
-		adLocks:     newLockChain(),
+		adWaiter:    adWaiter,
 		watchDone:   make(chan struct{}),
 	}
 
