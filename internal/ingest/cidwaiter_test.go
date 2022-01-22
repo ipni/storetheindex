@@ -52,7 +52,7 @@ func TestCidWaiter(t *testing.T) {
 	go func(prevCid, c cid.Cid) {
 		<-start
 		w.wait(prevCid)
-		defer wc.done(c)
+		defer w.done(c)
 
 		// No mutext around runList, since wait() should serialize access.
 		runList = append(runList, 1)
@@ -61,7 +61,7 @@ func TestCidWaiter(t *testing.T) {
 
 	go func(prevCid, c cid.Cid) {
 		w.wait(prevCid)
-		defer wc.done(c)
+		defer w.done(c)
 
 		runList = append(runList, 2)
 		wg.Done()
@@ -69,7 +69,7 @@ func TestCidWaiter(t *testing.T) {
 
 	go func(prevCid, c cid.Cid) {
 		w.wait(prevCid)
-		defer wc.done(c)
+		defer w.done(c)
 
 		runList = append(runList, 3)
 		wg.Done()
@@ -77,7 +77,7 @@ func TestCidWaiter(t *testing.T) {
 
 	go func(prevCid, c cid.Cid) {
 		w.wait(prevCid)
-		defer wc.done(c)
+		defer w.done(c)
 
 		runList = append(runList, 4)
 		wg.Done()
@@ -87,7 +87,7 @@ func TestCidWaiter(t *testing.T) {
 	go func(prevCid, c cid.Cid) {
 		close(ready)
 		w.wait(prevCid)
-		defer wc.done(c)
+		defer w.done(c)
 
 		runList = append(runList, 5)
 		wg.Done()
