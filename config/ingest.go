@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/ipld/go-ipld-prime/traversal/selector"
+)
 
 // Ingest tracks the configuration related to the ingestion protocol.
 type Ingest struct {
@@ -16,14 +20,19 @@ type Ingest struct {
 	// or a chain of advertisement entries.  The value is an integer string
 	// ending in "s", "m", "h" for seconds. minutes, hours.
 	SyncTimeout Duration
+
+	// The recursion depth limit when syncing advertisement entries.
+	// The value -1 means no limit. Defaults to 400.
+	EntriesDepthLimit int64
 }
 
 // NewIngest returns Ingest with values set to their defaults.
 func NewIngest() Ingest {
 	return Ingest{
-		PubSubTopic:    "/indexer/ingest/mainnet",
-		StoreBatchSize: 256,
-		SyncTimeout:    Duration(2 * time.Hour),
+		PubSubTopic:       "/indexer/ingest/mainnet",
+		StoreBatchSize:    256,
+		SyncTimeout:       Duration(2 * time.Hour),
+		EntriesDepthLimit: 400,
 	}
 }
 
@@ -40,4 +49,16 @@ func (c *Ingest) populateUnset() {
 	if c.SyncTimeout == 0 {
 		c.SyncTimeout = def.SyncTimeout
 	}
+	if c.EntriesDepthLimit == 0 {
+		c.EntriesDepthLimit = def.EntriesDepthLimit
+	}
+}
+
+// EntriesRecursionLimit returns the recursion limit of advertisement entries.
+// See Ingest.EntriesDepthLimit
+func (c *Ingest) EntriesRecursionLimit() selector.RecursionLimit {
+	if c.EntriesDepthLimit == -1 {
+		return selector.RecursionLimitNone()
+	}
+	return selector.RecursionLimitDepth(c.EntriesDepthLimit)
 }

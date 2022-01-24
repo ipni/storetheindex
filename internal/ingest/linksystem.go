@@ -20,7 +20,6 @@ import (
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/multicodec"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
-	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
@@ -407,10 +406,8 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		defer cancel()
 	}
 	startTime := time.Now()
-	// Fully traverse the entries, because:
-	//  * if the head is not persisted locally there is a chance we do not have it.
-	//  * chain of entries as specified by EntryChunk schema only contain entries.
-	_, err = ing.sub.Sync(ctx, from, entriesCid, selectorparse.CommonSelector_ExploreAllRecursively, nil)
+	// Traverse entries based on the entries selector that limits recursion depth.
+	_, err = ing.sub.Sync(ctx, from, entriesCid, ing.entriesSel, nil)
 	if err != nil {
 		log.Errorw("Failed to sync", "err", err)
 		return
