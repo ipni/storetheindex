@@ -37,10 +37,16 @@ const (
 	testProtocolID    = 0x300000
 	testRetryInterval = 2 * time.Second
 	testRetryTimeout  = 10 * time.Second
+
+	testEntriesChunkCount = 3
+	testEntriesChunkSize  = 10
 )
 
 var ingestCfg = config.Ingest{
-	PubSubTopic: "test/ingest",
+	PubSubTopic:       "test/ingest",
+	StoreBatchSize:    256,
+	SyncTimeout:       config.Duration(time.Minute),
+	EntriesDepthLimit: 10,
 }
 
 func TestSubscribe(t *testing.T) {
@@ -122,6 +128,51 @@ func TestSync(t *testing.T) {
 	}
 	// Checking providerID, since that was what was put in the advertisement, not pubhost.ID()
 	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+}
+
+func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := mkTestHost()
+	pubHost := mkTestHost()
+	i, core, _ := mkIngest(t, h)
+	defer core.Close()
+	defer i.Close()
+	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	defer pub.Close()
+	connectHosts(t, h, pubHost)
+
+	maxIngestableMhCount := testEntriesChunkSize * ingestCfg.EntriesDepthLimit
+	c1, allMhs, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, int(ingestCfg.EntriesDepthLimit*2))
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	end, err := i.Sync(ctx, pubHost.ID(), nil)
+	require.NoError(t, err)
+
+	select {
+	case m := <-end:
+		// We receive the CID that we synced.
+		require.True(t, bytes.Equal(c1.Hash(), m))
+		// Check that subscriber recorded latest sync.
+		lnk := i.sub.GetLatestSync(pubHost.ID())
+		lcid := lnk.(cidlink.Link).Cid
+		require.Equal(t, lcid, c1)
+		// Check that latest sync recorded in datastore
+		lcid, err = i.getLatestSync(pubHost.ID())
+		require.NoError(t, err)
+		require.Equal(t, lcid, c1)
+	case <-ctx.Done():
+		t.Fatal("sync timeout")
+	}
+
+	// Assert the maximum number of ingestable multihashes from original published ad are indexed.
+	checkMhsIndexedEventually(t, i.indexer, providerID, allMhs[maxIngestableMhCount:])
+
+	// Assert any remaining published multihashes are not indexed.
+	for _, mh := range allMhs[:maxIngestableMhCount] {
+		_, exists, err := i.indexer.Get(mh)
+		require.NoError(t, err)
+		require.False(t, exists)
+	}
 }
 
 func TestMultiplePublishers(t *testing.T) {
@@ -247,12 +298,12 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 
 func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash) {
 	out := []multihash.Multihash{}
-	mhs := util.RandomMultihashes(10)
+	mhs := util.RandomMultihashes(testEntriesChunkSize)
 	out = append(out, mhs...)
 	nextLnk, _, err := schema.NewLinkedListOfMhs(lsys, mhs, nil)
 	require.NoError(t, err)
 	for i := 1; i < size; i++ {
-		mhs := util.RandomMultihashes(10)
+		mhs := util.RandomMultihashes(testEntriesChunkSize)
 		nextLnk, _, err = schema.NewLinkedListOfMhs(lsys, mhs, nextLnk)
 		require.NoError(t, err)
 		out = append(out, mhs...)
@@ -261,6 +312,11 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 }
 
 func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash, peer.ID) {
+	return publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, fakeSig, testEntriesChunkCount)
+}
+
+func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int) (cid.Cid, []multihash.Multihash, peer.ID) {
+
 	mhs := util.RandomMultihashes(1)
 	priv, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
@@ -274,7 +330,7 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSy
 		Data:       mhs[0],
 	}
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
-	mhsLnk, mhs := newRandomLinkedList(t, lsys, 3)
+	mhsLnk, mhs := newRandomLinkedList(t, lsys, eChunkCount)
 	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, mhsLnk, ctxID, metadata, false, p.String(), addrs)
 	if fakeSig {
 		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, mhsLnk, ctxID, metadata, false, p.String(), addrs)

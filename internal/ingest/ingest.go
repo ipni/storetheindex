@@ -18,6 +18,7 @@ import (
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -53,6 +54,8 @@ type Ingester struct {
 
 	adCache      map[cid.Cid]adCacheItem
 	adCacheMutex sync.Mutex
+
+	entriesSel datamodel.Node
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -71,6 +74,13 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *regi
 			efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
 		}).Node()
 
+	// Construct the selector used when syncing entries of an advertisement with the configured
+	// recursion limit.
+	entSel := ssb.ExploreRecursive(cfg.EntriesRecursionLimit(),
+		ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
+			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
+		})).Node()
+
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
@@ -80,6 +90,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *regi
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		adWaiter:    adWaiter,
 		watchDone:   make(chan struct{}),
+		entriesSel:  entSel,
 	}
 
 	// Create and start pubsub subscriber.  This also registers the storage
