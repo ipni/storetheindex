@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -42,12 +43,15 @@ const (
 	testEntriesChunkSize  = 10
 )
 
-var ingestCfg = config.Ingest{
-	PubSubTopic:       "test/ingest",
-	StoreBatchSize:    256,
-	SyncTimeout:       config.Duration(time.Minute),
-	EntriesDepthLimit: 10,
-}
+var (
+	ingestCfg = config.Ingest{
+		PubSubTopic:       "test/ingest",
+		StoreBatchSize:    256,
+		SyncTimeout:       config.Duration(time.Minute),
+		EntriesDepthLimit: 10,
+	}
+	rng = rand.New(rand.NewSource(1413))
+)
 
 func TestSubscribe(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -356,12 +360,12 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 
 func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash) {
 	out := []multihash.Multihash{}
-	mhs := util.RandomMultihashes(testEntriesChunkSize)
+	mhs := util.RandomMultihashes(testEntriesChunkSize, rng)
 	out = append(out, mhs...)
 	nextLnk, _, err := schema.NewLinkedListOfMhs(lsys, mhs, nil)
 	require.NoError(t, err)
 	for i := 1; i < size; i++ {
-		mhs := util.RandomMultihashes(testEntriesChunkSize)
+		mhs := util.RandomMultihashes(testEntriesChunkSize, rng)
 		nextLnk, _, err = schema.NewLinkedListOfMhs(lsys, mhs, nextLnk)
 		require.NoError(t, err)
 		out = append(out, mhs...)
@@ -375,7 +379,7 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSy
 
 func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int) (cid.Cid, []multihash.Multihash, peer.ID) {
 
-	mhs := util.RandomMultihashes(1)
+	mhs := util.RandomMultihashes(1, rng)
 	priv, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 

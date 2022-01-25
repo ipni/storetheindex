@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -27,6 +28,8 @@ const (
 	providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
 	protocolID = 0x300000
 )
+
+var rng = rand.New(rand.NewSource(1413))
 
 //InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
@@ -83,7 +86,7 @@ func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 
 func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
-	mhs := util.RandomMultihashes(15)
+	mhs := util.RandomMultihashes(15, rng)
 	p, err := peer.Decode(providerID)
 	if err != nil {
 		t.Fatal(err)

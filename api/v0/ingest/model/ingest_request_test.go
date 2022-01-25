@@ -2,6 +2,7 @@ package model
 
 import (
 	"bytes"
+	"math/rand"
 	"testing"
 
 	"github.com/filecoin-project/storetheindex/api/v0"
@@ -11,8 +12,10 @@ import (
 	"github.com/libp2p/go-libp2p-core/test"
 )
 
+var rng = rand.New(rand.NewSource(1413))
+
 func TestIngestRequest(t *testing.T) {
-	mhs := util.RandomMultihashes(1)
+	mhs := util.RandomMultihashes(1, rng)
 
 	metadata := v0.Metadata{
 		Data: []byte("hello"),
