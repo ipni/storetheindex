@@ -641,6 +641,7 @@ func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, valu
 }
 
 func pushCidToAdMapping(ctx context.Context, ds datastore.Batching, entCid, adCid cid.Cid) error {
+	log.Debugw("Push reverse mapping", "entryCid", entCid, "adCid", adCid)
 	dk := dsKey(admapPrefix + entCid.String())
 
 	data, err := ds.Get(ctx, dk)
@@ -688,6 +689,7 @@ func popCidToAdMapping(ctx context.Context, ds datastore.Batching, linkCid cid.C
 		}
 	}
 
+	log.Debugw("Pop reverse mapping", "entryCid", linkCid, "adCid", adCid)
 	return adCid, nil
 }
 
