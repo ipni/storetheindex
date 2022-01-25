@@ -494,16 +494,17 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 
 func (ing *Ingester) setNextCidToAd(nchunk schema.EntryChunk, adCid cid.Cid) (bool, error) {
 	if nchunk.Next.IsAbsent() || nchunk.Next.IsNull() {
+		// Chunk has no next link
 		return false, nil
 	}
 
 	lnk, err := nchunk.Next.AsNode().AsLink()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("error decoding next chunk link: %s", err)
 	}
 	err = pushCidToAdMapping(context.Background(), ing.ds, lnk.(cidlink.Link).Cid, adCid)
-	if err == nil {
-		return false, err
+	if err != nil {
+		return false, fmt.Errorf("error storing reverse map for next chunk: %s", err)
 	}
 
 	return true, nil
