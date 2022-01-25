@@ -26,24 +26,24 @@ func TestCidToAdMapping(t *testing.T) {
 	}
 
 	// Test writing entry CID with multiple ad CIDs.
-	err = putCidToAdMapping(ctx, ds, entCid, adCid1)
+	err = pushCidToAdMapping(ctx, ds, entCid, adCid1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = putCidToAdMapping(ctx, ds, entCid, adCid2)
+	err = pushCidToAdMapping(ctx, ds, entCid, adCid2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Test reading back each ad CID for the entry CID.
-	adCid, err := getCidToAdMapping(ctx, ds, entCid)
+	adCid, err := popCidToAdMapping(ctx, ds, entCid)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if adCid != adCid2 {
 		t.Fatal("wrong ad cid returned from first get")
 	}
-	adCid, err = getCidToAdMapping(ctx, ds, entCid)
+	adCid, err = popCidToAdMapping(ctx, ds, entCid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestCidToAdMapping(t *testing.T) {
 	}
 
 	// Test that entry CID to ad CID is deleted after last read.
-	_, err = getCidToAdMapping(ctx, ds, entCid)
+	_, err = popCidToAdMapping(ctx, ds, entCid)
 	if err == nil {
 		t.Fatal("expected error for deleted mapping")
 	}

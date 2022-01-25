@@ -35,6 +35,8 @@ type adCacheItem struct {
 	isRm  bool
 }
 
+const waitPreviousAdTime = 5 * time.Second
+
 var (
 	errBadAdvert              = errors.New("bad advertisement")
 	errInvalidAdvertSignature = errors.New("invalid advertisement signature")
@@ -47,7 +49,7 @@ func dsKey(k string) datastore.Key {
 // mkLinkSystem makes the indexer linkSystem which checks advertisement
 // signatures at storage. If the signature is not valid the traversal/exchange
 // is terminated.
-func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem {
+func mkLinkSystem(ds datastore.Batching, reg *registry.Registry, adWaiter *cidWaiter) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
@@ -58,9 +60,6 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 		return bytes.NewBuffer(val), nil
 	}
 
-	// For a chain of advertisements, the linksystem StorageWriteOpener sees
-	// the newest advertisement first, unlike the storage hook which sees the
-	// oldest advertisement first.
 	lsys.StorageWriteOpener = func(lctx ipld.LinkContext) (io.Writer, ipld.BlockWriteCommitter, error) {
 		buf := bytes.NewBuffer(nil)
 		return buf, func(lnk ipld.Link) error {
@@ -109,16 +108,33 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 					log.Errorw("Error getting link for entries from advertisement", "err", err)
 					return errBadAdvert
 				}
-				err = putCidToAdMapping(lctx.Ctx, ds, elnk.(cidlink.Link).Cid, c)
+				err = pushCidToAdMapping(lctx.Ctx, ds, elnk.(cidlink.Link).Cid, c)
 				if err != nil {
 					log.Errorw("Error storing reverse map for entries in datastore", "err", err)
+					return errors.New("cannot process advertisement")
+				}
+
+				// Make the CID of this advertisement waitable.  When content
+				// chunks for an advertisement arrive (in storage hook),
+				// processing will wait for the previous advertisement to
+				// finish processing.  The CID is added to the waiter here, so
+				// that it is available for waiting on before the arrival of
+				// the previous advertisement's content blocks.
+				err = adWaiter.add(c)
+				if err != nil {
+					log.Errorw("Cannot create cid wait for advertisement", "err", err)
 					return errors.New("cannot process advertisement")
 				}
 
 				// Persist the advertisement.  This is read later when
 				// processing each chunk of entries, to get info common to all
 				// entries in a chunk.
-				return ds.Put(lctx.Ctx, dsKey(c.String()), origBuf)
+				err = ds.Put(lctx.Ctx, dsKey(c.String()), origBuf)
+				if err != nil {
+					adWaiter.done(c)
+					return err
+				}
+				return nil
 			}
 			log.Debug("Received IPLD node")
 			// Any other type of node (like entries) are stored right away.
@@ -189,19 +205,19 @@ func providerFromAd(ad schema.Advertisement) (peer.ID, error) {
 }
 
 // storageHook determines the logic to run when a new block is received through
-// graphsync.  For a chain of advertisements, the storage hook sees the oldest
-// advertisement first, unlike the linksystem StorageWriteOpener which sees the
-// newest advertisement first.
+// graphsync.
 //
-// When an advertisement block is received, it means that all the
-// advertisements, from the most recent to the last seen, have been traversed
-// and stored.  Now this hook is being called for each advertisement.  Start a
-// background sync for the chain of entries in the advertisement.
+// For a chain of advertisements, the storage hook sees the advertisements from
+// newest to oldest, and starts an entries sync goroutine for each
+// advertisement.  These goroutines each wait for the sync goroutine associated
+// with the previous advertisement to complete before beginning their sync for
+// content blocks.
 //
-// When a non-advertisement block is received, it means that all the entries
-// for an advertisement have been traversed and stored.  Now this hook is being
-// called for each entry in an advertisement's chain of entries.  Process the
-// entry and save all the multihashes in it as indexes in the indexer-core.
+// When a non-advertisement block is received, it means that the entries sync
+// is running and is collecting content chunks for an advertisement.  Now this
+// hook is being called for each entry in an advertisement's chain of entries.
+// Process the entry and save all the multihashes in it as indexes in the
+// indexer-core.
 func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 	log := log.With("publisher", pubID, "cid", c)
 
@@ -250,22 +266,14 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 
 		log.Infow("Incoming block is an advertisement", "prevAd", prevCid)
 
-		// Signal this ad is busy and wait for any sync on the previous ad to
-		// finish.  Signal this ad is done at function return.
-		prevWait, unlock, err := ing.adLocks.lockWait(prevCid, c)
-		if err != nil {
-			log.Error("Advertisement already being synced")
-			return
-		}
-
-		go ing.syncAdEntries(pubID, ad, c, prevWait, unlock)
+		go ing.syncAdEntries(pubID, ad, c, prevCid)
 		return
 	}
 
 	// Get the advertisement CID corresponding to the link CID, from the
 	// reverse map.  Then load the advertisement to get the metadata for
 	// indexing all the content in the incoming block.
-	adCid, err := getCidToAdMapping(context.Background(), ing.ds, c)
+	adCid, err := popCidToAdMapping(context.Background(), ing.ds, c)
 	if err != nil {
 		log.Errorw("Error getting advertisement CID for entry CID", "err", err)
 		return
@@ -294,9 +302,23 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 }
 
 // syncAdEntries fetches all the entries for a single advertisement
-func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid cid.Cid, prevWait <-chan struct{}, unlock context.CancelFunc) {
-	<-prevWait
-	defer unlock()
+func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid, prevCid cid.Cid) {
+	if !ing.adWaiter.wait(prevCid) {
+		// If there was a previous ad, but it was not waitiable, then check if
+		// is it already in the datastore.  It ad is not stored, then wait for
+		// it to become waitable.  If ad is already in the datastoreto, then
+		// was previously processed, so do not wait.
+		exists, err := ing.ds.Has(context.Background(), dsKey(prevCid.String()))
+		if err != nil {
+			log.Errorw("Failed checking if ad exist", "err", err)
+		}
+		if !exists {
+			time.Sleep(waitPreviousAdTime)
+		}
+		ing.adWaiter.wait(prevCid)
+	}
+
+	defer ing.adWaiter.done(adCid)
 	log := log.With("publisher", from, "adCid", adCid)
 
 	isRm, err := ad.FieldIsRm().AsBool()
@@ -363,19 +385,19 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid 
 	}
 	log = log.With("entriesCid", entriesCid)
 
-	if isRm {
-		log.Warnw("Syncing content entries for removal advertisement with no context ID")
-	} else {
-		log.Infow("Syncing content entries for advertisement")
-	}
-
 	exists, err := ing.ds.Has(context.Background(), dsKey(entriesCid.String()))
 	if err != nil && err != datastore.ErrNotFound {
 		log.Errorw("Failed checking if entries exist", "err", err)
 	}
 	if exists {
-		log.Debugw("Entries already exist; skipping sync")
+		log.Info("Entries already exist; skipping sync")
 		return
+	}
+
+	if isRm {
+		log.Warnw("Syncing content entries for removal advertisement with no context ID")
+	} else {
+		log.Infow("Syncing content entries for advertisement")
 	}
 
 	ctx := context.Background()
@@ -479,7 +501,7 @@ func (ing *Ingester) setNextCidToAd(nchunk schema.EntryChunk, adCid cid.Cid) (bo
 	if err != nil {
 		return false, err
 	}
-	err = putCidToAdMapping(context.Background(), ing.ds, lnk.(cidlink.Link).Cid, adCid)
+	err = pushCidToAdMapping(context.Background(), ing.ds, lnk.(cidlink.Link).Cid, adCid)
 	if err == nil {
 		return false, err
 	}
@@ -623,7 +645,8 @@ func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, valu
 	return errChan
 }
 
-func putCidToAdMapping(ctx context.Context, ds datastore.Batching, entCid, adCid cid.Cid) error {
+func pushCidToAdMapping(ctx context.Context, ds datastore.Batching, entCid, adCid cid.Cid) error {
+	log.Debugw("Push reverse mapping", "entryCid", entCid, "adCid", adCid)
 	dk := dsKey(admapPrefix + entCid.String())
 
 	data, err := ds.Get(ctx, dk)
@@ -645,7 +668,7 @@ func putCidToAdMapping(ctx context.Context, ds datastore.Batching, entCid, adCid
 	return ds.Sync(ctx, dsKey(admapPrefix))
 }
 
-func getCidToAdMapping(ctx context.Context, ds datastore.Batching, linkCid cid.Cid) (cid.Cid, error) {
+func popCidToAdMapping(ctx context.Context, ds datastore.Batching, linkCid cid.Cid) (cid.Cid, error) {
 	dk := dsKey(admapPrefix + linkCid.String())
 	data, err := ds.Get(ctx, dk)
 	if err != nil {
@@ -671,6 +694,7 @@ func getCidToAdMapping(ctx context.Context, ds datastore.Batching, linkCid cid.C
 		}
 	}
 
+	log.Debugw("Pop reverse mapping", "entryCid", linkCid, "adCid", adCid)
 	return adCid, nil
 }
 

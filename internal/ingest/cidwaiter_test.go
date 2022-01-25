@@ -1,7 +1,6 @@
 package ingest
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"sync"
@@ -10,7 +9,7 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
-func TestLockChain(t *testing.T) {
+func TestCidWaiter(t *testing.T) {
 	wg := new(sync.WaitGroup)
 	wg.Add(5)
 	runList := make([]int, 0, 5)
@@ -27,71 +26,72 @@ func TestLockChain(t *testing.T) {
 		cids[i], _ = cid.Decode(s)
 	}
 
-	lc := newLockChain()
+	w := newCidWaiter()
 
-	w, u, err := lc.lockWait(cid.Undef, cids[0])
+	err := w.add(cids[4])
 	if err != nil {
 		t.Fatal(err)
 	}
-	go func(wait <-chan struct{}, unlock context.CancelFunc) {
+	err = w.add(cids[3])
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = w.add(cids[2])
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = w.add(cids[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = w.add(cids[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func(prevCid, c cid.Cid) {
 		<-start
-		<-wait
-		defer unlock()
+		w.wait(prevCid)
+		defer w.done(c)
 
 		// No mutext around runList, since wait() should serialize access.
 		runList = append(runList, 1)
 		wg.Done()
-	}(w, u)
+	}(cid.Undef, cids[0])
 
-	w, u, err = lc.lockWait(cids[0], cids[1])
-	if err != nil {
-		t.Fatal(err)
-	}
-	go func(wait <-chan struct{}, unlock context.CancelFunc) {
-		<-wait
-		defer unlock()
+	go func(prevCid, c cid.Cid) {
+		w.wait(prevCid)
+		defer w.done(c)
 
 		runList = append(runList, 2)
 		wg.Done()
-	}(w, u)
+	}(cids[0], cids[1])
 
-	w, u, err = lc.lockWait(cids[1], cids[2])
-	if err != nil {
-		t.Fatal(err)
-	}
-	go func(wait <-chan struct{}, unlock context.CancelFunc) {
-		<-wait
-		defer unlock()
+	go func(prevCid, c cid.Cid) {
+		w.wait(prevCid)
+		defer w.done(c)
 
 		runList = append(runList, 3)
 		wg.Done()
-	}(w, u)
+	}(cids[1], cids[2])
 
-	w, u, err = lc.lockWait(cids[2], cids[3])
-	if err != nil {
-		t.Fatal(err)
-	}
-	go func(wait <-chan struct{}, unlock context.CancelFunc) {
-		<-wait
-		defer unlock()
+	go func(prevCid, c cid.Cid) {
+		w.wait(prevCid)
+		defer w.done(c)
 
 		runList = append(runList, 4)
 		wg.Done()
-	}(w, u)
+	}(cids[2], cids[3])
 
 	ready := make(chan struct{})
-	w, u, err = lc.lockWait(cids[3], cids[4])
-	if err != nil {
-		t.Fatal(err)
-	}
-	go func(wait <-chan struct{}, unlock context.CancelFunc) {
+	go func(prevCid, c cid.Cid) {
 		close(ready)
-		<-wait
-		defer unlock()
+		w.wait(prevCid)
+		defer w.done(c)
 
 		runList = append(runList, 5)
 		wg.Done()
-	}(w, u)
+	}(cids[3], cids[4])
 
 	<-ready
 	close(start)
