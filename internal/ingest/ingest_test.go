@@ -3,11 +3,15 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"math/rand"
+	"sync"
 	"testing"
+	"testing/quick"
 	"time"
 
+	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/go-indexer-core/cache"
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
@@ -24,6 +28,7 @@ import (
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipld/go-ipld-prime"
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
+	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
@@ -96,6 +101,146 @@ func TestSubscribe(t *testing.T) {
 	require.Nil(t, adv)
 }
 
+type mockIndexerEngine struct {
+	mu      sync.Mutex
+	added   []multihash.Multihash
+	removed []multihash.Multihash
+	index   map[string][]indexer.Value
+}
+
+func (e *mockIndexerEngine) Get(mh multihash.Multihash) ([]indexer.Value, bool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.index[mh.String()], true, nil
+}
+
+func (e *mockIndexerEngine) Put(v indexer.Value, mhs ...multihash.Multihash) error {
+	strs := make([]string, len(mhs))
+	for _, mh := range mhs {
+		fmt.Println("Put:", mh.String())
+		strs = append(strs, mh.String())
+	}
+	// fmt.Println("put", v, strs)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.added = append(e.added, mhs...)
+	if e.index == nil {
+		e.index = make(map[string][]indexer.Value)
+	}
+
+	for _, mh := range mhs {
+		e.index[mh.String()] = append(e.index[mh.String()], v)
+	}
+
+	return nil
+}
+
+func (e *mockIndexerEngine) Remove(v indexer.Value, m ...multihash.Multihash) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.removed = append(e.removed, m...)
+	for _, mh := range m {
+		arr := e.index[mh.String()]
+		for i, vv := range arr {
+			if v.Equal(vv) {
+				e.index[mh.String()] = append(arr[:i], arr[i+1:]...)
+				break
+			}
+		}
+	}
+
+	return nil
+}
+func (e *mockIndexerEngine) RemoveProvider(p peer.ID) error {
+	return nil
+}
+
+func (e *mockIndexerEngine) RemoveProviderContext(p peer.ID, contextID []byte) error {
+	return nil
+}
+
+func (e *mockIndexerEngine) Size() (int64, error) {
+	return 0, nil
+}
+
+func (e *mockIndexerEngine) Flush() error {
+	return nil
+}
+
+func (e *mockIndexerEngine) Close() error {
+	return nil
+}
+
+func (e *mockIndexerEngine) Iter() (indexer.Iterator, error) {
+	panic("implement me")
+}
+
+func TestSyncQuickCheck(t *testing.T) {
+	err := quick.Check(func(adChain util.RandomAdBuilder) bool {
+		return t.Run("quickcheck", func(t *testing.T) {
+			te := setupTestEnv(t, true)
+			engine := &mockIndexerEngine{}
+			te.ingester.indexer = engine
+
+			adChain := util.RandomAdBuilder{
+				EntryChunkBuilders: []util.RandomEntryChunkBuilder{{
+					ChunkCount:      1,
+					EntriesPerChunk: 1,
+					EntriesSeed:     1,
+				}, {
+					ChunkCount:      1,
+					EntriesPerChunk: 1,
+					EntriesSeed:     2,
+				},
+				},
+			}
+
+			ad := adChain.Build(t, te.publisherLinkSys, te.publisherPriv)
+			if ad == nil {
+				// We didn't build a valid ad.
+				return
+			}
+			adCid := ad.(cidlink.Link).Cid
+			ctx := context.Background()
+
+			err := te.publisher.UpdateRoot(ctx, ad.(cidlink.Link).Cid)
+			require.NoError(t, err)
+
+			end, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+			require.NoError(t, err)
+			select {
+			case m := <-end:
+				// We receive the CID that we synced.
+				require.True(t, bytes.Equal(adCid.Hash(), m))
+				// Check that subscriber recorded latest sync.
+				lnk := te.ingester.sub.GetLatestSync(te.pubHost.ID())
+				lcid := lnk.(cidlink.Link).Cid
+				require.Equal(t, lcid, adCid)
+				// Check that latest sync recorded in datastore
+				lcid, err = te.ingester.getLatestSync(te.pubHost.ID())
+				require.NoError(t, err)
+				require.Equal(t, lcid, adCid)
+			case <-ctx.Done():
+				t.Fatal("sync timeout")
+			}
+
+			adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, ad, schema.Type.Advertisement)
+			require.NoError(t, err)
+
+			mhs := util.AllMultihashesFromAd(t, adNode.(schema.Advertisement), te.publisherLinkSys)
+			checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+			// Everything is an add
+			require.Equal(t, len(engine.added), len(mhs))
+			// Same order
+			// require.Equal(t, engine.added, mhs)
+		})
+	}, &quick.Config{
+		MaxCount: 1,
+	})
+	require.NoError(t, err)
+}
 func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
@@ -283,8 +428,9 @@ func TestMultiplePublishers(t *testing.T) {
 	require.Equal(t, lcid, c2)
 }
 
-func mkTestHost() host.Host {
-	h, _ := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+func mkTestHost(opts ...libp2p.Option) host.Host {
+	opts = append(opts, libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	h, _ := libp2p.New(opts...)
 	return h
 }
 
@@ -317,6 +463,20 @@ func mkRegistry(t *testing.T) *registry.Registry {
 	return reg
 }
 
+type SlowReader struct {
+	b io.Reader
+}
+
+func (r *SlowReader) Read(p []byte) (n int, err error) {
+	// Sleep for a while to simulate a slow reader
+	if err != nil {
+		panic(err)
+	}
+	// i := rand.Intn((100))
+	// time.Sleep(time.Duration(i) * time.Microsecond)
+	return r.b.Read(p)
+}
+
 func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
@@ -325,7 +485,7 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 		if err != nil {
 			return nil, err
 		}
-		return bytes.NewBuffer(val), nil
+		return &SlowReader{bytes.NewBuffer(val)}, nil
 	}
 	lsys.StorageWriteOpener = func(lctx ipld.LinkContext) (io.Writer, ipld.BlockWriteCommitter, error) {
 		buf := bytes.NewBuffer(nil)
@@ -407,11 +567,11 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publis
 	return lnk.(cidlink.Link).Cid, mhs, p
 }
 
-func checkMhsIndexedEventually(t *testing.T, ix *engine.Engine, p peer.ID, mhs []multihash.Multihash) {
+func checkMhsIndexedEventually(t *testing.T, ix indexer.Interface, p peer.ID, mhs []multihash.Multihash) {
 	requireTrueEventually(t, func() bool { return providesAll(t, ix, p, mhs...) }, testRetryInterval, testRetryTimeout, "multihashes were not indexed")
 }
 
-func providesAll(t *testing.T, ix *engine.Engine, p peer.ID, mhs ...multihash.Multihash) bool {
+func providesAll(t *testing.T, ix indexer.Interface, p peer.ID, mhs ...multihash.Multihash) bool {
 	for _, mh := range mhs {
 		values, exists, err := ix.Get(mh)
 		if err != nil || !exists {
@@ -483,5 +643,43 @@ func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Dura
 			return
 		case <-ticker.C:
 		}
+	}
+}
+
+type testEnv struct {
+	publisher        legs.Publisher
+	pubHost          host.Host
+	publisherPriv    crypto.PrivKey
+	publisherLinkSys ipld.LinkSystem
+	ingester         *Ingester
+}
+
+func setupTestEnv(t *testing.T, shouldConnectHosts bool) *testEnv {
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := mkTestHost()
+	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	pubHost := mkTestHost(libp2p.Identity(priv))
+	i, core, _ := mkIngest(t, h)
+	t.Cleanup(func() {
+		core.Close()
+		i.Close()
+	})
+	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	t.Cleanup(func() {
+		pub.Close()
+	})
+
+	if shouldConnectHosts {
+		connectHosts(t, h, pubHost)
+	}
+
+	require.NoError(t, err)
+
+	return &testEnv{
+		publisher:        pub,
+		publisherPriv:    priv,
+		pubHost:          pubHost,
+		publisherLinkSys: lsys,
+		ingester:         i,
 	}
 }
