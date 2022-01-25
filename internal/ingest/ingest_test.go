@@ -126,7 +126,9 @@ func TestSync(t *testing.T) {
 		// Check that latest sync recorded in datastore
 		lcid, err = i.getLatestSync(pubHost.ID())
 		require.NoError(t, err)
-		require.Equal(t, lcid, c1)
+		requireTrueEventually(t, func() bool {
+			return c1.Equals(lcid)
+		}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", c1, lcid)
 	case <-ctx.Done():
 		t.Fatal("sync timeout")
 	}
