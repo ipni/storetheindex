@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"math/rand"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +24,8 @@ import (
 )
 
 const testProtocolID = 0x300000
+
+var rng = rand.New(rand.NewSource(1413))
 
 //InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
@@ -120,7 +123,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs := util.RandomMultihashes(1)
+	mhs := util.RandomMultihashes(1, rng)
 
 	contextID := []byte("test-context-id")
 	metadata := v0.Metadata{
@@ -170,7 +173,7 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs := util.RandomMultihashes(1)
+	mhs := util.RandomMultihashes(1, rng)
 
 	ctxID := []byte("test-context-id")
 	metadata := v0.Metadata{
@@ -203,7 +206,7 @@ func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privat
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs := util.RandomMultihashes(1)
+	mhs := util.RandomMultihashes(1, rng)
 
 	contextID := make([]byte, schema.MaxContextIDLen+1)
 	metadata := v0.Metadata{
