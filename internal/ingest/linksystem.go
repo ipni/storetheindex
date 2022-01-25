@@ -400,6 +400,13 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		log.Infow("Syncing content entries for advertisement")
 	}
 
+	// Cleanup ad cache in case of failure during processing entries.
+	defer func() {
+		ing.adCacheMutex.Lock()
+		delete(ing.adCache, adCid)
+		ing.adCacheMutex.Unlock()
+	}()
+
 	ctx := context.Background()
 	if ing.syncTimeout != 0 {
 		var cancel context.CancelFunc
