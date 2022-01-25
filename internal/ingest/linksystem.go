@@ -500,7 +500,7 @@ func (ing *Ingester) setNextCidToAd(nchunk schema.EntryChunk, adCid cid.Cid) (bo
 
 	lnk, err := nchunk.Next.AsNode().AsLink()
 	if err != nil {
-		return false, fmt.Errorf("error decoding next chunk link: %s", err)
+		return false, fmt.Errorf("error decoding next chunk link: %w", err)
 	}
 	err = pushCidToAdMapping(context.Background(), ing.ds, lnk.(cidlink.Link).Cid, adCid)
 	if err != nil {
