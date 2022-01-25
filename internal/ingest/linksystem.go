@@ -504,7 +504,7 @@ func (ing *Ingester) setNextCidToAd(nchunk schema.EntryChunk, adCid cid.Cid) (bo
 	}
 	err = pushCidToAdMapping(context.Background(), ing.ds, lnk.(cidlink.Link).Cid, adCid)
 	if err != nil {
-		return false, fmt.Errorf("error storing reverse map for next chunk: %s", err)
+		return false, fmt.Errorf("error storing reverse map for next chunk: %w", err)
 	}
 
 	return true, nil
