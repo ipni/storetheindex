@@ -134,45 +134,103 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	i, core, _ := mkIngest(t, h)
+	ing, core, _ := mkIngest(t, h)
 	defer core.Close()
-	defer i.Close()
+	defer ing.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	maxIngestableMhCount := testEntriesChunkSize * ingestCfg.EntriesDepthLimit
-	c1, allMhs, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, int(ingestCfg.EntriesDepthLimit*2))
+	totalChunkCount := int(ingestCfg.EntriesDepthLimit * 2)
+	adCid, _, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	end, err := i.Sync(ctx, pubHost.ID(), nil)
+	end, err := ing.Sync(ctx, pubHost.ID(), nil)
 	require.NoError(t, err)
 
 	select {
 	case m := <-end:
 		// We receive the CID that we synced.
-		require.True(t, bytes.Equal(c1.Hash(), m))
+		require.True(t, bytes.Equal(adCid.Hash(), m))
 		// Check that subscriber recorded latest sync.
-		lnk := i.sub.GetLatestSync(pubHost.ID())
+		lnk := ing.sub.GetLatestSync(pubHost.ID())
 		lcid := lnk.(cidlink.Link).Cid
-		require.Equal(t, lcid, c1)
+		require.Equal(t, lcid, adCid)
 		// Check that latest sync recorded in datastore
-		lcid, err = i.getLatestSync(pubHost.ID())
+		lcid, err = ing.getLatestSync(pubHost.ID())
 		require.NoError(t, err)
-		require.Equal(t, lcid, c1)
+		require.Equal(t, lcid, adCid)
 	case <-ctx.Done():
 		t.Fatal("sync timeout")
 	}
 
-	// Assert the maximum number of ingestable multihashes from original published ad are indexed.
-	checkMhsIndexedEventually(t, i.indexer, providerID, allMhs[maxIngestableMhCount:])
+	entriesCid := getAdEntriesCid(t, srcStore, adCid)
+	var mhs []multihash.Multihash
+	nextChunkCid := entriesCid
+	for i := 0; i < totalChunkCount; i++ {
+		mhs, nextChunkCid = decodeEntriesChunk(t, srcStore, nextChunkCid)
+		// If chunk depth is within limit
+		if i < int(ingestCfg.EntriesDepthLimit) {
+			// Assert chunk multihashes are indexed
+			checkMhsIndexedEventually(t, ing.indexer, providerID, mhs)
+		} else {
+			// Otherwise, assert chunk multihashes are not indexed.
+			requireNotIndexed(t, mhs, ing)
+		}
+	}
 
-	// Assert any remaining published multihashes are not indexed.
-	for _, mh := range allMhs[:maxIngestableMhCount] {
-		_, exists, err := i.indexer.Get(mh)
+	// Assert no more chunks are left.
+	require.Equal(t, cid.Undef, nextChunkCid)
+}
+
+func requireNotIndexed(t *testing.T, mhs []multihash.Multihash, ing *Ingester) {
+	for _, mh := range mhs {
+		_, exists, err := ing.indexer.Get(mh)
 		require.NoError(t, err)
 		require.False(t, exists)
 	}
+}
+
+func getAdEntriesCid(t *testing.T, store datastore.Batching, ad cid.Cid) cid.Cid {
+	ctx := context.TODO()
+	val, err := store.Get(ctx, dsKey(ad.String()))
+	require.NoError(t, err)
+	nad, err := decodeIPLDNode(ad.Prefix().Codec, bytes.NewBuffer(val))
+	require.NoError(t, err)
+	adv, err := decodeAd(nad)
+	require.NoError(t, err)
+	elink, err := adv.FieldEntries().AsLink()
+	require.NoError(t, err)
+	return elink.(cidlink.Link).Cid
+}
+
+func decodeEntriesChunk(t *testing.T, store datastore.Batching, c cid.Cid) ([]multihash.Multihash, cid.Cid) {
+	ctx := context.TODO()
+	val, err := store.Get(ctx, dsKey(c.String()))
+	require.NoError(t, err)
+	nentries, err := decodeIPLDNode(c.Prefix().Codec, bytes.NewBuffer(val))
+	require.NoError(t, err)
+	nb := schema.Type.EntryChunk.NewBuilder()
+	err = nb.AssignNode(nentries)
+	require.NoError(t, err)
+	nchunk := nb.Build().(schema.EntryChunk)
+	entries := nchunk.FieldEntries()
+	cit := entries.ListIterator()
+	var mhs []multihash.Multihash
+	for !cit.Done() {
+		_, cnode, _ := cit.Next()
+		h, err := cnode.AsBytes()
+		require.NoError(t, err)
+
+		mhs = append(mhs, h)
+	}
+	if nchunk.Next.IsAbsent() || nchunk.Next.IsNull() {
+		return mhs, cid.Undef
+	}
+
+	lnk, err := nchunk.Next.AsNode().AsLink()
+	require.NoError(t, err)
+	return mhs, lnk.(cidlink.Link).Cid
 }
 
 func TestMultiplePublishers(t *testing.T) {
