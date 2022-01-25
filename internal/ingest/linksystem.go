@@ -400,6 +400,13 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		log.Infow("Syncing content entries for advertisement")
 	}
 
+	// Cleanup ad cache in case of failure during processing entries.
+	defer func() {
+		ing.adCacheMutex.Lock()
+		delete(ing.adCache, adCid)
+		ing.adCacheMutex.Unlock()
+	}()
+
 	ctx := context.Background()
 	if ing.syncTimeout != 0 {
 		var cancel context.CancelFunc
@@ -494,16 +501,17 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 
 func (ing *Ingester) setNextCidToAd(nchunk schema.EntryChunk, adCid cid.Cid) (bool, error) {
 	if nchunk.Next.IsAbsent() || nchunk.Next.IsNull() {
+		// Chunk has no next link
 		return false, nil
 	}
 
 	lnk, err := nchunk.Next.AsNode().AsLink()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("error decoding next chunk link: %w", err)
 	}
 	err = pushCidToAdMapping(context.Background(), ing.ds, lnk.(cidlink.Link).Cid, adCid)
-	if err == nil {
-		return false, err
+	if err != nil {
+		return false, fmt.Errorf("error storing reverse map for next chunk: %w", err)
 	}
 
 	return true, nil
