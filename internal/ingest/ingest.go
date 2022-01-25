@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	indexer "github.com/filecoin-project/go-indexer-core/engine"
+	indexer "github.com/filecoin-project/go-indexer-core"
 	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/config"
@@ -41,7 +41,7 @@ const (
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
-	indexer *indexer.Engine
+	indexer indexer.Interface
 
 	batchSize int
 	sigUpdate chan struct{}
@@ -60,7 +60,7 @@ type Ingester struct {
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
 // communication with providers.
-func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
+func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
 	adWaiter := newCidWaiter()
 	lsys := mkLinkSystem(ds, reg, adWaiter)
 
