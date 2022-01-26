@@ -146,8 +146,6 @@ func providersCmd(cctx *cli.Context) error {
 	for _, pinfo := range provs {
 		fmt.Println("Provider", pinfo.AddrInfo.ID)
 		fmt.Println("    Addresses:", pinfo.AddrInfo.Addrs)
-		//for _, addr := range pinfo.AddrInfo.Addrs {
-		//	fmt.Print(addr.String())
 		fmt.Println("    LastAdvertisement:", pinfo.LastAdvertisement)
 		fmt.Println("    LastAdvertisementTime:", pinfo.LastAdvertisementTime)
 	}
