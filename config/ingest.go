@@ -24,15 +24,20 @@ type Ingest struct {
 	// The recursion depth limit when syncing advertisement entries.
 	// The value -1 means no limit. Defaults to 400.
 	EntriesDepthLimit int64
+
+	// The recursion depth limit when syncing advertisements.
+	// The value -1 means no limit. Defaults to 400.
+	AdvertisementDepthLimit int64
 }
 
 // NewIngest returns Ingest with values set to their defaults.
 func NewIngest() Ingest {
 	return Ingest{
-		PubSubTopic:       "/indexer/ingest/mainnet",
-		StoreBatchSize:    256,
-		SyncTimeout:       Duration(2 * time.Hour),
-		EntriesDepthLimit: 400,
+		PubSubTopic:             "/indexer/ingest/mainnet",
+		StoreBatchSize:          256,
+		SyncTimeout:             Duration(2 * time.Hour),
+		EntriesDepthLimit:       400,
+		AdvertisementDepthLimit: 400,
 	}
 }
 
@@ -52,6 +57,9 @@ func (c *Ingest) populateUnset() {
 	if c.EntriesDepthLimit == 0 {
 		c.EntriesDepthLimit = def.EntriesDepthLimit
 	}
+	if c.AdvertisementDepthLimit == 0 {
+		c.AdvertisementDepthLimit = def.AdvertisementDepthLimit
+	}
 }
 
 // EntriesRecursionLimit returns the recursion limit of advertisement entries.
@@ -61,4 +69,13 @@ func (c *Ingest) EntriesRecursionLimit() selector.RecursionLimit {
 		return selector.RecursionLimitNone()
 	}
 	return selector.RecursionLimitDepth(c.EntriesDepthLimit)
+}
+
+// AdvertisementRecursionLimit returns the recursion limit of advertisements.
+// See Ingest.AdvertisementDepthLimit
+func (c *Ingest) AdvertisementRecursionLimit() selector.RecursionLimit {
+	if c.AdvertisementDepthLimit == -1 {
+		return selector.RecursionLimitNone()
+	}
+	return selector.RecursionLimitDepth(c.AdvertisementDepthLimit)
 }
