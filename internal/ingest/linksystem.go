@@ -34,7 +34,7 @@ type adCacheItem struct {
 	isRm  bool
 }
 
-const waitPreviousAdTime = 5 * time.Second
+var waitPreviousAdTime = 5 * time.Second
 
 var (
 	errBadAdvert              = errors.New("bad advertisement")

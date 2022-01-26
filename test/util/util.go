@@ -57,6 +57,9 @@ func (b RandomAdBuilder) Build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 		return nil
 	}
 
+	// Limit chain to be at most 256 links
+	b.EntryChunkBuilders = b.EntryChunkBuilders[:len(b.EntryChunkBuilders)%256]
+
 	mhs := RandomMultihashes(1, rand.New(rand.NewSource(0)))
 
 	p, err := peer.IDFromPrivateKey(signingKey)
@@ -123,29 +126,25 @@ func AllMultihashesFromAd(t *testing.T, ad schema.Advertisement, lsys ipld.LinkS
 	}
 
 	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
+	exploreEntriesRecursively := func(efsb builder.ExploreFieldsSpecBuilder) {
+		efsb.Insert("Entries",
+			ssb.ExploreRecursive(selector.RecursionLimitDepth(0xff),
+				ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
+					// In the EntryChunk
+					efsb.Insert("Entries", ssb.ExploreAll(ssb.Matcher()))
+					// Recurse with "Next"
+					efsb.Insert("Next", ssb.ExploreRecursiveEdge())
+				})))
+	}
 	sel, err := ssb.ExploreFields(
 		func(efsb builder.ExploreFieldsSpecBuilder) {
 			efsb.Insert("PreviousID",
 				ssb.ExploreRecursive(selector.RecursionLimitDepth(0xff),
 					ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
 						efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
-						efsb.Insert("Entries",
-							ssb.ExploreRecursive(selector.RecursionLimitDepth(0xff),
-								ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
-									// In the EntryChunk
-									efsb.Insert("Entries", ssb.ExploreAll(ssb.Matcher()))
-									// Recurse with "Next"
-									efsb.Insert("Next", ssb.ExploreRecursiveEdge())
-								})))
+						exploreEntriesRecursively(efsb)
 					})))
-			efsb.Insert("Entries",
-				ssb.ExploreRecursive(selector.RecursionLimitDepth(0xff),
-					ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
-						// In the EntryChunk
-						efsb.Insert("Entries", ssb.ExploreAll(ssb.Matcher()))
-						// Recurse with "Next"
-						efsb.Insert("Next", ssb.ExploreRecursiveEdge())
-					})))
+			exploreEntriesRecursively(efsb)
 		}).Selector()
 	require.NoError(t, err)
 
@@ -161,7 +160,6 @@ func AllMultihashesFromAd(t *testing.T, ad schema.Advertisement, lsys ipld.LinkS
 			if err != nil {
 				return err
 			}
-			fmt.Println("here", p.Path, mh.String())
 			out = append(out, mh)
 			return nil
 		})

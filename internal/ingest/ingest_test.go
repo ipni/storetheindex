@@ -28,6 +28,7 @@ import (
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipld/go-ipld-prime"
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
+	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/libp2p/go-libp2p"
@@ -115,12 +116,6 @@ func (e *mockIndexerEngine) Get(mh multihash.Multihash) ([]indexer.Value, bool, 
 }
 
 func (e *mockIndexerEngine) Put(v indexer.Value, mhs ...multihash.Multihash) error {
-	strs := make([]string, len(mhs))
-	for _, mh := range mhs {
-		fmt.Println("Put:", mh.String())
-		strs = append(strs, mh.String())
-	}
-	// fmt.Println("put", v, strs)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -181,21 +176,31 @@ func TestSyncQuickCheck(t *testing.T) {
 	err := quick.Check(func(adChain util.RandomAdBuilder) bool {
 		return t.Run("quickcheck", func(t *testing.T) {
 			te := setupTestEnv(t, true)
+
+			srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+			originalLinkSys := mkProvLinkSystem(srcStore)
+			pubLsys := wrapLinkSysWithSlowReader(originalLinkSys)
+			pub, err := dtsync.NewPublisher(te.pubHost, srcStore, pubLsys, ingestCfg.PubSubTopic)
+			require.NoError(t, err)
 			engine := &mockIndexerEngine{}
 			te.ingester.indexer = engine
+			te.publisher = pub
+			te.publisherLinkSys = pubLsys
 
-			adChain := util.RandomAdBuilder{
-				EntryChunkBuilders: []util.RandomEntryChunkBuilder{{
-					ChunkCount:      1,
-					EntriesPerChunk: 1,
-					EntriesSeed:     1,
-				}, {
-					ChunkCount:      1,
-					EntriesPerChunk: 1,
-					EntriesSeed:     2,
-				},
-				},
-			}
+			// Uncomment to test a specific setup
+			// adChain := util.RandomAdBuilder{
+			// 	EntryChunkBuilders: []util.RandomEntryChunkBuilder{{
+			// 		ChunkCount:      2,
+			// 		EntriesPerChunk: 1,
+			// 		EntriesSeed:     1,
+			// 	}, {
+			// 		ChunkCount:      2,
+			// 		EntriesPerChunk: 1,
+			// 		EntriesSeed:     2,
+			// 	}},
+			// }
+
+			waitPreviousAdTime = 500 * time.Millisecond
 
 			ad := adChain.Build(t, te.publisherLinkSys, te.publisherPriv)
 			if ad == nil {
@@ -205,10 +210,11 @@ func TestSyncQuickCheck(t *testing.T) {
 			adCid := ad.(cidlink.Link).Cid
 			ctx := context.Background()
 
-			err := te.publisher.UpdateRoot(ctx, ad.(cidlink.Link).Cid)
+			err = te.publisher.UpdateRoot(ctx, ad.(cidlink.Link).Cid)
 			require.NoError(t, err)
 
 			end, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+			start := time.Now()
 			require.NoError(t, err)
 			select {
 			case m := <-end:
@@ -226,21 +232,29 @@ func TestSyncQuickCheck(t *testing.T) {
 				t.Fatal("sync timeout")
 			}
 
+			fmt.Println("wait for sync took", time.Since(start))
+			start = time.Now()
+
 			adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, ad, schema.Type.Advertisement)
 			require.NoError(t, err)
 
-			mhs := util.AllMultihashesFromAd(t, adNode.(schema.Advertisement), te.publisherLinkSys)
+			mhs := util.AllMultihashesFromAd(t, adNode.(schema.Advertisement), originalLinkSys)
+			fmt.Println("Get all mhs took", time.Since(start), "for", len(mhs), "mhs")
+			start = time.Now()
+
 			checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+			fmt.Println("Check eventually took ", time.Since(start))
 			// Everything is an add
-			require.Equal(t, len(engine.added), len(mhs))
+			require.Equal(t, len(engine.added), len(mhs), "Did not see the expected number of mhs indexed.")
 			// Same order
-			// require.Equal(t, engine.added, mhs)
+			require.Equal(t, engine.added, mhs, "mhs not indexed in correct order")
 		})
 	}, &quick.Config{
 		MaxCount: 1,
 	})
 	require.NoError(t, err)
 }
+
 func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
@@ -467,13 +481,28 @@ type SlowReader struct {
 	b io.Reader
 }
 
+func wrapLinkSysWithSlowReader(lsys ipld.LinkSystem) ipld.LinkSystem {
+	newLsys := lsys
+	originalReadOpener := lsys.StorageReadOpener
+	newLsys.StorageReadOpener = func(lc linking.LinkContext, l datamodel.Link) (io.Reader, error) {
+		reader, err := originalReadOpener(lc, l)
+		if err != nil {
+			return nil, err
+		}
+
+		return &SlowReader{reader}, nil
+	}
+
+	return newLsys
+}
+
 func (r *SlowReader) Read(p []byte) (n int, err error) {
 	// Sleep for a while to simulate a slow reader
 	if err != nil {
 		panic(err)
 	}
-	// i := rand.Intn((100))
-	// time.Sleep(time.Duration(i) * time.Microsecond)
+	i := rand.Intn((100))
+	time.Sleep(time.Duration(i) * time.Microsecond)
 	return r.b.Read(p)
 }
 
@@ -485,7 +514,7 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 		if err != nil {
 			return nil, err
 		}
-		return &SlowReader{bytes.NewBuffer(val)}, nil
+		return bytes.NewBuffer(val), nil
 	}
 	lsys.StorageWriteOpener = func(lctx ipld.LinkContext) (io.Writer, ipld.BlockWriteCommitter, error) {
 		buf := bytes.NewBuffer(nil)
