@@ -115,6 +115,10 @@ var ingestReloadPolicyFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
+var ingestProvidersFlags = []cli.Flag{
+	indexerHostFlag,
+}
+
 var ingestSyncFlags = []cli.Flag{
 	peerFlag,
 	indexerHostFlag,

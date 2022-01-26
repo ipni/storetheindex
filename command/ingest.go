@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
+	ingclient "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
@@ -37,6 +38,13 @@ var reload = &cli.Command{
 	Action: reloadPolicyCmd,
 }
 
+var providers = &cli.Command{
+	Name:   "providers",
+	Usage:  "Shown information about known providers",
+	Flags:  ingestProvidersFlags,
+	Action: providersCmd,
+}
+
 var IngestCmd = &cli.Command{
 	Name:  "ingest",
 	Usage: "Admin commands to sync indexer with a provider",
@@ -45,6 +53,7 @@ var IngestCmd = &cli.Command{
 		allow,
 		block,
 		reload,
+		providers,
 	},
 }
 
@@ -117,5 +126,31 @@ func reloadPolicyCmd(cctx *cli.Context) error {
 		return err
 	}
 	fmt.Println("Reloaded policy from configuration file")
+	return nil
+}
+
+func providersCmd(cctx *cli.Context) error {
+	cl, err := ingclient.New(cctx.String("indexer"))
+	if err != nil {
+		return err
+	}
+	provs, err := cl.ListProviders(cctx.Context)
+	if err != nil {
+		return err
+	}
+	if len(provs) == 0 {
+		fmt.Println("No providers registered with indexer")
+		return nil
+	}
+
+	for _, pinfo := range provs {
+		fmt.Println("Provider", pinfo.AddrInfo.ID)
+		fmt.Println("    Addresses:", pinfo.AddrInfo.Addrs)
+		//for _, addr := range pinfo.AddrInfo.Addrs {
+		//	fmt.Print(addr.String())
+		fmt.Println("    LastAdvertisement:", pinfo.LastAdvertisement)
+		fmt.Println("    LastAdvertisementTime:", pinfo.LastAdvertisementTime)
+	}
+
 	return nil
 }
