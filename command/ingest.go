@@ -40,7 +40,7 @@ var reload = &cli.Command{
 
 var providers = &cli.Command{
 	Name:   "providers",
-	Usage:  "Shown information about known providers",
+	Usage:  "Show information about known providers",
 	Flags:  ingestProvidersFlags,
 	Action: providersCmd,
 }
