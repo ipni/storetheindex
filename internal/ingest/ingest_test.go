@@ -3,6 +3,7 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -359,6 +360,117 @@ func TestMultiplePublishersSameProvider(t *testing.T) {
 		MaxCount: 1,
 	})
 	require.NoError(t, err)
+}
+
+type blockList struct {
+	mu   sync.Mutex
+	list map[cid.Cid]bool
+}
+
+func (b *blockList) add(c cid.Cid) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.list[c] = true
+}
+
+func (b *blockList) rm(c cid.Cid) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.list, c)
+}
+
+func TestRestartDuringSync(t *testing.T) {
+	blockedReads := &blockList{list: make(map[cid.Cid]bool)}
+	hitBlockedRead := make(chan cid.Cid)
+
+	te := setupTestEnv(t, true, func(teo *testEnvOpts) {
+		teo.publisherLinkSysFn = func(ds datastore.Batching) ipld.LinkSystem {
+			lsys := cidlink.DefaultLinkSystem()
+			backendLsys := mkProvLinkSystem(ds)
+
+			lsys.StorageWriteOpener = backendLsys.StorageWriteOpener
+			lsys.StorageReadOpener = func(lc linking.LinkContext, l datamodel.Link) (io.Reader, error) {
+				blockedReads.mu.Lock()
+				defer blockedReads.mu.Unlock()
+				if blockedReads.list[l.(cidlink.Link).Cid] {
+					fmt.Println("blocked read")
+					hitBlockedRead <- l.(cidlink.Link).Cid
+					return nil, errors.New("blocked read")
+				}
+				return backendLsys.StorageReadOpener(lc, l)
+			}
+
+			return lsys
+		}
+	})
+
+	cCid := util.RandomAdBuilder{
+		EntryChunkBuilders: []util.RandomEntryChunkBuilder{
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
+		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.Type.Advertisement)
+	cAd := adNode.(schema.Advertisement)
+	require.NoError(t, err)
+
+	// We have a chain of 3 ads, A<-B<-C. We'll UpdateRoot to be B. Sync the
+	// ingester, then kill the ingester when it tries to process B but after it
+	// processes A. Then we'll bring the ingester up again and update root to be
+	// C, and see if we index everything (A, B, C) correctly.
+	allAds := util.AllAds(t, cAd, te.publisherLinkSys)
+	aAd := allAds[2]
+	bAd := allAds[1]
+	require.Equal(t, allAds[0], cAd)
+
+	bEntChunk, err := bAd.Entries.AsLink()
+	require.NoError(t, err)
+	blockedReads.add(bEntChunk.(cidlink.Link).Cid)
+
+	bCid, err := cAd.PreviousID.AsNode().AsLink()
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	err = te.publisher.UpdateRoot(ctx, bCid.(cidlink.Link).Cid)
+	require.NoError(t, err)
+
+	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+	require.NoError(t, err)
+
+	// The ingester tried to sync B, but it was blocked. Now let's stop the ingester.
+	<-hitBlockedRead
+	te.ingester.Close()
+	te.ingester.host.Close()
+
+	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
+
+	aMhs := util.AllMultihashesFromAd(t, aAd, te.publisherLinkSys)
+	// Check that we processed A correctly.
+	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), aMhs)
+
+	// We should not have processed B yet.
+	bMhs := util.AllMultihashesFromAd(t, bAd, te.publisherLinkSys)
+	requireTrueEventually(t, func() bool { return !providesAll(t, te.ingester.indexer, te.pubHost.ID(), bMhs...) }, testRetryInterval, testRetryTimeout, "multihashes were not indexed")
+
+	// Now we bring up the ingester again.
+	ingesterHost := mkTestHost(libp2p.Identity(te.ingesterPriv))
+	connectHosts(t, te.pubHost, ingesterHost)
+	ingester, err := NewIngester(ingestCfg, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		ingester.Close()
+	})
+	te.ingester = ingester
+
+	// And sync to C
+	te.publisher.UpdateRoot(ctx, cCid.(cidlink.Link).Cid)
+
+	end, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+	require.NoError(t, err)
+	<-end
+
+	allMhs := util.AllMultihashesFromAd(t, cAd, te.publisherLinkSys)
+	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 }
 
 func TestSync(t *testing.T) {
@@ -786,27 +898,53 @@ type testEnv struct {
 	pubHost          host.Host
 	pubStore         datastore.Batching
 	publisherPriv    crypto.PrivKey
+	ingesterPriv     crypto.PrivKey
 	publisherLinkSys ipld.LinkSystem
 	ingester         *Ingester
 }
 
-func setupTestEnv(t *testing.T, shouldConnectHosts bool) *testEnv {
+type testEnvOpts struct {
+	publisherLinkSysFn func(ds datastore.Batching) ipld.LinkSystem
+}
+
+func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOpts)) *testEnv {
+	testOpt := &testEnvOpts{}
+	for _, f := range opts {
+		f(testOpt)
+	}
+
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
-	h := mkTestHost()
+
+	ingesterPriv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
+	ingesterHost := mkTestHost(libp2p.Identity(ingesterPriv))
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
 	pubHost := mkTestHost(libp2p.Identity(priv))
-	i, core, _ := mkIngest(t, h)
+	i, core, _ := mkIngest(t, ingesterHost)
 	t.Cleanup(func() {
 		core.Close()
-		i.Close()
+		if !i.closed.Load().(bool) {
+			i.Close()
+		}
 	})
-	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+
+	var lsys ipld.LinkSystem
+	if testOpt.publisherLinkSysFn != nil {
+		lsys = testOpt.publisherLinkSysFn(srcStore)
+	} else {
+		lsys = mkProvLinkSystem(srcStore)
+	}
+
+	pub, err := dtsync.NewPublisher(pubHost, srcStore, lsys, ingestCfg.PubSubTopic)
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		pub.Close()
 	})
 
 	if shouldConnectHosts {
-		connectHosts(t, h, pubHost)
+		connectHosts(t, ingesterHost, pubHost)
 	}
 
 	require.NoError(t, err)
@@ -818,5 +956,6 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool) *testEnv {
 		pubStore:         srcStore,
 		publisherLinkSys: lsys,
 		ingester:         i,
+		ingesterPriv:     ingesterPriv,
 	}
 }

@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -26,7 +26,6 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
 )
 
 var log = logging.Logger("indexer/ingest")
@@ -46,16 +45,16 @@ type Ingester struct {
 	batchSize int
 	sigUpdate chan struct{}
 
-	sub           *legs.Subscriber
-	cancelSyncFin context.CancelFunc
-	syncTimeout   time.Duration
-	adWaiter      *cidWaiter
-	watchDone     chan struct{}
+	sub         *legs.Subscriber
+	syncTimeout time.Duration
+	adWaiter    *cidWaiter
 
 	adCache      map[cid.Cid]adCacheItem
 	adCacheMutex sync.Mutex
 
 	entriesSel datamodel.Node
+
+	closed atomic.Value
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -81,6 +80,9 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
 		})).Node()
 
+	closed := atomic.Value{}
+	closed.Store(false)
+
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
@@ -89,8 +91,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		sigUpdate:   make(chan struct{}, 1),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		adWaiter:    adWaiter,
-		watchDone:   make(chan struct{}),
 		entriesSel:  entSel,
+		closed:      closed,
 	}
 
 	// Create and start pubsub subscriber.  This also registers the storage
@@ -108,10 +110,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		return nil, err
 	}
 
-	onSyncFin, cancelSyncFin := sub.OnSyncFinished()
-	ing.cancelSyncFin = cancelSyncFin
-
-	go ing.watchSyncFinished(onSyncFin)
 	go ing.metricsUpdater()
 
 	log.Debugf("Ingester started and all hooks and linksystem registered")
@@ -120,12 +118,10 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 }
 
 func (ing *Ingester) Close() error {
-	ing.cancelSyncFin()
-	<-ing.watchDone
-
 	// Close leg transport.
 	err := ing.sub.Close()
 	close(ing.sigUpdate)
+	ing.closed.Store(true)
 	return err
 }
 
@@ -162,7 +158,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 			return
 		}
 		// Do not persist the latest sync here, because that is done in
-		// watchSyncFinished.
+		// after we've processed the ad.
 
 		// Notification channel; buffered so as not to block if no reader.
 		out <- c.Hash()
@@ -172,28 +168,15 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	return out, nil
 }
 
-// watchSyncFinished reads legs.SyncFinished events and records the latest sync
-// for the peer that was synced.
-func (ing *Ingester) watchSyncFinished(onSyncFin <-chan legs.SyncFinished) {
-	for syncFin := range onSyncFin {
-		// Persist the latest sync
-		err := ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+syncFin.PeerID.String()), syncFin.Cid.Bytes())
-		if err != nil {
-			log.Errorw("Error persisting latest sync", "err", err, "peer", syncFin.PeerID)
-			continue
-		}
-		log.Debugw("Persisted latest sync", "peer", syncFin.PeerID, "cid", syncFin.Cid)
-		_ = stats.RecordWithOptions(context.Background(),
-			stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
-			stats.WithMeasurements(metrics.IngestChange.M(1)))
-
-		ing.signalMetricsUpdate()
-	}
-	close(ing.watchDone)
+func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
+	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
 }
 
 // signalMetricsUpdate signals that metrics should be updated.
 func (ing *Ingester) signalMetricsUpdate() {
+	if ing.closed.Load().(bool) {
+		return
+	}
 	select {
 	case ing.sigUpdate <- struct{}{}:
 	default:
