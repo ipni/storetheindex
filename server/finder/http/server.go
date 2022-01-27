@@ -2,6 +2,7 @@ package httpfinderserver
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"net"
 	"net/http"
@@ -22,6 +23,9 @@ type Server struct {
 func (s *Server) URL() string {
 	return fmt.Sprint("http://", s.l.Addr().String())
 }
+
+//go:embed *.html
+var webUI embed.FS
 
 func New(listen string, indexer indexer.Interface, registry *registry.Registry, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
@@ -50,6 +54,7 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	r.HandleFunc("/cid/{cid}", h.findCid).Methods(http.MethodGet)
 	r.HandleFunc("/multihash/{multihash}", h.find).Methods(http.MethodGet)
 	r.HandleFunc("/multihash", h.findBatch).Methods(http.MethodPost)
+	r.Handle("/", http.FileServer(http.FS(webUI)))
 
 	return s, nil
 }
