@@ -22,7 +22,7 @@ malicious publishers that can point to other chains.
 * This means we shouldn't assume a 1:1 relationship with a publisher and a
 provider.
 
-![network overview](./assets/Ingester network overview.png)
+![network overview](./assets/ingesterNetworkOverview.png)
 
 
 ## Constraints of the indexer
@@ -67,7 +67,7 @@ provider.
    3. Remove the head from the staging area.
    4. Repeat 1 -> 3 with the rest of the list.
 
-![staging overview](./assets/Ingester staging.png)
+![staging overview](./assets/ingesterStaging.jpg)
 
 ## Benefits
 
