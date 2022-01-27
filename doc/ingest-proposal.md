@@ -77,6 +77,15 @@ provider.
 * When an ad is in the main datastore it has actually been processed.
 * No assumption is made that there is a 1:1 publisher:provider relationship.
 
+## Semnantics of this proposal
+
+* A handler persists latestSync after putting data in the staging area. This way
+  we know that if a we've marked some ad as synced we know that at least that ad
+  is in the staging area if not indexed.
+* We do not need to get a entryChunk to ad mapping since we will do this within
+  the context of a worker instead of the block hook. (unless we can pass a block
+  hook for a sync).
+
 
 
 [0]: It will also write to a namespaced datastore to persist the advertisement.
