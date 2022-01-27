@@ -50,6 +50,7 @@ type RandomAdBuilder struct {
 	// FakeSig bool
 
 	EntryChunkBuilders []RandomEntryChunkBuilder
+	Seed               int64
 }
 
 func (b RandomAdBuilder) Build(t *testing.T, lsys ipld.LinkSystem, signingKey crypto.PrivKey) datamodel.Link {
@@ -60,7 +61,7 @@ func (b RandomAdBuilder) Build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 	// Limit chain to be at most 256 links
 	b.EntryChunkBuilders = b.EntryChunkBuilders[:len(b.EntryChunkBuilders)%256]
 
-	mhs := RandomMultihashes(1, rand.New(rand.NewSource(0)))
+	mhs := RandomMultihashes(1, rand.New(rand.NewSource(b.Seed)))
 
 	p, err := peer.IDFromPrivateKey(signingKey)
 	require.NoError(t, err)
