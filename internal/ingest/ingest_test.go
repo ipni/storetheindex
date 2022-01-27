@@ -200,7 +200,7 @@ func TestSyncQuickCheck(t *testing.T) {
 			// 	}},
 			// }
 
-			waitPreviousAdTime = 500 * time.Millisecond
+			waitPreviousAdTime = 50 * time.Millisecond
 
 			ad := adChain.Build(t, te.publisherLinkSys, te.publisherPriv)
 			if ad == nil {
@@ -239,6 +239,110 @@ func TestSyncQuickCheck(t *testing.T) {
 			require.NoError(t, err)
 
 			mhs := util.AllMultihashesFromAd(t, adNode.(schema.Advertisement), originalLinkSys)
+			fmt.Println("Get all mhs took", time.Since(start), "for", len(mhs), "mhs")
+			start = time.Now()
+
+			checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+			fmt.Println("Check eventually took ", time.Since(start))
+			// Everything is an add
+			require.Equal(t, len(engine.added), len(mhs), "Did not see the expected number of mhs indexed.")
+			// Same order
+			require.Equal(t, engine.added, mhs, "mhs not indexed in correct order")
+		})
+	}, &quick.Config{
+		MaxCount: 1,
+	})
+	require.NoError(t, err)
+}
+
+func TestMultiplePublishersSameProvider(t *testing.T) {
+	err := quick.Check(func(adChain util.RandomAdBuilder) bool {
+		return t.Run("quickcheck", func(t *testing.T) {
+			te := setupTestEnv(t, true)
+
+			pubHost2 := mkTestHost()
+			pub2, err := dtsync.NewPublisher(pubHost2, te.pubStore, te.publisherLinkSys, ingestCfg.PubSubTopic)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				pub2.Close()
+			})
+			// Connect both publishers to the ingester
+			connectHosts(t, te.ingester.host, pubHost2)
+
+			engine := &mockIndexerEngine{}
+			te.ingester.indexer = engine
+
+			// Uncomment to test a specific setup
+			adChain := util.RandomAdBuilder{
+				EntryChunkBuilders: []util.RandomEntryChunkBuilder{{
+					ChunkCount:      1,
+					EntriesPerChunk: 1,
+					EntriesSeed:     1,
+					// }, {
+					// 	ChunkCount:      2,
+					// 	EntriesPerChunk: 1,
+					// 	EntriesSeed:     2,
+				}},
+			}
+
+			waitPreviousAdTime = 500 * time.Millisecond
+
+			ad := adChain.Build(t, te.publisherLinkSys, te.publisherPriv)
+			if ad == nil {
+				// We didn't build a valid ad.
+				return
+			}
+			// ad2 := adChain.Build(t, te2.publisherLinkSys, te2.publisherPriv)
+			// require.Equal(t, ad.String(), ad2.String())
+
+			adCid := ad.(cidlink.Link).Cid
+			ctx := context.Background()
+
+			err = te.publisher.UpdateRoot(ctx, ad.(cidlink.Link).Cid)
+			require.NoError(t, err)
+			err = pub2.UpdateRoot(ctx, ad.(cidlink.Link).Cid)
+			require.NoError(t, err)
+
+			end, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+			require.NoError(t, err)
+			end2, err := te.ingester.Sync(ctx, pubHost2.ID(), nil)
+			require.NoError(t, err)
+
+			start := time.Now()
+			select {
+			case m := <-end:
+				fmt.Println("Here")
+				m2 := <-end2
+				fmt.Println("Here2")
+				// We receive the CID that we synced.
+				require.True(t, bytes.Equal(adCid.Hash(), m))
+				require.True(t, bytes.Equal(adCid.Hash(), m2))
+				// Check that subscriber recorded latest sync.
+				lnk := te.ingester.sub.GetLatestSync(te.pubHost.ID())
+				lcid := lnk.(cidlink.Link).Cid
+				require.Equal(t, lcid, adCid)
+				lnk = te.ingester.sub.GetLatestSync(pubHost2.ID())
+				lcid = lnk.(cidlink.Link).Cid
+				require.Equal(t, lcid, adCid)
+				// Check that latest sync recorded in datastore
+				lcid, err = te.ingester.getLatestSync(te.pubHost.ID())
+				require.NoError(t, err)
+				require.Equal(t, lcid, adCid)
+
+				lcid, err = te.ingester.getLatestSync(pubHost2.ID())
+				require.NoError(t, err)
+				require.Equal(t, lcid, adCid)
+			case <-ctx.Done():
+				t.Fatal("sync timeout")
+			}
+
+			fmt.Println("wait for sync took", time.Since(start))
+			start = time.Now()
+
+			adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, ad, schema.Type.Advertisement)
+			require.NoError(t, err)
+
+			mhs := util.AllMultihashesFromAd(t, adNode.(schema.Advertisement), te.publisherLinkSys)
 			fmt.Println("Get all mhs took", time.Since(start), "for", len(mhs), "mhs")
 			start = time.Now()
 
@@ -678,6 +782,7 @@ func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Dura
 type testEnv struct {
 	publisher        legs.Publisher
 	pubHost          host.Host
+	pubStore         datastore.Batching
 	publisherPriv    crypto.PrivKey
 	publisherLinkSys ipld.LinkSystem
 	ingester         *Ingester
@@ -708,6 +813,7 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool) *testEnv {
 		publisher:        pub,
 		publisherPriv:    priv,
 		pubHost:          pubHost,
+		pubStore:         srcStore,
 		publisherLinkSys: lsys,
 		ingester:         i,
 	}
