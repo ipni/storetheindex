@@ -168,3 +168,47 @@ func AllMultihashesFromAd(t *testing.T, ad schema.Advertisement, lsys ipld.LinkS
 
 	return out
 }
+
+func AllAds(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem) []schema.Advertisement {
+	out := []schema.Advertisement{}
+
+	progress := traversal.Progress{
+		Cfg: &traversal.Config{
+			LinkSystem: lsys,
+			LinkTargetNodePrototypeChooser: func(l datamodel.Link, lc linking.LinkContext) (datamodel.NodePrototype, error) {
+				return schema.Type.Advertisement, nil
+			},
+		},
+	}
+
+	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
+
+	sel, err := ssb.ExploreUnion(
+		ssb.Matcher(),
+		ssb.ExploreFields(
+			func(efsb builder.ExploreFieldsSpecBuilder) {
+				efsb.Insert("PreviousID",
+					ssb.ExploreRecursive(selector.RecursionLimitDepth(0xff),
+						ssb.ExploreUnion(
+							ssb.Matcher(),
+							ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
+								efsb.Insert("PreviousID", ssb.ExploreUnion(ssb.ExploreRecursiveEdge()))
+							}))))
+
+			})).Selector()
+	require.NoError(t, err)
+
+	err = progress.WalkMatching(
+		ad,
+		sel,
+		func(p traversal.Progress, n datamodel.Node) error {
+			if !n.IsAbsent() {
+				ad := n.(schema.Advertisement)
+				out = append(out, ad)
+			}
+			return nil
+		})
+	require.NoError(t, err)
+
+	return out
+}
