@@ -52,10 +52,11 @@ const (
 
 var (
 	ingestCfg = config.Ingest{
-		PubSubTopic:       "test/ingest",
-		StoreBatchSize:    256,
-		SyncTimeout:       config.Duration(time.Minute),
-		EntriesDepthLimit: 10,
+		PubSubTopic:             "test/ingest",
+		StoreBatchSize:          256,
+		SyncTimeout:             config.Duration(time.Minute),
+		EntriesDepthLimit:       300,
+		AdvertisementDepthLimit: 300,
 	}
 	rng = rand.New(rand.NewSource(1413))
 )
