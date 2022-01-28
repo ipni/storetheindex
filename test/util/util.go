@@ -7,10 +7,6 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
-const (
-	testProtocolID = 0x300000
-)
-
 func RandomMultihashes(n int, rng *rand.Rand) []multihash.Multihash {
 	prefix := cid.Prefix{
 		Version:  1,
