@@ -55,10 +55,6 @@ type Ingester struct {
 	entriesSel datamodel.Node
 
 	closed atomic.Value
-
-	entryChunkLimitPerAd  int64
-	entryChunksSeenInAdMu sync.Mutex
-	entryChunksSeenInAd   map[cid.Cid]int64
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -97,12 +93,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		adWaiter:    adWaiter,
 		entriesSel:  entSel,
 		closed:      closed,
-
-		// How many entry chunks we can process in a given ad before we give up.
-		// Note(mm): I don't think this is the correct behavior. we should pause
-		// processing and come back when this publisher gets more rate limit tokens.
-		// Only here to stay consistent with previous behavior.
-		entryChunkLimitPerAd: cfg.EntriesDepthLimit,
 	}
 
 	// Create and start pubsub subscriber.  This also registers the storage

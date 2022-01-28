@@ -457,7 +457,8 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 	// entries CID to the ad CID so that the ad can be loaded when that chunk
 	// is received.
 	//
-	// Do not return here if error; try to index content in this chunk.
+	// If we error in reading the next link, then that means this entry chunk is
+	// malformed, so it is okay to skip it.
 	hasNextLink, linkErr := ing.setNextCidToAd(nchunk, adCid)
 	if linkErr != nil {
 		return linkErr
@@ -507,20 +508,6 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 	err = <-errChan
 	if err != nil {
 		return nil
-	}
-
-	ing.entryChunksSeenInAdMu.Lock()
-	defer ing.entryChunksSeenInAdMu.Unlock()
-	seen := ing.entryChunksSeenInAd[adCid]
-	seen++
-	if ing.entryChunksSeenInAd == nil {
-		ing.entryChunksSeenInAd = make(map[cid.Cid]int64)
-	}
-	ing.entryChunksSeenInAd[adCid] = seen
-	entryChunkLimitReached := seen >= ing.entryChunkLimitPerAd
-
-	if !hasNextLink || entryChunkLimitReached {
-		delete(ing.entryChunksSeenInAd, adCid)
 	}
 
 	return nil
