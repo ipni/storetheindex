@@ -254,9 +254,8 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 			if err != nil {
 				log.Errorw("Cannot read previous link from advertisement", "err", err)
 				return
-			} else {
-				prevCid = lnk.(cidlink.Link).Cid
 			}
+			prevCid = lnk.(cidlink.Link).Cid
 		}
 
 		log.Infow("Incoming block is an advertisement", "prevAd", prevCid)
@@ -419,6 +418,19 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	// Record how long sync took.
 	stats.Record(context.Background(), metrics.SyncLatency.M(float64(elapsed.Nanoseconds())/1e6))
 	log.Infow("Finished syncing entries", "elapsed", elapsed)
+
+	// We've processed all the entries, we can mark this ad as processed
+	err = ing.markAdProcessed(from, adCid)
+	if err != nil {
+		log.Errorf("Failed to mark ad as processed: %v", err)
+	} else {
+		log.Debugw("Persisted latest sync", "peer", from, "cid", adCid)
+		_ = stats.RecordWithOptions(context.Background(),
+			stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
+			stats.WithMeasurements(metrics.IngestChange.M(1)))
+
+		ing.signalMetricsUpdate()
+	}
 }
 
 // indexContentBlock indexes the content multihashes in a block of data.  First
@@ -507,25 +519,8 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 	ing.entryChunksSeenInAd[adCid] = seen
 	entryChunkLimitReached := seen >= ing.entryChunkLimitPerAd
 
-	// If we don't have another entrychunk to process than we've finished this ad.
-	// Note this *is* the source of truth for if an advertisement is processed.
-	// syncAdEntries will not know if this has been processed properly. because
-	// .Sync will return before the block hook is finished.
 	if !hasNextLink || entryChunkLimitReached {
 		delete(ing.entryChunksSeenInAd, adCid)
-
-		// We've processed all the entries, we can mark this ad as processed
-		err = ing.markAdProcessed(pubID, adCid)
-		if err != nil {
-			log.Errorf("Failed to mark ad as processed: %v", err)
-		} else {
-			log.Debugw("Persisted latest sync", "peer", pubID, "cid", adCid)
-			_ = stats.RecordWithOptions(context.Background(),
-				stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
-				stats.WithMeasurements(metrics.IngestChange.M(1)))
-
-			ing.signalMetricsUpdate()
-		}
 	}
 
 	return nil
