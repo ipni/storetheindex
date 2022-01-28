@@ -46,17 +46,15 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	h := newHandler(indexer, registry)
 
 	// Advertisement routes
-	r.HandleFunc("/ingest/content", h.IndexContent).Methods(http.MethodPost)
-	r.HandleFunc("/ingest/advertisement", h.Advertise).Methods(http.MethodPut)
+	r.HandleFunc("/ingest/content", h.indexContent).Methods(http.MethodPost)
+	r.HandleFunc("/ingest/advertisement", h.advertise).Methods(http.MethodPut)
 
 	// Discovery
-	r.HandleFunc("/discover", h.DiscoverProvider).Methods(http.MethodPost)
+	r.HandleFunc("/discover", h.discoverProvider).Methods(http.MethodPost)
 
-	// Provider routes
-	r.HandleFunc("/providers", h.ListProviders).Methods(http.MethodGet)
-	r.HandleFunc("/providers/{providerid}", h.GetProvider).Methods(http.MethodGet)
-	r.HandleFunc("/providers", h.RegisterProvider).Methods(http.MethodPost)
-	r.HandleFunc("/providers/{providerid}", h.RemoveProvider).Methods(http.MethodDelete)
+	// Registration routes
+	r.HandleFunc("/register", h.registerProvider).Methods(http.MethodPost)
+	r.HandleFunc("/register/{providerid}", h.removeProvider).Methods(http.MethodDelete)
 	return s, nil
 }
 

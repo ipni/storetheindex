@@ -4,13 +4,19 @@ import (
 	"context"
 
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 )
 
-// Finder is the interface implemented by all finder client protocols
+// Finder is the interface implemented by all finder client protocols.
 type Finder interface {
-	// Get record for single multihash from indexer
+	// Find queries for provider content records for a single multihash.
 	Find(context.Context, multihash.Multihash) (*model.FindResponse, error)
-	// Get info from a batch of multihashes
+	// FindBatch queries for provider content records for a batch of multihashes.
 	FindBatch(context.Context, []multihash.Multihash) (*model.FindResponse, error)
+
+	// GetProvider gets information about the provider identified by peer.ID.
+	GetProvider(context.Context, peer.ID) (*model.ProviderInfo, error)
+	// ListPrividers gets information about all providers known to the indexer.
+	ListProviders(context.Context) ([]*model.ProviderInfo, error)
 }

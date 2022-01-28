@@ -57,6 +57,9 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	r.HandleFunc("/health", h.health).Methods(http.MethodGet)
 	r.Handle("/", http.FileServer(http.FS(webUI)))
 
+	r.HandleFunc("/providers", h.listProviders).Methods(http.MethodGet)
+	r.HandleFunc("/providers/{providerid}", h.getProvider).Methods(http.MethodGet)
+
 	return s, nil
 }
 

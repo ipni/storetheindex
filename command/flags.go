@@ -106,16 +106,16 @@ var importFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
-var ingestPolicyFlags = []cli.Flag{
+var adminPolicyFlags = []cli.Flag{
 	peerFlag,
 	indexerHostFlag,
 }
 
-var ingestReloadPolicyFlags = []cli.Flag{
+var adminReloadPolicyFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
-var ingestSyncFlags = []cli.Flag{
+var adminSyncFlags = []cli.Flag{
 	peerFlag,
 	indexerHostFlag,
 	&cli.StringFlag{
@@ -170,6 +170,15 @@ var initFlags = []cli.Flag{
 		EnvVars:  []string{"STORETHEINDE_PUBSUB_TOPIC"},
 		Required: false,
 	},
+}
+
+var providersGetFlags = []cli.Flag{
+	peerFlag,
+	indexerHostFlag,
+}
+
+var providersListFlags = []cli.Flag{
+	indexerHostFlag,
 }
 
 var registerFlags = []cli.Flag{

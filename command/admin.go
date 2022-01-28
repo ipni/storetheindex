@@ -12,34 +12,34 @@ import (
 var sync = &cli.Command{
 	Name:   "sync",
 	Usage:  "Sync indexer with provider",
-	Flags:  ingestSyncFlags,
+	Flags:  adminSyncFlags,
 	Action: syncCmd,
 }
 
 var allow = &cli.Command{
 	Name:   "allow",
 	Usage:  "Allow advertisements and content from peer",
-	Flags:  ingestPolicyFlags,
+	Flags:  adminPolicyFlags,
 	Action: allowCmd,
 }
 
 var block = &cli.Command{
 	Name:   "block",
 	Usage:  "Block advertisements and content from peer",
-	Flags:  ingestPolicyFlags,
+	Flags:  adminPolicyFlags,
 	Action: blockCmd,
 }
 
 var reload = &cli.Command{
 	Name:   "reload-policy",
 	Usage:  "Reload the policy from the configuration file",
-	Flags:  ingestReloadPolicyFlags,
+	Flags:  adminReloadPolicyFlags,
 	Action: reloadPolicyCmd,
 }
 
-var IngestCmd = &cli.Command{
-	Name:  "ingest",
-	Usage: "Admin commands to sync indexer with a provider",
+var AdminCmd = &cli.Command{
+	Name:  "admin",
+	Usage: "Perform admin activities with an indexer",
 	Subcommands: []*cli.Command{
 		sync,
 		allow,

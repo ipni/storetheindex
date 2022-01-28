@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -64,28 +63,6 @@ func (h *IngestHandler) RegisterProvider(ctx context.Context, data []byte) error
 		},
 	}
 	return h.registry.Register(ctx, info)
-}
-
-func (h *IngestHandler) ListProviders() ([]byte, error) {
-	infos := h.registry.AllProviderInfo()
-
-	responses := make([]model.ProviderInfo, len(infos))
-	for i := range infos {
-		responses[i] = model.MakeProviderInfo(infos[i].AddrInfo, infos[i].LastAdvertisement, infos[i].LastAdvertisementTime)
-	}
-
-	return json.Marshal(responses)
-}
-
-func (h *IngestHandler) GetProvider(providerID peer.ID) ([]byte, error) {
-	info := h.registry.ProviderInfo(providerID)
-	if info == nil {
-		return nil, nil
-	}
-
-	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastAdvertisement, info.LastAdvertisementTime)
-
-	return json.Marshal(&rsp)
 }
 
 // IndexContent handles an IngestRequest

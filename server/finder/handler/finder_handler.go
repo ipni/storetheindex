@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -73,6 +74,28 @@ func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*model.
 	return &model.FindResponse{
 		MultihashResults: results,
 	}, nil
+}
+
+func (h *FinderHandler) ListProviders() ([]byte, error) {
+	infos := h.registry.AllProviderInfo()
+
+	responses := make([]model.ProviderInfo, len(infos))
+	for i := range infos {
+		responses[i] = model.MakeProviderInfo(infos[i].AddrInfo, infos[i].LastAdvertisement, infos[i].LastAdvertisementTime)
+	}
+
+	return json.Marshal(responses)
+}
+
+func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
+	info := h.registry.ProviderInfo(providerID)
+	if info == nil {
+		return nil, nil
+	}
+
+	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastAdvertisement, info.LastAdvertisementTime)
+
+	return json.Marshal(&rsp)
 }
 
 func providerResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) (model.ProviderResult, error) {

@@ -68,3 +68,46 @@ func TestFindIndexData(t *testing.T) {
 		t.Errorf("Error closing indexer core: %s", err)
 	}
 }
+
+func TestProviderInfo(t *testing.T) {
+	// Initialize everything
+	ind := test.InitIndex(t, true)
+	reg := test.InitRegistry(t)
+	s := setupServer(ind, reg, t)
+	httpClient := setupClient(s.URL(), t)
+
+	// Start server
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	peerID := test.Register(ctx, t, reg)
+
+	test.GetProviderTest(t, httpClient, peerID)
+
+	test.ListProvidersTest(t, httpClient, peerID)
+
+	err := s.Shutdown(ctx)
+	if err != nil {
+		t.Error("shutdown error:", err)
+	}
+	err = <-errChan
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = reg.Close(); err != nil {
+		t.Errorf("Error closing registry: %s", err)
+	}
+	if err = ind.Close(); err != nil {
+		t.Errorf("Error closing indexer core: %s", err)
+	}
+}
