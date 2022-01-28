@@ -22,6 +22,7 @@ import (
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/filecoin-project/storetheindex/test/typehelpers"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -144,8 +145,8 @@ func TestRestartDuringSync(t *testing.T) {
 		}
 	})
 
-	cCid := util.RandomAdBuilder{
-		EntryChunkBuilders: []util.RandomEntryChunkBuilder{
+	cCid := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
@@ -158,7 +159,7 @@ func TestRestartDuringSync(t *testing.T) {
 	// ingester, then kill the ingester when it tries to process B but after it
 	// processes A. Then we'll bring the ingester up again and update root to be
 	// C, and see if we index everything (A, B, C) correctly.
-	allAds := util.AllAds(t, cAd, te.publisherLinkSys)
+	allAds := typehelpers.AllAds(t, cAd, te.publisherLinkSys)
 	aAd := allAds[2]
 	bAd := allAds[1]
 	require.Equal(t, allAds[0], cAd)
@@ -184,12 +185,12 @@ func TestRestartDuringSync(t *testing.T) {
 
 	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
 
-	aMhs := util.AllMultihashesFromAd(t, aAd, te.publisherLinkSys)
+	aMhs := typehelpers.AllMultihashesFromAd(t, aAd, te.publisherLinkSys)
 	// Check that we processed A correctly.
 	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), aMhs)
 
 	// We should not have processed B yet.
-	bMhs := util.AllMultihashesFromAd(t, bAd, te.publisherLinkSys)
+	bMhs := typehelpers.AllMultihashesFromAd(t, bAd, te.publisherLinkSys)
 	requireTrueEventually(t, func() bool { return !providesAll(t, te.ingester.indexer, te.pubHost.ID(), bMhs...) }, testRetryInterval, testRetryTimeout, "multihashes were not indexed")
 
 	// Now we bring up the ingester again.
@@ -209,7 +210,7 @@ func TestRestartDuringSync(t *testing.T) {
 	require.NoError(t, err)
 	<-end
 
-	allMhs := util.AllMultihashesFromAd(t, cAd, te.publisherLinkSys)
+	allMhs := typehelpers.AllMultihashesFromAd(t, cAd, te.publisherLinkSys)
 	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 }
 
