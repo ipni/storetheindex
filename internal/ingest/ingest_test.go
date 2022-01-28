@@ -181,14 +181,14 @@ func TestRestartDuringSync(t *testing.T) {
 
 	// The ingester tried to sync B, but it was blocked. Now let's stop the ingester.
 	<-hitBlockedRead
+	aMhs := typehelpers.AllMultihashesFromAd(t, aAd, te.publisherLinkSys)
+	// Check that we processed A correctly.
+	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), aMhs)
+
 	te.ingester.Close()
 	te.ingester.host.Close()
 
 	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
-
-	aMhs := typehelpers.AllMultihashesFromAd(t, aAd, te.publisherLinkSys)
-	// Check that we processed A correctly.
-	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), aMhs)
 
 	// We should not have processed B yet.
 	bMhs := typehelpers.AllMultihashesFromAd(t, bAd, te.publisherLinkSys)
