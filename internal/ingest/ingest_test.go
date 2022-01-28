@@ -125,6 +125,7 @@ func TestRestartDuringSync(t *testing.T) {
 	hitBlockedRead := make(chan cid.Cid)
 
 	te := setupTestEnv(t, true, func(teo *testEnvOpts) {
+		teo.skipIngesterCleanup = true
 		teo.publisherLinkSysFn = func(ds datastore.Batching) ipld.LinkSystem {
 			lsys := cidlink.DefaultLinkSystem()
 			backendLsys := mkProvLinkSystem(ds)
@@ -616,7 +617,8 @@ type testEnv struct {
 }
 
 type testEnvOpts struct {
-	publisherLinkSysFn func(ds datastore.Batching) ipld.LinkSystem
+	publisherLinkSysFn  func(ds datastore.Batching) ipld.LinkSystem
+	skipIngesterCleanup bool
 }
 
 func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOpts)) *testEnv {
@@ -636,7 +638,7 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 	i, core, _ := mkIngest(t, ingesterHost)
 	t.Cleanup(func() {
 		core.Close()
-		if !i.closed.Load().(bool) {
+		if !testOpt.skipIngesterCleanup {
 			i.Close()
 		}
 	})

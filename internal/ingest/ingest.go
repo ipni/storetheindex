@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
@@ -53,8 +52,6 @@ type Ingester struct {
 	adCacheMutex sync.Mutex
 
 	entriesSel datamodel.Node
-
-	closed atomic.Value
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -80,9 +77,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
 		})).Node()
 
-	closed := atomic.Value{}
-	closed.Store(false)
-
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
@@ -92,7 +86,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		adWaiter:    adWaiter,
 		entriesSel:  entSel,
-		closed:      closed,
 	}
 
 	// Create and start pubsub subscriber.  This also registers the storage
@@ -120,8 +113,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 func (ing *Ingester) Close() error {
 	// Close leg transport.
 	err := ing.sub.Close()
+	ing.adWaiter.close()
 	close(ing.sigUpdate)
-	ing.closed.Store(true)
 	return err
 }
 
@@ -174,9 +167,6 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 
 // signalMetricsUpdate signals that metrics should be updated.
 func (ing *Ingester) signalMetricsUpdate() {
-	if ing.closed.Load().(bool) {
-		return
-	}
 	select {
 	case ing.sigUpdate <- struct{}{}:
 	default:

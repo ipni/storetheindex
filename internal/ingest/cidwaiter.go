@@ -18,6 +18,20 @@ func newCidWaiter() *cidWaiter {
 	}
 }
 
+// close waits for all CIDs to be done.
+func (w *cidWaiter) close() {
+	w.mutex.Lock()
+	var allChans []chan struct{}
+	for _, ch := range w.cidChans {
+		allChans = append(allChans, ch)
+	}
+	w.mutex.Unlock()
+
+	for _, ch := range allChans {
+		<-ch
+	}
+}
+
 func (w *cidWaiter) add(c cid.Cid) error {
 	if c == cid.Undef {
 		return nil
