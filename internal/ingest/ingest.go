@@ -153,9 +153,9 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		// Do not persist the latest sync here, because that is done in
 		// after we've processed the ad.
 
+		ing.signalMetricsUpdate()
 		// Notification channel; buffered so as not to block if no reader.
 		out <- c.Hash()
-		ing.signalMetricsUpdate()
 	}()
 
 	return out, nil

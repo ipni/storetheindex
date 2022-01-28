@@ -389,10 +389,14 @@ func TestMultiplePublishers(t *testing.T) {
 
 	// Test with two random advertisement publications for each of them.
 	c1, mhs, providerID := publishRandomAdv(t, i, pubHost1, pub1, lsys1, false)
-	i.Sync(ctx, pubHost1.ID(), nil)
+	wait, err := i.Sync(ctx, pubHost1.ID(), nil)
+	require.NoError(t, err)
+	<-wait
 	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
 	c2, mhs, providerID := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
-	i.Sync(ctx, pubHost2.ID(), nil)
+	wait, err = i.Sync(ctx, pubHost2.ID(), nil)
+	require.NoError(t, err)
+	<-wait
 	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
 
 	// Check that subscriber recorded latest sync.
@@ -403,7 +407,7 @@ func TestMultiplePublishers(t *testing.T) {
 	lcid = lnk.(cidlink.Link).Cid
 	require.Equal(t, lcid, c2)
 
-	lcid, err := i.getLatestSync(pubHost1.ID())
+	lcid, err = i.getLatestSync(pubHost1.ID())
 	require.NoError(t, err)
 	require.Equal(t, lcid, c1)
 	lcid, err = i.getLatestSync(pubHost2.ID())
