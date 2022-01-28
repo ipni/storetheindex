@@ -459,9 +459,9 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 	//
 	// If we error in reading the next link, then that means this entry chunk is
 	// malformed, so it is okay to skip it.
-	hasNextLink, linkErr := ing.setNextCidToAd(nchunk, adCid)
-	if linkErr != nil {
-		return linkErr
+	hasNextLink, err := ing.setNextCidToAd(nchunk, adCid)
+	if err != nil {
+		return err
 	}
 
 	// Load the advertisement data for this chunk.  If there are more chunks to
