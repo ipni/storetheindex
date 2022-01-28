@@ -2,14 +2,12 @@ module github.com/filecoin-project/storetheindex
 
 go 1.16
 
-// replace github.com/filecoin-project/go-legs => ../go-legs
-
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.2.7
-	github.com/filecoin-project/go-legs v0.2.6-0.20220128203205-b176a8ca746d
+	github.com/filecoin-project/go-legs v0.2.6
 	github.com/frankban/quicktest v1.14.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.4

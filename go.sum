@@ -210,6 +210,8 @@ github.com/filecoin-project/go-legs v0.2.3 h1:sNEUF+Cw4mpGp8hX4oZO/lIAiZpbJy55ih
 github.com/filecoin-project/go-legs v0.2.3/go.mod h1:mdNMISV/bWyZguFM7R4s0mxV1v6Vhda3BiAw9+jv5iE=
 github.com/filecoin-project/go-legs v0.2.6-0.20220128203205-b176a8ca746d h1:EBSGVUNz6p+KSFEZSq9czxePMCgq6fA961iFcCFSTn8=
 github.com/filecoin-project/go-legs v0.2.6-0.20220128203205-b176a8ca746d/go.mod h1:mdNMISV/bWyZguFM7R4s0mxV1v6Vhda3BiAw9+jv5iE=
+github.com/filecoin-project/go-legs v0.2.6 h1:gywAkvuRVq03mDxGcZXy+TdtX5hBKhTSyIGvw3aHdf8=
+github.com/filecoin-project/go-legs v0.2.6/go.mod h1:mdNMISV/bWyZguFM7R4s0mxV1v6Vhda3BiAw9+jv5iE=
 github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe h1:dF8u+LEWeIcTcfUcCf3WFVlc81Fr2JKg8zPzIbBDKDw=
 github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe/go.mod h1:FGwQgZAt2Gh5mjlwJUlVB62JeYdo+if0xWxSEfBD9ig=
 github.com/filecoin-project/go-statestore v0.1.0/go.mod h1:LFc9hD+fRxPqiHiaqUEZOinUJB4WARkRfNl10O7kTnI=
