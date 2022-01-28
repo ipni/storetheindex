@@ -95,9 +95,10 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 		return
 	}
 
+	msecPerMh := coremetrics.MsecSince(startTime) / float64(len(mhs))
 	_ = stats.RecordWithOptions(context.Background(),
 		stats.WithTags(tag.Insert(metrics.Method, "http")),
-		stats.WithMeasurements(metrics.FindLatency.M(coremetrics.MsecSince(startTime))))
+		stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
 
 	httpserver.WriteJsonResponse(w, http.StatusOK, rb)
 }
