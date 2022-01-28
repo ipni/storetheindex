@@ -282,7 +282,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 		// Check that latest sync recorded in datastore
 		lcid, err = ing.getLatestSync(pubHost.ID())
 		require.NoError(t, err)
-		require.Equal(t, lcid, adCid)
+		require.Equal(t, adCid, lcid)
 	case <-ctx.Done():
 		t.Fatal("sync timeout")
 	}

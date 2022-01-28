@@ -497,11 +497,23 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 		return nil
 	}
 
+	ing.entryChunksSeenInAdMu.Lock()
+	defer ing.entryChunksSeenInAdMu.Unlock()
+	seen := ing.entryChunksSeenInAd[adCid]
+	seen++
+	if ing.entryChunksSeenInAd == nil {
+		ing.entryChunksSeenInAd = make(map[cid.Cid]int64)
+	}
+	ing.entryChunksSeenInAd[adCid] = seen
+	entryChunkLimitReached := seen >= ing.entryChunkLimitPerAd
+
 	// If we don't have another entrychunk to process than we've finished this ad.
 	// Note this *is* the source of truth for if an advertisement is processed.
 	// syncAdEntries will not know if this has been processed properly. because
 	// .Sync will return before the block hook is finished.
-	if !hasNextLink {
+	if !hasNextLink || entryChunkLimitReached {
+		delete(ing.entryChunksSeenInAd, adCid)
+
 		// We've processed all the entries, we can mark this ad as processed
 		err = ing.markAdProcessed(pubID, adCid)
 		if err != nil {
