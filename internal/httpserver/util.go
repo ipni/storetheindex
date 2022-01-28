@@ -6,7 +6,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	logging "github.com/ipfs/go-log/v2"
 )
 
@@ -15,6 +15,8 @@ var log = logging.Logger("indexer/http")
 func WriteJsonResponse(w http.ResponseWriter, status int, body []byte) {
 	w.WriteHeader(status)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	if _, err := w.Write(body); err != nil {
 		log.Errorw("cannot write response", "err", err)
