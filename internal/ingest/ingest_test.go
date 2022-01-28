@@ -385,10 +385,14 @@ func TestMultiplePublishers(t *testing.T) {
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
 	time.Sleep(2 * time.Second)
 
+	ctx := context.Background()
+
 	// Test with two random advertisement publications for each of them.
 	c1, mhs, providerID := publishRandomAdv(t, i, pubHost1, pub1, lsys1, false)
+	i.Sync(ctx, pubHost1.ID(), nil)
 	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
 	c2, mhs, providerID := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
+	i.Sync(ctx, pubHost2.ID(), nil)
 	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
 
 	// Check that subscriber recorded latest sync.
