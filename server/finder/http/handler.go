@@ -2,6 +2,7 @@ package httpfinderserver
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/httpserver"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/filecoin-project/storetheindex/internal/version"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
@@ -98,4 +100,11 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 		stats.WithMeasurements(metrics.FindLatency.M(coremetrics.MsecSince(startTime))))
 
 	httpserver.WriteJsonResponse(w, http.StatusOK, rb)
+}
+
+func (h *httpHandler) health(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache")
+	v := version.String()
+	b, _ := json.Marshal(v)
+	httpserver.WriteJsonResponse(w, http.StatusOK, b)
 }
