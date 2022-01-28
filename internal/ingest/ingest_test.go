@@ -244,9 +244,9 @@ func TestSync(t *testing.T) {
 		lcid := lnk.(cidlink.Link).Cid
 		require.Equal(t, lcid, c1)
 		// Check that latest sync recorded in datastore
-		lcid, err = i.getLatestSync(pubHost.ID())
-		require.NoError(t, err)
 		requireTrueEventually(t, func() bool {
+			lcid, err = i.getLatestSync(pubHost.ID())
+			require.NoError(t, err)
 			return c1.Equals(lcid)
 		}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", c1, lcid)
 	case <-ctx.Done():
