@@ -23,6 +23,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 
 	// Import so these codecs get registered.
 	_ "github.com/ipld/go-ipld-prime/codec/dagcbor"
@@ -34,7 +35,7 @@ type adCacheItem struct {
 	isRm  bool
 }
 
-const waitPreviousAdTime = 5 * time.Second
+var waitPreviousAdTime = 5 * time.Second
 
 var (
 	errBadAdvert              = errors.New("bad advertisement")
@@ -98,42 +99,10 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry, adWaiter *cidWa
 					return err
 				}
 
-				// Store entries link into the reverse map so there is a way of
-				// identifying what advertisementID announced these entries
-				// when we come across the link.
-				log.Debug("Saving map of entries to advertisement and advertisement data")
-				elnk, err := ad.FieldEntries().AsLink()
-				if err != nil {
-					log.Errorw("Error getting link for entries from advertisement", "err", err)
-					return errBadAdvert
-				}
-				err = pushCidToAdMapping(lctx.Ctx, ds, elnk.(cidlink.Link).Cid, c)
-				if err != nil {
-					log.Errorw("Error storing reverse map for entries in datastore", "err", err)
-					return errors.New("cannot process advertisement")
-				}
-
-				// Make the CID of this advertisement waitable.  When content
-				// chunks for an advertisement arrive (in storage hook),
-				// processing will wait for the previous advertisement to
-				// finish processing.  The CID is added to the waiter here, so
-				// that it is available for waiting on before the arrival of
-				// the previous advertisement's content blocks.
-				err = adWaiter.add(c)
-				if err != nil {
-					log.Errorw("Cannot create cid wait for advertisement", "err", err)
-					return errors.New("cannot process advertisement")
-				}
-
 				// Persist the advertisement.  This is read later when
 				// processing each chunk of entries, to get info common to all
 				// entries in a chunk.
-				err = ds.Put(lctx.Ctx, dsKey(c.String()), origBuf)
-				if err != nil {
-					adWaiter.done(c)
-					return err
-				}
-				return nil
+				return ds.Put(lctx.Ctx, dsKey(c.String()), origBuf)
 			}
 			log.Debug("Received IPLD node")
 			// Any other type of node (like entries) are stored right away.
@@ -242,6 +211,32 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 			return
 		}
 
+		// Store entries link into the reverse map so there is a way of
+		// identifying what advertisementID announced these entries
+		// when we come across the link.
+		log.Debug("Saving map of entries to advertisement and advertisement data")
+		elnk, err := ad.FieldEntries().AsLink()
+		if err != nil {
+			log.Errorw("Error getting link for entries from advertisement", "err", err)
+		}
+
+		err = pushCidToAdMapping(context.Background(), ing.ds, elnk.(cidlink.Link).Cid, c)
+		if err != nil {
+			log.Errorw("Error storing reverse map for entries in datastore", "err", err)
+		}
+
+		// Make the CID of this advertisement waitable.  When content
+		// chunks for an advertisement arrive (in storage hook),
+		// processing will wait for the previous advertisement to
+		// finish processing.  The CID is added to the waiter here, so
+		// that it is available for waiting on before the arrival of
+		// the previous advertisement's content blocks.
+		err = ing.adWaiter.add(c)
+		if err != nil {
+			log.Errorw("Cannot create cid wait for advertisement", "err", err)
+			return
+		}
+
 		// It is possible that entries for a previous advertisement are still being
 		// synced, and the current advertisement deletes those entries or updates
 		// the metadata.  The delete or update does not need to wait on a sync, and
@@ -258,9 +253,9 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 			lnk, err := ad.FieldPreviousID().Must().AsLink()
 			if err != nil {
 				log.Errorw("Cannot read previous link from advertisement", "err", err)
-			} else {
-				prevCid = lnk.(cidlink.Link).Cid
+				return
 			}
+			prevCid = lnk.(cidlink.Link).Cid
 		}
 
 		log.Infow("Incoming block is an advertisement", "prevAd", prevCid)
@@ -423,6 +418,19 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	// Record how long sync took.
 	stats.Record(context.Background(), metrics.SyncLatency.M(float64(elapsed.Nanoseconds())/1e6))
 	log.Infow("Finished syncing entries", "elapsed", elapsed)
+
+	// We've processed all the entries, we can mark this ad as processed
+	err = ing.markAdProcessed(from, adCid)
+	if err != nil {
+		log.Errorf("Failed to mark ad as processed: %v", err)
+	} else {
+		log.Debugw("Persisted latest sync", "peer", from, "cid", adCid)
+		_ = stats.RecordWithOptions(context.Background(),
+			stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
+			stats.WithMeasurements(metrics.IngestChange.M(1)))
+
+		ing.signalMetricsUpdate()
+	}
 }
 
 // indexContentBlock indexes the content multihashes in a block of data.  First
@@ -449,8 +457,12 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 	// entries CID to the ad CID so that the ad can be loaded when that chunk
 	// is received.
 	//
-	// Do not return here if error; try to index content in this chunk.
-	hasNextLink, linkErr := ing.setNextCidToAd(nchunk, adCid)
+	// If we error in reading the next link, then that means this entry chunk is
+	// malformed, so it is okay to skip it.
+	hasNextLink, err := ing.setNextCidToAd(nchunk, adCid)
+	if err != nil {
+		return err
+	}
 
 	// Load the advertisement data for this chunk.  If there are more chunks to
 	// follow, then cache the ad data.
@@ -493,7 +505,13 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 		return fmt.Errorf("cannot put multihashes into indexer: %s", err)
 	}
 
-	return linkErr
+	err = <-errChan
+	if err != nil {
+		return nil
+	}
+
+	return nil
+
 }
 
 func (ing *Ingester) setNextCidToAd(nchunk schema.EntryChunk, adCid cid.Cid) (bool, error) {

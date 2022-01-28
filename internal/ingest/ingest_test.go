@@ -3,11 +3,15 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/go-indexer-core/cache"
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
@@ -18,12 +22,15 @@ import (
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/filecoin-project/storetheindex/test/typehelpers"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipld/go-ipld-prime"
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
+	"github.com/ipld/go-ipld-prime/datamodel"
+	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
@@ -45,10 +52,11 @@ const (
 
 var (
 	ingestCfg = config.Ingest{
-		PubSubTopic:       "test/ingest",
-		StoreBatchSize:    256,
-		SyncTimeout:       config.Duration(time.Minute),
-		EntriesDepthLimit: 10,
+		PubSubTopic:             "test/ingest",
+		StoreBatchSize:          256,
+		SyncTimeout:             config.Duration(time.Minute),
+		EntriesDepthLimit:       300,
+		AdvertisementDepthLimit: 300,
 	}
 	rng = rand.New(rand.NewSource(1413))
 )
@@ -96,6 +104,118 @@ func TestSubscribe(t *testing.T) {
 	require.Nil(t, adv)
 }
 
+type blockList struct {
+	mu   sync.Mutex
+	list map[cid.Cid]bool
+}
+
+func (b *blockList) add(c cid.Cid) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.list[c] = true
+}
+
+func (b *blockList) rm(c cid.Cid) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.list, c)
+}
+
+func TestRestartDuringSync(t *testing.T) {
+	blockedReads := &blockList{list: make(map[cid.Cid]bool)}
+	hitBlockedRead := make(chan cid.Cid)
+
+	te := setupTestEnv(t, true, func(teo *testEnvOpts) {
+		teo.skipIngesterCleanup = true
+		teo.publisherLinkSysFn = func(ds datastore.Batching) ipld.LinkSystem {
+			lsys := cidlink.DefaultLinkSystem()
+			backendLsys := mkProvLinkSystem(ds)
+
+			lsys.StorageWriteOpener = backendLsys.StorageWriteOpener
+			lsys.StorageReadOpener = func(lc linking.LinkContext, l datamodel.Link) (io.Reader, error) {
+				blockedReads.mu.Lock()
+				defer blockedReads.mu.Unlock()
+				if blockedReads.list[l.(cidlink.Link).Cid] {
+					fmt.Println("blocked read")
+					hitBlockedRead <- l.(cidlink.Link).Cid
+					return nil, errors.New("blocked read")
+				}
+				return backendLsys.StorageReadOpener(lc, l)
+			}
+
+			return lsys
+		}
+	})
+
+	cCid := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
+		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.Type.Advertisement)
+	cAd := adNode.(schema.Advertisement)
+	require.NoError(t, err)
+
+	// We have a chain of 3 ads, A<-B<-C. We'll UpdateRoot to be B. Sync the
+	// ingester, then kill the ingester when it tries to process B but after it
+	// processes A. Then we'll bring the ingester up again and update root to be
+	// C, and see if we index everything (A, B, C) correctly.
+	allAds := typehelpers.AllAds(t, cAd, te.publisherLinkSys)
+	aAd := allAds[2]
+	bAd := allAds[1]
+	require.Equal(t, allAds[0], cAd)
+
+	bEntChunk, err := bAd.Entries.AsLink()
+	require.NoError(t, err)
+	blockedReads.add(bEntChunk.(cidlink.Link).Cid)
+
+	bCid, err := cAd.PreviousID.AsNode().AsLink()
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	err = te.publisher.UpdateRoot(ctx, bCid.(cidlink.Link).Cid)
+	require.NoError(t, err)
+
+	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+	require.NoError(t, err)
+
+	// The ingester tried to sync B, but it was blocked. Now let's stop the ingester.
+	<-hitBlockedRead
+	aMhs := typehelpers.AllMultihashesFromAd(t, aAd, te.publisherLinkSys)
+	// Check that we processed A correctly.
+	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), aMhs)
+
+	te.ingester.Close()
+	te.ingester.host.Close()
+
+	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
+
+	// We should not have processed B yet.
+	bMhs := typehelpers.AllMultihashesFromAd(t, bAd, te.publisherLinkSys)
+	requireTrueEventually(t, func() bool { return !providesAll(t, te.ingester.indexer, te.pubHost.ID(), bMhs...) }, testRetryInterval, testRetryTimeout, "multihashes were not indexed")
+
+	// Now we bring up the ingester again.
+	ingesterHost := mkTestHost(libp2p.Identity(te.ingesterPriv))
+	connectHosts(t, te.pubHost, ingesterHost)
+	ingester, err := NewIngester(ingestCfg, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		ingester.Close()
+	})
+	te.ingester = ingester
+
+	// And sync to C
+	te.publisher.UpdateRoot(ctx, cCid.(cidlink.Link).Cid)
+
+	end, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+	require.NoError(t, err)
+	<-end
+
+	allMhs := typehelpers.AllMultihashesFromAd(t, cAd, te.publisherLinkSys)
+	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+}
+
 func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
@@ -124,9 +244,9 @@ func TestSync(t *testing.T) {
 		lcid := lnk.(cidlink.Link).Cid
 		require.Equal(t, lcid, c1)
 		// Check that latest sync recorded in datastore
-		lcid, err = i.getLatestSync(pubHost.ID())
-		require.NoError(t, err)
 		requireTrueEventually(t, func() bool {
+			lcid, err = i.getLatestSync(pubHost.ID())
+			require.NoError(t, err)
 			return c1.Equals(lcid)
 		}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", c1, lcid)
 	case <-ctx.Done():
@@ -163,9 +283,13 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 		lcid := lnk.(cidlink.Link).Cid
 		require.Equal(t, lcid, adCid)
 		// Check that latest sync recorded in datastore
+		adNode, err := lsys.Load(linking.LinkContext{}, lnk, schema.Type.Advertisement)
+		require.NoError(t, err)
+		mhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), lsys)
+		checkMhsIndexedEventually(t, ing.indexer, providerID, mhs)
 		lcid, err = ing.getLatestSync(pubHost.ID())
 		require.NoError(t, err)
-		require.Equal(t, lcid, adCid)
+		require.Equal(t, adCid, lcid)
 	case <-ctx.Done():
 		t.Fatal("sync timeout")
 	}
@@ -261,10 +385,18 @@ func TestMultiplePublishers(t *testing.T) {
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
 	time.Sleep(2 * time.Second)
 
+	ctx := context.Background()
+
 	// Test with two random advertisement publications for each of them.
 	c1, mhs, providerID := publishRandomAdv(t, i, pubHost1, pub1, lsys1, false)
+	wait, err := i.Sync(ctx, pubHost1.ID(), nil)
+	require.NoError(t, err)
+	<-wait
 	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
 	c2, mhs, providerID := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
+	wait, err = i.Sync(ctx, pubHost2.ID(), nil)
+	require.NoError(t, err)
+	<-wait
 	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
 
 	// Check that subscriber recorded latest sync.
@@ -275,7 +407,7 @@ func TestMultiplePublishers(t *testing.T) {
 	lcid = lnk.(cidlink.Link).Cid
 	require.Equal(t, lcid, c2)
 
-	lcid, err := i.getLatestSync(pubHost1.ID())
+	lcid, err = i.getLatestSync(pubHost1.ID())
 	require.NoError(t, err)
 	require.Equal(t, lcid, c1)
 	lcid, err = i.getLatestSync(pubHost2.ID())
@@ -283,8 +415,9 @@ func TestMultiplePublishers(t *testing.T) {
 	require.Equal(t, lcid, c2)
 }
 
-func mkTestHost() host.Host {
-	h, _ := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+func mkTestHost(opts ...libp2p.Option) host.Host {
+	opts = append(opts, libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	h, _ := libp2p.New(opts...)
 	return h
 }
 
@@ -407,11 +540,11 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publis
 	return lnk.(cidlink.Link).Cid, mhs, p
 }
 
-func checkMhsIndexedEventually(t *testing.T, ix *engine.Engine, p peer.ID, mhs []multihash.Multihash) {
+func checkMhsIndexedEventually(t *testing.T, ix indexer.Interface, p peer.ID, mhs []multihash.Multihash) {
 	requireTrueEventually(t, func() bool { return providesAll(t, ix, p, mhs...) }, testRetryInterval, testRetryTimeout, "multihashes were not indexed")
 }
 
-func providesAll(t *testing.T, ix *engine.Engine, p peer.ID, mhs ...multihash.Multihash) bool {
+func providesAll(t *testing.T, ix indexer.Interface, p peer.ID, mhs ...multihash.Multihash) bool {
 	for _, mh := range mhs {
 		values, exists, err := ix.Get(mh)
 		if err != nil || !exists {
@@ -483,5 +616,73 @@ func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Dura
 			return
 		case <-ticker.C:
 		}
+	}
+}
+
+type testEnv struct {
+	publisher        legs.Publisher
+	pubHost          host.Host
+	pubStore         datastore.Batching
+	publisherPriv    crypto.PrivKey
+	ingesterPriv     crypto.PrivKey
+	publisherLinkSys ipld.LinkSystem
+	ingester         *Ingester
+}
+
+type testEnvOpts struct {
+	publisherLinkSysFn  func(ds datastore.Batching) ipld.LinkSystem
+	skipIngesterCleanup bool
+}
+
+func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOpts)) *testEnv {
+	testOpt := &testEnvOpts{}
+	for _, f := range opts {
+		f(testOpt)
+	}
+
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+
+	ingesterPriv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
+	ingesterHost := mkTestHost(libp2p.Identity(ingesterPriv))
+	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
+	pubHost := mkTestHost(libp2p.Identity(priv))
+	i, core, _ := mkIngest(t, ingesterHost)
+	t.Cleanup(func() {
+		core.Close()
+		if !testOpt.skipIngesterCleanup {
+			i.Close()
+		}
+	})
+
+	var lsys ipld.LinkSystem
+	if testOpt.publisherLinkSysFn != nil {
+		lsys = testOpt.publisherLinkSysFn(srcStore)
+	} else {
+		lsys = mkProvLinkSystem(srcStore)
+	}
+
+	pub, err := dtsync.NewPublisher(pubHost, srcStore, lsys, ingestCfg.PubSubTopic)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		pub.Close()
+	})
+
+	if shouldConnectHosts {
+		connectHosts(t, ingesterHost, pubHost)
+	}
+
+	require.NoError(t, err)
+
+	return &testEnv{
+		publisher:        pub,
+		publisherPriv:    priv,
+		pubHost:          pubHost,
+		pubStore:         srcStore,
+		publisherLinkSys: lsys,
+		ingester:         i,
+		ingesterPriv:     ingesterPriv,
 	}
 }

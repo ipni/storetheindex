@@ -8,11 +8,10 @@ import (
 	"sync"
 	"time"
 
-	indexer "github.com/filecoin-project/go-indexer-core/engine"
+	indexer "github.com/filecoin-project/go-indexer-core"
 	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -26,7 +25,6 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
 )
 
 var log = logging.Logger("indexer/ingest")
@@ -41,16 +39,14 @@ const (
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
-	indexer *indexer.Engine
+	indexer indexer.Interface
 
 	batchSize int
 	sigUpdate chan struct{}
 
-	sub           *legs.Subscriber
-	cancelSyncFin context.CancelFunc
-	syncTimeout   time.Duration
-	adWaiter      *cidWaiter
-	watchDone     chan struct{}
+	sub         *legs.Subscriber
+	syncTimeout time.Duration
+	adWaiter    *cidWaiter
 
 	adCache      map[cid.Cid]adCacheItem
 	adCacheMutex sync.Mutex
@@ -60,7 +56,7 @@ type Ingester struct {
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
 // communication with providers.
-func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
+func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
 	adWaiter := newCidWaiter()
 	lsys := mkLinkSystem(ds, reg, adWaiter)
 
@@ -89,7 +85,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *regi
 		sigUpdate:   make(chan struct{}, 1),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		adWaiter:    adWaiter,
-		watchDone:   make(chan struct{}),
 		entriesSel:  entSel,
 	}
 
@@ -108,10 +103,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *regi
 		return nil, err
 	}
 
-	onSyncFin, cancelSyncFin := sub.OnSyncFinished()
-	ing.cancelSyncFin = cancelSyncFin
-
-	go ing.watchSyncFinished(onSyncFin)
 	go ing.metricsUpdater()
 
 	log.Debugf("Ingester started and all hooks and linksystem registered")
@@ -120,11 +111,9 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr *indexer.Engine, reg *regi
 }
 
 func (ing *Ingester) Close() error {
-	ing.cancelSyncFin()
-	<-ing.watchDone
-
 	// Close leg transport.
 	err := ing.sub.Close()
+	ing.adWaiter.close()
 	close(ing.sigUpdate)
 	return err
 }
@@ -162,34 +151,18 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 			return
 		}
 		// Do not persist the latest sync here, because that is done in
-		// watchSyncFinished.
+		// after we've processed the ad.
 
+		ing.signalMetricsUpdate()
 		// Notification channel; buffered so as not to block if no reader.
 		out <- c.Hash()
-		ing.signalMetricsUpdate()
 	}()
 
 	return out, nil
 }
 
-// watchSyncFinished reads legs.SyncFinished events and records the latest sync
-// for the peer that was synced.
-func (ing *Ingester) watchSyncFinished(onSyncFin <-chan legs.SyncFinished) {
-	for syncFin := range onSyncFin {
-		// Persist the latest sync
-		err := ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+syncFin.PeerID.String()), syncFin.Cid.Bytes())
-		if err != nil {
-			log.Errorw("Error persisting latest sync", "err", err, "peer", syncFin.PeerID)
-			continue
-		}
-		log.Debugw("Persisted latest sync", "peer", syncFin.PeerID, "cid", syncFin.Cid)
-		_ = stats.RecordWithOptions(context.Background(),
-			stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
-			stats.WithMeasurements(metrics.IngestChange.M(1)))
-
-		ing.signalMetricsUpdate()
-	}
-	close(ing.watchDone)
+func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
+	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
 }
 
 // signalMetricsUpdate signals that metrics should be updated.
