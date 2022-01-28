@@ -16,7 +16,7 @@ RUN go mod download
 COPY . .
 
 # Build the executable
-RUN go build
+RUN go build -ldflags "-X 'github.com/filecoin-project/storetheindex/internal/version.GitVersion=$(git rev-list -1 HEAD)'"
 
 # Get su-exec, a very minimal tool for dropping privileges,
 # and tini, a very minimal init daemon for containers
