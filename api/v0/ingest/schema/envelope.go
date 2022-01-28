@@ -84,7 +84,7 @@ func signaturePayload(previousID Link_Advertisement, provider string, addrs []st
 		sigBuf.WriteByte(0)
 	}
 
-	return mh.Encode(sigBuf.Bytes(), mhCode)
+	return mh.Sum(sigBuf.Bytes(), mhCode, -1)
 }
 
 // Signs advertisements using libp2p envelope
