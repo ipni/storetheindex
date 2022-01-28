@@ -283,6 +283,10 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 		lcid := lnk.(cidlink.Link).Cid
 		require.Equal(t, lcid, adCid)
 		// Check that latest sync recorded in datastore
+		adNode, err := lsys.Load(linking.LinkContext{}, lnk, schema.Type.Advertisement)
+		require.NoError(t, err)
+		mhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), lsys)
+		checkMhsIndexedEventually(t, ing.indexer, providerID, mhs)
 		lcid, err = ing.getLatestSync(pubHost.ID())
 		require.NoError(t, err)
 		require.Equal(t, adCid, lcid)
