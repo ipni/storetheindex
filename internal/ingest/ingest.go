@@ -162,6 +162,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 }
 
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
+	log.Debugw("Persisted latest sync", "peer", publisher, "cid", adCid)
 	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
 }
 
@@ -192,7 +193,7 @@ func (ing *Ingester) metricsUpdater() {
 				// Update value store size metric after sync.
 				size, err := ing.indexer.Size()
 				if err != nil {
-					log.Errorf("Error getting indexer value store size: %s", err)
+					log.Errorf("Error getting indexer value store size: %w", err)
 					return
 				}
 				stats.Record(context.Background(), coremetrics.StoreSize.M(size))
