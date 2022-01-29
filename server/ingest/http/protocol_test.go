@@ -57,10 +57,6 @@ func TestRegisterProvider(t *testing.T) {
 
 	test.RegisterProviderTest(t, httpClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
 
-	test.GetProviderTest(t, httpClient, peerID)
-
-	test.ListProvidersTest(t, httpClient, peerID)
-
 	test.IndexContent(t, httpClient, peerID, privKey, ind)
 
 	test.IndexContentNewAddr(t, httpClient, peerID, privKey, ind, "/ip4/127.0.0.1/tcp/7777", reg)

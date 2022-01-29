@@ -214,3 +214,61 @@ func hasMultihash(mhs []multihash.Multihash, m multihash.Multihash) bool {
 	}
 	return false
 }
+
+func GetProviderTest(t *testing.T, c client.Finder, providerID peer.ID) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	provInfo, err := c.GetProvider(ctx, providerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if provInfo == nil {
+		t.Fatal("nil provider info")
+	}
+	if provInfo.AddrInfo.ID != providerID {
+		t.Fatal("wrong peer id")
+	}
+}
+
+func ListProvidersTest(t *testing.T, c client.Finder, providerID peer.ID) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	providers, err := c.ListProviders(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(providers) != 1 {
+		t.Fatalf("should have 1 provider, has %d", len(providers))
+	}
+	if providers[0].AddrInfo.ID != providerID {
+		t.Fatal("wrong peer id")
+	}
+}
+
+func Register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID {
+	peerID, err := peer.Decode(providerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	if err != nil {
+		t.Fatal(err)
+	}
+	info := &registry.ProviderInfo{
+		AddrInfo: peer.AddrInfo{
+			ID:    peerID,
+			Addrs: []multiaddr.Multiaddr{maddr},
+		},
+	}
+
+	err = reg.Register(ctx, info)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return peerID
+}

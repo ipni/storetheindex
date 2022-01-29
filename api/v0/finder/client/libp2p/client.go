@@ -2,6 +2,7 @@ package finderp2pclient
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/filecoin-project/storetheindex/api/v0"
@@ -53,16 +54,59 @@ func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*mod
 		return nil, err
 	}
 	req := &pb.FinderMessage{
-		Type: pb.FinderMessage_GET,
+		Type: pb.FinderMessage_FIND,
 		Data: data,
 	}
 
-	data, err = c.sendRecv(ctx, req, pb.FinderMessage_GET_RESPONSE)
+	data, err = c.sendRecv(ctx, req, pb.FinderMessage_FIND_RESPONSE)
 	if err != nil {
 		return nil, err
 	}
 
 	return model.UnmarshalFindResponse(data)
+}
+
+func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*model.ProviderInfo, error) {
+	data, err := json.Marshal(providerID)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &pb.FinderMessage{
+		Type: pb.FinderMessage_GET_PROVIDER,
+		Data: data,
+	}
+
+	data, err = c.sendRecv(ctx, req, pb.FinderMessage_GET_PROVIDER_RESPONSE)
+	if err != nil {
+		return nil, err
+	}
+
+	var providerInfo model.ProviderInfo
+	err = json.Unmarshal(data, &providerInfo)
+	if err != nil {
+		return nil, err
+	}
+	return &providerInfo, nil
+}
+
+func (c *Client) ListProviders(ctx context.Context) ([]*model.ProviderInfo, error) {
+	req := &pb.FinderMessage{
+		Type: pb.FinderMessage_LIST_PROVIDERS,
+	}
+
+	data, err := c.sendRecv(ctx, req, pb.FinderMessage_LIST_PROVIDERS_RESPONSE)
+	if err != nil {
+		return nil, err
+	}
+
+	var providers []*model.ProviderInfo
+	err = json.Unmarshal(data, &providers)
+	if err != nil {
+		return nil, err
+	}
+
+	return providers, nil
 }
 
 func (c *Client) sendRecv(ctx context.Context, req *pb.FinderMessage, expectRspType pb.FinderMessage_MessageType) ([]byte, error) {

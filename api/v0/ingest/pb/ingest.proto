@@ -10,18 +10,14 @@ package reqresp.pb;
 message IngestMessage {
     enum MessageType {
         ERROR_RESPONSE = 0;
-        LIST_PROVIDERS = 1;
-        LIST_PROVIDERS_RESPONSE = 2;
-        GET_PROVIDER = 3;
-        GET_PROVIDER_RESPONSE = 4;
-        DISCOVER_PROVIDER = 5;
-        DISCOVER_PROVIDER_RESPONSE=6;
-        REGISTER_PROVIDER = 7;
-        REGISTER_PROVIDER_RESPONSE=8;
-        REMOVE_PROVIDER = 9;
-        REMOVE_PROVIDER_RESPONSE=10;
-        INDEX_CONTENT=11;
-        INDEX_CONTENT_RESPONSE=12;
+        DISCOVER_PROVIDER = 1;
+        DISCOVER_PROVIDER_RESPONSE=2;
+        REGISTER_PROVIDER = 3;
+        REGISTER_PROVIDER_RESPONSE=4;
+        REMOVE_PROVIDER = 5;
+        REMOVE_PROVIDER_RESPONSE=6;
+        INDEX_CONTENT=7;
+        INDEX_CONTENT_RESPONSE=8;
     }
 
     // defines what type of message it is.

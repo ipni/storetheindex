@@ -54,3 +54,31 @@ func TestFindIndexData(t *testing.T) {
 		t.Errorf("Error closing indexer core: %s", err)
 	}
 }
+
+func TestProviderInfo(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Initialize everything
+	ind := test.InitIndex(t, true)
+	reg := test.InitRegistry(t)
+	s, sh := setupServer(ctx, ind, reg, t)
+	p2pClient := setupClient(s.ID(), t)
+	err := p2pClient.ConnectAddrs(ctx, sh.Addrs()...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	peerID := test.Register(ctx, t, reg)
+
+	test.GetProviderTest(t, p2pClient, peerID)
+
+	test.ListProvidersTest(t, p2pClient, peerID)
+
+	if err = reg.Close(); err != nil {
+		t.Errorf("Error closing registry: %s", err)
+	}
+	if err = ind.Close(); err != nil {
+		t.Errorf("Error closing indexer core: %s", err)
+	}
+}

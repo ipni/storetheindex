@@ -2,7 +2,6 @@ package p2pclient
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/filecoin-project/storetheindex/api/v0"
@@ -39,49 +38,6 @@ func (c *Client) Connect(ctx context.Context, hostname string) error {
 
 func (c *Client) ConnectAddrs(ctx context.Context, maddrs ...multiaddr.Multiaddr) error {
 	return c.p2pc.ConnectAddrs(ctx, maddrs...)
-}
-
-func (c *Client) ListProviders(ctx context.Context) ([]*model.ProviderInfo, error) {
-	req := &pb.IngestMessage{
-		Type: pb.IngestMessage_LIST_PROVIDERS,
-	}
-
-	data, err := c.sendRecv(ctx, req, pb.IngestMessage_LIST_PROVIDERS_RESPONSE)
-	if err != nil {
-		return nil, err
-	}
-
-	var providers []*model.ProviderInfo
-	err = json.Unmarshal(data, &providers)
-	if err != nil {
-		return nil, err
-	}
-
-	return providers, nil
-}
-
-func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*model.ProviderInfo, error) {
-	data, err := json.Marshal(providerID)
-	if err != nil {
-		return nil, err
-	}
-
-	req := &pb.IngestMessage{
-		Type: pb.IngestMessage_GET_PROVIDER,
-		Data: data,
-	}
-
-	data, err = c.sendRecv(ctx, req, pb.IngestMessage_GET_PROVIDER_RESPONSE)
-	if err != nil {
-		return nil, err
-	}
-
-	var providerInfo model.ProviderInfo
-	err = json.Unmarshal(data, &providerInfo)
-	if err != nil {
-		return nil, err
-	}
-	return &providerInfo, nil
 }
 
 func (c *Client) Register(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, addrs []string) error {

@@ -37,14 +37,15 @@ func main() {
 		Usage:   "Indexer Node: Filecoin's data indexer",
 		Version: version.String(),
 		Commands: []*cli.Command{
+			command.AdminCmd,
 			command.DaemonCmd,
 			command.FindCmd,
 			command.ImportCmd,
 			command.InitCmd,
 			command.RegisterCmd,
 			command.SyntheticCmd,
-			command.IngestCmd,
 			command.ConfigCmd,
+			command.ProvidersCmd,
 		},
 	}
 

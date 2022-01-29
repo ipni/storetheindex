@@ -3,6 +3,7 @@ package finderhttpclient
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,37 +11,42 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/api/v0/httpclient"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 )
 
 var log = logging.Logger("finderhttpclient")
 
 const (
-	finderResource = "multihash"
-	finderPort     = 3000
+	finderPort    = 3000
+	finderPath    = "/multihash"
+	providersPath = "/providers"
 )
 
 // Client is an http client for the indexer finder API
 type Client struct {
-	c       *http.Client
-	baseURL string
+	c            *http.Client
+	finderURL    string
+	providersURL string
 }
 
 // New creates a new finder HTTP client.
 func New(baseURL string, options ...httpclient.Option) (*Client, error) {
-	u, c, err := httpclient.New(baseURL, finderResource, finderPort, options...)
+	u, c, err := httpclient.New(baseURL, "", finderPort, options...)
 	if err != nil {
 		return nil, err
 	}
+	baseURL = u.String()
 	return &Client{
-		c:       c,
-		baseURL: u.String(),
+		c:            c,
+		finderURL:    baseURL + finderPath,
+		providersURL: baseURL + providersPath,
 	}, nil
 }
 
 // Find queries indexer entries for a multihash
 func (c *Client) Find(ctx context.Context, m multihash.Multihash) (*model.FindResponse, error) {
-	u := c.baseURL + "/" + m.B58String()
+	u := fmt.Sprint(c.finderURL, "/", m.B58String())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
@@ -58,11 +64,73 @@ func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*mod
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.finderURL, bytes.NewBuffer(data))
 	if err != nil {
 		return nil, err
 	}
 	return c.sendRequest(req)
+}
+
+func (c *Client) ListProviders(ctx context.Context) ([]*model.ProviderInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.providersURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("Accept", "application/json")
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, httpclient.ReadError(resp.StatusCode, body)
+	}
+
+	var providers []*model.ProviderInfo
+	err = json.Unmarshal(body, &providers)
+	if err != nil {
+		return nil, err
+	}
+
+	return providers, nil
+}
+
+func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*model.ProviderInfo, error) {
+	u := fmt.Sprint(c.providersURL, "/", providerID.String())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("Accept", "application/json")
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, httpclient.ReadError(resp.StatusCode, body)
+	}
+
+	var providerInfo model.ProviderInfo
+	err = json.Unmarshal(body, &providerInfo)
+	if err != nil {
+		return nil, err
+	}
+	return &providerInfo, nil
 }
 
 func (c *Client) sendRequest(req *http.Request) (*model.FindResponse, error) {
