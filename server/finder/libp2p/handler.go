@@ -89,7 +89,7 @@ func (h *libp2pHandler) find(ctx context.Context, p peer.ID, msg *pb.FinderMessa
 		return nil, err
 	}
 
-	r, err := h.finderHandler.MakeFindResponse(req.Multihashes)
+	r, err := h.finderHandler.Find(req.Multihashes)
 	if err != nil {
 		return nil, err
 	}
@@ -98,9 +98,10 @@ func (h *libp2pHandler) find(ctx context.Context, p peer.ID, msg *pb.FinderMessa
 		return nil, err
 	}
 
+	msecPerMh := coremetrics.MsecSince(startTime) / float64(len(req.Multihashes))
 	_ = stats.RecordWithOptions(context.Background(),
 		stats.WithTags(tag.Insert(metrics.Method, "libp2p")),
-		stats.WithMeasurements(metrics.FindLatency.M(coremetrics.MsecSince(startTime))))
+		stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
 
 	return data, nil
 }

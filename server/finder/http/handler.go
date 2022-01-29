@@ -78,7 +78,7 @@ func (h *httpHandler) findBatch(w http.ResponseWriter, r *http.Request) {
 func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash) {
 	startTime := time.Now()
 
-	response, err := h.finderHandler.MakeFindResponse(mhs)
+	response, err := h.finderHandler.Find(mhs)
 	if err != nil {
 		httpserver.HandleError(w, err, "get")
 		return

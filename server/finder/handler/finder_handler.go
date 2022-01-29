@@ -28,9 +28,9 @@ func NewFinderHandler(indexer indexer.Interface, registry *registry.Registry) *F
 	}
 }
 
-// MakeFindResponse reads from indexer core to populate a response from a list
-// of multihashes.
-func (h *FinderHandler) MakeFindResponse(mhashes []multihash.Multihash) (*model.FindResponse, error) {
+// Find reads from indexer core to populate a response from a list of
+// multihashes.
+func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse, error) {
 	results := make([]model.MultihashResult, 0, len(mhashes))
 	provAddrs := map[peer.ID][]multiaddr.Multiaddr{}
 
