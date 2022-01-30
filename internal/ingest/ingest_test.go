@@ -216,15 +216,15 @@ func TestRestartDuringSync(t *testing.T) {
 	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 }
 
-func TestRmWithNoEntries(t *testing.T) {
+func TestWithDuplicatedEntryChunks(t *testing.T) {
 	te := setupTestEnv(t, true)
 
 	chainHead := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
 			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
 		},
-		AddRmWithNoEntries: true,
+		// AddRmWithNoEntries: true,
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
 	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.Type.Advertisement)
@@ -232,6 +232,37 @@ func TestRmWithNoEntries(t *testing.T) {
 	prevHead, err := adNode.(schema.Advertisement).PreviousID.Must().AsLink()
 	require.NoError(t, err)
 	prevAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, prevHead, schema.Type.Advertisement)
+	require.NoError(t, err)
+	fmt.Println("first ad cid", prevHead.(cidlink.Link).Cid)
+	fmt.Println("second ad cid", chainHead.(cidlink.Link).Cid)
+
+	ctx := context.Background()
+	te.publisher.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
+
+	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+	require.NoError(t, err)
+	<-wait
+
+	allMhs := typehelpers.AllMultihashesFromAd(t, prevAdNode.(schema.Advertisement), te.publisherLinkSys)
+	// allAds := typehelpers.AllAds(t, adNode.(schema.Advertisement), te.publisherLinkSys)
+	// fmt.Println("all ads !!!!", allAds)
+	fmt.Println("!!!!", allMhs)
+	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+}
+
+func TestRmWithNoEntries(t *testing.T) {
+	te := setupTestEnv(t, true)
+
+	chainHead := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
+		},
+		AddRmWithNoEntries: true,
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.Type.Advertisement)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	te.publisher.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
@@ -246,12 +277,11 @@ func TestRmWithNoEntries(t *testing.T) {
 		return chainHead.(cidlink.Link).Cid == lcid
 	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", chainHead, lcid)
 
-	allMhs := typehelpers.AllMultihashesFromAd(t, prevAdNode.(schema.Advertisement), te.publisherLinkSys)
+	allMhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), te.publisherLinkSys)
 	// Remove the mhs from the first ad (since the last add removed this from the indexer)
-	allMhs = allMhs[1:]
-	fmt.Println("!!!!", allMhs)
 	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 }
+
 func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
