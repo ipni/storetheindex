@@ -13,12 +13,9 @@ import (
 	"path"
 
 	"github.com/filecoin-project/storetheindex/api/v0/httpclient"
-	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 )
-
-var log = logging.Logger("adminhttpclient")
 
 const (
 	adminPort = 3002
@@ -68,7 +65,6 @@ func (c *Client) ImportFromManifest(ctx context.Context, fileName string, provID
 		}
 		return fmt.Errorf("importing from manifest failed: %v%s", http.StatusText(resp.StatusCode), errMsg)
 	}
-	log.Infow("Success")
 	return nil
 }
 
@@ -95,7 +91,6 @@ func (c *Client) ImportFromCidList(ctx context.Context, fileName string, provID 
 		}
 		return fmt.Errorf("importing from cidlist failed: %v%s", http.StatusText(resp.StatusCode), errMsg)
 	}
-	log.Infow("Success")
 	return nil
 }
 
