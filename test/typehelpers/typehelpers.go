@@ -30,6 +30,7 @@ type RandomAdBuilder struct {
 
 	EntryChunkBuilders []RandomEntryChunkBuilder
 	Seed               int64
+	AddRmWithNoEntries bool
 }
 
 func (b RandomAdBuilder) Build(t *testing.T, lsys ipld.LinkSystem, signingKey crypto.PrivKey) datamodel.Link {
@@ -67,6 +68,14 @@ func (b RandomAdBuilder) Build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 		// }
 		require.NoError(t, err)
 	}
+
+	if b.AddRmWithNoEntries {
+		// This will just remove all things in the first ad block.
+		ctxID := []byte("test-context-id-" + fmt.Sprint(0))
+		_, headLink, err = schema.NewAdvertisementWithLink(lsys, signingKey, headLink, schema.NoEntries, ctxID, metadata, true, p.String(), addrs)
+		require.NoError(t, err)
+	}
+
 	lnk, err := headLink.AsLink()
 	require.NoError(t, err)
 	return lnk
