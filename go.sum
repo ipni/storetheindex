@@ -215,8 +215,8 @@ github.com/filecoin-project/go-data-transfer v1.14.0/go.mod h1:wNJKhaLLYBJDM3VFv
 github.com/filecoin-project/go-ds-versioning v0.0.0-20211206185234-508abd7c2aff/go.mod h1:C9/l9PnB1+mwPa26BBVpCjG/XQCB0yj/q5CK2J8X1I4=
 github.com/filecoin-project/go-ds-versioning v0.1.1 h1:JiyBqaQlwC+UM0WhcBtVEeT3XrX59mQhT8U3p7nu86o=
 github.com/filecoin-project/go-ds-versioning v0.1.1/go.mod h1:C9/l9PnB1+mwPa26BBVpCjG/XQCB0yj/q5CK2J8X1I4=
-github.com/filecoin-project/go-indexer-core v0.2.7 h1:D0egR6Q3Jkp5r4klxkdDQvjXeLx3cwZMKE55qop2xCI=
-github.com/filecoin-project/go-indexer-core v0.2.7/go.mod h1:6YD7KwDOQ+03DdAitviL7h1fksIU6a4j52yPnA/E1PU=
+github.com/filecoin-project/go-indexer-core v0.2.8 h1:h1SRdZKTVcaXlzex3UevHh4OWDAhgpMzL4tHNAA7MQI=
+github.com/filecoin-project/go-indexer-core v0.2.8/go.mod h1:IagNfTdFuX4057kla43PjRCn3yBuUiZgIxuA0hTUamY=
 github.com/filecoin-project/go-legs v0.2.7 h1:+b1BQv4QKkRNsDUE8Z4sEhLXhfVQ+iGpHhANpYqxJlA=
 github.com/filecoin-project/go-legs v0.2.7/go.mod h1:NrdELuDbtAH8/xqRMgyOYms67aliQajExInLS6g8zFM=
 github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe h1:dF8u+LEWeIcTcfUcCf3WFVlc81Fr2JKg8zPzIbBDKDw=
@@ -574,7 +574,6 @@ github.com/ipfs/go-log/v2 v2.0.5/go.mod h1:eZs4Xt4ZUJQFM3DlanGhy7TkwwawCZcSByscw
 github.com/ipfs/go-log/v2 v2.1.1/go.mod h1:2v2nsGfZsvvAJz13SyFzf9ObaqwHiHxsPLEHntrv9KM=
 github.com/ipfs/go-log/v2 v2.1.3/go.mod h1:/8d0SH3Su5Ooc31QlL1WysJhvyOTDCjcCZ9Axpmri6g=
 github.com/ipfs/go-log/v2 v2.3.0/go.mod h1:QqGoj30OTpnKaG/LKTGTxoP2mmQtjVMEnK72gynbe/g=
-github.com/ipfs/go-log/v2 v2.4.0/go.mod h1:nPZnh7Cj7lwS3LpRU5Mwr2ol1c2gXIEXuF6aywqrtmo=
 github.com/ipfs/go-log/v2 v2.5.0 h1:+MhAooFd9XZNvR0i9FriKW6HB0ql7HNXUuflWtc0dd4=
 github.com/ipfs/go-log/v2 v2.5.0/go.mod h1:prSpmC1Gpllc9UYWxDiZDreBYw7zp4Iqp1kOLU9U5UI=
 github.com/ipfs/go-merkledag v0.0.6/go.mod h1:QYPdnlvkOg7GnQRofu9XZimC5ZW5Wi3bKys/4GQQfto=
@@ -799,7 +798,6 @@ github.com/libp2p/go-libp2p-core v0.9.0/go.mod h1:ESsbz31oC3C1AvMJoGx26RTuCkNhmk
 github.com/libp2p/go-libp2p-core v0.10.0/go.mod h1:ECdxehoYosLYHgDDFa2N4yE8Y7aQRAMf0sX9mf2sbGg=
 github.com/libp2p/go-libp2p-core v0.11.0/go.mod h1:ECdxehoYosLYHgDDFa2N4yE8Y7aQRAMf0sX9mf2sbGg=
 github.com/libp2p/go-libp2p-core v0.12.0/go.mod h1:ECdxehoYosLYHgDDFa2N4yE8Y7aQRAMf0sX9mf2sbGg=
-github.com/libp2p/go-libp2p-core v0.13.0/go.mod h1:ECdxehoYosLYHgDDFa2N4yE8Y7aQRAMf0sX9mf2sbGg=
 github.com/libp2p/go-libp2p-core v0.14.0 h1:0kYSgiK/D7Eo28GTuRXo5YHsWwAisVpFCqCVPUd/vJs=
 github.com/libp2p/go-libp2p-core v0.14.0/go.mod h1:tLasfcVdTXnixsLB0QYaT1syJOhsbrhG7q6pGrHtBg8=
 github.com/libp2p/go-libp2p-crypto v0.0.1/go.mod h1:yJkNyDmO341d5wwXxDUGO0LykUVT72ImHNUqh5D/dBE=
