@@ -266,49 +266,20 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 			return err
 		}
 
-		now := time.Now()
 		info = &ProviderInfo{
 			AddrInfo: peer.AddrInfo{
 				ID:    providerID,
 				Addrs: maddrs,
 			},
-			lastContactTime: now,
 		}
-
-		if adID != cid.Undef {
-			info.LastAdvertisement = adID
-			info.LastAdvertisementTime = now
-		}
-
-		return r.Register(ctx, info)
-	}
-
-	var update bool
-
-	if len(addrs) != 0 {
-		maddrs, err := stringsToMultiaddrs(addrs)
-		if err != nil {
-			return err
-		}
-
-		// If the registered addresses are different than those provided, then
-		// re-register with new address.
-		if len(addrs) != len(info.AddrInfo.Addrs) {
-			info.AddrInfo.Addrs = maddrs
-			update = true
-		} else {
-			for i := range maddrs {
-				if !maddrs[i].Equal(info.AddrInfo.Addrs[i]) {
-					info.AddrInfo.Addrs = maddrs
-					update = true
-					break
-				}
+	} else {
+		if len(addrs) != 0 {
+			maddrs, err := stringsToMultiaddrs(addrs)
+			if err != nil {
+				return err
 			}
+			info.AddrInfo.Addrs = maddrs
 		}
-	}
-
-	if !update && adID == cid.Undef {
-		return nil
 	}
 
 	now := time.Now()

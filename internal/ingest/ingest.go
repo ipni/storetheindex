@@ -52,13 +52,24 @@ type Ingester struct {
 	adCacheMutex sync.Mutex
 
 	entriesSel datamodel.Node
+	reg        *registry.Registry
+
+	skips      map[string]struct{}
+	skipsMutex sync.Mutex
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
 // communication with providers.
 func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
+	// Cleanup any leftover entry cid to ad cid mappings.
+	err := removeEntryAdMappings(context.Background(), ds)
+	if err != nil {
+		log.Errorw("Error cleaning temporary entries ad to mappings", "err", err)
+		// Do not return error; keep going.
+	}
+
 	adWaiter := newCidWaiter()
-	lsys := mkLinkSystem(ds, reg, adWaiter)
+	lsys := mkLinkSystem(ds, adWaiter)
 
 	// Construct a selector that recursively looks for nodes with field
 	// "PreviousID" as per Advertisement schema.  Note that the entries within
@@ -86,6 +97,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		adWaiter:    adWaiter,
 		entriesSel:  entSel,
+		reg:         reg,
 	}
 
 	// Create and start pubsub subscriber.  This also registers the storage
@@ -260,4 +272,47 @@ func (ing *Ingester) getLatestSync(peerID peer.ID) (cid.Cid, error) {
 	}
 	_, c, err := cid.CidFromBytes(b)
 	return c, err
+}
+
+// removeEntryAdMappings removes all existing temporary entry cid to ad cid
+// mappings.  If the indexer terminated unexpectedly during a sync operation,
+// then these map be left over and should be cleaned up on restart.
+func removeEntryAdMappings(ctx context.Context, ds datastore.Batching) error {
+	q := query.Query{
+		Prefix: admapPrefix,
+	}
+	results, err := ds.Query(ctx, q)
+	if err != nil {
+		return err
+	}
+	defer results.Close()
+
+	var deletes []string
+	for r := range results.Next() {
+		if r.Error != nil {
+			return err
+		}
+		ent := r.Entry
+		deletes = append(deletes, ent.Key)
+	}
+
+	if len(deletes) != 0 {
+		b, err := ds.Batch(ctx)
+		if err != nil {
+			return err
+		}
+		for i := range deletes {
+			err = b.Delete(ctx, datastore.NewKey(deletes[i]))
+			if err != nil {
+				return err
+			}
+		}
+		err = b.Commit(ctx)
+		if err != nil {
+			return err
+		}
+
+		log.Warnw("Cleaned up old temporary entry to ad mappings", "count", len(deletes))
+	}
+	return nil
 }
