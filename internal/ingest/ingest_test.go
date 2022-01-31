@@ -47,7 +47,7 @@ const (
 	testRetryTimeout  = 10 * time.Second
 
 	testEntriesChunkCount = 3
-	testEntriesChunkSize  = 10
+	testEntriesChunkSize  = 15
 )
 
 var (
@@ -249,7 +249,6 @@ func TestRmWithNoEntries(t *testing.T) {
 	allMhs := typehelpers.AllMultihashesFromAd(t, prevAdNode.(schema.Advertisement), te.publisherLinkSys)
 	// Remove the mhs from the first ad (since the last add removed this from the indexer)
 	allMhs = allMhs[1:]
-	fmt.Println("!!!!", allMhs)
 	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 }
 func TestSync(t *testing.T) {

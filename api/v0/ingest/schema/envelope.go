@@ -6,12 +6,15 @@ import (
 	"fmt"
 
 	"github.com/ipfs/go-cid"
+	logging "github.com/ipfs/go-log/v2"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/record"
-	mh "github.com/multiformats/go-multihash"
+	"github.com/multiformats/go-multihash"
 )
+
+var log = logging.Logger("indexer/schema")
 
 const (
 	adSignatureCodec  = "/indexer/ingest/adSignature"
@@ -48,7 +51,7 @@ func (r *advSignatureRecord) UnmarshalRecord(buf []byte) error {
 }
 
 // Generates the data payload used for signature.
-func signaturePayload(previousID Link_Advertisement, provider string, addrs []string, entries Link, metadata []byte, isRm bool) ([]byte, error) {
+func signaturePayload(previousID Link_Advertisement, provider string, addrs []string, entries Link, metadata []byte, isRm, oldFormat bool) ([]byte, error) {
 	bindex := cid.Undef.Bytes()
 	lindex, err := previousID.AsLink()
 	if err != nil {
@@ -84,7 +87,14 @@ func signaturePayload(previousID Link_Advertisement, provider string, addrs []st
 		sigBuf.WriteByte(0)
 	}
 
-	return mh.Sum(sigBuf.Bytes(), mhCode, -1)
+	// Generates the old (incorrect) data payload used for signature.  This is
+	// only for compatability with existing advertisements that have the old
+	// signatures, and should be removed when no longer needed.
+	if oldFormat {
+		return multihash.Encode(sigBuf.Bytes(), mhCode)
+	}
+
+	return multihash.Sum(sigBuf.Bytes(), mhCode, -1)
 }
 
 // Signs advertisements using libp2p envelope
@@ -99,7 +109,7 @@ func signAdvertisement(privkey crypto.PrivKey, ad Advertisement) ([]byte, error)
 	entries := ad.FieldEntries()
 	metadata := ad.FieldMetadata().x
 
-	advID, err := signaturePayload(&previousID, provider, addrs, entries, metadata, isRm)
+	advID, err := signaturePayload(&previousID, provider, addrs, entries, metadata, isRm, false)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +123,10 @@ func signAdvertisement(privkey crypto.PrivKey, ad Advertisement) ([]byte, error)
 // VerifyAdvertisement verifies that the advertisement has been signed and
 // generated correctly.  Returns the peer ID of the signer.
 func VerifyAdvertisement(ad Advertisement) (peer.ID, error) {
+	// sigSize is the size of the current signature.  Any signature that is not
+	// this size is the old signature format.
+	const sigSize = 34
+
 	previousID := ad.FieldPreviousID().v
 	provider := ad.FieldProvider().x
 	addrs, err := IpldToGoStrings(ad.FieldAddresses())
@@ -124,24 +138,30 @@ func VerifyAdvertisement(ad Advertisement) (peer.ID, error) {
 	metadata := ad.FieldMetadata().x
 	sig := ad.FieldSignature().x
 
-	genID, err := signaturePayload(&previousID, provider, addrs, entries, metadata, isRm)
-	if err != nil {
-		return peer.ID(""), err
-	}
-
 	// Consume envelope
 	rec := &advSignatureRecord{}
 	envelope, err := record.ConsumeTypedEnvelope(sig, rec)
 	if err != nil {
 		return peer.ID(""), err
 	}
+
+	oldFormat := len(rec.advID) != sigSize
+	genID, err := signaturePayload(&previousID, provider, addrs, entries, metadata, isRm, oldFormat)
+	if err != nil {
+		return peer.ID(""), err
+	}
+
 	if !bytes.Equal(genID, rec.advID) {
-		return peer.ID(""), errors.New("envelope signed with the wrong ID")
+		return peer.ID(""), errors.New("invalid signature")
 	}
 
 	signerID, err := peer.IDFromPublicKey(envelope.PublicKey)
 	if err != nil {
 		return peer.ID(""), fmt.Errorf("cannot convert public key to peer ID: %s", err)
+	}
+
+	if oldFormat {
+		log.Warnw("advertisement has deprecated signature format", "signer", signerID)
 	}
 
 	return signerID, nil

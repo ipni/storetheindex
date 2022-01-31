@@ -10,12 +10,9 @@ import (
 
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/api/v0/httpclient"
-	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 )
-
-var log = logging.Logger("finderhttpclient")
 
 const (
 	finderPort    = 3000
@@ -142,7 +139,6 @@ func (c *Client) sendRequest(req *http.Request) (*model.FindResponse, error) {
 	// Handle failed requests
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
-			log.Info("Entry not found in indexer")
 			return &model.FindResponse{}, nil
 		}
 		return nil, fmt.Errorf("batch find query failed: %v", http.StatusText(resp.StatusCode))
