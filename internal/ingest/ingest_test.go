@@ -44,7 +44,7 @@ import (
 const (
 	testProtocolID    = 0x300000
 	testRetryInterval = 2 * time.Second
-	testRetryTimeout  = 10 * time.Second
+	testRetryTimeout  = 15 * time.Second
 
 	testEntriesChunkCount = 3
 	testEntriesChunkSize  = 15
@@ -322,7 +322,17 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 		require.NoError(t, err)
 		mhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), lsys)
 		checkMhsIndexedEventually(t, ing.indexer, providerID, mhs)
+
 		lcid, err = ing.getLatestSync(pubHost.ID())
+		for lcid == cid.Undef {
+			// May not have marked ad as processed yet, retry.
+			time.Sleep(time.Second)
+			if ctx.Err() != nil {
+				t.Fatal("sync timeout")
+			}
+			lcid, err = ing.getLatestSync(pubHost.ID())
+		}
+
 		require.NoError(t, err)
 		require.Equal(t, adCid, lcid)
 	case <-ctx.Done():

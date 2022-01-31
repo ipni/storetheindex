@@ -256,30 +256,30 @@ func (r *Registry) BlockPeer(peerID peer.ID) bool {
 func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, addrs []string, adID cid.Cid) error {
 	// Check that the provider has been discovered and validated
 	info := r.ProviderInfo(providerID)
-	if info == nil {
-		if len(addrs) == 0 {
-			return errors.New("cannot register provider with no address")
-		}
-
-		maddrs, err := stringsToMultiaddrs(addrs)
-		if err != nil {
-			return err
-		}
-
+	if info != nil {
 		info = &ProviderInfo{
 			AddrInfo: peer.AddrInfo{
 				ID:    providerID,
-				Addrs: maddrs,
+				Addrs: info.AddrInfo.Addrs,
 			},
+			DiscoveryAddr:         info.DiscoveryAddr,
+			LastAdvertisement:     info.LastAdvertisement,
+			LastAdvertisementTime: info.LastAdvertisementTime,
 		}
 	} else {
-		if len(addrs) != 0 {
-			maddrs, err := stringsToMultiaddrs(addrs)
-			if err != nil {
-				return err
-			}
-			info.AddrInfo.Addrs = maddrs
+		info = &ProviderInfo{
+			AddrInfo: peer.AddrInfo{
+				ID: providerID,
+			},
 		}
+	}
+
+	if len(addrs) != 0 {
+		maddrs, err := stringsToMultiaddrs(addrs)
+		if err != nil {
+			panic(err)
+		}
+		info.AddrInfo.Addrs = maddrs
 	}
 
 	now := time.Now()
