@@ -368,7 +368,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 			dk := dsKey(admapPrefix + entCid.String())
 			err = ing.ds.Delete(context.Background(), dk)
 			if err != nil {
-				log.Errorw("cannot delete advertisement cid for entries cid from datastore: %w", err)
+				log.Errorw("cannot delete advertisement cid for entries cid from datastore", "err", err)
 			}
 		}
 		return
