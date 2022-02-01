@@ -216,6 +216,37 @@ func TestRestartDuringSync(t *testing.T) {
 	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 }
 
+func TestWithDuplicatedEntryChunks(t *testing.T) {
+	ctx := context.Background()
+	te := setupTestEnv(t, true)
+
+	chainHead := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
+		},
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.Type.Advertisement)
+	require.NoError(t, err)
+
+	te.publisher.UpdateRoot(ctx, chainHead.(cidlink.Link).Cid)
+
+	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+	require.NoError(t, err)
+	<-wait
+	var lcid cid.Cid
+
+	requireTrueEventually(t, func() bool {
+		lcid, err = te.ingester.getLatestSync(te.pubHost.ID())
+		require.NoError(t, err)
+		return chainHead.(cidlink.Link).Cid == lcid
+	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", chainHead, lcid)
+
+	allMhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), te.publisherLinkSys)
+	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+}
+
 func TestRmWithNoEntries(t *testing.T) {
 	te := setupTestEnv(t, true)
 
