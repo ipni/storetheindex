@@ -374,7 +374,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	// provider must be allowed by policy to be registered.
 	err = ing.reg.RegisterOrUpdate(context.Background(), providerID, addrs, adCid)
 	if err != nil {
-		log.Errorw("Could register/update provider info", "err", err)
+		log.Errorw("Could not register/update provider info", "err", err)
 		return
 	}
 
