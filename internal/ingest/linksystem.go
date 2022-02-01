@@ -197,9 +197,9 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 			return
 		}
 
-		// Store entries link into the reverse map so there is a way of
-		// identifying what advertisementID announced these entries
-		// when we come across the link.
+		// Store a mapping of entries link cid to advertisement cid so there is
+		// a way of identifying what advertisement announced these entries when
+		// we come across the link.
 		log.Debug("Saving map of entries to advertisement and advertisement data")
 		elnk, err := ad.FieldEntries().AsLink()
 		if err != nil {
@@ -326,9 +326,9 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 
 	// Wait for the previous ad to finish processing.
 	if !ing.adWaiter.wait(prevCid) {
-		// If there was a previous ad, but it was not waitiable, then check if
+		// If there was a previous ad, but it was not waitable, then check if
 		// is it already in the datastore.  It ad is not stored, then wait for
-		// it to become waitable.  If ad is already in the datastoreto, then
+		// it to become waitable.  If ad is already in the datastore to, then
 		// was previously processed, so do not wait.
 		exists, err := ing.ds.Has(context.Background(), dsKey(prevCid.String()))
 		if err != nil {
@@ -340,10 +340,10 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		ing.adWaiter.wait(prevCid)
 	}
 
-	// When done with this ad's entries,
+	// Signal when done with this ad's entries.
 	defer ing.adWaiter.done(adCid)
 
-	// Mark the ad as processed after done preocessing. This is even in most
+	// Mark the ad as processed after done processing. This is even in most
 	// error cases so that the indexer is not stuck trying to reprocessing a
 	// malformed ad.
 	var reprocessAd bool
@@ -352,7 +352,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 			// Do not mark ad as done so that it will be reprocessed.
 			return
 		}
-		// Processed all the entries, so mark ths ad as processed.
+		// Processed all the entries, so mark this ad as processed.
 		if err := ing.markAdProcessed(from, adCid); err != nil {
 			log.Errorw("Failed to mark ad as processed", "err", err)
 		}
