@@ -206,9 +206,11 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 			log.Errorw("Error getting link for entries from advertisement", "err", err)
 		}
 
-		err = pushCidToAdMapping(context.Background(), ing.ds, elnk.(cidlink.Link).Cid, c)
-		if err != nil {
-			log.Errorw("Error storing reverse map for entries in datastore", "err", err)
+		if elnk != schema.NoEntries {
+			err = pushCidToAdMapping(context.Background(), ing.ds, elnk.(cidlink.Link).Cid, c)
+			if err != nil {
+				log.Errorw("Error storing reverse map for entries in datastore", "err", err)
+			}
 		}
 
 		// Make the CID of this advertisement waitable.  When content
@@ -314,7 +316,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 			log.Infow("Skipped advertisement that is removed later")
 		} else {
 			if isRm && elink == schema.NoEntries {
-				// This ad delete all content for a contextID.  So, skip any
+				// This ad deletes all content for a contextID.  So, skip any
 				// previous (earlier in chain) ads that arrive later, that have
 				// the same contextID and provider.
 				ing.addSkip(skipKey)
@@ -361,6 +363,14 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	// This ad has bad data or has all of its content deleted by a subsequent
 	// ad, so skip any further processing.
 	if skip {
+		if elink != schema.NoEntries {
+			entCid := elink.(cidlink.Link).Cid
+			dk := dsKey(admapPrefix + entCid.String())
+			err = ing.ds.Delete(context.Background(), dk)
+			if err != nil {
+				log.Errorw("cannot delete advertisement cid for entries cid from datastore: %w", err)
+			}
+		}
 		return
 	}
 
