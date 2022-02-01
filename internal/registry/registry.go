@@ -474,6 +474,13 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 			return 0, fmt.Errorf("cannot decode provider ID: %s", err)
 		}
 
+		// If provider is not allowed, then do not load into registry.
+		allowed, _ := r.policy.Check(peerID)
+		if !allowed {
+			log.Warnw("Refusing to load registry data for forbidden peer", "peer", peerID)
+			continue
+		}
+
 		pinfo := new(ProviderInfo)
 		err = json.Unmarshal(ent.Value, pinfo)
 		if err != nil {

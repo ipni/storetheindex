@@ -44,7 +44,7 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 			continue
 		}
 
-		provResults := make([]model.ProviderResult, len(values))
+		provResults := make([]model.ProviderResult, 0, len(values))
 		for j := range values {
 			provID := values[j].ProviderID
 			// Lookup provider info for each unique provider, look in local map
@@ -52,16 +52,25 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 			addrs, ok := provAddrs[provID]
 			if !ok {
 				pinfo := h.registry.ProviderInfo(provID)
-				if pinfo != nil {
-					addrs = pinfo.AddrInfo.Addrs
-					provAddrs[provID] = addrs
+				if pinfo == nil {
+					// If provider not in registry, do not return in result.
+					continue
 				}
+				addrs = pinfo.AddrInfo.Addrs
+				provAddrs[provID] = addrs
 			}
 
-			provResults[j], err = providerResultFromValue(values[j], addrs)
+			provResult, err := providerResultFromValue(values[j], addrs)
 			if err != nil {
 				return nil, err
 			}
+			provResults = append(provResults, provResult)
+		}
+
+		// If there are no providers for this multihash, then do not return a
+		// result for it.
+		if len(provResults) == 0 {
+			continue
 		}
 
 		// Add the result to the list of index results.
