@@ -13,7 +13,6 @@ import (
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
-	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipld/go-ipld-prime"
@@ -49,7 +48,7 @@ func dsKey(k string) datastore.Key {
 // mkLinkSystem makes the indexer linkSystem which checks advertisement
 // signatures at storage. If the signature is not valid the traversal/exchange
 // is terminated.
-func mkLinkSystem(ds datastore.Batching, reg *registry.Registry, adWaiter *cidWaiter) ipld.LinkSystem {
+func mkLinkSystem(ds datastore.Batching, adWaiter *cidWaiter) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
@@ -81,20 +80,7 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry, adWaiter *cidWa
 
 				// Verify that the signature is correct and the advertisement
 				// is valid.
-				ad, provID, err := verifyAdvertisement(n)
-				if err != nil {
-					return err
-				}
-
-				addrs, err := schema.IpldToGoStrings(ad.FieldAddresses())
-				if err != nil {
-					log.Errorw("Could not get addresses from advertisement", err)
-					return errBadAdvert
-				}
-
-				// Register provider or update existing registration.  The
-				// provider must be allowed by policy to be registered.
-				err = reg.RegisterOrUpdate(lctx.Ctx, provID, addrs, c)
+				_, _, err := verifyAdvertisement(n)
 				if err != nil {
 					return err
 				}
@@ -211,9 +197,9 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 			return
 		}
 
-		// Store entries link into the reverse map so there is a way of
-		// identifying what advertisementID announced these entries
-		// when we come across the link.
+		// Store a mapping of entries link cid to advertisement cid so there is
+		// a way of identifying what advertisement announced these entries when
+		// we come across the link.
 		log.Debug("Saving map of entries to advertisement and advertisement data")
 		elnk, err := ad.FieldEntries().AsLink()
 		if err != nil {
@@ -237,17 +223,10 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 			return
 		}
 
-		// It is possible that entries for a previous advertisement are still being
-		// synced, and the current advertisement deletes those entries or updates
-		// the metadata.  The delete or update does not need to wait on a sync, and
-		// so may be done before the previous advertisement is finished syncing.
-		// The continued sync of the previous advertisement could undo the delete
-		// or update.
-		//
-		// Therefore it is necessary to ensure the ad syncs execute in the order
-		// that the advertisements occur on their chain.  This is done using a
-		// lockChain to lock the current advertisement and wait for the previous
-		// advertisement to finish being processed and unlock.
+		// It is necessary to ensure the ad syncs execute in the order that the
+		// advertisements occur on their chain.  This is done using a chained
+		// synchronization that makes processing the current wait for the
+		// previous advertisement to finish being processed.
 		var prevCid cid.Cid
 		if ad.FieldPreviousID().Exists() {
 			lnk, err := ad.FieldPreviousID().Must().AsLink()
@@ -297,14 +276,63 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 
 // syncAdEntries fetches all the entries for a single advertisement
 func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid, prevCid cid.Cid) {
+	var skip bool
+
+	log := log.With("publisher", from, "adCid", adCid)
+
+	// Get provider ID from advertisement.
+	providerID, err := providerFromAd(ad)
+	if err != nil {
+		log.Errorw("Invalid advertisement", "err", err)
+		skip = true
+	}
+
+	contextID, err := ad.FieldContextID().AsBytes()
+	if err != nil {
+		log.Errorw("Cannot read context ID from advertisement", "err", err)
+		skip = true
+	}
+
+	isRm, err := ad.FieldIsRm().AsBool()
+	if err != nil {
+		log.Errorw("Cannot read IsRm field", "err", err)
+		skip = true
+	}
+
+	elink, err := ad.FieldEntries().AsLink()
+	if err != nil {
+		log.Errorw("Error decoding advertisement entries link", "err", err)
+		skip = true
+	}
+
+	if !skip {
+		skipKey := string(contextID) + providerID.String()
+		skip = ing.hasSkip(skipKey)
+		if skip {
+			// An ad that is later in the chain has deleted all content for
+			// this ad, so skip this ad.
+			log.Infow("Skipped advertisement that is removed later")
+		} else {
+			if isRm && elink == schema.NoEntries {
+				// This ad delete all content for a contextID.  So, skip any
+				// previous (earlier in chain) ads that arrive later, that have
+				// the same contextID and provider.
+				ing.addSkip(skipKey)
+				// Remove skip after this and all previous ad in chain are processed.
+				defer ing.delSkip(skipKey)
+			}
+		}
+	}
+
+	// Wait for the previous ad to finish processing.
 	if !ing.adWaiter.wait(prevCid) {
-		// If there was a previous ad, but it was not waitiable, then check if
+		// If there was a previous ad, but it was not waitable, then check if
 		// is it already in the datastore.  It ad is not stored, then wait for
-		// it to become waitable.  If ad is already in the datastoreto, then
+		// it to become waitable.  If ad is already in the datastore to, then
 		// was previously processed, so do not wait.
 		exists, err := ing.ds.Has(context.Background(), dsKey(prevCid.String()))
 		if err != nil {
-			log.Errorw("Failed checking if ad exist", "err", err)
+			log.Errorw("Failed checking if ad exists", "err", err)
 		}
 		if !exists {
 			time.Sleep(waitPreviousAdTime)
@@ -312,10 +340,10 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		ing.adWaiter.wait(prevCid)
 	}
 
+	// Signal when done with this ad's entries.
 	defer ing.adWaiter.done(adCid)
-	log := log.With("publisher", from, "adCid", adCid)
 
-	// Mark the ad as processed after done preocessing. This is even in most
+	// Mark the ad as processed after done processing. This is even in most
 	// error cases so that the indexer is not stuck trying to reprocessing a
 	// malformed ad.
 	var reprocessAd bool
@@ -324,39 +352,35 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 			// Do not mark ad as done so that it will be reprocessed.
 			return
 		}
-		// Processed all the entries, so mark ths ad as processed.
+		// Processed all the entries, so mark this ad as processed.
 		if err := ing.markAdProcessed(from, adCid); err != nil {
 			log.Errorw("Failed to mark ad as processed", "err", err)
 		}
 	}()
 
-	isRm, err := ad.FieldIsRm().AsBool()
-	if err != nil {
-		log.Errorw("Cannot read IsRm field", "err", err)
+	// This ad has bad data or has all of its content deleted by a subsequent
+	// ad, so skip any further processing.
+	if skip {
 		return
 	}
 
-	contextID, err := ad.FieldContextID().AsBytes()
+	addrs, err := schema.IpldToGoStrings(ad.FieldAddresses())
 	if err != nil {
-		log.Errorw("Cannot read context ID from advertisement", "err", err)
+		log.Errorw("Could not get addresses from advertisement", "err", err)
 		return
 	}
 
-	elink, err := ad.FieldEntries().AsLink()
+	// Register provider or update existing registration.  The
+	// provider must be allowed by policy to be registered.
+	err = ing.reg.RegisterOrUpdate(context.Background(), providerID, addrs, adCid)
 	if err != nil {
-		log.Errorw("Error decoding advertisement entries link", "err", err)
+		log.Errorw("Could not register/update provider info", "err", err)
 		return
 	}
 
 	// If advertisement has no entries, then this is for removal by contextID
 	// or for updating metadata only.
 	if elink == schema.NoEntries {
-		providerID, err := providerFromAd(ad)
-		if err != nil {
-			log.Errorw("Invalid advertisement", "err", err)
-			return
-		}
-
 		log := log.With("contextID", base64.StdEncoding.EncodeToString(contextID), "provider", providerID)
 
 		if isRm {
@@ -440,6 +464,37 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		stats.WithMeasurements(metrics.IngestChange.M(1)))
 
 	ing.signalMetricsUpdate()
+}
+
+func (ing *Ingester) addSkip(key string) {
+	ing.skipsMutex.Lock()
+	defer ing.skipsMutex.Unlock()
+
+	if ing.skips == nil {
+		ing.skips = make(map[string]struct{})
+	}
+	ing.skips[key] = struct{}{}
+}
+
+func (ing *Ingester) hasSkip(key string) bool {
+	ing.skipsMutex.Lock()
+	defer ing.skipsMutex.Unlock()
+
+	if len(ing.skips) == 0 {
+		return false
+	}
+	_, skip := ing.skips[key]
+	return skip
+}
+
+func (ing *Ingester) delSkip(key string) {
+	ing.skipsMutex.Lock()
+	defer ing.skipsMutex.Unlock()
+
+	delete(ing.skips, key)
+	if len(ing.skips) == 0 {
+		ing.skips = nil
+	}
 }
 
 // indexContentBlock indexes the content multihashes in a block of data.  First

@@ -256,59 +256,30 @@ func (r *Registry) BlockPeer(peerID peer.ID) bool {
 func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, addrs []string, adID cid.Cid) error {
 	// Check that the provider has been discovered and validated
 	info := r.ProviderInfo(providerID)
-	if info == nil {
-		if len(addrs) == 0 {
-			return errors.New("cannot register provider with no address")
-		}
-
-		maddrs, err := stringsToMultiaddrs(addrs)
-		if err != nil {
-			return err
-		}
-
-		now := time.Now()
+	if info != nil {
 		info = &ProviderInfo{
 			AddrInfo: peer.AddrInfo{
 				ID:    providerID,
-				Addrs: maddrs,
+				Addrs: info.AddrInfo.Addrs,
 			},
-			lastContactTime: now,
+			DiscoveryAddr:         info.DiscoveryAddr,
+			LastAdvertisement:     info.LastAdvertisement,
+			LastAdvertisementTime: info.LastAdvertisementTime,
 		}
-
-		if adID != cid.Undef {
-			info.LastAdvertisement = adID
-			info.LastAdvertisementTime = now
+	} else {
+		info = &ProviderInfo{
+			AddrInfo: peer.AddrInfo{
+				ID: providerID,
+			},
 		}
-
-		return r.Register(ctx, info)
 	}
-
-	var update bool
 
 	if len(addrs) != 0 {
 		maddrs, err := stringsToMultiaddrs(addrs)
 		if err != nil {
-			return err
+			panic(err)
 		}
-
-		// If the registered addresses are different than those provided, then
-		// re-register with new address.
-		if len(addrs) != len(info.AddrInfo.Addrs) {
-			info.AddrInfo.Addrs = maddrs
-			update = true
-		} else {
-			for i := range maddrs {
-				if !maddrs[i].Equal(info.AddrInfo.Addrs[i]) {
-					info.AddrInfo.Addrs = maddrs
-					update = true
-					break
-				}
-			}
-		}
-	}
-
-	if !update && adID == cid.Undef {
-		return nil
+		info.AddrInfo.Addrs = maddrs
 	}
 
 	now := time.Now()
@@ -501,6 +472,13 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 		peerID, err := peer.Decode(path.Base(ent.Key))
 		if err != nil {
 			return 0, fmt.Errorf("cannot decode provider ID: %s", err)
+		}
+
+		// If provider is not allowed, then do not load into registry.
+		allowed, _ := r.policy.Check(peerID)
+		if !allowed {
+			log.Warnw("Refusing to load registry data for forbidden peer", "peer", peerID)
+			continue
 		}
 
 		pinfo := new(ProviderInfo)
