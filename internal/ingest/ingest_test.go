@@ -324,7 +324,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 		checkMhsIndexedEventually(t, ing.indexer, providerID, mhs)
 
 		lcid, err = ing.getLatestSync(pubHost.ID())
-		for lcid == cid.Undef {
+		for err == nil && lcid == cid.Undef {
 			// May not have marked ad as processed yet, retry.
 			time.Sleep(time.Second)
 			if ctx.Err() != nil {
