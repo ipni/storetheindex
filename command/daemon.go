@@ -119,7 +119,7 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	var lotusDiscoverer *lotus.Discoverer
-	if cfg.Discovery.LotusGateway != "" {
+	if cfg.Discovery.LotusGateway != "none" {
 		log.Infow("discovery using lotus", "gateway", cfg.Discovery.LotusGateway)
 		// Create lotus client
 		lotusDiscoverer, err = lotus.NewDiscoverer(cfg.Discovery.LotusGateway)
@@ -135,39 +135,46 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create finder HTTP server
-	maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Finder)
-	if err != nil {
-		return fmt.Errorf("bad finder address in config %s: %s", cfg.Addresses.Finder, err)
-	}
-	finderAddr, err := manet.ToNetAddr(maddr)
-	if err != nil {
-		return err
-	}
-	finderSvr, err := httpfinderserver.New(finderAddr.String(), indexerCore, reg)
-	if err != nil {
-		return err
+	var finderSvr *httpfinderserver.Server
+	if cfg.Addresses.Finder != "none" && !cctx.Bool("nofinder") {
+		maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Finder)
+		if err != nil {
+			return fmt.Errorf("bad finder address in config %s: %s", cfg.Addresses.Finder, err)
+		}
+		finderAddr, err := manet.ToNetAddr(maddr)
+		if err != nil {
+			return err
+		}
+		finderSvr, err = httpfinderserver.New(finderAddr.String(), indexerCore, reg)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Create ingest HTTP server
-	maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Ingest)
-	if err != nil {
-		return fmt.Errorf("bad ingest address in config %s: %s", cfg.Addresses.Ingest, err)
-	}
-	ingestAddr, err := manet.ToNetAddr(maddr)
-	if err != nil {
-		return err
-	}
-	ingestSvr, err := httpingestserver.New(ingestAddr.String(), indexerCore, reg)
-	if err != nil {
-		return err
+	var ingestSvr *httpingestserver.Server
+	if cfg.Addresses.Ingest != "none" && !cctx.Bool("noingest") {
+		maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Ingest)
+		if err != nil {
+			return fmt.Errorf("bad ingest address in config %s: %s", cfg.Addresses.Ingest, err)
+		}
+		ingestAddr, err := manet.ToNetAddr(maddr)
+		if err != nil {
+			return err
+		}
+		ingestSvr, err = httpingestserver.New(ingestAddr.String(), indexerCore, reg)
+		if err != nil {
+			return err
+		}
 	}
 
 	var (
 		cancelP2pServers context.CancelFunc
 		ingester         *legingest.Ingester
 	)
+
 	// Create libp2p host and servers
-	if !cfg.Addresses.DisableP2P && !cctx.Bool("nop2p") {
+	if cfg.Addresses.P2PAddr != "none" && !cctx.Bool("nop2p") {
 		ctx, cancel := context.WithCancel(cctx.Context)
 		defer cancel()
 		cancelP2pServers = cancel
@@ -190,8 +197,12 @@ func daemonCommand(cctx *cli.Context) error {
 			return err
 		}
 
-		p2pfinderserver.New(ctx, p2pHost, indexerCore, reg)
-		p2pingestserver.New(ctx, p2pHost, indexerCore, reg)
+		if finderSvr != nil {
+			p2pfinderserver.New(ctx, p2pHost, indexerCore, reg)
+		}
+		if ingestSvr != nil {
+			p2pingestserver.New(ctx, p2pHost, indexerCore, reg)
+		}
 
 		// Initialize ingester.
 		ingester, err = legingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore)
@@ -223,35 +234,50 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create admin HTTP server
-	maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Admin)
-	if err != nil {
-		return fmt.Errorf("bad admin address in config %s: %s", cfg.Addresses.Admin, err)
-	}
-	adminAddr, err := manet.ToNetAddr(maddr)
-	if err != nil {
-		return err
-	}
-	adminSvr, err := httpadminserver.New(adminAddr.String(), indexerCore, ingester, reg)
-	if err != nil {
-		return err
+	var adminSvr *httpadminserver.Server
+	if cfg.Addresses.Admin != "" && !cctx.Bool("noadmin") {
+		maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Admin)
+		if err != nil {
+			return fmt.Errorf("bad admin address in config %s: %s", cfg.Addresses.Admin, err)
+		}
+		adminAddr, err := manet.ToNetAddr(maddr)
+		if err != nil {
+			return err
+		}
+		adminSvr, err = httpadminserver.New(adminAddr.String(), indexerCore, ingester, reg)
+		if err != nil {
+			return err
+		}
 	}
 
 	log.Info("Starting http servers")
 	errChan := make(chan error, 3)
-	go func() {
-		errChan <- adminSvr.Start()
-	}()
-	go func() {
-		errChan <- finderSvr.Start()
-	}()
-	go func() {
-		errChan <- ingestSvr.Start()
-	}()
+	if adminSvr != nil {
+		go func() {
+			errChan <- adminSvr.Start()
+		}()
+		fmt.Println("Admin server:\t", cfg.Addresses.Admin)
+	} else {
+		fmt.Println("Admin server:\t disabled")
+	}
+	if finderSvr != nil {
+		go func() {
+			errChan <- finderSvr.Start()
+		}()
+		fmt.Println("Finder server:\t", cfg.Addresses.Finder)
+	} else {
+		fmt.Println("Finder server:\t disabled")
+	}
+	if ingestSvr != nil {
+		go func() {
+			errChan <- ingestSvr.Start()
+		}()
+		fmt.Println("Ingest server:\t", cfg.Addresses.Ingest)
+	} else {
+		fmt.Println("Ingest server:\t disabled")
+	}
 
-	// Out message to user (not to log).
-	fmt.Println("Finder server:\t", cfg.Addresses.Finder)
-	fmt.Println("Ingest server:\t", cfg.Addresses.Ingest)
-	fmt.Println("Admin server:\t", cfg.Addresses.Admin)
+	// Output message to user (not to log).
 	fmt.Println("Indexer is ready")
 
 	var finalErr error
@@ -281,17 +307,23 @@ func daemonCommand(cctx *cli.Context) error {
 		cancelP2pServers()
 	}
 
-	if err = ingestSvr.Shutdown(ctx); err != nil {
-		log.Errorw("Error shutting down ingest server", "err", err)
-		finalErr = ErrDaemonStop
+	if ingestSvr != nil {
+		if err = ingestSvr.Shutdown(ctx); err != nil {
+			log.Errorw("Error shutting down ingest server", "err", err)
+			finalErr = ErrDaemonStop
+		}
 	}
-	if err = finderSvr.Shutdown(ctx); err != nil {
-		log.Errorw("Error shutting down finder server", "err", err)
-		finalErr = ErrDaemonStop
+	if finderSvr != nil {
+		if err = finderSvr.Shutdown(ctx); err != nil {
+			log.Errorw("Error shutting down finder server", "err", err)
+			finalErr = ErrDaemonStop
+		}
 	}
-	if err = adminSvr.Shutdown(ctx); err != nil {
-		log.Errorw("Error shutting down admin server", "err", err)
-		finalErr = ErrDaemonStop
+	if adminSvr != nil {
+		if err = adminSvr.Shutdown(ctx); err != nil {
+			log.Errorw("Error shutting down admin server", "err", err)
+			finalErr = ErrDaemonStop
+		}
 	}
 
 	// If ingester set, close ingester

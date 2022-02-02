@@ -2,15 +2,17 @@ package config
 
 // Addresses stores the (string) multiaddr addresses for the node.
 type Addresses struct {
-	// Admin is the admin http listen address
+	// Admin is the admin http listen address. Set to "none" to disable this
+	// server for both http and libp2p.
 	Admin string
-	// Finder is the finder http isten address
+	// Finder is the finder http isten address. Set to "none" to disable this
+	// server for both http and libp2p.
 	Finder string
-	// Ingest is the index data ingestion http listen address
+	// Ingest is the index data ingestion http listen address. Set to "none"
+	// to disable this server for both http and libp2p.
 	Ingest string
-	// DisbleP2P disables libp2p hosting
-	DisableP2P bool
-	// P2PMaddr is the libp2p host multiaddr for all servers
+	// P2PMaddr is the libp2p host multiaddr for all servers. Set to "none" to
+	// disable libp2p hosting.
 	P2PAddr string
 }
 
