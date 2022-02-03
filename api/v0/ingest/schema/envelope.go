@@ -68,7 +68,7 @@ func signaturePayload(previousID Link_Advertisement, provider string, addrs []st
 
 	var addrsLen int
 	for _, addr := range addrs {
-		addrsLen = len(addr)
+		addrsLen += len(addr)
 	}
 
 	// Signature data is previousID+entries+metadata+isRm
