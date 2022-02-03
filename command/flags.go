@@ -60,8 +60,26 @@ var daemonFlags = []cli.Flag{
 	cacheSizeFlag,
 	logLevelFlag,
 	&cli.BoolFlag{
+		Name:     "noadmin",
+		Usage:    "Disable admin server",
+		Value:    false,
+		Required: false,
+	},
+	&cli.BoolFlag{
+		Name:     "noingest",
+		Usage:    "Disable ingest server (register, discover, single item ingest)",
+		Value:    false,
+		Required: false,
+	},
+	&cli.BoolFlag{
+		Name:     "nofinder",
+		Usage:    "Disable finder server",
+		Value:    false,
+		Required: false,
+	},
+	&cli.BoolFlag{
 		Name:     "nop2p",
-		Usage:    "Disable libp2p client api for indexer",
+		Usage:    "Disable libp2p hosting indexer",
 		Value:    false,
 		Required: false,
 	},
