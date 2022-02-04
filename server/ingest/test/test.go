@@ -16,8 +16,11 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/client"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/test/util"
+	"github.com/ipfs/go-datastore"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -57,6 +60,21 @@ func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 		t.Fatal(err)
 	}
 	return reg
+}
+
+func InitIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *ingest.Ingester {
+	cfg := config.Ingest{}
+	ds := datastore.NewMapDatastore()
+	host, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ing
 }
 
 func RegisterProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {

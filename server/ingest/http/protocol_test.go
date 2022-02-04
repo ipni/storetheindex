@@ -1,15 +1,19 @@
 package httpingestserver_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	httpserver "github.com/filecoin-project/storetheindex/server/ingest/http"
 	"github.com/filecoin-project/storetheindex/server/ingest/test"
+	"github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 var providerIdent = config.Identity{
@@ -17,8 +21,8 @@ var providerIdent = config.Identity{
 	PrivKey: "CAESQLypOCKYR7HGwVl4ngNhEqMZ7opchNOUA4Qc1QDpxsARGr2pWUgkXFXKU27TgzIHXqw0tXaUVx2GIbUuLitq22c=",
 }
 
-func setupServer(ind indexer.Interface, reg *registry.Registry, t *testing.T) *httpserver.Server {
-	s, err := httpserver.New("127.0.0.1:0", ind, reg)
+func setupServer(ind indexer.Interface, ing *ingest.Ingester, reg *registry.Registry, t *testing.T) *httpserver.Server {
+	s, err := httpserver.New("127.0.0.1:0", ind, ing, reg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +41,8 @@ func TestRegisterProvider(t *testing.T) {
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t, providerIdent.PeerID)
-	s := setupServer(ind, reg, t)
+	ing := test.InitIngest(t, ind, reg)
+	s := setupServer(ind, ing, reg, t)
 	httpClient := setupClient(s.URL(), t)
 
 	peerID, privKey, err := providerIdent.Decode()
@@ -68,5 +73,26 @@ func TestRegisterProvider(t *testing.T) {
 	}
 	if err = ind.Close(); err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
+	}
+}
+
+func TestAnnounce(t *testing.T) {
+	// Initialize everything
+	ind := test.InitIndex(t, true)
+	reg := test.InitRegistry(t, providerIdent.PeerID)
+	ing := test.InitIngest(t, ind, reg)
+	s := setupServer(ind, ing, reg, t)
+	httpClient := setupClient(s.URL(), t)
+	peerID, privKey, err := providerIdent.Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	test.RegisterProviderTest(t, httpClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
+
+	ai, _ := peer.AddrInfoFromString("/ip4/127.0.0.1/tcp/9999/")
+	ai.ID = peerID
+
+	if err := httpClient.Announce(context.Background(), ai, cid.Undef); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -2,14 +2,18 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v0"
+	"github.com/filecoin-project/go-legs/dtsync"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
+	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -19,12 +23,14 @@ import (
 // that is common to all protocols
 type IngestHandler struct {
 	indexer  indexer.Interface
+	ingester *ingest.Ingester
 	registry *registry.Registry
 }
 
-func NewIngestHandler(indexer indexer.Interface, registry *registry.Registry) *IngestHandler {
+func NewIngestHandler(indexer indexer.Interface, ingester *ingest.Ingester, registry *registry.Registry) *IngestHandler {
 	return &IngestHandler{
 		indexer:  indexer,
+		ingester: ingester,
 		registry: registry,
 	}
 }
@@ -104,6 +110,39 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 	}
 
 	// TODO: update last update time for provider
+
+	return nil
+}
+
+const maxAnnounceSize = 512
+
+func (h *IngestHandler) Announce(ctx context.Context, data io.Reader) error {
+	bytes, err := io.ReadAll(io.LimitReader(data, maxAnnounceSize))
+	if err != nil {
+		return err
+	}
+	an := dtsync.Message{}
+	if err := json.Unmarshal(bytes, &an); err != nil {
+		return err
+	}
+	// todo: support mulitple multiaddrs?
+	if len(an.Addrs) > 1 {
+		return fmt.Errorf("must specify 1 location to fetch on direct announcments")
+	}
+	// todo: require auth?
+
+	pid, err := peer.AddrInfoFromP2pAddr(an.Addrs[0])
+	if err != nil {
+		return err
+	}
+
+	cur, err := h.ingester.GetLatestSync(pid.ID)
+	if err == nil {
+		if cur.Equals(an.Cid) {
+			return nil
+		}
+	}
+	h.ingester.Sync(ctx, pid.ID, pid.Addrs[0])
 
 	return nil
 }

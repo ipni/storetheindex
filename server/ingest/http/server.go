@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
@@ -23,7 +24,7 @@ func (s *Server) URL() string {
 	return fmt.Sprint("http://", s.l.Addr().String())
 }
 
-func New(listen string, indexer indexer.Interface, registry *registry.Registry, options ...ServerOption) (*Server, error) {
+func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, registry *registry.Registry, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
@@ -43,11 +44,10 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	}
 	s := &Server{server, l}
 
-	h := newHandler(indexer, registry)
+	h := newHandler(indexer, ingester, registry)
 
 	// Advertisement routes
-	r.HandleFunc("/ingest/content", h.indexContent).Methods(http.MethodPost)
-	r.HandleFunc("/ingest/advertisement", h.advertise).Methods(http.MethodPut)
+	r.HandleFunc("/ingest/announce", h.announce).Methods(http.MethodPut)
 
 	// Discovery
 	r.HandleFunc("/discover", h.discoverProvider).Methods(http.MethodPost)

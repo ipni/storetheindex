@@ -27,6 +27,7 @@ import (
 	"github.com/ipfs/go-ipfs/core/bootstrap"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/urfave/cli/v2"
@@ -151,32 +152,16 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 	}
 
-	// Create ingest HTTP server
-	var ingestSvr *httpingestserver.Server
-	if cfg.Addresses.Ingest != "none" && !cctx.Bool("noingest") {
-		maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Ingest)
-		if err != nil {
-			return fmt.Errorf("bad ingest address in config %s: %s", cfg.Addresses.Ingest, err)
-		}
-		ingestAddr, err := manet.ToNetAddr(maddr)
-		if err != nil {
-			return err
-		}
-		ingestSvr, err = httpingestserver.New(ingestAddr.String(), indexerCore, reg)
-		if err != nil {
-			return err
-		}
-	}
-
 	var (
 		cancelP2pServers context.CancelFunc
 		ingester         *legingest.Ingester
+		p2pHost          host.Host
 	)
 
 	// Create libp2p host and servers
+	ctx, cancel := context.WithCancel(cctx.Context)
+	defer cancel()
 	if cfg.Addresses.P2PAddr != "none" && !cctx.Bool("nop2p") {
-		ctx, cancel := context.WithCancel(cctx.Context)
-		defer cancel()
 		cancelP2pServers = cancel
 
 		peerID, privKey, err := cfg.Identity.Decode()
@@ -187,7 +172,7 @@ func daemonCommand(cctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("bad p2p address in config %s: %s", cfg.Addresses.P2PAddr, err)
 		}
-		p2pHost, err := libp2p.New(
+		p2pHost, err = libp2p.New(
 			// Use the keypair generated during init
 			libp2p.Identity(privKey),
 			// Listen at specific address
@@ -199,9 +184,6 @@ func daemonCommand(cctx *cli.Context) error {
 
 		if finderSvr != nil {
 			p2pfinderserver.New(ctx, p2pHost, indexerCore, reg)
-		}
-		if ingestSvr != nil {
-			p2pingestserver.New(ctx, p2pHost, indexerCore, reg)
 		}
 
 		// Initialize ingester.
@@ -231,6 +213,26 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 
 		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)
+	}
+
+	// Create ingest HTTP server
+	var ingestSvr *httpingestserver.Server
+	if cfg.Addresses.Ingest != "none" && !cctx.Bool("noingest") {
+		maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Ingest)
+		if err != nil {
+			return fmt.Errorf("bad ingest address in config %s: %s", cfg.Addresses.Ingest, err)
+		}
+		ingestAddr, err := manet.ToNetAddr(maddr)
+		if err != nil {
+			return err
+		}
+		ingestSvr, err = httpingestserver.New(ingestAddr.String(), indexerCore, ingester, reg)
+		if err != nil {
+			return err
+		}
+		if cfg.Addresses.P2PAddr != "none" && !cctx.Bool("nop2p") {
+			p2pingestserver.New(ctx, p2pHost, indexerCore, ingester, reg)
+		}
 	}
 
 	// Create admin HTTP server
@@ -291,7 +293,7 @@ func daemonCommand(cctx *cli.Context) error {
 
 	log.Infow("Shutting down daemon")
 
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	ctx, cancel = context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	go func() {

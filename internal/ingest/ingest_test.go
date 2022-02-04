@@ -241,7 +241,7 @@ func TestRmWithNoEntries(t *testing.T) {
 	<-wait
 	var lcid cid.Cid
 	requireTrueEventually(t, func() bool {
-		lcid, err = te.ingester.getLatestSync(te.pubHost.ID())
+		lcid, err = te.ingester.GetLatestSync(te.pubHost.ID())
 		require.NoError(t, err)
 		return chainHead.(cidlink.Link).Cid == lcid
 	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", chainHead, lcid)
@@ -280,7 +280,7 @@ func TestSync(t *testing.T) {
 		require.Equal(t, lcid, c1)
 		// Check that latest sync recorded in datastore
 		requireTrueEventually(t, func() bool {
-			lcid, err = i.getLatestSync(pubHost.ID())
+			lcid, err = i.GetLatestSync(pubHost.ID())
 			require.NoError(t, err)
 			return c1.Equals(lcid)
 		}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", c1, lcid)
@@ -323,14 +323,14 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 		mhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), lsys)
 		checkMhsIndexedEventually(t, ing.indexer, providerID, mhs)
 
-		lcid, err = ing.getLatestSync(pubHost.ID())
+		lcid, err = ing.GetLatestSync(pubHost.ID())
 		for err == nil && lcid == cid.Undef {
 			// May not have marked ad as processed yet, retry.
 			time.Sleep(time.Second)
 			if ctx.Err() != nil {
 				t.Fatal("sync timeout")
 			}
-			lcid, err = ing.getLatestSync(pubHost.ID())
+			lcid, err = ing.GetLatestSync(pubHost.ID())
 		}
 
 		require.NoError(t, err)
@@ -452,10 +452,10 @@ func TestMultiplePublishers(t *testing.T) {
 	lcid = lnk.(cidlink.Link).Cid
 	require.Equal(t, lcid, c2)
 
-	lcid, err = i.getLatestSync(pubHost1.ID())
+	lcid, err = i.GetLatestSync(pubHost1.ID())
 	require.NoError(t, err)
 	require.Equal(t, lcid, c1)
-	lcid, err = i.getLatestSync(pubHost2.ID())
+	lcid, err = i.GetLatestSync(pubHost2.ID())
 	require.NoError(t, err)
 	require.Equal(t, lcid, c2)
 }
@@ -636,7 +636,7 @@ func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Pub
 	}
 
 	// Check if latest sync updated.
-	lcid, err := i.getLatestSync(pubHost.ID())
+	lcid, err := i.GetLatestSync(pubHost.ID())
 	require.NoError(t, err)
 
 	// If fakeSig Cids should not be saved.
