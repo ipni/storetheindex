@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -91,8 +92,8 @@ func (c *Client) Announce(ctx context.Context, provider *peer.AddrInfo, root cid
 	if err != nil {
 		return err
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.indexContentURL, bytes.NewBuffer(data))
+	fmt.Printf("req: %s\n", data)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.announceURL, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
@@ -109,7 +110,7 @@ func (c *Client) Announce(ctx context.Context, provider *peer.AddrInfo, root cid
 		return err
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		return httpclient.ReadError(resp.StatusCode, body)
 	}
 	return nil

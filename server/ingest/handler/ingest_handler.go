@@ -17,6 +17,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 )
 
 // IngestHandler provides request handling functionality for the ingest server
@@ -116,12 +117,53 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 
 const maxAnnounceSize = 512
 
+type announceMessage dtsync.Message
+
+// custom unmarshal because multiaddr.Multiaddr doesn't natively support json.Unmarshal
+func (a *announceMessage) UnmarshalJSON(data []byte) error {
+	top := map[string]*json.RawMessage{}
+	if err := json.Unmarshal(data, &top); err != nil {
+		return err
+	}
+	fmt.Printf("top: %+v\n", top)
+	ci, ok := top["Cid"]
+	if !ok || ci == nil {
+		return fmt.Errorf("missing cid")
+	}
+	c := cid.Cid{}
+	if err := json.Unmarshal(*ci, &c); err != nil {
+		return err
+	}
+	a.Cid = c
+
+	addrs, ok := top["Addrs"]
+	if !ok {
+		return fmt.Errorf("missing addrs")
+	}
+	addrList := make([]*json.RawMessage, 0)
+	if err := json.Unmarshal(*addrs, &addrList); err != nil {
+		return err
+	}
+	for _, addr := range addrList {
+		addrStr := ""
+		if err := json.Unmarshal(*addr, &addrStr); err != nil {
+			return err
+		}
+		ma, err := multiaddr.NewMultiaddr(addrStr)
+		if err != nil {
+			return err
+		}
+		a.Addrs = append(a.Addrs, ma)
+	}
+	return nil
+}
+
 func (h *IngestHandler) Announce(ctx context.Context, data io.Reader) error {
 	bytes, err := io.ReadAll(io.LimitReader(data, maxAnnounceSize))
 	if err != nil {
 		return err
 	}
-	an := dtsync.Message{}
+	an := announceMessage{}
 	if err := json.Unmarshal(bytes, &an); err != nil {
 		return err
 	}
