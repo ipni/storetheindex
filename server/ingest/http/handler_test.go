@@ -18,8 +18,6 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
-const testProtocolID = 0x300000
-
 var ident = config.Identity{
 	PeerID:  "12D3KooWPw6bfQbJHfKa2o5XpusChoq67iZoqgfnhecygjKsQRmG",
 	PrivKey: "CAESQEQliDSXbU/zR4hrGNgAM0crtmxcZ49F3OwjmptYEFuU0b0TwLTJz/OlSBBuK7QDV2PiyGOCjDkyxSXymuqLu18=",

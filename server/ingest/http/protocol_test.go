@@ -1,7 +1,6 @@
 package httpingestserver_test
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -12,8 +11,6 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	httpserver "github.com/filecoin-project/storetheindex/server/ingest/http"
 	"github.com/filecoin-project/storetheindex/server/ingest/test"
-	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 var providerIdent = config.Identity{
@@ -89,10 +86,5 @@ func TestAnnounce(t *testing.T) {
 	}
 	test.RegisterProviderTest(t, httpClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
 
-	ai, _ := peer.AddrInfoFromString("/ip4/127.0.0.1/tcp/9999/")
-	ai.ID = peerID
-
-	if err := httpClient.Announce(context.Background(), ai, cid.Undef); err != nil {
-		t.Fatal(err)
-	}
+	test.AnnounceTest(t, peerID, httpClient)
 }

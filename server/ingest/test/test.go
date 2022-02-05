@@ -19,6 +19,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/test/util"
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -214,4 +215,14 @@ func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privat
 			t.Fatalf("expected status 400, got %d", apierr.Status())
 		}
 	}
+}
+
+func AnnounceTest(t *testing.T, peerID peer.ID, cl client.Ingest) {
+	ai, _ := peer.AddrInfoFromString("/ip4/127.0.0.1/tcp/9999/")
+	ai.ID = peerID
+
+	if err := cl.Announce(context.Background(), ai, cid.Undef); err != nil {
+		t.Fatal(err)
+	}
+
 }
