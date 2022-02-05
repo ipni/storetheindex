@@ -104,8 +104,7 @@ func (h *httpHandler) announce(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	err := h.ingestHandler.Announce(r.Context(), r.Body)
 	if err != nil {
-		log.Errorw("Advertise failed:", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
+		httpserver.HandleError(w, err, "announce") 
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
