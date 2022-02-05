@@ -135,8 +135,8 @@ func (h *IngestHandler) Announce(ctx context.Context, data io.Reader) error {
 	if err != nil {
 		return err
 	}
-	allow, err := h.registry.Authorized(pid)
-	if err != nil {                                                                                                                                                      
+	allow, err := h.registry.Authorized(pid.ID)
+	if err != nil {
 		err = fmt.Errorf("error checking if peer allowed: %w", err)
 		return v0.NewError(err, http.StatusInternalServerError)
 	}
