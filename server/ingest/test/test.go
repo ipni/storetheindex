@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"strings"
 	"testing"
@@ -16,8 +17,12 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/client"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/test/util"
+	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -57,6 +62,21 @@ func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 		t.Fatal(err)
 	}
 	return reg
+}
+
+func InitIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *ingest.Ingester {
+	cfg := config.Ingest{}
+	ds := datastore.NewMapDatastore()
+	host, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ing
 }
 
 func RegisterProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {
@@ -196,4 +216,19 @@ func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privat
 			t.Fatalf("expected status 400, got %d", apierr.Status())
 		}
 	}
+}
+
+func AnnounceTest(t *testing.T, peerID peer.ID, cl client.Ingest) {
+	ai, err := peer.AddrInfoFromString(fmt.Sprintf("/ip4/127.0.0.1/tcp/9999/p2p/%s", peerID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ai.ID = peerID
+
+	mhs := util.RandomMultihashes(1, rng)
+
+	if err := cl.Announce(context.Background(), ai, cid.NewCidV1(22, mhs[0])); err != nil {
+		t.Fatalf("Failed to announce: %s", err)
+	}
+
 }

@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	pb "github.com/filecoin-project/storetheindex/api/v0/ingest/pb"
 	"github.com/filecoin-project/storetheindex/api/v0/libp2pclient"
+	"github.com/ipfs/go-cid"
 	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -76,6 +77,11 @@ func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKe
 	}
 
 	return nil
+}
+
+func (c *Client) Announce(ctx context.Context, provider *peer.AddrInfo, root cid.Cid) error {
+	// this should use gossip sub, not this deprecated rpc
+	return fmt.Errorf("note implemented")
 }
 
 func (c *Client) sendRecv(ctx context.Context, req *pb.IngestMessage, expectRspType pb.IngestMessage_MessageType) ([]byte, error) {

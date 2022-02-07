@@ -6,8 +6,9 @@ import (
 	"net/http"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	pb "github.com/filecoin-project/storetheindex/api/v0/ingest/pb"
+	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/server/ingest/handler"
@@ -27,9 +28,9 @@ type libp2pHandler struct {
 // handlerFunc is the function signature required by handlers in this package
 type handlerFunc func(context.Context, peer.ID, *pb.IngestMessage) ([]byte, error)
 
-func newHandler(indexer indexer.Interface, registry *registry.Registry) *libp2pHandler {
+func newHandler(indexer indexer.Interface, ingester *ingest.Ingester, registry *registry.Registry) *libp2pHandler {
 	return &libp2pHandler{
-		ingestHandler: handler.NewIngestHandler(indexer, registry),
+		ingestHandler: handler.NewIngestHandler(indexer, ingester, registry),
 	}
 }
 

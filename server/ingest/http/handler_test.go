@@ -8,15 +8,15 @@ import (
 	"testing"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/ipfs/go-datastore"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 )
-
-const testProtocolID = 0x300000
 
 var ident = config.Identity{
 	PeerID:  "12D3KooWPw6bfQbJHfKa2o5XpusChoq67iZoqgfnhecygjKsQRmG",
@@ -78,7 +78,17 @@ func init() {
 	idx := &mockIndexer{
 		store: map[string][]indexer.Value{},
 	}
-	hnd = newHandler(idx, reg)
+
+	host, err := libp2p.New()
+	if err != nil {
+		panic(err)
+	}
+	ds := datastore.NewMapDatastore()
+	ing, err := ingest.NewIngester(config.Ingest{}, host, idx, reg, ds)
+	if err != nil {
+		panic(err)
+	}
+	hnd = newHandler(idx, ing, reg)
 
 	providerID, err = peer.Decode(ident.PeerID)
 	if err != nil {
@@ -112,38 +122,5 @@ func TestRegisterProvider(t *testing.T) {
 	pinfo := reg.ProviderInfo(peerID)
 	if pinfo == nil {
 		t.Fatal("provider was not registered")
-	}
-}
-
-func TestIndexContent(t *testing.T) {
-	m, err := multihash.FromB58String("QmPNHBy5h7f19yJDt7ip9TvmMRbqmYsa6aetkrsc1ghjLB")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{
-		ProtocolID: testProtocolID,
-		Data:       []byte("hello world"),
-	}
-
-	peerID, privKey, err := ident.Decode()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	data, err := model.MakeIngestRequest(peerID, privKey, m, ctxID, metadata, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	reqBody := bytes.NewBuffer(data)
-
-	req := httptest.NewRequest(http.MethodPost, "http://example.com/providers", reqBody)
-	w := httptest.NewRecorder()
-	hnd.indexContent(w, req)
-
-	resp := w.Result()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatal("expected response to be", http.StatusOK)
 	}
 }

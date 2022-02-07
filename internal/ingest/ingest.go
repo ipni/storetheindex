@@ -262,7 +262,7 @@ func (ing *Ingester) restoreLatestSync() error {
 }
 
 // Get the latest CID synced for the peer.
-func (ing *Ingester) getLatestSync(peerID peer.ID) (cid.Cid, error) {
+func (ing *Ingester) GetLatestSync(peerID peer.ID) (cid.Cid, error) {
 	b, err := ing.ds.Get(context.Background(), datastore.NewKey(syncPrefix+peerID.String()))
 	if err != nil {
 		if err == datastore.ErrNotFound {

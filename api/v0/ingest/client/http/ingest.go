@@ -3,12 +3,16 @@ package ingesthttpclient
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
-	"github.com/filecoin-project/storetheindex/api/v0"
+	"github.com/filecoin-project/go-legs/dtsync"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/httpclient"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
+	"github.com/ipfs/go-cid"
 	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
@@ -16,6 +20,7 @@ import (
 
 const (
 	ingestPort       = 3001
+	announcePath     = "/ingest/announce"
 	registerPath     = "/register"
 	indexContentPath = "/ingest/content"
 )
@@ -24,6 +29,7 @@ const (
 type Client struct {
 	c               *http.Client
 	indexContentURL string
+	announceURL     string
 	registerURL     string
 }
 
@@ -37,6 +43,7 @@ func New(baseURL string, options ...httpclient.Option) (*Client, error) {
 	return &Client{
 		c:               c,
 		indexContentURL: baseURL + indexContentPath,
+		announceURL:     baseURL + announcePath,
 		registerURL:     baseURL + registerPath,
 	}, nil
 }
@@ -65,6 +72,45 @@ func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKe
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		return httpclient.ReadError(resp.StatusCode, body)
+	}
+	return nil
+}
+
+// Announce a new root cid
+func (c *Client) Announce(ctx context.Context, provider *peer.AddrInfo, root cid.Cid) error {
+	p2paddrs, err := peer.AddrInfoToP2pAddrs(provider)
+	if err != nil {
+		return err
+	}
+	record := dtsync.Message{
+		Cid:   root,
+		Addrs: p2paddrs,
+	}
+
+	data, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("req: %s\n", data)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.announceURL, bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		return httpclient.ReadError(resp.StatusCode, body)
 	}
 	return nil

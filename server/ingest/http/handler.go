@@ -6,6 +6,7 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/httpserver"
+	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/server/ingest/handler"
 )
@@ -14,9 +15,9 @@ type httpHandler struct {
 	ingestHandler *handler.IngestHandler
 }
 
-func newHandler(indexer indexer.Interface, registry *registry.Registry) *httpHandler {
+func newHandler(indexer indexer.Interface, ingester *ingest.Ingester, registry *registry.Registry) *httpHandler {
 	return &httpHandler{
-		ingestHandler: handler.NewIngestHandler(indexer, registry),
+		ingestHandler: handler.NewIngestHandler(indexer, ingester, registry),
 	}
 }
 
@@ -96,42 +97,15 @@ func (h *httpHandler) removeProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 // ----- ingest handlers -----
-// PUT /ingest/advertisement
-func (h *httpHandler) advertise(w http.ResponseWriter, r *http.Request) {
-	/*
-		w.Header().Set("Content-Type", "application/json")
-		adBuild := ingestion.Type.Advertisement.NewBuilder()
-		err := dagjson.Decoder(ptp, r.Body)
-		if err != nil {
-			log.Errorw("Advertise request json decode", "err", err.Error())
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
+// PUT /ingest/announce
+func (h *httpHandler) announce(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 
-		_, err := h.registry.Advertise(r.Context(), adBuild.Build().(ingestion.Advertisement))
-		if err != nil {
-			log.Errorw("Advertise failed:", "err", err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-	*/
+	defer r.Body.Close()
+	err := h.ingestHandler.Announce(r.Context(), r.Body)
+	if err != nil {
+		httpserver.HandleError(w, err, "announce")
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// POST /ingest/content
-func (h *httpHandler) indexContent(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Errorw("failed reading body", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	err = h.ingestHandler.IndexContent(r.Context(), body)
-	if err != nil {
-		httpserver.HandleError(w, err, "ingest")
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
 }

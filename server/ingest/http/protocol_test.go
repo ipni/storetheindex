@@ -7,6 +7,7 @@ import (
 	indexer "github.com/filecoin-project/go-indexer-core"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	httpserver "github.com/filecoin-project/storetheindex/server/ingest/http"
 	"github.com/filecoin-project/storetheindex/server/ingest/test"
@@ -17,8 +18,8 @@ var providerIdent = config.Identity{
 	PrivKey: "CAESQLypOCKYR7HGwVl4ngNhEqMZ7opchNOUA4Qc1QDpxsARGr2pWUgkXFXKU27TgzIHXqw0tXaUVx2GIbUuLitq22c=",
 }
 
-func setupServer(ind indexer.Interface, reg *registry.Registry, t *testing.T) *httpserver.Server {
-	s, err := httpserver.New("127.0.0.1:0", ind, reg)
+func setupServer(ind indexer.Interface, ing *ingest.Ingester, reg *registry.Registry, t *testing.T) *httpserver.Server {
+	s, err := httpserver.New("127.0.0.1:0", ind, ing, reg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +38,8 @@ func TestRegisterProvider(t *testing.T) {
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t, providerIdent.PeerID)
-	s := setupServer(ind, reg, t)
+	ing := test.InitIngest(t, ind, reg)
+	s := setupServer(ind, ing, reg, t)
 	httpClient := setupClient(s.URL(), t)
 
 	peerID, privKey, err := providerIdent.Decode()
@@ -57,11 +59,11 @@ func TestRegisterProvider(t *testing.T) {
 
 	test.RegisterProviderTest(t, httpClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
 
-	test.IndexContent(t, httpClient, peerID, privKey, ind)
+	//test.IndexContent(t, httpClient, peerID, privKey, ind)
 
-	test.IndexContentNewAddr(t, httpClient, peerID, privKey, ind, "/ip4/127.0.0.1/tcp/7777", reg)
+	//test.IndexContentNewAddr(t, httpClient, peerID, privKey, ind, "/ip4/127.0.0.1/tcp/7777", reg)
 
-	test.IndexContentFail(t, httpClient, peerID, privKey, ind)
+	//test.IndexContentFail(t, httpClient, peerID, privKey, ind)
 
 	if err = reg.Close(); err != nil {
 		t.Errorf("Error closing registry: %s", err)
@@ -69,4 +71,29 @@ func TestRegisterProvider(t *testing.T) {
 	if err = ind.Close(); err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
 	}
+}
+
+func TestAnnounce(t *testing.T) {
+	// Initialize everything
+	ind := test.InitIndex(t, true)
+	reg := test.InitRegistry(t, providerIdent.PeerID)
+	ing := test.InitIngest(t, ind, reg)
+	s := setupServer(ind, ing, reg, t)
+	httpClient := setupClient(s.URL(), t)
+	peerID, privKey, err := providerIdent.Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	test.RegisterProviderTest(t, httpClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
+
+	test.AnnounceTest(t, peerID, httpClient)
 }
