@@ -280,6 +280,10 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid, prevCid cid.Cid) {
 	stats.Record(context.Background(), metrics.IngestChange.M(1))
 	var skip bool
+	ingestStart := time.Now()
+	defer func() {
+		stats.Record(context.Background(), metrics.AdIngestLatency.M(coremetrics.MsecSince(ingestStart)))
+	}()
 
 	log := log.With("publisher", from, "adCid", adCid)
 
