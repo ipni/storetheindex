@@ -21,10 +21,11 @@ var (
 
 // Measures
 var (
-	FindLatency   = stats.Float64("find/latency", "Time to respond to a find request", stats.UnitMilliseconds)
-	IngestChange  = stats.Int64("ingest/change", "Number of ingest triggers received", stats.UnitDimensionless)
-	ProviderCount = stats.Int64("provider/count", "Number of know (registered) providers", stats.UnitDimensionless)
-	SyncLatency   = stats.Float64("ingest/synclatency", "Time for sync to complete", stats.UnitMilliseconds)
+	FindLatency        = stats.Float64("find/latency", "Time to respond to a find request", stats.UnitMilliseconds)
+	IngestChange       = stats.Int64("ingest/change", "Number of syncAdEntries started", stats.UnitDimensionless)
+	AdSyncedCount      = stats.Int64("ingest/adsync", "Number of syncAdEntries completed successfully", stats.UnitDimensionless)
+	ProviderCount      = stats.Int64("provider/count", "Number of known (registered) providers", stats.UnitDimensionless)
+	EntriesSyncLatency = stats.Float64("ingest/entriessynclatency", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
 )
 
 // Views
@@ -38,12 +39,16 @@ var (
 		Aggregation: view.Count(),
 		TagKeys:     []tag.Key{Method},
 	}
+	adSyncCountView = &view.View{
+		Measure:     AdSyncedCount,
+		Aggregation: view.Count(),
+	}
 	providerView = &view.View{
 		Measure:     ProviderCount,
 		Aggregation: view.LastValue(),
 	}
 	syncLatencyView = &view.View{
-		Measure:     SyncLatency,
+		Measure:     EntriesSyncLatency,
 		Aggregation: view.Distribution(0, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 1000, 2000, 5000),
 	}
 )
