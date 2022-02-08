@@ -470,7 +470,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	log.Infow("Finished syncing entries", "elapsed", elapsed)
 
 	_ = stats.RecordWithOptions(context.Background(),
-		stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
+		stats.WithTags(tag.Insert(metrics.Method, "libp2p")),
 		stats.WithMeasurements(metrics.IngestChange.M(1)))
 
 	ing.signalMetricsUpdate()
