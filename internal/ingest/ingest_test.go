@@ -238,7 +238,7 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 	var lcid cid.Cid
 
 	requireTrueEventually(t, func() bool {
-		lcid, err = te.ingester.getLatestSync(te.pubHost.ID())
+		lcid, err = te.ingester.GetLatestSync(te.pubHost.ID())
 		require.NoError(t, err)
 		return chainHead.(cidlink.Link).Cid == lcid
 	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", chainHead, lcid)
