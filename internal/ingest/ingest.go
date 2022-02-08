@@ -123,9 +123,9 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 }
 
 func (ing *Ingester) Close() error {
+	ing.adWaiter.close()
 	// Close leg transport.
 	err := ing.sub.Close()
-	ing.adWaiter.close()
 	close(ing.sigUpdate)
 	return err
 }
