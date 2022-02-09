@@ -155,10 +155,12 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		defer close(out)
 
 		isHttp := false
-		for _, p := range peerAddr.Protocols() {
-			if p.Code == multiaddr.P_HTTP || p.Code == multiaddr.P_HTTPS {
-				isHttp = true
-				break
+		if peerAddr != nil {
+			for _, p := range peerAddr.Protocols() {
+				if p.Code == multiaddr.P_HTTP || p.Code == multiaddr.P_HTTPS {
+					isHttp = true
+					break
+				}
 			}
 		}
 		if isHttp {
