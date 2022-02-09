@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-indexer-core"
+	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
@@ -22,7 +23,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
 
 	// Import so these codecs get registered.
 	_ "github.com/ipld/go-ipld-prime/codec/dagcbor"
@@ -278,7 +278,12 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 
 // syncAdEntries fetches all the entries for a single advertisement
 func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid, prevCid cid.Cid) {
+	stats.Record(context.Background(), metrics.IngestChange.M(1))
 	var skip bool
+	ingestStart := time.Now()
+	defer func() {
+		stats.Record(context.Background(), metrics.AdIngestLatency.M(coremetrics.MsecSince(ingestStart)))
+	}()
 
 	log := log.With("publisher", from, "adCid", adCid)
 
@@ -357,6 +362,8 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		// Processed all the entries, so mark this ad as processed.
 		if err := ing.markAdProcessed(from, adCid); err != nil {
 			log.Errorw("Failed to mark ad as processed", "err", err)
+		} else {
+			stats.Record(context.Background(), metrics.AdSyncedCount.M(1))
 		}
 	}()
 
@@ -466,12 +473,8 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	}
 	elapsed := time.Since(startTime)
 	// Record how long sync took.
-	stats.Record(context.Background(), metrics.SyncLatency.M(float64(elapsed.Nanoseconds())/1e6))
+	stats.Record(context.Background(), metrics.EntriesSyncLatency.M(coremetrics.MsecSince(startTime)))
 	log.Infow("Finished syncing entries", "elapsed", elapsed)
-
-	_ = stats.RecordWithOptions(context.Background(),
-		stats.WithTags(tag.Insert(metrics.Method, "libp2p2")),
-		stats.WithMeasurements(metrics.IngestChange.M(1)))
 
 	ing.signalMetricsUpdate()
 }

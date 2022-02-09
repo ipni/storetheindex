@@ -190,7 +190,7 @@ func (ing *Ingester) signalMetricsUpdate() {
 // metricsUpdate periodically updates metrics.  This goroutine exits when the
 // sigUpdate channel is closed, when Close is called.
 func (ing *Ingester) metricsUpdater() {
-	var hasUpdate bool
+	hasUpdate := true
 	t := time.NewTimer(time.Minute)
 
 	for {
