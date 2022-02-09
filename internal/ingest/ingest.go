@@ -93,15 +93,16 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		})).Node()
 
 	ing := &Ingester{
-		host:        h,
-		ds:          ds,
-		indexer:     idxr,
-		batchSize:   cfg.StoreBatchSize,
-		sigUpdate:   make(chan struct{}, 1),
-		syncTimeout: time.Duration(cfg.SyncTimeout),
-		adWaiter:    adWaiter,
-		entriesSel:  entSel,
-		reg:         reg,
+		host:          h,
+		ds:            ds,
+		indexer:       idxr,
+		batchSize:     cfg.StoreBatchSize,
+		sigUpdate:     make(chan struct{}, 1),
+		syncTimeout:   time.Duration(cfg.SyncTimeout),
+		adWaiter:      adWaiter,
+		entriesSel:    entSel,
+		reg:           reg,
+		httpProviders: make(map[peer.ID]string),
 	}
 
 	// Create and start pubsub subscriber.  This also registers the storage
@@ -165,9 +166,6 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		}
 		if isHttp {
 			ing.httpProvidersMu.Lock()
-			if ing.httpProviders == nil {
-				ing.httpProviders = make(map[peer.ID]string)
-			}
 			ing.httpProviders[peerID] = peerAddr.String()
 			ing.httpProvidersMu.Unlock()
 		}
