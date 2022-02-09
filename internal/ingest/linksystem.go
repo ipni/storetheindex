@@ -21,6 +21,7 @@ import (
 	"github.com/ipld/go-ipld-prime/multicodec"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
 
@@ -463,9 +464,23 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		ctx, cancel = context.WithTimeout(ctx, ing.syncTimeout)
 		defer cancel()
 	}
+
+	var peerAddr multiaddr.Multiaddr = nil
+	ing.httpProvidersMu.Lock()
+	addr, ok := ing.httpProviders[from]
+	if ok {
+		peerAddr, err = multiaddr.NewMultiaddr(addr)
+		if err != nil {
+			log.Errorf("Failed to create multiaddr from peer address for http provider: %s", err)
+			peerAddr = nil
+		}
+	}
+
+	ing.httpProvidersMu.Unlock()
+
 	startTime := time.Now()
 	// Traverse entries based on the entries selector that limits recursion depth.
-	_, err = ing.sub.Sync(ctx, from, entriesCid, ing.entriesSel, nil)
+	_, err = ing.sub.Sync(ctx, from, entriesCid, ing.entriesSel, peerAddr)
 	if err != nil {
 		reprocessAd = true
 		log.Errorw("Failed to sync", "err", err)

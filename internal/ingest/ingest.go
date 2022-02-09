@@ -56,6 +56,10 @@ type Ingester struct {
 
 	skips      map[string]struct{}
 	skipsMutex sync.Mutex
+
+	// A map from a peer id to a multiaddr
+	httpProviders   map[peer.ID]string
+	httpProvidersMu sync.Mutex
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -149,6 +153,22 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	out := make(chan multihash.Multihash, 1)
 	go func() {
 		defer close(out)
+
+		isHttp := false
+		for _, p := range peerAddr.Protocols() {
+			if p.Code == multiaddr.P_HTTP || p.Code == multiaddr.P_HTTPS {
+				isHttp = true
+				break
+			}
+		}
+		if isHttp {
+			ing.httpProvidersMu.Lock()
+			if ing.httpProviders == nil {
+				ing.httpProviders = make(map[peer.ID]string)
+			}
+			ing.httpProviders[peerID] = peerAddr.String()
+			ing.httpProvidersMu.Unlock()
+		}
 
 		// Start syncing. Notifications for the finished sync are sent
 		// asynchronously.  Sync with cid.Undef and a nil selector so that:

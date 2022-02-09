@@ -18,6 +18,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/go-legs/dtsync"
+	legsHttp "github.com/filecoin-project/go-legs/httpsync"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
@@ -119,6 +120,44 @@ func (b *blockList) rm(c cid.Cid) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	delete(b.list, c)
+}
+
+func TestSyncFromHttpProvider(t *testing.T) {
+	te := setupTestEnv(t, false)
+
+	pubLinkSys := mkProvLinkSystem(dssync.MutexWrap(datastore.NewMapDatastore()))
+	chainHead := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
+		},
+	}.Build(t, pubLinkSys, te.publisherPriv)
+
+	pubID, err := peer.IDFromPrivateKey(te.publisherPriv)
+	require.NoError(t, err)
+	httpPub, err := legsHttp.NewPublisher("127.0.0.1:0", pubLinkSys, pubID, te.publisherPriv)
+	require.NoError(t, err)
+
+	httpAddr := httpPub.Address()
+
+	adNode, err := pubLinkSys.Load(linking.LinkContext{}, chainHead, schema.Type.Advertisement)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	httpPub.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
+
+	wait, err := te.ingester.Sync(ctx, pubID, httpAddr)
+	require.NoError(t, err)
+	<-wait
+	var lcid cid.Cid
+	requireTrueEventually(t, func() bool {
+		lcid, err = te.ingester.GetLatestSync(te.pubHost.ID())
+		require.NoError(t, err)
+		return chainHead.(cidlink.Link).Cid == lcid
+	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", chainHead, lcid)
+
+	allMhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), pubLinkSys)
+	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 }
 
 func TestRestartDuringSync(t *testing.T) {
