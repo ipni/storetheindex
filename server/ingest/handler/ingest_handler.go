@@ -1,8 +1,8 @@
 package handler
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,7 +17,6 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/multiformats/go-multiaddr"
 )
 
 // IngestHandler provides request handling functionality for the ingest server
@@ -117,63 +116,31 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 
 const maxAnnounceSize = 512
 
-type announceMessage dtsync.Message
-
-// custom unmarshal because multiaddr.Multiaddr doesn't natively support json.Unmarshal
-func (a *announceMessage) UnmarshalJSON(data []byte) error {
-	top := map[string]*json.RawMessage{}
-	if err := json.Unmarshal(data, &top); err != nil {
-		return err
-	}
-	fmt.Printf("top: %+v\n", top)
-	ci, ok := top["Cid"]
-	if !ok || ci == nil {
-		return fmt.Errorf("missing cid")
-	}
-	c := cid.Cid{}
-	if err := json.Unmarshal(*ci, &c); err != nil {
-		return err
-	}
-	a.Cid = c
-
-	addrs, ok := top["Addrs"]
-	if !ok {
-		return fmt.Errorf("missing addrs")
-	}
-	addrList := make([]*json.RawMessage, 0)
-	if err := json.Unmarshal(*addrs, &addrList); err != nil {
-		return err
-	}
-	for _, addr := range addrList {
-		addrStr := ""
-		if err := json.Unmarshal(*addr, &addrStr); err != nil {
-			return err
-		}
-		ma, err := multiaddr.NewMultiaddr(addrStr)
-		if err != nil {
-			return err
-		}
-		a.Addrs = append(a.Addrs, ma)
-	}
-	return nil
-}
-
-func (h *IngestHandler) Announce(ctx context.Context, data io.Reader) error {
-	bytes, err := io.ReadAll(io.LimitReader(data, maxAnnounceSize))
+func (h *IngestHandler) Announce(ctx context.Context, r io.Reader) error {
+	data, err := io.ReadAll(io.LimitReader(r, maxAnnounceSize))
 	if err != nil {
 		return err
 	}
-	an := announceMessage{}
-	if err := json.Unmarshal(bytes, &an); err != nil {
+
+	// Decode CID and originator addresses from message.
+	an := dtsync.Message{}
+	if err = an.UnmarshalCBOR(bytes.NewBuffer(data)); err != nil {
 		return err
 	}
+
 	// todo: support mulitple multiaddrs?
 	if len(an.Addrs) > 1 {
 		return fmt.Errorf("must specify 1 location to fetch on direct announcments")
 	}
+
 	// todo: require auth?
 
-	pid, err := peer.AddrInfoFromP2pAddr(an.Addrs[0])
+	addrs, err := an.GetAddrs()
+	if err != nil {
+		return fmt.Errorf("could not decode addrs from announce message: %w", err)
+	}
+
+	pid, err := peer.AddrInfoFromP2pAddr(addrs[0])
 	if err != nil {
 		return err
 	}

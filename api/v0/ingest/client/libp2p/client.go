@@ -79,8 +79,8 @@ func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKe
 	return nil
 }
 
+// Deprecated: Use gossip sub instead for sending announce message,
 func (c *Client) Announce(ctx context.Context, provider *peer.AddrInfo, root cid.Cid) error {
-	// this should use gossip sub, not this deprecated rpc
 	return fmt.Errorf("note implemented")
 }
 
