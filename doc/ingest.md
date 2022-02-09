@@ -9,7 +9,7 @@ There are two parts to the ingestion / providing protocol used by store the inde
 
 ### Advertisement data structures + construction
 
-An individual advertisement is an [IPLD](https://ipld.io/docs/data-model/) object with the following schema:
+An individual advertisement is an [IPLD](https://ipld.io/docs/data-model/) object with the following [schema](https://github.com/filecoin-project/storetheindex/blob/main/api/v0/ingest/schema/schema.ipldsch):
 ```
 type Advertisement struct {
 	# Previous advertisement.
