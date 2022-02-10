@@ -116,7 +116,7 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 
 const maxAnnounceSize = 512
 
-func (h *IngestHandler) Announce(ctx context.Context, r io.Reader) error {
+func (h *IngestHandler) Announce(r io.Reader) error {
 	data, err := io.ReadAll(io.LimitReader(r, maxAnnounceSize))
 	if err != nil {
 		return err
@@ -158,7 +158,10 @@ func (h *IngestHandler) Announce(ctx context.Context, r io.Reader) error {
 			return nil
 		}
 	}
-	h.ingester.Sync(ctx, pid.ID, pid.Addrs[0])
+
+	// We set context background because this will be an async process. We don't
+	// want to attach the context to the request context that started this.
+	h.ingester.Sync(context.Background(), pid.ID, pid.Addrs[0])
 
 	return nil
 }

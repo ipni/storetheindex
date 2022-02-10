@@ -102,7 +102,7 @@ func (h *httpHandler) announce(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	defer r.Body.Close()
-	err := h.ingestHandler.Announce(r.Context(), r.Body)
+	err := h.ingestHandler.Announce(r.Body)
 	if err != nil {
 		httpserver.HandleError(w, err, "announce")
 		return
