@@ -65,6 +65,9 @@ func TestRegisterProvider(t *testing.T) {
 
 	//test.IndexContentFail(t, httpClient, peerID, privKey, ind)
 
+	if err = ing.Close(); err != nil {
+		t.Errorf("Error closing ingester: %s", err)
+	}
 	if err = reg.Close(); err != nil {
 		t.Errorf("Error closing registry: %s", err)
 	}
@@ -96,4 +99,14 @@ func TestAnnounce(t *testing.T) {
 	test.RegisterProviderTest(t, httpClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
 
 	test.AnnounceTest(t, peerID, httpClient)
+
+	if err = ing.Close(); err != nil {
+		t.Errorf("Error closing ingester: %s", err)
+	}
+	if err = reg.Close(); err != nil {
+		t.Errorf("Error closing registry: %s", err)
+	}
+	if err = ind.Close(); err != nil {
+		t.Errorf("Error closing indexer core: %s", err)
+	}
 }
