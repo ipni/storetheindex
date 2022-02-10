@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -117,14 +116,9 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 const maxAnnounceSize = 512
 
 func (h *IngestHandler) Announce(r io.Reader) error {
-	data, err := io.ReadAll(io.LimitReader(r, maxAnnounceSize))
-	if err != nil {
-		return err
-	}
-
 	// Decode CID and originator addresses from message.
 	an := dtsync.Message{}
-	if err = an.UnmarshalCBOR(bytes.NewBuffer(data)); err != nil {
+	if err := an.UnmarshalCBOR(io.LimitReader(r, maxAnnounceSize)); err != nil {
 		return err
 	}
 
