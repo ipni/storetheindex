@@ -3,8 +3,6 @@ package ingesthttpclient
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -83,17 +81,20 @@ func (c *Client) Announce(ctx context.Context, provider *peer.AddrInfo, root cid
 	if err != nil {
 		return err
 	}
-	record := dtsync.Message{
-		Cid:   root,
-		Addrs: p2paddrs,
+	msg := dtsync.Message{
+		Cid: root,
 	}
 
-	data, err := json.Marshal(record)
-	if err != nil {
+	if len(p2paddrs) != 0 {
+		msg.SetAddrs(p2paddrs)
+	}
+
+	buf := bytes.NewBuffer(nil)
+	if err := msg.MarshalCBOR(buf); err != nil {
 		return err
 	}
-	fmt.Printf("req: %s\n", data)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.announceURL, bytes.NewBuffer(data))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.announceURL, buf)
 	if err != nil {
 		return err
 	}

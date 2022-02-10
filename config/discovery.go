@@ -2,21 +2,15 @@ package config
 
 import (
 	"time"
-
-	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 // Discovery holds addresses of peers to from which to receive index
 // advertisements, which peers to allow and block, and time related settings
 // for provider discovery
 type Discovery struct {
-	// Bootstrap is a Set of nodes to try to connect to at startup
-	Bootstrap []string
 	// LotusGateway is the host or host:port for a lotus gateway used to
 	// verify providers on the blockchain.
 	LotusGateway string
-	// Peers lists nodes to attempt to stay connected with
-	Peers []peer.AddrInfo
 	// Policy configures which providers are allowed and blocked
 	Policy Policy
 	// PollInterval is the amount of time to wait without getting any updates
