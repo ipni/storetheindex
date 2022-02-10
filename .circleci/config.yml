@@ -92,7 +92,7 @@ workflows:
       - deploy-lotusinfra:
           name: deploy-mainnet-storetheindex
           chart: filecoin/lotus-bundle
-          chart_version: 0.0.12
+          chart_version: 0.0.13
           circle_context: filecoin-mainnet-aws
           kubernetes_cluster: mainnet-us-east-1-eks
           aws_region: us-east-1
