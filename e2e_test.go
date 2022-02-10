@@ -136,11 +136,23 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 	// Use a clean environment, with the host's PATH, and a temporary HOME.
 	// We also tell "go install" to place binaries there.
-	e.env = []string{
+	hostEnv := os.Environ()
+	var filteredEnv []string
+	for _, env := range hostEnv {
+		if strings.Contains(env, "CC") || strings.Contains(env, "LDFLAGS") || strings.Contains(env, "CFLAGS") {
+			// Bring in the C compiler flags from the host. For example on a Nix
+			// machine, this compilation within the test will fail since the compiler
+			// will not find correct libraries.
+			filteredEnv = append(filteredEnv, env)
+		} else if strings.HasPrefix(env, "PATH") {
+			// Bring in the host's PATH.
+			filteredEnv = append(filteredEnv, env)
+		}
+	}
+	e.env = append(filteredEnv, []string{
 		"HOME=" + e.dir,
 		"GOBIN=" + e.dir,
-		"PATH=" + os.Getenv("PATH"),
-	}
+	}...)
 	if runtime.GOOS == "windows" {
 		const gopath = "C:\\Projects\\Go"
 		err := os.MkdirAll(gopath, 0666)

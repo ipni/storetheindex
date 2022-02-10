@@ -115,10 +115,30 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 
 const maxAnnounceSize = 512
 
+// readBeforErrReader implements io.Reader but guarantees the if bytes read is > 0 err is nil.
+type readBeforErrReader struct {
+	lastErr error
+	r       io.Reader
+}
+
+func (r *readBeforErrReader) Read(p []byte) (n int, err error) {
+	if r.lastErr != nil {
+		return n, r.lastErr
+	}
+
+	n, r.lastErr = r.r.Read(p)
+	if n != 0 {
+		return n, nil
+	}
+
+	return 0, r.lastErr
+}
+
 func (h *IngestHandler) Announce(r io.Reader) error {
 	// Decode CID and originator addresses from message.
 	an := dtsync.Message{}
-	if err := an.UnmarshalCBOR(io.LimitReader(r, maxAnnounceSize)); err != nil {
+	// TODO remove readBeforErrReader when https://github.com/whyrusleeping/cbor-gen/pull/44 is merged
+	if err := an.UnmarshalCBOR(&readBeforErrReader{r: r}); err != nil {
 		return err
 	}
 
