@@ -8,11 +8,10 @@ This repo provides an indexer implementation that can be used to index data stor
 
 ## Design
 
-A design discussion of the ingestion and content routing interfaces exposed by store the index is [here](https://protocollabs.notion.site/Indexer-Node-Design-4fb94471b6be4352b6849dc9b9527825).
+A design discussion of the ingestion interfaces exposed by store the index is [here](https://github.com/filecoin-project/storetheindex/blob/main/doc/ingest.md).
 
 ## Current status 🚧
-This implementation is under development. Instances of it are running and functioning, but interfaces may continue to evolve.
-
+This implementation is entered production. A first production instance is running at https://cid.contact
 
 ## Install
 This assumes go is already installed.
