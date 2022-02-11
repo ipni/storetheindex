@@ -113,8 +113,6 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 	return nil
 }
 
-const maxAnnounceSize = 512
-
 // readBeforErrReader implements io.Reader but guarantees the if bytes read is > 0 err is nil.
 type readBeforErrReader struct {
 	lastErr error
