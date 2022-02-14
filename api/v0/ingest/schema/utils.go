@@ -251,7 +251,7 @@ func newAdvertisement(
 	}
 
 	// Sign advertisement
-	sig, err := signAdvertisement(signKey, ad)
+	sig, err := SignAdvertisement(signKey, ad)
 	if err != nil {
 		return nil, err
 	}

@@ -97,8 +97,8 @@ func signaturePayload(previousID Link_Advertisement, provider string, addrs []st
 	return multihash.Sum(sigBuf.Bytes(), mhCode, -1)
 }
 
-// Signs advertisements using libp2p envelope
-func signAdvertisement(privkey crypto.PrivKey, ad Advertisement) ([]byte, error) {
+// SignAdvertisement signs an advertisement using the given private key.
+func SignAdvertisement(privkey crypto.PrivKey, ad Advertisement) ([]byte, error) {
 	previousID := ad.FieldPreviousID().v
 	provider := ad.FieldProvider().x
 	addrs, err := IpldToGoStrings(ad.FieldAddresses())
