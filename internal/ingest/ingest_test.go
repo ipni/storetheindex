@@ -230,11 +230,16 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.Type.Advertisement)
 	require.NoError(t, err)
 
-	te.publisher.UpdateRoot(ctx, chainHead.(cidlink.Link).Cid)
+	adDone, cancel := te.ingester.OnAdProcessed()
+	defer cancel()
+
+	te.publisher.SetRoot(ctx, chainHead.(cidlink.Link).Cid)
 
 	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil)
 	require.NoError(t, err)
 	<-wait
+
+	<-adDone
 	var lcid cid.Cid
 
 	requireTrueEventually(t, func() bool {
