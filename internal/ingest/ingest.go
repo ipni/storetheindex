@@ -61,6 +61,15 @@ type Ingester struct {
 	skipsMutex sync.Mutex
 
 	cfg config.Ingest
+
+	// inEvents is used to send a legs.SyncFinished to the distributeEvents
+	// goroutine, when an advertisement in marked complete.
+	inEvents chan legs.SyncFinished
+
+	// outEventsChans is a slice of channels, where each channel delivers a
+	// copy of a legs.SyncFinished to an OnAdProcessed reader.
+	outEventsChans []chan legs.SyncFinished
+	outEventsMutex sync.Mutex
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -104,6 +113,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		entriesSel:  entSel,
 		reg:         reg,
 		cfg:         cfg,
+		inEvents:    make(chan legs.SyncFinished, 1),
 	}
 
 	// Create and start pubsub subscriber.  This also registers the storage
@@ -121,6 +131,9 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		return nil, err
 	}
 
+	// Start distributor to send SyncFinished messages to interested parties.
+	go ing.distributeEvents()
+
 	go ing.metricsUpdater()
 
 	log.Debugf("Ingester started and all hooks and linksystem registered")
@@ -133,6 +146,18 @@ func (ing *Ingester) Close() error {
 	// Close leg transport.
 	err := ing.sub.Close()
 	close(ing.sigUpdate)
+
+	// Dismiss any event readers.
+	ing.outEventsMutex.Lock()
+	for _, ch := range ing.outEventsChans {
+		close(ch)
+	}
+	ing.outEventsChans = nil
+	ing.outEventsMutex.Unlock()
+
+	// Stop the distribution goroutine.
+	close(ing.inEvents)
+
 	return err
 }
 
@@ -258,8 +283,61 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int64, ignor
 }
 
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
+	defer func() {
+		// Distribute the legs.SyncFinished notices to all notification
+		// channels.
+		ing.inEvents <- legs.SyncFinished{Cid: adCid, PeerID: publisher}
+	}()
+
 	log.Debugw("Persisted latest sync", "peer", publisher, "cid", adCid)
 	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
+}
+
+// distributeEvents reads a SyncFinished, sent by a peer handler, and copies
+// the even to all channels in outEventsChans.  This delivers the SyncFinished
+// to all OnAdProcessed channel readers.
+func (ing *Ingester) distributeEvents() {
+	for event := range ing.inEvents {
+		// Send update to all change notification channels.
+		ing.outEventsMutex.Lock()
+		for _, ch := range ing.outEventsChans {
+			ch <- event
+		}
+		ing.outEventsMutex.Unlock()
+	}
+}
+
+// OnAdProcessed creates a channel that receives notification when an
+// advertisement and all of its content entries have finished syncing.
+//
+// Doing a manual sync will not always cause a notification if the requested
+// advertisement has previously been processed.
+//
+// Calling the returned cancel function removes the notification channel from
+// the list of channels to be notified on changes, and closes the channel to
+// allow any reading goroutines to stop waiting on the channel.
+func (ing *Ingester) OnAdProcessed() (<-chan legs.SyncFinished, context.CancelFunc) {
+	// Channel is buffered to prevent distribute() from blocking if a reader is
+	// not reading the channel immediately.
+	ch := make(chan legs.SyncFinished, 1)
+	ing.outEventsMutex.Lock()
+	defer ing.outEventsMutex.Unlock()
+
+	ing.outEventsChans = append(ing.outEventsChans, ch)
+	cncl := func() {
+		ing.outEventsMutex.Lock()
+		defer ing.outEventsMutex.Unlock()
+		for i, ca := range ing.outEventsChans {
+			if ca == ch {
+				ing.outEventsChans[i] = ing.outEventsChans[len(ing.outEventsChans)-1]
+				ing.outEventsChans[len(ing.outEventsChans)-1] = nil
+				ing.outEventsChans = ing.outEventsChans[:len(ing.outEventsChans)-1]
+				close(ch)
+				break
+			}
+		}
+	}
+	return ch, cncl
 }
 
 // signalMetricsUpdate signals that metrics should be updated.
