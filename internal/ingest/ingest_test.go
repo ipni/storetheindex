@@ -150,7 +150,7 @@ func TestRestartDuringSync(t *testing.T) {
 	cCid := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
+			{ChunkCount: 100, EntriesPerChunk: 10, EntriesSeed: 2},
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.Type.Advertisement)
@@ -158,7 +158,7 @@ func TestRestartDuringSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// We have a chain of 3 ads, A<-B<-C. We'll UpdateRoot to be B. Sync the
-	// ingester, then kill the ingester when it tries to process B but after it
+	// ingester, then kill the ingester in the middle of processing B but after it
 	// processes A. Then we'll bring the ingester up again and update root to be
 	// C, and see if we index everything (A, B, C) correctly.
 	allAds := typehelpers.AllAds(t, cAd, te.publisherLinkSys)
@@ -166,9 +166,10 @@ func TestRestartDuringSync(t *testing.T) {
 	bAd := allAds[1]
 	require.Equal(t, allAds[0], cAd)
 
-	bEntChunk, err := bAd.Entries.AsLink()
-	require.NoError(t, err)
-	blockedReads.add(bEntChunk.(cidlink.Link).Cid)
+	bLinks := typehelpers.AllEntryChunkLinks(t, bAd, te.publisherLinkSys)
+	for _, l := range bLinks[len(bLinks)/2:] {
+		blockedReads.add(l.(cidlink.Link).Cid)
+	}
 
 	bCid, err := cAd.PreviousID.AsNode().AsLink()
 	require.NoError(t, err)
@@ -189,7 +190,9 @@ func TestRestartDuringSync(t *testing.T) {
 	te.ingester.Close()
 	te.ingester.host.Close()
 
-	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
+	for _, l := range bLinks[len(bLinks)/2:] {
+		blockedReads.rm(l.(cidlink.Link).Cid)
+	}
 
 	// We should not have processed B yet.
 	bMhs := typehelpers.AllMultihashesFromAd(t, bAd, te.publisherLinkSys)

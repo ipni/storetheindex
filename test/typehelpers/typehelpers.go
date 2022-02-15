@@ -200,3 +200,30 @@ func AllAds(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem) []schem
 
 	return out
 }
+
+func AllEntryChunkLinks(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem) []datamodel.Link {
+	var out []datamodel.Link
+
+	ecLink, err := ad.Entries.AsLink()
+	require.NoError(t, err)
+	out = append(out, ecLink)
+
+	ecNode, err := lsys.Load(linking.LinkContext{}, ecLink, schema.Type.EntryChunk)
+	require.NoError(t, err)
+
+	ec := ecNode.(schema.EntryChunk)
+
+	for {
+		if ec.Next.IsAbsent() {
+			return out
+		}
+
+		l, err := ec.Next.AsNode().AsLink()
+		require.NoError(t, err)
+		out = append(out, l)
+
+		n, err := lsys.Load(linking.LinkContext{}, l, schema.Type.EntryChunk)
+		require.NoError(t, err)
+		ec = n.(schema.EntryChunk)
+	}
+}
