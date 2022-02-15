@@ -57,6 +57,25 @@ If an advertisement has more CIDs than fit into a single block for purposes of d
 In terms of concrete constriants, each EntryChunbk shouldstay below 4MB,
 and a linked list of entry chunks should be no more than 400 chunks long. Above these constraints, the list of entries should be split into multiple advertisements. Practically, this means that each individidual advertisement can hold up to approximately 40 million multihashes.
 
+#### Metadata
+
+The reference provider currently supports Bitswap and Filecoin protocols. The structure of the metadata format for these protocols is defined in [the library](https://github.com/filecoin-project/index-provider/tree/main/metadata).
+
+The network indexer nodes expect that metadata begins with a Uvar identifying the protocol, followed by protocol-specific metadata.
+
+* Bitswap
+  * uvarint protocol `0x3E0000`.
+  * no following metadata.
+* filecoin graphsync
+  * uvarint protcol `0x3F0000`.
+  * the following bytes should be a cbor encoded struct of:
+    * PieceCID, a link
+	* VerifiedDeal, boolean
+    * FastRetrieval, boolean
+* http
+  * the proposed uvarint protocol is `0x3D0000`.
+  * the following bytes are not yet defined.
+
 ### Advertisement transfer
 
 There are two ways that the provider advertisement chain can be made available for consumption by network indexers.
