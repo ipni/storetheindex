@@ -23,6 +23,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 
 	// Import so these codecs get registered.
 	_ "github.com/ipld/go-ipld-prime/codec/dagcbor"
@@ -276,6 +277,46 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 	}
 }
 
+func recordDecodeErr() {
+	tags := []tag.Mutator{tag.Insert(metrics.AdIngestErrType, "errDecoding")}
+	stats.RecordWithTags(context.Background(), tags, metrics.AdIngestError.M(1))
+}
+
+func recordReadPrevAdErr() {
+	tags := []tag.Mutator{tag.Insert(metrics.AdIngestErrType, "errReadingPrevAd")}
+	stats.RecordWithTags(context.Background(), tags, metrics.AdIngestError.M(1))
+}
+
+func recordPoppingCidMappingErr() {
+	tags := []tag.Mutator{tag.Insert(metrics.AdIngestErrType, "errPoppingCidMapping")}
+	stats.RecordWithTags(context.Background(), tags, metrics.AdIngestError.M(1))
+}
+
+func recordRegisterProviderErr() {
+	tags := []tag.Mutator{tag.Insert(metrics.AdIngestErrType, "errRegisteringProvider")}
+	stats.RecordWithTags(context.Background(), tags, metrics.AdIngestError.M(1))
+}
+
+func recordRemoveContentByContextIDErr() {
+	tags := []tag.Mutator{tag.Insert(metrics.AdIngestErrType, "errRemoveContentByContextID")}
+	stats.RecordWithTags(context.Background(), tags, metrics.AdIngestError.M(1))
+}
+
+func recordUndefinedEntryChunkLink() {
+	tags := []tag.Mutator{tag.Insert(metrics.AdIngestErrType, "errUndefinedEntryChunkLink")}
+	stats.RecordWithTags(context.Background(), tags, metrics.AdIngestError.M(1))
+}
+
+func recordFailedEntryChunkSync() {
+	tags := []tag.Mutator{tag.Insert(metrics.AdIngestErrType, "errFailedEntryChunkSync")}
+	stats.RecordWithTags(context.Background(), tags, metrics.AdIngestError.M(1))
+}
+
+func recordEntriesAlreadySynced() {
+	tags := []tag.Mutator{tag.Insert(metrics.AdIngestErrType, "errFailedEntryChunkSync")}
+	stats.RecordWithTags(context.Background(), tags, metrics.AdIngestError.M(1))
+}
+
 // syncAdEntries fetches all the entries for a single advertisement
 func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid, prevCid cid.Cid) {
 	stats.Record(context.Background(), metrics.IngestChange.M(1))
@@ -291,24 +332,28 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	providerID, err := providerFromAd(ad)
 	if err != nil {
 		log.Errorw("Invalid advertisement", "err", err)
+		recordDecodeErr()
 		skip = true
 	}
 
 	contextID, err := ad.FieldContextID().AsBytes()
 	if err != nil {
 		log.Errorw("Cannot read context ID from advertisement", "err", err)
+		recordDecodeErr()
 		skip = true
 	}
 
 	isRm, err := ad.FieldIsRm().AsBool()
 	if err != nil {
 		log.Errorw("Cannot read IsRm field", "err", err)
+		recordDecodeErr()
 		skip = true
 	}
 
 	elink, err := ad.FieldEntries().AsLink()
 	if err != nil {
 		log.Errorw("Error decoding advertisement entries link", "err", err)
+		recordDecodeErr()
 		skip = true
 	}
 
@@ -340,6 +385,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		exists, err := ing.ds.Has(context.Background(), dsKey(prevCid.String()))
 		if err != nil {
 			log.Errorw("Failed checking if ad exists", "err", err)
+			recordReadPrevAdErr()
 		}
 		if !exists {
 			time.Sleep(waitPreviousAdTime)
@@ -372,9 +418,9 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	if skip {
 		if elink != schema.NoEntries {
 			entCid := elink.(cidlink.Link).Cid
-			dk := dsKey(admapPrefix + entCid.String())
-			err = ing.ds.Delete(context.Background(), dk)
+			_, err := popCidToAdMapping(context.Background(), ing.ds, entCid)
 			if err != nil {
+				recordPoppingCidMappingErr()
 				log.Errorw("cannot delete advertisement cid for entries cid from datastore", "err", err)
 			}
 		}
@@ -384,6 +430,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	addrs, err := schema.IpldToGoStrings(ad.FieldAddresses())
 	if err != nil {
 		log.Errorw("Could not get addresses from advertisement", "err", err)
+		recordDecodeErr()
 		return
 	}
 
@@ -392,6 +439,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	err = ing.reg.RegisterOrUpdate(context.Background(), providerID, addrs, adCid)
 	if err != nil {
 		log.Errorw("Could not register/update provider info", "err", err)
+		recordRegisterProviderErr()
 		return
 	}
 
@@ -406,6 +454,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 			err = ing.indexer.RemoveProviderContext(providerID, contextID)
 			if err != nil {
 				log.Error("Failed to removed content by context ID")
+				recordRemoveContentByContextIDErr()
 			}
 			return
 		}
@@ -414,6 +463,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		metadataBytes, err := ad.FieldMetadata().AsBytes()
 		if err != nil {
 			log.Errorw("Error reading advertisement metadata", "err", err)
+			recordDecodeErr()
 			return
 		}
 
@@ -431,6 +481,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	entriesCid := elink.(cidlink.Link).Cid
 	if entriesCid == cid.Undef {
 		log.Error("Advertisement entries link is undefined")
+		recordUndefinedEntryChunkLink()
 		return
 	}
 	log = log.With("entriesCid", entriesCid)
@@ -440,12 +491,13 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		log.Errorw("Failed checking if entries exist", "err", err)
 	}
 	if exists {
+		stats.Record(context.Background(), metrics.EntryChunkAlreadyPresent.M(1))
 		log.Info("Entries already exist; skipping sync")
 		return
 	}
 
 	if isRm {
-		log.Warnw("Syncing content entries for removal advertisement with no context ID")
+		log.Warn("Syncing content entries for removal advertisement with individual entries")
 	} else {
 		log.Infow("Syncing content entries for advertisement")
 	}
@@ -469,6 +521,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	if err != nil {
 		reprocessAd = true
 		log.Errorw("Failed to sync", "err", err)
+		recordFailedEntryChunkSync()
 		return
 	}
 	elapsed := time.Since(startTime)
