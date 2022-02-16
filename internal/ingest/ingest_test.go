@@ -62,46 +62,87 @@ var (
 )
 
 func TestSubscribe(t *testing.T) {
-	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
-	h := mkTestHost()
-	pubHost := mkTestHost()
-	i, core, reg := mkIngest(t, h)
-	defer core.Close()
-	defer i.Close()
-	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
-	defer pub.Close()
-	connectHosts(t, h, pubHost)
+	te := setupTestEnv(t, true)
 
-	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
-	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
-	time.Sleep(2 * time.Second)
+	// Check that we sync with an ad chain
+	adHead := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
+		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
-	// Test with two random advertisement publications.
-	_, mhs, providerID := publishRandomAdv(t, i, pubHost, pub, lsys, false)
+	ctx := context.Background()
+	te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
+	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+	require.NoError(t, err)
+	<-wait
+	mhs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
+	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
 
-	// Check that the mhs have been indexed correctly.  Check providerID, not
-	// pupHost.ID(), since provider is what was put into advertisement.
-	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
-	_, mhs, providerID = publishRandomAdv(t, i, pubHost, pub, lsys, false)
-	// Check that the mhs have been indexed correctly.
-	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+	// Check that we sync if the publisher gives us another provider instead.
+	someOtherProviderPriv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
+	adHead = typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 4},
+		}}.Build(t, te.publisherLinkSys, someOtherProviderPriv)
+	te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
 
-	// Test advertisement with fake signature of them.
-	_, mhs, _ = publishRandomAdv(t, i, pubHost, pub, lsys, true)
-	// No mhs should have been saved for related index
+	wait, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+	require.NoError(t, err)
+	<-wait
+
+	someOtherProvider, err := peer.IDFromPrivateKey(someOtherProviderPriv)
+	require.NoError(t, err)
+	mhs = typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
+	checkMhsIndexedEventually(t, te.ingester.indexer, someOtherProvider, mhs)
+
+	// Check that we don't ingest from ads that aren't signed.
+	someOtherProviderPriv, _, err = test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
+	adHead = typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 5},
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 6},
+		}}.BuildWithFakeSig(t, te.publisherLinkSys, someOtherProviderPriv)
+	mhs = typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
+
+	// No mhs should have been saved for related index because the ad wasn't signed
 	for x := range mhs {
-		_, b, _ := i.indexer.Get(mhs[x])
+		_, b, _ := te.ingester.indexer.Get(mhs[x])
 		require.False(t, b)
 	}
 
-	reg.BlockPeer(pubHost.ID())
+	// Check that we don't ingest from blocked peers
+	someOtherProviderPriv, _, err = test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
+	adHead = typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 7},
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 8},
+		}}.Build(t, te.publisherLinkSys, someOtherProviderPriv)
 
-	// Check that no advertisement is retrieved from publisher once it is no
-	// longer allowed.
-	c, _, _ := publishRandomIndexAndAdv(t, pub, lsys, false)
-	adv, err := i.ds.Get(context.Background(), datastore.NewKey(c.String()))
-	require.Error(t, err, datastore.ErrNotFound)
-	require.Nil(t, adv)
+	someOtherProvider, err = peer.IDFromPrivateKey(someOtherProviderPriv)
+	require.NoError(t, err)
+
+	te.reg.BlockPeer(te.pubHost.ID())
+	te.reg.BlockPeer(someOtherProvider)
+
+	te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
+
+	// We are manually syncing here to not rely on the pubsub mechanism inside a test.
+	// This will fetch the add and put it into our datastore, but will not process it.
+	wait, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+	require.NoError(t, err)
+	<-wait
+
+	mhs = typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
+	// Check that we don't have any MHs for this blocked provider
+	for x := range mhs {
+		_, b, _ := te.ingester.indexer.Get(mhs[x])
+		require.False(t, b)
+	}
 }
 
 type blockList struct {
@@ -459,6 +500,7 @@ func TestMultiplePublishers(t *testing.T) {
 	srcStore2 := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost1Priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
 	pubHost1 := mkTestHost(libp2p.Identity(pubHost1Priv))
 	pubHost2Priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
@@ -509,7 +551,6 @@ func TestMultiplePublishers(t *testing.T) {
 	checkMhsIndexedEventually(t, i.indexer, pubHost1.ID(), mhs)
 	fmt.Println("check eventually took", time.Since(start))
 
-	// c2, mhs, providerID := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
 	start = time.Now()
 	c2 := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
