@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -60,6 +61,12 @@ var (
 	}
 	rng = rand.New(rand.NewSource(1413))
 )
+
+func TestMain(m *testing.M) {
+	// This gets used in a loop, so it's okay to have this be small in a test.
+	waitPreviousAdTime = time.Millisecond * 100
+	os.Exit(m.Run())
+}
 
 func TestSubscribe(t *testing.T) {
 	te := setupTestEnv(t, true)
@@ -166,6 +173,7 @@ func TestRestartDuringSync(t *testing.T) {
 	blockedReads := &blockList{list: make(map[cid.Cid]bool)}
 	hitBlockedRead := make(chan cid.Cid)
 
+	start := time.Now()
 	te := setupTestEnv(t, true, func(teo *testEnvOpts) {
 		teo.skipIngesterCleanup = true
 		teo.publisherLinkSysFn = func(ds datastore.Batching) ipld.LinkSystem {
@@ -187,7 +195,9 @@ func TestRestartDuringSync(t *testing.T) {
 			return lsys
 		}
 	})
+	fmt.Println("Setup took ", time.Since(start))
 
+	start = time.Now()
 	cCid := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
@@ -217,8 +227,10 @@ func TestRestartDuringSync(t *testing.T) {
 	ctx := context.Background()
 	err = te.publisher.SetRoot(ctx, bCid.(cidlink.Link).Cid)
 	require.NoError(t, err)
+	fmt.Println("Publish took ", time.Since(start))
 
-	sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	start = time.Now()
+	sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	_, err = te.ingester.Sync(sctx, te.pubHost.ID(), nil, 0, false)
@@ -226,24 +238,31 @@ func TestRestartDuringSync(t *testing.T) {
 
 	// The ingester tried to sync B, but it was blocked. Now let's stop the ingester.
 	<-hitBlockedRead
+	te.ingester.Close()
+	te.ingester.host.Close()
+	// <-wait
+	fmt.Println("Failed sync took ", time.Since(start))
+
+	start = time.Now()
 	aMhs := typehelpers.AllMultihashesFromAd(t, aAd, te.publisherLinkSys)
 	// Check that we processed A correctly.
 	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), aMhs)
-
-	te.ingester.Close()
-	te.ingester.host.Close()
+	fmt.Println("check mhs took ", time.Since(start))
 
 	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
 
+	start = time.Now()
 	// We should not have processed B yet.
 	bMhs := typehelpers.AllMultihashesFromAd(t, bAd, te.publisherLinkSys)
 	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), bMhs)
 	if err == nil {
 		require.FailNow(t, "expected that maulthashes were not found")
 	}
+	fmt.Println("check not b mhs took ", time.Since(start))
 
 	//requireTrueEventually(t, func() bool { return !providesAll(t, te.ingester.indexer, te.pubHost.ID(), bMhs...) }, testRetryInterval, testRetryTimeout, "multihashes were not indexed")
 
+	start = time.Now()
 	// Now we bring up the ingester again.
 	ingesterHost := mkTestHost(libp2p.Identity(te.ingesterPriv))
 	connectHosts(t, te.pubHost, ingesterHost)
@@ -253,16 +272,23 @@ func TestRestartDuringSync(t *testing.T) {
 		ingester.Close()
 	})
 	te.ingester = ingester
+	fmt.Println("Bringin ingester back up took", time.Since(start))
 
+	start = time.Now()
 	// And sync to C
 	te.publisher.UpdateRoot(ctx, cCid.(cidlink.Link).Cid)
+	fmt.Println("publish C took", time.Since(start))
 
+	start = time.Now()
 	end, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-end
+	fmt.Println("ingest C took", time.Since(start))
 
+	start = time.Now()
 	allMhs := typehelpers.AllMultihashesFromAd(t, cAd, te.publisherLinkSys)
 	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+	fmt.Println("Final check took", time.Since(start))
 }
 
 func TestWithDuplicatedEntryChunks(t *testing.T) {
@@ -765,42 +791,6 @@ func checkAllIndexed(ix indexer.Interface, p peer.ID, mhs []multihash.Multihash)
 		}
 	}
 	return nil
-}
-
-func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash, peer.ID) {
-	c, mhs, providerID := publishRandomIndexAndAdv(t, pub, lsys, fakeSig)
-
-	if !fakeSig {
-		requireTrueEventually(t, func() bool {
-			has, err := i.ds.Has(context.Background(), datastore.NewKey(c.String()))
-			return err == nil && has
-		}, 3*time.Second, 21*time.Second, "expected advertisement with ID %s was not received", c)
-	}
-
-	// Check if advertisement in datastore.
-	adv, err := i.ds.Get(context.Background(), datastore.NewKey(c.String()))
-	if !fakeSig {
-		require.NoError(t, err, "err getting %s", c.String())
-		require.NotNil(t, adv)
-	} else {
-		// If the signature is invalid is should not be stored.
-		require.Nil(t, adv)
-	}
-	if !fakeSig {
-		lnk := i.sub.GetLatestSync(pubHost.ID())
-		lcid := lnk.(cidlink.Link).Cid
-		require.Equal(t, lcid, c)
-	}
-
-	// Check if latest sync updated.
-	lcid, err := i.GetLatestSync(pubHost.ID())
-	require.NoError(t, err)
-
-	// If fakeSig Cids should not be saved.
-	if !fakeSig {
-		require.Equal(t, lcid, c)
-	}
-	return c, mhs, providerID
 }
 
 func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Duration, timeout time.Duration, msgAndArgs ...interface{}) {
