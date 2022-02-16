@@ -63,8 +63,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	// This gets used in a loop, so it's okay to have this be small in a test.
-	waitPreviousAdTime = time.Millisecond * 100
+	waitPreviousAdTime = time.Second * 10
 	os.Exit(m.Run())
 }
 
