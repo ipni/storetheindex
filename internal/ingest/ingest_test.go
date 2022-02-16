@@ -63,7 +63,8 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	waitPreviousAdTime = time.Second * 10
+	// no timeouts or bust
+	waitPreviousAdTime = 0
 	os.Exit(m.Run())
 }
 

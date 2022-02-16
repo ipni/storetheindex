@@ -249,7 +249,7 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 
 		log.Infow("Incoming block is an advertisement", "prevAd", prevCid)
 
-		go ing.syncAdEntries(pubID, ad, c, prevCid)
+		// go ing.syncAdEntries(pubID, ad, c, prevCid)
 		return
 	}
 

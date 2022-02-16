@@ -19,6 +19,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
+	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
@@ -131,6 +132,34 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		sub.Close()
 		return nil, err
 	}
+
+	// TODO handle cancel
+	onsyncFinishedChan, _ := ing.sub.OnSyncFinished()
+	go func() {
+		for syncFinished := range onsyncFinishedChan {
+			// syncFinished.SyncedCids
+			for i := len(syncFinished.SyncedCids) - 1; i >= 0; i-- {
+				adCid := syncFinished.SyncedCids[i]
+				node, err := lsys.Load(linking.LinkContext{}, cidlink.Link{Cid: adCid}, basicnode.Prototype.Any)
+				if err != nil {
+					fmt.Println("!!!!!!! Error loading advertisement:", err)
+					continue
+				}
+
+				ad, err := decodeAd(node)
+				if err != nil {
+					fmt.Println("!!!!! Error decoding advertisement:", err)
+					continue
+				}
+
+				fmt.Println("PROCESSING ADVERTISEMENT:", adCid)
+				// cid.Undef so we avoid cidwaiter code
+				ing.syncAdEntries(syncFinished.PeerID, ad, adCid, cid.Undef)
+				fmt.Println("DONE PROCESSING ADVERTISEMENT:", adCid)
+			}
+		}
+
+	}()
 
 	// Start distributor to send SyncFinished messages to interested parties.
 	go ing.distributeEvents()
