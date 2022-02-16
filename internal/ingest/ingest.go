@@ -67,8 +67,8 @@ type Ingester struct {
 	inEvents chan legs.SyncFinished
 
 	// outEventsChans is a slice of channels, where each channel delivers a
-	// copy of a legs.SyncFinished to an OnAdProcessed reader.
-	outEventsChans []chan legs.SyncFinished
+	// copy of a legs.SyncFinished to an onAdProcessed reader.
+	outEventsChans map[peer.ID][]chan cid.Cid
 	outEventsMutex sync.Mutex
 }
 
@@ -145,16 +145,15 @@ func (ing *Ingester) Close() error {
 	ing.adWaiter.close()
 	// Close leg transport.
 	err := ing.sub.Close()
-	close(ing.sigUpdate)
 
 	// Dismiss any event readers.
 	ing.outEventsMutex.Lock()
-	for _, ch := range ing.outEventsChans {
-		close(ch)
+	if len(ing.outEventsChans) != 0 {
+		panic("Close called with syncs in progress")
 	}
-	ing.outEventsChans = nil
 	ing.outEventsMutex.Unlock()
 
+	close(ing.sigUpdate)
 	// Stop the distribution goroutine.
 	close(ing.inEvents)
 
@@ -191,6 +190,8 @@ func (ing *Ingester) Close() error {
 // necessarily mean that the entries corresponding to the advertisement are
 // synced.
 func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, ignoreLatest bool) (<-chan multihash.Multihash, error) {
+	out := make(chan cid.Cid, 1)
+
 	// Fail fast if peer ID or depth is invalid.
 	if depth < -1 {
 		return nil, fmt.Errorf("recursion depth limit must not be less than -1; got %d", depth)
@@ -202,7 +203,6 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	log := log.With("provider", peerID, "peerAddr", peerAddr, "depth", depth, "ignoreLatest", ignoreLatest)
 	log.Debug("Explicitly syncing the latest advertisement from peer")
 
-	out := make(chan multihash.Multihash, 1)
 	go func() {
 		defer close(out)
 
@@ -216,6 +216,15 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 				log.Errorw("Failed to construct selector for explicit sync", "err", err)
 				return
 			}
+		}
+
+		syncDone, cancel := ing.onAdProcessed(peerID)
+		defer cancel()
+
+		latest, err := ing.GetLatestSync(peerID)
+		if err != nil {
+			log.Errorw("Failed to get latest sync", "err", err)
+			return
 		}
 
 		// Start syncing. Notifications for the finished sync are sent
@@ -235,11 +244,29 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		// Do not persist the latest sync here, because that is done in
 		// after we've processed the ad.
 
-		ing.signalMetricsUpdate()
-		// Notification channel; buffered so as not to block if no reader.
-		out <- c.Hash()
-	}()
+		// If latest head had already finished syncing, then do not wait for syncDone since it will never happen.
+		if latest == c {
+			log.Infow("Latest advertisement already processed", "adCid", c)
+			out <- c
+			return
+		}
 
+		log.Debugw("Syncing advertisements up to latest", "adCid", c)
+		for {
+			select {
+			case adCid := <-syncDone:
+				log.Debugw("Synced advertisement", "adCid", adCid)
+				if adCid == c {
+					out <- c
+					ing.signalMetricsUpdate()
+					return
+				}
+			case <-ctx.Done():
+				log.Warnf("Sync cancelled", "err", ctx.Err())
+				return
+			}
+		}
+	}()
 	return out, nil
 }
 
@@ -283,31 +310,28 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int64, ignor
 }
 
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
-	defer func() {
-		// Distribute the legs.SyncFinished notices to all notification
-		// channels.
-		ing.inEvents <- legs.SyncFinished{Cid: adCid, PeerID: publisher}
-	}()
-
 	log.Debugw("Persisted latest sync", "peer", publisher, "cid", adCid)
 	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
 }
 
 // distributeEvents reads a SyncFinished, sent by a peer handler, and copies
 // the even to all channels in outEventsChans.  This delivers the SyncFinished
-// to all OnAdProcessed channel readers.
+// to all onAdProcessed channel readers.
 func (ing *Ingester) distributeEvents() {
 	for event := range ing.inEvents {
 		// Send update to all change notification channels.
 		ing.outEventsMutex.Lock()
-		for _, ch := range ing.outEventsChans {
-			ch <- event
+		outEventsChans, ok := ing.outEventsChans[event.PeerID]
+		if ok {
+			for _, ch := range outEventsChans {
+				ch <- event.Cid
+			}
 		}
 		ing.outEventsMutex.Unlock()
 	}
 }
 
-// OnAdProcessed creates a channel that receives notification when an
+// onAdProcessed creates a channel that receives notification when an
 // advertisement and all of its content entries have finished syncing.
 //
 // Doing a manual sync will not always cause a notification if the requested
@@ -316,23 +340,44 @@ func (ing *Ingester) distributeEvents() {
 // Calling the returned cancel function removes the notification channel from
 // the list of channels to be notified on changes, and closes the channel to
 // allow any reading goroutines to stop waiting on the channel.
-func (ing *Ingester) OnAdProcessed() (<-chan legs.SyncFinished, context.CancelFunc) {
+func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan cid.Cid, context.CancelFunc) {
 	// Channel is buffered to prevent distribute() from blocking if a reader is
 	// not reading the channel immediately.
-	ch := make(chan legs.SyncFinished, 1)
+	ch := make(chan cid.Cid, 1)
 	ing.outEventsMutex.Lock()
 	defer ing.outEventsMutex.Unlock()
 
-	ing.outEventsChans = append(ing.outEventsChans, ch)
+	var outEventsChans []chan cid.Cid
+	if ing.outEventsChans == nil {
+		ing.outEventsChans = make(map[peer.ID][]chan cid.Cid)
+	} else {
+		outEventsChans = ing.outEventsChans[peerID]
+	}
+	ing.outEventsChans[peerID] = append(outEventsChans, ch)
+
 	cncl := func() {
 		ing.outEventsMutex.Lock()
 		defer ing.outEventsMutex.Unlock()
-		for i, ca := range ing.outEventsChans {
+		outEventsChans, ok := ing.outEventsChans[peerID]
+		if !ok {
+			return
+		}
+
+		for i, ca := range outEventsChans {
 			if ca == ch {
-				ing.outEventsChans[i] = ing.outEventsChans[len(ing.outEventsChans)-1]
-				ing.outEventsChans[len(ing.outEventsChans)-1] = nil
-				ing.outEventsChans = ing.outEventsChans[:len(ing.outEventsChans)-1]
-				close(ch)
+				if len(outEventsChans) == 1 {
+					if len(ing.outEventsChans) == 1 {
+						ing.outEventsChans = nil
+					} else {
+						delete(ing.outEventsChans, peerID)
+					}
+				} else {
+					outEventsChans[i] = outEventsChans[len(outEventsChans)-1]
+					outEventsChans[len(outEventsChans)-1] = nil
+					outEventsChans = outEventsChans[:len(outEventsChans)-1]
+					close(ch)
+					ing.outEventsChans[peerID] = outEventsChans
+				}
 				break
 			}
 		}

@@ -217,7 +217,6 @@ func TestRestartDuringSync(t *testing.T) {
 }
 
 func TestWithDuplicatedEntryChunks(t *testing.T) {
-	ctx := context.Background()
 	te := setupTestEnv(t, true)
 
 	chainHead := typehelpers.RandomAdBuilder{
@@ -230,26 +229,26 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.Type.Advertisement)
 	require.NoError(t, err)
 
-	adDone, cancel := te.ingester.OnAdProcessed()
-	defer cancel()
+	ctx := context.Background()
 
 	te.publisher.SetRoot(ctx, chainHead.(cidlink.Link).Cid)
 
 	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
-	<-wait
+	c := <-wait
+	t.Logf("synced up to %s, should have synced up to %s", c, chainHead.(cidlink.Link).Cid)
 
-	<-adDone
-	var lcid cid.Cid
-
-	requireTrueEventually(t, func() bool {
-		lcid, err = te.ingester.GetLatestSync(te.pubHost.ID())
-		require.NoError(t, err)
-		return chainHead.(cidlink.Link).Cid == lcid
-	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", chainHead, lcid)
+	lcid, err := te.ingester.GetLatestSync(te.pubHost.ID())
+	require.NoError(t, err)
+	require.Equal(t, chainHead.(cidlink.Link).Cid, lcid)
 
 	allMhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), te.publisherLinkSys)
-	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs)
+	if err != nil {
+		require.FailNow(t, "multihashes were not indexed: %s", err)
+	}
+
+	te.Close(t)
 }
 
 func TestRmWithNoEntries(t *testing.T) {
@@ -301,15 +300,16 @@ func TestSync(t *testing.T) {
 	c1, mhs, providerID := publishRandomIndexAndAdv(t, pub, lsys, false)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
 	// The explicit sync will happen concurrently with the sycn triggered by
 	// the published advertisement.  These will be serialized in the go-legs
 	// handler for the provider.
 	end, err := i.Sync(ctx, pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 	select {
-	case m := <-end:
+	case endCid := <-end:
 		// We receive the CID that we synced.
-		require.True(t, bytes.Equal(c1.Hash(), m))
+		require.Equal(t, c1, endCid)
 		// Check that subscriber recorded latest sync.
 		lnk := i.sub.GetLatestSync(pubHost.ID())
 		lcid := lnk.(cidlink.Link).Cid
@@ -342,13 +342,14 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	adCid, _, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
 	end, err := ing.Sync(ctx, pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 
 	select {
-	case m := <-end:
+	case endCid := <-end:
 		// We receive the CID that we synced.
-		require.True(t, bytes.Equal(adCid.Hash(), m))
+		require.Equal(t, adCid, endCid)
 		// Check that subscriber recorded latest sync.
 		lnk := ing.sub.GetLatestSync(pubHost.ID())
 		lcid := lnk.(cidlink.Link).Cid
@@ -626,24 +627,31 @@ func checkMhsIndexedEventually(t *testing.T, ix indexer.Interface, p peer.ID, mh
 }
 
 func providesAll(t *testing.T, ix indexer.Interface, p peer.ID, mhs ...multihash.Multihash) bool {
-	for _, mh := range mhs {
-		values, exists, err := ix.Get(mh)
-		if err != nil || !exists {
-			t.Logf("err: %v, exists: %v", err, exists)
-			return false
-		}
-		var found bool
-		for _, v := range values {
-			if v.ProviderID == p {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
+	err := checkAllIndexed(ix, p, mhs)
+	if err != nil {
+		t.Logf("err: %v", err)
+		return false
 	}
 	return true
+}
+
+func checkAllIndexed(ix indexer.Interface, p peer.ID, mhs []multihash.Multihash) error {
+	for _, mh := range mhs {
+		values, exists, err := ix.Get(mh)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return errors.New("index not found")
+		}
+		for _, v := range values {
+			if v.ProviderID == p {
+				return nil
+			}
+		}
+		return errors.New("index not found for provider")
+	}
+	return nil
 }
 
 func publishRandomAdv(t *testing.T, i *Ingester, pubHost host.Host, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash, peer.ID) {
@@ -708,11 +716,51 @@ type testEnv struct {
 	ingesterPriv     crypto.PrivKey
 	publisherLinkSys ipld.LinkSystem
 	ingester         *Ingester
+	ingesterHost     host.Host
+	core             *engine.Engine
+	reg              *registry.Registry
 }
 
 type testEnvOpts struct {
 	publisherLinkSysFn  func(ds datastore.Batching) ipld.LinkSystem
 	skipIngesterCleanup bool
+}
+
+func (te *testEnv) Close(t *testing.T) {
+	err := te.publisher.Close()
+	if err != nil {
+		t.Errorf("Error closing publisher: %s", err)
+	}
+	rm := te.pubHost.Network().ResourceManager()
+	err = te.pubHost.Close()
+	if err != nil {
+		t.Errorf("Error closing publisher host: %s", err)
+	}
+	err = rm.Close()
+	if err != nil {
+		t.Errorf("Error closing publisher host resource manager: %s", err)
+	}
+	err = te.ingester.Close()
+	if err != nil {
+		t.Errorf("Error closing ingester: %s", err)
+	}
+	err = te.core.Close()
+	if err != nil {
+		t.Errorf("Error closing indexer core: %s", err)
+	}
+	err = te.reg.Close()
+	if err != nil {
+		t.Errorf("Error closing registry: %s", err)
+	}
+	rm = te.ingesterHost.Network().ResourceManager()
+	err = te.ingesterHost.Close()
+	if err != nil {
+		t.Errorf("Error closing ingester host: %s", err)
+	}
+	err = rm.Close()
+	if err != nil {
+		t.Errorf("Error closing ingester host resource manager: %s", err)
+	}
 }
 
 func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOpts)) *testEnv {
@@ -729,13 +777,14 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	pubHost := mkTestHost(libp2p.Identity(priv))
-	i, core, _ := mkIngest(t, ingesterHost)
-	t.Cleanup(func() {
-		core.Close()
-		if !testOpt.skipIngesterCleanup {
-			i.Close()
-		}
-	})
+	i, core, reg := mkIngest(t, ingesterHost)
+
+	//t.Cleanup(func() {
+	//	core.Close()
+	//	if !testOpt.skipIngesterCleanup {
+	//		i.Close()
+	//	}
+	//})
 
 	var lsys ipld.LinkSystem
 	if testOpt.publisherLinkSysFn != nil {
@@ -747,9 +796,9 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 	pub, err := dtsync.NewPublisher(pubHost, srcStore, lsys, ingestCfg.PubSubTopic)
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		pub.Close()
-	})
+	//t.Cleanup(func() {
+	//	pub.Close()
+	//})
 
 	if shouldConnectHosts {
 		connectHosts(t, ingesterHost, pubHost)
@@ -764,6 +813,9 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 		pubStore:         srcStore,
 		publisherLinkSys: lsys,
 		ingester:         i,
+		ingesterHost:     ingesterHost,
 		ingesterPriv:     ingesterPriv,
+		core:             core,
+		reg:              reg,
 	}
 }
