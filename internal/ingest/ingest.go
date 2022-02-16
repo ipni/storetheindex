@@ -45,6 +45,7 @@ type Ingester struct {
 	indexer indexer.Interface
 
 	batchSize int
+	closeOnce sync.Once
 	sigUpdate chan struct{}
 
 	sub         *legs.Subscriber
@@ -143,19 +144,25 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 func (ing *Ingester) Close() error {
 	ing.adWaiter.close()
+
 	// Close leg transport.
 	err := ing.sub.Close()
 
 	// Dismiss any event readers.
 	ing.outEventsMutex.Lock()
-	if len(ing.outEventsChans) != 0 {
-		panic("Close called with syncs in progress")
+	for _, chans := range ing.outEventsChans {
+		for _, ch := range chans {
+			close(ch)
+		}
 	}
+	ing.outEventsChans = nil
 	ing.outEventsMutex.Unlock()
 
-	close(ing.sigUpdate)
-	// Stop the distribution goroutine.
-	close(ing.inEvents)
+	ing.closeOnce.Do(func() {
+		close(ing.sigUpdate)
+		// Stop the distribution goroutine.
+		close(ing.inEvents)
+	})
 
 	return err
 }
@@ -262,7 +269,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 					return
 				}
 			case <-ctx.Done():
-				log.Warnf("Sync cancelled", "err", ctx.Err())
+				log.Warnw("Sync cancelled", "err", ctx.Err())
 				return
 			}
 		}
