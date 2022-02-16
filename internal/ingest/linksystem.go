@@ -377,6 +377,8 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 				stats.Record(context.Background(), metrics.AdSyncedCount.M(1))
 			}
 		}
+		// Distribute the legs.SyncFinished notices to waiting Sync calls.
+		ing.inEvents <- legs.SyncFinished{Cid: adCid, PeerID: from}
 	}()
 
 	// This ad has bad data or has all of its content deleted by a subsequent
@@ -491,9 +493,6 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	log.Infow("Finished syncing entries", "elapsed", elapsed)
 
 	ing.signalMetricsUpdate()
-
-	// Distribute the legs.SyncFinished notices to waiting Sync calls.
-	ing.inEvents <- legs.SyncFinished{Cid: adCid, PeerID: from}
 }
 
 func (ing *Ingester) addSkip(key string) {
