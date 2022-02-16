@@ -454,11 +454,17 @@ func decodeEntriesChunk(t *testing.T, store datastore.Batching, c cid.Cid) ([]mu
 }
 
 func TestMultiplePublishers(t *testing.T) {
+	start := time.Now()
 	srcStore1 := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcStore2 := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
-	pubHost1 := mkTestHost()
-	pubHost2 := mkTestHost()
+	pubHost1Priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	pubHost1 := mkTestHost(libp2p.Identity(pubHost1Priv))
+	pubHost2Priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
+	pubHost2 := mkTestHost(libp2p.Identity(pubHost2Priv))
+	fmt.Println("test host Setup took", time.Since(start))
+	start = time.Now()
 	i, core, _ := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
@@ -466,43 +472,79 @@ func TestMultiplePublishers(t *testing.T) {
 	defer pub1.Close()
 	pub2, lsys2 := mkMockPublisher(t, pubHost2, srcStore2)
 	defer pub2.Close()
+	fmt.Println("publisher Setup took", time.Since(start))
 
+	start = time.Now()
 	// connect both providers
 	connectHosts(t, h, pubHost1)
 	connectHosts(t, h, pubHost2)
+	fmt.Println("connecting host took", time.Since(start))
 
 	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
 	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
-	time.Sleep(2 * time.Second)
+	// time.Sleep(2 * time.Second)
 
 	ctx := context.Background()
 
+	start = time.Now()
 	// Test with two random advertisement publications for each of them.
-	c1, mhs, providerID := publishRandomAdv(t, i, pubHost1, pub1, lsys1, false)
+	c1 := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
+		}}.Build(t, lsys1, pubHost1Priv)
+	err = pub1.UpdateRoot(ctx, c1.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	mhs := typehelpers.AllMultihashesFromAdLink(t, c1, lsys1)
+	fmt.Println("publishing to host took", time.Since(start))
+	start = time.Now()
+	wait, err := i.Sync(ctx, pubHost1.ID(), nil)
 	wait, err := i.Sync(ctx, pubHost1.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait
-	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
-	c2, mhs, providerID := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
+	fmt.Println("sync to host took", time.Since(start))
+
+	start = time.Now()
+	checkMhsIndexedEventually(t, i.indexer, pubHost1.ID(), mhs)
+	fmt.Println("check eventually took", time.Since(start))
+
+	// c2, mhs, providerID := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
+	start = time.Now()
+	c2 := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
+		}}.Build(t, lsys2, pubHost2Priv)
+	err = pub2.UpdateRoot(ctx, c2.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	mhs = typehelpers.AllMultihashesFromAdLink(t, c2, lsys2)
+	fmt.Println("publishing to host 2 took", time.Since(start))
+
+	start = time.Now()
 	wait, err = i.Sync(ctx, pubHost2.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait
-	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+	fmt.Println("sync to host 2 took", time.Since(start))
+
+	start = time.Now()
+	checkMhsIndexedEventually(t, i.indexer, pubHost2.ID(), mhs)
+	fmt.Println("check eventually 2 took", time.Since(start))
 
 	// Check that subscriber recorded latest sync.
 	lnk := i.sub.GetLatestSync(pubHost1.ID())
-	lcid := lnk.(cidlink.Link).Cid
-	require.Equal(t, lcid, c1)
+	require.Equal(t, lnk, c1)
 	lnk = i.sub.GetLatestSync(pubHost2.ID())
-	lcid = lnk.(cidlink.Link).Cid
-	require.Equal(t, lcid, c2)
+	require.Equal(t, lnk, c2)
 
-	lcid, err = i.GetLatestSync(pubHost1.ID())
+	lcid, err := i.GetLatestSync(pubHost1.ID())
 	require.NoError(t, err)
-	require.Equal(t, lcid, c1)
+	require.Equal(t, lcid, c1.(cidlink.Link).Cid)
+
 	lcid, err = i.GetLatestSync(pubHost2.ID())
 	require.NoError(t, err)
-	require.Equal(t, lcid, c2)
+	require.Equal(t, lcid, c2.(cidlink.Link).Cid)
 }
 
 func mkTestHost(opts ...libp2p.Option) host.Host {
@@ -521,7 +563,11 @@ func mkTestHost(opts ...libp2p.Option) host.Host {
 	opts = append(opts, defaultIdentity)
 
 	opts = append(opts, libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	// memtransport 5x faster to connect than tcp.
+	// opts = append(opts, libp2p.Transport(util.NewMemTransport), libp2p.ListenAddrStrings("/memtransport/0"))
+	start := time.Now()
 	h, _ := libp2p.New(opts...)
+	fmt.Println("mkTestHost took", time.Since(start), opts)
 	return h
 }
 
