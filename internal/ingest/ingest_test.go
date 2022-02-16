@@ -506,8 +506,21 @@ func TestMultiplePublishers(t *testing.T) {
 }
 
 func mkTestHost(opts ...libp2p.Option) host.Host {
-	// opts = append(opts, libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
-	opts = append(opts, libp2p.Transport(util.NewMemTransport), libp2p.ListenAddrStrings("/memtransport/0"))
+	// 10x Faster than the default identity option in libp2p.New
+	var defaultIdentity libp2p.Option = func(cfg *libp2p.Config) error {
+		if cfg.PeerKey == nil {
+			priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+			if err != nil {
+				return err
+			}
+			cfg.PeerKey = priv
+		}
+
+		return nil
+	}
+	opts = append(opts, defaultIdentity)
+
+	opts = append(opts, libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
 	h, _ := libp2p.New(opts...)
 	return h
 }
