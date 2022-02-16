@@ -234,6 +234,7 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 		},
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
+	fmt.Println("Head is", chainHead)
 	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.Type.Advertisement)
 	require.NoError(t, err)
 
@@ -505,7 +506,8 @@ func TestMultiplePublishers(t *testing.T) {
 }
 
 func mkTestHost(opts ...libp2p.Option) host.Host {
-	opts = append(opts, libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	// opts = append(opts, libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	opts = append(opts, libp2p.Transport(util.NewMemTransport), libp2p.ListenAddrStrings("/memtransport/0"))
 	h, _ := libp2p.New(opts...)
 	return h
 }

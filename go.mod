@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0
+	github.com/akutz/memconn v0.1.0
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.2.8
