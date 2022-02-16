@@ -3,8 +3,8 @@ package util
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"net"
+	"sync/atomic"
 
 	"github.com/akutz/memconn"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -20,6 +20,8 @@ type MemTransport struct {
 	upgrader   transport.Upgrader
 	rcmgr      network.ResourceManager
 }
+
+var counter int32 = 0
 
 type MemConn struct {
 	net.Conn
@@ -128,9 +130,9 @@ func init() {
 }
 
 func NewMemTransport(upgrader transport.Upgrader) (*MemTransport, error) {
-	rand32 := rand.Int31()
-	var remoteID int16 = int16(rand32 >> 16)
-	var localID int16 = int16(rand32)
+	atomic.AddInt32(&counter, 1)
+	localID := uint16(atomic.LoadInt32(&counter))
+	remoteID := localID
 	remoteAddr, err := ma.NewMultiaddr(fmt.Sprintf("/memtransport/%d", remoteID))
 	if err != nil {
 		return nil, err
