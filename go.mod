@@ -7,7 +7,7 @@ require (
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.2.8
-	github.com/filecoin-project/go-legs v0.3.0
+	github.com/filecoin-project/go-legs v0.3.1-0.20220216085339-f5b6d3dc0520
 	github.com/frankban/quicktest v1.14.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.4
@@ -30,5 +30,6 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/ybbus/jsonrpc/v2 v2.1.6
 	go.opencensus.io v0.23.0
+	go.uber.org/goleak v1.1.12 // indirect
 	go.uber.org/zap v1.19.1
 )

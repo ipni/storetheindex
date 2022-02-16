@@ -11,6 +11,7 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
+	"github.com/filecoin-project/go-legs"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
@@ -333,18 +334,29 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 
 	// Wait for the previous ad to finish processing.
 	if !ing.adWaiter.wait(prevCid) {
-		// If there was a previous ad, but it was not waitable, then check if
-		// is it already in the datastore.  It ad is not stored, then wait for
-		// it to become waitable.  If ad is already in the datastore to, then
-		// was previously processed, so do not wait.
-		exists, err := ing.ds.Has(context.Background(), dsKey(prevCid.String()))
-		if err != nil {
-			log.Errorw("Failed checking if ad exists", "err", err)
+		log.Debugw("Previous ad not yet waitable", "prevAd", prevCid, "recheckDelay", waitPreviousAdTime)
+		// If there was a previous ad, but it was not waitable, then try
+		// on it again after a small delay, or until the ad is seen completing a sync.
+		//
+		// Note, Checking the datastore to see if the ad is processed will not
+		// work her.  The ad is likely already in the datastore whether on not
+		// it has been processed since that is done in the StorageWriteOpener.
+		syncDone, cancel := ing.onAdProcessed(from)
+		t := time.NewTimer(waitPreviousAdTime)
+	waitLoop:
+		for {
+			select {
+			case adDone := <-syncDone:
+				if adDone == prevCid {
+					break waitLoop
+				}
+			case <-t.C:
+				ing.adWaiter.wait(prevCid)
+				break waitLoop
+			}
 		}
-		if !exists {
-			time.Sleep(waitPreviousAdTime)
-		}
-		ing.adWaiter.wait(prevCid)
+		cancel()
+		t.Stop()
 	}
 
 	// Signal when done with this ad's entries.
@@ -356,14 +368,14 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	var reprocessAd bool
 	defer func() {
 		if reprocessAd {
-			// Do not mark ad as done so that it will be reprocessed.
-			return
-		}
-		// Processed all the entries, so mark this ad as processed.
-		if err := ing.markAdProcessed(from, adCid); err != nil {
-			log.Errorw("Failed to mark ad as processed", "err", err)
+			ing.ds.Delete(context.Background(), dsKey(adCid.String()))
 		} else {
-			stats.Record(context.Background(), metrics.AdSyncedCount.M(1))
+			// Processed all the entries, so mark this ad as processed.
+			if err := ing.markAdProcessed(from, adCid); err != nil {
+				log.Errorw("Failed to mark ad as processed", "err", err)
+			} else {
+				stats.Record(context.Background(), metrics.AdSyncedCount.M(1))
+			}
 		}
 	}()
 
@@ -372,8 +384,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	if skip {
 		if elink != schema.NoEntries {
 			entCid := elink.(cidlink.Link).Cid
-			dk := dsKey(admapPrefix + entCid.String())
-			err = ing.ds.Delete(context.Background(), dk)
+			_, err := popCidToAdMapping(context.Background(), ing.ds, entCid)
 			if err != nil {
 				log.Errorw("cannot delete advertisement cid for entries cid from datastore", "err", err)
 			}
@@ -463,7 +474,9 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		ctx, cancel = context.WithTimeout(ctx, ing.syncTimeout)
 		defer cancel()
 	}
+
 	startTime := time.Now()
+
 	// Traverse entries based on the entries selector that limits recursion depth.
 	_, err = ing.sub.Sync(ctx, from, entriesCid, ing.entriesSel, nil)
 	if err != nil {
@@ -471,12 +484,16 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		log.Errorw("Failed to sync", "err", err)
 		return
 	}
+
 	elapsed := time.Since(startTime)
 	// Record how long sync took.
 	stats.Record(context.Background(), metrics.EntriesSyncLatency.M(coremetrics.MsecSince(startTime)))
 	log.Infow("Finished syncing entries", "elapsed", elapsed)
 
 	ing.signalMetricsUpdate()
+
+	// Distribute the legs.SyncFinished notices to waiting Sync calls.
+	ing.inEvents <- legs.SyncFinished{Cid: adCid, PeerID: from}
 }
 
 func (ing *Ingester) addSkip(key string) {
@@ -562,7 +579,7 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 		h, err := cnode.AsBytes()
 		if err != nil {
 			close(mhChan)
-			return fmt.Errorf("cannot decode an entry from the ingestion list: %w", err)
+			return fmt.Errorf("cannot decode a multihash from content block: %w", err)
 		}
 
 		select {
@@ -582,13 +599,7 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 		return fmt.Errorf("cannot put multihashes into indexer: %w", err)
 	}
 
-	err = <-errChan
-	if err != nil {
-		return nil
-	}
-
 	return nil
-
 }
 
 func (ing *Ingester) setNextCidToAd(nchunk schema.EntryChunk, adCid cid.Cid) (bool, error) {
