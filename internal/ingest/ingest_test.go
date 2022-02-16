@@ -122,7 +122,6 @@ func (b *blockList) rm(c cid.Cid) {
 }
 
 func TestRestartDuringSync(t *testing.T) {
-	t.Skip("Needs help")
 	blockedReads := &blockList{list: make(map[cid.Cid]bool)}
 	hitBlockedRead := make(chan cid.Cid)
 
@@ -652,12 +651,16 @@ func checkAllIndexed(ix indexer.Interface, p peer.ID, mhs []multihash.Multihash)
 		if !exists {
 			return errors.New("index not found")
 		}
+		var found bool
 		for _, v := range values {
 			if v.ProviderID == p {
-				return nil
+				found = true
+				break
 			}
 		}
-		return errors.New("index not found for provider")
+		if !found {
+			return errors.New("index not found for provider")
+		}
 	}
 	return nil
 }
@@ -727,6 +730,7 @@ type testEnv struct {
 	ingesterHost     host.Host
 	core             *engine.Engine
 	reg              *registry.Registry
+	skipIngCleanup   bool
 }
 
 type testEnvOpts struct {
@@ -748,9 +752,11 @@ func (te *testEnv) Close(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error closing publisher host resource manager: %s", err)
 	}
-	err = te.ingester.Close()
-	if err != nil {
-		t.Errorf("Error closing ingester: %s", err)
+	if !te.skipIngCleanup {
+		err = te.ingester.Close()
+		if err != nil {
+			t.Errorf("Error closing ingester: %s", err)
+		}
 	}
 	err = te.core.Close()
 	if err != nil {
@@ -804,17 +810,13 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 	pub, err := dtsync.NewPublisher(pubHost, srcStore, lsys, ingestCfg.PubSubTopic)
 	require.NoError(t, err)
 
-	//t.Cleanup(func() {
-	//	pub.Close()
-	//})
-
 	if shouldConnectHosts {
 		connectHosts(t, ingesterHost, pubHost)
 	}
 
 	require.NoError(t, err)
 
-	return &testEnv{
+	te := &testEnv{
 		publisher:        pub,
 		publisherPriv:    priv,
 		pubHost:          pubHost,
@@ -825,5 +827,12 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 		ingesterPriv:     ingesterPriv,
 		core:             core,
 		reg:              reg,
+		skipIngCleanup:   testOpt.skipIngesterCleanup,
 	}
+
+	t.Cleanup(func() {
+		te.Close(t)
+	})
+
+	return te
 }
