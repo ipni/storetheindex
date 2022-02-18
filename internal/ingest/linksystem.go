@@ -49,7 +49,7 @@ func dsKey(k string) datastore.Key {
 // mkLinkSystem makes the indexer linkSystem which checks advertisement
 // signatures at storage. If the signature is not valid the traversal/exchange
 // is terminated.
-func mkLinkSystem(ds datastore.Batching, adWaiter *cidWaiter) ipld.LinkSystem {
+func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
@@ -265,36 +265,6 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 			defer ing.delSkip(skipKey)
 		}
 	}
-
-	// Wait for the previous ad to finish processing.
-	if !ing.adWaiter.wait(prevCid) {
-		log.Debugw("Previous ad not yet waitable", "prevAd", prevCid, "recheckDelay", waitPreviousAdTime)
-		// If there was a previous ad, but it was not waitable, then try
-		// on it again after a small delay, or until the ad is seen completing a sync.
-		//
-		// Note, Checking the datastore to see if the ad is processed will not
-		// work her.  The ad is likely already in the datastore whether on not
-		// it has been processed since that is done in the StorageWriteOpener.
-		syncDone, cancel := ing.onAdProcessed(from)
-		t := time.NewTimer(waitPreviousAdTime)
-	waitLoop:
-		for {
-			select {
-			case adDone := <-syncDone:
-				if adDone == prevCid {
-					break waitLoop
-				}
-			case <-t.C:
-				ing.adWaiter.wait(prevCid)
-				break waitLoop
-			}
-		}
-		cancel()
-		t.Stop()
-	}
-
-	// Signal when done with this ad's entries.
-	defer ing.adWaiter.done(adCid)
 
 	// Mark the ad as processed after done processing. This is even in most
 	// error cases so that the indexer is not stuck trying to reprocessing a

@@ -54,7 +54,6 @@ type Ingester struct {
 
 	sub         *legs.Subscriber
 	syncTimeout time.Duration
-	adWaiter    *cidWaiter
 
 	adCache      map[cid.Cid]adCacheItem
 	adCacheMutex sync.Mutex
@@ -101,8 +100,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		// Do not return error; keep going.
 	}
 
-	adWaiter := newCidWaiter()
-	lsys := mkLinkSystem(ds, adWaiter)
+	lsys := mkLinkSystem(ds)
 
 	// Construct a selector that recursively looks for nodes with field
 	// "PreviousID" as per Advertisement schema.  Note that the entries within
@@ -128,7 +126,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		batchSize:   cfg.StoreBatchSize,
 		sigUpdate:   make(chan struct{}, 1),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
-		adWaiter:    adWaiter,
 		entriesSel:  entSel,
 		reg:         reg,
 		cfg:         cfg,
@@ -203,8 +200,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 }
 
 func (ing *Ingester) Close() error {
-	ing.adWaiter.close()
-
 	// Close leg transport.
 	err := ing.sub.Close()
 
