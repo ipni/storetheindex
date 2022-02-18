@@ -65,9 +65,9 @@ func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 }
 
 func InitIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *ingest.Ingester {
-	cfg := config.Ingest{}
+	cfg := config.NewIngest()
 	ds := datastore.NewMapDatastore()
-	host, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	host, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
 	if err != nil {
 		t.Fatal(err)
 	}
