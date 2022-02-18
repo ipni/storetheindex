@@ -1,5 +1,8 @@
 package main_test
 
+//lint:file-ignore U1000 Currently skipping this test since it's slow and breaks
+//often because it's non-reproducible. TODO fixme
+
 import (
 	"bufio"
 	"bytes"
