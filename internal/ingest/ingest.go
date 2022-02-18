@@ -642,12 +642,12 @@ func (ing *Ingester) runIngestStep() {
 		ing.stagingProviderAds[p] = append(ing.stagingProviderAds[p], cidsWithPublisher{cids, syncFinishedEvent.PeerID})
 	}
 
-	// 3. For each provider check if there is a running worker for that provider.
-	// If not, put that stack in the toWorker chan to be processed.
-	// Note: The outer nested loop is so we queue across providers so we can ingest concurrently. (A single provider can only be ingested serially)
+	// 3. For each provider put the ad stack to the worker msg channel.
+	// Note: The outer nested loop is so we queue across providers so we can
+	// ingest concurrently. (A single provider can only be ingested serially)
 	for {
 		allQueued := true
-		// Each loop adds one stack from a provider to the message queue.
+		// Each loop adds one stack from a provider to the message channel.
 		for p, cidsAndPub := range ing.stagingProviderAds {
 			if len(cidsAndPub) != 0 {
 				allQueued = false
