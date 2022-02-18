@@ -79,12 +79,10 @@ type Ingester struct {
 
 	cancelOnSyncFinished context.CancelFunc
 
-	// staging area
-	// We don't need a mutex here because only one goroutine will ever touch this.
-	stagingProviderAds map[peer.ID][]cidsWithPublisher
-
-	providersBeingProcessedMu sync.Mutex
+	// A map of providers currently being processed. A worker holds the lock of a
+	// provider while ingesting ads for that provider.
 	providersBeingProcessed   map[peer.ID]*sync.Mutex
+	providersBeingProcessedMu sync.Mutex
 	toWorkers                 chan toWorkerMsg
 	closeWorkers              chan struct{}
 	waitForWorkers            sync.WaitGroup
@@ -133,8 +131,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		inEvents:    make(chan legs.SyncFinished, 1),
 
 		closePendingSyncs: make(chan struct{}),
-
-		stagingProviderAds: make(map[peer.ID][]cidsWithPublisher),
 
 		providersBeingProcessed: make(map[peer.ID]*sync.Mutex),
 		toWorkers:               make(chan toWorkerMsg),
@@ -606,11 +602,6 @@ func (ing *Ingester) loopIngester(workerPoolSize int) {
 	}()
 }
 
-type cidsWithPublisher struct {
-	cids []cid.Cid
-	pub  peer.ID
-}
-
 func (ing *Ingester) runIngestStep() {
 	syncFinishedEvent, ok := <-ing.toStaging
 	if !ok {
@@ -637,35 +628,17 @@ func (ing *Ingester) runIngestStep() {
 		cidsGroupedByProvider[providerID] = append(cidsGroupedByProvider[providerID], c)
 	}
 
-	// 2. Consolidate the new information into our staging area
+	// 2. For each provider put the ad stack to the worker msg channel.
 	for p, cids := range cidsGroupedByProvider {
-		ing.stagingProviderAds[p] = append(ing.stagingProviderAds[p], cidsWithPublisher{cids, syncFinishedEvent.PeerID})
-	}
-
-	// 3. For each provider put the ad stack to the worker msg channel.
-	// Note: The outer nested loop is so we queue across providers so we can
-	// ingest concurrently. (A single provider can only be ingested serially)
-	for {
-		allQueued := true
-		// Each loop adds one stack from a provider to the message channel.
-		for p, cidsAndPub := range ing.stagingProviderAds {
-			if len(cidsAndPub) != 0 {
-				allQueued = false
-				ing.providersBeingProcessedMu.Lock()
-				if _, ok := ing.providersBeingProcessed[p]; !ok {
-					ing.providersBeingProcessed[p] = &sync.Mutex{}
-				}
-				ing.providersBeingProcessedMu.Unlock()
-				ing.toWorkers <- toWorkerMsg{
-					cids:      cidsAndPub[0].cids,
-					publisher: cidsAndPub[0].pub,
-					provider:  p,
-				}
-				ing.stagingProviderAds[p] = cidsAndPub[1:]
-			}
+		ing.providersBeingProcessedMu.Lock()
+		if _, ok := ing.providersBeingProcessed[p]; !ok {
+			ing.providersBeingProcessed[p] = &sync.Mutex{}
 		}
-		if allQueued {
-			break
+		ing.providersBeingProcessedMu.Unlock()
+		ing.toWorkers <- toWorkerMsg{
+			cids:      cids,
+			publisher: syncFinishedEvent.PeerID,
+			provider:  p,
 		}
 	}
 }
