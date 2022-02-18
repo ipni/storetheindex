@@ -65,9 +65,6 @@ func TestRegisterProvider(t *testing.T) {
 
 	//test.IndexContentFail(t, httpClient, peerID, privKey, ind)
 
-	if err = ing.Close(); err != nil {
-		t.Errorf("Error closing ingester: %s", err)
-	}
 	if err = reg.Close(); err != nil {
 		t.Errorf("Error closing registry: %s", err)
 	}
@@ -100,9 +97,6 @@ func TestAnnounce(t *testing.T) {
 
 	test.AnnounceTest(t, peerID, httpClient)
 
-	if err = ing.Close(); err != nil {
-		t.Errorf("Error closing ingester: %s", err)
-	}
 	if err = reg.Close(); err != nil {
 		t.Errorf("Error closing registry: %s", err)
 	}

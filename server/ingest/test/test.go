@@ -76,6 +76,9 @@ func InitIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *i
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		ing.Close()
+	})
 	return ing
 }
 

@@ -161,7 +161,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	if cfg.IngestWorkerCount == 0 {
 		return nil, errors.New("ingester worker count must be > 0")
 	}
-	go ing.loopIngester(cfg.IngestWorkerCount)
+	ing.loopIngester(cfg.IngestWorkerCount)
 
 	// Start distributor to send SyncFinished messages to interested parties.
 	go ing.distributeEvents()
@@ -594,14 +594,16 @@ func (ing *Ingester) loopIngester(workerPoolSize int) {
 		}()
 	}
 
-	for {
-		select {
-		case <-ing.closeWorkers:
-			return
-		default:
-			ing.runIngestStep()
+	go func() {
+		for {
+			select {
+			case <-ing.closeWorkers:
+				return
+			default:
+				ing.runIngestStep()
+			}
 		}
-	}
+	}()
 }
 
 type cidsWithPublisher struct {
