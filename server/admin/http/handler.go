@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/config"
@@ -72,10 +73,25 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	log := log.With("peerID", peerID)
+
+	var depth int64
+	query := r.URL.Query()
+	depthStr := query.Get("depth")
+	if depthStr != "" {
+		var err error
+		depth, err = strconv.ParseInt(depthStr, 10, 64)
+		if err != nil {
+			log.Errorw("Cannot unmarshal recursion depth as integer", "depthStr", depthStr, "err", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		log = log.With("depth", depth)
+	}
 
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Errorw("failed reading body", "err", err)
+		log.Errorw("Failed reading body", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -92,14 +108,15 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		log = log.With("address", syncAddr)
 	}
 
-	log.Infow("Syncing with peer", "peer", peerID.String(), "address", syncAddr)
+	log.Info("Syncing with peer")
 
 	// Start the sync, but do not wait for it to complete.
 	//
 	// TODO: Provide some way for the client to see if the indexer has synced.
-	_, err = h.ingester.Sync(h.ctx, peerID, syncAddr)
+	_, err = h.ingester.Sync(h.ctx, peerID, syncAddr, depth)
 	if err != nil {
 		msg := "Cannot sync with peer"
 		log.Errorw(msg, "err", err)
