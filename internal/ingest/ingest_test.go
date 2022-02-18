@@ -57,6 +57,7 @@ var (
 		SyncTimeout:             config.Duration(time.Minute),
 		EntriesDepthLimit:       300,
 		AdvertisementDepthLimit: 300,
+		IngestWorkerCount:       1,
 	}
 	rng = rand.New(rand.NewSource(1413))
 )
@@ -878,12 +879,12 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 	pubHost := mkTestHost(libp2p.Identity(priv))
 	i, core, reg := mkIngest(t, ingesterHost)
 
-	//t.Cleanup(func() {
-	//	core.Close()
-	//	if !testOpt.skipIngesterCleanup {
-	//		i.Close()
-	//	}
-	//})
+	t.Cleanup(func() {
+		core.Close()
+		if !testOpt.skipIngesterCleanup {
+			i.Close()
+		}
+	})
 
 	var lsys ipld.LinkSystem
 	if testOpt.publisherLinkSysFn != nil {

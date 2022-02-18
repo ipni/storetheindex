@@ -28,6 +28,10 @@ type Ingest struct {
 	// The recursion depth limit when syncing advertisements.
 	// The value -1 means no limit. Defaults to 400.
 	AdvertisementDepthLimit int64
+
+	// How many ingest worker goroutines to spawn. This controls how many
+	// concurrent ingest from different providers we can handle.
+	IngestWorkerCount int
 }
 
 // NewIngest returns Ingest with values set to their defaults.
@@ -38,6 +42,7 @@ func NewIngest() Ingest {
 		SyncTimeout:             Duration(2 * time.Hour),
 		EntriesDepthLimit:       400,
 		AdvertisementDepthLimit: 400,
+		IngestWorkerCount:       10,
 	}
 }
 

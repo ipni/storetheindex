@@ -77,16 +77,18 @@ type Ingester struct {
 	waitForPendingSyncs sync.WaitGroup
 	closePendingSyncs   chan struct{}
 
+	cancelOnSyncFinished context.CancelFunc
+
 	// staging area
 	// We don't need a mutex here because only one goroutine will ever touch this.
 	stagingProviderAds map[peer.ID][]cidsWithPublisher
 
 	providersBeingProcessedMu sync.Mutex
-	providersBeingProcessed   map[peer.ID]bool
+	providersBeingProcessed   map[peer.ID]*sync.Mutex
 	toWorkers                 chan toWorkerMsg
 	closeWorkers              chan struct{}
 	waitForWorkers            sync.WaitGroup
-	toStaging                 chan legs.SyncFinished
+	toStaging                 <-chan legs.SyncFinished
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -134,10 +136,9 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		stagingProviderAds: make(map[peer.ID][]cidsWithPublisher),
 
-		providersBeingProcessed: make(map[peer.ID]bool),
+		providersBeingProcessed: make(map[peer.ID]*sync.Mutex),
 		toWorkers:               make(chan toWorkerMsg),
 		closeWorkers:            make(chan struct{}),
-		toStaging:               make(chan legs.SyncFinished, 1),
 	}
 
 	// Create and start pubsub subscriber.  This also registers the storage
@@ -155,38 +156,12 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		return nil, err
 	}
 
-	go ing.loopIngester(2)
+	ing.toStaging, ing.cancelOnSyncFinished = ing.sub.OnSyncFinished()
 
-	// TODO handle cancel
-	onsyncFinishedChan, _ := ing.sub.OnSyncFinished()
-	go func() {
-		for syncFinished := range onsyncFinishedChan {
-			fmt.Println("Sending to staging")
-			ing.toStaging <- syncFinished
-			fmt.Println("done Sending to staging")
-			// syncFinished.SyncedCids
-			// for i := len(syncFinished.SyncedCids) - 1; i >= 0; i-- {
-			// 	adCid := syncFinished.SyncedCids[i]
-			// 	node, err := lsys.Load(linking.LinkContext{}, cidlink.Link{Cid: adCid}, basicnode.Prototype.Any)
-			// 	if err != nil {
-			// 		fmt.Println("!!!!!!! Error loading advertisement:", err)
-			// 		continue
-			// 	}
-
-			// 	ad, err := decodeAd(node)
-			// 	if err != nil {
-			// 		fmt.Println("!!!!! Error decoding advertisement:", err)
-			// 		continue
-			// 	}
-
-			// 	fmt.Println("PROCESSING ADVERTISEMENT:", adCid)
-			// 	// cid.Undef so we avoid cidwaiter code
-			// 	ing.syncAdEntries(syncFinished.PeerID, ad, adCid, cid.Undef)
-			// 	fmt.Println("DONE PROCESSING ADVERTISEMENT:", adCid)
-			// }
-		}
-
-	}()
+	if cfg.IngestWorkerCount == 0 {
+		return nil, errors.New("ingester worker count must be > 0")
+	}
+	go ing.loopIngester(cfg.IngestWorkerCount)
 
 	// Start distributor to send SyncFinished messages to interested parties.
 	go ing.distributeEvents()
@@ -213,12 +188,11 @@ func (ing *Ingester) Close() error {
 	ing.outEventsMutex.Unlock()
 
 	ing.closeOnce.Do(func() {
+		ing.cancelOnSyncFinished()
 		close(ing.closeWorkers)
 		ing.waitForWorkers.Wait()
-		fmt.Println("Waiting for pending sync")
 		close(ing.closePendingSyncs)
 		ing.waitForPendingSyncs.Wait()
-		fmt.Println("Done waiting for pending sync")
 
 		// Stop the distribution goroutine.
 		close(ing.inEvents)
@@ -621,16 +595,11 @@ func (ing *Ingester) loopIngester(workerPoolSize int) {
 	}
 
 	for {
-		fmt.Println("Start loop")
 		select {
 		case <-ing.closeWorkers:
-			fmt.Println("CLOSING loop")
 			return
 		default:
-			fmt.Println("Running step")
-			// TODO(mm) think about backpressure
 			ing.runIngestStep()
-			fmt.Println("done Running step")
 		}
 	}
 }
@@ -668,30 +637,31 @@ func (ing *Ingester) runIngestStep() {
 		ing.stagingProviderAds[p] = append(ing.stagingProviderAds[p], cidsWithPublisher{cids, syncFinishedEvent.PeerID})
 	}
 
-	// 3. For each group check if there is a running worker for that group. If not, put that stack in the toWorker chan to be processed
-	// Put the msgs we are going to send in the array so that we get out of this lock zone.
-	var toSend []toWorkerMsg
-	ing.providersBeingProcessedMu.Lock()
-	for p, cidsAndPub := range ing.stagingProviderAds {
-		if len(cidsAndPub) == 0 {
-			continue
-		} else if beingProcessed := ing.providersBeingProcessed[p]; beingProcessed {
-			// Skip over any peers that are currently being processed.
-			continue
-		} else {
-			ing.providersBeingProcessed[p] = true
-			toSend = append(toSend, toWorkerMsg{
-				cids:      cidsAndPub[0].cids,
-				publisher: cidsAndPub[0].pub,
-				provider:  p,
-			})
-			ing.stagingProviderAds[p] = cidsAndPub[1:]
+	// 3. For each provider check if there is a running worker for that provider.
+	// If not, put that stack in the toWorker chan to be processed.
+	// Note: The outer nested loop is so we queue across providers so we can ingest concurrently. (A single provider can only be ingested serially)
+	for {
+		allQueued := true
+		// Each loop adds one stack from a provider to the message queue.
+		for p, cidsAndPub := range ing.stagingProviderAds {
+			if len(cidsAndPub) != 0 {
+				allQueued = false
+				ing.providersBeingProcessedMu.Lock()
+				if _, ok := ing.providersBeingProcessed[p]; !ok {
+					ing.providersBeingProcessed[p] = &sync.Mutex{}
+				}
+				ing.providersBeingProcessedMu.Unlock()
+				ing.toWorkers <- toWorkerMsg{
+					cids:      cidsAndPub[0].cids,
+					publisher: cidsAndPub[0].pub,
+					provider:  p,
+				}
+				ing.stagingProviderAds[p] = cidsAndPub[1:]
+			}
 		}
-	}
-	ing.providersBeingProcessedMu.Unlock()
-
-	for _, m := range toSend {
-		ing.toWorkers <- m
+		if allQueued {
+			break
+		}
 	}
 }
 
@@ -712,11 +682,10 @@ func (ing *Ingester) ingestWorker() {
 }
 
 func (ing *Ingester) ingestWorkerLogic(provider peer.ID, publisher peer.ID, adCid cid.Cid) (earlyBreak bool) {
-	defer func() {
-		ing.providersBeingProcessedMu.Lock()
-		ing.providersBeingProcessed[provider] = false
-		ing.providersBeingProcessedMu.Unlock()
-	}()
+	// It's assumed that the runIngestStep puts a mutex in this map.
+	ing.providersBeingProcessed[provider].Lock()
+	defer ing.providersBeingProcessed[provider].Unlock()
+
 	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
 	if err == nil && v[0] == byte(1) {
 		// We've process this ads already, so we know we've processed all earlier ads too.
