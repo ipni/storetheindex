@@ -666,7 +666,7 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID, publisher peer.ID, adCi
 
 	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
 	if err == nil && v[0] == byte(1) {
-		// We've process this ads already, so we know we've processed all earlier ads too.
+		// We've process this ad already, so we know we've processed all earlier ads too.
 		return true
 	}
 	err = ing.ingestAd(publisher, adCid)
