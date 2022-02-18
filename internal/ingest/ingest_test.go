@@ -167,7 +167,6 @@ func TestRestartDuringSync(t *testing.T) {
 	blockedReads := &blockList{list: make(map[cid.Cid]bool)}
 	hitBlockedRead := make(chan cid.Cid)
 
-	start := time.Now()
 	te := setupTestEnv(t, true, func(teo *testEnvOpts) {
 		teo.skipIngesterCleanup = true
 		teo.publisherLinkSysFn = func(ds datastore.Batching) ipld.LinkSystem {
@@ -189,9 +188,7 @@ func TestRestartDuringSync(t *testing.T) {
 			return lsys
 		}
 	})
-	fmt.Println("Setup took ", time.Since(start))
 
-	start = time.Now()
 	cCid := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
@@ -221,9 +218,7 @@ func TestRestartDuringSync(t *testing.T) {
 	ctx := context.Background()
 	err = te.publisher.SetRoot(ctx, bCid.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	fmt.Println("Publish took ", time.Since(start))
 
-	start = time.Now()
 	sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -234,29 +229,20 @@ func TestRestartDuringSync(t *testing.T) {
 	<-hitBlockedRead
 	te.ingester.Close()
 	te.ingester.host.Close()
-	// <-wait
-	fmt.Println("Failed sync took ", time.Since(start))
 
-	start = time.Now()
 	aMhs := typehelpers.AllMultihashesFromAd(t, aAd, te.publisherLinkSys)
 	// Check that we processed A correctly.
 	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), aMhs)
-	fmt.Println("check mhs took ", time.Since(start))
 
 	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
 
-	start = time.Now()
 	// We should not have processed B yet.
 	bMhs := typehelpers.AllMultihashesFromAd(t, bAd, te.publisherLinkSys)
 	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), bMhs)
 	if err == nil {
 		require.FailNow(t, "expected that maulthashes were not found")
 	}
-	fmt.Println("check not b mhs took ", time.Since(start))
 
-	//requireTrueEventually(t, func() bool { return !providesAll(t, te.ingester.indexer, te.pubHost.ID(), bMhs...) }, testRetryInterval, testRetryTimeout, "multihashes were not indexed")
-
-	start = time.Now()
 	// Now we bring up the ingester again.
 	ingesterHost := mkTestHost(libp2p.Identity(te.ingesterPriv))
 	connectHosts(t, te.pubHost, ingesterHost)
@@ -266,23 +252,16 @@ func TestRestartDuringSync(t *testing.T) {
 		ingester.Close()
 	})
 	te.ingester = ingester
-	fmt.Println("Bringin ingester back up took", time.Since(start))
 
-	start = time.Now()
 	// And sync to C
 	te.publisher.UpdateRoot(ctx, cCid.(cidlink.Link).Cid)
-	fmt.Println("publish C took", time.Since(start))
 
-	start = time.Now()
 	end, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-end
-	fmt.Println("ingest C took", time.Since(start))
 
-	start = time.Now()
 	allMhs := typehelpers.AllMultihashesFromAd(t, cAd, te.publisherLinkSys)
 	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
-	fmt.Println("Final check took", time.Since(start))
 }
 
 func TestWithDuplicatedEntryChunks(t *testing.T) {
@@ -515,7 +494,6 @@ func decodeEntriesChunk(t *testing.T, store datastore.Batching, c cid.Cid) ([]mu
 }
 
 func TestMultiplePublishers(t *testing.T) {
-	start := time.Now()
 	srcStore1 := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcStore2 := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
@@ -525,8 +503,6 @@ func TestMultiplePublishers(t *testing.T) {
 	pubHost2Priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	pubHost2 := mkTestHost(libp2p.Identity(pubHost2Priv))
-	fmt.Println("test host Setup took", time.Since(start))
-	start = time.Now()
 	i, core, _ := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
@@ -534,21 +510,13 @@ func TestMultiplePublishers(t *testing.T) {
 	defer pub1.Close()
 	pub2, lsys2 := mkMockPublisher(t, pubHost2, srcStore2)
 	defer pub2.Close()
-	fmt.Println("publisher Setup took", time.Since(start))
 
-	start = time.Now()
 	// connect both providers
 	connectHosts(t, h, pubHost1)
 	connectHosts(t, h, pubHost2)
-	fmt.Println("connecting host took", time.Since(start))
-
-	// per https://github.com/libp2p/go-libp2p-pubsub/blob/e6ad80cf4782fca31f46e3a8ba8d1a450d562f49/gossipsub_test.go#L103
-	// we don't seem to have a way to manually trigger needed gossip-sub heartbeats for mesh establishment.
-	// time.Sleep(2 * time.Second)
 
 	ctx := context.Background()
 
-	start = time.Now()
 	// Test with two random advertisement publications for each of them.
 	c1 := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
@@ -559,19 +527,13 @@ func TestMultiplePublishers(t *testing.T) {
 	err = pub1.UpdateRoot(ctx, c1.(cidlink.Link).Cid)
 	require.NoError(t, err)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, c1, lsys1)
-	fmt.Println("publishing to host took", time.Since(start))
-	start = time.Now()
 	wait, err := i.Sync(ctx, pubHost1.ID(), nil)
 	wait, err := i.Sync(ctx, pubHost1.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait
-	fmt.Println("sync to host took", time.Since(start))
 
-	start = time.Now()
 	checkMhsIndexedEventually(t, i.indexer, pubHost1.ID(), mhs)
-	fmt.Println("check eventually took", time.Since(start))
 
-	start = time.Now()
 	c2 := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
@@ -581,17 +543,12 @@ func TestMultiplePublishers(t *testing.T) {
 	err = pub2.UpdateRoot(ctx, c2.(cidlink.Link).Cid)
 	require.NoError(t, err)
 	mhs = typehelpers.AllMultihashesFromAdLink(t, c2, lsys2)
-	fmt.Println("publishing to host 2 took", time.Since(start))
 
-	start = time.Now()
 	wait, err = i.Sync(ctx, pubHost2.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait
-	fmt.Println("sync to host 2 took", time.Since(start))
 
-	start = time.Now()
 	checkMhsIndexedEventually(t, i.indexer, pubHost2.ID(), mhs)
-	fmt.Println("check eventually 2 took", time.Since(start))
 
 	// Check that subscriber recorded latest sync.
 	lnk := i.sub.GetLatestSync(pubHost1.ID())
@@ -624,11 +581,7 @@ func mkTestHost(opts ...libp2p.Option) host.Host {
 	opts = append(opts, defaultIdentity)
 
 	opts = append(opts, libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
-	// memtransport 5x faster to connect than tcp.
-	// opts = append(opts, libp2p.Transport(util.NewMemTransport), libp2p.ListenAddrStrings("/memtransport/0"))
-	start := time.Now()
 	h, _ := libp2p.New(opts...)
-	fmt.Println("mkTestHost took", time.Since(start), opts)
 	return h
 }
 
