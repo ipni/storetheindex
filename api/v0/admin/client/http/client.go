@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strconv"
 
 	"github.com/filecoin-project/storetheindex/api/v0/httpclient"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -94,8 +95,8 @@ func (c *Client) ImportFromCidList(ctx context.Context, fileName string, provID 
 	return nil
 }
 
-// Sync with a data peeer up to latest ID.
-func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr) error {
+// Sync with a data peer up to the latest ID.
+func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64) error {
 	var data []byte
 	var err error
 	if peerAddr != nil {
@@ -105,7 +106,15 @@ func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Mu
 		}
 	}
 
-	return c.ingestRequest(ctx, peerID, "sync", http.MethodPost, data)
+	var q []string
+	// Only set the depth parameter if it is not zero, since zero
+	// means "use the limit configured in config.Ingest".
+	// Note that the value -1 means no-limit.
+	if depth != 0 {
+		q = []string{"depth", strconv.FormatInt(depth, 10)}
+	}
+
+	return c.ingestRequest(ctx, peerID, "sync", http.MethodPost, data, q...)
 }
 
 // ReloadPolicy reloads the policy from the configuration file.
@@ -195,7 +204,7 @@ func (c *Client) SetLogLevels(ctx context.Context, sysLvl map[string]string) err
 	return nil
 }
 
-func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, method string, data []byte) error {
+func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, method string, data []byte, queryPairs ...string) error {
 	u := c.baseURL + path.Join(ingestResource, action, peerID.String())
 
 	var body io.Reader
@@ -205,6 +214,16 @@ func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, meth
 	req, err := http.NewRequestWithContext(ctx, method, u, body)
 	if err != nil {
 		return err
+	}
+
+	qpLen := len(queryPairs)
+	if qpLen%2 != 0 {
+		return fmt.Errorf("number of query pairs must be even; got %d", qpLen)
+	}
+
+	q := req.URL.Query()
+	for i := 0; i < qpLen/2; i += 2 {
+		q.Add(queryPairs[i], queryPairs[i+1])
 	}
 
 	resp, err := c.c.Do(req)

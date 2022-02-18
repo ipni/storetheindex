@@ -17,8 +17,11 @@ import (
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
+	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
+	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -135,6 +138,15 @@ func (ing *Ingester) Close() error {
 // gets to the last seen advertisement.  Then the entries in each advertisement
 // are synced and the multihashes in each entry are indexed.
 //
+// The depth argument specifies the recursion depth limit to use during sync.
+// When depth is set to 0, the advertisement recursion depth from config.Ingest
+// used.
+//
+// Note that the reference to the latest synced advertisement returned by
+// GetLatestSync is only updated if the given depth is zero.  Otherwise, a
+// selector with the given depth limit is constructed  and used for traversal.
+// The value of -1 signals no limit.
+//
 // The Context argument controls the lifetime of the sync.  Canceling it
 // cancels the sync and causes the multihash channel to close without any data.
 //
@@ -142,7 +154,7 @@ func (ing *Ingester) Close() error {
 // synced in the background.  The completion of advertisement sync does not
 // necessarily mean that the entries corresponding to the advertisement are
 // synced.
-func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr) (<-chan multihash.Multihash, error) {
+func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64) (<-chan multihash.Multihash, error) {
 	log := log.With("peerID", peerID)
 	log.Debug("Explicitly syncing the latest advertisement from peer")
 
@@ -150,14 +162,54 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	go func() {
 		defer close(out)
 
+		var sel ipld.Node
+		// If depth is non-zero, construct a selector for sync accordingly.
+		if depth != 0 {
+			log.With("depth", depth)
+			if depth < -1 {
+				log.Error("Recursion depth limit must not be less than -1")
+				return
+			}
+
+			// Consider the value of -1 as no-limit, similar to config.Ingest.
+			var rLimit selector.RecursionLimit
+			if depth == -1 {
+				rLimit = selector.RecursionLimitNone()
+			} else {
+				rLimit = selector.RecursionLimitDepth(depth)
+			}
+
+			latest, err := ing.GetLatestSync(peerID)
+			if err != nil {
+				log.Errorw("Failed to get the latest synced while constructing selector", "err", err)
+				return
+			}
+
+			var stopAt ipld.Link
+			if latest != cid.Undef {
+				stopAt = cidlink.Link{Cid: latest}
+			}
+			log = log.With("stopAt", stopAt)
+
+			ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
+			adSequence := ssb.ExploreFields(
+				func(efsb builder.ExploreFieldsSpecBuilder) {
+					efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
+				}).Node()
+
+			sel = legs.ExploreRecursiveWithStopNode(rLimit, adSequence, stopAt)
+		}
+
 		// Start syncing. Notifications for the finished sync are sent
-		// asynchronously.  Sync with cid.Undef and a nil selector so that:
+		// asynchronously.  Sync with cid.Undef so that the latest head
+		// is queried by go-legs via head-publisher.
 		//
-		//   1. The latest head is queried by go-legs via head-publisher.
+		// Note that if the selector is nil the default selector is used
+		// where traversal stops at the latest known head.
 		//
-		//   2. The default selector is used where traversal stops at the
-		//      latest known head.
-		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, nil, peerAddr)
+		// Reference to the latest synced CID is only updated if the given
+		// selector is nil.
+		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr)
 		if err != nil {
 			log.Errorw("Failed to sync with provider", "err", err, "provider", peerID)
 			return
