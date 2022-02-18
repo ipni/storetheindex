@@ -173,7 +173,7 @@ func providerFromAd(ad schema.Advertisement) (peer.ID, error) {
 // hook is being called for each entry in an advertisement's chain of entries.
 // Process the entry and save all the multihashes in it as indexes in the
 // indexer-core.
-func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
+func (ing *Ingester) storageHook(adCid cid.Cid, pubID peer.ID, c cid.Cid) {
 	log := log.With("publisher", pubID, "cid", c)
 
 	// Get data corresponding to the block.
@@ -190,77 +190,6 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 		return
 	}
 
-	// If this is an advertisement, sync entries within it.
-	if isAdvertisement(node) {
-		ad, err := decodeAd(node)
-		if err != nil {
-			log.Errorw("Error decoding advertisement", "err", err)
-			return
-		}
-
-		isRm, err := ad.FieldIsRm().AsBool()
-		if err != nil {
-			log.Errorw("Cannot read IsRm field", "err", err)
-		}
-
-		if !isRm {
-			// Store a mapping of entries link cid to advertisement cid so there is
-			// a way of identifying what advertisement announced these entries when
-			// we come across the link.
-			elnk, err := ad.FieldEntries().AsLink()
-			if err != nil {
-				log.Errorw("Error getting link for entries from advertisement", "err", err)
-			}
-
-			if elnk != schema.NoEntries {
-				log.Debug("Saving map of entries to advertisement and advertisement data")
-				err = pushCidToAdMapping(context.Background(), ing.ds, elnk.(cidlink.Link).Cid, c)
-				if err != nil {
-					log.Errorw("Error storing reverse map for entries in datastore", "err", err)
-				}
-			}
-		}
-
-		// Make the CID of this advertisement waitable.  When content
-		// chunks for an advertisement arrive (in storage hook),
-		// processing will wait for the previous advertisement to
-		// finish processing.  The CID is added to the waiter here, so
-		// that it is available for waiting on before the arrival of
-		// the previous advertisement's content blocks.
-		err = ing.adWaiter.add(c)
-		if err != nil {
-			log.Errorw("Cannot create cid wait for advertisement", "err", err)
-			return
-		}
-
-		// It is necessary to ensure the ad syncs execute in the order that the
-		// advertisements occur on their chain.  This is done using a chained
-		// synchronization that makes processing the current wait for the
-		// previous advertisement to finish being processed.
-		var prevCid cid.Cid
-		if ad.FieldPreviousID().Exists() {
-			lnk, err := ad.FieldPreviousID().Must().AsLink()
-			if err != nil {
-				log.Errorw("Cannot read previous link from advertisement", "err", err)
-				return
-			}
-			prevCid = lnk.(cidlink.Link).Cid
-		}
-
-		log.Infow("Incoming block is an advertisement", "prevAd", prevCid)
-
-		// go ing.syncAdEntries(pubID, ad, c, prevCid)
-		return
-	}
-
-	// Get the advertisement CID corresponding to the link CID, from the
-	// reverse map.  Then load the advertisement to get the metadata for
-	// indexing all the content in the incoming block.
-	adCid, err := popCidToAdMapping(context.Background(), ing.ds, c)
-	if err != nil {
-		log.Errorw("Error getting advertisement CID for entry CID", "err", err)
-		return
-	}
 	log = log.With("adCid", adCid)
 
 	// The incoming block is not an advertisement.  This means it is a
@@ -480,7 +409,12 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 	startTime := time.Now()
 
 	// Traverse entries based on the entries selector that limits recursion depth.
-	_, err = ing.sub.Sync(ctx, from, entriesCid, ing.entriesSel, nil)
+	fmt.Println("Starting sync of entries")
+	_, err = ing.sub.SyncWithHook(ctx, from, entriesCid, ing.entriesSel, nil, func(p peer.ID, c cid.Cid) {
+		fmt.Println("Processing cid")
+		ing.storageHook(adCid, p, c)
+		fmt.Println("END processing cid")
+	})
 	if err != nil {
 		reprocessAd = true
 		log.Errorw("Failed to sync", "err", err)

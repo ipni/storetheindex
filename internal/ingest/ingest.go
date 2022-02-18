@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	indexer "github.com/filecoin-project/go-indexer-core"
 	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	"github.com/filecoin-project/go-legs"
+	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-cid"
@@ -19,8 +21,6 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
-	"github.com/ipld/go-ipld-prime/linking"
-	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
@@ -37,6 +37,8 @@ var log = logging.Logger("indexer/ingest")
 const (
 	syncPrefix  = "/sync/"
 	admapPrefix = "/admap/"
+	// This prefix represents all the ads we've already processed.
+	adProcessedPrefix = "/adProcessed/"
 )
 
 // Ingester is a type that uses go-legs for the ingestion protocol.
@@ -72,6 +74,17 @@ type Ingester struct {
 	// copy of a legs.SyncFinished to an onAdProcessed reader.
 	outEventsChans map[peer.ID][]chan cid.Cid
 	outEventsMutex sync.Mutex
+
+	// staging area
+	// We don't need a mutex here because only one goroutine will ever touch this.
+	stagingProviderAds map[peer.ID][]cidsWithPublisher
+
+	providersBeingProcessedMu sync.Mutex
+	providersBeingProcessed   map[peer.ID]bool
+	toWorkers                 chan toWorkerMsg
+	closeWorkers              chan struct{}
+	waitForWorkers            sync.WaitGroup
+	toStaging                 chan legs.SyncFinished
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -116,11 +129,18 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		reg:         reg,
 		cfg:         cfg,
 		inEvents:    make(chan legs.SyncFinished, 1),
+
+		stagingProviderAds: make(map[peer.ID][]cidsWithPublisher),
+
+		providersBeingProcessed: make(map[peer.ID]bool),
+		toWorkers:               make(chan toWorkerMsg),
+		closeWorkers:            make(chan struct{}),
+		toStaging:               make(chan legs.SyncFinished, 1),
 	}
 
 	// Create and start pubsub subscriber.  This also registers the storage
 	// hook to index data as it is received.
-	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Authorized), legs.BlockHook(ing.storageHook), legs.SyncRecursionLimit(cfg.AdvertisementRecursionLimit()))
+	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Authorized), legs.SyncRecursionLimit(cfg.AdvertisementRecursionLimit()))
 	if err != nil {
 		log.Errorw("Failed to start pubsub subscriber", "err", err)
 		return nil, errors.New("ingester subscriber failed")
@@ -133,30 +153,35 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		return nil, err
 	}
 
+	go ing.loopIngester(2)
+
 	// TODO handle cancel
 	onsyncFinishedChan, _ := ing.sub.OnSyncFinished()
 	go func() {
 		for syncFinished := range onsyncFinishedChan {
+			fmt.Println("Sending to staging")
+			ing.toStaging <- syncFinished
+			fmt.Println("done Sending to staging")
 			// syncFinished.SyncedCids
-			for i := len(syncFinished.SyncedCids) - 1; i >= 0; i-- {
-				adCid := syncFinished.SyncedCids[i]
-				node, err := lsys.Load(linking.LinkContext{}, cidlink.Link{Cid: adCid}, basicnode.Prototype.Any)
-				if err != nil {
-					fmt.Println("!!!!!!! Error loading advertisement:", err)
-					continue
-				}
+			// for i := len(syncFinished.SyncedCids) - 1; i >= 0; i-- {
+			// 	adCid := syncFinished.SyncedCids[i]
+			// 	node, err := lsys.Load(linking.LinkContext{}, cidlink.Link{Cid: adCid}, basicnode.Prototype.Any)
+			// 	if err != nil {
+			// 		fmt.Println("!!!!!!! Error loading advertisement:", err)
+			// 		continue
+			// 	}
 
-				ad, err := decodeAd(node)
-				if err != nil {
-					fmt.Println("!!!!! Error decoding advertisement:", err)
-					continue
-				}
+			// 	ad, err := decodeAd(node)
+			// 	if err != nil {
+			// 		fmt.Println("!!!!! Error decoding advertisement:", err)
+			// 		continue
+			// 	}
 
-				fmt.Println("PROCESSING ADVERTISEMENT:", adCid)
-				// cid.Undef so we avoid cidwaiter code
-				ing.syncAdEntries(syncFinished.PeerID, ad, adCid, cid.Undef)
-				fmt.Println("DONE PROCESSING ADVERTISEMENT:", adCid)
-			}
+			// 	fmt.Println("PROCESSING ADVERTISEMENT:", adCid)
+			// 	// cid.Undef so we avoid cidwaiter code
+			// 	ing.syncAdEntries(syncFinished.PeerID, ad, adCid, cid.Undef)
+			// 	fmt.Println("DONE PROCESSING ADVERTISEMENT:", adCid)
+			// }
 		}
 
 	}()
@@ -188,6 +213,9 @@ func (ing *Ingester) Close() error {
 	ing.outEventsMutex.Unlock()
 
 	ing.closeOnce.Do(func() {
+		close(ing.closeWorkers)
+		ing.waitForWorkers.Wait()
+
 		close(ing.sigUpdate)
 		// Stop the distribution goroutine.
 		close(ing.inEvents)
@@ -347,6 +375,10 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int64, ignor
 
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 	log.Debugw("Persisted latest sync", "peer", publisher, "cid", adCid)
+	err := ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{1})
+	if err != nil {
+		return err
+	}
 	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
 }
 
@@ -558,4 +590,165 @@ func removeEntryAdMappings(ctx context.Context, ds datastore.Batching) error {
 		log.Warnw("Cleaned up old temporary entry to ad mappings", "count", len(deletes))
 	}
 	return nil
+}
+
+type failedCid struct {
+	c   cid.Cid
+	err error
+}
+
+type toWorkerMsg struct {
+	cids      []cid.Cid
+	publisher peer.ID
+	provider  peer.ID
+}
+
+func (ing *Ingester) loopIngester(workerPoolSize int) (failedCids []failedCid) {
+	// startup the worker pool
+	for i := 0; i < workerPoolSize; i++ {
+		ing.waitForWorkers.Add(1)
+		go func() {
+			defer ing.waitForWorkers.Done()
+			ing.ingestWorker()
+		}()
+	}
+
+	for {
+		fmt.Println("Start loop")
+		select {
+		case <-ing.closeWorkers:
+			fmt.Println("CLOSING loop")
+			return
+		default:
+			fmt.Println("Running step")
+			ing.runIngestStep()
+			fmt.Println("done Running step")
+		}
+	}
+}
+
+type cidsWithPublisher struct {
+	cids []cid.Cid
+	pub  peer.ID
+}
+
+func (ing *Ingester) runIngestStep() (failedCids []failedCid) {
+	fmt.Println("running ingest step")
+	defer fmt.Println("done running ingest step")
+	syncFinishedEvent := <-ing.toStaging
+
+	// 1. Group the incoming CIDs by provider.
+	cidsGroupedByProvider := map[peer.ID][]cid.Cid{}
+	for _, c := range syncFinishedEvent.SyncedCids {
+		// Group the CIDs by the provider. Most of the time a publisher will only
+		// publish Ads for one provider, but it's possible that an ad chain can include multiple providers.
+		ad, err := ing.loadAd(c)
+		if err != nil {
+			log.Errorf("Failed to load ad CID: %s skipping", err)
+			failedCids = append(failedCids, failedCid{c, err})
+			continue
+		}
+
+		providerID, err := providerFromAd(ad)
+		if err != nil {
+			log.Errorf("Failed to load ad CID: %s skipping", err)
+			failedCids = append(failedCids, failedCid{c, err})
+			continue
+		}
+
+		cidsGroupedByProvider[providerID] = append(cidsGroupedByProvider[providerID], c)
+	}
+
+	// 2. Consolidate the new information into our staging area
+	for p, cids := range cidsGroupedByProvider {
+		ing.stagingProviderAds[p] = append(ing.stagingProviderAds[p], cidsWithPublisher{cids, syncFinishedEvent.PeerID})
+	}
+
+	// 3. For each group check if there is a running worker for that group. If not, put that stack in the toWorker chan to be processed
+	// Put the msgs we are going to send in the array so that we get out of this lock zone.
+	var toSend []toWorkerMsg
+	ing.providersBeingProcessedMu.Lock()
+	for p, cidsAndPub := range ing.stagingProviderAds {
+		if len(cidsAndPub) == 0 {
+			continue
+		} else if beingProcessed := ing.providersBeingProcessed[p]; beingProcessed {
+			// Skip over any peers that are currently being processed.
+			continue
+		} else {
+			ing.providersBeingProcessed[p] = true
+			toSend = append(toSend, toWorkerMsg{
+				cids:      cidsAndPub[0].cids,
+				publisher: cidsAndPub[0].pub,
+				provider:  p,
+			})
+			ing.stagingProviderAds[p] = cidsAndPub[1:]
+		}
+	}
+	ing.providersBeingProcessedMu.Unlock()
+
+	for i, m := range toSend {
+		fmt.Println("Send m", i+1, "of", len(toSend))
+		ing.toWorkers <- m
+	}
+
+	return nil
+}
+
+func (ing *Ingester) ingestWorker() {
+	for {
+		select {
+		case <-ing.closeWorkers:
+			fmt.Println("CLOSING worker")
+			return
+		case msg := <-ing.toWorkers:
+			fmt.Println("Worker running message:", msg.cids[0].String())
+			for i := len(msg.cids) - 1; i >= 0; i-- {
+				if ing.ingestWorkerLogic(msg.provider, msg.publisher, msg.cids[i]) {
+					break
+				}
+			}
+			fmt.Println("Done Worker running message:", msg)
+		}
+	}
+}
+
+func (ing *Ingester) ingestWorkerLogic(provider peer.ID, publisher peer.ID, c cid.Cid) (earlyBreak bool) {
+	defer func() {
+		ing.providersBeingProcessedMu.Lock()
+		ing.providersBeingProcessed[provider] = false
+		ing.providersBeingProcessedMu.Unlock()
+	}()
+	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+c.String()))
+	if err == nil && v[0] == byte(1) {
+		// We've process this ads already, so we know we've processed all earlier ads too.
+		return true
+	}
+	ad, err := ing.loadAd(c)
+	if err != nil {
+		log.Errorf("Failed to load ad: %v", err)
+	}
+	fmt.Println("running sync", c)
+	// cid.Undef to skip cidwaiter. TODO remove cidwaiter and cid.undef
+	ing.syncAdEntries(publisher, ad, c, cid.Undef)
+	fmt.Println("done running sync")
+
+	return false
+}
+
+func (ing *Ingester) loadAd(adCid cid.Cid) (schema.Advertisement, error) {
+	adb, err := ing.ds.Get(context.Background(), dsKey(adCid.String()))
+	if err != nil {
+		return nil, err
+	}
+	// Decode the advertisement.
+	adn, err := decodeIPLDNode(adCid.Prefix().Codec, bytes.NewBuffer(adb))
+	if err != nil {
+		return nil, err
+	}
+	ad, err := decodeAd(adn)
+	if err != nil {
+		return nil, err
+	}
+
+	return ad, nil
 }

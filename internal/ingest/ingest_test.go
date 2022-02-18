@@ -629,7 +629,7 @@ func mkTestHost(opts ...libp2p.Option) host.Host {
 	}
 	opts = append(opts, defaultIdentity)
 
-	opts = append(opts, libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	opts = append(opts, libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
 	// memtransport 5x faster to connect than tcp.
 	// opts = append(opts, libp2p.Transport(util.NewMemTransport), libp2p.ListenAddrStrings("/memtransport/0"))
 	start := time.Now()
