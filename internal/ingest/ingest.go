@@ -21,6 +21,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
+	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
@@ -74,6 +75,9 @@ type Ingester struct {
 	// copy of a legs.SyncFinished to an onAdProcessed reader.
 	outEventsChans map[peer.ID][]chan cid.Cid
 	outEventsMutex sync.Mutex
+
+	waitForPendingSyncs sync.WaitGroup
+	closePendingSyncs   chan struct{}
 
 	// staging area
 	// We don't need a mutex here because only one goroutine will ever touch this.
@@ -129,6 +133,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		reg:         reg,
 		cfg:         cfg,
 		inEvents:    make(chan legs.SyncFinished, 1),
+
+		closePendingSyncs: make(chan struct{}),
 
 		stagingProviderAds: make(map[peer.ID][]cidsWithPublisher),
 
@@ -215,10 +221,15 @@ func (ing *Ingester) Close() error {
 	ing.closeOnce.Do(func() {
 		close(ing.closeWorkers)
 		ing.waitForWorkers.Wait()
+		fmt.Println("Waiting for pending sync")
+		close(ing.closePendingSyncs)
+		ing.waitForPendingSyncs.Wait()
+		fmt.Println("Done waiting for pending sync")
 
-		close(ing.sigUpdate)
 		// Stop the distribution goroutine.
 		close(ing.inEvents)
+
+		close(ing.sigUpdate)
 	})
 
 	return err
@@ -267,7 +278,9 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	log := log.With("provider", peerID, "peerAddr", peerAddr, "depth", depth, "ignoreLatest", ignoreLatest)
 	log.Debug("Explicitly syncing the latest advertisement from peer")
 
+	ing.waitForPendingSyncs.Add(1)
 	go func() {
+		defer ing.waitForPendingSyncs.Done()
 		defer close(out)
 
 		var sel ipld.Node
@@ -327,6 +340,9 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 				}
 			case <-ctx.Done():
 				log.Warnw("Sync cancelled", "err", ctx.Err())
+				return
+			case <-ing.closePendingSyncs:
+				log.Warnw("Sync cancelled because of close")
 				return
 			}
 		}
