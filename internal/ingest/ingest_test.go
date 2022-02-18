@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -61,12 +60,6 @@ var (
 	}
 	rng = rand.New(rand.NewSource(1413))
 )
-
-func TestMain(m *testing.M) {
-	// no timeouts or bust
-	waitPreviousAdTime = 0
-	os.Exit(m.Run())
-}
 
 func TestSubscribe(t *testing.T) {
 	te := setupTestEnv(t, true)

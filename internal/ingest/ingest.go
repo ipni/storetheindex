@@ -1,7 +1,6 @@
 package ingest
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -55,7 +54,7 @@ type Ingester struct {
 	sub         *legs.Subscriber
 	syncTimeout time.Duration
 
-	adCache      map[cid.Cid]adCacheItem
+	adCache      map[cid.Cid]schema.Advertisement
 	adCacheMutex sync.Mutex
 
 	entriesSel datamodel.Node
@@ -653,7 +652,7 @@ func (ing *Ingester) runIngestStep() (failedCids []failedCid) {
 	for _, c := range syncFinishedEvent.SyncedCids {
 		// Group the CIDs by the provider. Most of the time a publisher will only
 		// publish Ads for one provider, but it's possible that an ad chain can include multiple providers.
-		ad, err := ing.loadAd(c)
+		ad, err := ing.loadAd(c, true)
 		if err != nil {
 			log.Errorf("Failed to load ad CID: %s skipping", err)
 			failedCids = append(failedCids, failedCid{c, err})
@@ -734,32 +733,13 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID, publisher peer.ID, c ci
 		// We've process this ads already, so we know we've processed all earlier ads too.
 		return true
 	}
-	ad, err := ing.loadAd(c)
+	ad, err := ing.loadAd(c, true)
 	if err != nil {
 		log.Errorf("Failed to load ad: %v", err)
 	}
 	fmt.Println("running sync", c)
-	// cid.Undef to skip cidwaiter. TODO remove cidwaiter and cid.undef
-	ing.syncAdEntries(publisher, ad, c, cid.Undef)
+	ing.syncAdEntries(publisher, ad, c)
 	fmt.Println("done running sync")
 
 	return false
-}
-
-func (ing *Ingester) loadAd(adCid cid.Cid) (schema.Advertisement, error) {
-	adb, err := ing.ds.Get(context.Background(), dsKey(adCid.String()))
-	if err != nil {
-		return nil, err
-	}
-	// Decode the advertisement.
-	adn, err := decodeIPLDNode(adCid.Prefix().Codec, bytes.NewBuffer(adb))
-	if err != nil {
-		return nil, err
-	}
-	ad, err := decodeAd(adn)
-	if err != nil {
-		return nil, err
-	}
-
-	return ad, nil
 }
