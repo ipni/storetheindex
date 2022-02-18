@@ -157,7 +157,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	if cfg.IngestWorkerCount == 0 {
 		return nil, errors.New("ingester worker count must be > 0")
 	}
-	ing.loopIngester(cfg.IngestWorkerCount)
+	ing.startIngesterLoop(cfg.IngestWorkerCount)
 
 	// Start distributor to send SyncFinished messages to interested parties.
 	go ing.distributeEvents()
@@ -580,7 +580,7 @@ type toWorkerMsg struct {
 	provider  peer.ID
 }
 
-func (ing *Ingester) loopIngester(workerPoolSize int) {
+func (ing *Ingester) startIngesterLoop(workerPoolSize int) {
 	// startup the worker pool
 	for i := 0; i < workerPoolSize; i++ {
 		ing.waitForWorkers.Add(1)
