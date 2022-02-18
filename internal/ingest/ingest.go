@@ -389,6 +389,8 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 	if err != nil {
 		return err
 	}
+	// We've processed this ad, so we can remove it from our datastore.
+	ing.ds.Delete(context.Background(), dsKey(adCid.String()))
 	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
 }
 
@@ -602,18 +604,13 @@ func removeEntryAdMappings(ctx context.Context, ds datastore.Batching) error {
 	return nil
 }
 
-type failedCid struct {
-	c   cid.Cid
-	err error
-}
-
 type toWorkerMsg struct {
 	cids      []cid.Cid
 	publisher peer.ID
 	provider  peer.ID
 }
 
-func (ing *Ingester) loopIngester(workerPoolSize int) (failedCids []failedCid) {
+func (ing *Ingester) loopIngester(workerPoolSize int) {
 	// startup the worker pool
 	for i := 0; i < workerPoolSize; i++ {
 		ing.waitForWorkers.Add(1)
@@ -631,6 +628,7 @@ func (ing *Ingester) loopIngester(workerPoolSize int) (failedCids []failedCid) {
 			return
 		default:
 			fmt.Println("Running step")
+			// TODO(mm) think about backpressure
 			ing.runIngestStep()
 			fmt.Println("done Running step")
 		}
@@ -642,9 +640,7 @@ type cidsWithPublisher struct {
 	pub  peer.ID
 }
 
-func (ing *Ingester) runIngestStep() (failedCids []failedCid) {
-	fmt.Println("running ingest step")
-	defer fmt.Println("done running ingest step")
+func (ing *Ingester) runIngestStep() {
 	syncFinishedEvent := <-ing.toStaging
 
 	// 1. Group the incoming CIDs by provider.
@@ -655,14 +651,12 @@ func (ing *Ingester) runIngestStep() (failedCids []failedCid) {
 		ad, err := ing.loadAd(c, true)
 		if err != nil {
 			log.Errorf("Failed to load ad CID: %s skipping", err)
-			failedCids = append(failedCids, failedCid{c, err})
 			continue
 		}
 
-		providerID, err := providerFromAd(ad)
+		providerID, err := peer.Decode(ad.Provider.String())
 		if err != nil {
-			log.Errorf("Failed to load ad CID: %s skipping", err)
-			failedCids = append(failedCids, failedCid{c, err})
+			log.Errorf("Failed to get provider from ad CID: %s skipping", err)
 			continue
 		}
 
@@ -696,50 +690,42 @@ func (ing *Ingester) runIngestStep() (failedCids []failedCid) {
 	}
 	ing.providersBeingProcessedMu.Unlock()
 
-	for i, m := range toSend {
-		fmt.Println("Send m", i+1, "of", len(toSend))
+	for _, m := range toSend {
 		ing.toWorkers <- m
 	}
-
-	return nil
 }
 
 func (ing *Ingester) ingestWorker() {
 	for {
 		select {
 		case <-ing.closeWorkers:
-			fmt.Println("CLOSING worker")
 			return
 		case msg := <-ing.toWorkers:
-			fmt.Println("Worker running message:", msg.cids[0].String())
+			log.Infow("Running worker on ad stack", "headAdCid", msg.cids[0], "publisher", msg.publisher)
 			for i := len(msg.cids) - 1; i >= 0; i-- {
 				if ing.ingestWorkerLogic(msg.provider, msg.publisher, msg.cids[i]) {
 					break
 				}
 			}
-			fmt.Println("Done Worker running message:", msg)
 		}
 	}
 }
 
-func (ing *Ingester) ingestWorkerLogic(provider peer.ID, publisher peer.ID, c cid.Cid) (earlyBreak bool) {
+func (ing *Ingester) ingestWorkerLogic(provider peer.ID, publisher peer.ID, adCid cid.Cid) (earlyBreak bool) {
 	defer func() {
 		ing.providersBeingProcessedMu.Lock()
 		ing.providersBeingProcessed[provider] = false
 		ing.providersBeingProcessedMu.Unlock()
 	}()
-	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+c.String()))
+	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
 	if err == nil && v[0] == byte(1) {
 		// We've process this ads already, so we know we've processed all earlier ads too.
 		return true
 	}
-	ad, err := ing.loadAd(c, true)
+	err = ing.ingestAd(publisher, adCid)
 	if err != nil {
-		log.Errorf("Failed to load ad: %v", err)
+		log.Errorw("Error while ingesting ad.", "adCid", adCid, "publisher", publisher, "err", err)
 	}
-	fmt.Println("running sync", c)
-	ing.syncAdEntries(publisher, ad, c)
-	fmt.Println("done running sync")
 
 	return false
 }
