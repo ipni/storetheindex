@@ -369,7 +369,7 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 }
 
 // distributeEvents reads a SyncFinished, sent by a peer handler, and copies
-// the even to all channels in outEventsChans.  This delivers the SyncFinished
+// the event to all channels in outEventsChans. This delivers the SyncFinished
 // to all onAdProcessed channel readers.
 func (ing *Ingester) distributeEvents() {
 	for event := range ing.inEvents {
@@ -610,7 +610,10 @@ type cidsWithPublisher struct {
 }
 
 func (ing *Ingester) runIngestStep() {
-	syncFinishedEvent := <-ing.toStaging
+	syncFinishedEvent, ok := <-ing.toStaging
+	if !ok {
+		return
+	}
 
 	// 1. Group the incoming CIDs by provider.
 	cidsGroupedByProvider := map[peer.ID][]cid.Cid{}
