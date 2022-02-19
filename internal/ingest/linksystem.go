@@ -197,19 +197,26 @@ func (ing *Ingester) storageHook(pubID peer.ID, c cid.Cid) {
 			return
 		}
 
-		// Store a mapping of entries link cid to advertisement cid so there is
-		// a way of identifying what advertisement announced these entries when
-		// we come across the link.
-		log.Debug("Saving map of entries to advertisement and advertisement data")
-		elnk, err := ad.FieldEntries().AsLink()
+		isRm, err := ad.FieldIsRm().AsBool()
 		if err != nil {
-			log.Errorw("Error getting link for entries from advertisement", "err", err)
+			log.Errorw("Cannot read IsRm field", "err", err)
 		}
 
-		if elnk != schema.NoEntries {
-			err = pushCidToAdMapping(context.Background(), ing.ds, elnk.(cidlink.Link).Cid, c)
+		if !isRm {
+			// Store a mapping of entries link cid to advertisement cid so there is
+			// a way of identifying what advertisement announced these entries when
+			// we come across the link.
+			elnk, err := ad.FieldEntries().AsLink()
 			if err != nil {
-				log.Errorw("Error storing reverse map for entries in datastore", "err", err)
+				log.Errorw("Error getting link for entries from advertisement", "err", err)
+			}
+
+			if elnk != schema.NoEntries {
+				log.Debug("Saving map of entries to advertisement and advertisement data")
+				err = pushCidToAdMapping(context.Background(), ing.ds, elnk.(cidlink.Link).Cid, c)
+				if err != nil {
+					log.Errorw("Error storing reverse map for entries in datastore", "err", err)
+				}
 			}
 		}
 
@@ -319,15 +326,13 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 			// An ad that is later in the chain has deleted all content for
 			// this ad, so skip this ad.
 			log.Infow("Skipped advertisement that is removed later")
-		} else {
-			if isRm && elink == schema.NoEntries {
-				// This ad deletes all content for a contextID.  So, skip any
-				// previous (earlier in chain) ads that arrive later, that have
-				// the same contextID and provider.
-				ing.addSkip(skipKey)
-				// Remove skip after this and all previous ad in chain are processed.
-				defer ing.delSkip(skipKey)
-			}
+		} else if isRm {
+			// This ad deletes all content for a contextID.  So, skip any
+			// previous (earlier in chain) ads that arrive later, that have
+			// the same contextID and provider.
+			ing.addSkip(skipKey)
+			// Remove skip after this and all previous ad in chain are processed.
+			defer ing.delSkip(skipKey)
 		}
 	}
 
@@ -395,21 +400,20 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		return
 	}
 
-	// If advertisement has no entries, then this is for removal by contextID
-	// or for updating metadata only.
-	if elink == schema.NoEntries {
-		log := log.With("contextID", base64.StdEncoding.EncodeToString(contextID), "provider", providerID)
+	log = log.With("contextID", base64.StdEncoding.EncodeToString(contextID), "provider", providerID)
 
-		if isRm {
-			log.Infow("Advertisement is for removal by context id")
+	if isRm {
+		log.Infow("Advertisement is for removal by context id")
 
-			err = ing.indexer.RemoveProviderContext(providerID, contextID)
-			if err != nil {
-				log.Error("Failed to removed content by context ID")
-			}
-			return
+		err = ing.indexer.RemoveProviderContext(providerID, contextID)
+		if err != nil {
+			log.Error("Failed to removed content by context ID")
 		}
+		return
+	}
 
+	// If advertisement has no entries, then this is for updating metadata only.
+	if elink == schema.NoEntries {
 		// If this is a metadata update only, then ad will not have entries.
 		metadataBytes, err := ad.FieldMetadata().AsBytes()
 		if err != nil {
@@ -444,11 +448,7 @@ func (ing *Ingester) syncAdEntries(from peer.ID, ad schema.Advertisement, adCid,
 		return
 	}
 
-	if isRm {
-		log.Warnw("Syncing content entries for removal advertisement with no context ID")
-	} else {
-		log.Infow("Syncing content entries for advertisement")
-	}
+	log.Infow("Syncing content entries for advertisement")
 
 	// Cleanup ad cache in case of failure during processing entries.
 	defer func() {

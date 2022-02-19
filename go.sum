@@ -217,8 +217,8 @@ github.com/filecoin-project/go-ds-versioning v0.1.1 h1:JiyBqaQlwC+UM0WhcBtVEeT3X
 github.com/filecoin-project/go-ds-versioning v0.1.1/go.mod h1:C9/l9PnB1+mwPa26BBVpCjG/XQCB0yj/q5CK2J8X1I4=
 github.com/filecoin-project/go-indexer-core v0.2.8 h1:h1SRdZKTVcaXlzex3UevHh4OWDAhgpMzL4tHNAA7MQI=
 github.com/filecoin-project/go-indexer-core v0.2.8/go.mod h1:IagNfTdFuX4057kla43PjRCn3yBuUiZgIxuA0hTUamY=
-github.com/filecoin-project/go-legs v0.3.0 h1:1rDNdPdXbgetmmvRcYZV5YIplIO8LtBVQ7ZttKCrTrM=
-github.com/filecoin-project/go-legs v0.3.0/go.mod h1:x6nwM+DuN7NzlPndOoJuiHYCX+pze6+efPRx17nIA7M=
+github.com/filecoin-project/go-legs v0.3.2-0.20220218235344-8aa733e40396 h1:pXpSkIVIbHn7FBpn5xvO533/SH0zPcJ3PyjFBhshTCc=
+github.com/filecoin-project/go-legs v0.3.2-0.20220218235344-8aa733e40396/go.mod h1:P7ZPHqFG96OFaT11rnXyTdcxRdGkaH1dRyPxJSOiSuM=
 github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe h1:dF8u+LEWeIcTcfUcCf3WFVlc81Fr2JKg8zPzIbBDKDw=
 github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe/go.mod h1:FGwQgZAt2Gh5mjlwJUlVB62JeYdo+if0xWxSEfBD9ig=
 github.com/filecoin-project/go-statestore v0.1.0/go.mod h1:LFc9hD+fRxPqiHiaqUEZOinUJB4WARkRfNl10O7kTnI=
