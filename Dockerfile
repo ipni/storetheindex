@@ -66,7 +66,8 @@ EXPOSE 3001
 
 ENV \
     STORETHEINDEX_LOTUS_GATEWAY="wss://api.chain.love" \
-    STORETHEINDEX_PATH="/data/storetheindex"
+    STORETHEINDEX_PATH="/data/storetheindex" \
+    GOLOG_LOG_FMT="json"
 
 # Create the repo directory and switch to a non-privileged user.
 RUN mkdir -p $STORETHEINDEX_PATH \
