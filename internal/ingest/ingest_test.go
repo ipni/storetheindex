@@ -74,7 +74,7 @@ func TestSubscribe(t *testing.T) {
 
 	ctx := context.Background()
 	te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
-	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait
 	mhs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
@@ -90,7 +90,7 @@ func TestSubscribe(t *testing.T) {
 		}}.Build(t, te.publisherLinkSys, someOtherProviderPriv)
 	te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
 
-	wait, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+	wait, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait
 
@@ -134,7 +134,7 @@ func TestSubscribe(t *testing.T) {
 
 	// We are manually syncing here to not rely on the pubsub mechanism inside a test.
 	// This will fetch the add and put it into our datastore, but will not process it.
-	wait, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil)
+	wait, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait
 
@@ -527,7 +527,6 @@ func TestMultiplePublishers(t *testing.T) {
 	err = pub1.UpdateRoot(ctx, c1.(cidlink.Link).Cid)
 	require.NoError(t, err)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, c1, lsys1)
-	wait, err := i.Sync(ctx, pubHost1.ID(), nil)
 	wait, err := i.Sync(ctx, pubHost1.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait

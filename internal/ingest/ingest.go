@@ -27,7 +27,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
 )
 
@@ -228,7 +227,7 @@ func (ing *Ingester) Close() error {
 // synced in the background.  The completion of advertisement sync does not
 // necessarily mean that the entries corresponding to the advertisement are
 // synced.
-func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, ignoreLatest bool) (<-chan multihash.Multihash, error) {
+func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, ignoreLatest bool) (<-chan cid.Cid, error) {
 	out := make(chan cid.Cid, 1)
 
 	// Fail fast if peer ID or depth is invalid.

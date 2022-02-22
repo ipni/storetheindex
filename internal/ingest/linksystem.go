@@ -9,7 +9,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/filecoin-project/go-indexer-core"
+	indexer "github.com/filecoin-project/go-indexer-core"
 	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
@@ -285,7 +285,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
 		if err != nil {
 			return fmt.Errorf("failed to removed content by context ID: %w", err)
 		}
-		return
+		return nil
 	}
 
 	// If advertisement has no entries, then this is for updating metadata only.
