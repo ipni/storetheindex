@@ -65,6 +65,9 @@ func (c *Ingest) populateUnset() {
 	if c.AdvertisementDepthLimit == 0 {
 		c.AdvertisementDepthLimit = def.AdvertisementDepthLimit
 	}
+	if c.IngestWorkerCount == 0 {
+		c.IngestWorkerCount = def.IngestWorkerCount
+	}
 }
 
 // EntriesRecursionLimit returns the recursion limit of advertisement entries.
