@@ -96,7 +96,7 @@ func (c *Client) ImportFromCidList(ctx context.Context, fileName string, provID 
 }
 
 // Sync with a data peer up to the latest ID.
-func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64) error {
+func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, nolatest bool) error {
 	var data []byte
 	var err error
 	if peerAddr != nil {
@@ -111,7 +111,12 @@ func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Mu
 	// means "use the limit configured in config.Ingest".
 	// Note that the value -1 means no-limit.
 	if depth != 0 {
-		q = []string{"depth", strconv.FormatInt(depth, 10)}
+		q = append(q, "depth", strconv.FormatInt(depth, 10))
+	}
+
+	// Only set if true, since by default the latest sync is not ignored.
+	if nolatest {
+		q = append(q, "nolatest", strconv.FormatBool(nolatest))
 	}
 
 	return c.ingestRequest(ctx, peerID, "sync", http.MethodPost, data, q...)

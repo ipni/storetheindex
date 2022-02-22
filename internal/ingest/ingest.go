@@ -59,6 +59,8 @@ type Ingester struct {
 
 	skips      map[string]struct{}
 	skipsMutex sync.Mutex
+
+	cfg config.Ingest
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -101,6 +103,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		adWaiter:    adWaiter,
 		entriesSel:  entSel,
 		reg:         reg,
+		cfg:         cfg,
 	}
 
 	// Create and start pubsub subscriber.  This also registers the storage
@@ -138,14 +141,22 @@ func (ing *Ingester) Close() error {
 // gets to the last seen advertisement.  Then the entries in each advertisement
 // are synced and the multihashes in each entry are indexed.
 //
+// The selector used to sync the advertisement is controlled by the following
+// parameters: depth, and ignoreLatest.
+//
 // The depth argument specifies the recursion depth limit to use during sync.
-// When depth is set to 0, the advertisement recursion depth from config.Ingest
-// used.
+// Its value may be one of: -1 for no-limit, 0 for same value as config.Ingest,
+// or larger than 0 for an explicit limit.
+//
+// The ignoreLatest argument specifies whether to stop the traversal at the
+// latest known advertisement that is already synced. If set to true, the
+// traversal will continue until either there are no more advertisements left
+// or the recursion depth limit is reached.
 //
 // Note that the reference to the latest synced advertisement returned by
-// GetLatestSync is only updated if the given depth is zero.  Otherwise, a
-// selector with the given depth limit is constructed  and used for traversal.
-// The value of -1 signals no limit.
+// GetLatestSync is only updated if the given depth is zero and ignoreLatest
+// is set to false. Otherwise, a custom selector with the given depth limit and
+// stop link is constructed and used for traversal. See legs.Subscriber.Sync.
 //
 // The Context argument controls the lifetime of the sync.  Canceling it
 // cancels the sync and causes the multihash channel to close without any data.
@@ -154,8 +165,16 @@ func (ing *Ingester) Close() error {
 // synced in the background.  The completion of advertisement sync does not
 // necessarily mean that the entries corresponding to the advertisement are
 // synced.
-func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64) (<-chan multihash.Multihash, error) {
-	log := log.With("peerID", peerID)
+func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, ignoreLatest bool) (<-chan multihash.Multihash, error) {
+	// Fail fast if peer ID or depth is invalid.
+	if depth < -1 {
+		return nil, fmt.Errorf("recursion depth limit must not be less than -1; got %d", depth)
+	}
+	if err := peerID.Validate(); err != nil {
+		return nil, err
+	}
+
+	log := log.With("provider", peerID, "peerAddr", peerAddr, "depth", depth, "ignoreLatest", ignoreLatest)
 	log.Debug("Explicitly syncing the latest advertisement from peer")
 
 	out := make(chan multihash.Multihash, 1)
@@ -163,41 +182,15 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		defer close(out)
 
 		var sel ipld.Node
-		// If depth is non-zero, construct a selector for sync accordingly.
-		if depth != 0 {
-			log.With("depth", depth)
-			if depth < -1 {
-				log.Error("Recursion depth limit must not be less than -1")
-				return
-			}
-
-			// Consider the value of -1 as no-limit, similar to config.Ingest.
-			var rLimit selector.RecursionLimit
-			if depth == -1 {
-				rLimit = selector.RecursionLimitNone()
-			} else {
-				rLimit = selector.RecursionLimitDepth(depth)
-			}
-
-			latest, err := ing.GetLatestSync(peerID)
+		// If depth is non-zero or traversal should not stop at the latest synced, then construct a
+		// selector to behave accordingly.
+		if depth != 0 || ignoreLatest {
+			var err error
+			sel, err = ing.makeLimitedDepthSelector(peerID, depth, ignoreLatest)
 			if err != nil {
-				log.Errorw("Failed to get the latest synced while constructing selector", "err", err)
+				log.Errorw("Failed to construct selector for explicit sync", "err", err)
 				return
 			}
-
-			var stopAt ipld.Link
-			if latest != cid.Undef {
-				stopAt = cidlink.Link{Cid: latest}
-			}
-			log = log.With("stopAt", stopAt)
-
-			ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
-			adSequence := ssb.ExploreFields(
-				func(efsb builder.ExploreFieldsSpecBuilder) {
-					efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
-				}).Node()
-
-			sel = legs.ExploreRecursiveWithStopNode(rLimit, adSequence, stopAt)
 		}
 
 		// Start syncing. Notifications for the finished sync are sent
@@ -211,7 +204,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		// selector is nil.
 		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr)
 		if err != nil {
-			log.Errorw("Failed to sync with provider", "err", err, "provider", peerID)
+			log.Errorw("Failed to sync with provider", "err", err)
 			return
 		}
 		// Do not persist the latest sync here, because that is done in
@@ -223,6 +216,45 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	}()
 
 	return out, nil
+}
+
+func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int64, ignoreLatest bool) (ipld.Node, error) {
+	// Consider the value of -1 as no-limit, similar to config.Ingest.
+	var rLimit selector.RecursionLimit
+	if depth == -1 {
+		rLimit = selector.RecursionLimitNone()
+	} else if depth == 0 {
+		rLimit = ing.cfg.AdvertisementRecursionLimit()
+		// Override the value of depth with config.Ingest value for logging purposes.
+		depth = ing.cfg.AdvertisementDepthLimit
+	} else {
+		rLimit = selector.RecursionLimitDepth(depth)
+	}
+	log := log.With("depth", depth)
+
+	var stopAt ipld.Link
+	if !ignoreLatest {
+		latest, err := ing.GetLatestSync(peerID)
+		if err != nil {
+			return nil, err
+		}
+
+		if latest != cid.Undef {
+			stopAt = cidlink.Link{Cid: latest}
+		}
+	}
+	// The stop link may be nil, in which case it is treated as no stop link.
+	// Log it regardless for debugging purposes.
+	log = log.With("stopAt", stopAt)
+
+	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
+	adSequence := ssb.ExploreFields(
+		func(efsb builder.ExploreFieldsSpecBuilder) {
+			efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
+		}).Node()
+
+	log.Debug("Custom selector constructed for explicit sync")
+	return legs.ExploreRecursiveWithStopNode(rLimit, adSequence, stopAt), nil
 }
 
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {

@@ -75,8 +75,8 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	}
 	log := log.With("peerID", peerID)
 
-	var depth int64
 	query := r.URL.Query()
+	var depth int64
 	depthStr := query.Get("depth")
 	if depthStr != "" {
 		var err error
@@ -87,6 +87,19 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log = log.With("depth", depth)
+	}
+
+	var nolatest bool
+	nolatestStr := query.Get("nolatest")
+	if nolatestStr != "" {
+		var err error
+		nolatest, err = strconv.ParseBool(nolatestStr)
+		if err != nil {
+			log.Errorw("Cannot unmarshal flag nolatest as bool", "nolatestStr", nolatestStr, "err", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		log = log.With("nolatest", nolatest)
 	}
 
 	data, err := io.ReadAll(r.Body)
@@ -116,7 +129,7 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	// Start the sync, but do not wait for it to complete.
 	//
 	// TODO: Provide some way for the client to see if the indexer has synced.
-	_, err = h.ingester.Sync(h.ctx, peerID, syncAddr, depth)
+	_, err = h.ingester.Sync(h.ctx, peerID, syncAddr, depth, nolatest)
 	if err != nil {
 		msg := "Cannot sync with peer"
 		log.Errorw(msg, "err", err)

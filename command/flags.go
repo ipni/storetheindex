@@ -137,16 +137,19 @@ var adminSyncFlags = []cli.Flag{
 	peerFlag,
 	indexerHostFlag,
 	&cli.StringFlag{
-		Name:     "addr",
-		Usage:    "Multiaddr address of peer to sync with",
-		Required: false,
+		Name:  "addr",
+		Usage: "Multiaddr address of peer to sync with",
 	},
 	&cli.Int64Flag{
 		Name: "depth",
 		Usage: "The recursion depth limit while syncing advertisements. The value -1 indicates no limit. " +
 			"If unspecified, the configured indexer advertisement recursion limit is used.",
-		Required: false,
-		Value:    0,
+		Value: 0,
+	},
+	&cli.BoolFlag{
+		Name:  "nolatest",
+		Usage: "Whether to continue traversal beyond the latest synced advertisement.",
+		Value: false,
 	},
 }
 
