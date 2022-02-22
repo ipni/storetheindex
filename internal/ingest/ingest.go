@@ -591,23 +591,13 @@ func (ing *Ingester) startIngesterLoop(workerPoolSize int) {
 	}
 
 	go func() {
-		for {
-			select {
-			case <-ing.closeWorkers:
-				return
-			default:
-				ing.runIngestStep()
-			}
+		for syncFinishedEvent := range ing.toStaging {
+			ing.runIngestStep(syncFinishedEvent)
 		}
 	}()
 }
 
-func (ing *Ingester) runIngestStep() {
-	syncFinishedEvent, ok := <-ing.toStaging
-	if !ok {
-		return
-	}
-
+func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 	// 1. Group the incoming CIDs by provider.
 	cidsGroupedByProvider := map[peer.ID][]cid.Cid{}
 	for _, c := range syncFinishedEvent.SyncedCids {
