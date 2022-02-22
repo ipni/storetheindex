@@ -226,10 +226,11 @@ func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, meth
 		return fmt.Errorf("number of query pairs must be even; got %d", qpLen)
 	}
 
-	q := req.URL.Query()
+	values := req.URL.Query()
 	for i := 0; i < qpLen/2; i += 2 {
-		q.Add(queryPairs[i], queryPairs[i+1])
+		values.Add(queryPairs[i], queryPairs[i+1])
 	}
+	req.URL.RawQuery = values.Encode()
 
 	resp, err := c.c.Do(req)
 	if err != nil {
