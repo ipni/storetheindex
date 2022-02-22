@@ -276,7 +276,19 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		//
 		// Reference to the latest synced CID is only updated if the given
 		// selector is nil.
-		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr)
+		var seenAdCids []cid.Cid
+		c, err := ing.sub.SyncWithHook(ctx, peerID, cid.Undef, sel, peerAddr, func(i peer.ID, c cid.Cid) {
+			seenAdCids = append(seenAdCids, c)
+		})
+		// TODO(mm) we should have a mechanism that lets a manual sync always update the latest head in go legs.
+		if sel != nil && len(seenAdCids) > 0 {
+			event := legs.SyncFinished{
+				Cid:        seenAdCids[0],
+				PeerID:     peerID,
+				SyncedCids: seenAdCids,
+			}
+			ing.runIngestStep(event)
+		}
 		if err != nil {
 			log.Errorw("Failed to sync with provider", "err", err)
 			return

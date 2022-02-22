@@ -299,6 +299,40 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 	te.Close(t)
 }
 
+func TestSyncWithDepth(t *testing.T) {
+	te := setupTestEnv(t, true)
+
+	chainHead := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
+		},
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.Type.Advertisement)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	te.publisher.SetRoot(ctx, chainHead.(cidlink.Link).Cid)
+
+	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 1, false)
+	require.NoError(t, err)
+	c := <-wait
+
+	lcid, err := te.ingester.GetLatestSync(te.pubHost.ID())
+	require.NoError(t, err)
+	require.Equal(t, chainHead.(cidlink.Link).Cid, lcid, "synced up to %s, should have synced up to %s", c, chainHead.(cidlink.Link).Cid)
+
+	allMhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), te.publisherLinkSys)
+	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[1]})
+	require.NoError(t, err, "multihashes were not indexed")
+	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[0]})
+	require.Error(t, err, "multihashes were indexed. The shouldn't be because of limit")
+
+	te.Close(t)
+}
+
 func TestRmWithNoEntries(t *testing.T) {
 	te := setupTestEnv(t, true)
 
