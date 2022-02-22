@@ -173,7 +173,7 @@ func (h *IngestHandler) Announce(r io.Reader) error {
 
 	// We set context background because this will be an async process. We don't
 	// want to attach the context to the request context that started this.
-	h.ingester.Sync(context.Background(), pid.ID, pid.Addrs[0], 0)
+	h.ingester.Sync(context.Background(), pid.ID, pid.Addrs[0], 0, false)
 
 	return nil
 }

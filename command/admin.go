@@ -65,7 +65,7 @@ func syncCmd(cctx *cli.Context) error {
 			return err
 		}
 	}
-	err = cl.Sync(cctx.Context, peerID, addr, cctx.Int64("depth"))
+	err = cl.Sync(cctx.Context, peerID, addr, cctx.Int64("depth"), cctx.Bool("nolatest"))
 	if err != nil {
 		return err
 	}

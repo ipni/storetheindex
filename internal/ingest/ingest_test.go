@@ -177,7 +177,7 @@ func TestRestartDuringSync(t *testing.T) {
 	err = te.publisher.UpdateRoot(ctx, bCid.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0)
+	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 
 	// The ingester tried to sync B, but it was blocked. Now let's stop the ingester.
@@ -208,7 +208,7 @@ func TestRestartDuringSync(t *testing.T) {
 	// And sync to C
 	te.publisher.UpdateRoot(ctx, cCid.(cidlink.Link).Cid)
 
-	end, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0)
+	end, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-end
 
@@ -232,7 +232,7 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 
 	te.publisher.UpdateRoot(ctx, chainHead.(cidlink.Link).Cid)
 
-	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0)
+	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait
 	var lcid cid.Cid
@@ -267,7 +267,7 @@ func TestRmWithNoEntries(t *testing.T) {
 	ctx := context.Background()
 	te.publisher.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
 
-	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0)
+	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait
 	var lcid cid.Cid
@@ -299,7 +299,7 @@ func TestSync(t *testing.T) {
 	// The explicit sync will happen concurrently with the sycn triggered by
 	// the published advertisement.  These will be serialized in the go-legs
 	// handler for the provider.
-	end, err := i.Sync(ctx, pubHost.ID(), nil, 0)
+	end, err := i.Sync(ctx, pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 	select {
 	case m := <-end:
@@ -337,7 +337,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	adCid, _, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	end, err := ing.Sync(ctx, pubHost.ID(), nil, 0)
+	end, err := ing.Sync(ctx, pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 
 	select {
@@ -465,12 +465,12 @@ func TestMultiplePublishers(t *testing.T) {
 
 	// Test with two random advertisement publications for each of them.
 	c1, mhs, providerID := publishRandomAdv(t, i, pubHost1, pub1, lsys1, false)
-	wait, err := i.Sync(ctx, pubHost1.ID(), nil, 0)
+	wait, err := i.Sync(ctx, pubHost1.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait
 	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
 	c2, mhs, providerID := publishRandomAdv(t, i, pubHost2, pub2, lsys2, false)
-	wait, err = i.Sync(ctx, pubHost2.ID(), nil, 0)
+	wait, err = i.Sync(ctx, pubHost2.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait
 	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
