@@ -191,12 +191,14 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
 		stats.Record(context.Background(), metrics.AdIngestLatency.M(coremetrics.MsecSince(ingestStart)))
 	}()
 
+	log := log.With("publisher", publisher, "adCid", adCid)
+
+	log.Info("Processing advertisement")
+
 	ad, err := ing.loadAd(adCid, true)
 	if err != nil {
 		return fmt.Errorf("failed to load ad: %v", err)
 	}
-
-	log := log.With("publisher", publisher, "adCid", adCid)
 
 	// Get provider ID from advertisement.
 	providerID, err := peer.Decode(ad.Provider.String())
