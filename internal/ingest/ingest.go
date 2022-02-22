@@ -198,10 +198,16 @@ func (ing *Ingester) Close() error {
 	return err
 }
 
-// Sync syncs the latest advertisement from a publisher.  This is done by first
-// fetching the latest advertisement ID from and traversing it until traversal
-// gets to the last seen advertisement.  Then the entries in each advertisement
-// are synced and the multihashes in each entry are indexed.
+// Sync syncs advertisements, up to the the latest advertisement, from a
+// publisher.  A channel is returned that gives the caller the option to wait
+// for Sync to complete.  The channel returns the final CID that was synced by
+// the call to Sync.
+//
+// Sync works by first fetching each advertisement from the specidief peer
+// starting at the most recent and traversing to the advertisement last seen by
+// the indexer, or until the advertisement depth limit is reached.  Then the
+// entries in each advertisement are synced and the multihashes in each entry
+// are indexed.
 //
 // The selector used to sync the advertisement is controlled by the following
 // parameters: depth, and ignoreLatest.
@@ -215,18 +221,13 @@ func (ing *Ingester) Close() error {
 // traversal will continue until either there are no more advertisements left
 // or the recursion depth limit is reached.
 //
-// Note that the reference to the latest synced advertisement returned by
-// GetLatestSync is only updated if the given depth is zero and ignoreLatest
-// is set to false. Otherwise, a custom selector with the given depth limit and
-// stop link is constructed and used for traversal. See legs.Subscriber.Sync.
+// The reference to the latest synced advertisement returned by GetLatestSync
+// is only updated if the given depth is zero and ignoreLatest is set to
+// false. Otherwise, a custom selector with the given depth limit and stop link
+// is constructed and used for traversal. See legs.Subscriber.Sync.
 //
 // The Context argument controls the lifetime of the sync.  Canceling it
 // cancels the sync and causes the multihash channel to close without any data.
-//
-// Note that the multihash entries corresponding to the advertisement are
-// synced in the background.  The completion of advertisement sync does not
-// necessarily mean that the entries corresponding to the advertisement are
-// synced.
 func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, ignoreLatest bool) (<-chan cid.Cid, error) {
 	out := make(chan cid.Cid, 1)
 
@@ -296,7 +297,8 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		// Do not persist the latest sync here, because that is done in
 		// after we've processed the ad.
 
-		// If latest head had already finished syncing, then do not wait for syncDone since it will never happen.
+		// If latest head had already finished syncing, then do not wait for
+		// syncDone since it will never happen.
 		if latest == c {
 			log.Infow("Latest advertisement already processed", "adCid", c)
 			out <- c
