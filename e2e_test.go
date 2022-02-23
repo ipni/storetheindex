@@ -118,8 +118,9 @@ func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
 }
 
 func TestEndToEndWithReferenceProvider(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("skipping test on windows")
+	switch runtime.GOOS {
+	case "windows", "darwin":
+		t.Skip("skipping test on", runtime.GOOS)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

@@ -282,7 +282,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 				seenAdCids = append(seenAdCids, c)
 			}),
 		}
-		if !ignoreLatest {
+		if sel != nil && !ignoreLatest {
 			opts = append(opts, legs.CheckAlreadySynced())
 		}
 		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
