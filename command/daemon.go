@@ -28,6 +28,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/urfave/cli/v2"
@@ -172,12 +173,17 @@ func daemonCommand(cctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("bad p2p address in config %s: %s", cfg.Addresses.P2PAddr, err)
 		}
-		p2pHost, err = libp2p.New(
+		p2pOpts := []libp2p.Option{
 			// Use the keypair generated during init
 			libp2p.Identity(privKey),
 			// Listen at specific address
 			libp2p.ListenAddrs(p2pmaddr),
-		)
+		}
+		if !cfg.Addresses.UseResourceManager {
+			p2pOpts = append(p2pOpts, libp2p.ResourceManager(network.NullResourceManager))
+		}
+
+		p2pHost, err = libp2p.New(p2pOpts...)
 		if err != nil {
 			return err
 		}
