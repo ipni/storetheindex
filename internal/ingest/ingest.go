@@ -59,9 +59,6 @@ type Ingester struct {
 	entriesSel datamodel.Node
 	reg        *registry.Registry
 
-	skips      map[string]struct{}
-	skipsMutex sync.Mutex
-
 	cfg config.Ingest
 
 	// inEvents is used to send a legs.SyncFinished to the distributeEvents

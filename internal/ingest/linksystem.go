@@ -225,24 +225,6 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
 		skip = true
 	}
 
-	if !skip {
-		skipKey := string(contextID) + providerID.String()
-		skip = ing.hasSkip(skipKey)
-		if skip {
-			// An ad that is later in the chain has deleted all content for
-			// this ad, so skip this ad.
-			err = nil
-			log.Infow("Skipped advertisement that is removed later")
-		} else if isRm {
-			// This ad deletes all content for a contextID.  So, skip any
-			// previous (earlier in chain) ads that arrive later, that have
-			// the same contextID and provider.
-			ing.addSkip(skipKey)
-			// Remove skip after this and all previous ad in chain are processed.
-			defer ing.delSkip(skipKey)
-		}
-	}
-
 	// Mark the ad as processed after done processing. This is even in most
 	// error cases so that the indexer is not stuck trying to reprocessing a
 	// malformed ad.
@@ -357,37 +339,6 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
 		return fmt.Errorf("errors while ingesting entry chunks: %v", errsIngestingEntryChunks)
 	}
 	return nil
-}
-
-func (ing *Ingester) addSkip(key string) {
-	ing.skipsMutex.Lock()
-	defer ing.skipsMutex.Unlock()
-
-	if ing.skips == nil {
-		ing.skips = make(map[string]struct{})
-	}
-	ing.skips[key] = struct{}{}
-}
-
-func (ing *Ingester) hasSkip(key string) bool {
-	ing.skipsMutex.Lock()
-	defer ing.skipsMutex.Unlock()
-
-	if len(ing.skips) == 0 {
-		return false
-	}
-	_, skip := ing.skips[key]
-	return skip
-}
-
-func (ing *Ingester) delSkip(key string) {
-	ing.skipsMutex.Lock()
-	defer ing.skipsMutex.Unlock()
-
-	delete(ing.skips, key)
-	if len(ing.skips) == 0 {
-		ing.skips = nil
-	}
 }
 
 // indexContentBlock indexes the content multihashes in a block of data.  First
