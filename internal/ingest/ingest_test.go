@@ -199,7 +199,9 @@ func TestFailDuringResync(t *testing.T) {
 			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	err := te.publisher.SetRoot(ctx, adHead.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
@@ -489,7 +491,16 @@ func TestReSyncWithDepth(t *testing.T) {
 	allAds := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[2:]))
 	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[0:1]))
+
+	// When not resync, check that nothing beyond the latest is synced.
 	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 2, false)
+	require.NoError(t, err)
+	<-wait
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[2:]))
+	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[0:1]))
+
+	// When resync with greater depth, check that everything in synced.
+	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 2, true)
 	require.NoError(t, err)
 	<-wait
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds))
