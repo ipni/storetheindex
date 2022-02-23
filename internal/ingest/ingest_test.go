@@ -318,7 +318,8 @@ func TestSyncWithDepth(t *testing.T) {
 
 	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 1, false)
 	require.NoError(t, err)
-	c := <-wait
+	c, ok := <-wait
+	require.True(t, ok)
 
 	lcid, err := te.ingester.GetLatestSync(te.pubHost.ID())
 	require.NoError(t, err)
@@ -407,6 +408,44 @@ func TestSync(t *testing.T) {
 	}
 	// Checking providerID, since that was what was put in the advertisement, not pubhost.ID()
 	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+
+	// Test that we finish this sync even if we're already at the latest
+	end, err = i.Sync(ctx, pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+	_, ok := <-end
+	require.True(t, ok)
+
+	fmt.Println("Testing final resync")
+	// Test that we finish this sync even if we have a limit
+	end, err = i.Sync(ctx, pubHost.ID(), nil, 1, true)
+	require.NoError(t, err)
+	_, ok = <-end
+	require.True(t, ok)
+}
+
+func TestReSyncWithDepth(t *testing.T) {
+	te := setupTestEnv(t, false)
+	adHead := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
+		},
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	te.publisher.UpdateRoot(context.Background(), adHead.(cidlink.Link).Cid)
+	wait, err := te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 1, false)
+	require.NoError(t, err)
+	<-wait
+	allAds := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
+	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[2:])
+	require.NoError(t, err)
+	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[0:1])
+	require.Error(t, err)
+	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 2, false)
+	require.NoError(t, err)
+	<-wait
+	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds)
+	require.NoError(t, err)
 }
 
 func TestRecursionDepthLimitsEntriesSync(t *testing.T) {

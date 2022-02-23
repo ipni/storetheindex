@@ -247,10 +247,12 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		defer ing.waitForPendingSyncs.Done()
 		defer close(out)
 
+		var isResync bool
 		var sel ipld.Node
 		// If depth is non-zero or traversal should not stop at the latest synced, then construct a
 		// selector to behave accordingly.
 		if depth != 0 || ignoreLatest {
+			isResync = true
 			var err error
 			sel, err = ing.makeLimitedDepthSelector(peerID, depth, ignoreLatest)
 			if err != nil {
@@ -281,8 +283,14 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		c, err := ing.sub.SyncWithHook(ctx, peerID, cid.Undef, sel, peerAddr, func(i peer.ID, c cid.Cid) {
 			seenAdCids = append(seenAdCids, c)
 		})
-		// TODO(mm) we should have a mechanism that lets a manual sync always update the latest head in go legs.
-		if sel != nil && len(seenAdCids) > 0 {
+
+		// If this is a resync, we need to mark the adChain as unprocessed so that
+		// we can reingest everything from the start of this sync. We cannot simply
+		// index the ads we haven't seen before since later ads may have a different
+		// meaning in the context of earlier ads. So we have to start from the
+		// earliest ad we've just synced to the latest.
+		if isResync && len(seenAdCids) > 0 {
+			ing.markAdChainUnprocessed(seenAdCids)
 			event := legs.SyncFinished{
 				Cid:        seenAdCids[0],
 				PeerID:     peerID,
@@ -297,9 +305,9 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		// Do not persist the latest sync here, because that is done in
 		// after we've processed the ad.
 
-		// If latest head had already finished syncing, then do not wait for
-		// syncDone since it will never happen.
-		if latest == c {
+		// If latest head had already finished syncing, then do not wait
+		// for syncDone since it will never happen.
+		if latest == c && !isResync {
 			log.Infow("Latest advertisement already processed", "adCid", c)
 			out <- c
 			return
@@ -364,6 +372,25 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int64, ignor
 
 	log.Debug("Custom selector constructed for explicit sync")
 	return legs.ExploreRecursiveWithStopNode(rLimit, adSequence, stopAt), nil
+}
+
+// markAdChainUnprocessed takes a the cids of a chain of ads and marks them as
+// unprocessed. This lets the adChain be re-ingested in case we want to
+// re-ingest with different depths or are processing even earlier ads and need
+// to reprocess later ones so that the indexer re-ingest the later ones in the
+// context of the earlier ads, and thus become consistent.
+//
+// adCids *should* be in order from newest to oldest. This is so that if an
+// something fails to get marked as unprocessed we still hold the constraint
+// that if an ad is processed, all older ads are also processed.
+func (ing *Ingester) markAdChainUnprocessed(adCids []cid.Cid) error {
+	for _, adCid := range adCids {
+		err := ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{0})
+		if err != nil {
+			return nil
+		}
+	}
+	return nil
 }
 
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
