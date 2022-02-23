@@ -227,7 +227,7 @@ func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, meth
 	}
 
 	values := req.URL.Query()
-	for i := 0; i < qpLen/2; i += 2 {
+	for i := 0; i < qpLen; i += 2 {
 		values.Add(queryPairs[i], queryPairs[i+1])
 	}
 	req.URL.RawQuery = values.Encode()
