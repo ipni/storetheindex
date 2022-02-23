@@ -276,11 +276,12 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		// selector is nil.
 		var seenAdCids []cid.Cid
 		opts := []legs.SyncOption{
+			legs.AlwaysUpdateLatest(),
 			legs.ScopedBlockHook(func(i peer.ID, c cid.Cid) {
 				seenAdCids = append(seenAdCids, c)
 			}),
 		}
-		if sel != nil && !resync {
+		if sel != nil && !resync && latest != cid.Undef {
 			opts = append(opts, legs.CheckAlreadySynced())
 		}
 		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
@@ -290,7 +291,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		// index the ads we haven't seen before since later ads may have a different
 		// meaning in the context of earlier ads. So we have to start from the
 		// earliest ad we've just synced to the latest.
-		if sel != nil && len(seenAdCids) > 0 {
+		if resync && len(seenAdCids) > 0 {
 			ing.markAdChainUnprocessed(seenAdCids)
 			event := legs.SyncFinished{
 				Cid:        seenAdCids[0],
@@ -308,7 +309,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 
 		// If latest head had already finished syncing, then do not wait
 		// for syncDone since it will never happen.
-		if latest == c && sel == nil {
+		if latest == c && !resync {
 			log.Infow("Latest advertisement already processed", "adCid", c)
 			out <- c
 			return
