@@ -268,18 +268,20 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		}
 
 		// Start syncing. Notifications for the finished sync are sent
-		// asynchronously.  Sync with cid.Undef so that the latest head
-		// is queried by go-legs via head-publisher.
+		// asynchronously.  Sync with cid.Undef so that the latest head is
+		// queried by go-legs via head-publisher.
 		//
-		// Note that if the selector is nil the default selector is used
-		// where traversal stops at the latest known head.
+		// Note that if the selector is nil the default selector is used where
+		// traversal stops at the latest known head.
 		//
 		// Reference to the latest synced CID is only updated if the given
 		// selector is nil.
 		var seenAdCids []cid.Cid
-		opts := []legs.SyncOption{legs.ScopedBlockHook(func(i peer.ID, c cid.Cid) {
-			seenAdCids = append(seenAdCids, c)
-		})}
+		opts := []legs.SyncOption{
+			legs.ScopedBlockHook(func(i peer.ID, c cid.Cid) {
+				seenAdCids = append(seenAdCids, c)
+			}),
+		}
 		if !ignoreLatest {
 			opts = append(opts, legs.CheckAlreadySynced())
 		}
