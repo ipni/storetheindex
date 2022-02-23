@@ -24,6 +24,7 @@ import (
 type Client struct {
 	ctxLock ctxMutex
 	host    host.Host
+	ownHost bool
 	peerID  peer.ID
 	protoID protocol.ID
 	r       msgio.ReadCloser
@@ -51,18 +52,21 @@ var ErrReadTimeout = fmt.Errorf("timed out reading response")
 // protocolID.  If host is nil, then one is created.
 func New(p2pHost host.Host, peerID peer.ID, protoID protocol.ID) (*Client, error) {
 	// If no host was given, create one.
+	var ownHost bool
 	if p2pHost == nil {
 		var err error
 		p2pHost, err = libp2p.New()
 		if err != nil {
 			return nil, err
 		}
+		ownHost = true
 	}
 
 	// Start a client
 	return &Client{
 		ctxLock: newCtxMutex(),
 		host:    p2pHost,
+		ownHost: ownHost,
 		peerID:  peerID,
 		protoID: protoID,
 	}, nil
@@ -135,6 +139,15 @@ func (c *Client) Close() error {
 		c.closeStream()
 	}
 
+	if c.ownHost {
+		rm := c.host.Network().ResourceManager()
+		if err = c.host.Close(); err != nil {
+			return err
+		}
+		if err = rm.Close(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

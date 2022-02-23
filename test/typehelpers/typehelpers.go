@@ -34,6 +34,14 @@ type RandomAdBuilder struct {
 }
 
 func (b RandomAdBuilder) Build(t *testing.T, lsys ipld.LinkSystem, signingKey crypto.PrivKey) datamodel.Link {
+	return b.build(t, lsys, signingKey, false)
+}
+
+func (b RandomAdBuilder) BuildWithFakeSig(t *testing.T, lsys ipld.LinkSystem, signingKey crypto.PrivKey) datamodel.Link {
+	return b.build(t, lsys, signingKey, true)
+}
+
+func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey crypto.PrivKey, fakeSig bool) datamodel.Link {
 	if len(b.EntryChunkBuilders) == 0 {
 		return nil
 	}
@@ -61,11 +69,12 @@ func (b RandomAdBuilder) Build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 			continue
 		}
 
-		_, headLink, err = schema.NewAdvertisementWithLink(lsys, signingKey, headLink, ec, ctxID, metadata, false, p.String(), addrs)
+		if fakeSig {
+			_, headLink, err = schema.NewAdvertisementWithFakeSig(lsys, signingKey, headLink, ec, ctxID, metadata, false, p.String(), addrs)
+		} else {
 
-		// if b.FakeSig {
-		// 	_, headLink, err = schema.NewAdvertisementWithFakeSig(lsys, signingKey, headLink, ec, ctxID, metadata, false, p.String(), addrs)
-		// }
+			_, headLink, err = schema.NewAdvertisementWithLink(lsys, signingKey, headLink, ec, ctxID, metadata, false, p.String(), addrs)
+		}
 		require.NoError(t, err)
 	}
 
@@ -199,4 +208,16 @@ func AllAds(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem) []schem
 	require.NoError(t, err)
 
 	return out
+}
+
+func AllMultihashesFromAdLink(t *testing.T, adLink datamodel.Link, lsys ipld.LinkSystem) []multihash.Multihash {
+	adNode, err := lsys.Load(linking.LinkContext{}, adLink, schema.Type.Advertisement)
+	require.NoError(t, err)
+	return AllMultihashesFromAd(t, adNode.(schema.Advertisement), lsys)
+}
+
+func AdFromLink(t *testing.T, adLink datamodel.Link, lsys ipld.LinkSystem) schema.Advertisement {
+	adNode, err := lsys.Load(linking.LinkContext{}, adLink, schema.Type.Advertisement)
+	require.NoError(t, err)
+	return adNode.(schema.Advertisement)
 }

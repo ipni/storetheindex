@@ -84,7 +84,7 @@ func init() {
 		panic(err)
 	}
 	ds := datastore.NewMapDatastore()
-	ing, err := ingest.NewIngester(config.Ingest{}, host, idx, reg, ds)
+	ing, err := ingest.NewIngester(config.NewIngest(), host, idx, reg, ds)
 	if err != nil {
 		panic(err)
 	}
