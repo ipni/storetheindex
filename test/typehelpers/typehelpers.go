@@ -215,3 +215,9 @@ func AllMultihashesFromAdLink(t *testing.T, adLink datamodel.Link, lsys ipld.Lin
 	require.NoError(t, err)
 	return AllMultihashesFromAd(t, adNode.(schema.Advertisement), lsys)
 }
+
+func AdFromLink(t *testing.T, adLink datamodel.Link, lsys ipld.LinkSystem) schema.Advertisement {
+	adNode, err := lsys.Load(linking.LinkContext{}, adLink, schema.Type.Advertisement)
+	require.NoError(t, err)
+	return adNode.(schema.Advertisement)
+}

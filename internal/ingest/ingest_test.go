@@ -78,7 +78,7 @@ func TestSubscribe(t *testing.T) {
 	require.NoError(t, err)
 	<-wait
 	mhs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
-	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+	checkMhsIndexed(t, te.ingester.indexer, te.pubHost.ID(), mhs)
 
 	// Check that we sync if the publisher gives us another provider instead.
 	someOtherProviderPriv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
@@ -97,7 +97,7 @@ func TestSubscribe(t *testing.T) {
 	someOtherProvider, err := peer.IDFromPrivateKey(someOtherProviderPriv)
 	require.NoError(t, err)
 	mhs = typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
-	checkMhsIndexedEventually(t, te.ingester.indexer, someOtherProvider, mhs)
+	checkMhsIndexed(t, te.ingester.indexer, someOtherProvider, mhs)
 
 	// Check that we don't ingest from ads that aren't signed.
 	someOtherProviderPriv, _, err = test.RandTestKeyPair(crypto.Ed25519, 256)
@@ -163,30 +163,88 @@ func (b *blockList) rm(c cid.Cid) {
 	delete(b.list, c)
 }
 
-func TestRestartDuringSync(t *testing.T) {
-	blockedReads := &blockList{list: make(map[cid.Cid]bool)}
-	hitBlockedRead := make(chan cid.Cid)
+func blockableLinkSys() (opt func(teo *testEnvOpts), blockedReads *blockList, hitBlockedRead chan cid.Cid) {
+	blockedReads = &blockList{list: make(map[cid.Cid]bool)}
+	hitBlockedRead = make(chan cid.Cid)
+	return func(teo *testEnvOpts) {
+			teo.publisherLinkSysFn = func(ds datastore.Batching) ipld.LinkSystem {
+				lsys := cidlink.DefaultLinkSystem()
+				backendLsys := mkProvLinkSystem(ds)
 
-	te := setupTestEnv(t, true, func(teo *testEnvOpts) {
-		teo.skipIngesterCleanup = true
-		teo.publisherLinkSysFn = func(ds datastore.Batching) ipld.LinkSystem {
-			lsys := cidlink.DefaultLinkSystem()
-			backendLsys := mkProvLinkSystem(ds)
-
-			lsys.StorageWriteOpener = backendLsys.StorageWriteOpener
-			lsys.StorageReadOpener = func(lc linking.LinkContext, l datamodel.Link) (io.Reader, error) {
-				blockedReads.mu.Lock()
-				defer blockedReads.mu.Unlock()
-				if blockedReads.list[l.(cidlink.Link).Cid] {
-					fmt.Println("blocked read")
-					hitBlockedRead <- l.(cidlink.Link).Cid
-					return nil, errors.New("blocked read")
+				lsys.StorageWriteOpener = backendLsys.StorageWriteOpener
+				lsys.StorageReadOpener = func(lc linking.LinkContext, l datamodel.Link) (io.Reader, error) {
+					blockedReads.mu.Lock()
+					defer blockedReads.mu.Unlock()
+					if blockedReads.list[l.(cidlink.Link).Cid] {
+						fmt.Println("blocked read")
+						hitBlockedRead <- l.(cidlink.Link).Cid
+						return nil, errors.New("blocked read")
+					}
+					return backendLsys.StorageReadOpener(lc, l)
 				}
-				return backendLsys.StorageReadOpener(lc, l)
-			}
 
-			return lsys
-		}
+				return lsys
+			}
+		},
+		blockedReads,
+		hitBlockedRead
+}
+
+func TestFailDuringResync(t *testing.T) {
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys()
+	te := setupTestEnv(t, true, blockableLsysOpt)
+	adHead := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
+		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	ctx := context.Background()
+	err := te.publisher.SetRoot(ctx, adHead.(cidlink.Link).Cid)
+	require.NoError(t, err)
+
+	allMHs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
+	allAds := typehelpers.AllAds(t, typehelpers.AdFromLink(t, adHead, te.publisherLinkSys), te.publisherLinkSys)
+	prevAd := allAds[1]
+	prevAdEntChunk, err := prevAd.Entries.AsLink()
+	require.NoError(t, err)
+	blockedReads.add(prevAdEntChunk.(cidlink.Link).Cid)
+
+	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 1, false)
+	require.NoError(t, err)
+	c, ok := <-wait
+	require.True(t, ok)
+	require.Equal(t, adHead.(cidlink.Link).Cid, c)
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[1:]))
+	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[0:1]))
+
+	// resync. We'll fail when we are processing head ad
+	wait, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 2, true)
+	require.NoError(t, err)
+	<-hitBlockedRead
+	<-wait
+	// We failed to index the first ad
+	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[0:1]))
+	// We still have the mhs from the head ad.
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[1:]))
+
+	latestSync, err := te.ingester.GetLatestSync(te.pubHost.ID())
+	require.NoError(t, err)
+	require.Equal(t, adHead.(cidlink.Link).Cid, latestSync)
+
+	// Now we'll resync again and we should succeed.
+	blockedReads.rm(prevAdEntChunk.(cidlink.Link).Cid)
+	wait, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 2, true)
+	require.NoError(t, err)
+	<-wait
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs))
+}
+
+func TestRestartDuringSync(t *testing.T) {
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys()
+
+	te := setupTestEnv(t, true, blockableLsysOpt, func(teo *testEnvOpts) {
+		teo.skipIngesterCleanup = true
 	})
 
 	cCid := typehelpers.RandomAdBuilder{
@@ -232,7 +290,7 @@ func TestRestartDuringSync(t *testing.T) {
 
 	aMhs := typehelpers.AllMultihashesFromAd(t, aAd, te.publisherLinkSys)
 	// Check that we processed A correctly.
-	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), aMhs)
+	checkMhsIndexed(t, te.ingester.indexer, te.pubHost.ID(), aMhs)
 
 	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
 
@@ -261,7 +319,7 @@ func TestRestartDuringSync(t *testing.T) {
 	<-end
 
 	allMhs := typehelpers.AllMultihashesFromAd(t, cAd, te.publisherLinkSys)
-	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+	checkMhsIndexed(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 }
 
 func TestWithDuplicatedEntryChunks(t *testing.T) {
@@ -367,7 +425,7 @@ func TestRmWithNoEntries(t *testing.T) {
 	allMhs := typehelpers.AllMultihashesFromAd(t, prevAdNode.(schema.Advertisement), te.publisherLinkSys)
 	// Remove the mhs from the first ad (since the last add removed this from the indexer)
 	allMhs = allMhs[1:]
-	checkMhsIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+	checkMhsIndexed(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 }
 func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -407,7 +465,7 @@ func TestSync(t *testing.T) {
 		t.Fatal("sync timeout")
 	}
 	// Checking providerID, since that was what was put in the advertisement, not pubhost.ID()
-	checkMhsIndexedEventually(t, i.indexer, providerID, mhs)
+	checkMhsIndexed(t, i.indexer, providerID, mhs)
 
 	// Test that we finish this sync even if we're already at the latest
 	end, err = i.Sync(ctx, pubHost.ID(), nil, 0, false)
@@ -432,7 +490,7 @@ func TestReSyncWithDepth(t *testing.T) {
 		},
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
-	te.publisher.UpdateRoot(context.Background(), adHead.(cidlink.Link).Cid)
+	te.publisher.SetRoot(context.Background(), adHead.(cidlink.Link).Cid)
 	wait, err := te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 1, false)
 	require.NoError(t, err)
 	<-wait
@@ -479,7 +537,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 		adNode, err := lsys.Load(linking.LinkContext{}, lnk, schema.Type.Advertisement)
 		require.NoError(t, err)
 		mhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), lsys)
-		checkMhsIndexedEventually(t, ing.indexer, providerID, mhs)
+		checkMhsIndexed(t, ing.indexer, providerID, mhs)
 
 		lcid, err = ing.GetLatestSync(pubHost.ID())
 		for err == nil && lcid == cid.Undef {
@@ -505,7 +563,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 		// If chunk depth is within limit
 		if i < int(ingestCfg.EntriesDepthLimit) {
 			// Assert chunk multihashes are indexed
-			checkMhsIndexedEventually(t, ing.indexer, providerID, mhs)
+			checkMhsIndexed(t, ing.indexer, providerID, mhs)
 		} else {
 			// Otherwise, assert chunk multihashes are not indexed.
 			requireNotIndexed(t, mhs, ing)
@@ -604,7 +662,7 @@ func TestMultiplePublishers(t *testing.T) {
 	require.NoError(t, err)
 	<-wait
 
-	checkMhsIndexedEventually(t, i.indexer, pubHost1.ID(), mhs)
+	checkMhsIndexed(t, i.indexer, pubHost1.ID(), mhs)
 
 	c2 := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
@@ -620,7 +678,7 @@ func TestMultiplePublishers(t *testing.T) {
 	require.NoError(t, err)
 	<-wait
 
-	checkMhsIndexedEventually(t, i.indexer, pubHost2.ID(), mhs)
+	checkMhsIndexed(t, i.indexer, pubHost2.ID(), mhs)
 
 	// Check that subscriber recorded latest sync.
 	lnk := i.sub.GetLatestSync(pubHost1.ID())
@@ -776,8 +834,8 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publis
 	return lnk.(cidlink.Link).Cid, mhs, p
 }
 
-func checkMhsIndexedEventually(t *testing.T, ix indexer.Interface, p peer.ID, mhs []multihash.Multihash) {
-	requireTrueEventually(t, func() bool { return providesAll(t, ix, p, mhs...) }, testRetryInterval, testRetryTimeout, "multihashes were not indexed")
+func checkMhsIndexed(t *testing.T, ix indexer.Interface, p peer.ID, mhs []multihash.Multihash) {
+	require.True(t, providesAll(t, ix, p, mhs...), "multihashes were not indexed")
 }
 
 func providesAll(t *testing.T, ix indexer.Interface, p peer.ID, mhs ...multihash.Multihash) bool {
