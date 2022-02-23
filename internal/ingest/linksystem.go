@@ -153,7 +153,7 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, entryChu
 	entryChunkKey := dsKey(entryChunkCid.String())
 	val, err := ing.ds.Get(context.Background(), entryChunkKey)
 	if err != nil {
-		return fmt.Errorf("error while fetching the node from datastore: %w", err)
+		return fmt.Errorf("cannot fetch the node from datastore: %w", err)
 	}
 	defer func() {
 		// Remove the content block from the data store now that processing it
@@ -168,12 +168,12 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, entryChu
 	// Decode block to IPLD node
 	node, err := decodeIPLDNode(entryChunkCid.Prefix().Codec, bytes.NewBuffer(val))
 	if err != nil {
-		return fmt.Errorf("error decoding ipldNode: %w", err)
+		return fmt.Errorf("failed to decode ipldNode: %w", err)
 	}
 
 	err = ing.indexContentBlock(adCid, publisher, node)
 	if err != nil {
-		return fmt.Errorf("error processing entries for advertisement", "err", err)
+		return fmt.Errorf("failed processing entries for advertisement: %w", err)
 	} else {
 		log.Info("Done indexing content in entry block")
 		ing.signalMetricsUpdate()
