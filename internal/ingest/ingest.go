@@ -237,7 +237,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	}
 
 	log := log.With("provider", peerID, "peerAddr", peerAddr, "depth", depth, "ignoreLatest", ignoreLatest)
-	log.Debug("Explicitly syncing the latest advertisement from peer")
+	log.Info("Explicitly syncing the latest advertisement from peer")
 
 	ing.waitForPendingSyncs.Add(1)
 	go func() {
