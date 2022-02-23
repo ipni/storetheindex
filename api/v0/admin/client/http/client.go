@@ -96,7 +96,7 @@ func (c *Client) ImportFromCidList(ctx context.Context, fileName string, provID 
 }
 
 // Sync with a data peer up to the latest ID.
-func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, nolatest bool) error {
+func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, resync bool) error {
 	var data []byte
 	var err error
 	if peerAddr != nil {
@@ -115,8 +115,8 @@ func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Mu
 	}
 
 	// Only set if true, since by default the latest sync is not ignored.
-	if nolatest {
-		q = append(q, "nolatest", strconv.FormatBool(nolatest))
+	if resync {
+		q = append(q, "resync", strconv.FormatBool(resync))
 	}
 
 	return c.ingestRequest(ctx, peerID, "sync", http.MethodPost, data, q...)

@@ -207,25 +207,25 @@ func (ing *Ingester) Close() error {
 // are indexed.
 //
 // The selector used to sync the advertisement is controlled by the following
-// parameters: depth, and ignoreLatest.
+// parameters: depth, and resync.
 //
 // The depth argument specifies the recursion depth limit to use during sync.
 // Its value may be one of: -1 for no-limit, 0 for same value as config.Ingest,
 // or larger than 0 for an explicit limit.
 //
-// The ignoreLatest argument specifies whether to stop the traversal at the
-// latest known advertisement that is already synced. If set to true, the
-// traversal will continue until either there are no more advertisements left
-// or the recursion depth limit is reached.
+// The resync argument specifies whether to stop the traversal at the latest
+// known advertisement that is already synced. If set to true, the traversal
+// will continue until either there are no more advertisements left or the
+// recursion depth limit is reached.
 //
 // The reference to the latest synced advertisement returned by GetLatestSync
-// is only updated if the given depth is zero and ignoreLatest is set to
+// is only updated if the given depth is zero and resync is set to
 // false. Otherwise, a custom selector with the given depth limit and stop link
 // is constructed and used for traversal. See legs.Subscriber.Sync.
 //
 // The Context argument controls the lifetime of the sync.  Canceling it
 // cancels the sync and causes the multihash channel to close without any data.
-func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, ignoreLatest bool) (<-chan cid.Cid, error) {
+func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, resync bool) (<-chan cid.Cid, error) {
 	out := make(chan cid.Cid, 1)
 
 	// Fail fast if peer ID or depth is invalid.
@@ -241,17 +241,15 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		defer ing.waitForPendingSyncs.Done()
 		defer close(out)
 
-		log := log.With("provider", peerID, "peerAddr", peerAddr, "depth", depth, "ignoreLatest", ignoreLatest)
+		log := log.With("provider", peerID, "peerAddr", peerAddr, "depth", depth, "resync", resync)
 		log.Info("Explicitly syncing the latest advertisement from peer")
 
-		var isResync bool
 		var sel ipld.Node
 		// If depth is non-zero or traversal should not stop at the latest synced, then construct a
 		// selector to behave accordingly.
-		if depth != 0 || ignoreLatest {
-			isResync = true
+		if depth != 0 || resync {
 			var err error
-			sel, err = ing.makeLimitedDepthSelector(peerID, depth, ignoreLatest)
+			sel, err = ing.makeLimitedDepthSelector(peerID, depth, resync)
 			if err != nil {
 				log.Errorw("Failed to construct selector for explicit sync", "err", err)
 				return
@@ -282,7 +280,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 				seenAdCids = append(seenAdCids, c)
 			}),
 		}
-		if sel != nil && !ignoreLatest {
+		if sel != nil && !resync {
 			opts = append(opts, legs.CheckAlreadySynced())
 		}
 		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
@@ -292,7 +290,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		// index the ads we haven't seen before since later ads may have a different
 		// meaning in the context of earlier ads. So we have to start from the
 		// earliest ad we've just synced to the latest.
-		if isResync && len(seenAdCids) > 0 {
+		if sel != nil && len(seenAdCids) > 0 {
 			ing.markAdChainUnprocessed(seenAdCids)
 			event := legs.SyncFinished{
 				Cid:        seenAdCids[0],
@@ -310,7 +308,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 
 		// If latest head had already finished syncing, then do not wait
 		// for syncDone since it will never happen.
-		if latest == c && !isResync {
+		if latest == c && sel == nil {
 			log.Infow("Latest advertisement already processed", "adCid", c)
 			out <- c
 			return
@@ -338,7 +336,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	return out, nil
 }
 
-func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int64, ignoreLatest bool) (ipld.Node, error) {
+func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int64, resync bool) (ipld.Node, error) {
 	// Consider the value of -1 as no-limit, similar to config.Ingest.
 	var rLimit selector.RecursionLimit
 	if depth == -1 {
@@ -353,7 +351,7 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int64, ignor
 	log := log.With("depth", depth)
 
 	var stopAt ipld.Link
-	if !ignoreLatest {
+	if !resync {
 		latest, err := ing.GetLatestSync(peerID)
 		if err != nil {
 			return nil, err

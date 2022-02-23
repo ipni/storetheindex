@@ -147,8 +147,8 @@ var adminSyncFlags = []cli.Flag{
 		Value: 0,
 	},
 	&cli.BoolFlag{
-		Name:  "nolatest",
-		Usage: "Whether to continue traversal beyond the latest synced advertisement.",
+		Name:  "resync",
+		Usage: "Ignore the latest synced advertisement and sync advertisements as far back as the depth limit allows.",
 		Value: false,
 	},
 }
