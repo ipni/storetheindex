@@ -281,9 +281,6 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 				seenAdCids = append(seenAdCids, c)
 			}),
 		}
-		if sel != nil && !resync && latest != cid.Undef {
-			opts = append(opts, legs.CheckAlreadySynced())
-		}
 		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
 
 		// If this is a resync, we need to mark the adChain as unprocessed so that
