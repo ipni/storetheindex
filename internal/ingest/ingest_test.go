@@ -78,7 +78,7 @@ func TestSubscribe(t *testing.T) {
 	require.NoError(t, err)
 	<-wait
 	mhs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
-	checkMhsIndexed(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), mhs))
 
 	// Check that we sync if the publisher gives us another provider instead.
 	someOtherProviderPriv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
@@ -97,7 +97,7 @@ func TestSubscribe(t *testing.T) {
 	someOtherProvider, err := peer.IDFromPrivateKey(someOtherProviderPriv)
 	require.NoError(t, err)
 	mhs = typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
-	checkMhsIndexed(t, te.ingester.indexer, someOtherProvider, mhs)
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, someOtherProvider, mhs))
 
 	// Check that we don't ingest from ads that aren't signed.
 	someOtherProviderPriv, _, err = test.RandTestKeyPair(crypto.Ed25519, 256)
@@ -290,16 +290,13 @@ func TestRestartDuringSync(t *testing.T) {
 
 	aMhs := typehelpers.AllMultihashesFromAd(t, aAd, te.publisherLinkSys)
 	// Check that we processed A correctly.
-	checkMhsIndexed(t, te.ingester.indexer, te.pubHost.ID(), aMhs)
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), aMhs))
 
 	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
 
 	// We should not have processed B yet.
 	bMhs := typehelpers.AllMultihashesFromAd(t, bAd, te.publisherLinkSys)
-	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), bMhs)
-	if err == nil {
-		require.FailNow(t, "expected that maulthashes were not found")
-	}
+	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), bMhs), "bMHs should not be indexed yet")
 
 	// Now we bring up the ingester again.
 	ingesterHost := mkTestHost(libp2p.Identity(te.ingesterPriv))
@@ -319,7 +316,7 @@ func TestRestartDuringSync(t *testing.T) {
 	<-end
 
 	allMhs := typehelpers.AllMultihashesFromAd(t, cAd, te.publisherLinkSys)
-	checkMhsIndexed(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs))
 }
 
 func TestWithDuplicatedEntryChunks(t *testing.T) {
@@ -349,10 +346,7 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 	require.Equal(t, chainHead.(cidlink.Link).Cid, lcid, "synced up to %s, should have synced up to %s", c, chainHead.(cidlink.Link).Cid)
 
 	allMhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), te.publisherLinkSys)
-	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs)
-	if err != nil {
-		require.FailNow(t, "multihashes were not indexed: %s", err)
-	}
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs))
 
 	te.Close(t)
 }
@@ -384,10 +378,8 @@ func TestSyncWithDepth(t *testing.T) {
 	require.Equal(t, chainHead.(cidlink.Link).Cid, lcid, "synced up to %s, should have synced up to %s", c, chainHead.(cidlink.Link).Cid)
 
 	allMhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), te.publisherLinkSys)
-	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[1]})
-	require.NoError(t, err, "multihashes were not indexed")
-	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[0]})
-	require.Error(t, err, "multihashes were indexed. The shouldn't be because of limit")
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[1]}))
+	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[0]}), "multihashes were indexed. The shouldn't be because of limit")
 
 	te.Close(t)
 }
@@ -425,7 +417,7 @@ func TestRmWithNoEntries(t *testing.T) {
 	allMhs := typehelpers.AllMultihashesFromAd(t, prevAdNode.(schema.Advertisement), te.publisherLinkSys)
 	// Remove the mhs from the first ad (since the last add removed this from the indexer)
 	allMhs = allMhs[1:]
-	checkMhsIndexed(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs))
 }
 func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -465,7 +457,7 @@ func TestSync(t *testing.T) {
 		t.Fatal("sync timeout")
 	}
 	// Checking providerID, since that was what was put in the advertisement, not pubhost.ID()
-	checkMhsIndexed(t, i.indexer, providerID, mhs)
+	require.NoError(t, checkAllIndexed(i.indexer, providerID, mhs))
 
 	// Test that we finish this sync even if we're already at the latest
 	end, err = i.Sync(ctx, pubHost.ID(), nil, 0, false)
@@ -495,15 +487,12 @@ func TestReSyncWithDepth(t *testing.T) {
 	require.NoError(t, err)
 	<-wait
 	allAds := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
-	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[2:])
-	require.NoError(t, err)
-	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[0:1])
-	require.Error(t, err)
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[2:]))
+	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[0:1]))
 	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 2, false)
 	require.NoError(t, err)
 	<-wait
-	err = checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds)
-	require.NoError(t, err)
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds))
 }
 
 func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
@@ -537,7 +526,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 		adNode, err := lsys.Load(linking.LinkContext{}, lnk, schema.Type.Advertisement)
 		require.NoError(t, err)
 		mhs := typehelpers.AllMultihashesFromAd(t, adNode.(schema.Advertisement), lsys)
-		checkMhsIndexed(t, ing.indexer, providerID, mhs)
+		require.NoError(t, checkAllIndexed(ing.indexer, providerID, mhs))
 
 		lcid, err = ing.GetLatestSync(pubHost.ID())
 		for err == nil && lcid == cid.Undef {
@@ -563,7 +552,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 		// If chunk depth is within limit
 		if i < int(ingestCfg.EntriesDepthLimit) {
 			// Assert chunk multihashes are indexed
-			checkMhsIndexed(t, ing.indexer, providerID, mhs)
+			require.NoError(t, checkAllIndexed(ing.indexer, providerID, mhs))
 		} else {
 			// Otherwise, assert chunk multihashes are not indexed.
 			requireNotIndexed(t, mhs, ing)
@@ -662,7 +651,7 @@ func TestMultiplePublishers(t *testing.T) {
 	require.NoError(t, err)
 	<-wait
 
-	checkMhsIndexed(t, i.indexer, pubHost1.ID(), mhs)
+	require.NoError(t, checkAllIndexed(i.indexer, pubHost1.ID(), mhs))
 
 	c2 := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
@@ -678,7 +667,7 @@ func TestMultiplePublishers(t *testing.T) {
 	require.NoError(t, err)
 	<-wait
 
-	checkMhsIndexed(t, i.indexer, pubHost2.ID(), mhs)
+	require.NoError(t, checkAllIndexed(i.indexer, pubHost2.ID(), mhs))
 
 	// Check that subscriber recorded latest sync.
 	lnk := i.sub.GetLatestSync(pubHost1.ID())
@@ -832,19 +821,6 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publis
 	err = pub.UpdateRoot(context.Background(), lnk.(cidlink.Link).Cid)
 	require.NoError(t, err)
 	return lnk.(cidlink.Link).Cid, mhs, p
-}
-
-func checkMhsIndexed(t *testing.T, ix indexer.Interface, p peer.ID, mhs []multihash.Multihash) {
-	require.True(t, providesAll(t, ix, p, mhs...), "multihashes were not indexed")
-}
-
-func providesAll(t *testing.T, ix indexer.Interface, p peer.ID, mhs ...multihash.Multihash) bool {
-	err := checkAllIndexed(ix, p, mhs)
-	if err != nil {
-		t.Logf("err: %v", err)
-		return false
-	}
-	return true
 }
 
 func checkAllIndexed(ix indexer.Interface, p peer.ID, mhs []multihash.Multihash) error {
