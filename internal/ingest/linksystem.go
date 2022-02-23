@@ -150,33 +150,33 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, entryChu
 	log := log.With("publisher", publisher, "adCid", adCid, "cid", entryChunkCid)
 
 	// Get data corresponding to the block.
-	val, err := ing.ds.Get(context.Background(), dsKey(entryChunkCid.String()))
+	entryChunkKey := dsKey(entryChunkCid.String())
+	val, err := ing.ds.Get(context.Background(), entryChunkKey)
 	if err != nil {
-		log.Errorw("Error while fetching the node from datastore", "err", err)
-		return err
+		return fmt.Errorf("error while fetching the node from datastore: %w", err)
 	}
+	defer func() {
+		// Remove the content block from the data store now that processing it
+		// has finished.  This prevents storing redundant information in
+		// several datastores.
+		err := ing.ds.Delete(context.Background(), entryChunkKey)
+		if err != nil {
+			log.Errorw("Error deleting index from datastore", "err", err)
+		}
+	}()
 
 	// Decode block to IPLD node
 	node, err := decodeIPLDNode(entryChunkCid.Prefix().Codec, bytes.NewBuffer(val))
 	if err != nil {
-		log.Errorw("Error decoding ipldNode", "err", err)
-		return err
+		return fmt.Errorf("error decoding ipldNode: %w", err)
 	}
 
 	err = ing.indexContentBlock(adCid, publisher, node)
 	if err != nil {
-		log.Errorw("Error processing entries for advertisement", "err", err)
+		return fmt.Errorf("error processing entries for advertisement", "err", err)
 	} else {
 		log.Info("Done indexing content in entry block")
 		ing.signalMetricsUpdate()
-	}
-
-	// Remove the content block from the data store now that processing it
-	// has finished.  This prevents storing redundant information in
-	// several datastores.
-	err = ing.ds.Delete(context.Background(), dsKey(entryChunkCid.String()))
-	if err != nil {
-		log.Errorw("Error deleting index from datastore", "err", err)
 	}
 
 	return nil
