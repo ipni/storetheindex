@@ -236,13 +236,13 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		return nil, err
 	}
 
-	log := log.With("provider", peerID, "peerAddr", peerAddr, "depth", depth, "ignoreLatest", ignoreLatest)
-	log.Info("Explicitly syncing the latest advertisement from peer")
-
 	ing.waitForPendingSyncs.Add(1)
 	go func() {
 		defer ing.waitForPendingSyncs.Done()
 		defer close(out)
+
+		log := log.With("provider", peerID, "peerAddr", peerAddr, "depth", depth, "ignoreLatest", ignoreLatest)
+		log.Info("Explicitly syncing the latest advertisement from peer")
 
 		var isResync bool
 		var sel ipld.Node
@@ -277,9 +277,13 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		// Reference to the latest synced CID is only updated if the given
 		// selector is nil.
 		var seenAdCids []cid.Cid
-		c, err := ing.sub.SyncWithHook(ctx, peerID, cid.Undef, sel, peerAddr, func(i peer.ID, c cid.Cid) {
+		opts := []legs.SyncOption{legs.ScopedBlockHook(func(i peer.ID, c cid.Cid) {
 			seenAdCids = append(seenAdCids, c)
-		})
+		})}
+		if !ignoreLatest {
+			opts = append(opts, legs.CheckAlreadySynced())
+		}
+		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
 
 		// If this is a resync, we need to mark the adChain as unprocessed so that
 		// we can reingest everything from the start of this sync. We cannot simply

@@ -317,12 +317,12 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
 
 	// Traverse entries based on the entries selector that limits recursion depth.
 	var errsIngestingEntryChunks []error
-	_, err = ing.sub.SyncWithHook(ctx, publisher, entriesCid, ing.entriesSel, nil, func(p peer.ID, c cid.Cid) {
+	_, err = ing.sub.Sync(ctx, publisher, entriesCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid) {
 		err := ing.ingestEntryChunk(p, adCid, c)
 		if err != nil {
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 		}
-	})
+	}))
 	if err != nil {
 		reprocessAd = true
 		return fmt.Errorf("failed to sync: %w", err)
