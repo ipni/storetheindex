@@ -703,11 +703,6 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 		ai := yetToBeProcessed[i]
 		err := ing.ingestAd(msg.publisher, ai.cid, ai.ad)
 
-		// if err != nil {
-		// 	log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", adCid, "publisher", msg.provider, "err", err, "adsLeftToProcess", i+1)
-		// 	return
-		// }
-
 		var adIngestErr adIngestError
 		if errors.As(err, &adIngestErr) {
 			switch adIngestErr.state {
