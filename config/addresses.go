@@ -14,8 +14,8 @@ type Addresses struct {
 	// P2PMaddr is the libp2p host multiaddr for all servers. Set to "none" to
 	// disable libp2p hosting.
 	P2PAddr string
-	// UseResourceManager enables the libp2p resource manager when true
-	UseResourceManager bool
+	// NoResourceManager disables the libp2p resource manager when true.
+	NoResourceManager bool
 }
 
 // NewAddresses returns Addresses with values set to their defaults.
