@@ -17,7 +17,7 @@ require (
 	github.com/ipfs/go-ipfs v0.11.0
 	github.com/ipfs/go-log/v2 v2.5.0
 	github.com/ipld/go-ipld-prime v0.14.4
-	github.com/libp2p/go-libp2p v0.18.0-rc1
+	github.com/libp2p/go-libp2p v0.18.0-rc3
 	github.com/libp2p/go-libp2p-core v0.14.0
 	github.com/libp2p/go-msgio v0.1.0
 	github.com/mitchellh/go-homedir v1.1.0

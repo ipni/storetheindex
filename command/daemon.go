@@ -179,7 +179,8 @@ func daemonCommand(cctx *cli.Context) error {
 			// Listen at specific address
 			libp2p.ListenAddrs(p2pmaddr),
 		}
-		if !cfg.Addresses.UseResourceManager {
+		if cfg.Addresses.NoResourceManager {
+			log.Info("libp2p resource manager disabled")
 			p2pOpts = append(p2pOpts, libp2p.ResourceManager(network.NullResourceManager))
 		}
 
