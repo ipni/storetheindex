@@ -488,22 +488,55 @@ func TestReSyncWithDepth(t *testing.T) {
 	wait, err := te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 1, false)
 	require.NoError(t, err)
 	<-wait
-	allAds := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
-	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[2:]))
-	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[0:1]))
+	allMHs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[2:]))
+	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[0:1]))
 
 	// When not resync, check that nothing beyond the latest is synced.
 	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 2, false)
 	require.NoError(t, err)
 	<-wait
-	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[2:]))
-	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds[0:1]))
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[2:]))
+	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[0:1]))
 
 	// When resync with greater depth, check that everything in synced.
 	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 2, true)
 	require.NoError(t, err)
 	<-wait
-	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allAds))
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs))
+}
+
+func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
+	te := setupTestEnv(t, false)
+	adHead := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 3},
+		},
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+	allAdLinks := typehelpers.AllAdLinks(t, adHead, te.publisherLinkSys)
+	aLink := allAdLinks[0]
+	bLink := allAdLinks[1]
+	cLink := allAdLinks[2]
+	allMHs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
+
+	te.publisher.SetRoot(context.Background(), bLink.(cidlink.Link).Cid)
+	wait, err := te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 0, false)
+	require.NoError(t, err)
+	<-wait
+
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[0:2]))
+	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[2:]))
+
+	te.ingester.sub.SetLatestSync(te.pubHost.ID(), aLink.(cidlink.Link).Cid)
+	te.publisher.SetRoot(context.Background(), cLink.(cidlink.Link).Cid)
+	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 0, false)
+	require.NoError(t, err)
+	<-wait
+
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs))
+
 }
 
 func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
