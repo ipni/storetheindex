@@ -394,8 +394,6 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 }
 
 func (ing *Ingester) loadAd(adCid cid.Cid) (ad schema.Advertisement, err error) {
-	// Getting the advertisement for the entries so we know
-	// what metadata and related information we need to use for ingestion.
 	adKey := dsKey(adCid.String())
 	adb, err := ing.ds.Get(context.Background(), adKey)
 	if err != nil {
