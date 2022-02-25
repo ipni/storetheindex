@@ -290,12 +290,8 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		// earliest ad we've just synced to the latest.
 		if resync && len(seenAdCids) > 0 {
 			ing.markAdChainUnprocessed(seenAdCids)
-			event := legs.SyncFinished{
-				Cid:        seenAdCids[0],
-				PeerID:     peerID,
-				SyncedCids: seenAdCids,
-			}
-			ing.runIngestStep(event)
+			// legs.SyncFinished is written to ing.toStaging since the
+			// legs.AlwaysUpdateLatest() option is given to ing.Sub.Sycn()
 		}
 		if err != nil {
 			log.Errorw("Failed to sync with provider", "err", err)
