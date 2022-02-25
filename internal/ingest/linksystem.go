@@ -146,7 +146,7 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, peer.ID, error) {
 // hook is being called for each entry in an advertisement's chain of entries.
 // Process the entry and save all the multihashes in it as indexes in the
 // indexer-core.
-func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, entryChunkCid cid.Cid) error {
+func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schema.Advertisement, entryChunkCid cid.Cid) error {
 	log := log.With("publisher", publisher, "adCid", adCid, "cid", entryChunkCid)
 
 	// Get data corresponding to the block.
@@ -171,7 +171,7 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, entryChu
 		return fmt.Errorf("failed to decode ipldNode: %w", err)
 	}
 
-	err = ing.indexContentBlock(adCid, publisher, node)
+	err = ing.indexContentBlock(adCid, ad, publisher, node)
 	if err != nil {
 		return fmt.Errorf("failed processing entries for advertisement: %w", err)
 	} else {
@@ -199,12 +199,14 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
 	if err != nil {
 		return fmt.Errorf("failed to load ad: %v", err)
 	}
-	// Cleanup ad cache when done processing entries.
-	defer func() {
-		ing.adCacheMutex.Lock()
-		delete(ing.adCache, adCid)
-		ing.adCacheMutex.Unlock()
-	}()
+	// Cleanup ad cache now that ad is being processed. Functions deeper into
+	// the callstack get the ad as a parameter and not from the cache.
+	ing.adCacheMutex.Lock()
+	delete(ing.adCache, adCid)
+	if len(ing.adCache) == 0 {
+		ing.adCache = nil
+	}
+	ing.adCacheMutex.Unlock()
 
 	// Get provider ID from advertisement.
 	providerID, err := peer.Decode(ad.Provider.String())
@@ -317,7 +319,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
 	// Traverse entries based on the entries selector that limits recursion depth.
 	var errsIngestingEntryChunks []error
 	_, err = ing.sub.Sync(ctx, publisher, entriesCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid) {
-		err := ing.ingestEntryChunk(p, adCid, c)
+		err := ing.ingestEntryChunk(p, adCid, ad, c)
 		if err != nil {
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 		}
@@ -350,7 +352,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
 // source of the indexed content, the provider is where content can be
 // retrieved from.  It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ipld.Node) error {
+func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, pubID peer.ID, nentries ipld.Node) error {
 	// Decode the list of cids into a List_String
 	nb := schema.Type.EntryChunk.NewBuilder()
 	err := nb.AssignNode(nentries)
@@ -362,7 +364,7 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 
 	// Load the advertisement data for this chunk.  If there are more chunks to
 	// follow, then cache the ad data.
-	value, isRm, err := ing.loadAdData(adCid)
+	value, isRm, err := getAdData(ad)
 	if err != nil {
 		return err
 	}
@@ -445,11 +447,7 @@ func (ing *Ingester) loadAd(adCid cid.Cid) (ad schema.Advertisement, err error) 
 	return ad, nil
 }
 
-func (ing *Ingester) loadAdData(adCid cid.Cid) (value indexer.Value, isRm bool, err error) {
-	ad, err := ing.loadAd(adCid)
-	if err != nil {
-		return indexer.Value{}, false, err
-	}
+func getAdData(ad schema.Advertisement) (value indexer.Value, isRm bool, err error) {
 	providerID, err := peer.Decode(ad.Provider.String())
 	if err != nil {
 		return indexer.Value{}, false, err
