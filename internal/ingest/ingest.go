@@ -53,9 +53,6 @@ type Ingester struct {
 	sub         *legs.Subscriber
 	syncTimeout time.Duration
 
-	adCache      map[cid.Cid]schema.Advertisement
-	adCacheMutex sync.Mutex
-
 	entriesSel datamodel.Node
 	reg        *registry.Registry
 
@@ -609,8 +606,13 @@ func removeEntryAdMappings(ctx context.Context, ds datastore.Batching) error {
 	return nil
 }
 
+type adInfo struct {
+	cid cid.Cid
+	ad  schema.Advertisement
+}
+
 type toWorkerMsg struct {
-	cids      []cid.Cid
+	adInfos   []adInfo
 	publisher peer.ID
 	provider  peer.ID
 }
@@ -634,7 +636,7 @@ func (ing *Ingester) startIngesterLoop(workerPoolSize int) {
 
 func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 	// 1. Group the incoming CIDs by provider.
-	cidsGroupedByProvider := map[peer.ID][]cid.Cid{}
+	adsGroupedByProvider := map[peer.ID][]adInfo{}
 	for _, c := range syncFinishedEvent.SyncedCids {
 		// Group the CIDs by the provider. Most of the time a publisher will only
 		// publish Ads for one provider, but it's possible that an ad chain can include multiple providers.
@@ -650,18 +652,21 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 			continue
 		}
 
-		cidsGroupedByProvider[providerID] = append(cidsGroupedByProvider[providerID], c)
+		adsGroupedByProvider[providerID] = append(adsGroupedByProvider[providerID], adInfo{
+			cid: c,
+			ad:  ad,
+		})
 	}
 
 	// 2. For each provider put the ad stack to the worker msg channel.
-	for p, cids := range cidsGroupedByProvider {
+	for p, adInfos := range adsGroupedByProvider {
 		ing.providersBeingProcessedMu.Lock()
 		if _, ok := ing.providersBeingProcessed[p]; !ok {
 			ing.providersBeingProcessed[p] = &sync.Mutex{}
 		}
 		ing.providersBeingProcessedMu.Unlock()
 		ing.toWorkers <- toWorkerMsg{
-			cids:      cids,
+			adInfos:   adInfos,
 			publisher: syncFinishedEvent.PeerID,
 			provider:  p,
 		}
@@ -674,9 +679,10 @@ func (ing *Ingester) ingestWorker() {
 		case <-ing.closeWorkers:
 			return
 		case msg := <-ing.toWorkers:
-			log.Infow("Running worker on ad stack", "headAdCid", msg.cids[0], "publisher", msg.publisher)
-			for i := len(msg.cids) - 1; i >= 0; i-- {
-				if ing.ingestWorkerLogic(msg.provider, msg.publisher, msg.cids[i]) {
+			log.Infow("Running worker on ad stack", "headAdCid", msg.adInfos[0].cid, "publisher", msg.publisher)
+			for i := len(msg.adInfos) - 1; i >= 0; i-- {
+				ai := msg.adInfos[i]
+				if ing.ingestWorkerLogic(msg.provider, msg.publisher, ai.cid, ai.ad) {
 					break
 				}
 			}
@@ -684,7 +690,7 @@ func (ing *Ingester) ingestWorker() {
 	}
 }
 
-func (ing *Ingester) ingestWorkerLogic(provider peer.ID, publisher peer.ID, adCid cid.Cid) (earlyBreak bool) {
+func (ing *Ingester) ingestWorkerLogic(provider peer.ID, publisher peer.ID, adCid cid.Cid, ad schema.Advertisement) (earlyBreak bool) {
 	// It's assumed that the runIngestStep puts a mutex in this map.
 	ing.providersBeingProcessed[provider].Lock()
 	defer ing.providersBeingProcessed[provider].Unlock()
@@ -694,7 +700,7 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID, publisher peer.ID, adCi
 		// We've process this ad already, so we know we've processed all earlier ads too.
 		return true
 	}
-	err = ing.ingestAd(publisher, adCid)
+	err = ing.ingestAd(publisher, adCid, ad)
 	if err != nil {
 		log.Errorw("Error while ingesting ad.", "adCid", adCid, "publisher", publisher, "err", err)
 	}

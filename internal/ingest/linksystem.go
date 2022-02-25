@@ -183,7 +183,7 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schem
 }
 
 // ingestAd fetches all the entries for a single advertisement
-func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
+func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advertisement) error {
 	stats.Record(context.Background(), metrics.IngestChange.M(1))
 	var skip bool
 	ingestStart := time.Now()
@@ -194,19 +194,6 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
 	log := log.With("publisher", publisher, "adCid", adCid)
 
 	log.Info("Processing advertisement")
-
-	ad, err := ing.loadAd(adCid)
-	if err != nil {
-		return fmt.Errorf("failed to load ad: %v", err)
-	}
-	// Cleanup ad cache now that ad is being processed. Functions deeper into
-	// the callstack get the ad as a parameter and not from the cache.
-	ing.adCacheMutex.Lock()
-	delete(ing.adCache, adCid)
-	if len(ing.adCache) == 0 {
-		ing.adCache = nil
-	}
-	ing.adCacheMutex.Unlock()
 
 	// Get provider ID from advertisement.
 	providerID, err := peer.Decode(ad.Provider.String())
@@ -407,14 +394,6 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 }
 
 func (ing *Ingester) loadAd(adCid cid.Cid) (ad schema.Advertisement, err error) {
-	ing.adCacheMutex.Lock()
-	ad, ok := ing.adCache[adCid]
-	ing.adCacheMutex.Unlock()
-
-	if ok {
-		return ad, nil
-	}
-
 	// Getting the advertisement for the entries so we know
 	// what metadata and related information we need to use for ingestion.
 	adKey := dsKey(adCid.String())
@@ -436,13 +415,6 @@ func (ing *Ingester) loadAd(adCid cid.Cid) (ad schema.Advertisement, err error) 
 	if err != nil {
 		return nil, fmt.Errorf("cannot decode advertisement: %w", err)
 	}
-
-	ing.adCacheMutex.Lock()
-	if ing.adCache == nil {
-		ing.adCache = make(map[cid.Cid]schema.Advertisement)
-	}
-	ing.adCache[adCid] = ad
-	ing.adCacheMutex.Unlock()
 
 	return ad, nil
 }
