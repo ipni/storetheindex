@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
@@ -182,27 +183,6 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schem
 	return nil
 }
 
-type adIngestError struct {
-	state adIngestState
-	err   error
-}
-
-type adIngestState string
-
-const (
-	adIngestIndexerErr          adIngestState = "indexerErr"
-	adIngestDecodingErr         adIngestState = "decodingErr"
-	adIngestMalformedErr        adIngestState = "malformedErr"
-	adIngestRegisterProviderErr adIngestState = "registerErr"
-	adIngestSyncEntriesErr      adIngestState = "syncEntriesErr"
-	// Happens if there is an error during ingest of an entry chunk (rather than fetching it).
-	adIngestEntryChunkErr adIngestState = "ingestEntryChunkErr"
-)
-
-func (e adIngestError) Error() string {
-	return fmt.Sprintf("%s: %s\n", e.state, e.err)
-}
-
 // ingestAd fetches all the entries for a single advertisement and processes
 // them.
 func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advertisement) error {
@@ -306,6 +286,9 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 		}
 	}))
 	if err != nil {
+		if strings.Contains(err.Error(), "datatransfer failed: content not found") {
+			return adIngestError{adIngestContentNotFound, fmt.Errorf("failed to sync entries: %w", err)}
+		}
 		return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to sync entries: %w", err)}
 	}
 
