@@ -13,6 +13,7 @@ import (
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -670,31 +671,62 @@ func (ing *Ingester) ingestWorker() {
 		case <-ing.closeWorkers:
 			return
 		case msg := <-ing.toWorkers:
-			log.Infow("Running worker on ad stack", "headAdCid", msg.adInfos[0].cid, "publisher", msg.publisher)
-			for i := len(msg.adInfos) - 1; i >= 0; i-- {
-				ai := msg.adInfos[i]
-				if ing.ingestWorkerLogic(msg.provider, msg.publisher, ai.cid, ai.ad) {
-					break
-				}
-			}
+			ing.ingestWorkerLogic(msg)
 		}
 	}
 }
 
-func (ing *Ingester) ingestWorkerLogic(provider peer.ID, publisher peer.ID, adCid cid.Cid, ad schema.Advertisement) (earlyBreak bool) {
+func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 	// It's assumed that the runIngestStep puts a mutex in this map.
-	ing.providersBeingProcessed[provider].Lock()
-	defer ing.providersBeingProcessed[provider].Unlock()
+	ing.providersBeingProcessed[msg.provider].Lock()
+	defer ing.providersBeingProcessed[msg.provider].Unlock()
 
-	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
-	if err == nil && v[0] == byte(1) {
-		// We've process this ad already, so we know we've processed all earlier ads too.
-		return true
-	}
-	err = ing.ingestAd(publisher, adCid, ad)
-	if err != nil {
-		log.Errorw("Error while ingesting ad.", "adCid", adCid, "publisher", publisher, "err", err)
+	// Filter out ads that we've already processed and any earlier ads
+	splitAtIndex := len(msg.adInfos)
+	for i, ai := range msg.adInfos {
+		// iterate latest to earliest
+		v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+ai.cid.String()))
+		if err == nil && v[0] == byte(1) {
+			// We've process this ad already, so we know we've processed all
+			// earlier ads too. Break here and split at this index later. The cids
+			// before this index are newer and we haven't processed them, the cids
+			// after are older and we already have processed them.
+			splitAtIndex = i
+			break
+		}
 	}
 
-	return false
+	log.Infow("Running worker on ad stack", "headAdCid", msg.adInfos[0].cid, "publisher", msg.publisher, "numAdsToProcess", splitAtIndex)
+	for i := splitAtIndex - 1; i >= 0; i-- {
+		// Note that we are iterating backwards here. Earliest to newest.
+		ai := msg.adInfos[i]
+		err := ing.ingestAd(msg.publisher, ai.cid, ai.ad)
+
+		var adIngestErr adIngestError
+		if errors.As(err, &adIngestErr) {
+			switch adIngestErr.state {
+			case adIngestDecodingErr, adIngestMalformedErr, adIngestEntryChunkErr:
+				// These error cases are permament. e.g. if we try again later we will hit the same error. So we log and drop this error.
+				log.Errorw("Skipping ad because of a permanant error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
+				err = nil
+			}
+		}
+
+		if err != nil {
+			log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "publisher", msg.provider, "err", err, "adsLeftToProcess", i+1)
+
+			// Tell anyone who's waiting that the sync finished for this head because we errored.
+			// TODO(mm) would be better to propagate the error.
+			ing.inEvents <- legs.SyncFinished{Cid: msg.adInfos[0].cid, PeerID: msg.publisher}
+			return
+		}
+
+		if markErr := ing.markAdProcessed(msg.publisher, ai.cid); markErr != nil {
+			log.Errorw("Failed to mark ad as processed", "err", markErr)
+		} else {
+			stats.Record(context.Background(), metrics.AdSyncedCount.M(1))
+		}
+		// Distribute the legs.SyncFinished notices to waiting Sync calls.
+		ing.inEvents <- legs.SyncFinished{Cid: ai.cid, PeerID: msg.publisher}
+	}
 }

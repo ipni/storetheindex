@@ -221,3 +221,20 @@ func AdFromLink(t *testing.T, adLink datamodel.Link, lsys ipld.LinkSystem) schem
 	require.NoError(t, err)
 	return adNode.(schema.Advertisement)
 }
+
+// AllAdLinks returns a list of all ad cids for a given chain. Latest last
+func AllAdLinks(t *testing.T, head datamodel.Link, lsys ipld.LinkSystem) []datamodel.Link {
+	out := []datamodel.Link{head}
+	ad := AdFromLink(t, head, lsys)
+	for ad.PreviousID.Exists() {
+		out = append(out, ad.PreviousID.Must().Link())
+		ad = AdFromLink(t, ad.PreviousID.Must().Link(), lsys)
+	}
+
+	// Flip order so the latest is last
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+
+	return out
+}

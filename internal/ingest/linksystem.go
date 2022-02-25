@@ -182,77 +182,70 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schem
 	return nil
 }
 
-// ingestAd fetches all the entries for a single advertisement
+type adIngestError struct {
+	state adIngestState
+	err   error
+}
+
+type adIngestState string
+
+const (
+	adIngestIndexerErr          adIngestState = "indexerErr"
+	adIngestDecodingErr         adIngestState = "decodingErr"
+	adIngestMalformedErr        adIngestState = "malformedErr"
+	adIngestRegisterProviderErr adIngestState = "registerErr"
+	adIngestSyncEntriesErr      adIngestState = "syncEntriesErr"
+	// Happens if there is an error during ingest of an entry chunk (rather than fetching it).
+	adIngestEntryChunkErr adIngestState = "ingestEntryChunkErr"
+)
+
+func (e adIngestError) Error() string {
+	return fmt.Sprintf("%s: %s\n", e.state, e.err)
+}
+
+// ingestAd fetches all the entries for a single advertisement and processes
+// them.
 func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advertisement) error {
 	stats.Record(context.Background(), metrics.IngestChange.M(1))
-	var skip bool
 	ingestStart := time.Now()
 	defer func() {
 		stats.Record(context.Background(), metrics.AdIngestLatency.M(coremetrics.MsecSince(ingestStart)))
 	}()
 
 	log := log.With("publisher", publisher, "adCid", adCid)
-
 	log.Info("Processing advertisement")
 
 	// Get provider ID from advertisement.
 	providerID, err := peer.Decode(ad.Provider.String())
 	if err != nil {
-		log.Errorw("Invalid advertisement", "err", err)
-		skip = true
+		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read provider id: %w", err)}
 	}
 
 	contextID, err := ad.FieldContextID().AsBytes()
 	if err != nil {
-		log.Errorw("Cannot read context ID from advertisement", "err", err)
-		skip = true
+		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read context id: %w", err)}
 	}
 
 	isRm, err := ad.FieldIsRm().AsBool()
 	if err != nil {
-		log.Errorw("Cannot read IsRm field", "err", err)
-		skip = true
+		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read isRm: %w", err)}
 	}
 
 	elink, err := ad.FieldEntries().AsLink()
 	if err != nil {
-		log.Errorw("Error decoding advertisement entries link", "err", err)
-		skip = true
-	}
-
-	// Mark the ad as processed after done processing. This is even in most
-	// error cases so that the indexer is not stuck trying to reprocessing a
-	// malformed ad.
-	var reprocessAd bool
-	defer func() {
-		if !reprocessAd {
-			// Processed all the entries, so mark this ad as processed.
-			if err := ing.markAdProcessed(publisher, adCid); err != nil {
-				log.Errorw("Failed to mark ad as processed", "err", err)
-			} else {
-				stats.Record(context.Background(), metrics.AdSyncedCount.M(1))
-			}
-		}
-		// Distribute the legs.SyncFinished notices to waiting Sync calls.
-		ing.inEvents <- legs.SyncFinished{Cid: adCid, PeerID: publisher}
-	}()
-
-	// This ad has bad data or has all of its content deleted by a subsequent
-	// ad, so skip any further processing.
-	if skip {
-		return err
+		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read entries link: %w", err)}
 	}
 
 	addrs, err := schema.IpldToGoStrings(ad.FieldAddresses())
 	if err != nil {
-		return fmt.Errorf("could not get addresses from advertisement: %w", err)
+		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read addrs: %w", err)}
 	}
 
 	// Register provider or update existing registration.  The
 	// provider must be allowed by policy to be registered.
 	err = ing.reg.RegisterOrUpdate(context.Background(), providerID, addrs, adCid)
 	if err != nil {
-		return fmt.Errorf("could not register/update provider info: %w", err)
+		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
 
 	log = log.With("contextID", base64.StdEncoding.EncodeToString(contextID), "provider", providerID)
@@ -262,7 +255,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 
 		err = ing.indexer.RemoveProviderContext(providerID, contextID)
 		if err != nil {
-			return fmt.Errorf("failed to removed content by context ID: %w", err)
+			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to remove provider context: %w", err)}
 		}
 		return nil
 	}
@@ -272,8 +265,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 		// If this is a metadata update only, then ad will not have entries.
 		metadataBytes, err := ad.FieldMetadata().AsBytes()
 		if err != nil {
-			log.Errorw("Error reading advertisement metadata", "err", err)
-			return fmt.Errorf("error reading advertisement metadata: %w", err)
+			return adIngestError{adIngestDecodingErr, fmt.Errorf("error reading advertisement metadata: %w", err)}
 		}
 
 		value := indexer.Value{
@@ -283,14 +275,16 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 		}
 
 		log.Error("Advertisement is metadata update only")
-		ing.indexer.Put(value)
+		err = ing.indexer.Put(value)
+		if err != nil {
+			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to update metadata: %w", err)}
+		}
 		return nil
 	}
 
 	entriesCid := elink.(cidlink.Link).Cid
 	if entriesCid == cid.Undef {
-		log.Error("Advertisement entries link is undefined")
-		return fmt.Errorf("advertisement entries link is undefined")
+		return adIngestError{adIngestMalformedErr, fmt.Errorf("advertisement entries link is undefined")}
 	}
 	log = log.With("entriesCid", entriesCid)
 
@@ -312,8 +306,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 		}
 	}))
 	if err != nil {
-		reprocessAd = true
-		return fmt.Errorf("failed to sync: %w", err)
+		return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to sync entries: %w", err)}
 	}
 
 	elapsed := time.Since(startTime)
@@ -324,7 +317,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 	ing.signalMetricsUpdate()
 
 	if len(errsIngestingEntryChunks) > 0 {
-		return fmt.Errorf("errors while ingesting entry chunks: %v", errsIngestingEntryChunks)
+		return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to ingest entry chunks: %v", errsIngestingEntryChunks)}
 	}
 	return nil
 }
