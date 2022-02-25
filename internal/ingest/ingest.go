@@ -29,6 +29,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 )
 
 var log = logging.Logger("indexer/ingest")
@@ -702,6 +703,11 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 		ai := msg.adInfos[i]
 		err := ing.ingestAd(msg.publisher, ai.cid, ai.ad)
 
+		if err == nil {
+			// No error at all, we processed this ad successfully.
+			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))
+		}
+
 		var adIngestErr adIngestError
 		if errors.As(err, &adIngestErr) {
 			switch adIngestErr.state {
@@ -709,7 +715,15 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 				// These error cases are permament. e.g. if we try again later we will hit the same error. So we log and drop this error.
 				log.Errorw("Skipping ad because of a permanant error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
 				err = nil
+				stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
 			}
+			stats.RecordWithOptions(context.Background(),
+				stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
+				stats.WithTags(tag.Insert(metrics.ErrKind, string(adIngestErr.state))))
+		} else {
+			stats.RecordWithOptions(context.Background(),
+				stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
+				stats.WithTags(tag.Insert(metrics.ErrKind, "other error")))
 		}
 
 		if err != nil {
@@ -723,8 +737,6 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 
 		if markErr := ing.markAdProcessed(msg.publisher, ai.cid); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
-		} else {
-			stats.Record(context.Background(), metrics.AdSyncedCount.M(1))
 		}
 		// Distribute the legs.SyncFinished notices to waiting Sync calls.
 		ing.inEvents <- legs.SyncFinished{Cid: ai.cid, PeerID: msg.publisher}
