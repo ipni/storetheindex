@@ -195,11 +195,11 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
 
 	log.Info("Processing advertisement")
 
-	ad, err := ing.loadAd(adCid, true)
+	ad, err := ing.loadAd(adCid)
 	if err != nil {
 		return fmt.Errorf("failed to load ad: %v", err)
 	}
-	// Cleanup ad cache in case of failure during processing entries.
+	// Cleanup ad cache when done processing entries.
 	defer func() {
 		ing.adCacheMutex.Lock()
 		delete(ing.adCache, adCid)
@@ -362,8 +362,7 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 
 	// Load the advertisement data for this chunk.  If there are more chunks to
 	// follow, then cache the ad data.
-	hasNextLink := !nchunk.Next.IsAbsent() && !nchunk.Next.IsNull()
-	value, isRm, err := ing.loadAdData(adCid, hasNextLink)
+	value, isRm, err := ing.loadAdData(adCid)
 	if err != nil {
 		return err
 	}
@@ -405,16 +404,9 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 	return nil
 }
 
-func (ing *Ingester) loadAd(adCid cid.Cid, keepCache bool) (ad schema.Advertisement, err error) {
+func (ing *Ingester) loadAd(adCid cid.Cid) (ad schema.Advertisement, err error) {
 	ing.adCacheMutex.Lock()
 	ad, ok := ing.adCache[adCid]
-	if !keepCache && ok {
-		if len(ing.adCache) == 1 {
-			ing.adCache = nil
-		} else {
-			delete(ing.adCache, adCid)
-		}
-	}
 	ing.adCacheMutex.Unlock()
 
 	if ok {
@@ -443,20 +435,18 @@ func (ing *Ingester) loadAd(adCid cid.Cid, keepCache bool) (ad schema.Advertisem
 		return nil, fmt.Errorf("cannot decode advertisement: %w", err)
 	}
 
-	if keepCache {
-		ing.adCacheMutex.Lock()
-		if ing.adCache == nil {
-			ing.adCache = make(map[cid.Cid]schema.Advertisement)
-		}
-		ing.adCache[adCid] = ad
-		ing.adCacheMutex.Unlock()
+	ing.adCacheMutex.Lock()
+	if ing.adCache == nil {
+		ing.adCache = make(map[cid.Cid]schema.Advertisement)
 	}
+	ing.adCache[adCid] = ad
+	ing.adCacheMutex.Unlock()
 
 	return ad, nil
 }
 
-func (ing *Ingester) loadAdData(adCid cid.Cid, keepCache bool) (value indexer.Value, isRm bool, err error) {
-	ad, err := ing.loadAd(adCid, keepCache)
+func (ing *Ingester) loadAdData(adCid cid.Cid) (value indexer.Value, isRm bool, err error) {
+	ad, err := ing.loadAd(adCid)
 	if err != nil {
 		return indexer.Value{}, false, err
 	}

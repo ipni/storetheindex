@@ -642,7 +642,7 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 	for _, c := range syncFinishedEvent.SyncedCids {
 		// Group the CIDs by the provider. Most of the time a publisher will only
 		// publish Ads for one provider, but it's possible that an ad chain can include multiple providers.
-		ad, err := ing.loadAd(c, true)
+		ad, err := ing.loadAd(c)
 		if err != nil {
 			log.Errorf("Failed to load ad CID: %s skipping", err)
 			continue
