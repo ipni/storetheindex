@@ -695,12 +695,11 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 			break
 		}
 	}
-	yetToBeProcessed := msg.adInfos[:splitAtIndex]
 
-	log.Infow("Running worker on ad stack", "headAdCid", msg.adInfos[0], "publisher", msg.publisher, "numAdsToProcess", len(yetToBeProcessed))
-	for i := len(yetToBeProcessed) - 1; i >= 0; i-- {
+	log.Infow("Running worker on ad stack", "headAdCid", msg.adInfos[0].cid, "publisher", msg.publisher, "numAdsToProcess", splitAtIndex)
+	for i := splitAtIndex - 1; i >= 0; i-- {
 		// Note that we are iterating backwards here. Earliest to newest.
-		ai := yetToBeProcessed[i]
+		ai := msg.adInfos[i]
 		err := ing.ingestAd(msg.publisher, ai.cid, ai.ad)
 
 		var adIngestErr adIngestError
@@ -718,7 +717,7 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 
 			// Tell anyone who's waiting that the sync finished for this head because we errored.
 			// TODO(mm) would be better to propagate the error.
-			ing.inEvents <- legs.SyncFinished{Cid: yetToBeProcessed[0].cid, PeerID: msg.publisher}
+			ing.inEvents <- legs.SyncFinished{Cid: msg.adInfos[0].cid, PeerID: msg.publisher}
 			return
 		}
 
