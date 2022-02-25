@@ -271,25 +271,21 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		//
 		// Reference to the latest synced CID is only updated if the given
 		// selector is nil.
-		var seenAdCids []cid.Cid
 		opts := []legs.SyncOption{
 			legs.AlwaysUpdateLatest(),
 			legs.ScopedBlockHook(func(i peer.ID, c cid.Cid) {
-				seenAdCids = append(seenAdCids, c)
+				if resync {
+					// If this is a resync, we need to mark the ad as
+					// unprocessed so that we can reingest everything from the
+					// start of this sync.
+					err := ing.markAdUnprocessed(c)
+					if err != nil {
+						log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
+					}
+				}
 			}),
 		}
 		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
-
-		// If this is a resync, we need to mark the adChain as unprocessed so that
-		// we can reingest everything from the start of this sync. We cannot simply
-		// index the ads we haven't seen before since later ads may have a different
-		// meaning in the context of earlier ads. So we have to start from the
-		// earliest ad we've just synced to the latest.
-		if resync && len(seenAdCids) > 0 {
-			ing.markAdChainUnprocessed(seenAdCids)
-			// legs.SyncFinished is written to ing.toStaging since the
-			// legs.AlwaysUpdateLatest() option is given to ing.Sub.Sycn()
-		}
 		if err != nil {
 			log.Errorw("Failed to sync with provider", "err", err)
 			return
@@ -366,23 +362,18 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int64, resyn
 	return legs.ExploreRecursiveWithStopNode(rLimit, adSequence, stopAt), nil
 }
 
-// markAdChainUnprocessed takes a the cids of a chain of ads and marks them as
-// unprocessed. This lets the adChain be re-ingested in case we want to
-// re-ingest with different depths or are processing even earlier ads and need
-// to reprocess later ones so that the indexer re-ingest the later ones in the
+// markAdUnprocessed takes an advertisement CID and marks it as
+// unprocessed. This lets the ad be re-ingested in case we want to re-ingest
+// with different depths or are processing even earlier ads and need to
+// reprocess later ones so that the indexer re-ingests the later ones in the
 // context of the earlier ads, and thus become consistent.
 //
-// adCids *should* be in order from newest to oldest. This is so that if an
-// something fails to get marked as unprocessed we still hold the constraint
-// that if an ad is processed, all older ads are also processed.
-func (ing *Ingester) markAdChainUnprocessed(adCids []cid.Cid) error {
-	for _, adCid := range adCids {
-		err := ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{0})
-		if err != nil {
-			return nil
-		}
-	}
-	return nil
+// During a sync, this should be called be in order from newest to oldest
+// ad. This is so that if an something fails to get marked as unprocessed we
+// still hold the constraint that if an ad is processed, all older ads are also
+// processed.
+func (ing *Ingester) markAdUnprocessed(adCid cid.Cid) error {
+	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{0})
 }
 
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
