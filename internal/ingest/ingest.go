@@ -711,7 +711,7 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 		var adIngestErr adIngestError
 		if errors.As(err, &adIngestErr) {
 			switch adIngestErr.state {
-			case adIngestDecodingErr, adIngestMalformedErr, adIngestEntryChunkErr:
+			case adIngestDecodingErr, adIngestMalformedErr, adIngestEntryChunkErr, adIngestContentNotFound:
 				// These error cases are permament. e.g. if we try again later we will hit the same error. So we log and drop this error.
 				log.Errorw("Skipping ad because of a permanant error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
 				err = nil
