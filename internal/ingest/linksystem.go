@@ -317,7 +317,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 	ing.signalMetricsUpdate()
 
 	if len(errsIngestingEntryChunks) > 0 {
-		return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to ingest entry chunks: %v", errsIngestingEntryChunks)}
+		return adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to ingest entry chunks: %v", errsIngestingEntryChunks)}
 	}
 	return nil
 }
