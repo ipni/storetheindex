@@ -174,10 +174,10 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schem
 	err = ing.indexContentBlock(adCid, ad, publisher, node)
 	if err != nil {
 		return fmt.Errorf("failed processing entries for advertisement: %w", err)
-	} else {
-		log.Info("Done indexing content in entry block")
-		ing.signalMetricsUpdate()
 	}
+
+	log.Info("Done indexing content in entry block")
+	ing.signalMetricsUpdate()
 
 	return nil
 }
