@@ -199,6 +199,12 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
 	if err != nil {
 		return fmt.Errorf("failed to load ad: %v", err)
 	}
+	// Cleanup ad cache in case of failure during processing entries.
+	defer func() {
+		ing.adCacheMutex.Lock()
+		delete(ing.adCache, adCid)
+		ing.adCacheMutex.Unlock()
+	}()
 
 	// Get provider ID from advertisement.
 	providerID, err := peer.Decode(ad.Provider.String())
@@ -299,13 +305,6 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid) error {
 	}
 	log = log.With("entriesCid", entriesCid)
 
-	// Cleanup ad cache in case of failure during processing entries.
-	defer func() {
-		ing.adCacheMutex.Lock()
-		delete(ing.adCache, adCid)
-		ing.adCacheMutex.Unlock()
-	}()
-
 	ctx := context.Background()
 	if ing.syncTimeout != 0 {
 		var cancel context.CancelFunc
@@ -363,7 +362,7 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, pubID peer.ID, nentries ip
 
 	// Load the advertisement data for this chunk.  If there are more chunks to
 	// follow, then cache the ad data.
-	hasNextLink := nchunk.Next.IsAbsent() || nchunk.Next.IsNull()
+	hasNextLink := !nchunk.Next.IsAbsent() && !nchunk.Next.IsNull()
 	value, isRm, err := ing.loadAdData(adCid, hasNextLink)
 	if err != nil {
 		return err
@@ -418,26 +417,20 @@ func (ing *Ingester) loadAd(adCid cid.Cid, keepCache bool) (ad schema.Advertisem
 	}
 	ing.adCacheMutex.Unlock()
 
-	defer func() {
-		if keepCache {
-			ing.adCacheMutex.Lock()
-			if ing.adCache == nil {
-				ing.adCache = make(map[cid.Cid]schema.Advertisement)
-			}
-			ing.adCache[adCid] = ad
-			ing.adCacheMutex.Unlock()
-		}
-	}()
-
 	if ok {
 		return ad, nil
 	}
 
 	// Getting the advertisement for the entries so we know
 	// what metadata and related information we need to use for ingestion.
-	adb, err := ing.ds.Get(context.Background(), dsKey(adCid.String()))
+	adKey := dsKey(adCid.String())
+	adb, err := ing.ds.Get(context.Background(), adKey)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read advertisement for entry from datastore: %w", err)
+	}
+	err = ing.ds.Delete(context.Background(), adKey)
+	if err != nil {
+		log.Errorw("Failed to clean up ad from datastore", "err", err)
 	}
 
 	// Decode the advertisement.
@@ -448,6 +441,15 @@ func (ing *Ingester) loadAd(adCid cid.Cid, keepCache bool) (ad schema.Advertisem
 	ad, err = decodeAd(adn)
 	if err != nil {
 		return nil, fmt.Errorf("cannot decode advertisement: %w", err)
+	}
+
+	if keepCache {
+		ing.adCacheMutex.Lock()
+		if ing.adCache == nil {
+			ing.adCache = make(map[cid.Cid]schema.Advertisement)
+		}
+		ing.adCache[adCid] = ad
+		ing.adCacheMutex.Unlock()
 	}
 
 	return ad, nil
