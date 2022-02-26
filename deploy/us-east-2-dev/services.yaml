@@ -1,0 +1,61 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: storetheindex-0-storetheindex
+  namespace: default
+  labels:
+    app: storetheindex
+    release: storetheindex-0
+spec:
+  type: ClusterIP
+  selector:
+    app: storetheindex
+    release: storetheindex-0
+  ports:
+    - name: finder
+      port: 3000
+      protocol: TCP
+      targetPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: storetheindex-0-storetheindex-0
+  namespace: default
+  labels:
+    app: storetheindex
+    release: storetheindex-0
+spec:
+  ports:
+  - name: admin
+    port: 3002
+    protocol: TCP
+    targetPort: 3002
+  selector:
+    app: storetheindex
+    release: storetheindex-0
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: storetheindex-0-storetheindex-1
+  namespace: default
+  labels:
+    app: storetheindex
+    release: storetheindex-0
+spec:
+  ports:
+  - name: finderext
+    port: 3000
+    protocol: TCP
+    targetPort: 3000
+  - name: ingest
+    port: 3001
+    protocol: TCP
+    targetPort: 3001
+  selector:
+    app: storetheindex
+    release: storetheindex-0
+  type: LoadBalancer

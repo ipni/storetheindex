@@ -1,0 +1,14 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chain-exports
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 4Ti
+  storageClassName: efs
+  volumeMode: Filesystem
+  volumeName: efs-ntwk-mainnet-storetheindex

@@ -1,0 +1,16 @@
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: storetheindex-0-storetheindex
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+  - host: gitops.cid.contact
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: storetheindex-0-storetheindex
+          servicePort: finder

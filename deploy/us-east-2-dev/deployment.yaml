@@ -1,0 +1,82 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storetheindex-0-storetheindex
+  labels:
+    app: storetheindex
+spec:
+  replicas: 1
+  serviceName: storetheindex
+  selector:
+    matchLabels:
+      app: storetheindex
+      release: storetheindex-0
+  volumeClaimTemplates:
+  template:
+    metadata:
+      labels:
+        app: storetheindex
+        chart: lotus-bundle-0.0.13
+        release: storetheindex-0
+    spec:
+      securityContext:
+        fsGroup: 532
+      volumes:
+        - name: storetheindex-identity-volume
+          secret:
+            secretName: storetheindex-identity
+            defaultMode: 0600
+        - name: storetheindex-config-volume
+          configMap:
+            name: storetheindex-0-storetheindex-config
+        - name: shared-volume
+          persistentVolumeClaim:
+            claimName: chain-exports
+      initContainers:
+        - args:
+          - -c
+          - envsubst </config/config >/data/storetheindex/config
+          command:
+          - bash
+          env:
+          - name: STORETHEINDEX_PRIVATE_KEY
+            valueFrom:
+              secretKeyRef:
+                key: privkey
+                name: storetheindex-identity
+          - name: STORETHEINDEX_PEER_ID
+            valueFrom:
+              secretKeyRef:
+                key: peerid
+                name: storetheindex-identity
+          image: cmd.cat/gettext
+          name: setupconfig
+          volumeMounts:
+          - mountPath: /data/storetheindex
+            name: shared-volume
+            subPath: ntwk-mainnet-storetheindex/storetheindex-0
+          - mountPath: /config
+            name: storetheindex-config-volume
+      containers:
+        - name: application
+          image: filecoin/storetheindex:latest
+          imagePullPolicy: Always
+          command:
+            []
+          args:
+            - daemon
+          ports:
+            - containerPort: 3000
+              name: finder
+            - containerPort: 3001
+              name: ingest
+            - containerPort: 3002
+              name: admin
+          env:
+            - name: STORETHEINDEX_LISTEN_ADMIN
+              value: /ip4/0.0.0.0/tcp/3002
+          volumeMounts:
+            - name: shared-volume
+              mountPath: /data/storetheindex
+              subPath: default/storetheindex-0
