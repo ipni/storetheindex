@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: chain-exports
+  name: storetheindex-pvc
 spec:
   accessModes:
   - ReadWriteMany

@@ -32,7 +32,7 @@ spec:
             name: storetheindex-0-storetheindex-config
         - name: shared-volume
           persistentVolumeClaim:
-            claimName: chain-exports
+            claimName: storetheindex-pvc
       initContainers:
         - args:
           - -c
