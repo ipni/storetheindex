@@ -60,7 +60,7 @@ spec:
             name: storetheindex-config-volume
       containers:
         - name: application
-          image: filecoin/storetheindex:latest
+          image: filecoin/storetheindex:20e2265419aded6f5ae4bd6c3d7d173e270a94c2
           imagePullPolicy: Always
           command:
             []
