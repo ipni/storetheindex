@@ -11,4 +11,4 @@ spec:
       storage: 4Ti
   storageClassName: efs
   volumeMode: Filesystem
-  volumeName: efs-ntwk-mainnet-storetheindex
+  volumeName: efs-gitops-test-storetheindex
