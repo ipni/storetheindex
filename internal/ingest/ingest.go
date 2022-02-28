@@ -720,7 +720,7 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 			stats.RecordWithOptions(context.Background(),
 				stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
 				stats.WithTags(tag.Insert(metrics.ErrKind, string(adIngestErr.state))))
-		} else {
+		} else if err != nil {
 			stats.RecordWithOptions(context.Background(),
 				stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
 				stats.WithTags(tag.Insert(metrics.ErrKind, "other error")))
