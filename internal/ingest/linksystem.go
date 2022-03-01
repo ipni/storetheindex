@@ -193,7 +193,6 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 	}()
 
 	log := log.With("publisher", publisher, "adCid", adCid)
-	log.Info("Processing advertisement")
 
 	// Get provider ID from advertisement.
 	providerID, err := peer.Decode(ad.Provider.String())
