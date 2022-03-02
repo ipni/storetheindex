@@ -3,8 +3,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: storetheindex-0-storetheindex
-  labels:
-    app: storetheindex
 spec:
   replicas: 1
   serviceName: storetheindex
@@ -14,11 +12,6 @@ spec:
       release: storetheindex-0
   volumeClaimTemplates:
   template:
-    metadata:
-      labels:
-        app: storetheindex
-        chart: lotus-bundle-0.0.13
-        release: storetheindex-0
     spec:
       securityContext:
         fsGroup: 532
