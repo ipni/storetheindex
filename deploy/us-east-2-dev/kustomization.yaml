@@ -6,3 +6,8 @@ commonLabels:
   app: storetheindex
 resources:
   - ../base
+  - config.yaml
+  - pv.yaml
+  - secrets-sealed.yaml
+patchesStrategicMerge:
+  - deployment.yaml

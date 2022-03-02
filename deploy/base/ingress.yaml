@@ -2,7 +2,7 @@
 apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
-  name: storetheindex-0-storetheindex
+  name: storetheindex
   annotations:
     kubernetes.io/ingress.class: nginx
 spec:
@@ -12,5 +12,5 @@ spec:
       paths:
       - path: /
         backend:
-          serviceName: storetheindex-0-storetheindex
+          serviceName: storetheindex-finderonly
           servicePort: finder

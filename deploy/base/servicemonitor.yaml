@@ -1,18 +1,12 @@
 ---
-# Source: lotus-bundle/templates/service-monitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: storetheindex-0-storetheindex
-  namespace: default
+  name: storetheindex
 spec:
-  namespaceSelector:
-    matchNames:
-      - default
   selector:
     matchLabels:
       app: storetheindex
-      release: storetheindex-0
   endpoints:
   - port: admin
     path: /metrics

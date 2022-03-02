@@ -1,0 +1,11 @@
+---
+kind: Kustomization
+metadata:
+  name: storetheindex
+resources:
+  - deployment.yaml
+  - ingress.yaml
+  - kustomization.yaml
+  - pvc.yaml
+  - servicemonitor.yaml
+  - services.yaml

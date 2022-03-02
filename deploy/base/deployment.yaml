@@ -5,12 +5,6 @@ metadata:
   name: storetheindex
 spec:
   replicas: 1
-  serviceName: storetheindex
-  selector:
-    matchLabels:
-      app: storetheindex
-      release: storetheindex-0
-  volumeClaimTemplates:
   template:
     spec:
       securityContext:
@@ -52,11 +46,10 @@ spec:
           - mountPath: /config
             name: storetheindex-config-volume
       containers:
-        - name: application
+        - name: storetheindex
           image: filecoin/storetheindex:20e2265419aded6f5ae4bd6c3d7d173e270a94c2
           imagePullPolicy: Always
-          command:
-            []
+          command: []
           args:
             - daemon
           ports:
@@ -72,4 +65,3 @@ spec:
           volumeMounts:
             - name: shared-volume
               mountPath: /data/storetheindex
-              subPath: default/storetheindex-0
