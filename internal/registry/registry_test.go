@@ -8,6 +8,7 @@ import (
 
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry/discovery"
+	"github.com/ipfs/go-cid"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -250,12 +251,18 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal("failed to register directly:", err)
 	}
-	err = r.Register(ctx, info2)
+
+	err = r.RegisterOrUpdate(ctx, info2.AddrInfo.ID, []string{minerAddr2}, cid.Undef, info2.AddrInfo.ID)
 	if err != nil {
 		t.Fatal("failed to register directly:", err)
 	}
 
 	pinfo := r.ProviderInfo(peerID)
+	if pinfo == nil {
+		t.Fatal("did not find registered provider")
+	}
+
+	pinfo = r.ProviderInfo(info2.AddrInfo.ID)
 	if pinfo == nil {
 		t.Fatal("did not find registered provider")
 	}
@@ -281,11 +288,112 @@ func TestDatastore(t *testing.T) {
 		t.Fatal("expected 2 provider infos")
 	}
 
-	for i := range infos {
-		pid := infos[i].AddrInfo.ID
-		if pid != info1.AddrInfo.ID && pid != info2.AddrInfo.ID {
-			t.Fatalf("loaded invalid provider ID: %s", pid)
+	for _, provInfo := range infos {
+		if provInfo.AddrInfo.ID == info1.AddrInfo.ID {
+			if err = provInfo.Publisher.Validate(); err == nil {
+				t.Fatal("info1 should not have valid publisher")
+			}
+		} else if provInfo.AddrInfo.ID == info2.AddrInfo.ID {
+			if provInfo.Publisher != info2.AddrInfo.ID {
+				t.Fatal("info2 has wrong publisher")
+			}
+		} else {
+			t.Fatalf("loaded invalid provider ID: %s", provInfo.AddrInfo.ID)
 		}
+	}
+
+	err = r.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPollProvider(t *testing.T) {
+	cfg := config.Discovery{
+		Policy: config.Policy{
+			Allow: true,
+			Trust: true,
+		},
+		RediscoverWait: config.Duration(time.Minute),
+	}
+
+	ctx := context.Background()
+	// Create datastore
+	dstore, err := leveldb.NewDatastore(t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := NewRegistry(ctx, cfg, dstore, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	peerID, err := peer.Decode(trustedID)
+	if err != nil {
+		t.Fatal("bad provider ID:", err)
+	}
+
+	err = r.RegisterOrUpdate(ctx, peerID, []string{minerAddr}, cid.Undef, peerID)
+	if err != nil {
+		t.Fatal("failed to register directly:", err)
+	}
+
+	retryAfter := time.Minute
+	stopAfter := time.Hour
+
+	// Check for auto-sync after pollInterval 0.
+	r.pollProviders(0, retryAfter, stopAfter)
+	timeout := time.After(2 * time.Second)
+	select {
+	case <-r.SyncChan():
+	case <-timeout:
+		t.Fatal("Expected sync channel to be written")
+	}
+
+	// Check that actions chan is not blocked by unread auto-sync channel.
+	retryAfter = 0
+	r.pollProviders(0, retryAfter, stopAfter)
+	r.pollProviders(0, retryAfter, stopAfter)
+	r.pollProviders(0, retryAfter, stopAfter)
+	done := make(chan struct{})
+	r.actions <- func() {
+		close(done)
+	}
+	select {
+	case <-done:
+	case <-timeout:
+		t.Fatal("actions channel blocked")
+	}
+	select {
+	case <-r.SyncChan():
+	case <-timeout:
+		t.Fatal("Expected sync channel to be written")
+	}
+
+	// Set stopAfter to 0 so that stopAfter will have elapsed since last
+	// contact. This will make publisher appear unresponsive and polling will
+	// stop.
+	stopAfter = 0
+	r.pollProviders(0, retryAfter, stopAfter)
+	r.pollProviders(0, retryAfter, stopAfter)
+	r.pollProviders(0, retryAfter, stopAfter)
+
+	// Check that publisher has been removed from provider info when publisher
+	// appeared non-responsive.
+	pinfo := r.ProviderInfo(peerID)
+	if pinfo == nil {
+		t.Fatal("did not find registered provider")
+	}
+	if err = pinfo.Publisher.Validate(); err == nil {
+		t.Fatal("should not have valid publisher after polling stopped")
+	}
+
+	// Check that sync channel was not written since polling should have
+	// stopped.
+	select {
+	case <-r.SyncChan():
+		t.Fatal("sync channel should not have beem written to")
+	default:
 	}
 
 	err = r.Close()

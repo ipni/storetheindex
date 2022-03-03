@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	// providerKeyPath is where provider info is stored in to indexer repo
+	// providerKeyPath is where provider info is stored in to indexer repo.
 	providerKeyPath = "/registry/pinfo"
 )
 
@@ -36,6 +36,7 @@ type Registry struct {
 	actions   chan func()
 	closed    chan struct{}
 	closeOnce sync.Once
+	closing   chan struct{}
 	dstore    datastore.Datastore
 	providers map[peer.ID]*ProviderInfo
 	sequences *sequences
@@ -46,10 +47,9 @@ type Registry struct {
 	policy     *policy.Policy
 
 	discoveryTimeout time.Duration
-	pollInterval     time.Duration
 	rediscoverWait   time.Duration
 
-	periodicTimer *time.Timer
+	syncChan chan *ProviderInfo
 }
 
 // ProviderInfo is an immutable data structure that holds information about a
@@ -60,12 +60,18 @@ type ProviderInfo struct {
 	// AddrInfo contains a peer.ID and set of Multiaddr addresses.
 	AddrInfo peer.AddrInfo
 	// DiscoveryAddr is the address that is used for discovery of the provider.
-	DiscoveryAddr string
+	DiscoveryAddr string `json:",omitempty"`
 	// LastAdvertisement identifies the latest advertisement the indexer has ingested.
-	LastAdvertisement cid.Cid
+	LastAdvertisement cid.Cid `json:",omitempty"`
 	// LastAdvertisementTime is the time the latest advertisement was received.
-	LastAdvertisementTime time.Time
+	LastAdvertisementTime time.Time `json:",omitempty"`
+	// Publisher is the ID of the peer that published the provider info.
+	Publisher peer.ID `json:",omitempty"`
 
+	// lastContactTime is the last time the publisher contexted the
+	// indexer. This is not persisted, so that the time since last contact is
+	// reset when the indexer is started. If not reset, then it would appear
+	// the publisher was unreachable for the indexer downtime.
 	lastContactTime time.Time
 }
 
@@ -88,33 +94,33 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 	r := &Registry{
 		actions:   make(chan func()),
 		closed:    make(chan struct{}),
+		closing:   make(chan struct{}),
 		policy:    discoPolicy,
 		providers: map[peer.ID]*ProviderInfo{},
 		sequences: newSequences(0),
 
-		pollInterval:     time.Duration(cfg.PollInterval),
 		rediscoverWait:   time.Duration(cfg.RediscoverWait),
 		discoveryTimeout: time.Duration(cfg.Timeout),
 
 		discoverer: disco,
 		discoTimes: map[string]time.Time{},
 
-		dstore: dstore,
+		dstore:   dstore,
+		syncChan: make(chan *ProviderInfo, 1),
 	}
 
 	count, err := r.loadPersistedProviders(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot load provider data from datastore: %w", err)
 	}
 	log.Infow("loaded providers into registry", "count", count)
 
-	r.periodicTimer = time.AfterFunc(r.pollInterval/2, func() {
-		r.cleanup()
-		r.pollProviders()
-		r.periodicTimer.Reset(r.pollInterval / 2)
-	})
-
 	go r.run()
+	go r.runPollCheck(
+		time.Duration(cfg.PollInterval),
+		time.Duration(cfg.PollRetryAfter),
+		time.Duration(cfg.PollStopAfter))
+
 	return r, nil
 }
 
@@ -122,11 +128,8 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 func (r *Registry) Close() error {
 	var err error
 	r.closeOnce.Do(func() {
-		r.periodicTimer.Stop()
-		// Wait for any pending discoveries to complete, then stop the main run
-		// goroutine.
-		r.discoWait.Wait()
-		close(r.actions)
+		close(r.closing)
+		<-r.closed
 
 		if r.dstore != nil {
 			err = r.dstore.Close()
@@ -134,6 +137,10 @@ func (r *Registry) Close() error {
 	})
 	<-r.closed
 	return err
+}
+
+func (r *Registry) SyncChan() <-chan *ProviderInfo {
+	return r.syncChan
 }
 
 // run executes functions that need to be executed on the same goroutine
@@ -149,6 +156,37 @@ func (r *Registry) run() {
 	for action := range r.actions {
 		action()
 	}
+}
+
+func (r *Registry) runPollCheck(pollInterval, pollRetryAfter, pollStopAfter time.Duration) {
+	if pollRetryAfter < time.Minute {
+		pollRetryAfter = time.Minute
+	}
+	timer := time.NewTimer(pollRetryAfter)
+running:
+	for {
+		select {
+		case <-timer.C:
+			r.cleanup()
+			r.pollProviders(pollInterval, pollRetryAfter, pollStopAfter)
+			timer.Reset(pollRetryAfter)
+		case <-r.closing:
+			break running
+		}
+	}
+
+	// Check that pollProviders is finished and close sync channel.
+	done := make(chan struct{})
+	r.actions <- func() {
+		close(done)
+	}
+	<-done
+	close(r.syncChan)
+
+	// Wait for any pending discoveries to complete, then stop the main run
+	// goroutine.
+	r.discoWait.Wait()
+	close(r.actions)
 }
 
 // Discover begins the process of discovering and verifying a provider.  The
@@ -184,6 +222,11 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 		return errors.New("missing provider address")
 	}
 
+	err := info.AddrInfo.ID.Validate()
+	if err != nil {
+		return err
+	}
+
 	allowed, trusted := r.policy.Check(info.AddrInfo.ID)
 
 	// If provider is not allowed, then ignore request.
@@ -198,13 +241,27 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 		return v0.NewError(ErrNotTrusted, http.StatusForbidden)
 	}
 
-	// If allowed provider is trusted, register immediately without verification.
+	// If publisher is valid and different than the provider, check if the
+	// publisher is allowed.
+	err = info.Publisher.Validate()
+	if err == nil && info.Publisher != info.AddrInfo.ID {
+		allowed, trusted := r.policy.Check(info.Publisher)
+		if !allowed {
+			return v0.NewError(ErrNotAllowed, http.StatusForbidden)
+		}
+		if !trusted {
+			return v0.NewError(ErrNotTrusted, http.StatusForbidden)
+		}
+	}
+
+	// If allowed provider and publisher are trusted, register immediately
+	// without verification.
 	errCh := make(chan error, 1)
 	r.actions <- func() {
 		errCh <- r.syncRegister(ctx, info)
 	}
 
-	err := <-errCh
+	err = <-errCh
 	if err != nil {
 		return err
 	}
@@ -253,10 +310,17 @@ func (r *Registry) BlockPeer(peerID peer.ID) bool {
 
 // RegisterOrUpdate attempts to register an unregistered provider, or updates
 // the addresses and latest advertisement of an already registered provider.
-func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, addrs []string, adID cid.Cid) error {
+func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, addrs []string, adID cid.Cid, publisherID peer.ID) error {
+	var fullRegister bool
 	// Check that the provider has been discovered and validated
 	info := r.ProviderInfo(providerID)
 	if info != nil {
+		if err := publisherID.Validate(); err != nil {
+			publisherID = info.Publisher
+		} else if publisherID != info.Publisher {
+			fullRegister = true
+		}
+
 		info = &ProviderInfo{
 			AddrInfo: peer.AddrInfo{
 				ID:    providerID,
@@ -265,12 +329,15 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 			DiscoveryAddr:         info.DiscoveryAddr,
 			LastAdvertisement:     info.LastAdvertisement,
 			LastAdvertisementTime: info.LastAdvertisementTime,
+			Publisher:             publisherID,
 		}
 	} else {
+		fullRegister = true
 		info = &ProviderInfo{
 			AddrInfo: peer.AddrInfo{
 				ID: providerID,
 			},
+			Publisher: publisherID,
 		}
 	}
 
@@ -284,13 +351,30 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 
 	now := time.Now()
 
-	if adID != cid.Undef {
+	if adID != info.LastAdvertisement && adID != cid.Undef {
 		info.LastAdvertisement = adID
 		info.LastAdvertisementTime = now
 	}
 	info.lastContactTime = now
 
-	return r.Register(ctx, info)
+	// If there is a new providerID or publisherID then do a full Register that
+	// check the allow policy.
+	if fullRegister {
+		return r.Register(ctx, info)
+	}
+
+	// If laready registered and no new IDs, register without verification.
+	errCh := make(chan error, 1)
+	r.actions <- func() {
+		errCh <- r.syncRegister(ctx, info)
+	}
+	err := <-errCh
+	if err != nil {
+		return err
+	}
+
+	log.Debugw("Updated registered provider info", "id", info.AddrInfo.ID, "addrs", info.AddrInfo.Addrs)
+	return nil
 }
 
 // IsRegistered checks if the provider is in the registry
@@ -527,8 +611,50 @@ func (r *Registry) cleanup() {
 	r.discoWait.Done()
 }
 
-func (r *Registry) pollProviders() {
-	// TODO: Poll providers that have not been contacted for more than pollInterval.
+func (r *Registry) pollProviders(pollInterval, pollRetryAfter, pollStopAfter time.Duration) {
+	pollStopAfter += pollInterval
+	r.actions <- func() {
+		now := time.Now()
+		for _, info := range r.providers {
+			err := info.Publisher.Validate()
+			if err != nil {
+				// No publisher.
+				continue
+			}
+			if info.lastContactTime.IsZero() {
+				// There has been no contact since startup.  Start counting now.
+				info.lastContactTime = now
+				continue
+			}
+			noContactTime := now.Sub(info.lastContactTime)
+			if noContactTime < pollInterval {
+				// Not enough time since last contact.
+				continue
+			}
+			if noContactTime > pollStopAfter {
+				// Too much time since last contact.
+				log.Warnw("Lost contact with provider's publisher", "publisher", info.Publisher, "provider", info.AddrInfo.ID, "since", info.lastContactTime)
+				// Remove the non-responsive publisher.
+				info = &ProviderInfo{
+					AddrInfo:              info.AddrInfo,
+					DiscoveryAddr:         info.DiscoveryAddr,
+					LastAdvertisement:     info.LastAdvertisement,
+					LastAdvertisementTime: info.LastAdvertisementTime,
+					lastContactTime:       info.lastContactTime,
+					Publisher:             peer.ID(""),
+				}
+				if err = r.syncRegister(context.Background(), info); err != nil {
+					log.Errorw("Failed to update provider info", "err", err)
+				}
+				continue
+			}
+			select {
+			case r.syncChan <- info:
+			default:
+				log.Debugw("Sync channel blocked, skipping auto-sync", "publisher", info.Publisher)
+			}
+		}
+	}
 }
 
 // stringsToMultiaddrs converts a slice of string into a slice of Multiaddr
