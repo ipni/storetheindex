@@ -63,6 +63,15 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	// Do not log some facilities at info or debug level, unless "log-all" flag
+	// is true.
+	if !cctx.Bool("log-all") && (cctx.String("log-level") == "info" || cctx.String("log-level") == "debug") {
+		logging.SetLogLevel("basichost", "warn")
+		logging.SetLogLevel("bootstrap", "warn")
+		logging.SetLogLevel("dt_graphsync", "warn")
+		logging.SetLogLevel("dt-impl", "warn")
+		logging.SetLogLevel("graphsync", "warn")
+	}
 
 	cfg, err := config.Load("")
 	if err != nil {
