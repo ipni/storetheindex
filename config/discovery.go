@@ -14,9 +14,18 @@ type Discovery struct {
 	// Policy configures which providers are allowed and blocked
 	Policy Policy
 	// PollInterval is the amount of time to wait without getting any updates
-	// from a provider, before sending a request for the latest advertisement.
+	// for a provider, before sending a request for the latest advertisement.
 	// Values are a number ending in "s", "m", "h" for seconds. minutes, hours.
 	PollInterval Duration
+	// PollRetruAfter is the amount of time that must elapse from one poll
+	// attempt, without a response, to the next poll attempt.  This must be
+	// smaller than PollStopAfter for there to be more than one poll attempt.
+	// Time resolution is in hours.
+	PollRetryAfter Duration
+	// PollStopAfter is the amount of time, from the start of polling, to
+	// continuing polling for the latest advertisment without getting a
+	// responce.  Time resolution is in hours.
+	PollStopAfter Duration
 	// RediscoverWait is the amount of time that must pass before a provider
 	// can be discovered following a previous discovery attempt.  A value of 0
 	// means there is no wait time.
@@ -32,6 +41,8 @@ func NewDiscovery() Discovery {
 		LotusGateway:   "https://api.chain.love",
 		Policy:         NewPolicy(),
 		PollInterval:   Duration(24 * time.Hour),
+		PollRetryAfter: Duration(5 * time.Hour),
+		PollStopAfter:  Duration(48 * time.Hour),
 		RediscoverWait: Duration(5 * time.Minute),
 		Timeout:        Duration(2 * time.Minute),
 	}
@@ -43,6 +54,12 @@ func (c *Discovery) populateUnset() {
 
 	if c.PollInterval == 0 {
 		c.PollInterval = def.PollInterval
+	}
+	if c.PollRetryAfter == 0 {
+		c.PollRetryAfter = def.PollRetryAfter
+	}
+	if c.PollStopAfter == 0 {
+		c.PollStopAfter = def.PollStopAfter
 	}
 	if c.Timeout == 0 {
 		c.Timeout = def.Timeout

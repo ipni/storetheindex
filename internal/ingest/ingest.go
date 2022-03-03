@@ -159,6 +159,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	go ing.metricsUpdater()
 
+	go ing.autoSync()
+
 	log.Debugf("Ingester started and all hooks and linksystem registered")
 
 	return ing, nil
@@ -275,17 +277,17 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		// selector is nil.
 		opts := []legs.SyncOption{
 			legs.AlwaysUpdateLatest(),
-			legs.ScopedBlockHook(func(i peer.ID, c cid.Cid) {
-				if resync {
-					// If this is a resync, we need to mark the ad as
-					// unprocessed so that we can reingest everything from the
-					// start of this sync.
-					err := ing.markAdUnprocessed(c)
-					if err != nil {
-						log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
-					}
+		}
+		if resync {
+			// If this is a resync, then it is necessary to mark the ad as
+			// unprocessed so that everything can be reingested from the start
+			// of this sync.  Create a scoped block-hook to do this.
+			opts = append(opts, legs.ScopedBlockHook(func(i peer.ID, c cid.Cid) {
+				err := ing.markAdUnprocessed(c)
+				if err != nil {
+					log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
 				}
-			}),
+			}))
 		}
 		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
 		if err != nil {
@@ -495,6 +497,26 @@ func (ing *Ingester) metricsUpdater() {
 			}
 			t.Reset(time.Minute)
 		}
+	}
+}
+
+func (ing *Ingester) autoSync() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	for provInfo := range ing.reg.SyncChan() {
+		ing.waitForPendingSyncs.Add(1)
+		go func(pubID, provID peer.ID, pubAddr multiaddr.Multiaddr) {
+			defer ing.waitForPendingSyncs.Done()
+
+			log := log.With("publisher", pubID, "provider", provID, "addr", pubAddr)
+			log.Info("Auto-syncing the latest advertisement with publisher")
+
+			_, err := ing.sub.Sync(ctx, pubID, cid.Undef, nil, pubAddr)
+			if err != nil {
+				log.Errorw("Failed to auto-sync with publisher", "err", err)
+				return
+			}
+		}(provInfo.Publisher, provInfo.AddrInfo.ID, provInfo.AddrInfo.Addrs[0])
 	}
 }
 

@@ -88,7 +88,7 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 	}
 
 	// Register provider if not registered, or update addreses if already registered
-	err = h.registry.RegisterOrUpdate(ctx, ingReq.ProviderID, ingReq.Addrs, cid.Undef)
+	err = h.registry.RegisterOrUpdate(ctx, ingReq.ProviderID, ingReq.Addrs, cid.Undef, peer.ID(""))
 	if err != nil {
 		return err
 	}

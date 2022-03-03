@@ -223,7 +223,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 
 	// Register provider or update existing registration.  The
 	// provider must be allowed by policy to be registered.
-	err = ing.reg.RegisterOrUpdate(context.Background(), providerID, addrs, adCid)
+	err = ing.reg.RegisterOrUpdate(context.Background(), providerID, addrs, adCid, publisher)
 	if err != nil {
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
