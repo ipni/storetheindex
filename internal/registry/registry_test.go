@@ -314,7 +314,6 @@ func TestPollProvider(t *testing.T) {
 			Allow: true,
 			Trust: true,
 		},
-		PollInterval:   0,
 		RediscoverWait: config.Duration(time.Minute),
 	}
 
@@ -340,7 +339,7 @@ func TestPollProvider(t *testing.T) {
 	}
 
 	retryAfter := time.Minute
-	stopAfter := time.Minute
+	stopAfter := time.Hour
 
 	// Check for auto-sync after pollInterval 0.
 	r.pollProviders(0, retryAfter, stopAfter)
@@ -351,27 +350,12 @@ func TestPollProvider(t *testing.T) {
 		t.Fatal("Expected sync channel to be written")
 	}
 
-	// Check that actions chan is not written, because retryAfter has not
-	// elapsed since previous retry.
-	r.pollProviders(0, retryAfter, stopAfter)
-	r.pollProviders(0, retryAfter, stopAfter)
-	r.pollProviders(0, retryAfter, stopAfter)
-	done := make(chan struct{})
-	r.actions <- func() {
-		close(done)
-	}
-	select {
-	case <-r.SyncChan():
-		t.Fatal("sync channel should not have beem written to")
-	default:
-	}
-
 	// Check that actions chan is not blocked by unread auto-sync channel.
 	retryAfter = 0
 	r.pollProviders(0, retryAfter, stopAfter)
 	r.pollProviders(0, retryAfter, stopAfter)
 	r.pollProviders(0, retryAfter, stopAfter)
-	done = make(chan struct{})
+	done := make(chan struct{})
 	r.actions <- func() {
 		close(done)
 	}

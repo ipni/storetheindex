@@ -27,8 +27,6 @@ import (
 const (
 	// providerKeyPath is where provider info is stored in to indexer repo.
 	providerKeyPath = "/registry/pinfo"
-	// pollCheckInterval is how often to check for idle providers to poll.
-	pollCheckInterval = time.Hour
 )
 
 var log = logging.Logger("indexer/registry")
@@ -75,8 +73,6 @@ type ProviderInfo struct {
 	// reset when the indexer is started. If not reset, then it would appear
 	// the publisher was unreachable for the indexer downtime.
 	lastContactTime time.Time
-	// lastSyncAttempt is the last time a sync was attempted during polling.
-	lastSyncAttempt time.Time
 }
 
 func (p *ProviderInfo) dsKey() datastore.Key {
@@ -120,7 +116,7 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 	log.Infow("loaded providers into registry", "count", count)
 
 	go r.run()
-	go r.runPollCheck(pollCheckInterval,
+	go r.runPollCheck(
 		time.Duration(cfg.PollInterval),
 		time.Duration(cfg.PollRetryAfter),
 		time.Duration(cfg.PollStopAfter))
@@ -162,15 +158,18 @@ func (r *Registry) run() {
 	}
 }
 
-func (r *Registry) runPollCheck(pollCheckInterval, pollInterval, pollRetryAfter, pollStopAfter time.Duration) {
-	timer := time.NewTimer(pollCheckInterval)
+func (r *Registry) runPollCheck(pollInterval, pollRetryAfter, pollStopAfter time.Duration) {
+	if pollRetryAfter < time.Minute {
+		pollRetryAfter = time.Minute
+	}
+	timer := time.NewTimer(pollRetryAfter)
 running:
 	for {
 		select {
 		case <-timer.C:
 			r.cleanup()
 			r.pollProviders(pollInterval, pollRetryAfter, pollStopAfter)
-			timer.Reset(pollCheckInterval)
+			timer.Reset(pollRetryAfter)
 		case <-r.closing:
 			break running
 		}
@@ -649,13 +648,8 @@ func (r *Registry) pollProviders(pollInterval, pollRetryAfter, pollStopAfter tim
 				}
 				continue
 			}
-			if now.Sub(info.lastSyncAttempt) < pollRetryAfter {
-				// Not enough time since last sync attempt
-				continue
-			}
 			select {
 			case r.syncChan <- info:
-				info.lastSyncAttempt = now
 			default:
 				log.Debugw("Sync channel blocked, skipping auto-sync", "publisher", info.Publisher)
 			}

@@ -17,14 +17,14 @@ type Discovery struct {
 	// for a provider, before sending a request for the latest advertisement.
 	// Values are a number ending in "s", "m", "h" for seconds. minutes, hours.
 	PollInterval Duration
-	// PollRetruAfter is the amount of time that must elapse from one poll
-	// attempt, without a response, to the next poll attempt.  This must be
-	// smaller than PollStopAfter for there to be more than one poll attempt.
-	// Time resolution is in hours.
+	// PollRetryAfter is the amount of time from one poll attempt, without a
+	// response, to the next poll attempt, and is also the time between checks
+	// for providers to poll.  This value must be smaller than PollStopAfter
+	// for there to be more than one poll attempt for a provider.
 	PollRetryAfter Duration
 	// PollStopAfter is the amount of time, from the start of polling, to
 	// continuing polling for the latest advertisment without getting a
-	// responce.  Time resolution is in hours.
+	// responce.
 	PollStopAfter Duration
 	// RediscoverWait is the amount of time that must pass before a provider
 	// can be discovered following a previous discovery attempt.  A value of 0
@@ -42,7 +42,7 @@ func NewDiscovery() Discovery {
 		Policy:         NewPolicy(),
 		PollInterval:   Duration(24 * time.Hour),
 		PollRetryAfter: Duration(5 * time.Hour),
-		PollStopAfter:  Duration(48 * time.Hour),
+		PollStopAfter:  Duration(7 * 24 * time.Hour),
 		RediscoverWait: Duration(5 * time.Minute),
 		Timeout:        Duration(2 * time.Minute),
 	}
