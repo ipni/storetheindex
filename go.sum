@@ -215,10 +215,10 @@ github.com/filecoin-project/go-data-transfer v1.14.0/go.mod h1:wNJKhaLLYBJDM3VFv
 github.com/filecoin-project/go-ds-versioning v0.0.0-20211206185234-508abd7c2aff/go.mod h1:C9/l9PnB1+mwPa26BBVpCjG/XQCB0yj/q5CK2J8X1I4=
 github.com/filecoin-project/go-ds-versioning v0.1.1 h1:JiyBqaQlwC+UM0WhcBtVEeT3XrX59mQhT8U3p7nu86o=
 github.com/filecoin-project/go-ds-versioning v0.1.1/go.mod h1:C9/l9PnB1+mwPa26BBVpCjG/XQCB0yj/q5CK2J8X1I4=
-github.com/filecoin-project/go-indexer-core v0.2.8 h1:h1SRdZKTVcaXlzex3UevHh4OWDAhgpMzL4tHNAA7MQI=
-github.com/filecoin-project/go-indexer-core v0.2.8/go.mod h1:IagNfTdFuX4057kla43PjRCn3yBuUiZgIxuA0hTUamY=
-github.com/filecoin-project/go-legs v0.3.7 h1:yfm7fx+iy1nPtgPEQ6kQjvhoJOVbXide50STYdy+yos=
-github.com/filecoin-project/go-legs v0.3.7/go.mod h1:pgekGm8/gKY5zCtQ/qGAoSjGP92wTLFqpO3GPHeu8YU=
+github.com/filecoin-project/go-indexer-core v0.2.9 h1:sfnPCl0ualbxZAwcgzjsySIwh6AxqDJIzLkdObLS4gs=
+github.com/filecoin-project/go-indexer-core v0.2.9/go.mod h1:u03I3HB6ZnqCc3cm8Tq+QkTWBbfKOvNxM8K6Ny/IHRw=
+github.com/filecoin-project/go-legs v0.3.8 h1:HDhunjC+E5g3s47zUQY/YnDveatOXWJyfK519jdKhOA=
+github.com/filecoin-project/go-legs v0.3.8/go.mod h1:FroH5LQUTfYzs8huA4PjW8spDF691uvK8uk9YAfDa78=
 github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe h1:dF8u+LEWeIcTcfUcCf3WFVlc81Fr2JKg8zPzIbBDKDw=
 github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe/go.mod h1:FGwQgZAt2Gh5mjlwJUlVB62JeYdo+if0xWxSEfBD9ig=
 github.com/filecoin-project/go-statestore v0.1.0/go.mod h1:LFc9hD+fRxPqiHiaqUEZOinUJB4WARkRfNl10O7kTnI=
@@ -633,8 +633,8 @@ github.com/ipld/go-ipld-prime v0.14.4 h1:bqhmume8+nbNsX4/+J6eohktfZHAI8GKrF3rQ0x
 github.com/ipld/go-ipld-prime v0.14.4/go.mod h1:QcE4Y9n/ZZr8Ijg5bGPT0GqYWgZ1704nH0RDcQtgTP0=
 github.com/ipld/go-ipld-prime-proto v0.0.0-20191113031812-e32bd156a1e5/go.mod h1:gcvzoEDBjwycpXt3LBE061wT9f46szXGHAmj9uoP6fU=
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20211210234204-ce2a1c70cd73/go.mod h1:2PJ0JgxyB08t0b2WKrcuqI3di0V+5n6RS/LTUJhkoxY=
-github.com/ipld/go-storethehash v0.0.1 h1:U9E9n3dE0IaImSNbRcUmm5Dk9UPiS9H0i+LmCFFGJBI=
-github.com/ipld/go-storethehash v0.0.1/go.mod h1:w8cQfWInks8lvvbQTiKbCPusU9v0sqiViBihTHbavpQ=
+github.com/ipld/go-storethehash v0.0.2 h1:PFAlcTG2RoS6Cwbes3J/X/NvuNTj+wgF1x0OED4x6bw=
+github.com/ipld/go-storethehash v0.0.2/go.mod h1:w8cQfWInks8lvvbQTiKbCPusU9v0sqiViBihTHbavpQ=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52 h1:QG4CGBqCeuBo6aZlGAamSkxWdgWfZGeE49eUOWJPA4c=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52/go.mod h1:fdg+/X9Gg4AsAIzWpEHwnqd+QY3b7lajxyjE1m4hkq4=
 github.com/jackpal/gateway v1.0.5/go.mod h1:lTpwd4ACLXmpyiCTRtfiNyVnUmqT9RivzCDQetPfnjA=
@@ -1453,8 +1453,8 @@ github.com/whyrusleeping/cbor-gen v0.0.0-20200710004633-5379fc63235d/go.mod h1:f
 github.com/whyrusleeping/cbor-gen v0.0.0-20200810223238-211df3b9e24c/go.mod h1:fgkXqYy7bV2cFeIEOkVTZS/WjXARfBqSH6Q2qHL33hQ=
 github.com/whyrusleeping/cbor-gen v0.0.0-20200826160007-0b9f6c5fb163/go.mod h1:fgkXqYy7bV2cFeIEOkVTZS/WjXARfBqSH6Q2qHL33hQ=
 github.com/whyrusleeping/cbor-gen v0.0.0-20210219115102-f37d292932f2/go.mod h1:fgkXqYy7bV2cFeIEOkVTZS/WjXARfBqSH6Q2qHL33hQ=
-github.com/whyrusleeping/cbor-gen v0.0.0-20220224212727-7a699437a831 h1:9blPRrm7ebDqDm6nHXXzCSru+sp20gcA3CLu+G/kHUc=
-github.com/whyrusleeping/cbor-gen v0.0.0-20220224212727-7a699437a831/go.mod h1:fgkXqYy7bV2cFeIEOkVTZS/WjXARfBqSH6Q2qHL33hQ=
+github.com/whyrusleeping/cbor-gen v0.0.0-20220302191723-37c43cae8e14 h1:vo2wkP2ceHyGyZwFFtAabpot03EeSxxwAe57pOI9E/4=
+github.com/whyrusleeping/cbor-gen v0.0.0-20220302191723-37c43cae8e14/go.mod h1:fgkXqYy7bV2cFeIEOkVTZS/WjXARfBqSH6Q2qHL33hQ=
 github.com/whyrusleeping/chunker v0.0.0-20181014151217-fe64bd25879f h1:jQa4QT2UP9WYv2nzyawpKMOCl+Z/jW7djv2/J50lj9E=
 github.com/whyrusleeping/chunker v0.0.0-20181014151217-fe64bd25879f/go.mod h1:p9UJB6dDgdPgMJZs7UjUOdulKyRr9fqkS+6JKAInPy8=
 github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1/go.mod h1:8UvriyWtv5Q5EOgjHaSseUEdkQfvwFv1I/In/O2M9gc=
