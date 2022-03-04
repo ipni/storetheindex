@@ -62,6 +62,7 @@ var daemonFlags = []cli.Flag{
 	&cli.BoolFlag{
 		Name:     "log-all",
 		Usage:    "Log for subsystems that are normally only logged at warn level",
+		EnvVars:  []string{"LOG_ALL"},
 		Value:    false,
 		Required: false,
 	},
