@@ -60,6 +60,13 @@ var daemonFlags = []cli.Flag{
 	cacheSizeFlag,
 	logLevelFlag,
 	&cli.BoolFlag{
+		Name:     "log-all",
+		Usage:    "Log for subsystems that are normally only logged at warn level",
+		EnvVars:  []string{"LOG_ALL"},
+		Value:    false,
+		Required: false,
+	},
+	&cli.BoolFlag{
 		Name:     "noadmin",
 		Usage:    "Disable admin server",
 		Value:    false,

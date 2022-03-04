@@ -720,9 +720,17 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 	}
 
 	log.Infow("Running worker on ad stack", "headAdCid", msg.adInfos[0].cid, "publisher", msg.publisher, "numAdsToProcess", splitAtIndex)
+	var count int
 	for i := splitAtIndex - 1; i >= 0; i-- {
 		// Note that we are iterating backwards here. Earliest to newest.
 		ai := msg.adInfos[i]
+
+		count++
+		log.Infow("Processing advertisement",
+			"adCid", ai.cid,
+			"publisher", msg.publisher,
+			"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
+
 		err := ing.ingestAd(msg.publisher, ai.cid, ai.ad)
 
 		if err == nil {
