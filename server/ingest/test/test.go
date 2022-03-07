@@ -16,6 +16,7 @@ import (
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/client"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
+	v0util "github.com/filecoin-project/storetheindex/api/v0/util"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -116,10 +117,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 	mhs := util.RandomMultihashes(1, rng)
 
 	contextID := []byte("test-context-id")
-	metadata := v0.Metadata{
-		ProtocolID: testProtocolID,
-		Data:       []byte("hello"),
-	}
+	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: []byte("hello")}}}
 
 	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
 	if err != nil {
@@ -166,10 +164,7 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 	mhs := util.RandomMultihashes(1, rng)
 
 	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{
-		ProtocolID: testProtocolID,
-		Data:       []byte("hello"),
-	}
+	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: []byte("hello")}}}
 	addrs := []string{newAddr}
 
 	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], ctxID, metadata, addrs)
@@ -199,10 +194,7 @@ func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privat
 	mhs := util.RandomMultihashes(1, rng)
 
 	contextID := make([]byte, schema.MaxContextIDLen+1)
-	metadata := v0.Metadata{
-		ProtocolID: testProtocolID,
-		Data:       []byte("too-long"),
-	}
+	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: []byte("too-long")}}}
 
 	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
 	if err == nil {

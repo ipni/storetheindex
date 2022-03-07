@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -17,8 +17,9 @@ var rng = rand.New(rand.NewSource(1413))
 func TestIngestRequest(t *testing.T) {
 	mhs := util.RandomMultihashes(1, rng)
 
-	metadata := v0.Metadata{
-		Data: []byte("hello"),
+	metadata, err := v0.MetadataFromBytes([]byte("metadata"))
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	privKey, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
@@ -32,7 +33,7 @@ func TestIngestRequest(t *testing.T) {
 
 	ctxID := []byte("test-context-id")
 	address := "/ip4/127.0.0.1/tcp/7777"
-	data, err := MakeIngestRequest(peerID, privKey, mhs[0], ctxID, metadata, []string{address})
+	data, err := MakeIngestRequest(peerID, privKey, mhs[0], ctxID, *metadata, []string{address})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +49,7 @@ func TestIngestRequest(t *testing.T) {
 	if !bytes.Equal(ingReq.ContextID, ctxID) {
 		t.Fatal("ContextID in request not same as original")
 	}
-	if !ingReq.Metadata.Equal(metadata) {
+	if !ingReq.Metadata.Equal(*metadata) {
 		t.Fatal("metadata in request not same as original")
 	}
 	if !bytes.Equal([]byte(ingReq.Multihash), []byte(mhs[0])) {

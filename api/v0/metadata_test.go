@@ -1,16 +1,20 @@
-package v0
+package v0_test
 
 import (
-	"bytes"
 	"testing"
+
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
+	"github.com/filecoin-project/storetheindex/api/v0/util"
 )
 
 const testProtoID = 0x300000
 
 func TestEncodeDecode(t *testing.T) {
-	origMetadata := Metadata{
-		ProtocolID: testProtoID,
-		Data:       []byte("test-data"),
+
+	origMetadata := v0.Metadata{
+		Protocols: []v0.ProtocolMetadata{
+			&util.ExampleMetadata{Data: []byte("test-data")},
+		},
 	}
 	metadataBytes, err := origMetadata.MarshalBinary()
 	if err != nil {
@@ -21,15 +25,15 @@ func TestEncodeDecode(t *testing.T) {
 		t.Fatal("did not encode metadata")
 	}
 
-	var metadata Metadata
-	if err := metadata.UnmarshalBinary(metadataBytes); err != nil {
+	metadata, err := v0.MetadataFromBytes(metadataBytes)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if metadata.ProtocolID != origMetadata.ProtocolID {
-		t.Fatal("got wrong protocol ID")
+	if len(metadata.Codes()) != 1 {
+		t.Fatal("expected 1 protocol")
 	}
-	if !bytes.Equal(metadata.Data, origMetadata.Data) {
-		t.Fatal("did not get expected data")
+	if metadata.Codes()[0] != origMetadata.Codes()[0] {
+		t.Fatal("got wrong protocol ID")
 	}
 	if !metadata.Equal(origMetadata) {
 		t.Fatal("metadata no equal after decode")
@@ -40,10 +44,5 @@ func TestEncodeDecode(t *testing.T) {
 	copy(metadataBytes, make([]byte, 1024))
 	if !metadata.Equal(origMetadata) {
 		t.Fatal("metadata no equal after buffer zeroing")
-	}
-
-	metadata.ProtocolID = origMetadata.ProtocolID + 1
-	if metadata.Equal(origMetadata) {
-		t.Fatal("metadata should not be equal")
 	}
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/filecoin-project/go-legs/dtsync"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
+	v0util "github.com/filecoin-project/storetheindex/api/v0/util"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/test/typehelpers"
@@ -849,10 +850,7 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publis
 	require.NoError(t, err)
 
 	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{
-		ProtocolID: testProtocolID,
-		Data:       mhs[0],
-	}
+	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: mhs[0]}}}
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 	mhsLnk, mhs := newRandomLinkedList(t, lsys, eChunkCount)
 	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, mhsLnk, ctxID, metadata, false, p.String(), addrs)

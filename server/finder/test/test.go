@@ -16,6 +16,7 @@ import (
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/client"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
+	v0util "github.com/filecoin-project/storetheindex/api/v0/util"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/test/util"
@@ -92,10 +93,8 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 		t.Fatal(err)
 	}
 	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{
-		ProtocolID: protocolID,
-		Data:       []byte(mhs[0]),
-	}
+	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: mhs[0]}}}
+
 	encMetadata, err := metadata.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)

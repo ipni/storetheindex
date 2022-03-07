@@ -7,6 +7,7 @@ import (
 
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
+	v0util "github.com/filecoin-project/storetheindex/api/v0/util"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -54,10 +55,7 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 	p, err := peer.IDFromPrivateKey(signingKey)
 	require.NoError(t, err)
 
-	metadata := v0.Metadata{
-		ProtocolID: testProtocolID,
-		Data:       mhs[0],
-	}
+	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: mhs[0]}}}
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 
 	var headLink schema.Link_Advertisement

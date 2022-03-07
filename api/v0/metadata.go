@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding"
 	"fmt"
+	"sort"
 
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-varint"
@@ -20,11 +21,18 @@ func (e ErrInvalidMetadata) Error() string {
 // Metadata is data that provides information about retrieving
 // data for an index, from a particular provider.
 type Metadata struct {
-	// ProtocolID defines the protocol used for data retrieval.
-	ProtocolID multicodec.Code
-	// Data is specific to the identified protocol, and provides data, or a
-	// link to data, necessary for retrieval.
-	Data []byte
+	Protocols []ProtocolMetadata
+}
+
+type ProtocolMetadata interface {
+	// Protocol defines the protocol used for data retrieval.
+	Protocol() multicodec.Code
+	// PayloadLength defines how many bytes the binary encoding of the payload
+	// of this protocol takes up.
+	PayloadLength() int
+	encoding.BinaryMarshaler
+	encoding.BinaryUnmarshaler
+	Equal(other ProtocolMetadata) bool
 }
 
 var (
@@ -34,40 +42,93 @@ var (
 
 // Equal determines if two Metadata values are equal.
 func (m Metadata) Equal(other Metadata) bool {
-	return m.ProtocolID == other.ProtocolID && bytes.Equal(m.Data, other.Data)
+	if len(m.Protocols) != len(other.Protocols) {
+		return false
+	}
+	sort.Slice(m.Protocols, func(i, j int) bool {
+		return m.Protocols[i].Protocol() < m.Protocols[j].Protocol()
+	})
+	sort.Slice(other.Protocols, func(i, j int) bool {
+		return other.Protocols[i].Protocol() < other.Protocols[j].Protocol()
+	})
+	for i := range m.Protocols {
+		if !m.Protocols[i].Equal(other.Protocols[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// Protocols returns the parsed protocols
+func (m *Metadata) Codes() []multicodec.Code {
+	protocols := make([]multicodec.Code, len(m.Protocols))
+	for i, p := range m.Protocols {
+		protocols[i] = p.Protocol()
+	}
+	return protocols
 }
 
 // MarshalBinary implements encoding.BinaryMarshaler.
 func (m Metadata) MarshalBinary() ([]byte, error) {
-	if m.ProtocolID == 0 {
-		return nil, &ErrInvalidMetadata{Message: "encountered protocol ID 0 on encode"}
+	if len(m.Protocols) == 0 {
+		return nil, &ErrInvalidMetadata{Message: "encountered nil metadata on encode"}
 	}
+	sort.Slice(m.Protocols, func(i, j int) bool {
+		return m.Protocols[i].Protocol() < m.Protocols[j].Protocol()
+	})
 
-	varintSize := varint.UvarintSize(uint64(m.ProtocolID))
-	buf := make([]byte, varintSize+len(m.Data))
-	varint.PutUvarint(buf, uint64(m.ProtocolID))
-	if len(m.Data) != 0 {
-		copy(buf[varintSize:], m.Data)
+	buf := bytes.Buffer{}
+	for i := range m.Protocols {
+		p := varint.ToUvarint(uint64(m.Protocols[i].Protocol()))
+		if _, err := buf.Write(p); err != nil {
+			return nil, err
+		}
+
+		si, err := m.Protocols[i].MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		if _, err = buf.Write(si); err != nil {
+			return nil, err
+		}
 	}
-	return buf, nil
+	return buf.Bytes(), nil
+}
+
+func MetadataFromBytes(data []byte) (*Metadata, error) {
+	m := Metadata{
+		Protocols: make([]ProtocolMetadata, 0),
+	}
+	if err := m.UnmarshalBinary(data); err != nil {
+		return nil, err
+	}
+	return &m, nil
 }
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler.
 func (m *Metadata) UnmarshalBinary(data []byte) error {
-	protocol, protoLen, err := varint.FromUvarint(data)
-	if err != nil {
-		return err
+	l := 0
+	for l < len(data) {
+		protocol, protoLen, err := varint.FromUvarint(data[l:])
+		if err != nil {
+			return err
+		}
+		if protocol == 0 {
+			return &ErrInvalidMetadata{Message: "encountered protocol ID 0 on decode"}
+		}
+		l += protoLen
+		factory, ok := defaultRegistry[multicodec.Code(protocol)]
+		if !ok {
+			// okay if there are protocols we don't know about
+			return nil
+		}
+		proto := factory()
+		if err := proto.UnmarshalBinary(data[l:]); err != nil {
+			return err
+		}
+		m.Protocols = append(m.Protocols, proto)
+		l += proto.PayloadLength()
 	}
-	if protocol == 0 {
-		return &ErrInvalidMetadata{Message: "encountered protocol ID 0 on decode"}
-	}
-
-	m.ProtocolID = multicodec.Code(protocol)
-
-	// We can't hold onto the input data. Make a copy.
-	innerData := data[protoLen:]
-	m.Data = make([]byte, len(innerData))
-	copy(m.Data, innerData)
 
 	return nil
 }

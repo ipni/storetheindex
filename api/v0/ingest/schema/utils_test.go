@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
+	v0util "github.com/filecoin-project/storetheindex/api/v0/util"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-datastore"
 	ipld "github.com/ipld/go-ipld-prime"
@@ -47,10 +48,7 @@ func genCidsAndAdv(t *testing.T, lsys ipld.LinkSystem, priv crypto.PrivKey, prev
 	mhs := util.RandomMultihashes(10, rng)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{
-		ProtocolID: protocolID,
-		Data:       mhs[0],
-	}
+	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: mhs[0]}}}
 	addr := "/ip4/127.0.0.1/tcp/9999"
 	cidsLnk, err := NewListOfMhs(lsys, mhs)
 	if err != nil {
