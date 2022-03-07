@@ -22,10 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	testProtocolID = 0x300000
-)
-
 type RandomAdBuilder struct {
 	// FakeSig bool
 

@@ -3,6 +3,8 @@ package v0
 import (
 	"bytes"
 	"encoding"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -131,4 +133,25 @@ func (m *Metadata) UnmarshalBinary(data []byte) error {
 	}
 
 	return nil
+}
+
+func (m *Metadata) MarshalJSON() ([]byte, error) {
+	data, err := m.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	str := base64.StdEncoding.EncodeToString(data)
+	return json.Marshal(str)
+}
+
+func (m *Metadata) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	bytes, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return err
+	}
+	return m.UnmarshalBinary(bytes)
 }

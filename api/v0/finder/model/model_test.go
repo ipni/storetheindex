@@ -13,8 +13,6 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
-const testProtoID = 0x300000
-
 var rng = rand.New(rand.NewSource(1413))
 
 func TestMarshal(t *testing.T) {

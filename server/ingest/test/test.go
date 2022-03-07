@@ -29,8 +29,6 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-const testProtocolID = 0x300000
-
 var rng = rand.New(rand.NewSource(1413))
 
 //InitIndex initialize a new indexer engine.

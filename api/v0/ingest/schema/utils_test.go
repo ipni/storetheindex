@@ -42,8 +42,6 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	return lsys
 }
 
-const protocolID = 0x300000
-
 func genCidsAndAdv(t *testing.T, lsys ipld.LinkSystem, priv crypto.PrivKey, previous Link_Advertisement) ([]multihash.Multihash, ipld.Link, Advertisement, Link_Advertisement) {
 	mhs := util.RandomMultihashes(10, rng)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")

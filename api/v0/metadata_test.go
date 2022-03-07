@@ -7,8 +7,6 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/util"
 )
 
-const testProtoID = 0x300000
-
 func TestEncodeDecode(t *testing.T) {
 
 	origMetadata := v0.Metadata{
