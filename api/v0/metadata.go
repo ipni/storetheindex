@@ -25,7 +25,48 @@ func (e ErrInvalidMetadata) Error() string {
 type Metadata []byte
 
 func (m *Metadata) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, (*[]byte)(m))
+	var v interface{}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch val := v.(type) {
+	case map[string]interface{}:
+		// parsed older metadata
+		base, ok := val["ProtocolID"]
+		if !ok {
+			return fmt.Errorf("did not see parsed protocol id")
+		}
+		// json numbers are floats
+		n, ok := base.(float64)
+		if !ok {
+			return fmt.Errorf("could not parse initial protocol from metadata. was %T", base)
+		}
+		buf := bytes.NewBuffer(nil)
+		buf.Write(varint.ToUvarint(uint64(n)))
+		rest, ok := val["Data"]
+		if !ok {
+			return fmt.Errorf("did not see parsed protocol data")
+		}
+		restStr, ok := rest.(string)
+		if !ok {
+			return fmt.Errorf("could not parse protocol payload from metadata")
+		}
+		rawMetadata, err := base64.StdEncoding.DecodeString(restStr)
+		if err != nil {
+			return err
+		}
+		buf.Write(rawMetadata)
+		*m = buf.Bytes()
+	case string:
+		rawMetadata, err := base64.StdEncoding.DecodeString(val)
+		if err != nil {
+			return err
+		}
+		*m = rawMetadata
+	default:
+		return fmt.Errorf("could not parse metadata: %x", v)
+	}
+	return nil
 }
 
 type ParsedMetadata struct {
