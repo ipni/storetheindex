@@ -9,6 +9,7 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 )
@@ -39,7 +40,6 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 		return nil, err
 	}
 
-	r := mux.NewRouter().StrictSlash(true)
 	server := &http.Server{
 		Handler:      r,
 		WriteTimeout: cfg.apiWriteTimeout,
@@ -51,9 +51,19 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	h := newHandler(indexer, registry)
 
 	// Client routes
-	r.HandleFunc("/cid/{cid}", h.findCid).Methods(http.MethodGet)
-	r.HandleFunc("/multihash/{multihash}", h.find).Methods(http.MethodGet)
-	r.HandleFunc("/multihash", h.findBatch).Methods(http.MethodPost)
+	cidR := mux.NewRouter().StrictSlash(true)
+	cidR.HandleFunc("/{cid}", h.findCid).Methods(http.MethodGet)
+	corCidR := handlers.CORS(handlers.AllowedOrigins([]string{"*"}))(cidR)
+
+	mhR := mux.NewRouter().StrictSlash(true)
+	mhR.HandleFunc("/{multihash}", h.find).Methods(http.MethodGet)
+	mhR.HandleFunc("/", h.findBatch).Methods(http.MethodPost)
+	corMhR := handlers.CORS(handlers.AllowedOrigins([]string{"*"}))(mhR)
+
+	r := mux.NewRouter().StrictSlash(true)
+	r.Handle("/cid", corCidR)
+	r.Handle("/multihash", corMhR)
+
 	r.HandleFunc("/health", h.health).Methods(http.MethodGet)
 	r.Handle("/", http.FileServer(http.FS(webUI)))
 
