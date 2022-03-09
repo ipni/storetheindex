@@ -45,17 +45,17 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 
 	// Client routes
 	cidR := mux.NewRouter().StrictSlash(true)
-	cidR.HandleFunc("/{cid}", h.findCid).Methods(http.MethodGet)
+	cidR.HandleFunc("/cid/{cid}", h.findCid).Methods(http.MethodGet)
 	corCidR := handlers.CORS(handlers.AllowedOrigins([]string{"*"}))(cidR)
 
 	mhR := mux.NewRouter().StrictSlash(true)
-	mhR.HandleFunc("/{multihash}", h.find).Methods(http.MethodGet)
-	mhR.HandleFunc("/", h.findBatch).Methods(http.MethodPost)
+	mhR.HandleFunc("/multihash/{multihash}", h.find).Methods(http.MethodGet)
+	mhR.HandleFunc("/multihash", h.findBatch).Methods(http.MethodPost)
 	corMhR := handlers.CORS(handlers.AllowedOrigins([]string{"*"}))(mhR)
 
 	r := mux.NewRouter().StrictSlash(true)
-	r.Handle("/cid", corCidR)
-	r.Handle("/multihash", corMhR)
+	r.PathPrefix("/cid").Handler(corCidR)
+	r.PathPrefix("/multihash").Handler(corMhR)
 
 	r.HandleFunc("/health", h.health).Methods(http.MethodGet)
 	r.Handle("/", http.FileServer(http.FS(webUI)))
