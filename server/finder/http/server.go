@@ -40,13 +40,6 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 		return nil, err
 	}
 
-	server := &http.Server{
-		Handler:      r,
-		WriteTimeout: cfg.apiWriteTimeout,
-		ReadTimeout:  cfg.apiReadTimeout,
-	}
-	s := &Server{server, l}
-
 	// Resource handler
 	h := newHandler(indexer, registry)
 
@@ -69,6 +62,13 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 
 	r.HandleFunc("/providers", h.listProviders).Methods(http.MethodGet)
 	r.HandleFunc("/providers/{providerid}", h.getProvider).Methods(http.MethodGet)
+
+	server := &http.Server{
+		Handler:      r,
+		WriteTimeout: cfg.apiWriteTimeout,
+		ReadTimeout:  cfg.apiReadTimeout,
+	}
+	s := &Server{server, l}
 
 	return s, nil
 }
