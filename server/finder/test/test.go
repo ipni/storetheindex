@@ -195,7 +195,7 @@ func checkResponse(r *model.FindResponse, mhs []multihash.Multihash, expected []
 		// Check if same value
 		for j, pr := range r.MultihashResults[i].ProviderResults {
 			if !pr.Equal(expected[j]) {
-				return fmt.Errorf("wrong ProviderResult included for a multihash: %s", expected[j])
+				return fmt.Errorf("wrong ProviderResult included for a multihash: %v", expected[j])
 			}
 		}
 	}
