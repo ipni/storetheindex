@@ -24,6 +24,15 @@ func (e ErrInvalidMetadata) Error() string {
 // data for an index, from a particular provider.
 type Metadata []byte
 
+func (m *Metadata) UnmarshalJSON(data []byte) error {
+	var raw []byte
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	copy([]byte(*m), raw)
+	return nil
+}
+
 type ParsedMetadata struct {
 	Protocols []ProtocolMetadata
 }
