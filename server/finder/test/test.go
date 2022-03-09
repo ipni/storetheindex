@@ -27,6 +27,7 @@ import (
 
 const (
 	providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
+	protocolID = 0x300000
 )
 
 var rng = rand.New(rand.NewSource(1413))
@@ -92,7 +93,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 		t.Fatal(err)
 	}
 	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: mhs[0]}}}
+	metadata := v0.ParsedMetadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: mhs[0]}}}
 
 	encMetadata, err := metadata.MarshalBinary()
 	if err != nil {
@@ -130,10 +131,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 			ID:    v.ProviderID,
 			Addrs: info.AddrInfo.Addrs,
 		},
-	}
-	err = provResult.Metadata.UnmarshalBinary(v.MetadataBytes)
-	if err != nil {
-		t.Fatal(err)
+		Metadata: v.MetadataBytes,
 	}
 
 	expectedResults := []model.ProviderResult{provResult}

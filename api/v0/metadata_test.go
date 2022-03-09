@@ -9,7 +9,7 @@ import (
 
 func TestEncodeDecode(t *testing.T) {
 
-	origMetadata := v0.Metadata{
+	origMetadata := v0.ParsedMetadata{
 		Protocols: []v0.ProtocolMetadata{
 			&util.ExampleMetadata{Data: []byte("test-data")},
 		},

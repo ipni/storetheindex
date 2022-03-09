@@ -51,7 +51,8 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 	p, err := peer.IDFromPrivateKey(signingKey)
 	require.NoError(t, err)
 
-	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: mhs[0]}}}
+	metadata := v0.ParsedMetadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: mhs[0]}}}
+	encMeta, _ := metadata.MarshalBinary()
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 
 	var headLink schema.Link_Advertisement
@@ -64,10 +65,10 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 		}
 
 		if fakeSig {
-			_, headLink, err = schema.NewAdvertisementWithFakeSig(lsys, signingKey, headLink, ec, ctxID, metadata, false, p.String(), addrs)
+			_, headLink, err = schema.NewAdvertisementWithFakeSig(lsys, signingKey, headLink, ec, ctxID, encMeta, false, p.String(), addrs)
 		} else {
 
-			_, headLink, err = schema.NewAdvertisementWithLink(lsys, signingKey, headLink, ec, ctxID, metadata, false, p.String(), addrs)
+			_, headLink, err = schema.NewAdvertisementWithLink(lsys, signingKey, headLink, ec, ctxID, encMeta, false, p.String(), addrs)
 		}
 		require.NoError(t, err)
 	}
@@ -75,7 +76,7 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 	if b.AddRmWithNoEntries {
 		// This will just remove all things in the first ad block.
 		ctxID := []byte("test-context-id-" + fmt.Sprint(0))
-		_, headLink, err = schema.NewAdvertisementWithLink(lsys, signingKey, headLink, schema.NoEntries, ctxID, metadata, true, p.String(), addrs)
+		_, headLink, err = schema.NewAdvertisementWithLink(lsys, signingKey, headLink, schema.NoEntries, ctxID, encMeta, true, p.String(), addrs)
 		require.NoError(t, err)
 	}
 

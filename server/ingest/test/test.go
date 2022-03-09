@@ -115,9 +115,10 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 	mhs := util.RandomMultihashes(1, rng)
 
 	contextID := []byte("test-context-id")
-	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: []byte("hello")}}}
+	metadata := v0.ParsedMetadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: []byte("hello")}}}
+	encMeta, _ := metadata.MarshalBinary()
 
-	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
+	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, encMeta, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,10 +163,11 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 	mhs := util.RandomMultihashes(1, rng)
 
 	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: []byte("hello")}}}
+	metadata := v0.ParsedMetadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: []byte("hello")}}}
+	encMeta, _ := metadata.MarshalBinary()
 	addrs := []string{newAddr}
 
-	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], ctxID, metadata, addrs)
+	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], ctxID, encMeta, addrs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,9 +194,10 @@ func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privat
 	mhs := util.RandomMultihashes(1, rng)
 
 	contextID := make([]byte, schema.MaxContextIDLen+1)
-	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: []byte("too-long")}}}
+	metadata := v0.ParsedMetadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: []byte("too-long")}}}
+	encMeta, _ := metadata.MarshalBinary()
 
-	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
+	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, encMeta, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}

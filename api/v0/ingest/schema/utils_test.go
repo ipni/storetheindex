@@ -46,13 +46,14 @@ func genCidsAndAdv(t *testing.T, lsys ipld.LinkSystem, priv crypto.PrivKey, prev
 	mhs := util.RandomMultihashes(10, rng)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: mhs[0]}}}
+	metadata := v0.ParsedMetadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: mhs[0]}}}
+	encMetadata, _ := metadata.MarshalBinary()
 	addr := "/ip4/127.0.0.1/tcp/9999"
 	cidsLnk, err := NewListOfMhs(lsys, mhs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, previous, cidsLnk, ctxID, metadata, false, p.String(), []string{addr})
+	adv, advLnk, err := NewAdvertisementWithLink(lsys, priv, previous, cidsLnk, ctxID, encMetadata, false, p.String(), []string{addr})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -18,7 +18,7 @@ var rng = rand.New(rand.NewSource(1413))
 func TestIngestRequest(t *testing.T) {
 	mhs := util.RandomMultihashes(1, rng)
 
-	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: []byte("hello")}}}
+	metadata := v0.ParsedMetadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: []byte("hello")}}}
 
 	privKey, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	if err != nil {
@@ -31,7 +31,8 @@ func TestIngestRequest(t *testing.T) {
 
 	ctxID := []byte("test-context-id")
 	address := "/ip4/127.0.0.1/tcp/7777"
-	data, err := MakeIngestRequest(peerID, privKey, mhs[0], ctxID, metadata, []string{address})
+	metadataBytes, _ := metadata.MarshalBinary()
+	data, err := MakeIngestRequest(peerID, privKey, mhs[0], ctxID, metadataBytes, []string{address})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +48,7 @@ func TestIngestRequest(t *testing.T) {
 	if !bytes.Equal(ingReq.ContextID, ctxID) {
 		t.Fatal("ContextID in request not same as original")
 	}
-	if !ingReq.Metadata.Equal(metadata) {
+	if !bytes.Equal([]byte(ingReq.Metadata), metadataBytes) {
 		t.Fatal("metadata in request not same as original")
 	}
 	if !bytes.Equal([]byte(ingReq.Multihash), []byte(mhs[0])) {

@@ -185,17 +185,12 @@ func NewAdvertisementWithFakeSig(
 		return nil, nil, errors.New("context id too long")
 	}
 
-	encMetadata, err := metadata.MarshalBinary()
-	if err != nil {
-		return nil, nil, err
-	}
-
 	ad := &_Advertisement{
 		Provider:  _String{x: provider},
 		Addresses: GoToIpldStrings(addrs),
 		Entries:   _Link{x: entries},
 		ContextID: _Bytes{x: contextID},
-		Metadata:  _Bytes{x: encMetadata},
+		Metadata:  _Bytes{x: metadata},
 		IsRm:      _Bool{x: isRm},
 	}
 	if previousID == nil {
@@ -231,17 +226,12 @@ func newAdvertisement(
 		return nil, errors.New("context id too long")
 	}
 
-	encMetadata, err := metadata.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
 	ad := &_Advertisement{
 		Provider:  _String{x: provider},
 		Addresses: GoToIpldStrings(addrs),
 		Entries:   _Link{x: entries},
 		ContextID: _Bytes{x: contextID},
-		Metadata:  _Bytes{x: encMetadata},
+		Metadata:  _Bytes{x: metadata},
 		IsRm:      _Bool{x: isRm},
 	}
 	if previousID == nil {

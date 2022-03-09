@@ -850,12 +850,13 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publis
 	require.NoError(t, err)
 
 	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: mhs[0]}}}
+	metadata := v0.ParsedMetadata{Protocols: []v0.ProtocolMetadata{&v0util.ExampleMetadata{Data: mhs[0]}}}
+	encMeta, _ := metadata.MarshalBinary()
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 	mhsLnk, mhs := newRandomLinkedList(t, lsys, eChunkCount)
-	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, mhsLnk, ctxID, metadata, false, p.String(), addrs)
+	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, mhsLnk, ctxID, encMeta, false, p.String(), addrs)
 	if fakeSig {
-		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, mhsLnk, ctxID, metadata, false, p.String(), addrs)
+		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, mhsLnk, ctxID, encMeta, false, p.String(), addrs)
 	}
 	require.NoError(t, err)
 	lnk, err := advLnk.AsLink()

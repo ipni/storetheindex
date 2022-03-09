@@ -22,7 +22,9 @@ func (e ErrInvalidMetadata) Error() string {
 
 // Metadata is data that provides information about retrieving
 // data for an index, from a particular provider.
-type Metadata struct {
+type Metadata []byte
+
+type ParsedMetadata struct {
 	Protocols []ProtocolMetadata
 }
 
@@ -38,12 +40,12 @@ type ProtocolMetadata interface {
 }
 
 var (
-	_ encoding.BinaryMarshaler   = (*Metadata)(nil)
-	_ encoding.BinaryUnmarshaler = (*Metadata)(nil)
+	_ encoding.BinaryMarshaler   = (*ParsedMetadata)(nil)
+	_ encoding.BinaryUnmarshaler = (*ParsedMetadata)(nil)
 )
 
 // Equal determines if two Metadata values are equal.
-func (m Metadata) Equal(other Metadata) bool {
+func (m ParsedMetadata) Equal(other ParsedMetadata) bool {
 	if len(m.Protocols) != len(other.Protocols) {
 		return false
 	}
@@ -62,7 +64,7 @@ func (m Metadata) Equal(other Metadata) bool {
 }
 
 // Protocols returns the parsed protocols
-func (m *Metadata) Codes() []multicodec.Code {
+func (m *ParsedMetadata) Codes() []multicodec.Code {
 	protocols := make([]multicodec.Code, len(m.Protocols))
 	for i, p := range m.Protocols {
 		protocols[i] = p.Protocol()
@@ -71,7 +73,7 @@ func (m *Metadata) Codes() []multicodec.Code {
 }
 
 // MarshalBinary implements encoding.BinaryMarshaler.
-func (m Metadata) MarshalBinary() ([]byte, error) {
+func (m ParsedMetadata) MarshalBinary() ([]byte, error) {
 	if len(m.Protocols) == 0 {
 		return nil, &ErrInvalidMetadata{Message: "encountered nil metadata on encode"}
 	}
@@ -97,8 +99,8 @@ func (m Metadata) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func MetadataFromBytes(data []byte) (*Metadata, error) {
-	m := Metadata{
+func MetadataFromBytes(data []byte) (*ParsedMetadata, error) {
+	m := ParsedMetadata{
 		Protocols: make([]ProtocolMetadata, 0),
 	}
 	if err := m.UnmarshalBinary(data); err != nil {
@@ -108,7 +110,7 @@ func MetadataFromBytes(data []byte) (*Metadata, error) {
 }
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler.
-func (m *Metadata) UnmarshalBinary(data []byte) error {
+func (m *ParsedMetadata) UnmarshalBinary(data []byte) error {
 	l := 0
 	for l < len(data) {
 		protocol, protoLen, err := varint.FromUvarint(data[l:])
@@ -135,7 +137,7 @@ func (m *Metadata) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-func (m *Metadata) MarshalJSON() ([]byte, error) {
+func (m *ParsedMetadata) MarshalJSON() ([]byte, error) {
 	data, err := m.MarshalBinary()
 	if err != nil {
 		return nil, err
@@ -144,7 +146,7 @@ func (m *Metadata) MarshalJSON() ([]byte, error) {
 	return json.Marshal(str)
 }
 
-func (m *Metadata) UnmarshalJSON(data []byte) error {
+func (m *ParsedMetadata) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err

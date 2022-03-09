@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -108,11 +108,7 @@ func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 }
 
 func providerResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) (model.ProviderResult, error) {
-	var metadata v0.Metadata
-	err := metadata.UnmarshalBinary(value.MetadataBytes)
-	if err != nil {
-		return model.ProviderResult{}, fmt.Errorf("could not decode metadata: %s", err)
-	}
+	metadata := v0.Metadata(value.MetadataBytes)
 
 	return model.ProviderResult{
 		ContextID: value.ContextID,
