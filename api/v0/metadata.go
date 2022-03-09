@@ -25,12 +25,7 @@ func (e ErrInvalidMetadata) Error() string {
 type Metadata []byte
 
 func (m *Metadata) UnmarshalJSON(data []byte) error {
-	var raw []byte
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	copy([]byte(*m), raw)
-	return nil
+	return json.Unmarshal(data, (*[]byte)(m))
 }
 
 type ParsedMetadata struct {
