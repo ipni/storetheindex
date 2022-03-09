@@ -52,7 +52,7 @@ func TestMarshal(t *testing.T) {
 
 	providerResult := ProviderResult{
 		ContextID: ctxID,
-		Metadata:  encMeta,
+		Metadata:  (*v0.Metadata)(&encMeta),
 		Provider: peer.AddrInfo{
 			ID:    p,
 			Addrs: []multiaddr.Multiaddr{m1},

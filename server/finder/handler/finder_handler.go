@@ -112,7 +112,7 @@ func providerResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) (
 
 	return model.ProviderResult{
 		ContextID: value.ContextID,
-		Metadata:  metadata,
+		Metadata:  &metadata,
 		Provider: peer.AddrInfo{
 			ID:    value.ProviderID,
 			Addrs: addrs,

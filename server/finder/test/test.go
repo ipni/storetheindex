@@ -131,7 +131,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 			ID:    v.ProviderID,
 			Addrs: info.AddrInfo.Addrs,
 		},
-		Metadata: v.MetadataBytes,
+		Metadata: (*v0.Metadata)(&v.MetadataBytes),
 	}
 
 	expectedResults := []model.ProviderResult{provResult}

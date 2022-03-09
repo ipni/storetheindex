@@ -22,7 +22,7 @@ type ProviderResult struct {
 	// ContextID identifies the metadata that is part of this value.
 	ContextID []byte
 	// Metadata contains information for the provider to use to retrieve data.
-	Metadata v0.Metadata
+	Metadata *v0.Metadata
 	// Provider is the peer ID and addresses of the provider.
 	Provider peer.AddrInfo
 }
@@ -46,7 +46,7 @@ func (pr ProviderResult) Equal(other ProviderResult) bool {
 	if !bytes.Equal(pr.ContextID, other.ContextID) {
 		return false
 	}
-	if !bytes.Equal(pr.Metadata, other.Metadata) {
+	if !bytes.Equal(*pr.Metadata, *other.Metadata) {
 		return false
 	}
 	if pr.Provider.ID != other.Provider.ID {
