@@ -10,6 +10,7 @@ require (
 	github.com/filecoin-project/go-legs v0.3.8
 	github.com/frankban/quicktest v1.14.0
 	github.com/gogo/protobuf v1.3.2
+	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.7.4
 	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-datastore v0.5.1
