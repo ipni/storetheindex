@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -87,13 +85,6 @@ type Ingester struct {
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
 // communication with providers.
 func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
-	// Cleanup any leftover entry cid to ad cid mappings.
-	err := removeEntryAdMappings(context.Background(), ds)
-	if err != nil {
-		log.Errorw("Error cleaning temporary entries ad to mappings", "err", err)
-		// Do not return error; keep going.
-	}
-
 	lsys := mkLinkSystem(ds)
 
 	// Construct a selector that recursively looks for nodes with field
@@ -134,18 +125,12 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	// Create and start pubsub subscriber.  This also registers the storage
 	// hook to index data as it is received.
-	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Authorized), legs.SyncRecursionLimit(cfg.AdvertisementRecursionLimit()))
+	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Authorized), legs.SyncRecursionLimit(cfg.AdvertisementRecursionLimit()), legs.UseLatestSyncHandler(&syncHandler{ing}))
 	if err != nil {
 		log.Errorw("Failed to start pubsub subscriber", "err", err)
 		return nil, errors.New("ingester subscriber failed")
 	}
 	ing.sub = sub
-
-	err = ing.restoreLatestSync()
-	if err != nil {
-		sub.Close()
-		return nil, err
-	}
 
 	ing.toStaging, ing.cancelOnSyncFinished = ing.sub.OnSyncFinished()
 
@@ -520,51 +505,6 @@ func (ing *Ingester) autoSync() {
 	}
 }
 
-// restoreLatestSync reads the latest sync for each previously synced provider,
-// from the datastore, and sets this in the Subscriber.
-func (ing *Ingester) restoreLatestSync() error {
-	// Load all pins from the datastore.
-	q := query.Query{
-		Prefix: syncPrefix,
-	}
-	results, err := ing.ds.Query(context.Background(), q)
-	if err != nil {
-		return err
-	}
-	defer results.Close()
-
-	var count int
-	for r := range results.Next() {
-		if r.Error != nil {
-			return fmt.Errorf("cannot read latest syncs: %w", r.Error)
-		}
-		ent := r.Entry
-		_, lastCid, err := cid.CidFromBytes(ent.Value)
-		if err != nil {
-			log.Errorw("Failed to decode latest sync CID", "err", err)
-			continue
-		}
-		if lastCid == cid.Undef {
-			continue
-		}
-		peerID, err := peer.Decode(strings.TrimPrefix(ent.Key, syncPrefix))
-		if err != nil {
-			log.Errorw("Failed to decode peer ID of latest sync", "err", err)
-			continue
-		}
-
-		err = ing.sub.SetLatestSync(peerID, lastCid)
-		if err != nil {
-			log.Errorw("Failed to set latest sync", "err", err, "peer", peerID)
-			continue
-		}
-		log.Debugw("Set latest sync", "provider", peerID, "cid", lastCid)
-		count++
-	}
-	log.Infow("Loaded latest sync for providers", "count", count)
-	return nil
-}
-
 // Get the latest CID synced for the peer.
 func (ing *Ingester) GetLatestSync(peerID peer.ID) (cid.Cid, error) {
 	b, err := ing.ds.Get(context.Background(), datastore.NewKey(syncPrefix+peerID.String()))
@@ -576,49 +516,6 @@ func (ing *Ingester) GetLatestSync(peerID peer.ID) (cid.Cid, error) {
 	}
 	_, c, err := cid.CidFromBytes(b)
 	return c, err
-}
-
-// removeEntryAdMappings removes all existing temporary entry cid to ad cid
-// mappings.  If the indexer terminated unexpectedly during a sync operation,
-// then these map be left over and should be cleaned up on restart.
-func removeEntryAdMappings(ctx context.Context, ds datastore.Batching) error {
-	q := query.Query{
-		Prefix: admapPrefix,
-	}
-	results, err := ds.Query(ctx, q)
-	if err != nil {
-		return err
-	}
-	defer results.Close()
-
-	var deletes []string
-	for r := range results.Next() {
-		if r.Error != nil {
-			return err
-		}
-		ent := r.Entry
-		deletes = append(deletes, ent.Key)
-	}
-
-	if len(deletes) != 0 {
-		b, err := ds.Batch(ctx)
-		if err != nil {
-			return err
-		}
-		for i := range deletes {
-			err = b.Delete(ctx, datastore.NewKey(deletes[i]))
-			if err != nil {
-				return err
-			}
-		}
-		err = b.Commit(ctx)
-		if err != nil {
-			return err
-		}
-
-		log.Warnw("Cleaned up old temporary entry to ad mappings", "count", len(deletes))
-	}
-	return nil
 }
 
 type adInfo struct {
@@ -657,6 +554,7 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		// publish Ads for one provider, but it's possible that an ad chain can include multiple providers.
 		ad, err := ing.loadAd(c)
 		if err != nil {
+			stats.Record(context.Background(), metrics.AdLoadError.M(1))
 			log.Errorf("Failed to load ad CID: %s skipping", err)
 			continue
 		}
