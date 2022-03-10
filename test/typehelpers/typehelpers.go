@@ -110,7 +110,7 @@ func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datam
 	return headLink
 }
 
-func AllMultihashesFromAd(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem) []multihash.Multihash {
+func AllMultihashesFromAdChain(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem) []multihash.Multihash {
 	var out []multihash.Multihash
 
 	progress := traversal.Progress{
@@ -213,7 +213,7 @@ func AllAds(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem) []schem
 func AllMultihashesFromAdLink(t *testing.T, adLink datamodel.Link, lsys ipld.LinkSystem) []multihash.Multihash {
 	adNode, err := lsys.Load(linking.LinkContext{}, adLink, schema.Type.Advertisement)
 	require.NoError(t, err)
-	return AllMultihashesFromAd(t, adNode.(schema.Advertisement), lsys)
+	return AllMultihashesFromAdChain(t, adNode.(schema.Advertisement), lsys)
 }
 
 func AdFromLink(t *testing.T, adLink datamodel.Link, lsys ipld.LinkSystem) schema.Advertisement {

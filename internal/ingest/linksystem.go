@@ -374,6 +374,8 @@ func (ing *Ingester) loadAd(adCid cid.Cid) (ad schema.Advertisement, err error) 
 	if err != nil {
 		return nil, fmt.Errorf("cannot read advertisement for entry from datastore: %w", err)
 	}
+	// TODO(mm) this could break ingest if a worker pulls an ad, fails to process,
+	// and another worker fails to get this ad
 	err = ing.ds.Delete(context.Background(), adKey)
 	if err != nil {
 		log.Errorw("Failed to clean up ad from datastore", "err", err)

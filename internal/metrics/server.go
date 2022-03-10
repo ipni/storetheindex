@@ -27,6 +27,7 @@ var (
 	AdIngestErrorCount   = stats.Int64("ingest/adingestError", "Number of errors encountered while processing an ad", stats.UnitDimensionless)
 	AdIngestSuccessCount = stats.Int64("ingest/adingestSuccess", "Number of successful ad ingest", stats.UnitDimensionless)
 	AdIngestSkippedCount = stats.Int64("ingest/adingestSkipped", "Number of ads skipped during ingest", stats.UnitDimensionless)
+	AdLoadError          = stats.Int64("ingest/adLoadError", "Number of times an ad failed to load", stats.UnitDimensionless)
 	ProviderCount        = stats.Int64("provider/count", "Number of known (registered) providers", stats.UnitDimensionless)
 	EntriesSyncLatency   = stats.Float64("ingest/entriessynclatency", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
 )
@@ -57,6 +58,7 @@ var (
 	adIngestError = &view.View{
 		Measure:     AdIngestErrorCount,
 		Aggregation: view.Count(),
+		TagKeys:     []tag.Key{ErrKind},
 	}
 	adIngestSuccess = &view.View{
 		Measure:     AdIngestSuccessCount,
@@ -64,6 +66,10 @@ var (
 	}
 	adIngestSkipped = &view.View{
 		Measure:     AdIngestSkippedCount,
+		Aggregation: view.Count(),
+	}
+	adLoadError = &view.View{
+		Measure:     AdLoadError,
 		Aggregation: view.Count(),
 	}
 )
@@ -82,6 +88,7 @@ func Start(views []*view.View) http.Handler {
 		adIngestError,
 		adIngestSkipped,
 		adIngestSuccess,
+		adLoadError,
 	)
 	if err != nil {
 		log.Errorf("cannot register metrics default views: %s", err)
