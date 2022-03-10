@@ -226,7 +226,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	}
 
 	// Allow provider advertisements, regardless of default policy.
-	e.run(indexer, "admin", "-i", "localhost:3002", "allow", "--peer", providerID)
+	e.run(indexer, "admin", "allow", "-i", "localhost:3002", "--peer", providerID)
 
 	// Import a car file into the provider.  This will cause the provider to
 	// publish an advertisement that the indexer will read.  The indexer will
