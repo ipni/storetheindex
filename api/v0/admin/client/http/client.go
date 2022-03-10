@@ -19,8 +19,6 @@ import (
 )
 
 const (
-	adminPort = 3002
-
 	importResource = "/import"
 	ingestResource = "/ingest"
 )
@@ -33,7 +31,7 @@ type Client struct {
 
 // New creates a new admin HTTP client.
 func New(baseURL string, options ...httpclient.Option) (*Client, error) {
-	u, c, err := httpclient.New(baseURL, "", adminPort, options...)
+	u, c, err := httpclient.New(baseURL, "", options...)
 	if err != nil {
 		return nil, err
 	}

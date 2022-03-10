@@ -9,6 +9,7 @@ var indexerHostFlag = altsrc.NewStringFlag(&cli.StringFlag{
 	Name:     "indexer",
 	Usage:    "Host or host:port of indexer to use",
 	EnvVars:  []string{"INDEXER"},
+	Aliases:  []string{"i"},
 	Required: false,
 	Value:    "localhost",
 })

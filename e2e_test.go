@@ -226,7 +226,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	}
 
 	// Allow provider advertisements, regardless of default policy.
-	e.run(indexer, "admin", "allow", "--peer", providerID)
+	e.run(indexer, "admin", "allow", "-i", "localhost:3002", "--peer", providerID)
 
 	// Import a car file into the provider.  This will cause the provider to
 	// publish an advertisement that the indexer will read.  The indexer will
@@ -243,7 +243,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
-			findOutput := e.run(provider, "find", "-i", "localhost", "-mh", mh)
+			findOutput := e.run(provider, "find", "-i", "localhost:3000", "-mh", mh)
 			t.Logf("import output:\n%s\n", findOutput)
 
 			if bytes.Contains(findOutput, []byte("not found")) {
@@ -272,7 +272,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
-			findOutput := e.run(provider, "find", "-i", "localhost", "-mh", mh)
+			findOutput := e.run(provider, "find", "-i", "localhost:3000", "-mh", mh)
 			t.Logf("import output:\n%s\n", findOutput)
 
 			if !bytes.Contains(findOutput, []byte("not found")) {
