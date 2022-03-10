@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	finderPort    = 3000
 	finderPath    = "/multihash"
 	providersPath = "/providers"
 )
@@ -29,7 +28,7 @@ type Client struct {
 
 // New creates a new finder HTTP client.
 func New(baseURL string, options ...httpclient.Option) (*Client, error) {
-	u, c, err := httpclient.New(baseURL, "", finderPort, options...)
+	u, c, err := httpclient.New(baseURL, "", options...)
 	if err != nil {
 		return nil, err
 	}

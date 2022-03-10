@@ -17,7 +17,6 @@ import (
 )
 
 const (
-	ingestPort       = 3001
 	announcePath     = "/ingest/announce"
 	registerPath     = "/register"
 	indexContentPath = "/ingest/content"
@@ -33,7 +32,7 @@ type Client struct {
 
 // New creates a new ingest http Client
 func New(baseURL string, options ...httpclient.Option) (*Client, error) {
-	u, c, err := httpclient.New(baseURL, "", ingestPort, options...)
+	u, c, err := httpclient.New(baseURL, "", options...)
 	if err != nil {
 		return nil, err
 	}

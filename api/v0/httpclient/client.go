@@ -2,19 +2,18 @@ package httpclient
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
 
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 )
 
 // New creates a base URL and a new http.Client.  The default port is only used
 // if baseURL does not contain a port.
-func New(baseURL, resource string, defaultPort int, options ...Option) (*url.URL, *http.Client, error) {
+func New(baseURL, resource string, options ...Option) (*url.URL, *http.Client, error) {
 	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		baseURL = "http://" + baseURL
 	}
@@ -27,9 +26,6 @@ func New(baseURL, resource string, defaultPort int, options ...Option) (*url.URL
 		return nil, nil, errors.New("url missing scheme")
 	}
 	u.Path = resource
-	if u.Port() == "" {
-		u.Host += fmt.Sprintf(":%d", defaultPort)
-	}
 
 	var cfg clientConfig
 	if err := cfg.apply(options...); err != nil {
