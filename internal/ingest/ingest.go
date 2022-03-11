@@ -40,6 +40,16 @@ const (
 	adProcessedPrefix = "/adProcessed/"
 )
 
+type adProcessedEvent struct {
+	publisher peer.ID
+	// The head of the chain we're proecessing.
+	headAdCid cid.Cid
+	// The actual adCid we're processing.
+	adCid cid.Cid
+	// if not nil we failed to process the ad for adCid
+	err error
+}
+
 // Ingester is a type that uses go-legs for the ingestion protocol.
 type Ingester struct {
 	host    host.Host
@@ -58,13 +68,13 @@ type Ingester struct {
 
 	cfg config.Ingest
 
-	// inEvents is used to send a legs.SyncFinished to the distributeEvents
-	// goroutine, when an advertisement in marked complete.
-	inEvents chan legs.SyncFinished
+	// inEvents is used to send a adProcessedEvent to the distributeEvents
+	// goroutine, when an advertisement in marked complete or err'd.
+	inEvents chan adProcessedEvent
 
 	// outEventsChans is a slice of channels, where each channel delivers a
 	// copy of a legs.SyncFinished to an onAdProcessed reader.
-	outEventsChans map[peer.ID][]chan cid.Cid
+	outEventsChans map[peer.ID][]chan adProcessedEvent
 	outEventsMutex sync.Mutex
 
 	waitForPendingSyncs sync.WaitGroup
@@ -114,7 +124,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		entriesSel:  entSel,
 		reg:         reg,
 		cfg:         cfg,
-		inEvents:    make(chan legs.SyncFinished, 1),
+		inEvents:    make(chan adProcessedEvent, 1),
 
 		closePendingSyncs: make(chan struct{}),
 
@@ -293,9 +303,9 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		log.Debugw("Syncing advertisements up to latest", "adCid", c)
 		for {
 			select {
-			case adCid := <-syncDone:
-				log.Debugw("Synced advertisement", "adCid", adCid)
-				if adCid == c {
+			case adProcessedEvent := <-syncDone:
+				log.Debugw("Synced advertisement", "adCid", adProcessedEvent.adCid)
+				if adProcessedEvent.adCid == c || adProcessedEvent.err != nil && adProcessedEvent.headAdCid == c {
 					out <- c
 					ing.signalMetricsUpdate()
 					return
@@ -365,6 +375,11 @@ func (ing *Ingester) markAdUnprocessed(adCid cid.Cid) error {
 	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{0})
 }
 
+func (ing *Ingester) adHasBeenprocessed(adCid cid.Cid) bool {
+	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
+	return err == nil && v[0] == byte(1)
+}
+
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 	log.Debugw("Persisted latest sync", "peer", publisher, "cid", adCid)
 	err := ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{1})
@@ -376,17 +391,17 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
 }
 
-// distributeEvents reads a SyncFinished, sent by a peer handler, and copies
-// the event to all channels in outEventsChans. This delivers the SyncFinished
-// to all onAdProcessed channel readers.
+// distributeEvents reads a adProcessedEvent, sent by a peer handler, and copies
+// the event to all channels in outEventsChans. This delivers the event to all
+// onAdProcessed channel readers.
 func (ing *Ingester) distributeEvents() {
 	for event := range ing.inEvents {
 		// Send update to all change notification channels.
 		ing.outEventsMutex.Lock()
-		outEventsChans, ok := ing.outEventsChans[event.PeerID]
+		outEventsChans, ok := ing.outEventsChans[event.publisher]
 		if ok {
 			for _, ch := range outEventsChans {
-				ch <- event.Cid
+				ch <- event
 			}
 		}
 		ing.outEventsMutex.Unlock()
@@ -402,16 +417,16 @@ func (ing *Ingester) distributeEvents() {
 // Calling the returned cancel function removes the notification channel from
 // the list of channels to be notified on changes, and closes the channel to
 // allow any reading goroutines to stop waiting on the channel.
-func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan cid.Cid, context.CancelFunc) {
+func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, context.CancelFunc) {
 	// Channel is buffered to prevent distribute() from blocking if a reader is
 	// not reading the channel immediately.
-	ch := make(chan cid.Cid, 1)
+	ch := make(chan adProcessedEvent, 1)
 	ing.outEventsMutex.Lock()
 	defer ing.outEventsMutex.Unlock()
 
-	var outEventsChans []chan cid.Cid
+	var outEventsChans []chan adProcessedEvent
 	if ing.outEventsChans == nil {
-		ing.outEventsChans = make(map[peer.ID][]chan cid.Cid)
+		ing.outEventsChans = make(map[peer.ID][]chan adProcessedEvent)
 	} else {
 		outEventsChans = ing.outEventsChans[peerID]
 	}
@@ -552,10 +567,17 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 	for _, c := range syncFinishedEvent.SyncedCids {
 		// Group the CIDs by the provider. Most of the time a publisher will only
 		// publish Ads for one provider, but it's possible that an ad chain can include multiple providers.
+
+		if ing.adHasBeenprocessed(c) {
+			// This ad has been processed so all earlier ads already have been
+			// processed.
+			break
+		}
+
 		ad, err := ing.loadAd(c)
 		if err != nil {
 			stats.Record(context.Background(), metrics.AdLoadError.M(1))
-			log.Errorf("Failed to load ad CID: %s skipping", err)
+			log.Errorf("Failed to load ad CID: %s. skipping. err:%s", c, err)
 			continue
 		}
 
@@ -606,8 +628,7 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 	splitAtIndex := len(msg.adInfos)
 	for i, ai := range msg.adInfos {
 		// iterate latest to earliest
-		v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+ai.cid.String()))
-		if err == nil && v[0] == byte(1) {
+		if ing.adHasBeenprocessed(ai.cid) {
 			// We've process this ad already, so we know we've processed all
 			// earlier ads too. Break here and split at this index later. The cids
 			// before this index are newer and we haven't processed them, the cids
@@ -659,14 +680,24 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 
 			// Tell anyone who's waiting that the sync finished for this head because we errored.
 			// TODO(mm) would be better to propagate the error.
-			ing.inEvents <- legs.SyncFinished{Cid: msg.adInfos[0].cid, PeerID: msg.publisher}
+			ing.inEvents <- adProcessedEvent{
+				publisher: msg.publisher,
+				headAdCid: msg.adInfos[0].cid,
+				adCid:     ai.cid,
+				err:       err,
+			}
 			return
 		}
 
 		if markErr := ing.markAdProcessed(msg.publisher, ai.cid); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
-		// Distribute the legs.SyncFinished notices to waiting Sync calls.
-		ing.inEvents <- legs.SyncFinished{Cid: ai.cid, PeerID: msg.publisher}
+		// Distribute the atProcessedEvent notices to waiting Sync calls.
+		ing.inEvents <- adProcessedEvent{
+			publisher: msg.publisher,
+			headAdCid: msg.adInfos[0].cid,
+			adCid:     ai.cid,
+			err:       nil,
+		}
 	}
 }

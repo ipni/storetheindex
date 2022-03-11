@@ -179,8 +179,9 @@ func blockableLinkSys(afterBlock func() (io.Reader, error)) (opt func(teo *testE
 				lsys.StorageWriteOpener = backendLsys.StorageWriteOpener
 				lsys.StorageReadOpener = func(lc linking.LinkContext, l datamodel.Link) (io.Reader, error) {
 					blockedReads.mu.Lock()
-					defer blockedReads.mu.Unlock()
-					if blockedReads.list[l.(cidlink.Link).Cid] {
+					isBlocked := blockedReads.list[l.(cidlink.Link).Cid]
+					blockedReads.mu.Unlock()
+					if isBlocked {
 						fmt.Println("blocked read")
 						hitBlockedRead <- l.(cidlink.Link).Cid
 						return afterBlock()
@@ -391,6 +392,108 @@ func TestFailDuringSync(t *testing.T) {
 	end, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 	require.Equal(t, cCid.(cidlink.Link).Cid, <-end)
+
+	allMhs := typehelpers.AllMultihashesFromAdChain(t, cAd, te.publisherLinkSys)
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs))
+}
+
+func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
+	// Use this to block the second ingest step from happening while we verify the above
+	afterBlockedRead := make(chan struct{})
+
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(func() (io.Reader, error) {
+		afterBlockedRead <- struct{}{}
+		r := strings.NewReader("This causes data transfer to fail")
+		return r, nil
+	})
+
+	te := setupTestEnv(t, true, blockableLsysOpt)
+
+	// Disable the ingester getting sync finished events, we'll manually run the
+	// ingest loop for ease of testing
+	te.ingester.toStaging = make(chan legs.SyncFinished)
+
+	cAdBuilder := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1}, // A
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2}, // B
+			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3}, // C
+		}}
+
+	cCid := cAdBuilder.Build(t, te.publisherLinkSys, te.publisherPriv)
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.Type.Advertisement)
+	cAd := adNode.(schema.Advertisement)
+	require.NoError(t, err)
+
+	// We have a chain of 3 ads, A<-B<-C. We'll UpdateRoot to be B. Sync the
+	// ingester, then fail the entries sync when the ingester tries to process B
+	// but after it processes A. Then we'll run a sync with head==C and verify if
+	// we've processed everything correctly
+	allAds := typehelpers.AllAds(t, cAd, te.publisherLinkSys)
+	aAd := allAds[2]
+	bAd := allAds[1]
+	require.Equal(t, allAds[0], cAd)
+
+	bEntChunk, err := bAd.Entries.AsLink()
+	require.NoError(t, err)
+	blockedReads.add(bEntChunk.(cidlink.Link).Cid)
+
+	bCid, err := cAd.PreviousID.AsNode().AsLink()
+	require.NoError(t, err)
+	aCid, err := bAd.PreviousID.AsNode().AsLink()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
+	require.NoError(t, err)
+
+	syncFinishedCh, cncl := te.ingester.sub.OnSyncFinished()
+	defer cncl()
+
+	// Note that this doesn't start an ingest on the indexer because we removed
+	// the OnSyncFinished hook above.
+	_, err = te.ingester.sub.Sync(ctx, te.pubHost.ID(), cid.Undef, nil, nil)
+	require.NoError(t, err)
+	syncFinishedEvent := <-syncFinishedCh
+
+	ingesterOnSyncFin, cnclIngesterSyncFin := te.ingester.onAdProcessed(te.pubHost.ID())
+	defer cnclIngesterSyncFin()
+
+	go func() {
+		te.ingester.runIngestStep(syncFinishedEvent)
+		te.ingester.runIngestStep(syncFinishedEvent)
+	}()
+
+	<-hitBlockedRead
+	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
+
+	aMhs := typehelpers.AllMultihashesFromAdChain(t, aAd, te.publisherLinkSys)
+	// Check that we processed A correctly.
+	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), aMhs))
+
+	// We should not have processed B yet.
+	bMhs := typehelpers.AllMultihashesFromAdChain(t, bAd, te.publisherLinkSys)
+	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), bMhs), "bMHs should not be indexed yet")
+
+	<-afterBlockedRead
+
+	adProcessedEvent := <-ingesterOnSyncFin
+	require.NoError(t, adProcessedEvent.err)
+	require.Equal(t, aCid.(cidlink.Link).Cid, adProcessedEvent.adCid)
+
+	adProcessedEvent = <-ingesterOnSyncFin
+	// B failed to be processed (because we blocked it)
+	require.Error(t, adProcessedEvent.err)
+	require.Equal(t, bCid.(cidlink.Link).Cid, adProcessedEvent.adCid)
+
+	// The second worker now runs and we see that it processes both b and c
+	adProcessedEvent = <-ingesterOnSyncFin
+	require.NoError(t, adProcessedEvent.err)
+	require.Equal(t, bCid.(cidlink.Link).Cid, adProcessedEvent.adCid)
+
+	adProcessedEvent = <-ingesterOnSyncFin
+	require.NoError(t, adProcessedEvent.err)
+	require.Equal(t, cCid.(cidlink.Link).Cid, adProcessedEvent.adCid)
 
 	allMhs := typehelpers.AllMultihashesFromAdChain(t, cAd, te.publisherLinkSys)
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs))
