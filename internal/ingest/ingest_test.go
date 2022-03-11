@@ -411,7 +411,8 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 
 	// Disable the ingester getting sync finished events, we'll manually run the
 	// ingest loop for ease of testing
-	te.ingester.toStaging = make(chan legs.SyncFinished)
+	te.ingester.cancelOnSyncFinished()
+	te.ingester.cancelOnSyncFinished = func() {}
 
 	cAdBuilder := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
