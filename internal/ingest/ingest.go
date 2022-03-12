@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
@@ -50,6 +51,8 @@ type adProcessedEvent struct {
 	err error
 }
 
+type providerID peer.ID
+
 // Ingester is a type that uses go-legs for the ingestion protocol.
 type Ingester struct {
 	host    host.Host
@@ -86,10 +89,12 @@ type Ingester struct {
 	// provider while ingesting ads for that provider.
 	providersBeingProcessed   map[peer.ID]*sync.Mutex
 	providersBeingProcessedMu sync.Mutex
-	toWorkers                 chan toWorkerMsg
-	closeWorkers              chan struct{}
-	waitForWorkers            sync.WaitGroup
-	toStaging                 <-chan legs.SyncFinished
+	providerAdChainStaging    map[peer.ID]*atomic.Value
+	// toWorkers is a channel used to ask the worker pool to start processing the ad chain for a given provider
+	toWorkers      chan providerID
+	closeWorkers   chan struct{}
+	waitForWorkers sync.WaitGroup
+	toStaging      <-chan legs.SyncFinished
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -129,7 +134,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		closePendingSyncs: make(chan struct{}),
 
 		providersBeingProcessed: make(map[peer.ID]*sync.Mutex),
-		toWorkers:               make(chan toWorkerMsg),
+		providerAdChainStaging:  make(map[peer.ID]*atomic.Value),
+		toWorkers:               make(chan providerID),
 		closeWorkers:            make(chan struct{}),
 	}
 
@@ -548,7 +554,9 @@ type adInfo struct {
 	ad  schema.Advertisement
 }
 
-type toWorkerMsg struct {
+type workerAssignment struct {
+	// none represents a nil assignment. Used because we can't store nil in atomic.Value.
+	none      bool
 	adInfos   []adInfo
 	publisher peer.ID
 	provider  peer.ID
@@ -609,11 +617,21 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		if _, ok := ing.providersBeingProcessed[p]; !ok {
 			ing.providersBeingProcessed[p] = &sync.Mutex{}
 		}
+		if _, ok := ing.providerAdChainStaging[p]; !ok {
+			ing.providerAdChainStaging[p] = &atomic.Value{}
+		}
 		ing.providersBeingProcessedMu.Unlock()
-		ing.toWorkers <- toWorkerMsg{
+
+		oldAssignment := ing.providerAdChainStaging[p].Swap(workerAssignment{
 			adInfos:   adInfos,
 			publisher: syncFinishedEvent.PeerID,
 			provider:  p,
+		})
+
+		if oldAssignment == nil || oldAssignment.(workerAssignment).none {
+			// No previous run scheduled a worker to handle this provider, so let's
+			// schedule one
+			ing.toWorkers <- providerID(p)
 		}
 	}
 }
@@ -623,20 +641,29 @@ func (ing *Ingester) ingestWorker() {
 		select {
 		case <-ing.closeWorkers:
 			return
-		case msg := <-ing.toWorkers:
-			ing.ingestWorkerLogic(msg)
+		case provider := <-ing.toWorkers:
+			ing.ingestWorkerLogic(peer.ID(provider))
 		}
 	}
 }
 
-func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
+func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
+
 	// It's assumed that the runIngestStep puts a mutex in this map.
-	ing.providersBeingProcessed[msg.provider].Lock()
-	defer ing.providersBeingProcessed[msg.provider].Unlock()
+	ing.providersBeingProcessed[provider].Lock()
+	defer ing.providersBeingProcessed[provider].Unlock()
+
+	// Pull out the assignment for this provider. Note that runIngestStep populates this atomic.Value.
+	assignmentInterface := ing.providerAdChainStaging[provider].Swap(workerAssignment{none: true})
+	if assignmentInterface == nil || assignmentInterface.(workerAssignment).none {
+		// Nothing to do. Someone took our assignment.
+		return
+	}
+	assignment := assignmentInterface.(workerAssignment)
 
 	// Filter out ads that we've already processed and any earlier ads
-	splitAtIndex := len(msg.adInfos)
-	for i, ai := range msg.adInfos {
+	splitAtIndex := len(assignment.adInfos)
+	for i, ai := range assignment.adInfos {
 		// iterate latest to earliest
 		if ing.adAlreadyprocessed(ai.cid) {
 			// We've process this ad already, so we know we've processed all
@@ -648,19 +675,19 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 		}
 	}
 
-	log.Infow("Running worker on ad stack", "headAdCid", msg.adInfos[0].cid, "publisher", msg.publisher, "numAdsToProcess", splitAtIndex)
+	log.Infow("Running worker on ad stack", "headAdCid", assignment.adInfos[0].cid, "publisher", assignment.publisher, "numAdsToProcess", splitAtIndex)
 	var count int
 	for i := splitAtIndex - 1; i >= 0; i-- {
 		// Note that we are iterating backwards here. Earliest to newest.
-		ai := msg.adInfos[i]
+		ai := assignment.adInfos[i]
 
 		count++
 		log.Infow("Processing advertisement",
 			"adCid", ai.cid,
-			"publisher", msg.publisher,
+			"publisher", assignment.publisher,
 			"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
 
-		err := ing.ingestAd(msg.publisher, ai.cid, ai.ad)
+		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad)
 
 		if err == nil {
 			// No error at all, we processed this ad successfully.
@@ -686,26 +713,26 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 		}
 
 		if err != nil {
-			log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "publisher", msg.provider, "err", err, "adsLeftToProcess", i+1)
+			log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "publisher", assignment.provider, "err", err, "adsLeftToProcess", i+1)
 
 			// Tell anyone who's waiting that the sync finished for this head because we errored.
 			// TODO(mm) would be better to propagate the error.
 			ing.inEvents <- adProcessedEvent{
-				publisher: msg.publisher,
-				headAdCid: msg.adInfos[0].cid,
+				publisher: assignment.publisher,
+				headAdCid: assignment.adInfos[0].cid,
 				adCid:     ai.cid,
 				err:       err,
 			}
 			return
 		}
 
-		if markErr := ing.markAdProcessed(msg.publisher, ai.cid); markErr != nil {
+		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
 		// Distribute the atProcessedEvent notices to waiting Sync calls.
 		ing.inEvents <- adProcessedEvent{
-			publisher: msg.publisher,
-			headAdCid: msg.adInfos[0].cid,
+			publisher: assignment.publisher,
+			headAdCid: assignment.adInfos[0].cid,
 			adCid:     ai.cid,
 			err:       nil,
 		}
