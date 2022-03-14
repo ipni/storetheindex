@@ -1,6 +1,7 @@
 package v0
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/multiformats/go-multicodec"
@@ -11,7 +12,7 @@ type metadataRegistry map[multicodec.Code]func() ProtocolMetadata
 var defaultRegistry metadataRegistry
 
 // ErrProtocolAlreadyRegistered is returned when a protocol has already been registered
-var ErrProtocolAlreadyRegistered = fmt.Errorf("protocol already registered")
+var ErrProtocolAlreadyRegistered = errors.New("protocol already registered")
 
 func init() {
 	defaultRegistry = make(metadataRegistry)

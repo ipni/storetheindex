@@ -44,7 +44,7 @@ func (em *ExampleMetadata) UnmarshalBinary(data []byte) error {
 		return err
 	}
 	if int(l)+sl < len(data) {
-		return fmt.Errorf("payload too short")
+		return errors.New("payload too short")
 	}
 	em.Data = make([]byte, l)
 	copy(em.Data, data[sl:])

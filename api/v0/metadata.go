@@ -145,13 +145,11 @@ func (m ParsedMetadata) MarshalBinary() ([]byte, error) {
 }
 
 func MetadataFromBytes(data []byte) (*ParsedMetadata, error) {
-	m := ParsedMetadata{
-		Protocols: make([]ProtocolMetadata, 0),
-	}
+	m := new(ParsedMetadata)
 	if err := m.UnmarshalBinary(data); err != nil {
 		return nil, err
 	}
-	return &m, nil
+	return m, nil
 }
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler.
