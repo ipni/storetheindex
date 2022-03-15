@@ -2,7 +2,6 @@ package v0
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/multiformats/go-multicodec"
 )

@@ -2,7 +2,7 @@ package util
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/multiformats/go-multicodec"
