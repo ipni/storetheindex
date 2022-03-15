@@ -73,7 +73,7 @@ type Ingester struct {
 	inEvents chan adProcessedEvent
 
 	// outEventsChans is a slice of channels, where each channel delivers a
-	// copy of a legs.SyncFinished to an onAdProcessed reader.
+	// copy of an adProccedEvent to an onAdProcessed reader.
 	outEventsChans map[peer.ID][]chan adProcessedEvent
 	outEventsMutex sync.Mutex
 
@@ -306,6 +306,10 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 			case adProcessedEvent := <-syncDone:
 				log.Debugw("Synced advertisement", "adCid", adProcessedEvent.adCid)
 				if adProcessedEvent.adCid == c || adProcessedEvent.err != nil && adProcessedEvent.headAdCid == c {
+					// If we had an error than the adProcessedEvent.adCid will be the cid
+					// that caused the error, and we won't get any future
+					// adProcessedEvents. Therefore we check the headAdCid to see if this
+					// was the sync we started.
 					out <- c
 					ing.signalMetricsUpdate()
 					return
@@ -375,9 +379,15 @@ func (ing *Ingester) markAdUnprocessed(adCid cid.Cid) error {
 	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{0})
 }
 
-func (ing *Ingester) adHasBeenprocessed(adCid cid.Cid) bool {
+func (ing *Ingester) adAlreadyprocessed(adCid cid.Cid) bool {
 	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
-	return err == nil && v[0] == byte(1)
+	if err != nil {
+		if err != datastore.ErrNotFound {
+			log.Errorw("Failed to read advertisement processed state from datastore", "err", err)
+		}
+		return false
+	}
+	return v[0] == byte(1)
 }
 
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
@@ -568,7 +578,7 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		// Group the CIDs by the provider. Most of the time a publisher will only
 		// publish Ads for one provider, but it's possible that an ad chain can include multiple providers.
 
-		if ing.adHasBeenprocessed(c) {
+		if ing.adAlreadyprocessed(c) {
 			// This ad has been processed so all earlier ads already have been
 			// processed.
 			break
@@ -577,7 +587,7 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		ad, err := ing.loadAd(c)
 		if err != nil {
 			stats.Record(context.Background(), metrics.AdLoadError.M(1))
-			log.Errorf("Failed to load ad CID: %s. skipping. err:%s", c, err)
+			log.Errorw("Failed to load advertisement CID, skipping", "cid", c, "err", err)
 			continue
 		}
 
@@ -628,7 +638,7 @@ func (ing *Ingester) ingestWorkerLogic(msg toWorkerMsg) {
 	splitAtIndex := len(msg.adInfos)
 	for i, ai := range msg.adInfos {
 		// iterate latest to earliest
-		if ing.adHasBeenprocessed(ai.cid) {
+		if ing.adAlreadyprocessed(ai.cid) {
 			// We've process this ad already, so we know we've processed all
 			// earlier ads too. Break here and split at this index later. The cids
 			// before this index are newer and we haven't processed them, the cids
