@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"testing"
 
-	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-datastore"
 	ipld "github.com/ipld/go-ipld-prime"
@@ -41,16 +40,11 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	return lsys
 }
 
-const protocolID = 0x300000
-
 func genCidsAndAdv(t *testing.T, lsys ipld.LinkSystem, priv crypto.PrivKey, previous Link_Advertisement) ([]multihash.Multihash, ipld.Link, Advertisement, Link_Advertisement) {
 	mhs := util.RandomMultihashes(10, rng)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{
-		ProtocolID: protocolID,
-		Data:       mhs[0],
-	}
+	metadata := []byte("test-metadata")
 	addr := "/ip4/127.0.0.1/tcp/9999"
 	cidsLnk, err := NewListOfMhs(lsys, mhs)
 	if err != nil {

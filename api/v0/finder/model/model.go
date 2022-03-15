@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 )
@@ -22,7 +21,7 @@ type ProviderResult struct {
 	// ContextID identifies the metadata that is part of this value.
 	ContextID []byte
 	// Metadata contains information for the provider to use to retrieve data.
-	Metadata v0.Metadata
+	Metadata []byte
 	// Provider is the peer ID and addresses of the provider.
 	Provider peer.AddrInfo
 }
@@ -46,7 +45,7 @@ func (pr ProviderResult) Equal(other ProviderResult) bool {
 	if !bytes.Equal(pr.ContextID, other.ContextID) {
 		return false
 	}
-	if !pr.Metadata.Equal(other.Metadata) {
+	if !bytes.Equal(pr.Metadata, other.Metadata) {
 		return false
 	}
 	if pr.Provider.ID != other.Provider.ID {

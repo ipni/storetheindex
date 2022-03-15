@@ -5,14 +5,11 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
-
-const testProtoID = 0x300000
 
 var rng = rand.New(rand.NewSource(1413))
 
@@ -21,10 +18,7 @@ func TestMarshal(t *testing.T) {
 	mhs := util.RandomMultihashes(3, rng)
 	p, _ := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{
-		ProtocolID: testProtoID,
-		Data:       []byte(mhs[0]),
-	}
+	metadata := []byte("test-metadata")
 
 	// Masrhal request and check e2e
 	t.Log("e2e marshalling request")
