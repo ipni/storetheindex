@@ -28,8 +28,6 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-const testProtocolID = 0x300000
-
 var rng = rand.New(rand.NewSource(1413))
 
 //InitIndex initialize a new indexer engine.
@@ -116,10 +114,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 	mhs := util.RandomMultihashes(1, rng)
 
 	contextID := []byte("test-context-id")
-	metadata := v0.Metadata{
-		ProtocolID: testProtocolID,
-		Data:       []byte("hello"),
-	}
+	metadata := []byte("test-metadata")
 
 	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
 	if err != nil {
@@ -137,15 +132,10 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 		t.Fatal("no content values returned")
 	}
 
-	encMetadata, err := metadata.MarshalBinary()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	expectValue := indexer.Value{
 		ProviderID:    providerID,
 		ContextID:     contextID,
-		MetadataBytes: encMetadata,
+		MetadataBytes: metadata,
 	}
 	ok = false
 	for i := range vals {
@@ -166,10 +156,7 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 	mhs := util.RandomMultihashes(1, rng)
 
 	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{
-		ProtocolID: testProtocolID,
-		Data:       []byte("hello"),
-	}
+	metadata := []byte("test-metadata")
 	addrs := []string{newAddr}
 
 	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], ctxID, metadata, addrs)
@@ -199,10 +186,7 @@ func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privat
 	mhs := util.RandomMultihashes(1, rng)
 
 	contextID := make([]byte, schema.MaxContextIDLen+1)
-	metadata := v0.Metadata{
-		ProtocolID: testProtocolID,
-		Data:       []byte("too-long"),
-	}
+	metadata := []byte("test-metadata")
 
 	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
 	if err == nil {

@@ -60,7 +60,7 @@ func (c *Client) Register(ctx context.Context, providerID peer.ID, privateKey p2
 	return nil
 }
 
-func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, contextID []byte, metadata v0.Metadata, addrs []string) error {
+func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, contextID []byte, metadata []byte, addrs []string) error {
 	data, err := model.MakeIngestRequest(providerID, privateKey, m, contextID, metadata, addrs)
 	if err != nil {
 		return err

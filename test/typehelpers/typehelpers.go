@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"testing"
 
-	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipld/go-ipld-prime"
@@ -19,10 +18,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
-)
-
-const (
-	testProtocolID = 0x300000
 )
 
 type RandomAdBuilder struct {
@@ -49,15 +44,10 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 	// Limit chain to be at most 256 links
 	b.EntryChunkBuilders = b.EntryChunkBuilders[:len(b.EntryChunkBuilders)%256]
 
-	mhs := util.RandomMultihashes(1, rand.New(rand.NewSource(b.Seed)))
-
 	p, err := peer.IDFromPrivateKey(signingKey)
 	require.NoError(t, err)
 
-	metadata := v0.Metadata{
-		ProtocolID: testProtocolID,
-		Data:       mhs[0],
-	}
+	metadata := []byte("test-metadata")
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 
 	var headLink schema.Link_Advertisement

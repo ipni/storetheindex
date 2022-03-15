@@ -19,7 +19,6 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/go-legs/dtsync"
-	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -1020,7 +1019,6 @@ func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSy
 
 func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int) (cid.Cid, []multihash.Multihash, peer.ID) {
 
-	mhs := util.RandomMultihashes(1, rng)
 	priv, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 
@@ -1028,10 +1026,7 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publis
 	require.NoError(t, err)
 
 	ctxID := []byte("test-context-id")
-	metadata := v0.Metadata{
-		ProtocolID: testProtocolID,
-		Data:       mhs[0],
-	}
+	metadata := []byte("test-metadata")
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 	mhsLnk, mhs := newRandomLinkedList(t, lsys, eChunkCount)
 	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, mhsLnk, ctxID, metadata, false, p.String(), addrs)

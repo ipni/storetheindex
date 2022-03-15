@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/go-legs/dtsync"
-	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/httpclient"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	"github.com/ipfs/go-cid"
@@ -45,7 +44,7 @@ func New(baseURL string, options ...httpclient.Option) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, contextID []byte, metadata v0.Metadata, addrs []string) error {
+func (c *Client) IndexContent(ctx context.Context, providerID peer.ID, privateKey p2pcrypto.PrivKey, m multihash.Multihash, contextID []byte, metadata []byte, addrs []string) error {
 	data, err := model.MakeIngestRequest(providerID, privateKey, m, contextID, metadata, addrs)
 	if err != nil {
 		return err

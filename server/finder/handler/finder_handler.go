@@ -108,15 +108,9 @@ func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 }
 
 func providerResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) (model.ProviderResult, error) {
-	var metadata v0.Metadata
-	err := metadata.UnmarshalBinary(value.MetadataBytes)
-	if err != nil {
-		return model.ProviderResult{}, fmt.Errorf("could not decode metadata: %s", err)
-	}
-
 	return model.ProviderResult{
 		ContextID: value.ContextID,
-		Metadata:  metadata,
+		Metadata:  value.MetadataBytes,
 		Provider: peer.AddrInfo{
 			ID:    value.ProviderID,
 			Addrs: addrs,

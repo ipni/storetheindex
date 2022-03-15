@@ -25,7 +25,6 @@ require (
 	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/multiformats/go-multicodec v0.4.0
 	github.com/multiformats/go-multihash v0.1.0
-	github.com/multiformats/go-varint v0.0.6
 	github.com/prometheus/client_golang v1.11.0
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.3.0

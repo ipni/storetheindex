@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -17,9 +16,7 @@ var rng = rand.New(rand.NewSource(1413))
 func TestIngestRequest(t *testing.T) {
 	mhs := util.RandomMultihashes(1, rng)
 
-	metadata := v0.Metadata{
-		Data: []byte("hello"),
-	}
+	metadata := []byte("test-metadata")
 
 	privKey, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	if err != nil {
@@ -48,7 +45,7 @@ func TestIngestRequest(t *testing.T) {
 	if !bytes.Equal(ingReq.ContextID, ctxID) {
 		t.Fatal("ContextID in request not same as original")
 	}
-	if !ingReq.Metadata.Equal(metadata) {
+	if !bytes.Equal(ingReq.Metadata, metadata) {
 		t.Fatal("metadata in request not same as original")
 	}
 	if !bytes.Equal([]byte(ingReq.Multihash), []byte(mhs[0])) {

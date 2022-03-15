@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 
-	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -120,7 +119,7 @@ func NewAdvertisement(
 	previousID Link_Advertisement,
 	entries ipld.Link,
 	contextID []byte,
-	metadata v0.Metadata,
+	metadata []byte,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, error) {
@@ -138,7 +137,7 @@ func NewAdvertisementWithLink(
 	previousID Link_Advertisement,
 	entries ipld.Link,
 	contextID []byte,
-	metadata v0.Metadata,
+	metadata []byte,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, Link_Advertisement, error) {
@@ -176,7 +175,7 @@ func NewAdvertisementWithFakeSig(
 	previousID Link_Advertisement,
 	entries ipld.Link,
 	contextID []byte,
-	metadata v0.Metadata,
+	metadata []byte,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, Link_Advertisement, error) {
@@ -185,17 +184,12 @@ func NewAdvertisementWithFakeSig(
 		return nil, nil, errors.New("context id too long")
 	}
 
-	encMetadata, err := metadata.MarshalBinary()
-	if err != nil {
-		return nil, nil, err
-	}
-
 	ad := &_Advertisement{
 		Provider:  _String{x: provider},
 		Addresses: GoToIpldStrings(addrs),
 		Entries:   _Link{x: entries},
 		ContextID: _Bytes{x: contextID},
-		Metadata:  _Bytes{x: encMetadata},
+		Metadata:  _Bytes{x: metadata},
 		IsRm:      _Bool{x: isRm},
 	}
 	if previousID == nil {
@@ -222,7 +216,7 @@ func newAdvertisement(
 	previousID Link_Advertisement,
 	entries ipld.Link,
 	contextID []byte,
-	metadata v0.Metadata,
+	metadata []byte,
 	isRm bool,
 	provider string,
 	addrs []string) (Advertisement, error) {
@@ -231,17 +225,12 @@ func newAdvertisement(
 		return nil, errors.New("context id too long")
 	}
 
-	encMetadata, err := metadata.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
 	ad := &_Advertisement{
 		Provider:  _String{x: provider},
 		Addresses: GoToIpldStrings(addrs),
 		Entries:   _Link{x: entries},
 		ContextID: _Bytes{x: contextID},
-		Metadata:  _Bytes{x: encMetadata},
+		Metadata:  _Bytes{x: metadata},
 		IsRm:      _Bool{x: isRm},
 	}
 	if previousID == nil {
