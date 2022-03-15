@@ -1,4 +1,4 @@
-FROM golang:1.16-stretch as builder
+FROM golang:1.17-stretch as builder
 LABEL maintainer="Andrew Gillis <andrew.gillis@protocol.ai>"
 
 # Install deps
