@@ -21,8 +21,6 @@ import (
 )
 
 type RandomAdBuilder struct {
-	// FakeSig bool
-
 	EntryChunkBuilders []RandomEntryChunkBuilder
 	Seed               int64
 	AddRmWithNoEntries bool
@@ -50,7 +48,7 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 	metadata := []byte("test-metadata")
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 
-	var headLink schema.Link_Advertisement
+	var headLink datamodel.Link
 
 	for i, ecb := range b.EntryChunkBuilders {
 		ctxID := []byte("test-context-id-" + fmt.Sprint(i))
@@ -59,25 +57,56 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 			continue
 		}
 
-		if fakeSig {
-			_, headLink, err = schema.NewAdvertisementWithFakeSig(lsys, signingKey, headLink, ec, ctxID, metadata, false, p.String(), addrs)
-		} else {
-
-			_, headLink, err = schema.NewAdvertisementWithLink(lsys, signingKey, headLink, ec, ctxID, metadata, false, p.String(), addrs)
+		ad := schema.Advertisement{
+			Provider:  p.String(),
+			Addresses: addrs,
+			Entries:   ec,
+			ContextID: ctxID,
+			Metadata:  metadata,
 		}
+
+		if headLink != nil {
+			ad.PreviousID = &headLink
+		}
+
+		if !fakeSig {
+			err := ad.Sign(signingKey)
+			require.NoError(t, err)
+		}
+
+		node, err := ad.ToNode()
+		require.NoError(t, err)
+		headLink, err = lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
 		require.NoError(t, err)
 	}
 
 	if b.AddRmWithNoEntries {
 		// This will just remove all things in the first ad block.
 		ctxID := []byte("test-context-id-" + fmt.Sprint(0))
-		_, headLink, err = schema.NewAdvertisementWithLink(lsys, signingKey, headLink, schema.NoEntries, ctxID, metadata, true, p.String(), addrs)
+
+		ad := schema.Advertisement{
+			PreviousID: &headLink,
+			Provider:   p.String(),
+			Addresses:  addrs,
+			Entries:    schema.NoEntries,
+			ContextID:  ctxID,
+			Metadata:   metadata,
+			IsRm:       true,
+		}
+
+		if !fakeSig {
+			err := ad.Sign(signingKey)
+			require.NoError(t, err)
+		}
+
+		node, err := ad.ToNode()
+		require.NoError(t, err)
+		headLink, err = lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
 		require.NoError(t, err)
 	}
 
-	lnk, err := headLink.AsLink()
 	require.NoError(t, err)
-	return lnk
+	return headLink
 }
 
 type RandomEntryChunkBuilder struct {
@@ -87,24 +116,34 @@ type RandomEntryChunkBuilder struct {
 }
 
 func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datamodel.Link {
-	var headLink datamodel.Link = nil
+	var headLink ipld.Link
 	prng := rand.New(rand.NewSource(b.EntriesSeed))
 
 	for i := 0; i < int(b.ChunkCount); i++ {
 		mhs := util.RandomMultihashes(int(b.EntriesPerChunk), prng)
 		var err error
-		headLink, _, err = schema.NewLinkedListOfMhs(lsys, mhs, headLink)
+
+		chunk := schema.EntryChunk{
+			Entries: mhs,
+		}
+		if headLink != nil {
+			chunk.Next = &headLink
+		}
+
+		node, err := chunk.ToNode()
+		require.NoError(t, err)
+		headLink, err = lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
 		require.NoError(t, err)
 	}
 
 	return headLink
 }
 
-func AllMultihashesFromAdChain(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem) []multihash.Multihash {
+func AllMultihashesFromAdChain(t *testing.T, ad *schema.Advertisement, lsys ipld.LinkSystem) []multihash.Multihash {
 	return AllMultihashesFromAdChainDepth(t, ad, lsys, 0)
 }
 
-func AllMultihashesFromAdChainDepth(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem, entriesDepth int) []multihash.Multihash {
+func AllMultihashesFromAdChainDepth(t *testing.T, ad *schema.Advertisement, lsys ipld.LinkSystem, entriesDepth int) []multihash.Multihash {
 	var out []multihash.Multihash
 
 	progress := traversal.Progress{
@@ -147,8 +186,11 @@ func AllMultihashesFromAdChainDepth(t *testing.T, ad schema.Advertisement, lsys 
 		}).Selector()
 	require.NoError(t, err)
 
+	adNode, err := ad.ToNode()
+	require.NoError(t, err)
+
 	err = progress.WalkMatching(
-		ad,
+		adNode,
 		sel,
 		func(p traversal.Progress, n datamodel.Node) error {
 			b, err := n.AsBytes()
@@ -167,14 +209,13 @@ func AllMultihashesFromAdChainDepth(t *testing.T, ad schema.Advertisement, lsys 
 	return out
 }
 
-func AllAds(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem) []schema.Advertisement {
-	out := []schema.Advertisement{}
-
+func AllAds(t *testing.T, ad *schema.Advertisement, lsys ipld.LinkSystem) []*schema.Advertisement {
+	var out []*schema.Advertisement
 	progress := traversal.Progress{
 		Cfg: &traversal.Config{
 			LinkSystem: lsys,
 			LinkTargetNodePrototypeChooser: func(l datamodel.Link, lc linking.LinkContext) (datamodel.NodePrototype, error) {
-				return schema.Type.Advertisement, nil
+				return schema.AdvertisementPrototype, nil
 			},
 		},
 	}
@@ -196,12 +237,16 @@ func AllAds(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem) []schem
 			})).Selector()
 	require.NoError(t, err)
 
+	adNode, err := ad.ToNode()
+	require.NoError(t, err)
+
 	err = progress.WalkMatching(
-		ad,
+		adNode,
 		sel,
 		func(p traversal.Progress, n datamodel.Node) error {
 			if !n.IsAbsent() {
-				ad := n.(schema.Advertisement)
+				ad, err := schema.UnwrapAdvertisement(n)
+				require.NoError(t, err)
 				out = append(out, ad)
 			}
 			return nil
@@ -212,24 +257,25 @@ func AllAds(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem) []schem
 }
 
 func AllMultihashesFromAdLink(t *testing.T, adLink datamodel.Link, lsys ipld.LinkSystem) []multihash.Multihash {
-	adNode, err := lsys.Load(linking.LinkContext{}, adLink, schema.Type.Advertisement)
-	require.NoError(t, err)
-	return AllMultihashesFromAdChain(t, adNode.(schema.Advertisement), lsys)
+	ad := AdFromLink(t, adLink, lsys)
+	return AllMultihashesFromAdChain(t, ad, lsys)
 }
 
-func AdFromLink(t *testing.T, adLink datamodel.Link, lsys ipld.LinkSystem) schema.Advertisement {
-	adNode, err := lsys.Load(linking.LinkContext{}, adLink, schema.Type.Advertisement)
+func AdFromLink(t *testing.T, adLink datamodel.Link, lsys ipld.LinkSystem) *schema.Advertisement {
+	node, err := lsys.Load(linking.LinkContext{}, adLink, schema.AdvertisementPrototype)
 	require.NoError(t, err)
-	return adNode.(schema.Advertisement)
+	ad, err := schema.UnwrapAdvertisement(node)
+	require.NoError(t, err)
+	return ad
 }
 
 // AllAdLinks returns a list of all ad cids for a given chain. Latest last
 func AllAdLinks(t *testing.T, head datamodel.Link, lsys ipld.LinkSystem) []datamodel.Link {
 	out := []datamodel.Link{head}
 	ad := AdFromLink(t, head, lsys)
-	for ad.PreviousID.Exists() {
-		out = append(out, ad.PreviousID.Must().Link())
-		ad = AdFromLink(t, ad.PreviousID.Must().Link(), lsys)
+	for ad.PreviousID != nil {
+		out = append(out, *ad.PreviousID)
+		ad = AdFromLink(t, *ad.PreviousID, lsys)
 	}
 
 	// Flip order so the latest is last

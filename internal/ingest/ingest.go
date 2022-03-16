@@ -594,8 +594,7 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 			log.Errorw("Failed to load advertisement CID, skipping", "cid", c, "err", err)
 			continue
 		}
-
-		providerID, err := peer.Decode(ad.Provider.String())
+		providerID, err := peer.Decode(ad.Provider)
 		if err != nil {
 			log.Errorf("Failed to get provider from ad CID: %s skipping", err)
 			continue

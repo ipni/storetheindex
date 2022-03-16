@@ -8,7 +8,7 @@ import (
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
-	crypto "github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/record"
 	"github.com/multiformats/go-multihash"
@@ -50,38 +50,31 @@ func (r *advSignatureRecord) UnmarshalRecord(buf []byte) error {
 	return nil
 }
 
-// Generates the data payload used for signature.
-func signaturePayload(previousID Link_Advertisement, provider string, addrs []string, entries Link, metadata []byte, isRm, oldFormat bool) ([]byte, error) {
+// signaturePayload generates the data payload used to compute the Advertisement.Signature.
+func signaturePayload(ad *Advertisement, oldFormat bool) ([]byte, error) {
 	bindex := cid.Undef.Bytes()
-	lindex, err := previousID.AsLink()
-	if err != nil {
-		return nil, err
+	if ad.PreviousID != nil {
+
+		bindex = (*ad.PreviousID).(cidlink.Link).Cid.Bytes()
 	}
-	if lindex != nil {
-		bindex = lindex.(cidlink.Link).Cid.Bytes()
-	}
-	lent, err := entries.AsLink()
-	if err != nil {
-		return nil, err
-	}
-	ent := lent.(cidlink.Link).Cid.Bytes()
+	ent := ad.Entries.(cidlink.Link).Cid.Bytes()
 
 	var addrsLen int
-	for _, addr := range addrs {
+	for _, addr := range ad.Addresses {
 		addrsLen += len(addr)
 	}
 
 	// Signature data is previousID+entries+metadata+isRm
 	var sigBuf bytes.Buffer
-	sigBuf.Grow(len(bindex) + len(ent) + len(provider) + addrsLen + len(metadata) + 1)
+	sigBuf.Grow(len(bindex) + len(ent) + len(ad.Provider) + addrsLen + len(ad.Metadata) + 1)
 	sigBuf.Write(bindex)
 	sigBuf.Write(ent)
-	sigBuf.WriteString(provider)
-	for _, addr := range addrs {
+	sigBuf.WriteString(ad.Provider)
+	for _, addr := range ad.Addresses {
 		sigBuf.WriteString(addr)
 	}
-	sigBuf.Write(metadata)
-	if isRm {
+	sigBuf.Write(ad.Metadata)
+	if ad.IsRm {
 		sigBuf.WriteByte(1)
 	} else {
 		sigBuf.WriteByte(0)
@@ -91,73 +84,58 @@ func signaturePayload(previousID Link_Advertisement, provider string, addrs []st
 	// only for compatability with existing advertisements that have the old
 	// signatures, and should be removed when no longer needed.
 	if oldFormat {
-		return multihash.Encode(sigBuf.Bytes(), mhCode)
+		return multihash.Encode(sigBuf.Bytes(), multihash.SHA2_256)
 	}
 
-	return multihash.Sum(sigBuf.Bytes(), mhCode, -1)
+	return multihash.Sum(sigBuf.Bytes(), multihash.SHA2_256, -1)
 }
 
-// SignAdvertisement signs an advertisement using the given private key.
-func SignAdvertisement(privkey crypto.PrivKey, ad Advertisement) ([]byte, error) {
-	previousID := ad.FieldPreviousID().v
-	provider := ad.FieldProvider().x
-	addrs, err := IpldToGoStrings(ad.FieldAddresses())
+// Sign signs an advertisement using the given private key.
+func (ad *Advertisement) Sign(key crypto.PrivKey) error {
+	advID, err := signaturePayload(ad, false)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	isRm := ad.FieldIsRm().x
-	entries := ad.FieldEntries()
-	metadata := ad.FieldMetadata().x
+	envelope, err := record.Seal(&advSignatureRecord{advID: advID}, key)
+	if err != nil {
+		return err
+	}
 
-	advID, err := signaturePayload(&previousID, provider, addrs, entries, metadata, isRm, false)
+	sig, err := envelope.Marshal()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	envelope, err := record.Seal(&advSignatureRecord{advID: advID}, privkey)
-	if err != nil {
-		return nil, err
-	}
-	return envelope.Marshal()
+	ad.Signature = sig
+	return nil
 }
 
-// VerifyAdvertisement verifies that the advertisement has been signed and
+// VerifySignature verifies that the advertisement has been signed and
 // generated correctly.  Returns the peer ID of the signer.
-func VerifyAdvertisement(ad Advertisement) (peer.ID, error) {
+func (ad *Advertisement) VerifySignature() (peer.ID, error) {
 	// sigSize is the size of the current signature.  Any signature that is not
 	// this size is the old signature format.
 	const sigSize = 34
 
-	previousID := ad.FieldPreviousID().v
-	provider := ad.FieldProvider().x
-	addrs, err := IpldToGoStrings(ad.FieldAddresses())
-	if err != nil {
-		return peer.ID(""), err
-	}
-	isRm := ad.FieldIsRm().x
-	entries := ad.FieldEntries()
-	metadata := ad.FieldMetadata().x
-	sig := ad.FieldSignature().x
-
 	// Consume envelope
 	rec := &advSignatureRecord{}
-	envelope, err := record.ConsumeTypedEnvelope(sig, rec)
+	envelope, err := record.ConsumeTypedEnvelope(ad.Signature, rec)
 	if err != nil {
-		return peer.ID(""), err
+		return "", err
 	}
 
 	oldFormat := len(rec.advID) != sigSize
-	genID, err := signaturePayload(&previousID, provider, addrs, entries, metadata, isRm, oldFormat)
+	genID, err := signaturePayload(ad, oldFormat)
 	if err != nil {
-		return peer.ID(""), err
+		return "", err
 	}
 
 	if !bytes.Equal(genID, rec.advID) {
-		return peer.ID(""), errors.New("invalid signature")
+		return "", errors.New("invalid signature")
 	}
 
 	signerID, err := peer.IDFromPublicKey(envelope.PublicKey)
 	if err != nil {
-		return peer.ID(""), fmt.Errorf("cannot convert public key to peer ID: %s", err)
+		return "", fmt.Errorf("cannot convert public key to peer ID: %w", err)
 	}
 
 	if oldFormat {

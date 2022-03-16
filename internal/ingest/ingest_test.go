@@ -45,7 +45,6 @@ import (
 )
 
 const (
-	testProtocolID    = 0x300000
 	testRetryInterval = 2 * time.Second
 	testRetryTimeout  = 15 * time.Second
 
@@ -214,9 +213,7 @@ func TestFailDuringResync(t *testing.T) {
 	allMHs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 	allAds := typehelpers.AllAds(t, typehelpers.AdFromLink(t, adHead, te.publisherLinkSys), te.publisherLinkSys)
 	prevAd := allAds[1]
-	prevAdEntChunk, err := prevAd.Entries.AsLink()
-	require.NoError(t, err)
-	blockedReads.add(prevAdEntChunk.(cidlink.Link).Cid)
+	blockedReads.add(prevAd.Entries.(cidlink.Link).Cid)
 
 	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 1, false)
 	require.NoError(t, err)
@@ -241,7 +238,7 @@ func TestFailDuringResync(t *testing.T) {
 	require.Equal(t, adHead.(cidlink.Link).Cid, latestSync)
 
 	// Now we'll resync again and we should succeed.
-	blockedReads.rm(prevAdEntChunk.(cidlink.Link).Cid)
+	blockedReads.rm(prevAd.Entries.(cidlink.Link).Cid)
 	wait, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 2, true)
 	require.NoError(t, err)
 	<-wait
@@ -261,8 +258,10 @@ func TestRestartDuringSync(t *testing.T) {
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
-	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.Type.Advertisement)
-	cAd := adNode.(schema.Advertisement)
+
+	cAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	cAd, err := schema.UnwrapAdvertisement(cAdNode)
 	require.NoError(t, err)
 
 	// We have a chain of 3 ads, A<-B<-C. We'll UpdateRoot to be B. Sync the
@@ -274,12 +273,9 @@ func TestRestartDuringSync(t *testing.T) {
 	bAd := allAds[1]
 	require.Equal(t, allAds[0], cAd)
 
-	bEntChunk, err := bAd.Entries.AsLink()
-	require.NoError(t, err)
-	blockedReads.add(bEntChunk.(cidlink.Link).Cid)
+	blockedReads.add(bAd.Entries.(cidlink.Link).Cid)
 
-	bCid, err := cAd.PreviousID.AsNode().AsLink()
-	require.NoError(t, err)
+	bCid := *cAd.PreviousID
 
 	ctx := context.Background()
 	err = te.publisher.SetRoot(ctx, bCid.(cidlink.Link).Cid)
@@ -300,7 +296,7 @@ func TestRestartDuringSync(t *testing.T) {
 	// Check that we processed A correctly.
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), aMhs))
 
-	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
+	blockedReads.rm(bAd.Entries.(cidlink.Link).Cid)
 
 	// We should not have processed B yet.
 	bMhs := typehelpers.AllMultihashesFromAdChain(t, bAd, te.publisherLinkSys)
@@ -343,8 +339,9 @@ func TestFailDuringSync(t *testing.T) {
 		}}
 
 	cCid := cAdBuilder.Build(t, te.publisherLinkSys, te.publisherPriv)
-	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.Type.Advertisement)
-	cAd := adNode.(schema.Advertisement)
+	cAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	cAd, err := schema.UnwrapAdvertisement(cAdNode)
 	require.NoError(t, err)
 
 	// We have a chain of 3 ads, A<-B<-C. We'll UpdateRoot to be B. Sync the
@@ -356,11 +353,9 @@ func TestFailDuringSync(t *testing.T) {
 	bAd := allAds[1]
 	require.Equal(t, allAds[0], cAd)
 
-	bEntChunk, err := bAd.Entries.AsLink()
-	require.NoError(t, err)
-	blockedReads.add(bEntChunk.(cidlink.Link).Cid)
+	blockedReads.add(bAd.Entries.(cidlink.Link).Cid)
 
-	bCid, err := cAd.PreviousID.AsNode().AsLink()
+	bCid := (*cAd.PreviousID)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -380,7 +375,7 @@ func TestFailDuringSync(t *testing.T) {
 	// Check that we processed A correctly.
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), aMhs))
 
-	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
+	blockedReads.rm(bAd.Entries.(cidlink.Link).Cid)
 
 	// We should not have processed B yet.
 	bMhs := typehelpers.AllMultihashesFromAdChain(t, bAd, te.publisherLinkSys)
@@ -422,8 +417,10 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 		}}
 
 	cCid := cAdBuilder.Build(t, te.publisherLinkSys, te.publisherPriv)
-	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.Type.Advertisement)
-	cAd := adNode.(schema.Advertisement)
+
+	cAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	cAd, err := schema.UnwrapAdvertisement(cAdNode)
 	require.NoError(t, err)
 
 	// We have a chain of 3 ads, A<-B<-C. We'll UpdateRoot to be B. Sync the
@@ -435,14 +432,11 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	bAd := allAds[1]
 	require.Equal(t, allAds[0], cAd)
 
-	bEntChunk, err := bAd.Entries.AsLink()
-	require.NoError(t, err)
-	blockedReads.add(bEntChunk.(cidlink.Link).Cid)
+	bEntChunk := bAd.Entries
+	blockedReads.add(bAd.Entries.(cidlink.Link).Cid)
 
-	bCid, err := cAd.PreviousID.AsNode().AsLink()
-	require.NoError(t, err)
-	aCid, err := bAd.PreviousID.AsNode().AsLink()
-	require.NoError(t, err)
+	bCid := *cAd.PreviousID
+	aCid := *bAd.PreviousID
 
 	ctx := context.Background()
 	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
@@ -514,8 +508,10 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 		},
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
-	fmt.Println("Head is", chainHead)
-	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.Type.Advertisement)
+	t.Log("Head is", chainHead)
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	ad, err := schema.UnwrapAdvertisement(adNode)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -530,7 +526,7 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, chainHead.(cidlink.Link).Cid, lcid, "synced up to %s, should have synced up to %s", c, chainHead.(cidlink.Link).Cid)
 
-	allMhs := typehelpers.AllMultihashesFromAdChain(t, adNode.(schema.Advertisement), te.publisherLinkSys)
+	allMhs := typehelpers.AllMultihashesFromAdChain(t, ad, te.publisherLinkSys)
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs))
 
 	te.Close(t)
@@ -546,7 +542,9 @@ func TestSyncWithDepth(t *testing.T) {
 		},
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
-	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.Type.Advertisement)
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	ad, err := schema.UnwrapAdvertisement(adNode)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -562,7 +560,7 @@ func TestSyncWithDepth(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, chainHead.(cidlink.Link).Cid, lcid, "synced up to %s, should have synced up to %s", c, chainHead.(cidlink.Link).Cid)
 
-	allMhs := typehelpers.AllMultihashesFromAdChain(t, adNode.(schema.Advertisement), te.publisherLinkSys)
+	allMhs := typehelpers.AllMultihashesFromAdChain(t, ad, te.publisherLinkSys)
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[1]}))
 	requireNotIndexed(t, []multihash.Multihash{allMhs[0]}, te.ingester.indexer)
 
@@ -580,11 +578,16 @@ func TestRmWithNoEntries(t *testing.T) {
 		AddRmWithNoEntries: true,
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
-	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.Type.Advertisement)
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.AdvertisementPrototype)
 	require.NoError(t, err)
-	prevHead, err := adNode.(schema.Advertisement).PreviousID.Must().AsLink()
+	ad, err := schema.UnwrapAdvertisement(adNode)
 	require.NoError(t, err)
-	prevAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, prevHead, schema.Type.Advertisement)
+
+	require.NotNil(t, ad.PreviousID)
+	prevAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, *ad.PreviousID, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	prevAd, err := schema.UnwrapAdvertisement(prevAdNode)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	te.publisher.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
@@ -599,7 +602,7 @@ func TestRmWithNoEntries(t *testing.T) {
 		return chainHead.(cidlink.Link).Cid == lcid
 	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", chainHead, lcid)
 
-	allMhs := typehelpers.AllMultihashesFromAdChain(t, prevAdNode.(schema.Advertisement), te.publisherLinkSys)
+	allMhs := typehelpers.AllMultihashesFromAdChain(t, prevAd, te.publisherLinkSys)
 	// Remove the mhs from the first ad (since the last add removed this from the indexer)
 	allMhs = allMhs[1:]
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs))
@@ -761,9 +764,12 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 		lcid := lnk.(cidlink.Link).Cid
 		require.Equal(t, lcid, adCid)
 		// Check that latest sync recorded in datastore
-		adNode, err := lsys.Load(linking.LinkContext{}, lnk, schema.Type.Advertisement)
+		adNode, err := lsys.Load(linking.LinkContext{}, lnk, schema.AdvertisementPrototype)
 		require.NoError(t, err)
-		mhs := typehelpers.AllMultihashesFromAdChainDepth(t, adNode.(schema.Advertisement), lsys, entriesDepth)
+		ad, err := schema.UnwrapAdvertisement(adNode)
+		require.NoError(t, err)
+
+		mhs := typehelpers.AllMultihashesFromAdChainDepth(t, ad, lsys, entriesDepth)
 		require.NoError(t, checkAllIndexed(ing.indexer, providerID, mhs))
 
 		lcid, err = ing.GetLatestSync(pubHost.ID())
@@ -813,42 +819,28 @@ func getAdEntriesCid(t *testing.T, store datastore.Batching, ad cid.Cid) cid.Cid
 	ctx := context.TODO()
 	val, err := store.Get(ctx, dsKey(ad.String()))
 	require.NoError(t, err)
-	nad, err := decodeIPLDNode(ad.Prefix().Codec, bytes.NewBuffer(val))
+	nad, err := decodeIPLDNode(ad.Prefix().Codec, bytes.NewBuffer(val), schema.AdvertisementPrototype)
 	require.NoError(t, err)
-	adv, err := decodeAd(nad)
+	adv, err := schema.UnwrapAdvertisement(nad)
 	require.NoError(t, err)
-	elink, err := adv.FieldEntries().AsLink()
-	require.NoError(t, err)
-	return elink.(cidlink.Link).Cid
+	return adv.Entries.(cidlink.Link).Cid
 }
 
 func decodeEntriesChunk(t *testing.T, store datastore.Batching, c cid.Cid) ([]multihash.Multihash, cid.Cid) {
 	ctx := context.TODO()
 	val, err := store.Get(ctx, dsKey(c.String()))
 	require.NoError(t, err)
-	nentries, err := decodeIPLDNode(c.Prefix().Codec, bytes.NewBuffer(val))
+	nentries, err := decodeIPLDNode(c.Prefix().Codec, bytes.NewBuffer(val), schema.EntryChunkPrototype)
 	require.NoError(t, err)
-	nb := schema.Type.EntryChunk.NewBuilder()
-	err = nb.AssignNode(nentries)
-	require.NoError(t, err)
-	nchunk := nb.Build().(schema.EntryChunk)
-	entries := nchunk.FieldEntries()
-	cit := entries.ListIterator()
-	var mhs []multihash.Multihash
-	for !cit.Done() {
-		_, cnode, _ := cit.Next()
-		h, err := cnode.AsBytes()
-		require.NoError(t, err)
 
-		mhs = append(mhs, h)
-	}
-	if nchunk.Next.IsAbsent() || nchunk.Next.IsNull() {
-		return mhs, cid.Undef
+	ec, err := schema.UnwrapEntryChunk(nentries)
+	require.NoError(t, err)
+
+	if ec.Next == nil {
+		return ec.Entries, cid.Undef
 	}
 
-	lnk, err := nchunk.Next.AsNode().AsLink()
-	require.NoError(t, err)
-	return mhs, lnk.(cidlink.Link).Cid
+	return ec.Entries, (*ec.Next).(cidlink.Link).Cid
 }
 
 func TestMultiplePublishers(t *testing.T) {
@@ -1015,18 +1007,22 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 }
 
 func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash) {
-	out := []multihash.Multihash{}
-	mhs := util.RandomMultihashes(testEntriesChunkSize, rng)
-	out = append(out, mhs...)
-	nextLnk, _, err := schema.NewLinkedListOfMhs(lsys, mhs, nil)
-	require.NoError(t, err)
-	for i := 1; i < size; i++ {
+	var out []multihash.Multihash
+	var nextLnk *ipld.Link
+	for i := 0; i < size; i++ {
 		mhs := util.RandomMultihashes(testEntriesChunkSize, rng)
-		nextLnk, _, err = schema.NewLinkedListOfMhs(lsys, mhs, nextLnk)
+		chunk := &schema.EntryChunk{
+			Entries: mhs,
+			Next:    nextLnk,
+		}
+		node, err := chunk.ToNode()
+		require.NoError(t, err)
+		lnk, err := lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
 		require.NoError(t, err)
 		out = append(out, mhs...)
+		nextLnk = &lnk
 	}
-	return nextLnk, out
+	return *nextLnk, out
 }
 
 func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash, peer.ID) {
@@ -1045,16 +1041,26 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publis
 	metadata := []byte("test-metadata")
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 	mhsLnk, mhs := newRandomLinkedList(t, lsys, eChunkCount)
-	_, advLnk, err := schema.NewAdvertisementWithLink(lsys, priv, nil, mhsLnk, ctxID, metadata, false, p.String(), addrs)
-	if fakeSig {
-		_, advLnk, err = schema.NewAdvertisementWithFakeSig(lsys, priv, nil, mhsLnk, ctxID, metadata, false, p.String(), addrs)
+
+	adv := &schema.Advertisement{
+		Provider:  p.String(),
+		Addresses: addrs,
+		Entries:   mhsLnk,
+		ContextID: ctxID,
+		Metadata:  metadata,
 	}
+	if !fakeSig {
+		err := adv.Sign(priv)
+		require.NoError(t, err)
+	}
+
+	node, err := adv.ToNode()
 	require.NoError(t, err)
-	lnk, err := advLnk.AsLink()
+	advLnk, err := lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
 	require.NoError(t, err)
-	err = pub.UpdateRoot(context.Background(), lnk.(cidlink.Link).Cid)
+	err = pub.UpdateRoot(context.Background(), advLnk.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	return lnk.(cidlink.Link).Cid, mhs, p
+	return advLnk.(cidlink.Link).Cid, mhs, p
 }
 
 func checkAllIndexed(ix indexer.Interface, p peer.ID, mhs []multihash.Multihash) error {
