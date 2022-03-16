@@ -118,9 +118,6 @@ func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
 }
 
 func TestEndToEndWithReferenceProvider(t *testing.T) {
-	t.Skip(`Skip test until the changes to the finder client are upgraded in provider side
-See: https://github.com/filecoin-project/index-provider/pull/198
-`)
 	switch runtime.GOOS {
 	case "windows", "darwin":
 		t.Skip("skipping test on", runtime.GOOS)
