@@ -56,6 +56,8 @@ const (
 	IsAdKey = LinkContextKey("isAdLink")
 	// ContextID must not exceed this number of bytes.
 	MaxContextIDLen = 64
+	// MaxMetadataLen specifies the maximum number of bytes an advertisement metadata can contain.
+	MaxMetadataLen = 1024 // 1KiB
 )
 
 func mhsToBytes(mhs []multihash.Multihash) []_Bytes {
@@ -184,6 +186,10 @@ func NewAdvertisementWithFakeSig(
 		return nil, nil, errors.New("context id too long")
 	}
 
+	if len(metadata) > MaxMetadataLen {
+		return nil, nil, errors.New("metadata too long")
+	}
+
 	ad := &_Advertisement{
 		Provider:  _String{x: provider},
 		Addresses: GoToIpldStrings(addrs),
@@ -223,6 +229,10 @@ func newAdvertisement(
 
 	if len(contextID) > MaxContextIDLen {
 		return nil, errors.New("context id too long")
+	}
+
+	if len(metadata) > MaxMetadataLen {
+		return nil, errors.New("metadata too long")
 	}
 
 	ad := &_Advertisement{

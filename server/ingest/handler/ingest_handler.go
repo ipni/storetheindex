@@ -83,6 +83,10 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 		return errors.New("context id too long")
 	}
 
+	if len(ingReq.Metadata) > schema.MaxMetadataLen {
+		return errors.New("metadata too long")
+	}
+
 	if err = h.registry.CheckSequence(ingReq.ProviderID, ingReq.Seq); err != nil {
 		return err
 	}

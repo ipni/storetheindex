@@ -194,7 +194,18 @@ func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privat
 	}
 
 	if !strings.HasSuffix(err.Error(), "context id too long") {
-		t.Fatalf("expected erroe message: \"context id too long\", got %q", err.Error())
+		t.Fatalf("expected error message: \"context id too long\", got %q", err.Error())
+	}
+
+	contextID = []byte("test-context-id")
+	metadata = make([]byte, schema.MaxMetadataLen+1)
+	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	if !strings.HasSuffix(err.Error(), "metadata too long") {
+		t.Fatalf("expected error message: \"metadata too long\", got %q", err.Error())
 	}
 
 	apierr, ok := err.(*v0.Error)
