@@ -63,7 +63,7 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 			log := log.With("cid", c)
 
 			// Decode the node to check its type.
-			n, err := decodeIPLDNode(codec, buf)
+			n, err := decodeIPLDNode(codec, buf, basicnode.Prototype.Any)
 			if err != nil {
 				log.Errorw("Error decoding IPLD node in linksystem", "err", err)
 				return errors.New("bad ipld data")
@@ -88,34 +88,25 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	return lsys
 }
 
-func decodeAd(n ipld.Node) (schema.Advertisement, error) {
-	nb := schema.Type.Advertisement.NewBuilder()
-	err := nb.AssignNode(n)
-	if err != nil {
-		return nil, err
-	}
-	return nb.Build().(schema.Advertisement), nil
-}
-
-func verifyAdvertisement(n ipld.Node) (schema.Advertisement, peer.ID, error) {
-	ad, err := decodeAd(n)
+func verifyAdvertisement(n ipld.Node) (*schema.Advertisement, peer.ID, error) {
+	ad, err := schema.UnwrapAdvertisement(n)
 	if err != nil {
 		log.Errorw("Cannot decode advertisement", "err", err)
-		return nil, peer.ID(""), errBadAdvert
+		return nil, "", errBadAdvert
 	}
 	// Verify advertisement signature
-	signerID, err := schema.VerifyAdvertisement(ad)
+	signerID, err := ad.VerifySignature()
 	if err != nil {
 		// stop exchange, verification of signature failed.
 		log.Errorw("Advertisement signature verification failed", "err", err)
-		return nil, peer.ID(""), errInvalidAdvertSignature
+		return nil, "", errInvalidAdvertSignature
 	}
 
 	// Get provider ID from advertisement.
-	provID, err := peer.Decode(ad.Provider.String())
+	provID, err := peer.Decode(ad.Provider)
 	if err != nil {
 		log.Errorw("Cannot get provider from advertisement", "err", err)
-		return nil, peer.ID(""), errBadAdvert
+		return nil, "", errBadAdvert
 	}
 
 	// Verify that the advertised provider has signed, and
@@ -126,8 +117,8 @@ func verifyAdvertisement(n ipld.Node) (schema.Advertisement, peer.ID, error) {
 		// sign advertisements for certain providers.  This will
 		// allow that signer to add, update, and delete indexed
 		// content on behalf of those providers.
-		log.Errorw("Advertisement not signed by provider", "provider", provID, "signer", signerID)
-		return nil, peer.ID(""), errInvalidAdvertSignature
+		log.Errorw("Advertisement not signed by provider", "provider", ad.Provider, "signer", signerID)
+		return nil, "", errInvalidAdvertSignature
 	}
 
 	return ad, provID, nil
@@ -167,7 +158,7 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schem
 	}()
 
 	// Decode block to IPLD node
-	node, err := decodeIPLDNode(entryChunkCid.Prefix().Codec, bytes.NewBuffer(val))
+	node, err := decodeIPLDNode(entryChunkCid.Prefix().Codec, bytes.NewBuffer(val), schema.EntryChunkPrototype)
 	if err != nil {
 		return fmt.Errorf("failed to decode ipldNode: %w", err)
 	}
@@ -195,44 +186,24 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 	log := log.With("publisher", publisher, "adCid", adCid)
 
 	// Get provider ID from advertisement.
-	providerID, err := peer.Decode(ad.Provider.String())
+	providerID, err := peer.Decode(ad.Provider)
 	if err != nil {
 		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read provider id: %w", err)}
 	}
 
-	contextID, err := ad.FieldContextID().AsBytes()
-	if err != nil {
-		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read context id: %w", err)}
-	}
-
-	isRm, err := ad.FieldIsRm().AsBool()
-	if err != nil {
-		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read isRm: %w", err)}
-	}
-
-	elink, err := ad.FieldEntries().AsLink()
-	if err != nil {
-		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read entries link: %w", err)}
-	}
-
-	addrs, err := schema.IpldToGoStrings(ad.FieldAddresses())
-	if err != nil {
-		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read addrs: %w", err)}
-	}
-
 	// Register provider or update existing registration.  The
 	// provider must be allowed by policy to be registered.
-	err = ing.reg.RegisterOrUpdate(context.Background(), providerID, addrs, adCid, publisher)
+	err = ing.reg.RegisterOrUpdate(context.Background(), providerID, ad.Addresses, adCid, publisher)
 	if err != nil {
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
 
-	log = log.With("contextID", base64.StdEncoding.EncodeToString(contextID), "provider", providerID)
+	log = log.With("contextID", base64.StdEncoding.EncodeToString(ad.ContextID), "provider", ad.Provider)
 
-	if isRm {
+	if ad.IsRm {
 		log.Infow("Advertisement is for removal by context id")
 
-		err = ing.indexer.RemoveProviderContext(providerID, contextID)
+		err = ing.indexer.RemoveProviderContext(providerID, ad.ContextID)
 		if err != nil {
 			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to remove provider context: %w", err)}
 		}
@@ -240,16 +211,11 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 	}
 
 	// If advertisement has no entries, then this is for updating metadata only.
-	if elink == schema.NoEntries {
+	if ad.Entries == schema.NoEntries {
 		// If this is a metadata update only, then ad will not have entries.
-		metadataBytes, err := ad.FieldMetadata().AsBytes()
-		if err != nil {
-			return adIngestError{adIngestDecodingErr, fmt.Errorf("error reading advertisement metadata: %w", err)}
-		}
-
 		value := indexer.Value{
-			ContextID:     contextID,
-			MetadataBytes: metadataBytes,
+			ContextID:     ad.ContextID,
+			MetadataBytes: ad.Metadata,
 			ProviderID:    providerID,
 		}
 
@@ -261,7 +227,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 		return nil
 	}
 
-	entriesCid := elink.(cidlink.Link).Cid
+	entriesCid := ad.Entries.(cidlink.Link).Cid
 	if entriesCid == cid.Undef {
 		return adIngestError{adIngestMalformedErr, fmt.Errorf("advertisement entries link is undefined")}
 	}
@@ -316,13 +282,10 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 // indexer.
 func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, pubID peer.ID, nentries ipld.Node) error {
 	// Decode the list of cids into a List_String
-	nb := schema.Type.EntryChunk.NewBuilder()
-	err := nb.AssignNode(nentries)
+	nchunk, err := schema.UnwrapEntryChunk(nentries)
 	if err != nil {
 		return fmt.Errorf("cannot decode entries: %w", err)
 	}
-
-	nchunk := nb.Build().(schema.EntryChunk)
 
 	// Load the advertisement data for this chunk.  If there are more chunks to
 	// follow, then cache the ad data.
@@ -337,23 +300,13 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 	errChan := ing.batchIndexerEntries(mhChan, value, isRm)
 
 	// Iterate over all entries and ingest (or remove) them.
-	entries := nchunk.FieldEntries()
-	cit := entries.ListIterator()
 	var count int
-	for !cit.Done() {
-		_, cnode, _ := cit.Next()
-		h, err := cnode.AsBytes()
-		if err != nil {
-			close(mhChan)
-			return fmt.Errorf("cannot decode a multihash from content block: %w", err)
-		}
-
+	for _, entry := range nchunk.Entries {
 		select {
-		case mhChan <- h:
+		case mhChan <- entry:
 		case err = <-errChan:
 			return err
 		}
-
 		count++
 	}
 	close(mhChan)
@@ -368,39 +321,39 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 	return nil
 }
 
-func (ing *Ingester) loadAd(adCid cid.Cid) (ad schema.Advertisement, err error) {
+func (ing *Ingester) loadAd(adCid cid.Cid) (schema.Advertisement, error) {
 	adKey := dsKey(adCid.String())
 	adb, err := ing.ds.Get(context.Background(), adKey)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read advertisement for entry from datastore: %w", err)
+		return schema.Advertisement{}, fmt.Errorf("cannot read advertisement for entry from datastore: %w", err)
 	}
 
 	// Decode the advertisement.
-	adn, err := decodeIPLDNode(adCid.Prefix().Codec, bytes.NewBuffer(adb))
+	adn, err := decodeIPLDNode(adCid.Prefix().Codec, bytes.NewBuffer(adb), schema.AdvertisementPrototype)
 	if err != nil {
-		return nil, fmt.Errorf("cannot decode ipld node: %w", err)
+		return schema.Advertisement{}, fmt.Errorf("cannot decode ipld node: %w", err)
 	}
-	ad, err = decodeAd(adn)
+	ad, err := schema.UnwrapAdvertisement(adn)
 	if err != nil {
-		return nil, fmt.Errorf("cannot decode advertisement: %w", err)
+		return schema.Advertisement{}, fmt.Errorf("cannot decode advertisement: %w", err)
 	}
 
-	return ad, nil
+	return *ad, nil
 }
 
 func getAdData(ad schema.Advertisement) (value indexer.Value, isRm bool, err error) {
-	providerID, err := peer.Decode(ad.Provider.String())
+	providerID, err := peer.Decode(ad.Provider)
 	if err != nil {
 		return indexer.Value{}, false, err
 	}
 
 	value = indexer.Value{
 		ProviderID:    providerID,
-		ContextID:     ad.ContextID.Bytes(),
-		MetadataBytes: ad.Metadata.Bytes(),
+		ContextID:     ad.ContextID,
+		MetadataBytes: ad.Metadata,
 	}
 
-	return value, ad.IsRm.Bool(), nil
+	return value, ad.IsRm, nil
 }
 
 // batchIndexerEntries starts a goroutine that processes batches of multihashes
@@ -459,11 +412,11 @@ func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, valu
 }
 
 // decodeIPLDNode decodes an ipld.Node from bytes read from an io.Reader.
-func decodeIPLDNode(codec uint64, r io.Reader) (ipld.Node, error) {
+func decodeIPLDNode(codec uint64, r io.Reader, prototype ipld.NodePrototype) (ipld.Node, error) {
 	// NOTE: Considering using the schema prototypes.  This was failing, using
 	// a map gives flexibility.  Maybe is worth revisiting this again in the
 	// future.
-	nb := basicnode.Prototype.Any.NewBuilder()
+	nb := prototype.NewBuilder()
 	decoder, err := multicodec.LookupDecoder(codec)
 	if err != nil {
 		return nil, err
