@@ -461,10 +461,14 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 
 	go func() {
 		te.ingester.runIngestStep(syncFinishedEvent)
-		te.ingester.runIngestStep(syncFinishedEvent)
 	}()
 
 	<-hitBlockedRead
+
+	go func() {
+		te.ingester.runIngestStep(syncFinishedEvent)
+	}()
+
 	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
 
 	aMhs := typehelpers.AllMultihashesFromAdChain(t, aAd, te.publisherLinkSys)
