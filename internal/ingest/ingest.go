@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
@@ -88,7 +89,7 @@ type Ingester struct {
 	// provider while ingesting ads for that provider.
 	providersBeingProcessed   map[peer.ID]*sync.Mutex
 	providersBeingProcessedMu sync.Mutex
-	providerAdChainStaging    map[peer.ID]*atomicVal
+	providerAdChainStaging    map[peer.ID]*atomic.Value
 	// toWorkers is a channel used to ask the worker pool to start processing the ad chain for a given provider
 	toWorkers      chan providerID
 	closeWorkers   chan struct{}
@@ -133,7 +134,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		closePendingSyncs: make(chan struct{}),
 
 		providersBeingProcessed: make(map[peer.ID]*sync.Mutex),
-		providerAdChainStaging:  make(map[peer.ID]*atomicVal),
+		providerAdChainStaging:  make(map[peer.ID]*atomic.Value),
 		toWorkers:               make(chan providerID),
 		closeWorkers:            make(chan struct{}),
 	}
@@ -617,11 +618,11 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 			ing.providersBeingProcessed[p] = &sync.Mutex{}
 		}
 		if _, ok := ing.providerAdChainStaging[p]; !ok {
-			ing.providerAdChainStaging[p] = newAtomicVal(workerAssignment{none: true})
+			ing.providerAdChainStaging[p] = &atomic.Value{}
 		}
 		ing.providersBeingProcessedMu.Unlock()
 
-		oldAssignment := ing.providerAdChainStaging[p].swap(workerAssignment{
+		oldAssignment := ing.providerAdChainStaging[p].Swap(workerAssignment{
 			adInfos:   adInfos,
 			publisher: syncFinishedEvent.PeerID,
 			provider:  p,
@@ -653,7 +654,7 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 	defer ing.providersBeingProcessed[provider].Unlock()
 
 	// Pull out the assignment for this provider. Note that runIngestStep populates this atomic.Value.
-	assignmentInterface := ing.providerAdChainStaging[provider].swap(workerAssignment{none: true})
+	assignmentInterface := ing.providerAdChainStaging[provider].Swap(workerAssignment{none: true})
 	if assignmentInterface == nil || assignmentInterface.(workerAssignment).none {
 		// Note this is here for completeness. This wouldn't happen normally.  We
 		// could get here if someone manually calls this function outside the ingest
