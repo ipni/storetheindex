@@ -656,7 +656,10 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 	// Pull out the assignment for this provider. Note that runIngestStep populates this atomic.Value.
 	assignmentInterface := ing.providerAdChainStaging[provider].Swap(workerAssignment{none: true})
 	if assignmentInterface == nil || assignmentInterface.(workerAssignment).none {
-		// Nothing to do. Someone took our assignment.
+		// Note this is here for completeness. This wouldn't happen normally.  We
+		// could get here if someone manually calls this function outside the ingest
+		// loop.
+		// Nothing to do – no assignment.
 		return
 	}
 	assignment := assignmentInterface.(workerAssignment)
