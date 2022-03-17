@@ -24,7 +24,6 @@ import (
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
-	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -40,6 +39,10 @@ const (
 	admapPrefix = "/admap/"
 	// This prefix represents all the ads we've already processed.
 	adProcessedPrefix = "/adProcessed/"
+
+	// Absolute maximum number of entries an advertisement can have. Should
+	// only effect misconfigured publisher.
+	entriesDepthLimit = 16384
 )
 
 type adProcessedEvent struct {
@@ -113,6 +116,13 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
 		}).Node()
 
+	// Construct the selector used when syncing entries of an advertisement
+	// with non-configurable recursion limit.
+	entSel := ssb.ExploreRecursive(selector.RecursionLimitDepth(entriesDepthLimit),
+		ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
+			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
+		})).Node()
+
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
@@ -120,7 +130,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		batchSize:   cfg.StoreBatchSize,
 		sigUpdate:   make(chan struct{}, 1),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
-		entriesSel:  selectorparse.CommonSelector_ExploreAllRecursively,
+		entriesSel:  entSel,
 		reg:         reg,
 		cfg:         cfg,
 		inEvents:    make(chan adProcessedEvent, 1),

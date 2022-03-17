@@ -32,6 +32,9 @@ import (
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipld/go-ipld-prime/node/basicnode"
+	"github.com/ipld/go-ipld-prime/traversal/selector"
+	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	"github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -561,7 +564,7 @@ func TestSyncWithDepth(t *testing.T) {
 
 	allMhs := typehelpers.AllMultihashesFromAdChain(t, adNode.(schema.Advertisement), te.publisherLinkSys)
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[1]}))
-	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[0]}), "multihashes were indexed. The shouldn't be because of limit")
+	requireNotIndexed(t, []multihash.Multihash{allMhs[0]}, te.ingester.indexer)
 
 	te.Close(t)
 }
@@ -717,12 +720,87 @@ func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 	<-wait
 
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs))
-
 }
 
-func requireNotIndexed(t *testing.T, mhs []multihash.Multihash, ing *Ingester) {
+func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := mkTestHost()
+	pubHost := mkTestHost()
+	ing, core, _ := mkIngest(t, h)
+	defer core.Close()
+	defer ing.Close()
+	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	defer pub.Close()
+	connectHosts(t, h, pubHost)
+
+	const entriesDepth = 10
+
+	totalChunkCount := int(entriesDepth * 2)
+	adCid, _, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	end, err := ing.Sync(ctx, pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+
+	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
+	ing.entriesSel = ssb.ExploreRecursive(selector.RecursionLimitDepth(entriesDepth),
+		ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
+			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
+		})).Node()
+
+	select {
+	case endCid := <-end:
+		// We receive the CID that we synced.
+		require.Equal(t, adCid, endCid)
+		// Check that subscriber recorded latest sync.
+		lnk := ing.sub.GetLatestSync(pubHost.ID())
+		lcid := lnk.(cidlink.Link).Cid
+		require.Equal(t, lcid, adCid)
+		// Check that latest sync recorded in datastore
+		adNode, err := lsys.Load(linking.LinkContext{}, lnk, schema.Type.Advertisement)
+		require.NoError(t, err)
+		mhs := typehelpers.AllMultihashesFromAdChainDepth(t, adNode.(schema.Advertisement), lsys, entriesDepth)
+		require.NoError(t, checkAllIndexed(ing.indexer, providerID, mhs))
+
+		lcid, err = ing.GetLatestSync(pubHost.ID())
+		for err == nil && lcid == cid.Undef {
+			// May not have marked ad as processed yet, retry.
+			time.Sleep(time.Second)
+			if ctx.Err() != nil {
+				t.Fatal("sync timeout")
+			}
+			lcid, err = ing.GetLatestSync(pubHost.ID())
+		}
+
+		require.NoError(t, err)
+		require.Equal(t, adCid, lcid)
+	case <-ctx.Done():
+		t.Fatal("sync timeout")
+	}
+
+	entriesCid := getAdEntriesCid(t, srcStore, adCid)
+	var mhs []multihash.Multihash
+	nextChunkCid := entriesCid
+	for i := 0; i < totalChunkCount; i++ {
+		mhs, nextChunkCid = decodeEntriesChunk(t, srcStore, nextChunkCid)
+		// If chunk depth is within limit
+		if i < entriesDepth {
+			// Assert chunk multihashes are indexed
+			require.NoError(t, checkAllIndexed(ing.indexer, providerID, mhs))
+		} else {
+			// Otherwise, assert chunk multihashes are not indexed.
+			requireNotIndexed(t, mhs, ing.indexer)
+		}
+	}
+
+	// Assert no more chunks are left.
+	require.Equal(t, cid.Undef, nextChunkCid)
+}
+
+func requireNotIndexed(t *testing.T, mhs []multihash.Multihash, ix indexer.Interface) {
 	for _, mh := range mhs {
-		_, exists, err := ing.indexer.Get(mh)
+		_, exists, err := ix.Get(mh)
 		require.NoError(t, err)
 		require.False(t, exists)
 	}

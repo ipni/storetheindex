@@ -101,6 +101,10 @@ func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datam
 }
 
 func AllMultihashesFromAdChain(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem) []multihash.Multihash {
+	return AllMultihashesFromAdChainDepth(t, ad, lsys, 0)
+}
+
+func AllMultihashesFromAdChainDepth(t *testing.T, ad schema.Advertisement, lsys ipld.LinkSystem, entriesDepth int) []multihash.Multihash {
 	var out []multihash.Multihash
 
 	progress := traversal.Progress{
@@ -113,10 +117,17 @@ func AllMultihashesFromAdChain(t *testing.T, ad schema.Advertisement, lsys ipld.
 		},
 	}
 
+	var rLimit selector.RecursionLimit
+	if entriesDepth < 1 {
+		rLimit = selector.RecursionLimitNone()
+	} else {
+		rLimit = selector.RecursionLimitDepth(int64(entriesDepth))
+	}
+
 	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
 	exploreEntriesRecursively := func(efsb builder.ExploreFieldsSpecBuilder) {
 		efsb.Insert("Entries",
-			ssb.ExploreRecursive(selector.RecursionLimitDepth(0xff),
+			ssb.ExploreRecursive(rLimit,
 				ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
 					// In the EntryChunk
 					efsb.Insert("Entries", ssb.ExploreAll(ssb.Matcher()))
@@ -127,7 +138,7 @@ func AllMultihashesFromAdChain(t *testing.T, ad schema.Advertisement, lsys ipld.
 	sel, err := ssb.ExploreFields(
 		func(efsb builder.ExploreFieldsSpecBuilder) {
 			efsb.Insert("PreviousID",
-				ssb.ExploreRecursive(selector.RecursionLimitDepth(0xff),
+				ssb.ExploreRecursive(selector.RecursionLimitNone(),
 					ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
 						efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
 						exploreEntriesRecursively(efsb)
