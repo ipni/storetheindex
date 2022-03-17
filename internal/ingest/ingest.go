@@ -39,6 +39,10 @@ const (
 	admapPrefix = "/admap/"
 	// This prefix represents all the ads we've already processed.
 	adProcessedPrefix = "/adProcessed/"
+
+	// Absolute maximum number of entries an advertisement can have. Should
+	// only effect misconfigured publisher.
+	entriesDepthLimit = 16384
 )
 
 type adProcessedEvent struct {
@@ -112,9 +116,9 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
 		}).Node()
 
-	// Construct the selector used when syncing entries of an advertisement with the configured
-	// recursion limit.
-	entSel := ssb.ExploreRecursive(cfg.EntriesRecursionLimit(),
+	// Construct the selector used when syncing entries of an advertisement
+	// with non-configurable recursion limit.
+	entSel := ssb.ExploreRecursive(selector.RecursionLimitDepth(entriesDepthLimit),
 		ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
 			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
 		})).Node()
@@ -141,7 +145,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	// Create and start pubsub subscriber.  This also registers the storage
 	// hook to index data as it is received.
-	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Authorized), legs.SyncRecursionLimit(cfg.AdvertisementRecursionLimit()), legs.UseLatestSyncHandler(&syncHandler{ing}))
+	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Authorized), legs.UseLatestSyncHandler(&syncHandler{ing}))
 	if err != nil {
 		log.Errorw("Failed to start pubsub subscriber", "err", err)
 		return nil, errors.New("ingester subscriber failed")
@@ -212,8 +216,8 @@ func (ing *Ingester) Close() error {
 // parameters: depth, and resync.
 //
 // The depth argument specifies the recursion depth limit to use during sync.
-// Its value may be one of: -1 for no-limit, 0 for same value as config.Ingest,
-// or larger than 0 for an explicit limit.
+// Its value may less than 1 for no limit, or greater than 1 for an explicit
+// limit.
 //
 // The resync argument specifies whether to stop the traversal at the latest
 // known advertisement that is already synced. If set to true, the traversal
@@ -228,15 +232,11 @@ func (ing *Ingester) Close() error {
 // The Context argument controls the lifetime of the sync.  Canceling it
 // cancels the sync and causes the multihash channel to close without any data.
 func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, resync bool) (<-chan cid.Cid, error) {
-	out := make(chan cid.Cid, 1)
-
-	// Fail fast if peer ID or depth is invalid.
-	if depth < -1 {
-		return nil, fmt.Errorf("recursion depth limit must not be less than -1; got %d", depth)
-	}
 	if err := peerID.Validate(); err != nil {
 		return nil, err
 	}
+
+	out := make(chan cid.Cid, 1)
 
 	ing.waitForPendingSyncs.Add(1)
 	go func() {
@@ -333,14 +333,10 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 }
 
 func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int64, resync bool) (ipld.Node, error) {
-	// Consider the value of -1 as no-limit, similar to config.Ingest.
+	// Consider the value of < 1 as no-limit.
 	var rLimit selector.RecursionLimit
-	if depth == -1 {
+	if depth < 1 {
 		rLimit = selector.RecursionLimitNone()
-	} else if depth == 0 {
-		rLimit = ing.cfg.AdvertisementRecursionLimit()
-		// Override the value of depth with config.Ingest value for logging purposes.
-		depth = ing.cfg.AdvertisementDepthLimit
 	} else {
 		rLimit = selector.RecursionLimitDepth(depth)
 	}

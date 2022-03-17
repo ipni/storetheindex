@@ -276,7 +276,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 
 	startTime := time.Now()
 
-	// Traverse entries based on the entries selector that limits recursion depth.
+	// Traverse entries based on the entries selector.
 	var errsIngestingEntryChunks []error
 	_, err = ing.sub.Sync(ctx, publisher, entriesCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid) {
 		err := ing.ingestEntryChunk(p, adCid, ad, c)

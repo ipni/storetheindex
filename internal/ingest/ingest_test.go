@@ -32,6 +32,9 @@ import (
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipld/go-ipld-prime/node/basicnode"
+	"github.com/ipld/go-ipld-prime/traversal/selector"
+	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	"github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -52,12 +55,10 @@ const (
 
 var (
 	ingestCfg = config.Ingest{
-		PubSubTopic:             "test/ingest",
-		StoreBatchSize:          256,
-		SyncTimeout:             config.Duration(time.Minute),
-		EntriesDepthLimit:       300,
-		AdvertisementDepthLimit: 300,
-		IngestWorkerCount:       1,
+		PubSubTopic:       "test/ingest",
+		StoreBatchSize:    256,
+		SyncTimeout:       config.Duration(time.Minute),
+		IngestWorkerCount: 1,
 	}
 	rng = rand.New(rand.NewSource(1413))
 )
@@ -563,7 +564,7 @@ func TestSyncWithDepth(t *testing.T) {
 
 	allMhs := typehelpers.AllMultihashesFromAdChain(t, adNode.(schema.Advertisement), te.publisherLinkSys)
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[1]}))
-	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[0]}), "multihashes were indexed. The shouldn't be because of limit")
+	requireNotIndexed(t, []multihash.Multihash{allMhs[0]}, te.ingester.indexer)
 
 	te.Close(t)
 }
@@ -603,6 +604,7 @@ func TestRmWithNoEntries(t *testing.T) {
 	allMhs = allMhs[1:]
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs))
 }
+
 func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
@@ -675,14 +677,14 @@ func TestReSyncWithDepth(t *testing.T) {
 	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[0:1]))
 
 	// When not resync, check that nothing beyond the latest is synced.
-	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], -1, false)
+	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 0, false)
 	require.NoError(t, err)
 	<-wait
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[1:]))
 	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[0:1]))
 
 	// When resync with greater depth, check that everything in synced.
-	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], -1, true)
+	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 0, true)
 	require.NoError(t, err)
 	<-wait
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs))
@@ -718,7 +720,6 @@ func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 	<-wait
 
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs))
-
 }
 
 func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
@@ -732,7 +733,18 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	totalChunkCount := int(ingestCfg.EntriesDepthLimit * 2)
+	const entriesDepth = 10
+
+	totalChunkCount := int(entriesDepth * 2)
+
+	// Replace ingester entries selector with on that has a much smapper limit,
+	// for testing.
+	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
+	ing.entriesSel = ssb.ExploreRecursive(selector.RecursionLimitDepth(entriesDepth),
+		ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
+			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
+		})).Node()
+
 	adCid, _, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -751,7 +763,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 		// Check that latest sync recorded in datastore
 		adNode, err := lsys.Load(linking.LinkContext{}, lnk, schema.Type.Advertisement)
 		require.NoError(t, err)
-		mhs := typehelpers.AllMultihashesFromAdChain(t, adNode.(schema.Advertisement), lsys)
+		mhs := typehelpers.AllMultihashesFromAdChainDepth(t, adNode.(schema.Advertisement), lsys, entriesDepth)
 		require.NoError(t, checkAllIndexed(ing.indexer, providerID, mhs))
 
 		lcid, err = ing.GetLatestSync(pubHost.ID())
@@ -776,12 +788,12 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	for i := 0; i < totalChunkCount; i++ {
 		mhs, nextChunkCid = decodeEntriesChunk(t, srcStore, nextChunkCid)
 		// If chunk depth is within limit
-		if i < int(ingestCfg.EntriesDepthLimit) {
+		if i < entriesDepth {
 			// Assert chunk multihashes are indexed
 			require.NoError(t, checkAllIndexed(ing.indexer, providerID, mhs))
 		} else {
 			// Otherwise, assert chunk multihashes are not indexed.
-			requireNotIndexed(t, mhs, ing)
+			requireNotIndexed(t, mhs, ing.indexer)
 		}
 	}
 
@@ -789,9 +801,9 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	require.Equal(t, cid.Undef, nextChunkCid)
 }
 
-func requireNotIndexed(t *testing.T, mhs []multihash.Multihash, ing *Ingester) {
+func requireNotIndexed(t *testing.T, mhs []multihash.Multihash, ix indexer.Interface) {
 	for _, mh := range mhs {
-		_, exists, err := ing.indexer.Get(mh)
+		_, exists, err := ix.Get(mh)
 		require.NoError(t, err)
 		require.False(t, exists)
 	}
