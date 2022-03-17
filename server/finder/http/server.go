@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
+	xnet "golang.org/x/net/netutil"
 )
 
 var log = logging.Logger("indexer/finder")
@@ -39,6 +40,9 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	if err != nil {
 		return nil, err
 	}
+
+	// Limit the number of open connections to the listener.
+	l = xnet.LimitListener(l, cfg.maxConns)
 
 	// Resource handler
 	h := newHandler(indexer, registry)
