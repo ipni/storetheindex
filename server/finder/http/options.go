@@ -8,12 +8,14 @@ import (
 const (
 	apiWriteTimeout = 30 * time.Second
 	apiReadTimeout  = 30 * time.Second
+	maxConns        = 8_000
 )
 
 // serverConfig is a structure containing all the options that can be used when constructing an http server
 type serverConfig struct {
 	apiWriteTimeout time.Duration
 	apiReadTimeout  time.Duration
+	maxConns        int
 }
 
 // ServerOption for httpserver
@@ -24,6 +26,7 @@ type ServerOption func(*serverConfig) error
 var serverDefaults = func(o *serverConfig) error {
 	o.apiWriteTimeout = apiWriteTimeout
 	o.apiReadTimeout = apiReadTimeout
+	o.maxConns = maxConns
 	return nil
 }
 
