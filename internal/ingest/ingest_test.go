@@ -52,12 +52,10 @@ const (
 
 var (
 	ingestCfg = config.Ingest{
-		PubSubTopic:             "test/ingest",
-		StoreBatchSize:          256,
-		SyncTimeout:             config.Duration(time.Minute),
-		EntriesDepthLimit:       300,
-		AdvertisementDepthLimit: 300,
-		IngestWorkerCount:       1,
+		PubSubTopic:       "test/ingest",
+		StoreBatchSize:    256,
+		SyncTimeout:       config.Duration(time.Minute),
+		IngestWorkerCount: 1,
 	}
 	rng = rand.New(rand.NewSource(1413))
 )
@@ -603,6 +601,7 @@ func TestRmWithNoEntries(t *testing.T) {
 	allMhs = allMhs[1:]
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs))
 }
+
 func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
@@ -675,14 +674,14 @@ func TestReSyncWithDepth(t *testing.T) {
 	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[0:1]))
 
 	// When not resync, check that nothing beyond the latest is synced.
-	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], -1, false)
+	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 0, false)
 	require.NoError(t, err)
 	<-wait
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[1:]))
 	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[0:1]))
 
 	// When resync with greater depth, check that everything in synced.
-	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], -1, true)
+	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 0, true)
 	require.NoError(t, err)
 	<-wait
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs))
@@ -719,74 +718,6 @@ func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs))
 
-}
-
-func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
-	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
-	h := mkTestHost()
-	pubHost := mkTestHost()
-	ing, core, _ := mkIngest(t, h)
-	defer core.Close()
-	defer ing.Close()
-	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
-	defer pub.Close()
-	connectHosts(t, h, pubHost)
-
-	totalChunkCount := int(ingestCfg.EntriesDepthLimit * 2)
-	adCid, _, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	end, err := ing.Sync(ctx, pubHost.ID(), nil, 0, false)
-	require.NoError(t, err)
-
-	select {
-	case endCid := <-end:
-		// We receive the CID that we synced.
-		require.Equal(t, adCid, endCid)
-		// Check that subscriber recorded latest sync.
-		lnk := ing.sub.GetLatestSync(pubHost.ID())
-		lcid := lnk.(cidlink.Link).Cid
-		require.Equal(t, lcid, adCid)
-		// Check that latest sync recorded in datastore
-		adNode, err := lsys.Load(linking.LinkContext{}, lnk, schema.Type.Advertisement)
-		require.NoError(t, err)
-		mhs := typehelpers.AllMultihashesFromAdChain(t, adNode.(schema.Advertisement), lsys)
-		require.NoError(t, checkAllIndexed(ing.indexer, providerID, mhs))
-
-		lcid, err = ing.GetLatestSync(pubHost.ID())
-		for err == nil && lcid == cid.Undef {
-			// May not have marked ad as processed yet, retry.
-			time.Sleep(time.Second)
-			if ctx.Err() != nil {
-				t.Fatal("sync timeout")
-			}
-			lcid, err = ing.GetLatestSync(pubHost.ID())
-		}
-
-		require.NoError(t, err)
-		require.Equal(t, adCid, lcid)
-	case <-ctx.Done():
-		t.Fatal("sync timeout")
-	}
-
-	entriesCid := getAdEntriesCid(t, srcStore, adCid)
-	var mhs []multihash.Multihash
-	nextChunkCid := entriesCid
-	for i := 0; i < totalChunkCount; i++ {
-		mhs, nextChunkCid = decodeEntriesChunk(t, srcStore, nextChunkCid)
-		// If chunk depth is within limit
-		if i < int(ingestCfg.EntriesDepthLimit) {
-			// Assert chunk multihashes are indexed
-			require.NoError(t, checkAllIndexed(ing.indexer, providerID, mhs))
-		} else {
-			// Otherwise, assert chunk multihashes are not indexed.
-			requireNotIndexed(t, mhs, ing)
-		}
-	}
-
-	// Assert no more chunks are left.
-	require.Equal(t, cid.Undef, nextChunkCid)
 }
 
 func requireNotIndexed(t *testing.T, mhs []multihash.Multihash, ing *Ingester) {

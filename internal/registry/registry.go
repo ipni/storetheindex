@@ -622,8 +622,9 @@ func (r *Registry) pollProviders(pollInterval, pollRetryAfter, pollStopAfter tim
 				continue
 			}
 			if info.lastContactTime.IsZero() {
-				// There has been no contact since startup.  Start counting now.
-				info.lastContactTime = now
+				// There has been no contact since startup.  Poll during next
+				// call to this function if no updated for provider.
+				info.lastContactTime = now.Add(-pollInterval)
 				continue
 			}
 			noContactTime := now.Sub(info.lastContactTime)
