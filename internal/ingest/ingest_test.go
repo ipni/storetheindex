@@ -736,18 +736,21 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	const entriesDepth = 10
 
 	totalChunkCount := int(entriesDepth * 2)
+
+	// Replace ingester entries selector with on that has a much smapper limit,
+	// for testing.
+	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
+	ing.entriesSel = ssb.ExploreRecursive(selector.RecursionLimitDepth(entriesDepth),
+		ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
+			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
+		})).Node()
+
 	adCid, _, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	end, err := ing.Sync(ctx, pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
-
-	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
-	ing.entriesSel = ssb.ExploreRecursive(selector.RecursionLimitDepth(entriesDepth),
-		ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
-			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
-		})).Node()
 
 	select {
 	case endCid := <-end:
