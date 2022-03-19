@@ -1,0 +1,9 @@
+{
+  "adsPerSec": 4,
+  "entriesPerAdType": "Always(100)",
+  "entriesPerChunk": 10,
+  "isHttp": false,
+  "seed": 1,
+  "listenMultiaddr": "/ip4/127.0.0.1/tcp/9001",
+  "gossipSubTopic": "indexer/ingest"
+}

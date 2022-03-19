@@ -1,0 +1,8 @@
+{
+  "adsPerSec": 1,
+  "entriesPerAdType": "Always(1)",
+  "entriesPerChunk": 1,
+  "isHttp": true,
+  "seed": 1,
+  "httpListenAddr": "127.0.0.1:9002"
+}
