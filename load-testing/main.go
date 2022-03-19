@@ -16,7 +16,6 @@ import (
 	"github.com/filecoin-project/go-legs"
 	legsDT "github.com/filecoin-project/go-legs/dtsync"
 	legsHttp "github.com/filecoin-project/go-legs/httpsync"
-	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	httpfinderclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
 	ingesthttpclient "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
@@ -65,7 +64,7 @@ func verify(indexerHost string, nodeSeed uint64, upTo uint, randomQuery bool) er
 		allMhsSet[mh.B58String()] = true
 	}
 	start := time.Now()
-	resp, err := client.FindBatch(context.Background(), allMhs)
+	resp, err := client.Find(context.Background(), allMhs[0])
 	if err != nil {
 		return err
 	}
@@ -455,10 +454,7 @@ type AdBuilder struct {
 
 func (b AdBuilder) Build(lsys ipld.LinkSystem, signingKey crypto.PrivKey, prevAd schema.Link_Advertisement) (schema.Link_Advertisement, error) {
 	contextID := []byte(fmt.Sprintf("%d", b.contextID))
-	metadata := v0.Metadata{
-		ProtocolID: loadTestProtocolID,
-		Data:       b.metadata,
-	}
+	metadata := b.metadata
 	var entriesLink datamodel.Link
 	if b.entryCount == 0 {
 		entriesLink = schema.NoEntries

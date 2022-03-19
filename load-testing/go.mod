@@ -6,11 +6,12 @@ replace github.com/filecoin-project/storetheindex => ../
 
 require (
 	github.com/dustin/randbo v0.0.0-20140428231429-7f1b564ca724
-	github.com/filecoin-project/go-legs v0.3.9-0.20220309005654-0b9ccf63124f
+	github.com/filecoin-project/go-legs v0.3.10
 	github.com/filecoin-project/storetheindex v0.3.5
+	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipld/go-ipld-prime v0.14.4
-	github.com/libp2p/go-libp2p v0.18.0-rc3
+	github.com/libp2p/go-libp2p v0.18.0-rc5
 	github.com/libp2p/go-libp2p-core v0.14.0
 	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/multiformats/go-multihash v0.1.0
@@ -54,7 +55,6 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/huin/goupnp v1.0.2 // indirect
 	github.com/ipfs/go-block-format v0.0.3 // indirect
-	github.com/ipfs/go-cid v0.1.0 // indirect
 	github.com/ipfs/go-graphsync v0.12.0 // indirect
 	github.com/ipfs/go-ipfs-pq v0.0.2 // indirect
 	github.com/ipfs/go-ipfs-util v0.0.2 // indirect
@@ -86,12 +86,12 @@ require (
 	github.com/libp2p/go-libp2p-peerstore v0.6.0 // indirect
 	github.com/libp2p/go-libp2p-pnet v0.2.0 // indirect
 	github.com/libp2p/go-libp2p-pubsub v0.6.1 // indirect
-	github.com/libp2p/go-libp2p-quic-transport v0.16.0 // indirect
+	github.com/libp2p/go-libp2p-quic-transport v0.16.1 // indirect
 	github.com/libp2p/go-libp2p-resource-manager v0.1.3 // indirect
-	github.com/libp2p/go-libp2p-swarm v0.10.1 // indirect
+	github.com/libp2p/go-libp2p-swarm v0.10.2 // indirect
 	github.com/libp2p/go-libp2p-tls v0.3.1 // indirect
 	github.com/libp2p/go-libp2p-transport-upgrader v0.7.1 // indirect
-	github.com/libp2p/go-libp2p-yamux v0.8.1 // indirect
+	github.com/libp2p/go-libp2p-yamux v0.8.2 // indirect
 	github.com/libp2p/go-mplex v0.4.0 // indirect
 	github.com/libp2p/go-msgio v0.1.0 // indirect
 	github.com/libp2p/go-nat v0.1.0 // indirect
@@ -100,7 +100,7 @@ require (
 	github.com/libp2p/go-reuseport v0.1.0 // indirect
 	github.com/libp2p/go-reuseport-transport v0.1.0 // indirect
 	github.com/libp2p/go-stream-muxer-multistream v0.4.0 // indirect
-	github.com/libp2p/go-tcp-transport v0.5.0 // indirect
+	github.com/libp2p/go-tcp-transport v0.5.1 // indirect
 	github.com/libp2p/go-ws-transport v0.6.0 // indirect
 	github.com/libp2p/go-yamux/v3 v3.0.2 // indirect
 	github.com/lucas-clemente/quic-go v0.25.0 // indirect
