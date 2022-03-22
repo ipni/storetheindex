@@ -55,7 +55,7 @@ require (
 	github.com/filecoin-project/go-cbor-util v0.0.0-20191219014500-08c40a1e63a2 // indirect
 	github.com/filecoin-project/go-data-transfer v1.14.0 // indirect
 	github.com/filecoin-project/go-ds-versioning v0.1.1 // indirect
-	github.com/filecoin-project/go-statemachine v1.0.2-0.20220322070246-6a918282c7cc // indirect
+	github.com/filecoin-project/go-statemachine v1.0.2-0.20220322104818-27f8fbb86dfd // indirect
 	github.com/filecoin-project/go-statestore v0.2.0 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
