@@ -16,6 +16,7 @@ import (
 var (
 	ErrKind, _ = tag.NewKey("errKind")
 	Method, _  = tag.NewKey("method")
+	Found, _   = tag.NewKey("found")
 	Version, _ = tag.NewKey("version")
 )
 
@@ -37,6 +38,7 @@ var (
 	findLatencyView = &view.View{
 		Measure:     FindLatency,
 		Aggregation: view.Distribution(0, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 1000, 2000, 5000),
+		TagKeys:     []tag.Key{Method, Found},
 	}
 	adIngestLatencyView = &view.View{
 		Measure:     AdIngestLatency,
