@@ -77,6 +77,13 @@ func (h *httpHandler) findBatch(w http.ResponseWriter, r *http.Request) {
 
 func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash) {
 	startTime := time.Now()
+	var found bool
+	defer func() {
+		msecPerMh := coremetrics.MsecSince(startTime) / float64(len(mhs))
+		_ = stats.RecordWithOptions(context.Background(),
+			stats.WithTags(tag.Insert(metrics.Method, "http"), tag.Insert(metrics.Found, fmt.Sprintf("%v", found))),
+			stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
+	}()
 
 	response, err := h.finderHandler.Find(mhs)
 	if err != nil {
@@ -97,11 +104,7 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 		return
 	}
 
-	msecPerMh := coremetrics.MsecSince(startTime) / float64(len(mhs))
-	_ = stats.RecordWithOptions(context.Background(),
-		stats.WithTags(tag.Insert(metrics.Method, "http")),
-		stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
-
+	found = true
 	httpserver.WriteJsonResponse(w, http.StatusOK, rb)
 }
 

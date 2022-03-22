@@ -10,7 +10,7 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
 	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
@@ -89,6 +89,14 @@ func (h *libp2pHandler) find(ctx context.Context, p peer.ID, msg *pb.FinderMessa
 		return nil, err
 	}
 
+	var found bool
+	defer func() {
+		msecPerMh := coremetrics.MsecSince(startTime) / float64(len(req.Multihashes))
+		_ = stats.RecordWithOptions(context.Background(),
+			stats.WithTags(tag.Insert(metrics.Method, "libp2p"), tag.Insert(metrics.Found, fmt.Sprintf("%v", found))),
+			stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
+	}()
+
 	r, err := h.finderHandler.Find(req.Multihashes)
 	if err != nil {
 		return nil, err
@@ -98,10 +106,9 @@ func (h *libp2pHandler) find(ctx context.Context, p peer.ID, msg *pb.FinderMessa
 		return nil, err
 	}
 
-	msecPerMh := coremetrics.MsecSince(startTime) / float64(len(req.Multihashes))
-	_ = stats.RecordWithOptions(context.Background(),
-		stats.WithTags(tag.Insert(metrics.Method, "libp2p")),
-		stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
+	if len(r.MultihashResults) > 0 {
+		found = true
+	}
 
 	return data, nil
 }
