@@ -168,9 +168,7 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schem
 		return fmt.Errorf("failed processing entries for advertisement: %w", err)
 	}
 
-	log.Info("Done indexing content in entry block")
 	ing.signalMetricsUpdate()
-
 	return nil
 }
 
@@ -242,7 +240,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 
 	startTime := time.Now()
 
-	// Traverse entries based on the entries selector.
+	// Traverse entries based on the entries selector that limits recursion depth.
 	var errsIngestingEntryChunks []error
 	_, err = ing.sub.Sync(ctx, publisher, entriesCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid) {
 		err := ing.ingestEntryChunk(p, adCid, ad, c)
@@ -281,6 +279,8 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 // retrieved from.  It is the provider ID that needs to be stored by the
 // indexer.
 func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, pubID peer.ID, nentries ipld.Node) error {
+	log := log.With("publisher", pubID, "adCid", adCid)
+
 	// Decode the list of cids into a List_String
 	nchunk, err := schema.UnwrapEntryChunk(nentries)
 	if err != nil {
@@ -294,30 +294,78 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 		return err
 	}
 
-	mhChan := make(chan multihash.Multihash, ing.batchSize)
-	// The isRm parameter is passed in for an advertisement that contains
-	// entries, to allow for removal of individual entries.
-	errChan := ing.batchIndexerEntries(mhChan, value, isRm)
+	batchChan := make(chan []multihash.Multihash)
+	errChan := make(chan error, 1)
+	// Start a goroutine that processes batches of multihashes.
+	go func() {
+		defer close(errChan)
+		for mhs := range batchChan {
+			if err := ing.storeBatch(value, mhs, isRm); err != nil {
+				errChan <- err
+				return
+			}
+		}
+	}()
+
+	batch := make([]multihash.Multihash, 0, ing.batchSize)
+	var prevBatch []multihash.Multihash
 
 	// Iterate over all entries and ingest (or remove) them.
 	var count int
 	for _, entry := range nchunk.Entries {
+		batch = append(batch, entry)
+
+		// Process full batch of multihashes.
+		if len(batch) == cap(batch) {
+			select {
+			case batchChan <- batch:
+			case err = <-errChan:
+				return err
+			}
+			count += len(batch)
+			if prevBatch == nil {
+				prevBatch = make([]multihash.Multihash, 0, ing.batchSize)
+			}
+			// Since batchChan is unbuffered, the goroutine is done reading the previous batch.
+			prevBatch, batch = batch, prevBatch
+			batch = batch[:0]
+		}
+	}
+
+	// Process any remaining multihashes.
+	if len(batch) != 0 {
 		select {
-		case mhChan <- entry:
+		case batchChan <- batch:
 		case err = <-errChan:
 			return err
 		}
-		count++
-	}
-	close(mhChan)
-	err = <-errChan
-	if err != nil {
-		if isRm {
-			return fmt.Errorf("cannot remove multihashes from indexer: %w", err)
-		}
-		return fmt.Errorf("cannot put multihashes into indexer: %w", err)
+		count += len(batch)
 	}
 
+	close(batchChan)
+	err = <-errChan
+	if err != nil {
+		return err
+	}
+
+	if isRm {
+		log.Infow("Removed multihashes in entry chunk", "count", count)
+	} else {
+		log.Infow("Put multihashes in entry chunk", "count", count)
+	}
+	return nil
+}
+
+func (ing *Ingester) storeBatch(value indexer.Value, batch []multihash.Multihash, isRm bool) error {
+	if isRm {
+		if err := ing.indexer.Remove(value, batch...); err != nil {
+			return fmt.Errorf("cannot remove multihashes from indexer: %w", err)
+		}
+	} else {
+		if err := ing.indexer.Put(value, batch...); err != nil {
+			return fmt.Errorf("cannot put multihashes into indexer: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -354,61 +402,6 @@ func getAdData(ad schema.Advertisement) (value indexer.Value, isRm bool, err err
 	}
 
 	return value, ad.IsRm, nil
-}
-
-// batchIndexerEntries starts a goroutine that processes batches of multihashes
-// from an input channels.  The goroutine collects these into a slice, storing
-// up to batchSize elements.  When the slice is at capacity, a Put or Remove
-// request is made to the indexer core depending on the whether isRm is true
-// or false.  This function returns an error channel that returns an error if
-// one occurs during processing.  This also indicates the goroutine has exited
-// (and will no longer read its input channel).
-//
-// The goroutine exits when the input channel is closed.  It closes the error
-// channel to indicate completion.
-func (ing *Ingester) batchIndexerEntries(mhChan <-chan multihash.Multihash, value indexer.Value, isRm bool) <-chan error {
-	var indexFunc func(indexer.Value, ...multihash.Multihash) error
-	var opName string
-	if isRm {
-		indexFunc = ing.indexer.Remove
-		opName = "remove"
-	} else {
-		indexFunc = ing.indexer.Put
-		opName = "put"
-	}
-
-	errChan := make(chan error, 1)
-
-	go func(batchSize int) {
-		defer close(errChan)
-		batch := make([]multihash.Multihash, 0, batchSize)
-		var count int
-		for m := range mhChan {
-			batch = append(batch, m)
-			if len(batch) == batchSize {
-				// Process full batch of multihashes
-				if err := indexFunc(value, batch...); err != nil {
-					errChan <- err
-					return
-				}
-				batch = batch[:0]
-				count += batchSize
-			}
-		}
-
-		if len(batch) != 0 {
-			// Process any remaining puts
-			if err := indexFunc(value, batch...); err != nil {
-				errChan <- err
-				return
-			}
-			count += len(batch)
-		}
-
-		log.Infow("Processed multihashes in entry chunk", "count", count, "operation", opName)
-	}(ing.batchSize)
-
-	return errChan
 }
 
 // decodeIPLDNode decodes an ipld.Node from bytes read from an io.Reader.
