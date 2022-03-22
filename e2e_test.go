@@ -118,7 +118,6 @@ func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
 }
 
 func TestEndToEndWithReferenceProvider(t *testing.T) {
-	t.Skip("Skipping this test since it's currently broken – will fix in another PR.")
 	switch runtime.GOOS {
 	case "windows", "darwin":
 		t.Skip("skipping test on", runtime.GOOS)
