@@ -5,6 +5,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 )
 
 // ProviderData describes a provider.
@@ -15,11 +16,20 @@ type ProviderInfo struct {
 	Publisher             *peer.AddrInfo `json:",omitempty"`
 }
 
-func MakeProviderInfo(addrInfo peer.AddrInfo, lastAd cid.Cid, lastAdTime time.Time, publisher *peer.AddrInfo) ProviderInfo {
+func MakeProviderInfo(addrInfo peer.AddrInfo, lastAd cid.Cid, lastAdTime time.Time, publisherID peer.ID, publisherAddr string) ProviderInfo {
 	pinfo := ProviderInfo{
 		AddrInfo:          addrInfo,
 		LastAdvertisement: lastAd,
-		Publisher:         publisher,
+	}
+
+	if publisherID.Validate() == nil && publisherAddr != "" {
+		maddr, err := multiaddr.NewMultiaddr(publisherAddr)
+		if err == nil {
+			pinfo.Publisher = &peer.AddrInfo{
+				ID:    publisherID,
+				Addrs: []multiaddr.Multiaddr{maddr},
+			}
+		}
 	}
 
 	if lastAd != cid.Undef && !lastAdTime.IsZero() {

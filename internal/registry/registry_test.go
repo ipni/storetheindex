@@ -245,10 +245,8 @@ func TestDatastore(t *testing.T) {
 			ID:    peerID,
 			Addrs: []multiaddr.Multiaddr{maddr},
 		},
-		Publisher: &peer.AddrInfo{
-			ID:    pubID,
-			Addrs: []multiaddr.Multiaddr{pubAddr},
-		},
+		Publisher:     pubID,
+		PublisherAddr: pubAddr.String(),
 	}
 
 	// Create datastore
@@ -267,7 +265,11 @@ func TestDatastore(t *testing.T) {
 		t.Fatal("failed to register directly:", err)
 	}
 
-	err = r.RegisterOrUpdate(ctx, info2.AddrInfo.ID, []string{minerAddr2}, cid.Undef, *info2.Publisher)
+	publisher := peer.AddrInfo{
+		ID:    info2.Publisher,
+		Addrs: []multiaddr.Multiaddr{pubAddr},
+	}
+	err = r.RegisterOrUpdate(ctx, info2.AddrInfo.ID, []string{minerAddr2}, cid.Undef, publisher)
 	if err != nil {
 		t.Fatal("failed to register directly:", err)
 	}
@@ -306,24 +308,21 @@ func TestDatastore(t *testing.T) {
 	for _, provInfo := range infos {
 		switch provInfo.AddrInfo.ID {
 		case info1.AddrInfo.ID:
-			if provInfo.Publisher != nil {
+			if provInfo.Publisher.Validate() == nil {
 				t.Fatal("info1 should not have valid publisher")
 			}
 		case info2.AddrInfo.ID:
-			if provInfo.Publisher == nil {
-				t.Fatal("info2 missing publisher")
-			}
-			if provInfo.Publisher.ID != info2.Publisher.ID {
+			if provInfo.Publisher != info2.Publisher {
 				t.Fatal("info2 has wrong publisher ID")
 			}
-			if provInfo.Publisher == nil || len(provInfo.Publisher.Addrs) != 1 {
+			if provInfo.PublisherAddr == "" {
 				t.Fatal("info2 missing publisher address")
 			}
-			if !provInfo.Publisher.Addrs[0].Equal(info2.Publisher.Addrs[0]) {
-				t.Fatalf("info2 has wrong publisher ID %s, expected %s", provInfo.Publisher.Addrs[0], info2.Publisher.Addrs[0])
+			if provInfo.PublisherAddr != info2.PublisherAddr {
+				t.Fatalf("info2 has wrong publisher ID %q, expected %q", provInfo.PublisherAddr, info2.PublisherAddr)
 			}
 		default:
-			t.Fatalf("loaded invalid provider ID: %s", provInfo.AddrInfo.ID)
+			t.Fatalf("loaded invalid provider ID: %q", provInfo.AddrInfo.ID)
 		}
 	}
 
@@ -381,10 +380,7 @@ func TestPollProvider(t *testing.T) {
 		if pinfo.AddrInfo.ID != peerID {
 			t.Fatal("Wrong provider ID")
 		}
-		if pinfo.Publisher == nil {
-			t.Fatal("Missing publisher")
-		}
-		if pinfo.Publisher.ID != pubID {
+		if pinfo.Publisher != pubID {
 			t.Fatal("Wrong publisher ID")
 		}
 	case <-timeout:
@@ -425,7 +421,7 @@ func TestPollProvider(t *testing.T) {
 	if pinfo == nil {
 		t.Fatal("did not find registered provider")
 	}
-	if pinfo.Publisher != nil {
+	if pinfo.Publisher.Validate() == nil {
 		t.Fatal("should not have valid publisher after polling stopped")
 	}
 

@@ -91,7 +91,7 @@ func (h *FinderHandler) ListProviders() ([]byte, error) {
 	responses := make([]model.ProviderInfo, len(infos))
 	for i := range infos {
 		responses[i] = model.MakeProviderInfo(infos[i].AddrInfo, infos[i].LastAdvertisement,
-			infos[i].LastAdvertisementTime, infos[i].Publisher)
+			infos[i].LastAdvertisementTime, infos[i].Publisher, infos[i].PublisherAddr)
 	}
 
 	return json.Marshal(responses)
@@ -103,7 +103,7 @@ func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 		return nil, nil
 	}
 
-	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastAdvertisement, info.LastAdvertisementTime, info.Publisher)
+	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastAdvertisement, info.LastAdvertisementTime, info.Publisher, info.PublisherAddr)
 
 	return json.Marshal(&rsp)
 }
