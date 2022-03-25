@@ -174,14 +174,14 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schem
 
 // ingestAd fetches all the entries for a single advertisement and processes
 // them.
-func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advertisement) error {
+func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement) error {
 	stats.Record(context.Background(), metrics.IngestChange.M(1))
 	ingestStart := time.Now()
 	defer func() {
 		stats.Record(context.Background(), metrics.AdIngestLatency.M(coremetrics.MsecSince(ingestStart)))
 	}()
 
-	log := log.With("publisher", publisher, "adCid", adCid)
+	log := log.With("publisher", publisherID, "adCid", adCid)
 
 	// Get provider ID from advertisement.
 	providerID, err := peer.Decode(ad.Provider)
@@ -191,7 +191,12 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 
 	// Register provider or update existing registration.  The
 	// provider must be allowed by policy to be registered.
-	err = ing.reg.RegisterOrUpdate(context.Background(), providerID, ad.Addresses, adCid, publisher)
+	var pubInfo peer.AddrInfo
+	peerStore := ing.host.Peerstore()
+	if peerStore != nil {
+		pubInfo = peerStore.PeerInfo(publisherID)
+	}
+	err = ing.reg.RegisterOrUpdate(context.Background(), providerID, ad.Addresses, adCid, pubInfo)
 	if err != nil {
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
@@ -242,7 +247,7 @@ func (ing *Ingester) ingestAd(publisher peer.ID, adCid cid.Cid, ad schema.Advert
 
 	// Traverse entries based on the entries selector that limits recursion depth.
 	var errsIngestingEntryChunks []error
-	_, err = ing.sub.Sync(ctx, publisher, entriesCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid) {
+	_, err = ing.sub.Sync(ctx, publisherID, entriesCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid) {
 		err := ing.ingestEntryChunk(p, adCid, ad, c)
 		if err != nil {
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)

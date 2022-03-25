@@ -27,6 +27,10 @@ import (
 const (
 	// providerKeyPath is where provider info is stored in to indexer repo.
 	providerKeyPath = "/registry/pinfo"
+	// registryVersionKey is where registry version number is stored.
+	registryVersionKey = "/registry/version"
+
+	registryVersion = "v1"
 )
 
 var log = logging.Logger("indexer/registry")
@@ -65,8 +69,8 @@ type ProviderInfo struct {
 	LastAdvertisement cid.Cid `json:",omitempty"`
 	// LastAdvertisementTime is the time the latest advertisement was received.
 	LastAdvertisementTime time.Time `json:",omitempty"`
-	// Publisher is the ID of the peer that published the provider info.
-	Publisher peer.ID `json:",omitempty"`
+	// Publisher contains the ID and multiaddrs of the provider info publisher.
+	Publisher *peer.AddrInfo `json:",omitempty"`
 
 	// lastContactTime is the last time the publisher contexted the
 	// indexer. This is not persisted, so that the time since last contact is
@@ -243,9 +247,8 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 
 	// If publisher is valid and different than the provider, check if the
 	// publisher is allowed.
-	err = info.Publisher.Validate()
-	if err == nil && info.Publisher != info.AddrInfo.ID {
-		allowed, trusted := r.policy.Check(info.Publisher)
+	if info.Publisher != nil && info.Publisher.ID != info.AddrInfo.ID {
+		allowed, trusted := r.policy.Check(info.Publisher.ID)
 		if !allowed {
 			return v0.NewError(ErrNotAllowed, http.StatusForbidden)
 		}
@@ -310,17 +313,11 @@ func (r *Registry) BlockPeer(peerID peer.ID) bool {
 
 // RegisterOrUpdate attempts to register an unregistered provider, or updates
 // the addresses and latest advertisement of an already registered provider.
-func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, addrs []string, adID cid.Cid, publisherID peer.ID) error {
+func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, addrs []string, adID cid.Cid, publisher peer.AddrInfo) error {
 	var fullRegister bool
 	// Check that the provider has been discovered and validated
 	info := r.ProviderInfo(providerID)
 	if info != nil {
-		if err := publisherID.Validate(); err != nil {
-			publisherID = info.Publisher
-		} else if publisherID != info.Publisher {
-			fullRegister = true
-		}
-
 		info = &ProviderInfo{
 			AddrInfo: peer.AddrInfo{
 				ID:    providerID,
@@ -329,7 +326,24 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 			DiscoveryAddr:         info.DiscoveryAddr,
 			LastAdvertisement:     info.LastAdvertisement,
 			LastAdvertisementTime: info.LastAdvertisementTime,
-			Publisher:             publisherID,
+			Publisher:             info.Publisher,
+		}
+
+		if publisher.ID.Validate() == nil {
+			if info.Publisher == nil || publisher.ID != info.Publisher.ID {
+				// Publisher ID changed.
+				info.Publisher = &peer.AddrInfo{
+					ID:    publisher.ID,
+					Addrs: publisher.Addrs,
+				}
+				fullRegister = true
+			} else if len(publisher.Addrs) != 0 && !equalAddrs(publisher.Addrs, info.Publisher.Addrs) {
+				// Publisher addrs changes.
+				info.Publisher = &peer.AddrInfo{
+					ID:    publisher.ID,
+					Addrs: publisher.Addrs,
+				}
+			}
 		}
 	} else {
 		fullRegister = true
@@ -337,7 +351,12 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 			AddrInfo: peer.AddrInfo{
 				ID: providerID,
 			},
-			Publisher: publisherID,
+		}
+		if publisher.ID.Validate() == nil {
+			info.Publisher = &peer.AddrInfo{
+				ID:    publisher.ID,
+				Addrs: publisher.Addrs,
+			}
 		}
 	}
 
@@ -349,6 +368,10 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 		info.AddrInfo.Addrs = maddrs
 	}
 
+	if info.Publisher != nil && len(info.Publisher.Addrs) == 0 && info.Publisher.ID == info.AddrInfo.ID {
+		info.Publisher = &info.AddrInfo
+	}
+
 	now := time.Now()
 
 	if adID != info.LastAdvertisement && adID != cid.Undef {
@@ -358,7 +381,7 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 	info.lastContactTime = now
 
 	// If there is a new providerID or publisherID then do a full Register that
-	// check the allow policy.
+	// checks the allow policy.
 	if fullRegister {
 		return r.Register(ctx, info)
 	}
@@ -536,6 +559,11 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
+	err := r.migrate()
+	if err != nil {
+		return 0, err
+	}
+
 	// Load all providers from the datastore.
 	q := query.Query{
 		Prefix: providerKeyPath,
@@ -571,10 +599,106 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 			return 0, err
 		}
 
+		if pinfo.Publisher != nil && pinfo.Publisher.ID == pinfo.AddrInfo.ID && equalAddrs(pinfo.Publisher.Addrs, pinfo.AddrInfo.Addrs) {
+			pinfo.Publisher = &pinfo.AddrInfo
+		}
+
 		r.providers[peerID] = pinfo
 		count++
 	}
 	return count, nil
+}
+
+func (r *Registry) migrate() error {
+	ctx := context.Background() // do not use context that can be canceled
+	var count int
+	var fromVer string
+	regVerDsKey := datastore.NewKey(registryVersionKey)
+	regVerData, err := r.dstore.Get(ctx, regVerDsKey)
+	if err != nil && err != datastore.ErrNotFound {
+		return err
+	}
+	if len(regVerData) != 0 {
+		fromVer = string(regVerData)
+	}
+
+	switch fromVer {
+	case registryVersion:
+		return nil
+	case "":
+		fromVer = "v0" // for logging
+		type v0ProviderInfo struct {
+			AddrInfo              peer.AddrInfo
+			DiscoveryAddr         string    `json:",omitempty"`
+			LastAdvertisement     cid.Cid   `json:",omitempty"`
+			LastAdvertisementTime time.Time `json:",omitempty"`
+			Publisher             peer.ID   `json:",omitempty"`
+		}
+
+		// Load all providers from the datastore.
+		q := query.Query{
+			Prefix: providerKeyPath,
+		}
+		results, err := r.dstore.Query(ctx, q)
+		if err != nil {
+			return err
+		}
+		defer results.Close()
+
+		for result := range results.Next() {
+			if result.Error != nil {
+				log.Errorw("Cannot read provider data", "err", result.Error)
+				continue
+			}
+
+			v0Info := new(v0ProviderInfo)
+			err = json.Unmarshal(result.Entry.Value, v0Info)
+			if err != nil {
+				log.Errorw("Cannot unmarshal v0 provider data", "err", err, "value", string(result.Entry.Value))
+				continue
+			}
+
+			v1Info := ProviderInfo{
+				AddrInfo:              v0Info.AddrInfo,
+				DiscoveryAddr:         v0Info.DiscoveryAddr,
+				LastAdvertisement:     v0Info.LastAdvertisement,
+				LastAdvertisementTime: v0Info.LastAdvertisementTime,
+			}
+
+			if v0Info.Publisher == v1Info.AddrInfo.ID {
+				v1Info.Publisher = &v1Info.AddrInfo
+			} else if v0Info.Publisher.Validate() == nil {
+				v1Info.Publisher = &peer.AddrInfo{
+					ID: v0Info.Publisher,
+				}
+			}
+
+			value, err := json.Marshal(v1Info)
+			if err != nil {
+				return fmt.Errorf("cannot marshal v1 provider data: %w", err)
+			}
+
+			if err = r.dstore.Put(ctx, v1Info.dsKey(), value); err != nil {
+				return fmt.Errorf("could not write v1 provider data: %w", err)
+			}
+			count++
+		}
+
+	default:
+		return fmt.Errorf("cannot migrate from unsupported registry version %s", fromVer)
+	}
+
+	if count != 0 {
+		if err = r.dstore.Sync(ctx, datastore.NewKey(providerKeyPath)); err != nil {
+			return err
+		}
+		log.Infow("Migrated registry datastore", "from", fromVer, "to", registryVersion)
+	}
+
+	if err = r.dstore.Put(ctx, regVerDsKey, []byte(registryVersion)); err != nil {
+		return fmt.Errorf("could not write registry version: %w", err)
+	}
+	return r.dstore.Sync(ctx, datastore.NewKey(providerKeyPath))
 }
 
 func (r *Registry) discover(ctx context.Context, peerID peer.ID, discoAddr string) (*discovery.Discovered, error) {
@@ -616,8 +740,7 @@ func (r *Registry) pollProviders(pollInterval, pollRetryAfter, pollStopAfter tim
 	r.actions <- func() {
 		now := time.Now()
 		for _, info := range r.providers {
-			err := info.Publisher.Validate()
-			if err != nil {
+			if info.Publisher == nil {
 				// No publisher.
 				continue
 			}
@@ -634,7 +757,7 @@ func (r *Registry) pollProviders(pollInterval, pollRetryAfter, pollStopAfter tim
 			}
 			if noContactTime > pollStopAfter {
 				// Too much time since last contact.
-				log.Warnw("Lost contact with provider's publisher", "publisher", info.Publisher, "provider", info.AddrInfo.ID, "since", info.lastContactTime)
+				log.Warnw("Lost contact with provider's publisher", "publisher", info.Publisher.ID, "provider", info.AddrInfo.ID, "since", info.lastContactTime)
 				// Remove the non-responsive publisher.
 				info = &ProviderInfo{
 					AddrInfo:              info.AddrInfo,
@@ -642,9 +765,9 @@ func (r *Registry) pollProviders(pollInterval, pollRetryAfter, pollStopAfter tim
 					LastAdvertisement:     info.LastAdvertisement,
 					LastAdvertisementTime: info.LastAdvertisementTime,
 					lastContactTime:       info.lastContactTime,
-					Publisher:             peer.ID(""),
+					Publisher:             nil,
 				}
-				if err = r.syncRegister(context.Background(), info); err != nil {
+				if err := r.syncRegister(context.Background(), info); err != nil {
 					log.Errorw("Failed to update provider info", "err", err)
 				}
 				continue
@@ -652,10 +775,31 @@ func (r *Registry) pollProviders(pollInterval, pollRetryAfter, pollStopAfter tim
 			select {
 			case r.syncChan <- info:
 			default:
-				log.Debugw("Sync channel blocked, skipping auto-sync", "publisher", info.Publisher)
+				log.Debugw("Sync channel blocked, skipping auto-sync", "publisher", info.Publisher.ID)
 			}
 		}
 	}
+}
+
+func equalAddrs(addrs, others []multiaddr.Multiaddr) bool {
+	if len(addrs) != len(others) {
+		return false
+	}
+
+	for _, a := range addrs {
+		var found bool
+		for _, o := range others {
+			if a.Equal(o) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
 }
 
 // stringsToMultiaddrs converts a slice of string into a slice of Multiaddr
