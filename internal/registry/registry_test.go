@@ -26,14 +26,17 @@ const (
 	minerDiscoAddr = "stitest999999"
 	minerAddr      = "/ip4/127.0.0.1/tcp/9999"
 	minerAddr2     = "/ip4/127.0.0.2/tcp/9999"
+
+	publisherID   = "12D3KooWFNkdmdb38g4VVCGaJsKin4BzGpP4bedfxU76PF2AahoP"
+	publisherAddr = "/ip4/127.0.0.3/tcp/1234"
 )
 
 var discoveryCfg = config.Discovery{
 	Policy: config.Policy{
 		Allow:       false,
-		Except:      []string{exceptID, trustedID, trustedID2},
+		Except:      []string{exceptID, trustedID, trustedID2, publisherID},
 		Trust:       false,
-		TrustExcept: []string{trustedID, trustedID2},
+		TrustExcept: []string{trustedID, trustedID2, publisherID},
 	},
 	PollInterval:   config.Duration(time.Minute),
 	RediscoverWait: config.Duration(time.Minute),
@@ -229,10 +232,22 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal("bad miner address:", err)
 	}
+	pubID, err := peer.Decode(publisherID)
+	if err != nil {
+		t.Fatal("bad publisher ID:", err)
+	}
+	pubAddr, err := multiaddr.NewMultiaddr(publisherAddr)
+	if err != nil {
+		t.Fatal("bad publisher address:", err)
+	}
 	info2 := &ProviderInfo{
 		AddrInfo: peer.AddrInfo{
 			ID:    peerID,
 			Addrs: []multiaddr.Multiaddr{maddr},
+		},
+		Publisher: &peer.AddrInfo{
+			ID:    pubID,
+			Addrs: []multiaddr.Multiaddr{pubAddr},
 		},
 	}
 
@@ -252,7 +267,7 @@ func TestDatastore(t *testing.T) {
 		t.Fatal("failed to register directly:", err)
 	}
 
-	err = r.RegisterOrUpdate(ctx, info2.AddrInfo.ID, []string{minerAddr2}, cid.Undef, info2.AddrInfo.ID)
+	err = r.RegisterOrUpdate(ctx, info2.AddrInfo.ID, []string{minerAddr2}, cid.Undef, *info2.Publisher)
 	if err != nil {
 		t.Fatal("failed to register directly:", err)
 	}
@@ -289,15 +304,25 @@ func TestDatastore(t *testing.T) {
 	}
 
 	for _, provInfo := range infos {
-		if provInfo.AddrInfo.ID == info1.AddrInfo.ID {
-			if err = provInfo.Publisher.Validate(); err == nil {
+		switch provInfo.AddrInfo.ID {
+		case info1.AddrInfo.ID:
+			if provInfo.Publisher != nil {
 				t.Fatal("info1 should not have valid publisher")
 			}
-		} else if provInfo.AddrInfo.ID == info2.AddrInfo.ID {
-			if provInfo.Publisher != info2.AddrInfo.ID {
-				t.Fatal("info2 has wrong publisher")
+		case info2.AddrInfo.ID:
+			if provInfo.Publisher == nil {
+				t.Fatal("info2 missing publisher")
 			}
-		} else {
+			if provInfo.Publisher.ID != info2.Publisher.ID {
+				t.Fatal("info2 has wrong publisher ID")
+			}
+			if provInfo.Publisher == nil || len(provInfo.Publisher.Addrs) != 1 {
+				t.Fatal("info2 missing publisher address")
+			}
+			if !provInfo.Publisher.Addrs[0].Equal(info2.Publisher.Addrs[0]) {
+				t.Fatalf("info2 has wrong publisher ID %s, expected %s", provInfo.Publisher.Addrs[0], info2.Publisher.Addrs[0])
+			}
+		default:
 			t.Fatalf("loaded invalid provider ID: %s", provInfo.AddrInfo.ID)
 		}
 	}
@@ -332,8 +357,15 @@ func TestPollProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
+	pubID, err := peer.Decode(publisherID)
+	if err != nil {
+		t.Fatal("bad publisher ID:", err)
+	}
 
-	err = r.RegisterOrUpdate(ctx, peerID, []string{minerAddr}, cid.Undef, peerID)
+	pub := peer.AddrInfo{
+		ID: pubID,
+	}
+	err = r.RegisterOrUpdate(ctx, peerID, []string{minerAddr}, cid.Undef, pub)
 	if err != nil {
 		t.Fatal("failed to register directly:", err)
 	}
@@ -345,7 +377,16 @@ func TestPollProvider(t *testing.T) {
 	r.pollProviders(0, retryAfter, stopAfter)
 	timeout := time.After(2 * time.Second)
 	select {
-	case <-r.SyncChan():
+	case pinfo := <-r.SyncChan():
+		if pinfo.AddrInfo.ID != peerID {
+			t.Fatal("Wrong provider ID")
+		}
+		if pinfo.Publisher == nil {
+			t.Fatal("Missing publisher")
+		}
+		if pinfo.Publisher.ID != pubID {
+			t.Fatal("Wrong publisher ID")
+		}
 	case <-timeout:
 		t.Fatal("Expected sync channel to be written")
 	}
@@ -384,7 +425,7 @@ func TestPollProvider(t *testing.T) {
 	if pinfo == nil {
 		t.Fatal("did not find registered provider")
 	}
-	if err = pinfo.Publisher.Validate(); err == nil {
+	if pinfo.Publisher != nil {
 		t.Fatal("should not have valid publisher after polling stopped")
 	}
 
