@@ -77,8 +77,11 @@ func TestNewRegistryDiscovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDisco)
+	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err = r.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
 	t.Log("created new registry")
@@ -120,8 +123,11 @@ func TestDiscoveryAllowed(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDisco)
+	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err = r.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
 	defer r.Close()
@@ -184,8 +190,11 @@ func TestDiscoveryBlocked(t *testing.T) {
 		t.Fatal("bad provider ID:", err)
 	}
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDisco)
+	r, err := NewRegistry(discoveryCfg, nil, mockDisco)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err = r.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
 	defer r.Close()
@@ -256,8 +265,11 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewRegistry(ctx, discoveryCfg, dstore, mockDisco)
+	r, err := NewRegistry(discoveryCfg, dstore, mockDisco)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err = r.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
 	t.Log("created new registry with datastore")
@@ -286,14 +298,21 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	err = dstore.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Create datastore
 	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err = NewRegistry(ctx, discoveryCfg, dstore, mockDisco)
+	r, err = NewRegistry(discoveryCfg, dstore, mockDisco)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err = r.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
 	t.Log("re-created new registry with datastore")
@@ -331,6 +350,10 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	err = dstore.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestPollProvider(t *testing.T) {
@@ -348,8 +371,11 @@ func TestPollProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewRegistry(ctx, cfg, dstore, nil)
+	r, err := NewRegistry(cfg, dstore, nil)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err = r.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
 
@@ -438,6 +464,10 @@ func TestPollProvider(t *testing.T) {
 	}
 
 	err = r.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = dstore.Close()
 	if err != nil {
 		t.Fatal(err)
 	}

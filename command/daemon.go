@@ -140,7 +140,7 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create registry
-	reg, err := registry.NewRegistry(cctx.Context, cfg.Discovery, dstore, lotusDiscoverer)
+	reg, err := registry.NewRegistry(cfg.Discovery, dstore, lotusDiscoverer)
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}
@@ -229,6 +229,11 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 
 		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)
+	}
+
+	err = reg.Start(cctx.Context)
+	if err != nil {
+		return fmt.Errorf("cannot start provider registry: %s", err)
 	}
 
 	// Create ingest HTTP server
@@ -344,7 +349,11 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 	}
 
-	// If ingester set, close ingester
+	if err = reg.Close(); err != nil {
+		log.Errorw("Error closing registry", "err", err)
+		finalErr = ErrDaemonStop
+	}
+
 	if ingester != nil {
 		if err = ingester.Close(); err != nil {
 			log.Errorw("Error closing ingester", "err", err)
@@ -354,6 +363,11 @@ func daemonCommand(cctx *cli.Context) error {
 
 	if err = valueStore.Close(); err != nil {
 		log.Errorw("Error closing value store", "err", err)
+		finalErr = ErrDaemonStop
+	}
+
+	if err = dstore.Close(); err != nil {
+		log.Errorw("Error closing data store", "err", err)
 		finalErr = ErrDaemonStop
 	}
 

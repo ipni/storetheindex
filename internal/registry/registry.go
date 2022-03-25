@@ -29,6 +29,8 @@ const (
 	providerKeyPath = "/registry/pinfo"
 	// registryVersionKey is where registry version number is stored.
 	registryVersionKey = "/registry/version"
+	// key prefix to sync registry portion of datastore.
+	registryKeyPrefix = "/registry"
 
 	registryVersion = "v1"
 )
@@ -54,6 +56,10 @@ type Registry struct {
 	rediscoverWait   time.Duration
 
 	syncChan chan *ProviderInfo
+
+	pollInterval   time.Duration
+	pollRetryAfter time.Duration
+	pollStopAfter  time.Duration
 }
 
 // ProviderInfo is an immutable data structure that holds information about a
@@ -85,17 +91,15 @@ func (p *ProviderInfo) dsKey() datastore.Key {
 
 // NewRegistry creates a new provider registry, giving it provider policy
 // configuration, a datastore to persist provider data, and a Discoverer
-// interface.  The context is only used for cancellation of this function.
-//
-// TODO: It is probably necessary to have multiple discoverer interfaces
-func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, disco discovery.Discoverer) (*Registry, error) {
+// interface.
+func NewRegistry(cfg config.Discovery, dstore datastore.Datastore, disco discovery.Discoverer) (*Registry, error) {
 	// Create policy from config
 	discoPolicy, err := policy.New(cfg.Policy)
 	if err != nil {
 		return nil, err
 	}
 
-	r := &Registry{
+	return &Registry{
 		actions:   make(chan func()),
 		closed:    make(chan struct{}),
 		closing:   make(chan struct{}),
@@ -111,21 +115,35 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 
 		dstore:   dstore,
 		syncChan: make(chan *ProviderInfo, 1),
-	}
 
-	count, err := r.loadPersistedProviders(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("cannot load provider data from datastore: %w", err)
+		pollInterval:   time.Duration(cfg.PollInterval),
+		pollRetryAfter: time.Duration(cfg.PollRetryAfter),
+		pollStopAfter:  time.Duration(cfg.PollStopAfter),
+	}, nil
+}
+
+// Start converts and loads data from the datastore and starts goroutines.
+//
+// This is separated from NewRegistry because it may modify the datastore,
+// which must be done after initializing the ingester using the same datastore.
+func (r *Registry) Start(ctx context.Context) error {
+	if r.dstore != nil {
+		err := r.migrate(ctx)
+		if err != nil {
+			return err
+		}
+
+		count, err := r.loadPersistedProviders(ctx)
+		if err != nil {
+			return fmt.Errorf("cannot load provider data from datastore: %w", err)
+		}
+		log.Infow("loaded providers into registry", "count", count)
 	}
-	log.Infow("loaded providers into registry", "count", count)
 
 	go r.run()
-	go r.runPollCheck(
-		time.Duration(cfg.PollInterval),
-		time.Duration(cfg.PollRetryAfter),
-		time.Duration(cfg.PollStopAfter))
+	go r.runPollCheck()
 
-	return r, nil
+	return nil
 }
 
 // Close waits for any pending discoverer to finish and then stops the registry
@@ -134,10 +152,6 @@ func (r *Registry) Close() error {
 	r.closeOnce.Do(func() {
 		close(r.closing)
 		<-r.closed
-
-		if r.dstore != nil {
-			err = r.dstore.Close()
-		}
 	})
 	<-r.closed
 	return err
@@ -162,18 +176,18 @@ func (r *Registry) run() {
 	}
 }
 
-func (r *Registry) runPollCheck(pollInterval, pollRetryAfter, pollStopAfter time.Duration) {
-	if pollRetryAfter < time.Minute {
-		pollRetryAfter = time.Minute
+func (r *Registry) runPollCheck() {
+	if r.pollRetryAfter < time.Minute {
+		r.pollRetryAfter = time.Minute
 	}
-	timer := time.NewTimer(pollRetryAfter)
+	timer := time.NewTimer(r.pollRetryAfter)
 running:
 	for {
 		select {
 		case <-timer.C:
 			r.cleanup()
-			r.pollProviders(pollInterval, pollRetryAfter, pollStopAfter)
-			timer.Reset(pollRetryAfter)
+			r.pollProviders(r.pollInterval, r.pollRetryAfter, r.pollStopAfter)
+			timer.Reset(r.pollRetryAfter)
 		case <-r.closing:
 			break running
 		}
@@ -555,15 +569,6 @@ func (r *Registry) syncPersistProvider(ctx context.Context, info *ProviderInfo) 
 }
 
 func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
-	if r.dstore == nil {
-		return 0, nil
-	}
-
-	err := r.migrate()
-	if err != nil {
-		return 0, err
-	}
-
 	// Load all providers from the datastore.
 	q := query.Query{
 		Prefix: providerKeyPath,
@@ -609,15 +614,57 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 	return count, nil
 }
 
-func (r *Registry) migrate() error {
-	ctx := context.Background() // do not use context that can be canceled
-	var count int
-	var fromVer string
+func (r *Registry) convertV0ToV1(ctx context.Context, value []byte) error {
+	type v0ProviderInfo struct {
+		AddrInfo              peer.AddrInfo
+		DiscoveryAddr         string    `json:",omitempty"`
+		LastAdvertisement     cid.Cid   `json:",omitempty"`
+		LastAdvertisementTime time.Time `json:",omitempty"`
+		Publisher             peer.ID   `json:",omitempty"`
+	}
+
+	v0Info := new(v0ProviderInfo)
+	err := json.Unmarshal(value, v0Info)
+	if err != nil {
+		return fmt.Errorf("cannot unmarshal v0 provider data: %w", err)
+	}
+
+	v1Info := ProviderInfo{
+		AddrInfo:              v0Info.AddrInfo,
+		DiscoveryAddr:         v0Info.DiscoveryAddr,
+		LastAdvertisement:     v0Info.LastAdvertisement,
+		LastAdvertisementTime: v0Info.LastAdvertisementTime,
+	}
+
+	if v0Info.Publisher == v1Info.AddrInfo.ID {
+		v1Info.Publisher = &v1Info.AddrInfo
+	} else if v0Info.Publisher.Validate() == nil {
+		v1Info.Publisher = &peer.AddrInfo{
+			ID: v0Info.Publisher,
+		}
+	}
+
+	value, err = json.Marshal(v1Info)
+	if err != nil {
+		return fmt.Errorf("cannot marshal v1 provider data: %w", err)
+	}
+
+	if err = r.dstore.Put(ctx, v1Info.dsKey(), value); err != nil {
+		return fmt.Errorf("could not write v1 provider data: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Registry) migrate(ctx context.Context) error {
 	regVerDsKey := datastore.NewKey(registryVersionKey)
 	regVerData, err := r.dstore.Get(ctx, regVerDsKey)
 	if err != nil && err != datastore.ErrNotFound {
 		return err
 	}
+
+	var count int
+	var fromVer string
 	if len(regVerData) != 0 {
 		fromVer = string(regVerData)
 	}
@@ -627,13 +674,6 @@ func (r *Registry) migrate() error {
 		return nil
 	case "":
 		fromVer = "v0" // for logging
-		type v0ProviderInfo struct {
-			AddrInfo              peer.AddrInfo
-			DiscoveryAddr         string    `json:",omitempty"`
-			LastAdvertisement     cid.Cid   `json:",omitempty"`
-			LastAdvertisementTime time.Time `json:",omitempty"`
-			Publisher             peer.ID   `json:",omitempty"`
-		}
 
 		// Load all providers from the datastore.
 		q := query.Query{
@@ -651,54 +691,27 @@ func (r *Registry) migrate() error {
 				continue
 			}
 
-			v0Info := new(v0ProviderInfo)
-			err = json.Unmarshal(result.Entry.Value, v0Info)
-			if err != nil {
-				log.Errorw("Cannot unmarshal v0 provider data", "err", err, "value", string(result.Entry.Value))
-				continue
+			if err = r.convertV0ToV1(ctx, result.Entry.Value); err != nil {
+				return err
 			}
 
-			v1Info := ProviderInfo{
-				AddrInfo:              v0Info.AddrInfo,
-				DiscoveryAddr:         v0Info.DiscoveryAddr,
-				LastAdvertisement:     v0Info.LastAdvertisement,
-				LastAdvertisementTime: v0Info.LastAdvertisementTime,
-			}
-
-			if v0Info.Publisher == v1Info.AddrInfo.ID {
-				v1Info.Publisher = &v1Info.AddrInfo
-			} else if v0Info.Publisher.Validate() == nil {
-				v1Info.Publisher = &peer.AddrInfo{
-					ID: v0Info.Publisher,
-				}
-			}
-
-			value, err := json.Marshal(v1Info)
-			if err != nil {
-				return fmt.Errorf("cannot marshal v1 provider data: %w", err)
-			}
-
-			if err = r.dstore.Put(ctx, v1Info.dsKey(), value); err != nil {
-				return fmt.Errorf("could not write v1 provider data: %w", err)
-			}
 			count++
 		}
+		results.Close()
 
 	default:
 		return fmt.Errorf("cannot migrate from unsupported registry version %s", fromVer)
 	}
 
-	if count != 0 {
-		if err = r.dstore.Sync(ctx, datastore.NewKey(providerKeyPath)); err != nil {
-			return err
-		}
-		log.Infow("Migrated registry datastore", "from", fromVer, "to", registryVersion)
-	}
-
 	if err = r.dstore.Put(ctx, regVerDsKey, []byte(registryVersion)); err != nil {
 		return fmt.Errorf("could not write registry version: %w", err)
 	}
-	return r.dstore.Sync(ctx, datastore.NewKey(providerKeyPath))
+
+	if count != 0 {
+		log.Infow("Migrated registry datastore", "from", fromVer, "to", registryVersion)
+	}
+
+	return r.dstore.Sync(ctx, datastore.NewKey(registryKeyPrefix))
 }
 
 func (r *Registry) discover(ctx context.Context, peerID peer.ID, discoAddr string) (*discovery.Discovered, error) {
