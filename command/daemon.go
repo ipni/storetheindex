@@ -17,6 +17,7 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	legingest "github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/lotus"
+	"github.com/filecoin-project/storetheindex/internal/migrate"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	httpadminserver "github.com/filecoin-project/storetheindex/server/admin/http"
 	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
@@ -229,6 +230,14 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 
 		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)
+	}
+
+	//if migrate.NeedMigration(ctx, dstore) {
+	//	return errors.New("datastore needs migration: run 'storetheindex migrate'")
+	//}
+	_, err = migrate.Migrate(cctx.Context, dstore)
+	if err != nil {
+		return err
 	}
 
 	err = reg.Start(cctx.Context)
