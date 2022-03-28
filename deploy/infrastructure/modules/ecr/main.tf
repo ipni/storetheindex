@@ -11,9 +11,8 @@ resource "aws_ecr_repository" "this" {
 resource "aws_ecr_lifecycle_policy" "this" {
   for_each   = var.repositories
   repository = each.key
-  depends_on = [
-  aws_ecr_repository.this]
-  policy = <<EOF
+  depends_on = [aws_ecr_repository.this]
+  policy     = <<EOF
 {
     "rules": [
         {
