@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+transformers:
+  - labels.yaml
+
+configMapGenerator:
+  - name: storetheindex-config
+    behavior: create
+    literals:
+      - GOLOG_LOG_LEVEL=INFO

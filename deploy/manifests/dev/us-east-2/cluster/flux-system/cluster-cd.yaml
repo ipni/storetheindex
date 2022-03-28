@@ -1,0 +1,25 @@
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: GitRepository
+metadata:
+  name: storetheindex
+spec:
+  interval: 5m
+  url: https://github.com/filecoin-project/storetheindex.git
+  ref:
+    # TODO: update to main branch once PR is ready for review.
+    branch: masih/infra-dev-setup
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
+kind: Kustomization
+metadata:
+  name: cluster
+spec:
+  serviceAccountName: kustomize-controller
+  interval: 5m
+  path: "./deploy/manifests/dev/us-east-2/cluster"
+  sourceRef:
+    kind: GitRepository
+    name: storetheindex
+  wait: true
+  timeout: 2m
+  prune: false # TODO: Re-enable this once the team is used to GitOps.
