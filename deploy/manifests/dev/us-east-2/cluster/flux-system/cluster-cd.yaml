@@ -19,6 +19,4 @@ spec:
   sourceRef:
     kind: GitRepository
     name: storetheindex
-  wait: true
-  timeout: 2m
-  prune: false # TODO: Re-enable this once the team is used to GitOps.
+  prune: true

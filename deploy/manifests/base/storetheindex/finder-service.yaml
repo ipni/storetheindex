@@ -1,0 +1,14 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: finder
+  labels:
+    app: finder
+spec:
+  ports:
+    - name: finder
+      port: 3000
+      targetPort: finder
+  selector:
+    app: indexer
+  type: LoadBalancer

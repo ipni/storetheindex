@@ -7,6 +7,7 @@ spec:
   url: https://github.com/filecoin-project/storetheindex.git
   ref:
     branch: main
+
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
 kind: Kustomization
@@ -14,19 +15,18 @@ metadata:
   name: storetheindex
 spec:
   serviceAccountName: flux
+  decryption:
+    provider: sops
   interval: 5m
   path: "./deploy/manifests/dev/us-east-2/tenant/storetheindex"
   sourceRef:
     kind: GitRepository
     name: storetheindex
-  wait: true
-  timeout: 2m
-  prune: false # TODO: Re-enable this once the team is used to GitOps.
+  prune: true
   images:
     - name: storetheindex
       newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
-  decryption:
-    provider: sops
+
 ---
 apiVersion: image.toolkit.fluxcd.io/v1beta1
 kind: ImageRepository

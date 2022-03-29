@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: indexer
+spec:
+  serviceName: "indexer"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: indexer
+  template:
+    metadata:
+      labels:
+        app: indexer
+    spec:
+      securityContext:
+        runAsUser: 10001
+        fsGroup: 532
+      containers:
+        - name: indexer
+          # TODO: replace with images published to ECR once docker build to it is set up
+          image: filecoin/storetheindex:3b2c5f5df721dc2cdfb340490b73de856960bfab
+          envFrom:
+            - configMapRef:
+                name: indexer-env-vars
+          ports:
+            - containerPort: 3000
+              name: finder
+            - containerPort: 3001
+              name: ingest
+            - containerPort: 3002
+              name: admin
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: config
+          configMap:
+            name: indexer-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Ti

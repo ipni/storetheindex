@@ -6,3 +6,6 @@ namespace: flux-system
 resources:
   - ../../../../base/flux-system
   - cluster-cd.yaml
+
+patchesStrategicMerge:
+  - kust-ctrlr-sa-patch.yaml
