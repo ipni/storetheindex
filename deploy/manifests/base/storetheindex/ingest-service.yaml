@@ -1,0 +1,14 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: ingest
+  labels:
+    app: ingest
+spec:
+  ports:
+    - name: ingest
+      port: 3001
+      targetPort: ingest
+  selector:
+    app: indexer
+  type: LoadBalancer

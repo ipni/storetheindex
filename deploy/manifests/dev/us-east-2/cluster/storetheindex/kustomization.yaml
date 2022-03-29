@@ -3,6 +3,9 @@ kind: Kustomization
 
 namespace: storetheindex
 
+commonLabels:
+  toolkit.fluxcd.io/tenant: storetheindex
+
 resources:
   - namespace.yaml
   - flux-cd.yaml

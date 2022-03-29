@@ -4,7 +4,7 @@ kind: Kustomization
 namespace: flux-system
 
 resources:
-  - https://github.com/fluxcd/flux2/releases/download/v0.28.3/install.yaml
+  - https://github.com/fluxcd/flux2/releases/download/v0.28.4/install.yaml
 
 patches:
   # Disallow cross namespace access, since the deployment follows a multi-tenant setup.
@@ -31,7 +31,7 @@ patches:
     target:
       kind: Deployment
       name: "(kustomize-controller|helm-controller)"
-  # Allow cluster-wide kustomizations to administer cluster.
+  # Allow cluster-wide kustomizations to administer the cluster.
   - patch: |
       - op: add
         path: /spec/serviceAccountName
