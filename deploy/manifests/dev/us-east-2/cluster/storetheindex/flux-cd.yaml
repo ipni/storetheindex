@@ -25,6 +25,8 @@ spec:
   images:
     - name: storetheindex
       newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+  decryption:
+    provider: sops
 ---
 apiVersion: image.toolkit.fluxcd.io/v1beta1
 kind: ImageRepository
