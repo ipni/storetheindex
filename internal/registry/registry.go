@@ -84,8 +84,6 @@ func (p *ProviderInfo) dsKey() datastore.Key {
 // NewRegistry creates a new provider registry, giving it provider policy
 // configuration, a datastore to persist provider data, and a Discoverer
 // interface.  The context is only used for cancellation of this function.
-//
-// TODO: It is probably necessary to have multiple discoverer interfaces
 func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, disco discovery.Discoverer) (*Registry, error) {
 	// Create policy from config
 	discoPolicy, err := policy.New(cfg.Policy)
@@ -676,26 +674,6 @@ func (r *Registry) pollProviders(pollInterval, pollRetryAfter, pollStopAfter tim
 			}
 		}
 	}
-}
-
-func equalAddrs(addrs, others []multiaddr.Multiaddr) bool {
-	if len(addrs) != len(others) {
-		return false
-	}
-
-	for i := range addrs {
-		var j int
-		for j = range others {
-			if addrs[i].Equal(others[j]) {
-				break
-			}
-		}
-		if j == len(others) {
-			return false
-		}
-	}
-
-	return true
 }
 
 // stringsToMultiaddrs converts a slice of string into a slice of Multiaddr
