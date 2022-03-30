@@ -101,11 +101,6 @@ func hasPrefix(ctx context.Context, dstore datastore.Datastore, prefix string) (
 	}
 	defer results.Close()
 
-	for result := range results.Next() {
-		if result.Error != nil {
-			return false, fmt.Errorf("cannot read provider info: %s", result.Error)
-		}
-		return true, nil
-	}
-	return false, nil
+	_, ok := results.NextSync()
+	return ok, nil
 }
