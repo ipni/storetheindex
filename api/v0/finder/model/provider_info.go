@@ -16,19 +16,16 @@ type ProviderInfo struct {
 	Publisher             *peer.AddrInfo `json:",omitempty"`
 }
 
-func MakeProviderInfo(addrInfo peer.AddrInfo, lastAd cid.Cid, lastAdTime time.Time, publisherID peer.ID, publisherAddr string) ProviderInfo {
+func MakeProviderInfo(addrInfo peer.AddrInfo, lastAd cid.Cid, lastAdTime time.Time, publisherID peer.ID, publisherAddr multiaddr.Multiaddr) ProviderInfo {
 	pinfo := ProviderInfo{
 		AddrInfo:          addrInfo,
 		LastAdvertisement: lastAd,
 	}
 
-	if publisherID.Validate() == nil && publisherAddr != "" {
-		maddr, err := multiaddr.NewMultiaddr(publisherAddr)
-		if err == nil {
-			pinfo.Publisher = &peer.AddrInfo{
-				ID:    publisherID,
-				Addrs: []multiaddr.Multiaddr{maddr},
-			}
+	if publisherID.Validate() == nil && publisherAddr != nil {
+		pinfo.Publisher = &peer.AddrInfo{
+			ID:    publisherID,
+			Addrs: []multiaddr.Multiaddr{publisherAddr},
 		}
 	}
 

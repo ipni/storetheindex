@@ -518,19 +518,13 @@ func (ing *Ingester) autoSync() {
 	for provInfo := range ing.reg.SyncChan() {
 		ing.waitForPendingSyncs.Add(1)
 
-		go func(pubID peer.ID, pubAddrStr string, provID peer.ID) {
+		go func(pubID peer.ID, pubAddr multiaddr.Multiaddr, provID peer.ID) {
 			defer ing.waitForPendingSyncs.Done()
-
-			pubAddr, err := multiaddr.NewMultiaddr(pubAddrStr)
-			if err != nil {
-				log.Errorw("failed to convert to multiaddr", "err", err)
-				return
-			}
 
 			log := log.With("provider", provID, "publisher", pubID, "addr", pubAddr)
 			log.Info("Auto-syncing the latest advertisement with publisher")
 
-			_, err = ing.sub.Sync(ctx, pubID, cid.Undef, nil, pubAddr)
+			_, err := ing.sub.Sync(ctx, pubID, cid.Undef, nil, pubAddr)
 			if err != nil {
 				log.Errorw("Failed to auto-sync with publisher", "err", err)
 				return

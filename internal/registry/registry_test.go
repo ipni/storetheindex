@@ -246,7 +246,7 @@ func TestDatastore(t *testing.T) {
 			Addrs: []multiaddr.Multiaddr{maddr},
 		},
 		Publisher:     pubID,
-		PublisherAddr: pubAddr.String(),
+		PublisherAddr: pubAddr,
 	}
 
 	// Create datastore
@@ -315,10 +315,10 @@ func TestDatastore(t *testing.T) {
 			if provInfo.Publisher != info2.Publisher {
 				t.Fatal("info2 has wrong publisher ID")
 			}
-			if provInfo.PublisherAddr == "" {
+			if provInfo.PublisherAddr == nil {
 				t.Fatal("info2 missing publisher address")
 			}
-			if provInfo.PublisherAddr != info2.PublisherAddr {
+			if !provInfo.PublisherAddr.Equal(info2.PublisherAddr) {
 				t.Fatalf("info2 has wrong publisher ID %q, expected %q", provInfo.PublisherAddr, info2.PublisherAddr)
 			}
 		default:
