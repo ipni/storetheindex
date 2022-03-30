@@ -65,8 +65,10 @@ type ProviderInfo struct {
 	LastAdvertisement cid.Cid `json:",omitempty"`
 	// LastAdvertisementTime is the time the latest advertisement was received.
 	LastAdvertisementTime time.Time `json:",omitempty"`
-	// Publisher is the ID of the peer that published the provider info.
+	// Publisher contains the ID of the provider info publisher.
 	Publisher peer.ID `json:",omitempty"`
+	// PublisherAddr contains the last seen publisher multiaddr.
+	PublisherAddr multiaddr.Multiaddr `json:",omitempty"`
 
 	// lastContactTime is the last time the publisher contexted the
 	// indexer. This is not persisted, so that the time since last contact is
@@ -79,11 +81,45 @@ func (p *ProviderInfo) dsKey() datastore.Key {
 	return datastore.NewKey(path.Join(providerKeyPath, p.AddrInfo.ID.String()))
 }
 
+func (p *ProviderInfo) MarshalJSON() ([]byte, error) {
+	var pubAddr string
+	if p.PublisherAddr != nil {
+		pubAddr = p.PublisherAddr.String()
+	}
+	type Alias ProviderInfo
+	return json.Marshal(&struct {
+		PublisherAddr string `json:",omitempty"`
+		*Alias
+	}{
+		PublisherAddr: pubAddr,
+		Alias:         (*Alias)(p),
+	})
+}
+
+func (p *ProviderInfo) UnmarshalJSON(data []byte) error {
+	type Alias ProviderInfo
+	aux := &struct {
+		PublisherAddr string `json:",omitempty"`
+		*Alias
+	}{
+		Alias: (*Alias)(p),
+	}
+	err := json.Unmarshal(data, &aux)
+	if err != nil {
+		return err
+	}
+	if aux.PublisherAddr != "" {
+		p.PublisherAddr, err = multiaddr.NewMultiaddr(aux.PublisherAddr)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // NewRegistry creates a new provider registry, giving it provider policy
 // configuration, a datastore to persist provider data, and a Discoverer
 // interface.  The context is only used for cancellation of this function.
-//
-// TODO: It is probably necessary to have multiple discoverer interfaces
 func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, disco discovery.Discoverer) (*Registry, error) {
 	// Create policy from config
 	discoPolicy, err := policy.New(cfg.Policy)
@@ -243,8 +279,7 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 
 	// If publisher is valid and different than the provider, check if the
 	// publisher is allowed.
-	err = info.Publisher.Validate()
-	if err == nil && info.Publisher != info.AddrInfo.ID {
+	if info.Publisher.Validate() == nil && info.Publisher != info.AddrInfo.ID {
 		allowed, trusted := r.policy.Check(info.Publisher)
 		if !allowed {
 			return v0.NewError(ErrNotAllowed, http.StatusForbidden)
@@ -310,17 +345,13 @@ func (r *Registry) BlockPeer(peerID peer.ID) bool {
 
 // RegisterOrUpdate attempts to register an unregistered provider, or updates
 // the addresses and latest advertisement of an already registered provider.
-func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, addrs []string, adID cid.Cid, publisherID peer.ID) error {
+// If publisher has a valid ID, then the data in publisher replaces the
+// provider's previous publisher information.
+func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, addrs []string, adID cid.Cid, publisher peer.AddrInfo) error {
 	var fullRegister bool
 	// Check that the provider has been discovered and validated
 	info := r.ProviderInfo(providerID)
 	if info != nil {
-		if err := publisherID.Validate(); err != nil {
-			publisherID = info.Publisher
-		} else if publisherID != info.Publisher {
-			fullRegister = true
-		}
-
 		info = &ProviderInfo{
 			AddrInfo: peer.AddrInfo{
 				ID:    providerID,
@@ -329,7 +360,20 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 			DiscoveryAddr:         info.DiscoveryAddr,
 			LastAdvertisement:     info.LastAdvertisement,
 			LastAdvertisementTime: info.LastAdvertisementTime,
-			Publisher:             publisherID,
+			Publisher:             info.Publisher,
+			PublisherAddr:         info.PublisherAddr,
+		}
+
+		if publisher.ID.Validate() == nil {
+			if publisher.ID != info.Publisher {
+				// Publisher ID changed.
+				info.Publisher = publisher.ID
+				info.PublisherAddr = publisher.Addrs[0]
+				fullRegister = true
+			} else if len(publisher.Addrs) != 0 {
+				// Use provided publisher addrs.
+				info.PublisherAddr = publisher.Addrs[0]
+			}
 		}
 	} else {
 		fullRegister = true
@@ -337,8 +381,17 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 			AddrInfo: peer.AddrInfo{
 				ID: providerID,
 			},
-			Publisher: publisherID,
 		}
+		if publisher.ID.Validate() == nil {
+			info.Publisher = publisher.ID
+		}
+		if len(publisher.Addrs) != 0 {
+			info.PublisherAddr = publisher.Addrs[0]
+		}
+	}
+
+	if info.Publisher.Validate() == nil && info.PublisherAddr == nil && info.Publisher == info.AddrInfo.ID {
+		info.PublisherAddr = info.AddrInfo.Addrs[0]
 	}
 
 	if len(addrs) != 0 {
@@ -358,7 +411,7 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 	info.lastContactTime = now
 
 	// If there is a new providerID or publisherID then do a full Register that
-	// check the allow policy.
+	// checks the allow policy.
 	if fullRegister {
 		return r.Register(ctx, info)
 	}
@@ -571,6 +624,9 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 			return 0, err
 		}
 
+		if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr == nil && pinfo.Publisher == pinfo.AddrInfo.ID {
+			pinfo.PublisherAddr = pinfo.AddrInfo.Addrs[0]
+		}
 		r.providers[peerID] = pinfo
 		count++
 	}
@@ -616,8 +672,7 @@ func (r *Registry) pollProviders(pollInterval, pollRetryAfter, pollStopAfter tim
 	r.actions <- func() {
 		now := time.Now()
 		for _, info := range r.providers {
-			err := info.Publisher.Validate()
-			if err != nil {
+			if info.Publisher.Validate() != nil {
 				// No publisher.
 				continue
 			}
@@ -643,8 +698,9 @@ func (r *Registry) pollProviders(pollInterval, pollRetryAfter, pollStopAfter tim
 					LastAdvertisementTime: info.LastAdvertisementTime,
 					lastContactTime:       info.lastContactTime,
 					Publisher:             peer.ID(""),
+					PublisherAddr:         nil,
 				}
-				if err = r.syncRegister(context.Background(), info); err != nil {
+				if err := r.syncRegister(context.Background(), info); err != nil {
 					log.Errorw("Failed to update provider info", "err", err)
 				}
 				continue
