@@ -302,6 +302,8 @@ func (r *Registry) BlockPeer(peerID peer.ID) bool {
 
 // RegisterOrUpdate attempts to register an unregistered provider, or updates
 // the addresses and latest advertisement of an already registered provider.
+// If publisher has a valid ID, then publisher replaces the provider's previous
+// publisher information.
 func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, addrs []string, adID cid.Cid, publisher peer.AddrInfo) error {
 	var fullRegister bool
 	// Check that the provider has been discovered and validated
