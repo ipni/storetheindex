@@ -42,6 +42,7 @@ func main() {
 			command.FindCmd,
 			command.ImportCmd,
 			command.InitCmd,
+			command.MigrateCmd,
 			command.RegisterCmd,
 			command.SyntheticCmd,
 			command.ConfigCmd,

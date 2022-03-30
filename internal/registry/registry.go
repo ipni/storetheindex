@@ -26,7 +26,7 @@ import (
 
 const (
 	// ProviderKeyPath is where provider info is stored in to indexer repo.
-	ProviderKeyPath = "/registry/pinfo"
+	ProviderKeyPath = "/registry/1/pinfo"
 )
 
 var log = logging.Logger("indexer/registry")
@@ -50,10 +50,6 @@ type Registry struct {
 	rediscoverWait   time.Duration
 
 	syncChan chan *ProviderInfo
-
-	pollInterval   time.Duration
-	pollRetryAfter time.Duration
-	pollStopAfter  time.Duration
 }
 
 // ProviderInfo is an immutable data structure that holds information about a
@@ -85,15 +81,15 @@ func (p *ProviderInfo) DsKey() datastore.Key {
 
 // NewRegistry creates a new provider registry, giving it provider policy
 // configuration, a datastore to persist provider data, and a Discoverer
-// interface.
-func NewRegistry(cfg config.Discovery, dstore datastore.Datastore, disco discovery.Discoverer) (*Registry, error) {
+// interface.  	The context is only used for cancellation of this function.
+func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, disco discovery.Discoverer) (*Registry, error) {
 	// Create policy from config
 	discoPolicy, err := policy.New(cfg.Policy)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Registry{
+	r := &Registry{
 		actions:   make(chan func()),
 		closed:    make(chan struct{}),
 		closing:   make(chan struct{}),
@@ -109,30 +105,20 @@ func NewRegistry(cfg config.Discovery, dstore datastore.Datastore, disco discove
 
 		dstore:   dstore,
 		syncChan: make(chan *ProviderInfo, 1),
+	}
 
-		pollInterval:   time.Duration(cfg.PollInterval),
-		pollRetryAfter: time.Duration(cfg.PollRetryAfter),
-		pollStopAfter:  time.Duration(cfg.PollStopAfter),
-	}, nil
-}
-
-// Start converts and loads data from the datastore and starts goroutines.
-//
-// This is separated from NewRegistry because it may modify the datastore,
-// which must be done after initializing the ingester using the same datastore.
-func (r *Registry) Start(ctx context.Context) error {
-	if r.dstore != nil {
+	if dstore != nil {
 		count, err := r.loadPersistedProviders(ctx)
 		if err != nil {
-			return fmt.Errorf("cannot load provider data from datastore: %w", err)
+			return nil, fmt.Errorf("cannot load provider data from datastore: %w", err)
 		}
 		log.Infow("loaded providers into registry", "count", count)
 	}
 
 	go r.run()
-	go r.runPollCheck()
+	go r.runPollCheck(time.Duration(cfg.PollInterval), time.Duration(cfg.PollRetryAfter), time.Duration(cfg.PollStopAfter))
 
-	return nil
+	return r, nil
 }
 
 // Close waits for any pending discoverer to finish and then stops the registry
@@ -165,18 +151,18 @@ func (r *Registry) run() {
 	}
 }
 
-func (r *Registry) runPollCheck() {
-	if r.pollRetryAfter < time.Minute {
-		r.pollRetryAfter = time.Minute
+func (r *Registry) runPollCheck(pollInterval, pollRetryAfter, pollStopAfter time.Duration) {
+	if pollRetryAfter < time.Minute {
+		pollRetryAfter = time.Minute
 	}
-	timer := time.NewTimer(r.pollRetryAfter)
+	timer := time.NewTimer(pollRetryAfter)
 running:
 	for {
 		select {
 		case <-timer.C:
 			r.cleanup()
-			r.pollProviders(r.pollInterval, r.pollRetryAfter, r.pollStopAfter)
-			timer.Reset(r.pollRetryAfter)
+			r.pollProviders(pollInterval, pollRetryAfter, pollStopAfter)
+			timer.Reset(pollRetryAfter)
 		case <-r.closing:
 			break running
 		}
@@ -542,6 +528,7 @@ func (r *Registry) syncPersistProvider(ctx context.Context, info *ProviderInfo) 
 	if r.dstore == nil {
 		return nil
 	}
+
 	value, err := json.Marshal(info)
 	if err != nil {
 		return err

@@ -132,6 +132,21 @@ var importFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
+var migrateFlags = []cli.Flag{
+	&cli.BoolFlag{
+		Name:     "check",
+		Usage:    "Only check if migration is needed",
+		Value:    false,
+		Required: false,
+	},
+	&cli.BoolFlag{
+		Name:     "revert",
+		Usage:    "Revert to previous version",
+		Value:    false,
+		Required: false,
+	},
+}
+
 var adminPolicyFlags = []cli.Flag{
 	peerFlag,
 	indexerHostFlag,

@@ -24,11 +24,8 @@ const (
 )
 
 func createRegistryData(dstore datastore.Datastore) error {
-	r, err := registry.NewRegistry(config.NewDiscovery(), dstore, nil)
+	r, err := registry.NewRegistry(context.Background(), config.NewDiscovery(), dstore, nil)
 	if err != nil {
-		return err
-	}
-	if err = r.Start(context.Background()); err != nil {
 		return err
 	}
 
@@ -94,22 +91,22 @@ func TestRevertMigrate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Empty db needs migration (needs version written).
+	// Empty datastore should not need migration.
 	need, err := NeedMigration(ctx, dstore)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !need {
-		t.Fatal("should have reported migration needed")
+	if need {
+		t.Fatal("should have reported migration not needed")
 	}
 
-	// Write db version.
+	t.Log("Migrating empty datastore")
 	ok, err := Migrate(ctx, dstore)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ok {
-		t.Fatal("did not migrate empty datastore")
+	if ok {
+		t.Fatal("should no have migrated empty datastore")
 	}
 
 	if err = createRegistryData(dstore); err != nil {
@@ -125,11 +122,13 @@ func TestRevertMigrate(t *testing.T) {
 		t.Fatal("should have reported migration not needed")
 	}
 
+	t.Log("Reverting data")
 	ok, err = Revert(ctx, dstore)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !ok {
+
 		t.Fatal("did not revert datastore")
 	}
 
@@ -152,6 +151,7 @@ func TestRevertMigrate(t *testing.T) {
 	}
 
 	// Migrade datastore.
+	t.Log("Migrating data")
 	ok, err = Migrate(ctx, dstore)
 	if err != nil {
 		t.Fatal(err)
@@ -179,11 +179,9 @@ func TestRevertMigrate(t *testing.T) {
 	}
 
 	// Check that registry can read in values.
-	r, err := registry.NewRegistry(config.NewDiscovery(), dstore, nil)
+	t.Log("Loading registry data")
+	r, err := registry.NewRegistry(ctx, config.NewDiscovery(), dstore, nil)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err = r.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
 
@@ -192,6 +190,11 @@ func TestRevertMigrate(t *testing.T) {
 		t.Fatalf("expected 2 provider info, got %d", len(providers))
 	}
 
+	if providers[0].AddrInfo.ID.String() != providerID {
+		providers[0], providers[1] = providers[1], providers[0]
+	}
+
+	t.Log("Checking publisher data")
 	info := providers[0]
 	if info.AddrInfo.ID.String() != providerID {
 		t.Fatal("wrong provider id")

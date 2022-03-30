@@ -14,6 +14,8 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
+const v0ProviderKeyPath = "/registry/pinfo"
+
 type v0ProviderInfo struct {
 	AddrInfo              peer.AddrInfo
 	DiscoveryAddr         string    `json:",omitempty"`
@@ -23,15 +25,13 @@ type v0ProviderInfo struct {
 }
 
 func (p *v0ProviderInfo) dsKey() datastore.Key {
-	return datastore.NewKey(path.Join(registry.ProviderKeyPath, p.AddrInfo.ID.String()))
+	return datastore.NewKey(path.Join(v0ProviderKeyPath, p.AddrInfo.ID.String()))
 }
 
 func migrateV0ToV1(ctx context.Context, dstore datastore.Datastore) error {
-	const toVersion = "v1"
-
 	// Load all providers from the datastore.
 	q := query.Query{
-		Prefix: registry.ProviderKeyPath,
+		Prefix: v0ProviderKeyPath,
 	}
 	results, err := dstore.Query(ctx, q)
 	if err != nil {
@@ -39,7 +39,7 @@ func migrateV0ToV1(ctx context.Context, dstore datastore.Datastore) error {
 	}
 	defer results.Close()
 
-	var updated bool
+	var converted []string
 	for result := range results.Next() {
 		if result.Error != nil {
 			return fmt.Errorf("cannot read provider info: %s", result.Error)
@@ -58,31 +58,32 @@ func migrateV0ToV1(ctx context.Context, dstore datastore.Datastore) error {
 		if err = dstore.Put(ctx, v1Info.DsKey(), value); err != nil {
 			return fmt.Errorf("could not write v1 provider data: %w", err)
 		}
-		updated = true
+
+		converted = append(converted, result.Entry.Key)
 	}
 	results.Close()
 
-	if updated {
+	if len(converted) != 0 {
 		if err = dstore.Sync(ctx, datastore.NewKey(registry.ProviderKeyPath)); err != nil {
 			return err
 		}
-		log.Infow("Migrated datastore", "from", "v0", "to", toVersion)
+
+		// Delete source records.
+		for _, k := range converted {
+			dstore.Delete(ctx, datastore.RawKey(k))
+		}
+
+		log.Debugw("Converted records from version 0 to 1", "records", len(converted))
+		return dstore.Sync(ctx, datastore.NewKey(v0ProviderKeyPath))
 	}
-
-	dsVerKey := datastore.NewKey(datastoreVersionKey)
-	if err = dstore.Put(ctx, dsVerKey, []byte(toVersion)); err != nil {
-		return fmt.Errorf("could not write registry version: %w", err)
-	}
-
-	return dstore.Sync(ctx, dsVerKey)
-
+	return nil
 }
 
 func convertV0ToV1ProviderInfo(value []byte) (*registry.ProviderInfo, error) {
 	v0Info := new(v0ProviderInfo)
 	err := json.Unmarshal(value, v0Info)
 	if err != nil {
-		return nil, fmt.Errorf("cannot unmarshal v0 provider data: %w", err)
+		return nil, fmt.Errorf("cannot unmarshal version 0 provider data: %w", err)
 	}
 
 	v1Info := registry.ProviderInfo{
@@ -104,8 +105,6 @@ func convertV0ToV1ProviderInfo(value []byte) (*registry.ProviderInfo, error) {
 }
 
 func revertV1ToV0(ctx context.Context, dstore datastore.Datastore) error {
-	const toVersion = "v0"
-
 	// Load all providers from the datastore.
 	q := query.Query{
 		Prefix: registry.ProviderKeyPath,
@@ -116,7 +115,7 @@ func revertV1ToV0(ctx context.Context, dstore datastore.Datastore) error {
 	}
 	defer results.Close()
 
-	var updated bool
+	var converted []string
 	for result := range results.Next() {
 		if result.Error != nil {
 			return fmt.Errorf("cannot read provider info: %s", result.Error)
@@ -129,37 +128,38 @@ func revertV1ToV0(ctx context.Context, dstore datastore.Datastore) error {
 
 		value, err := json.Marshal(v0Info)
 		if err != nil {
-			return fmt.Errorf("cannot marshal v0 provider data: %w", err)
+			return fmt.Errorf("cannot marshal version 0 provider data: %w", err)
 		}
 
 		if err = dstore.Put(ctx, v0Info.dsKey(), value); err != nil {
-			return fmt.Errorf("could not write v1 provider data: %w", err)
+			return fmt.Errorf("could not write version 0 provider data: %w", err)
 		}
 
-		updated = true
+		converted = append(converted, result.Entry.Key)
 	}
 	results.Close()
 
-	if updated {
+	if len(converted) != 0 {
 		if err = dstore.Sync(ctx, datastore.NewKey(registry.ProviderKeyPath)); err != nil {
 			return err
 		}
-		log.Infow("Reverted datastore", "from", "v1", "to", toVersion)
-	}
 
-	dsVerKey := datastore.NewKey(datastoreVersionKey)
-	if err = dstore.Put(ctx, dsVerKey, []byte(toVersion)); err != nil {
-		return fmt.Errorf("could not write registry version: %w", err)
-	}
+		// Delete source records.
+		for _, k := range converted {
+			dstore.Delete(ctx, datastore.RawKey(k))
+		}
 
-	return dstore.Sync(ctx, dsVerKey)
+		log.Debugw("Converted records from version 1 to 0", "records", len(converted))
+		return dstore.Sync(ctx, datastore.NewKey(registry.ProviderKeyPath))
+	}
+	return nil
 }
 
 func convertV1ToV0ProviderInfo(value []byte) (*v0ProviderInfo, error) {
 	v1Info := new(registry.ProviderInfo)
 	err := json.Unmarshal(value, v1Info)
 	if err != nil {
-		return nil, fmt.Errorf("cannot unmarshal v1 provider data: %w", err)
+		return nil, fmt.Errorf("cannot unmarshal version 1 provider data: %w", err)
 	}
 
 	v0Info := v0ProviderInfo{

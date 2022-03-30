@@ -55,11 +55,7 @@ func InitRegistry(t *testing.T) *registry.Registry {
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),
 	}
-	reg, err := registry.NewRegistry(discoveryCfg, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = reg.Start(context.Background())
+	reg, err := registry.NewRegistry(context.Background(), discoveryCfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

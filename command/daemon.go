@@ -87,6 +87,27 @@ func daemonCommand(cctx *cli.Context) error {
 	if cfg.Datastore.Type != "levelds" {
 		return fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Datastore.Type)
 	}
+	// Create datastore
+	dataStorePath, err := config.Path("", cfg.Datastore.Dir)
+	if err != nil {
+		return err
+	}
+	err = checkWritable(dataStorePath)
+	if err != nil {
+		return err
+	}
+	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
+	if err != nil {
+		return err
+	}
+	need, err := migrate.NeedMigration(cctx.Context, dstore)
+	if err != nil {
+		return err
+	}
+	if need {
+		fmt.Fprintln(os.Stderr, "Datastore needs migration: run 'storetheindex migrate'")
+		os.Exit(1)
+	}
 
 	// Create a valuestore of the configured type.
 	valueStorePath, err := config.Path("", cfg.Indexer.ValueStoreDir)
@@ -116,20 +137,6 @@ func daemonCommand(cctx *cli.Context) error {
 	// Create indexer core
 	indexerCore := engine.New(resultCache, valueStore)
 
-	// Create datastore
-	dataStorePath, err := config.Path("", cfg.Datastore.Dir)
-	if err != nil {
-		return err
-	}
-	err = checkWritable(dataStorePath)
-	if err != nil {
-		return err
-	}
-	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
-	if err != nil {
-		return err
-	}
-
 	var lotusDiscoverer *lotus.Discoverer
 	if cfg.Discovery.LotusGateway != "none" {
 		log.Infow("discovery using lotus", "gateway", cfg.Discovery.LotusGateway)
@@ -141,7 +148,7 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create registry
-	reg, err := registry.NewRegistry(cfg.Discovery, dstore, lotusDiscoverer)
+	reg, err := registry.NewRegistry(cctx.Context, cfg.Discovery, dstore, lotusDiscoverer)
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}
@@ -230,19 +237,6 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 
 		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)
-	}
-
-	//if migrate.NeedMigration(ctx, dstore) {
-	//	return errors.New("datastore needs migration: run 'storetheindex migrate'")
-	//}
-	_, err = migrate.Migrate(cctx.Context, dstore)
-	if err != nil {
-		return err
-	}
-
-	err = reg.Start(cctx.Context)
-	if err != nil {
-		return fmt.Errorf("cannot start provider registry: %s", err)
 	}
 
 	// Create ingest HTTP server

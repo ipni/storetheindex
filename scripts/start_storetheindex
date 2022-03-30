@@ -17,6 +17,7 @@ fi
 
 if [ -e "$repo/config" ]; then
   echo "Found storetheindex repo at $repo"
+  storetheindex migrate
 else
   storetheindex init
 fi
