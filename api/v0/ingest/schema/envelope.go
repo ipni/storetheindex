@@ -54,7 +54,6 @@ func (r *advSignatureRecord) UnmarshalRecord(buf []byte) error {
 func signaturePayload(ad *Advertisement, oldFormat bool) ([]byte, error) {
 	bindex := cid.Undef.Bytes()
 	if ad.PreviousID != nil {
-
 		bindex = (*ad.PreviousID).(cidlink.Link).Cid.Bytes()
 	}
 	ent := ad.Entries.(cidlink.Link).Cid.Bytes()
@@ -81,7 +80,7 @@ func signaturePayload(ad *Advertisement, oldFormat bool) ([]byte, error) {
 	}
 
 	// Generates the old (incorrect) data payload used for signature.  This is
-	// only for compatability with existing advertisements that have the old
+	// only for compatibility with existing advertisements that have the old
 	// signatures, and should be removed when no longer needed.
 	if oldFormat {
 		return multihash.Encode(sigBuf.Bytes(), multihash.SHA2_256)
@@ -111,6 +110,10 @@ func (ad *Advertisement) Sign(key crypto.PrivKey) error {
 
 // VerifySignature verifies that the advertisement has been signed and
 // generated correctly.  Returns the peer ID of the signer.
+//
+// The signer may be different than the provider ID in the advertisement, so
+// the caller will need to check if the signer is allowed to sign this
+// advertisement.
 func (ad *Advertisement) VerifySignature() (peer.ID, error) {
 	// sigSize is the size of the current signature.  Any signature that is not
 	// this size is the old signature format.
@@ -123,16 +126,21 @@ func (ad *Advertisement) VerifySignature() (peer.ID, error) {
 		return "", err
 	}
 
+	// Calculate our own hash of the advertisement.
 	oldFormat := len(rec.advID) != sigSize
 	genID, err := signaturePayload(ad, oldFormat)
 	if err != nil {
 		return "", err
 	}
 
+	// Check that our own hash is equal to the hash from the signature.
 	if !bytes.Equal(genID, rec.advID) {
 		return "", errors.New("invalid signature")
 	}
 
+	// Get the peer ID that was used to sign the advertisement.  This may be
+	// different than the provider ID, so caller will need to check if it was
+	// allowed to sign this advertisement.
 	signerID, err := peer.IDFromPublicKey(envelope.PublicKey)
 	if err != nil {
 		return "", fmt.Errorf("cannot convert public key to peer ID: %w", err)
