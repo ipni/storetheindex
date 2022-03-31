@@ -7,7 +7,7 @@ require (
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.2.9
-	github.com/filecoin-project/go-legs v0.3.10
+	github.com/filecoin-project/go-legs v0.3.11
 	github.com/frankban/quicktest v1.14.2
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.1
@@ -53,7 +53,7 @@ require (
 	github.com/elastic/gosigar v0.12.0 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
 	github.com/filecoin-project/go-cbor-util v0.0.0-20191219014500-08c40a1e63a2 // indirect
-	github.com/filecoin-project/go-data-transfer v1.14.0 // indirect
+	github.com/filecoin-project/go-data-transfer v1.15.1 // indirect
 	github.com/filecoin-project/go-ds-versioning v0.1.1 // indirect
 	github.com/filecoin-project/go-statemachine v1.0.2-0.20220322104818-27f8fbb86dfd // indirect
 	github.com/filecoin-project/go-statestore v0.2.0 // indirect
@@ -84,7 +84,7 @@ require (
 	github.com/ipfs/bbloom v0.0.4 // indirect
 	github.com/ipfs/go-block-format v0.0.3 // indirect
 	github.com/ipfs/go-blockservice v0.2.1 // indirect
-	github.com/ipfs/go-graphsync v0.12.0 // indirect
+	github.com/ipfs/go-graphsync v0.13.1 // indirect
 	github.com/ipfs/go-ipfs-blockstore v1.1.2 // indirect
 	github.com/ipfs/go-ipfs-chunker v0.0.5 // indirect
 	github.com/ipfs/go-ipfs-ds-help v1.1.0 // indirect
@@ -102,7 +102,7 @@ require (
 	github.com/ipfs/go-peertaskqueue v0.7.1 // indirect
 	github.com/ipfs/go-unixfs v0.3.1 // indirect
 	github.com/ipfs/go-verifcid v0.0.1 // indirect
-	github.com/ipld/go-codec-dagpb v1.3.0 // indirect
+	github.com/ipld/go-codec-dagpb v1.3.1 // indirect
 	github.com/ipld/go-storethehash v0.0.2 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
@@ -197,6 +197,7 @@ require (
 	golang.org/x/mod v0.4.2 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20211025112917-711f33c9992c // indirect
+	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	golang.org/x/tools v0.1.5 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
