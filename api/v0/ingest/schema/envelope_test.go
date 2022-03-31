@@ -53,6 +53,13 @@ func TestAdvertisement_SignAndVerify(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, peerID, signerID)
 
+	// Show that signature can be valid even though advertisement not signed by
+	// provider ID.  This is why it is necessary to check that the signer ID is
+	// the expected signed after verifying the signature is valid.
+	provID, err := peer.Decode(adv.Provider)
+	require.NoError(t, err)
+	require.NotEqual(t, signerID, provID)
+
 	// Verification fails if something in the advertisement changes
 	adv.Provider = ""
 	_, err = adv.VerifySignature()
