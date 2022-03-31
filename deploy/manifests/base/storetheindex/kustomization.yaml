@@ -5,8 +5,7 @@ namespace: storetheindex
 
 resources:
   - indexer-statefulset.yaml
-  - finder-service.yaml
-  - ingest-service.yaml
+  - indexer-service.yaml
 
 transformers:
   - labels.yaml
