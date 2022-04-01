@@ -14,6 +14,10 @@ output "cert_manager_role_arn" {
   value = module.cert_manager_role.iam_role_arn
 }
 
+output "cluster_autoscaler_role_arn" {
+  value = module.cluster_autoscaler_role.iam_role_arn
+}
+
 output "dev_cid_contact_nameservers" {
   value = aws_route53_zone.dev_external.name_servers
 }
