@@ -8,6 +8,7 @@ import (
 const (
 	apiWriteTimeout = 30 * time.Second
 	apiReadTimeout  = 30 * time.Second
+	cacheMaxAge     = 30 * time.Minute
 	maxConns        = 8_000
 )
 
@@ -15,6 +16,7 @@ const (
 type serverConfig struct {
 	apiWriteTimeout time.Duration
 	apiReadTimeout  time.Duration
+	cacheMaxAge     time.Duration
 	maxConns        int
 }
 
@@ -26,6 +28,7 @@ type ServerOption func(*serverConfig) error
 var serverDefaults = func(o *serverConfig) error {
 	o.apiWriteTimeout = apiWriteTimeout
 	o.apiReadTimeout = apiReadTimeout
+	o.cacheMaxAge = cacheMaxAge
 	o.maxConns = maxConns
 	return nil
 }
