@@ -71,7 +71,7 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 
 	// Metrics routes
 	r.Handle("/metrics", metrics.Start(coremetrics.DefaultViews))
-	r.Handle("/debug/pprof", pprof.WithProfile())
+	r.PathPrefix("/debug/pprof").Handler(pprof.WithProfile())
 
 	//Config routes
 	registerSetLogLevelHandler(r)
