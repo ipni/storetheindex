@@ -30,3 +30,11 @@ data:
       username: kylehuntsman
       groups:
         - system:masters
+    - userarn: arn:aws:iam::407967248065:user/steveFraser
+      username: steveFraser
+      groups:
+        - system:masters
+    - userarn: arn:aws:iam::407967248065:user/cmharden
+      username: cmharden
+      groups:
+        - system:masters

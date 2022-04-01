@@ -35,6 +35,8 @@ data "aws_iam_policy_document" "kms_sti" {
         "arn:aws:iam::407967248065:user/marco",
         "arn:aws:iam::407967248065:user/gammazero",
         "arn:aws:iam::407967248065:user/will.scott",
+        "arn:aws:iam::407967248065:user/steveFraser",
+        "arn:aws:iam::407967248065:user/cmharden",
       ]
     }
 
