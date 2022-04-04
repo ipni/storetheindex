@@ -8,3 +8,4 @@ resources:
   - external-dns
   - cert-manager
   - storetheindex
+  - cluster-autoscaler
