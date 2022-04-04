@@ -391,7 +391,12 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 	}
 
 	if info.Publisher.Validate() == nil && info.PublisherAddr == nil && info.Publisher == info.AddrInfo.ID {
-		info.PublisherAddr = info.AddrInfo.Addrs[0]
+		if len(info.AddrInfo.Addrs) == 0 {
+			log.Warnw("Register provider with no provider or publisher addresses",
+				"provider", info.AddrInfo.ID, "publisher", info.Publisher)
+		} else {
+			info.PublisherAddr = info.AddrInfo.Addrs[0]
+		}
 	}
 
 	if len(addrs) != 0 {
