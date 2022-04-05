@@ -6,6 +6,7 @@ namespace: storetheindex
 resources:
   - ../../../../base/storetheindex
   - ingress.yaml
+  - pod-monitor.yaml
 
 patchesStrategicMerge:
   - patch-indexer.yaml
