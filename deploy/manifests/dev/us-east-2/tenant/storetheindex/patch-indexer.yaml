@@ -7,6 +7,13 @@ spec:
     spec:
       containers:
         - name: indexer
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: STORETHEINDEX_PRIV_KEY_PATH
+              value: /identity/$(POD_NAME).key
           volumeMounts:
             - name: identity
               mountPath: /identity

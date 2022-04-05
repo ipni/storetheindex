@@ -11,13 +11,7 @@ resources:
 patchesStrategicMerge:
   - patch-indexer.yaml
 
-configMapGenerator:
-  - name: indexer-env-vars
-    behavior: merge
-    literals:
-      - STORETHEINDEX_PRIV_KEY_PATH=/identity/identity.key
-
 secretGenerator:
   - name: indexer-identity
     files:
-      - identity.key=identity.encrypted
+      - indexer-0.key=indexer-0-identity.encrypted
