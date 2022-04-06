@@ -1,7 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Note: using v0.9.0 compatible with Kubernetes 1.21.
-# See: https://github.com/prometheus-operator/kube-prometheus#kubernetes-compatibility-matrix
 resources:
-  - https://github.com/prometheus-operator/kube-prometheus.git?ref=v0.9.0
+  - git@github.com:prometheus-operator/kube-prometheus.git?ref=v0.9.0
