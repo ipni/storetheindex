@@ -5,3 +5,4 @@ namespace: kube-system
 
 resources:
   - aws-auth.yaml
+  - io2-storage-class.yaml
