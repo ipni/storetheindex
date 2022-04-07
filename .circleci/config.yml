@@ -77,7 +77,7 @@ workflows:
       - deploy-lotusinfra:
           name: deploy-mainnet-storetheindex-dev
           chart: filecoin/lotus-bundle
-          chart_version: 0.0.13
+          chart_version: 0.0.15
           circle_context: sentinel-staging-deploy
           kubernetes_cluster: mainnet-us-east-2-dev-eks
           aws_region: us-east-2
@@ -92,7 +92,7 @@ workflows:
       - deploy-lotusinfra:
           name: deploy-mainnet-storetheindex
           chart: filecoin/lotus-bundle
-          chart_version: 0.0.13
+          chart_version: 0.0.15
           circle_context: filecoin-mainnet-aws
           kubernetes_cluster: mainnet-us-east-1-eks
           aws_region: us-east-1
