@@ -15,7 +15,7 @@ require (
 	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipfs/go-ds-leveldb v0.5.0
-	github.com/ipfs/go-ipfs v0.11.0
+	github.com/ipfs/go-ipfs v0.12.1
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipld/go-ipld-prime v0.16.0
 	github.com/libp2p/go-libp2p v0.18.0-rc5
