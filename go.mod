@@ -6,7 +6,7 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
-	github.com/filecoin-project/go-indexer-core v0.2.9
+	github.com/filecoin-project/go-indexer-core v0.2.10
 	github.com/filecoin-project/go-legs v0.3.11
 	github.com/frankban/quicktest v1.14.2
 	github.com/gogo/protobuf v1.3.2
@@ -16,7 +16,7 @@ require (
 	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/ipfs/go-ipfs v0.11.0
-	github.com/ipfs/go-log/v2 v2.5.0
+	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipld/go-ipld-prime v0.16.0
 	github.com/libp2p/go-libp2p v0.18.0-rc5
 	github.com/libp2p/go-libp2p-core v0.14.0
@@ -103,7 +103,7 @@ require (
 	github.com/ipfs/go-unixfs v0.3.1 // indirect
 	github.com/ipfs/go-verifcid v0.0.1 // indirect
 	github.com/ipld/go-codec-dagpb v1.3.1 // indirect
-	github.com/ipld/go-storethehash v0.0.2 // indirect
+	github.com/ipld/go-storethehash v0.1.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
