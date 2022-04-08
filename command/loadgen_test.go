@@ -74,10 +74,12 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	// Sleep a bit for the ingester to finish spinning up (should be right after finder but CI runs slow)
+	time.Sleep(1 * time.Second)
 	ingestParts := strings.Split(IngestAddr, "/")
 	ingestPort := ingestParts[len(ingestParts)-1]
 	go func() {
-		loadGenTest(ctx, "http://127.0.0.1:"+ingestPort, concurrentProviders, numberOfEntriesPerProvider, useHTTP)
+		startLoadgen(ctx, "http://127.0.0.1:"+ingestPort, concurrentProviders, numberOfEntriesPerProvider, useHTTP)
 	}()
 
 	foundAll := false
@@ -98,7 +100,7 @@ LOOP:
 	require.True(t, foundAll, "Did not find all entries")
 }
 
-func loadGenTest(ctx context.Context, indexerAddr string, concurrentProviders uint, numberOfEntriesPerProvider uint, useHTTP bool) {
+func startLoadgen(ctx context.Context, indexerAddr string, concurrentProviders uint, numberOfEntriesPerProvider uint, useHTTP bool) {
 	loadConfig := loadgen.DefaultConfig()
 	loadConfig.StopAfterNEntries = uint64(numberOfEntriesPerProvider)
 	loadConfig.IsHttp = useHTTP
