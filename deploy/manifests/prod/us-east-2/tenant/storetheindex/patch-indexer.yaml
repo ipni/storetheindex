@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: indexer
+spec:
+  template:
+    spec:
+      containers:
+        - name: indexer
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: STORETHEINDEX_PRIV_KEY_PATH
+              value: /identity/$(POD_NAME).key
+          volumeMounts:
+            - name: identity
+              mountPath: /identity
+      # Require r5b instance types to run index provider pods.
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: r5b
+          effect: NoSchedule
+      volumes:
+        - name: identity
+          secret:
+            secretName: indexer-identity
