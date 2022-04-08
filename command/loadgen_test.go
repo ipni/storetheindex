@@ -38,6 +38,10 @@ func TestLargeLoad(t *testing.T) {
 }
 
 func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint, numberOfEntriesPerProvider uint, useHTTP bool) {
+	// Set up a context that is canceled when the command is interrupted
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	tempDir := t.TempDir()
 	os.Setenv(config.EnvDir, tempDir)
 	os.Setenv("STORETHEINDEX_LISTEN_FINDER", FinderAddr)
