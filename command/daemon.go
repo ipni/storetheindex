@@ -88,12 +88,7 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create a valuestore of the configured type.
-	valueStorePath, err := config.Path("", cfg.Indexer.ValueStoreDir)
-	if err != nil {
-		return err
-	}
-	log.Infow("Valuestore initializing/opening", "type", cfg.Indexer.ValueStoreType, "path", valueStorePath)
-	valueStore, err := createValueStore(valueStorePath, cfg.Indexer.ValueStoreType)
+	valueStore, err := createValueStore(cfg.Indexer)
 	if err != nil {
 		return err
 	}
@@ -363,20 +358,25 @@ func daemonCommand(cctx *cli.Context) error {
 	return finalErr
 }
 
-func createValueStore(dir, storeType string) (indexer.Interface, error) {
-	err := checkWritable(dir)
+func createValueStore(cfgIndexer config.Indexer) (indexer.Interface, error) {
+	dir, err := config.Path("", cfgIndexer.ValueStoreDir)
 	if err != nil {
 		return nil, err
 	}
+	log.Infow("Valuestore initializing/opening", "type", cfgIndexer.ValueStoreType, "path", dir)
 
-	switch storeType {
+	if err = checkWritable(dir); err != nil {
+		return nil, err
+	}
+
+	switch cfgIndexer.ValueStoreType {
 	case vstoreStorethehash:
-		return storethehash.New(dir)
+		return storethehash.New(dir, storethehash.GCInterval(time.Duration(cfgIndexer.GCInterval)))
 	case vstorePogreb:
 		return pogreb.New(dir)
 	case vstoreMemory:
 		return memory.New(), nil
 	}
 
-	return nil, fmt.Errorf("unrecognized store type: %s", storeType)
+	return nil, fmt.Errorf("unrecognized store type: %s", cfgIndexer.ValueStoreType)
 }

@@ -501,7 +501,7 @@ func (ing *Ingester) metricsUpdater() {
 				// Update value store size metric after sync.
 				size, err := ing.indexer.Size()
 				if err != nil {
-					log.Errorf("Error getting indexer value store size: %w", err)
+					log.Errorw("Error getting indexer value store size", "err", err)
 					return
 				}
 				stats.Record(context.Background(), coremetrics.StoreSize.M(size))
