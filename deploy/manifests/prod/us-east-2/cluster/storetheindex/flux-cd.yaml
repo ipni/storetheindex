@@ -1,0 +1,37 @@
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: GitRepository
+metadata:
+  name: storetheindex
+spec:
+  interval: 5m
+  url: https://github.com/filecoin-project/storetheindex.git
+  ref:
+    branch: main
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
+kind: Kustomization
+metadata:
+  name: storetheindex
+spec:
+  serviceAccountName: flux
+  decryption:
+    provider: sops
+  interval: 5m
+  path: "./deploy/manifests/prod/us-east-2/tenant/storetheindex"
+  sourceRef:
+    kind: GitRepository
+    name: storetheindex
+  prune: true
+  images:
+    - name: storetheindex
+      newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta1
+kind: ImageRepository
+metadata:
+  name: storetheindex
+spec:
+  interval: 10m
+  image: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex

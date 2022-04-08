@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - ../../../../base/storetheindex
+  - ingress.yaml
+  - pod-monitor.yaml
+
+patchesStrategicMerge:
+  - patch-indexer.yaml
+
+replicas:
+  - name: indexer
+    count: 2
+
+secretGenerator:
+  - name: indexer-identity
+    files:
+      - indexer-0.key=indexer-0-identity.encrypted
+      - indexer-1.key=indexer-1-identity.encrypted
