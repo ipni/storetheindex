@@ -31,10 +31,10 @@ func init() {
 
 func TestNewPolicy(t *testing.T) {
 	policyCfg := config.Policy{
-		Allow:       false,
-		Except:      []string{exceptIDStr},
-		Trust:       false,
-		TrustExcept: []string{trustedIDStr},
+		Allow:                  false,
+		Except:                 []string{exceptIDStr},
+		ExemptRateLimits:       false,
+		ExemptRateLimitsExcept: []string{trustedIDStr},
 	}
 
 	_, err := New(policyCfg)
@@ -49,13 +49,13 @@ func TestNewPolicy(t *testing.T) {
 	}
 
 	policyCfg.Allow = false
-	policyCfg.TrustExcept = append(policyCfg.TrustExcept, "bad ID")
+	policyCfg.ExemptRateLimitsExcept = append(policyCfg.ExemptRateLimitsExcept, "bad ID")
 	_, err = New(policyCfg)
 	if err == nil {
 		t.Error("expected error with bad trust ID")
 	}
 
-	policyCfg.TrustExcept = nil
+	policyCfg.ExemptRateLimitsExcept = nil
 	policyCfg.Except = append(policyCfg.Except, "bad ID")
 	_, err = New(policyCfg)
 	if err == nil {
@@ -77,10 +77,10 @@ func TestNewPolicy(t *testing.T) {
 
 func TestPolicyAccess(t *testing.T) {
 	policyCfg := config.Policy{
-		Allow:       false,
-		Except:      []string{exceptIDStr},
-		Trust:       false,
-		TrustExcept: []string{trustedIDStr},
+		Allow:                  false,
+		Except:                 []string{exceptIDStr},
+		ExemptRateLimits:       false,
+		ExemptRateLimitsExcept: []string{trustedIDStr},
 	}
 
 	p, err := New(policyCfg)
@@ -113,7 +113,7 @@ func TestPolicyAccess(t *testing.T) {
 	}
 
 	policyCfg.Allow = true
-	policyCfg.Trust = true
+	policyCfg.ExemptRateLimits = true
 	err = p.Config(policyCfg)
 	if err != nil {
 		t.Fatal(err)

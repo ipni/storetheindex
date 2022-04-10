@@ -33,10 +33,10 @@ const (
 
 var discoveryCfg = config.Discovery{
 	Policy: config.Policy{
-		Allow:       false,
-		Except:      []string{exceptID, trustedID, trustedID2, publisherID},
-		Trust:       false,
-		TrustExcept: []string{trustedID, trustedID2, publisherID},
+		Allow:                  false,
+		Except:                 []string{exceptID, trustedID, trustedID2, publisherID},
+		ExemptRateLimits:       false,
+		ExemptRateLimitsExcept: []string{trustedID, trustedID2, publisherID},
 	},
 	PollInterval:   config.Duration(time.Minute),
 	RediscoverWait: config.Duration(time.Minute),
@@ -335,8 +335,8 @@ func TestDatastore(t *testing.T) {
 func TestPollProvider(t *testing.T) {
 	cfg := config.Discovery{
 		Policy: config.Policy{
-			Allow: true,
-			Trust: true,
+			Allow:            true,
+			ExemptRateLimits: true,
 		},
 		RediscoverWait: config.Duration(time.Minute),
 	}

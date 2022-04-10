@@ -104,7 +104,7 @@ type Ingester struct {
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
 // communication with providers.
 func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
-	lsys := mkLinkSystem(ds)
+	lsys := mkLinkSystem(ds, reg)
 
 	// Construct a selector that recursively looks for nodes with field
 	// "PreviousID" as per Advertisement schema.  Note that the entries within

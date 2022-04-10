@@ -10,17 +10,18 @@ import (
 )
 
 type Policy struct {
-	allow       bool
-	except      map[peer.ID]struct{}
-	trust       bool
-	trustExcept map[peer.ID]struct{}
-	rwmutex     sync.RWMutex
+	allow                  bool
+	except                 map[peer.ID]struct{}
+	exemptRateLimits       bool
+	exemptRateLimitsExcept map[peer.ID]struct{}
+	exemptSelfPublisher    map[peer.ID]struct{}
+	rwmutex                sync.RWMutex
 }
 
 func New(cfg config.Policy) (*Policy, error) {
 	policy := &Policy{
-		allow: cfg.Allow,
-		trust: cfg.Trust,
+		allow:            cfg.Allow,
+		exemptRateLimits: cfg.ExemptRateLimits,
 	}
 
 	err := policy.Config(cfg)
@@ -56,29 +57,32 @@ func (p *Policy) Trusted(peerID peer.ID) bool {
 }
 
 func (p *Policy) trusted(peerID peer.ID) bool {
-	_, ok := p.trustExcept[peerID]
-	if p.trust {
+	_, ok := p.exemptRateLimitsExcept[peerID]
+	if p.exemptRateLimits {
 		return !ok
 	}
 	return ok
 }
 
-// Check returns whether the two bool values.  The fisrt is true if the peer is
-// allowed.  The second is true if the peer is allowed and is trusted (does not
-// require verification).
-func (p *Policy) Check(peerID peer.ID) (bool, bool) {
+// Check returns three bool values.
+//   The first is true if the peer is allowed to make advertisements.
+//   The second is true if the peer is not rate limited.
+//   The third is true if the peer may make advertisements on behalf of others.
+func (p *Policy) Check(peerID peer.ID) (bool, bool, bool) {
 	p.rwmutex.RLock()
 	defer p.rwmutex.RUnlock()
 
 	if !p.allowed(peerID) {
-		return false, false
+		return false, false, false
 	}
+
+	_, exempt := p.exemptSelfPublisher[peerID]
 
 	if !p.trusted(peerID) {
-		return true, false
+		return true, false, exempt
 	}
 
-	return true, true
+	return true, true, exempt
 }
 
 // Allow alters the policy to allow the specified peer.  Returns true if the
@@ -135,7 +139,7 @@ func (p *Policy) Config(cfg config.Policy) error {
 	defer p.rwmutex.Unlock()
 
 	p.allow = cfg.Allow
-	p.trust = cfg.Trust
+	p.exemptRateLimits = cfg.ExemptRateLimits
 
 	var err error
 	p.except, err = getExceptPeerIDs(cfg.Except)
@@ -148,9 +152,14 @@ func (p *Policy) Config(cfg config.Policy) error {
 		return errors.New("policy does not allow any peers")
 	}
 
-	p.trustExcept, err = getExceptPeerIDs(cfg.TrustExcept)
+	p.exemptRateLimitsExcept, err = getExceptPeerIDs(cfg.ExemptRateLimitsExcept)
 	if err != nil {
 		return fmt.Errorf("cannot read trust except list: %s", err)
+	}
+
+	p.exemptSelfPublisher, err = getExemptPublishers(cfg.ExemptSelfPublisher)
+	if err != nil {
+		return fmt.Errorf("cannot read exempt publisher list: %s", err)
 	}
 
 	return nil
@@ -162,10 +171,10 @@ func (p *Policy) ToConfig() config.Policy {
 	defer p.rwmutex.RUnlock()
 
 	return config.Policy{
-		Allow:       p.allow,
-		Except:      getExceptStrings(p.except),
-		Trust:       p.trust,
-		TrustExcept: getExceptStrings(p.trustExcept),
+		Allow:                  p.allow,
+		Except:                 getExceptStrings(p.except),
+		ExemptRateLimits:       p.exemptRateLimits,
+		ExemptRateLimitsExcept: getExceptStrings(p.exemptRateLimitsExcept),
 	}
 }
 
@@ -181,6 +190,22 @@ func getExceptPeerIDs(excepts []string) (map[peer.ID]struct{}, error) {
 			return nil, fmt.Errorf("error decoding peer id %q: %s", except, err)
 		}
 		exceptIDs[excPeerID] = struct{}{}
+	}
+	return exceptIDs, nil
+}
+
+func getExemptPublishers(exempts []string) (map[peer.ID]struct{}, error) {
+	if len(exempts) == 0 {
+		return nil, nil
+	}
+
+	exceptIDs := make(map[peer.ID]struct{}, len(exempts))
+	for _, exempt := range exempts {
+		pid, err := peer.Decode(exempt)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding peer id %s: %q", exempt, err)
+		}
+		exceptIDs[pid] = struct{}{}
 	}
 	return exceptIDs, nil
 }

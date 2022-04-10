@@ -22,20 +22,24 @@ type Policy struct {
 	// trusted in order to register.
 	Except []string
 
-	// Trust is either false or true, and determines whether an allowed peer
+	// ExemptRateLimits is either false or true, and determines whether an allowed peer
 	// can skip (true) on-chain verification or not (false), by default.
-	Trust bool
-	// TrustExcept is a list of peer IDs that are exceptions to the trust
+	ExemptRateLimits bool
+	// ExemptRateLimitsExcept is a list of peer IDs that are exceptions to the trust
 	// action.  If Trust is false then all allowed peers must be verified,
 	// except those listed here.  If Trust is true, then only the peers
 	// listed here require verification.
-	TrustExcept []string
+	ExemptRateLimitsExcept []string
+
+	// ExemptSelfPublisher is a list of peer IDs that are allowed to publish on
+	// behalf of other providers.
+	ExemptSelfPublisher []string
 }
 
 // NewPolicy returns Policy with values set to their defaults.
 func NewPolicy() Policy {
 	return Policy{
-		Allow: true,
-		Trust: true,
+		Allow:            true,
+		ExemptRateLimits: true,
 	}
 }

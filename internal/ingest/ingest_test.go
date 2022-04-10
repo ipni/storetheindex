@@ -950,8 +950,8 @@ func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
 func mkRegistry(t *testing.T) *registry.Registry {
 	discoveryCfg := config.Discovery{
 		Policy: config.Policy{
-			Allow: true,
-			Trust: true,
+			Allow:            true,
+			ExemptRateLimits: true,
 		},
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),

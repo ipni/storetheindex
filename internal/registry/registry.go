@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry/discovery"
@@ -233,7 +233,7 @@ running:
 // indicate where/how discovery is done.
 func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) error {
 	// If provider is not allowed, then ignore request
-	allowed, _ := r.policy.Check(peerID)
+	allowed, _, _ := r.policy.Check(peerID)
 	if !allowed {
 		return v0.NewError(ErrNotAllowed, http.StatusForbidden)
 	}
@@ -263,7 +263,7 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 		return err
 	}
 
-	allowed, trusted := r.policy.Check(info.AddrInfo.ID)
+	allowed, trusted, _ := r.policy.Check(info.AddrInfo.ID)
 
 	// If provider is not allowed, then ignore request.
 	if !allowed {
@@ -280,7 +280,7 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 	// If publisher is valid and different than the provider, check if the
 	// publisher is allowed.
 	if info.Publisher.Validate() == nil && info.Publisher != info.AddrInfo.ID {
-		allowed, trusted := r.policy.Check(info.Publisher)
+		allowed, trusted, _ := r.policy.Check(info.Publisher)
 		if !allowed {
 			return v0.NewError(ErrNotAllowed, http.StatusForbidden)
 		}
@@ -308,7 +308,7 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 // Check if the peer is trusted by policy, or if it has been previously
 // verified and registered as a provider.
 func (r *Registry) Authorized(peerID peer.ID) (bool, error) {
-	allowed, trusted := r.policy.Check(peerID)
+	allowed, trusted, _ := r.policy.Check(peerID)
 
 	if !allowed {
 		return false, nil
@@ -325,6 +325,13 @@ func (r *Registry) Authorized(peerID peer.ID) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// Check if a peer is able to publish for other providers.
+func (r *Registry) CanPublishForOthers(peerID peer.ID) bool {
+	_, _, CanPublishForOthers := r.policy.Check(peerID)
+
+	return CanPublishForOthers
 }
 
 func (r *Registry) SetPolicy(policyCfg config.Policy) error {
@@ -617,7 +624,7 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 		}
 
 		// If provider is not allowed, then do not load into registry.
-		allowed, _ := r.policy.Check(peerID)
+		allowed, _, _ := r.policy.Check(peerID)
 		if !allowed {
 			log.Warnw("Refusing to load registry data for forbidden peer", "peer", peerID)
 			continue
