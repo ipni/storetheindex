@@ -18,6 +18,10 @@ output "cluster_autoscaler_role_arn" {
   value = module.cluster_autoscaler_role.iam_role_arn
 }
 
+output "ebs_csi_controller_role_arn" {
+  value = module.ebs_csi_controller_role.iam_role_arn
+}
+
 output "prod_cid_contact_nameservers" {
   value = aws_route53_zone.prod_external.name_servers
 }

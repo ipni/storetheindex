@@ -8,10 +8,6 @@ module "eks" {
   cluster_endpoint_private_access = true
   cluster_endpoint_public_access  = true
 
-  cluster_addons = {
-    aws-ebs-csi-driver = {}
-  }
-  
   iam_role_path = local.iam_path
 
   vpc_id     = module.vpc.vpc_id
