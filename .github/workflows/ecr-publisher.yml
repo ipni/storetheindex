@@ -1,0 +1,42 @@
+name: ECR
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - v*
+
+jobs:
+  publisher:
+    name: Publish
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      ECR_REGISTRY: public.ecr.aws/e2v8t0i4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Determine Container Tag
+        run: |
+          IMAGE_TAG="${GITHUB_REF#refs/tags/v}"
+          if test "${IMAGE_TAG}" = "${GITHUB_REF}"; then
+            IMAGE_TAG="$(date '+%Y%m%d%H%M%S')-${GITHUB_SHA}"
+          fi
+          echo "Using image tag: ${IMAGE_TAG}"
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+      - name: AWS Login
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region: us-east-1
+          role-to-assume: "arn:aws:iam::407967248065:role/common/github_actions"
+          role-duration-seconds: 1200
+      - name: Login to Amazon ECR
+        run: aws ecr-public get-login-password | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+      - name: Publish Container Image
+        run: |
+          IMAGE_NAME="${ECR_REGISTRY}/storetheindex:${IMAGE_TAG}"
+          docker build -t "${IMAGE_NAME}" .
+          docker push "${IMAGE_NAME}"
+          echo "Published image ${IMAGE_NAME}"
