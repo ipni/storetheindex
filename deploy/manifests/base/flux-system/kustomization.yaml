@@ -4,7 +4,7 @@ kind: Kustomization
 namespace: flux-system
 
 resources:
-  - https://github.com/fluxcd/flux2/releases/download/v0.28.4/install.yaml
+  - https://github.com/fluxcd/flux2/releases/download/v0.28.5/install.yaml
 
 patches:
   # Disallow cross namespace access, since the deployment follows a multi-tenant setup.
