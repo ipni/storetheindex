@@ -32,6 +32,7 @@ metadata:
   name: storetheindex
 spec:
   interval: 5m
+  image: public.ecr.aws/e2v8t0i4/storetheindex
 
 ---
 apiVersion: image.toolkit.fluxcd.io/v1alpha1
