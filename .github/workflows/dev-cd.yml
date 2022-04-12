@@ -1,0 +1,19 @@
+name: Dev CD
+on:
+  push:
+    branches: [ 'cd/dev' ]
+
+jobs:
+  pull-request:
+    name: Open PR to main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        name: checkout
+      - uses: repo-sync/pull-request@v2
+        name: pull-request
+        with:
+          destination_branch: "main"
+          pr_title: "Deploy latest to `dev` environment"
+          pr_body: "Approve changes to trigger the latest deployment to `dev` environment"
+          github_token: ${{ secrets.GITHUB_TOKEN }}

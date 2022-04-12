@@ -18,8 +18,7 @@ spec:
         fsGroup: 532
       containers:
         - name: indexer
-          # TODO: replace with images published to ECR once docker build to it is set up
-          image: filecoin/storetheindex:3b2c5f5df721dc2cdfb340490b73de856960bfab
+          image: storetheindex
           envFrom:
             - configMapRef:
                 name: indexer-env-vars

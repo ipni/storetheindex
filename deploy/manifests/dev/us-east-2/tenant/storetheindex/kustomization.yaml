@@ -15,3 +15,8 @@ secretGenerator:
   - name: indexer-identity
     files:
       - indexer-0.key=indexer-0-identity.encrypted
+
+images:
+  - name: storetheindex
+    newName: public.ecr.aws/e2v8t0i4/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
+    newTag: 20220412130324-05472c8782305d2fc6761e36675088de93ecaad4 # {"$imagepolicy": "storetheindex:storetheindex:tag"}
