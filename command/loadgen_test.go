@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -34,12 +35,22 @@ func TestSmallLoadOverHTTP(t *testing.T) {
 }
 
 func TestLargeLoad(t *testing.T) {
+	switch runtime.GOOS {
+	case "linux":
+		t.Skip("skipping Large load test on linux because it takes too long in Github Actions CI.")
+	}
+
 	ctx, cncl := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cncl()
 	testLoadHelper(ctx, t, 10, 1000, false)
 }
 
 func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint, numberOfEntriesPerProvider uint, useHTTP bool) {
+	switch runtime.GOOS {
+	case "windows":
+		t.Skip("skipping test on", runtime.GOOS)
+	}
+
 	// Set up a context that is canceled when the command is interrupted
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
