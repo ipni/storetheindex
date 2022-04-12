@@ -7,7 +7,8 @@ spec:
   url: https://github.com/filecoin-project/storetheindex.git
   ref:
     branch: main
-
+  secretRef:
+    name: github-auth
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
 kind: Kustomization
@@ -23,9 +24,6 @@ spec:
     kind: GitRepository
     name: storetheindex
   prune: true
-  images:
-    - name: storetheindex
-      newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
 
 ---
 apiVersion: image.toolkit.fluxcd.io/v1beta1
@@ -33,5 +31,61 @@ kind: ImageRepository
 metadata:
   name: storetheindex
 spec:
-  interval: 10m
+  interval: 5m
   image: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+
+---
+apiVersion: image.toolkit.fluxcd.io/v1alpha1
+kind: ImagePolicy
+metadata:
+  name: storetheindex
+spec:
+  filterTags:
+    pattern: '^(?P<timestamp>\d+)-.+$'
+    extract: '$timestamp'
+  policy:
+    numerical:
+      order: asc
+  imageRepositoryRef:
+    name: storetheindex
+
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta1
+kind: ImageUpdateAutomation
+metadata:
+  name: storetheindex
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: storetheindex
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        name: sti-bot
+        email: sti-bot@protocol.ai
+      messageTemplate: |
+        Update {{ .AutomationObject.Namespace }}/{{ .AutomationObject.Name }} in `dev` environment
+        
+        Files:
+        {{ range $filename, $_ := .Updated.Files -}}
+        - {{ $filename }}
+        {{ end -}}
+        
+        Objects:
+        {{ range $resource, $_ := .Updated.Objects -}}
+        - {{ $resource.Kind }} {{ $resource.Name }}
+        {{ end -}}
+        
+        Images:
+        {{ range .Updated.Images -}}
+        - {{.}}
+        {{ end -}} 
+    push:
+      branch: 'cd/dev'
+  update:
+    strategy: Setters
+    path: "./deploy/manifests/dev/us-east-2/tenant/storetheindex"

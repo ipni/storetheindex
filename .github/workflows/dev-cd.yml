@@ -1,0 +1,31 @@
+name: Dev CD
+on:
+  push:
+    branches: [ 'cd/dev' ]
+
+jobs:
+  pull-request:
+    name: Open PR to main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Create Pull Request
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { repo, owner } = context.repo;
+            const result = await github.rest.pulls.create({
+              title: 'Deploy latest to `dev` environment',
+              owner,
+              repo,
+              head: 'cd/dev',
+              base: 'main',
+              body: 'Approve changes to trigger the latest deployment to `dev` environment'
+            });
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: result.data.number,
+              labels: ['cd', 'env:dev']
+            });

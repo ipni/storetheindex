@@ -8,4 +8,4 @@ resources:
   - cluster-cd.yaml
 
 patchesStrategicMerge:
-  - kust-ctrlr-sa-patch.yaml
+  - sa-patch.yaml
