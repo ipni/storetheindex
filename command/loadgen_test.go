@@ -82,6 +82,14 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 	time.Sleep(1 * time.Second)
 	ingestParts := strings.Split(IngestAddr, "/")
 	ingestPort := ingestParts[len(ingestParts)-1]
+	for {
+		resp, err := c.Get("http://127.0.0.1:" + ingestPort + "/health")
+		if err == nil && resp.StatusCode == 200 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
 	go func() {
 		startLoadgen(ctx, "http://127.0.0.1:"+ingestPort, concurrentProviders, numberOfEntriesPerProvider, useHTTP)
 	}()
