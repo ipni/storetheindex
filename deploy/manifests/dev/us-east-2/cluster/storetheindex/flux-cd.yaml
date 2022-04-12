@@ -40,7 +40,7 @@ metadata:
   name: storetheindex
 spec:
   filterTags:
-    pattern: '(?P<timestamp>\d+)-.+'
+    pattern: '^(?P<timestamp>\d+)-.+$'
     extract: '$timestamp'
   policy:
     numerical:
