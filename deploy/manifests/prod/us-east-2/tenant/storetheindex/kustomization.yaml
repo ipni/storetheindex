@@ -20,3 +20,8 @@ secretGenerator:
     files:
       - indexer-0.key=indexer-0-identity.encrypted
       - indexer-1.key=indexer-1-identity.encrypted
+
+images:
+  - name: storetheindex
+    newName: filecoin/storetheindex
+    newTag: 3b2c5f5df721dc2cdfb340490b73de856960bfab
