@@ -12,5 +12,5 @@ resources:
   - flux-rbac.yaml
   - github-auth.yaml
 
-patchesStrategicMerge:
-  - sa-patch.yaml
+#patchesStrategicMerge:
+#  - sa-patch.yaml
