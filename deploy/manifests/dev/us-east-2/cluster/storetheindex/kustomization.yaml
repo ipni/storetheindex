@@ -10,8 +10,3 @@ resources:
   - namespace.yaml
   - flux-cd.yaml
   - flux-rbac.yaml
-
-secretGenerator:
-  - name: github-auth
-    envs:
-      - github-auth.env.encrypted

@@ -15,8 +15,12 @@ secretGenerator:
   - name: indexer-identity
     files:
       - indexer-0.key=indexer-0-identity.encrypted
+  - name: github-auth
+    envs:
+      - github-auth.env.encrypted
 
 images:
   - name: storetheindex
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
     newTag: 20220413121236-8cc32d4b4692119691fa34b3483441c60ebbcac9 # {"$imagepolicy": "storetheindex:storetheindex:tag"}
+ 
