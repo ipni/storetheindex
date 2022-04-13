@@ -83,7 +83,9 @@ spec:
         Images:
         {{ range .Updated.Images -}}
         - {{.}}
-        {{ end -}} 
+        {{ end -}}
+        
+        [skip ci]
     push:
       branch: 'cd/dev'
   update:
