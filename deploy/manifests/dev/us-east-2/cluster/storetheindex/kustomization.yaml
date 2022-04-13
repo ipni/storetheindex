@@ -10,7 +10,8 @@ resources:
   - namespace.yaml
   - flux-cd.yaml
   - flux-rbac.yaml
-  - github-auth.yaml
 
-#patchesStrategicMerge:
-#  - sa-patch.yaml
+secretGenerator:
+  - name: github-auth
+    envs:
+      - github-auth.env.encrypted

@@ -7,8 +7,8 @@ spec:
   url: https://github.com/filecoin-project/storetheindex.git
   ref:
     branch: masih/cd-image-automation
-#  secretRef:
-#    name: github-auth
+  secretRef:
+    name: github-auth
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
 kind: Kustomization
@@ -33,8 +33,7 @@ metadata:
 spec:
   interval: 5m
   image: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
-#  secretRef:
-#    name: ecr-public-credentials
+
 ---
 apiVersion: image.toolkit.fluxcd.io/v1alpha1
 kind: ImagePolicy
@@ -89,3 +88,4 @@ spec:
       branch: 'cd/dev'
   update:
     strategy: Setters
+    path: "./deploy/manifests/dev/us-east-2/tenant/storetheindex"
