@@ -63,7 +63,7 @@ spec:
   git:
     checkout:
       ref:
-        branch: main
+        branch: masih/cd-image-automation
     commit:
       author:
         name: sti-bot
