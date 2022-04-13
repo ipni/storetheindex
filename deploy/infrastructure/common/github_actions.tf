@@ -14,12 +14,12 @@ data "aws_iam_policy_document" "github_actions" {
   statement {
     effect  = "Allow"
     actions = [
-      "ecr-public:BatchCheckLayerAvailability",
-      "ecr-public:CompleteLayerUpload",
-      "ecr-public:InitiateLayerUpload",
-      "ecr-public:PutImage",
-      "ecr-public:UploadLayerPart",
-      "ecr-public:GetAuthorizationToken",
+      "ecr:GetAuthorizationToken",
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:CompleteLayerUpload",
+      "ecr:InitiateLayerUpload",
+      "ecr:PutImage",
+      "ecr:UploadLayerPart",
       "sts:GetServiceBearerToken"
     ]
     resources = ["*"]
