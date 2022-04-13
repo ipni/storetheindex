@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: github-auth
+    namespace: storetheindex
+type: Opaque
+stringData:
+    username: ENC[AES256_GCM,data:XtWPWjwX9g==,iv:ye0LZNrkYhu+I2Npje2djis8KqXWF8sRtASjhTltth8=,tag:p0KHudouGr30asxq1CWvjA==,type:str]
+    password: ENC[AES256_GCM,data:4yevYHGF97+qG9xLb8O9ctOo2ryuGFUEP4V9qwZwKb1GSiIufvUucQ==,iv:BwLBovnpKN8AQvUqAaXwLD06mijLitPq4U7NpbT+FpE=,tag:w3dQdKOeLffjxixfzdgb3w==,type:str]
+sops:
+    kms:
+        - arn: arn:aws:kms:us-east-2:407967248065:alias/sti_flux
+          created_at: "2022-04-13T13:26:39Z"
+          enc: AQICAHi99m+hXhXmjeAqO3v9MBDcMaC2zWJIlamGyiBfOVdULAHDwTm3qJUt1vmQOntupRYCAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMII4iUNq5tX5ZzNOuAgEQgDs86bRCxmECh8Dvu8X6H8WTVg49GpDbSgN7eXo3F7mCPYHWERm+xjFG9FYglVYy4TsCmyQlM8qBpyx/hg==
+          aws_profile: ""
+    gcp_kms: []
+    azure_kv: []
+    hc_vault: []
+    age: []
+    lastmodified: "2022-04-13T13:26:40Z"
+    mac: ENC[AES256_GCM,data:p0rn1OOzhrUm2YxuDlWhsKjBLL/gWitadr+umOvjkgj1rOJZWtMxwFbluqKYIZ5YqKhAOlF7v6dhFGHnZ82wOV8DjTaXSm/rYZC0DRLVW+fIUvjdT/BmYl4tSNeR0vS6Q8/ysfcPZnoZ7ONltLOaTTbktDX+3fBb0i1yHVd6H8A=,iv:uZ2HEtIIL633tQdV2YxFuVLjq9Wa9/7WwjFqfo1K0dU=,tag:BjtV6lh01tzu+NXcJRNS4A==,type:str]
+    pgp: []
+    encrypted_regex: ^(data|stringData)$
+    version: 3.7.2
