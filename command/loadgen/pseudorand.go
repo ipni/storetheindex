@@ -3,14 +3,13 @@ package loadgen
 import (
 	"io"
 	"math/rand"
-	mathrand "math/rand"
 )
 
 type pr struct {
 	rand.Source
 }
 
-func newPseudoRandReaderFrom(src mathrand.Source) io.Reader {
+func newPseudoRandReaderFrom(src rand.Source) io.Reader {
 	return &pr{src}
 }
 
