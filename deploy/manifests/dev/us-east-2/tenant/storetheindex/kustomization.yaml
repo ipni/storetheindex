@@ -16,8 +16,8 @@ secretGenerator:
     files:
       - indexer-0.key=indexer-0-identity.encrypted
   - name: github-auth
-    envs:
-      - github-auth.env.encrypted
+    files:
+      - test=github-auth.env.encrypted
 
 images:
   - name: storetheindex
