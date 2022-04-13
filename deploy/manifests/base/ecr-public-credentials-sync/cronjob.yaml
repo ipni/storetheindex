@@ -1,0 +1,50 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: ecr-public-credentials-sync
+spec:
+  schedule: 0 */6 * * *
+  failedJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: ecr-public-credentials-sync
+          restartPolicy: Never
+          volumes:
+            - name: token
+              emptyDir:
+                medium: Memory
+          initContainers:
+            - image: aws-cli
+              name: get-token
+              volumeMounts:
+                - mountPath: /token
+                  name: token
+              envFrom:
+                - configMapRef:
+                    name: ecr-public-creds-sync-env
+              command:
+                - /bin/sh
+                - -ce
+                - aws ecr-public get-login-password --region "${REGION}" > /token/ecr-token
+          containers:
+            - image: ghcr.io/fluxcd/flux-cli:v0.25.2
+              name: create-secret
+              envFrom:
+                - configMapRef:
+                    name: ecr-public-creds-sync-env
+              volumeMounts:
+                - mountPath: /token
+                  name: token
+              command:
+                - /bin/sh
+                - -ce
+                - |-
+                  kubectl create secret docker-registry $SECRET_NAME \
+                    --dry-run=client \
+                    --docker-server="${ECR_REGISTRY}" \
+                    --docker-username=AWS \
+                    --docker-password="$(cat /token/ecr-token)" \
+                    -o yaml | kubectl apply -f - 

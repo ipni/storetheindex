@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - rbac.yaml
+  - cronjob.yaml
+
+configMapGenerator:
+  - name: ecr-public-creds-sync-env
+    behavior: create
+    literals:
+      - REGION=us-east-1
+      - ECR_REGISTRY=unspecified
+      - SECRET_NAME=ecr-public-credentials
+
+images:
+  - name: aws-cli
+    newName: amazon/aws-cli
+    newTag: 2.5.4

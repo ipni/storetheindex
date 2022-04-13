@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ecr-public-credentials-sync
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ecr-public-credentials-sync
+rules:
+  - apiGroups: [ "" ]
+    resources:
+      - secrets
+    verbs:
+      - get
+      - create
+      - patch
+
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ecr-public-credentials-sync
+subjects:
+  - kind: ServiceAccount
+    name: ecr-public-credentials-sync
+roleRef:
+  kind: Role
+  name: ecr-public-credentials-sync
+  apiGroup: ""

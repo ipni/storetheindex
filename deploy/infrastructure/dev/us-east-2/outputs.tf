@@ -22,6 +22,10 @@ output "monitoring_role_arn" {
   value = module.monitoring_role.iam_role_arn
 }
 
+output "image_reflector_role_arn" {
+  value = module.ecr_public_creds_sync_role.iam_role_arn
+}
+
 output "dev_cid_contact_nameservers" {
   value = aws_route53_zone.dev_external.name_servers
 }
