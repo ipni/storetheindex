@@ -32,9 +32,9 @@ metadata:
   name: storetheindex
 spec:
   interval: 5m
-  image: public.ecr.aws/e2v8t0i4/storetheindex
-  secretRef:
-    name: ecr-public-credentials
+  image: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+#  secretRef:
+#    name: ecr-public-credentials
 ---
 apiVersion: image.toolkit.fluxcd.io/v1alpha1
 kind: ImagePolicy

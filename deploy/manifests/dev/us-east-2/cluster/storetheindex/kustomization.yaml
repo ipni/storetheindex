@@ -11,13 +11,6 @@ resources:
   - flux-cd.yaml
   - flux-rbac.yaml
   - github-auth.yaml
-  - ../../../../base/ecr-public-credentials-sync
 
 patchesStrategicMerge:
   - sa-patch.yaml
-
-configMapGenerator:
-  - name: ecr-public-creds-sync-env
-    behavior: merge
-    literals:
-      - ECR_REGISTRY=public.ecr.aws/e2v8t0i4/storetheindex
