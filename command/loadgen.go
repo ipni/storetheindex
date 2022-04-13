@@ -78,9 +78,10 @@ func loadGenCmd(cctx *cli.Context) error {
 	}
 
 	loadgen.StartLoadGen(cctx.Context, config, loadgen.LoadGenOpts{
-		IndexerAddr:         cctx.String("indexer"),
-		ConcurrentProviders: cctx.Uint("concurrentProviders"),
-		ListenForInterrupt:  true,
+		IndexerAddr:            cctx.String("indexer"),
+		ConcurrentProviders:    cctx.Uint("concurrentProviders"),
+		ListenForInterrupt:     true,
+		ExternalAddressMapping: parseKVs(cctx.String("external-address-mappping")),
 	})
 	return nil
 }
