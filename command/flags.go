@@ -50,13 +50,6 @@ var providerFlag = &cli.StringFlag{
 	Required: true,
 }
 
-var peerFlag = &cli.StringFlag{
-	Name:     "peer",
-	Usage:    "Peer ID of publisher or provider",
-	Aliases:  []string{"p"},
-	Required: true,
-}
-
 var daemonFlags = []cli.Flag{
 	cacheSizeFlag,
 	logLevelFlag,
@@ -133,7 +126,12 @@ var importFlags = []cli.Flag{
 }
 
 var adminPolicyFlags = []cli.Flag{
-	peerFlag,
+	&cli.StringFlag{
+		Name:     "peer",
+		Usage:    "Peer ID of publisher or provider",
+		Aliases:  []string{"p"},
+		Required: true,
+	},
 	indexerHostFlag,
 }
 
@@ -142,8 +140,13 @@ var adminReloadPolicyFlags = []cli.Flag{
 }
 
 var adminSyncFlags = []cli.Flag{
-	peerFlag,
 	indexerHostFlag,
+	&cli.StringFlag{
+		Name:     "peer",
+		Usage:    "Publisher peer ID",
+		Aliases:  []string{"p"},
+		Required: true,
+	},
 	&cli.StringFlag{
 		Name:  "addr",
 		Usage: "Multiaddr address of peer to sync with",
@@ -207,7 +210,12 @@ var initFlags = []cli.Flag{
 }
 
 var providersGetFlags = []cli.Flag{
-	peerFlag,
+	&cli.StringFlag{
+		Name:     "peer",
+		Usage:    "Provider peer ID",
+		Aliases:  []string{"p"},
+		Required: true,
+	},
 	indexerHostFlag,
 }
 
