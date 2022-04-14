@@ -100,5 +100,3 @@ module "records" {
     },
   ]
 }
-
-data "aws_region" "current" {}
