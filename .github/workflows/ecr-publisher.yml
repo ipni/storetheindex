@@ -1,6 +1,8 @@
 name: ECR
 on:
   push:
+    paths-ignore:
+      - 'deploy/**'
     branches:
       - main
     tags:

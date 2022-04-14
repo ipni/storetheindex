@@ -43,7 +43,7 @@ To encrypt a file containing sensitive information, e.g. `my-secret.txt`:
 
 You can now include the encrypted value in your `kustomization.yaml` using `secretGenerator` to
 create K8S `Secret` object. An example of this technique can be found in `storetheindex`
-Kustomization in both `dev` and `prod` environments.
+Kustomization file in both `dev` and `prod` environments.
 
 It is also possible to define K8S `Secret` object directly, and encrypt its content (i.e. at
 key `data` or `stringData`) using SOPS.
