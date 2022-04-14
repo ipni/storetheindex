@@ -115,6 +115,12 @@ func Load(filePath string) (*Config, error) {
 	return &cfg, nil
 }
 
+// CanUpgrade determines if the config can be converted to the current version.
+func (c *Config) CanUpgrade() bool {
+	return c.Version != version
+}
+
+// UpgradeConfig upgrades (or downgrades) the config file to the current version.
 func (c *Config) UpgradeConfig(filePath string) (bool, error) {
 	if c.Version == version {
 		return false, nil

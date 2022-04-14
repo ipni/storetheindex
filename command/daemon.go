@@ -82,6 +82,9 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 		return fmt.Errorf("cannot load config file: %w", err)
 	}
+	if cfg.CanUpgrade() {
+		log.Warn("Configuration file out-of-date. Upgrade by running: ./storetheindex init --upgrade")
+	}
 
 	if cfg.Datastore.Type != "levelds" {
 		return fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Datastore.Type)
