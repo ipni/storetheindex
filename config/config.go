@@ -11,6 +11,7 @@ import (
 
 // Config is used to load config files.
 type Config struct {
+	Version   int       // config version
 	Identity  Identity  // peer identity
 	Addresses Addresses // addresses to listen on
 	Bootstrap Bootstrap // Peers to connect to for gossip
@@ -29,6 +30,8 @@ const (
 	DefaultConfigFile = "config"
 	// EnvDir is the environment variable used to change the path root.
 	EnvDir = "STORETHEINDEX_PATH"
+
+	version = 1
 )
 
 var (
@@ -93,7 +96,16 @@ func Load(filePath string) (*Config, error) {
 	}
 	defer f.Close()
 
-	var cfg Config
+	// Populate with initial values in case they are not present in config.
+	cfg := Config{
+		Addresses: NewAddresses(),
+		Bootstrap: NewBootstrap(),
+		Datastore: NewDatastore(),
+		Discovery: NewDiscovery(),
+		Indexer:   NewIndexer(),
+		Ingest:    NewIngest(),
+	}
+
 	if err = json.NewDecoder(f).Decode(&cfg); err != nil {
 		return nil, err
 	}
@@ -101,6 +113,23 @@ func Load(filePath string) (*Config, error) {
 	cfg.populateUnset()
 
 	return &cfg, nil
+}
+
+func (c *Config) UpgradeConfig(filePath string) (bool, error) {
+	if c.Version == version {
+		return false, nil
+	}
+	prevName := filePath + ".prev"
+	err := os.Rename(filePath, prevName)
+	if err != nil {
+		return false, err
+	}
+	c.Version = version
+	err = c.Save(filePath)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Save writes the json-serialized config to the specified path.
