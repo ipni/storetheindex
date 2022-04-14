@@ -1,6 +1,9 @@
 locals {
 
   environment_name = "dev"
+  region           = data.aws_region.current.name
+
+  iam_path = "/${local.environment_name}/${local.region}/"
 
   tags = {
     "Environment" = local.environment_name
@@ -10,3 +13,5 @@ locals {
     Organization  = "EngRes"
   }
 }
+
+data "aws_region" "current" {}
