@@ -192,9 +192,15 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	// Register provider or update existing registration.  The
 	// provider must be allowed by policy to be registered.
 	var pubInfo peer.AddrInfo
-	peerStore := ing.host.Peerstore()
+	peerStore := ing.sub.HttpPeerStore()
 	if peerStore != nil {
 		pubInfo = peerStore.PeerInfo(publisherID)
+	}
+	if len(pubInfo.Addrs) == 0 {
+		peerStore = ing.host.Peerstore()
+		if peerStore != nil {
+			pubInfo = peerStore.PeerInfo(publisherID)
+		}
 	}
 	err = ing.reg.RegisterOrUpdate(context.Background(), providerID, ad.Addresses, adCid, pubInfo)
 	if err != nil {
