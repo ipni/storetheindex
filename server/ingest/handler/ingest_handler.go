@@ -136,13 +136,13 @@ func (h *IngestHandler) Announce(r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	allow, err := h.registry.Authorized(pid.ID)
+	allow, err := h.registry.Allowed(pid.ID)
 	if err != nil {
 		err = fmt.Errorf("error checking if peer allowed: %w", err)
 		return v0.NewError(err, http.StatusInternalServerError)
 	}
 	if !allow {
-		return v0.NewError(errors.New("not authorized to announce"), http.StatusForbidden)
+		return v0.NewError(errors.New("not allowed to announce"), http.StatusForbidden)
 	}
 	cur, err := h.ingester.GetLatestSync(pid.ID)
 	if err == nil {

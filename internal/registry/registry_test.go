@@ -20,8 +20,8 @@ type mockDiscoverer struct {
 
 const (
 	exceptID   = "12D3KooWK7CTS7cyWi51PeNE3cTjS2F2kDCZaQVU4A5xBmb9J1do"
-	trustedID  = "12D3KooWSG3JuvEjRkSxt93ADTjQxqe4ExbBwSkQ9Zyk1WfBaZJF"
-	trustedID2 = "12D3KooWKSNuuq77xqnpPLnU3fq1bTQW2TwSZL2Z4QTHEYpUVzfr"
+	limitedID  = "12D3KooWSG3JuvEjRkSxt93ADTjQxqe4ExbBwSkQ9Zyk1WfBaZJF"
+	limitedID2 = "12D3KooWKSNuuq77xqnpPLnU3fq1bTQW2TwSZL2Z4QTHEYpUVzfr"
 
 	minerDiscoAddr = "stitest999999"
 	minerAddr      = "/ip4/127.0.0.1/tcp/9999"
@@ -33,10 +33,12 @@ const (
 
 var discoveryCfg = config.Discovery{
 	Policy: config.Policy{
-		Allow:       false,
-		Except:      []string{exceptID, trustedID, trustedID2, publisherID},
-		Trust:       false,
-		TrustExcept: []string{trustedID, trustedID2, publisherID},
+		Allow:           false,
+		Except:          []string{exceptID, limitedID, limitedID2, publisherID},
+		RateLimit:       false,
+		RateLimitExcept: []string{limitedID, limitedID2, publisherID},
+		Publish:         false,
+		PublishExcept:   []string{publisherID},
 	},
 	PollInterval:   config.Duration(time.Minute),
 	RediscoverWait: config.Duration(time.Minute),
@@ -83,11 +85,19 @@ func TestNewRegistryDiscovery(t *testing.T) {
 	}
 	t.Log("created new registry")
 
-	peerID, err := peer.Decode(trustedID)
+	peerID, err := peer.Decode(limitedID)
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
 	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/3002")
+	if err != nil {
+		t.Fatalf("Cannot create multiaddr: %s", err)
+	}
+	pubID, err := peer.Decode(publisherID)
+	if err != nil {
+		t.Fatal("bad publisher ID:", err)
+	}
+	pubAddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	if err != nil {
 		t.Fatalf("Cannot create multiaddr: %s", err)
 	}
@@ -96,6 +106,8 @@ func TestNewRegistryDiscovery(t *testing.T) {
 			ID:    peerID,
 			Addrs: []multiaddr.Multiaddr{maddr},
 		},
+		Publisher:     pubID,
+		PublisherAddr: pubAddr,
 	}
 
 	err = r.Register(ctx, info)
@@ -148,7 +160,7 @@ func TestDiscoveryAllowed(t *testing.T) {
 		t.Error("did not get correct porvider id")
 	}
 
-	peerID, err = peer.Decode(trustedID)
+	peerID, err = peer.Decode(limitedID)
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
@@ -210,7 +222,7 @@ func TestDatastore(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	peerID, err := peer.Decode(trustedID)
+	peerID, err := peer.Decode(limitedID)
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
@@ -224,7 +236,7 @@ func TestDatastore(t *testing.T) {
 			Addrs: []multiaddr.Multiaddr{maddr},
 		},
 	}
-	peerID, err = peer.Decode(trustedID2)
+	peerID, err = peer.Decode(limitedID2)
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
@@ -335,8 +347,8 @@ func TestDatastore(t *testing.T) {
 func TestPollProvider(t *testing.T) {
 	cfg := config.Discovery{
 		Policy: config.Policy{
-			Allow: true,
-			Trust: true,
+			Allow:   true,
+			Publish: true,
 		},
 		RediscoverWait: config.Duration(time.Minute),
 	}
@@ -352,7 +364,7 @@ func TestPollProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	peerID, err := peer.Decode(trustedID)
+	peerID, err := peer.Decode(limitedID)
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
@@ -369,11 +381,13 @@ func TestPollProvider(t *testing.T) {
 		t.Fatal("failed to register directly:", err)
 	}
 
-	retryAfter := time.Minute
-	stopAfter := time.Hour
+	poll := polling{
+		retryAfter: time.Minute,
+		stopAfter:  time.Hour,
+	}
 
 	// Check for auto-sync after pollInterval 0.
-	r.pollProviders(0, retryAfter, stopAfter)
+	r.pollProviders(poll, nil)
 	timeout := time.After(2 * time.Second)
 	select {
 	case pinfo := <-r.SyncChan():
@@ -388,10 +402,10 @@ func TestPollProvider(t *testing.T) {
 	}
 
 	// Check that actions chan is not blocked by unread auto-sync channel.
-	retryAfter = 0
-	r.pollProviders(0, retryAfter, stopAfter)
-	r.pollProviders(0, retryAfter, stopAfter)
-	r.pollProviders(0, retryAfter, stopAfter)
+	poll.retryAfter = 0
+	r.pollProviders(poll, nil)
+	r.pollProviders(poll, nil)
+	r.pollProviders(poll, nil)
 	done := make(chan struct{})
 	r.actions <- func() {
 		close(done)
@@ -410,10 +424,119 @@ func TestPollProvider(t *testing.T) {
 	// Set stopAfter to 0 so that stopAfter will have elapsed since last
 	// contact. This will make publisher appear unresponsive and polling will
 	// stop.
-	stopAfter = 0
-	r.pollProviders(0, retryAfter, stopAfter)
-	r.pollProviders(0, retryAfter, stopAfter)
-	r.pollProviders(0, retryAfter, stopAfter)
+	poll.stopAfter = 0
+	r.pollProviders(poll, nil)
+	r.pollProviders(poll, nil)
+	r.pollProviders(poll, nil)
+
+	// Check that publisher has been removed from provider info when publisher
+	// appeared non-responsive.
+	pinfo := r.ProviderInfo(peerID)
+	if pinfo == nil {
+		t.Fatal("did not find registered provider")
+	}
+	if pinfo.Publisher.Validate() == nil {
+		t.Fatal("should not have valid publisher after polling stopped")
+	}
+
+	// Check that sync channel was not written since polling should have
+	// stopped.
+	select {
+	case <-r.SyncChan():
+		t.Fatal("sync channel should not have beem written to")
+	default:
+	}
+
+	err = r.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPollProviderOverrides(t *testing.T) {
+	cfg := config.Discovery{
+		Policy: config.Policy{
+			Allow:   true,
+			Publish: true,
+		},
+		RediscoverWait: config.Duration(time.Minute),
+	}
+
+	ctx := context.Background()
+	// Create datastore
+	dstore, err := leveldb.NewDatastore(t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := NewRegistry(ctx, cfg, dstore, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	peerID, err := peer.Decode(limitedID)
+	if err != nil {
+		t.Fatal("bad provider ID:", err)
+	}
+	pubID, err := peer.Decode(publisherID)
+	if err != nil {
+		t.Fatal("bad publisher ID:", err)
+	}
+
+	pub := peer.AddrInfo{
+		ID: pubID,
+	}
+	err = r.RegisterOrUpdate(ctx, peerID, []string{minerAddr}, cid.Undef, pub)
+	if err != nil {
+		t.Fatal("failed to register directly:", err)
+	}
+
+	r, err = NewRegistry(ctx, cfg, dstore, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = r.RegisterOrUpdate(ctx, peerID, []string{minerAddr}, cid.Undef, pub)
+	if err != nil {
+		t.Fatal("failed to register directly:", err)
+	}
+
+	poll := polling{
+		interval:   2 * time.Hour,
+		retryAfter: time.Hour,
+		stopAfter:  5 * time.Hour,
+	}
+
+	overrides := make(map[peer.ID]polling)
+	overrides[peerID] = polling{
+		retryAfter: time.Minute,
+		stopAfter:  time.Hour,
+	}
+
+	// Check for auto-sync after pollInterval 0.
+	r.pollProviders(poll, overrides)
+	timeout := time.After(2 * time.Second)
+	select {
+	case pinfo := <-r.SyncChan():
+		if pinfo.AddrInfo.ID != peerID {
+			t.Fatal("Wrong provider ID")
+		}
+		if pinfo.Publisher != pubID {
+			t.Fatal("Wrong publisher ID")
+		}
+	case <-timeout:
+		t.Fatal("Expected sync channel to be written")
+	}
+
+	// Set stopAfter to 0 so that stopAfter will have elapsed since last
+	// contact. This will make publisher appear unresponsive and polling will
+	// stop.
+	overrides[peerID] = polling{
+		retryAfter: time.Minute,
+		stopAfter:  0,
+	}
+	r.pollProviders(poll, overrides)
+	r.pollProviders(poll, overrides)
+	r.pollProviders(poll, overrides)
 
 	// Check that publisher has been removed from provider info when publisher
 	// appeared non-responsive.

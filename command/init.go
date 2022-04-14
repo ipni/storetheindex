@@ -23,8 +23,6 @@ func initCommand(cctx *cli.Context) error {
 		return err
 	}
 
-	fmt.Println("Initializing indexer node at", configRoot)
-
 	if err = checkWritable(configRoot); err != nil {
 		return err
 	}
@@ -33,6 +31,26 @@ func initCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
+	if cctx.Bool("upgrade") {
+		cfg, err := config.Load(configFile)
+		if err != nil {
+			return err
+		}
+		prevVer := cfg.Version
+		upgraded, err := cfg.UpgradeConfig(configFile)
+		if err != nil {
+			return fmt.Errorf("cannot upgrade: %s", err)
+		}
+		if upgraded {
+			fmt.Println("Upgraded", configFile, "from version", prevVer, "to", cfg.Version)
+		} else {
+			fmt.Println("Config at current version, nothing to upgrade")
+		}
+		return nil
+	}
+
+	fmt.Println("Initializing indexer node at", configRoot)
 
 	if fileExists(configFile) {
 		return config.ErrInitialized

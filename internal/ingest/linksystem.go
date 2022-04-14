@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipld/go-ipld-prime"
@@ -42,7 +43,7 @@ func dsKey(k string) datastore.Key {
 // mkLinkSystem makes the indexer linkSystem which checks advertisement
 // signatures at storage. If the signature is not valid the traversal/exchange
 // is terminated.
-func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
+func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
@@ -74,7 +75,7 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 
 				// Verify that the signature is correct and the advertisement
 				// is valid.
-				_, _, err := verifyAdvertisement(n)
+				_, _, err := verifyAdvertisement(n, reg)
 				if err != nil {
 					return err
 				}
@@ -88,7 +89,7 @@ func mkLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	return lsys
 }
 
-func verifyAdvertisement(n ipld.Node) (*schema.Advertisement, peer.ID, error) {
+func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (*schema.Advertisement, peer.ID, error) {
 	ad, err := schema.UnwrapAdvertisement(n)
 	if err != nil {
 		log.Errorw("Cannot decode advertisement", "err", err)
@@ -109,15 +110,10 @@ func verifyAdvertisement(n ipld.Node) (*schema.Advertisement, peer.ID, error) {
 		return nil, "", errBadAdvert
 	}
 
-	// Verify that the advertised provider has signed, and
-	// therefore approved, the advertisement regardless of who
-	// published the advertisement.
-	if signerID != provID {
-		// TODO: Have policy that allows a signer (publisher) to
-		// sign advertisements for certain providers.  This will
-		// allow that signer to add, update, and delete indexed
-		// content on behalf of those providers.
-		log.Errorw("Advertisement not signed by provider", "provider", ad.Provider, "signer", signerID)
+	// Verify that the advertised is signed by the provider or by an allowed
+	// publisher.
+	if signerID != provID && !reg.PublishAllowed(signerID, provID) {
+		log.Errorw("Advertisement not signed by provider or allowed publisher", "provider", ad.Provider, "signer", signerID)
 		return nil, "", errInvalidAdvertSignature
 	}
 

@@ -26,6 +26,8 @@ type Discovery struct {
 	// continuing polling for the latest advertisment without getting a
 	// responce.
 	PollStopAfter Duration
+	// PollOverrides configures polling for a specific providers.
+	PollOverrides []Polling
 	// RediscoverWait is the amount of time that must pass before a provider
 	// can be discovered following a previous discovery attempt.  A value of 0
 	// means there is no wait time.
@@ -33,6 +35,16 @@ type Discovery struct {
 	// Timeout is the maximum amount of time that the indexer will spend trying
 	// to discover and verify a new provider.
 	Timeout Duration
+}
+
+// Polling is a set of polling parameters that is applied to a specific
+// provider.  The values override the matching Poll values in the Discovery
+// config.
+type Polling struct {
+	ProviderID string
+	Interval   Duration
+	RetryAfter Duration
+	StopAfter  Duration
 }
 
 // NewDiscovery returns Discovery with values set to their defaults.

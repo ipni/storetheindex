@@ -10,18 +10,17 @@ import (
 )
 
 type Policy struct {
-	allow       bool
-	except      map[peer.ID]struct{}
-	trust       bool
-	trustExcept map[peer.ID]struct{}
-	rwmutex     sync.RWMutex
+	allow           bool
+	except          map[peer.ID]struct{}
+	publish         bool
+	publishExcept   map[peer.ID]struct{}
+	rateLimit       bool
+	rateLimitExcept map[peer.ID]struct{}
+	rwmutex         sync.RWMutex
 }
 
 func New(cfg config.Policy) (*Policy, error) {
-	policy := &Policy{
-		allow: cfg.Allow,
-		trust: cfg.Trust,
-	}
+	policy := &Policy{}
 
 	err := policy.Config(cfg)
 	if err != nil {
@@ -30,9 +29,7 @@ func New(cfg config.Policy) (*Policy, error) {
 	return policy, nil
 }
 
-// Allowed returns true if the policy allows the peer to index content.  This
-// check does not check whether the peer is trusted. An allowed peer must still
-// be verified.
+// Allowed returns true if the policy allows the peer to index content.
 func (p *Policy) Allowed(peerID peer.ID) bool {
 	p.rwmutex.RLock()
 	defer p.rwmutex.RUnlock()
@@ -40,45 +37,42 @@ func (p *Policy) Allowed(peerID peer.ID) bool {
 }
 
 func (p *Policy) allowed(peerID peer.ID) bool {
-	_, ok := p.except[peerID]
-	if p.allow {
+	return evalPolicy(peerID, p.allow, p.except)
+}
+
+// PublishAllowed returns true if policy allows the publisher to publish
+// advertisements for the identified provider.  This assumes that both are
+// already allowed by policy.
+func (p *Policy) PublishAllowed(publisherID, providerID peer.ID) bool {
+	p.rwmutex.RLock()
+	defer p.rwmutex.RUnlock()
+	return p.publishAllowed(publisherID, providerID)
+}
+
+func (p *Policy) publishAllowed(publisherID, providerID peer.ID) bool {
+	if publisherID == providerID {
+		return true
+	}
+	return evalPolicy(publisherID, p.publish, p.publishExcept)
+}
+
+// RateLimited determines if the peer is rate limited.
+func (p *Policy) RateLimited(peerID peer.ID) bool {
+	p.rwmutex.RLock()
+	defer p.rwmutex.RUnlock()
+	return p.rateLimited(peerID)
+}
+
+func (p *Policy) rateLimited(peerID peer.ID) bool {
+	return evalPolicy(peerID, p.rateLimit, p.rateLimitExcept)
+}
+
+func evalPolicy(peerID peer.ID, policy bool, exceptions map[peer.ID]struct{}) bool {
+	_, ok := exceptions[peerID]
+	if policy {
 		return !ok
 	}
 	return ok
-}
-
-// Trusted returns true if the peer is explicitly trusted.  A trusted peer is
-// allowed to register without requiring verification.
-func (p *Policy) Trusted(peerID peer.ID) bool {
-	p.rwmutex.RLock()
-	defer p.rwmutex.RUnlock()
-	return p.trusted(peerID)
-}
-
-func (p *Policy) trusted(peerID peer.ID) bool {
-	_, ok := p.trustExcept[peerID]
-	if p.trust {
-		return !ok
-	}
-	return ok
-}
-
-// Check returns whether the two bool values.  The fisrt is true if the peer is
-// allowed.  The second is true if the peer is allowed and is trusted (does not
-// require verification).
-func (p *Policy) Check(peerID peer.ID) (bool, bool) {
-	p.rwmutex.RLock()
-	defer p.rwmutex.RUnlock()
-
-	if !p.allowed(peerID) {
-		return false, false
-	}
-
-	if !p.trusted(peerID) {
-		return true, false
-	}
-
-	return true, true
 }
 
 // Allow alters the policy to allow the specified peer.  Returns true if the
@@ -135,7 +129,8 @@ func (p *Policy) Config(cfg config.Policy) error {
 	defer p.rwmutex.Unlock()
 
 	p.allow = cfg.Allow
-	p.trust = cfg.Trust
+	p.publish = cfg.Publish
+	p.rateLimit = cfg.RateLimit
 
 	var err error
 	p.except, err = getExceptPeerIDs(cfg.Except)
@@ -148,9 +143,14 @@ func (p *Policy) Config(cfg config.Policy) error {
 		return errors.New("policy does not allow any peers")
 	}
 
-	p.trustExcept, err = getExceptPeerIDs(cfg.TrustExcept)
+	p.publishExcept, err = getExceptPeerIDs(cfg.PublishExcept)
 	if err != nil {
-		return fmt.Errorf("cannot read trust except list: %s", err)
+		return fmt.Errorf("cannot read publish except list: %s", err)
+	}
+
+	p.rateLimitExcept, err = getExceptPeerIDs(cfg.RateLimitExcept)
+	if err != nil {
+		return fmt.Errorf("cannot read rate limit except list: %s", err)
 	}
 
 	return nil
@@ -162,10 +162,12 @@ func (p *Policy) ToConfig() config.Policy {
 	defer p.rwmutex.RUnlock()
 
 	return config.Policy{
-		Allow:       p.allow,
-		Except:      getExceptStrings(p.except),
-		Trust:       p.trust,
-		TrustExcept: getExceptStrings(p.trustExcept),
+		Allow:           p.allow,
+		Except:          getExceptStrings(p.except),
+		Publish:         p.publish,
+		PublishExcept:   getExceptStrings(p.publishExcept),
+		RateLimit:       p.rateLimit,
+		RateLimitExcept: getExceptStrings(p.rateLimitExcept),
 	}
 }
 

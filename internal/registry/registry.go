@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry/discovery"
@@ -75,6 +75,12 @@ type ProviderInfo struct {
 	// reset when the indexer is started. If not reset, then it would appear
 	// the publisher was unreachable for the indexer downtime.
 	lastContactTime time.Time
+}
+
+type polling struct {
+	interval   time.Duration
+	retryAfter time.Duration
+	stopAfter  time.Duration
 }
 
 func (p *ProviderInfo) dsKey() datastore.Key {
@@ -151,13 +157,40 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 	}
 	log.Infow("loaded providers into registry", "count", count)
 
+	pollOverrides, err := makePollOverrideMap(cfg.PollOverrides)
+	if err != nil {
+		return nil, err
+	}
+	poll := polling{
+		interval:   time.Duration(cfg.PollInterval),
+		retryAfter: time.Duration(cfg.PollRetryAfter),
+		stopAfter:  time.Duration(cfg.PollStopAfter),
+	}
+
 	go r.run()
-	go r.runPollCheck(
-		time.Duration(cfg.PollInterval),
-		time.Duration(cfg.PollRetryAfter),
-		time.Duration(cfg.PollStopAfter))
+	go r.runPollCheck(poll, pollOverrides)
 
 	return r, nil
+}
+
+func makePollOverrideMap(cfgPollOverrides []config.Polling) (map[peer.ID]polling, error) {
+	if len(cfgPollOverrides) == 0 {
+		return nil, nil
+	}
+
+	pollOverrides := make(map[peer.ID]polling, len(cfgPollOverrides))
+	for _, poll := range cfgPollOverrides {
+		peerID, err := peer.Decode(poll.ProviderID)
+		if err != nil {
+			return nil, fmt.Errorf("cannot decode provider ID %q in PollOverrides: %s", poll.ProviderID, err)
+		}
+		pollOverrides[peerID] = polling{
+			interval:   time.Duration(poll.Interval),
+			retryAfter: time.Duration(poll.RetryAfter),
+			stopAfter:  time.Duration(poll.StopAfter),
+		}
+	}
+	return pollOverrides, nil
 }
 
 // Close waits for any pending discoverer to finish and then stops the registry
@@ -194,18 +227,25 @@ func (r *Registry) run() {
 	}
 }
 
-func (r *Registry) runPollCheck(pollInterval, pollRetryAfter, pollStopAfter time.Duration) {
-	if pollRetryAfter < time.Minute {
-		pollRetryAfter = time.Minute
+func (r *Registry) runPollCheck(poll polling, pollOverrides map[peer.ID]polling) {
+	retryAfter := poll.retryAfter
+	for i := range pollOverrides {
+		if pollOverrides[i].retryAfter < retryAfter {
+			retryAfter = pollOverrides[i].retryAfter
+		}
 	}
-	timer := time.NewTimer(pollRetryAfter)
+
+	if retryAfter < time.Minute {
+		retryAfter = time.Minute
+	}
+	timer := time.NewTimer(retryAfter)
 running:
 	for {
 		select {
 		case <-timer.C:
 			r.cleanup()
-			r.pollProviders(pollInterval, pollRetryAfter, pollStopAfter)
-			timer.Reset(pollRetryAfter)
+			r.pollProviders(poll, pollOverrides)
+			timer.Reset(retryAfter)
 		case <-r.closing:
 			break running
 		}
@@ -233,8 +273,7 @@ running:
 // indicate where/how discovery is done.
 func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) error {
 	// If provider is not allowed, then ignore request
-	allowed, _ := r.policy.Check(peerID)
-	if !allowed {
+	if !r.policy.Allowed(peerID) {
 		return v0.NewError(ErrNotAllowed, http.StatusForbidden)
 	}
 
@@ -263,34 +302,25 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 		return err
 	}
 
-	allowed, trusted := r.policy.Check(info.AddrInfo.ID)
-
 	// If provider is not allowed, then ignore request.
-	if !allowed {
+	if !r.policy.Allowed(info.AddrInfo.ID) {
 		return v0.NewError(ErrNotAllowed, http.StatusForbidden)
 	}
 
-	// If allowed provider is not trusted, then they require authentication
-	// before being registered.  This means going through discovery and looking
-	// up a miner ID on-chain.
-	if !trusted {
-		return v0.NewError(ErrNotTrusted, http.StatusForbidden)
-	}
-
 	// If publisher is valid and different than the provider, check if the
-	// publisher is allowed.
+	// publisher is allowed, and is allowed to publish on behalf of the
+	// provider.
 	if info.Publisher.Validate() == nil && info.Publisher != info.AddrInfo.ID {
-		allowed, trusted := r.policy.Check(info.Publisher)
-		if !allowed {
-			return v0.NewError(ErrNotAllowed, http.StatusForbidden)
+		if !r.policy.Allowed(info.Publisher) {
+			return v0.NewError(ErrPublisherNotAllowed, http.StatusForbidden)
 		}
-		if !trusted {
-			return v0.NewError(ErrNotTrusted, http.StatusForbidden)
+		if !r.policy.PublishAllowed(info.Publisher, info.AddrInfo.ID) {
+			return v0.NewError(ErrCannotPublish, http.StatusForbidden)
 		}
 	}
 
-	// If allowed provider and publisher are trusted, register immediately
-	// without verification.
+	// If provider is allowed and publisher is allowed to publish for the
+	// provider, then register.
 	errCh := make(chan error, 1)
 	r.actions <- func() {
 		errCh <- r.syncRegister(ctx, info)
@@ -305,26 +335,14 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 	return nil
 }
 
-// Check if the peer is trusted by policy, or if it has been previously
-// verified and registered as a provider.
-func (r *Registry) Authorized(peerID peer.ID) (bool, error) {
-	allowed, trusted := r.policy.Check(peerID)
+// Allowed checks if the peer is allowed by policy.
+func (r *Registry) Allowed(peerID peer.ID) (bool, error) {
+	return r.policy.Allowed(peerID), nil
+}
 
-	if !allowed {
-		return false, nil
-	}
-
-	// Peer is allowed but not trusted, see if it is a registered provider.
-	if !trusted {
-		regOk := make(chan bool)
-		r.actions <- func() {
-			_, ok := r.providers[peerID]
-			regOk <- ok
-		}
-		return <-regOk, nil
-	}
-
-	return true, nil
+// PublishAllowed checks if a peer is allowed to publish for other providers.
+func (r *Registry) PublishAllowed(publisherID, providerID peer.ID) bool {
+	return r.policy.PublishAllowed(publisherID, providerID)
 }
 
 func (r *Registry) SetPolicy(policyCfg config.Policy) error {
@@ -617,8 +635,7 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 		}
 
 		// If provider is not allowed, then do not load into registry.
-		allowed, _ := r.policy.Check(peerID)
-		if !allowed {
+		if !r.policy.Allowed(peerID) {
 			log.Warnw("Refusing to load registry data for forbidden peer", "peer", peerID)
 			continue
 		}
@@ -672,27 +689,31 @@ func (r *Registry) cleanup() {
 	r.discoWait.Done()
 }
 
-func (r *Registry) pollProviders(pollInterval, pollRetryAfter, pollStopAfter time.Duration) {
-	pollStopAfter += pollInterval
+func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling) {
 	r.actions <- func() {
 		now := time.Now()
-		for _, info := range r.providers {
+		for peerID, info := range r.providers {
 			if info.Publisher.Validate() != nil {
 				// No publisher.
 				continue
 			}
+			override, ok := pollOverrides[peerID]
+			if ok {
+				poll = override
+			}
 			if info.lastContactTime.IsZero() {
 				// There has been no contact since startup.  Poll during next
-				// call to this function if no updated for provider.
-				info.lastContactTime = now.Add(-pollInterval)
+				// call to this function if no update for provider.
+				info.lastContactTime = now.Add(-poll.interval)
 				continue
 			}
 			noContactTime := now.Sub(info.lastContactTime)
-			if noContactTime < pollInterval {
+			if noContactTime < poll.interval {
 				// Not enough time since last contact.
 				continue
 			}
-			if noContactTime > pollStopAfter {
+			poll.stopAfter += poll.interval
+			if noContactTime > poll.stopAfter {
 				// Too much time since last contact.
 				log.Warnw("Lost contact with provider's publisher", "publisher", info.Publisher, "provider", info.AddrInfo.ID, "since", info.lastContactTime)
 				// Remove the non-responsive publisher.

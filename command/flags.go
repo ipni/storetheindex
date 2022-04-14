@@ -206,6 +206,12 @@ var initFlags = []cli.Flag{
 		EnvVars:  []string{"STORETHEINDE_PUBSUB_TOPIC"},
 		Required: false,
 	},
+	&cli.BoolFlag{
+		Name:     "upgrade",
+		Usage:    "Upgrade the config file to the current version, saving the old config as config.prev, and ignoring other flags ",
+		Aliases:  []string{"u"},
+		Required: false,
+	},
 }
 
 var providersGetFlags = []cli.Flag{

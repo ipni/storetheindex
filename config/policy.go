@@ -1,41 +1,49 @@
 package config
 
-// Policy configures which peers are allowed and blocked, and which allowed
-// peers require verification or are already trusted.  Currently, this same
-// policy is applied to both publishers and providers.
+// Policy configures which peers are allowed, are rate-limited and which may
+// publish on behalf of others.  Currently, the allow policy is applied to both
+// providers and publishers.  The RateLimit and Publish policies applies to
+// publishers.
 //
 // Publishers and providers are not the same.  Publishers are peers that supply
 // data to the indexer.  Providers are the peers that appear in advertisements
 // and are where clients will retrieve content from.
-//
-// Policy evaluation works like two gates that must be passed in order to be
-// allowed to index content.  The first gate is the "allow" gate that
-// determines whether a publisher is allowed or not.  The second gate is the
-// "trust" gate that determines whether a publisher is trusted or must be
-// verified on-chain to be authorized to index content.
 type Policy struct {
 	// Allow is either false or true, and determines whether a peer is allowed
 	// (true) or is blocked (false), by default.
 	Allow bool
-	// Except is a list of peer IDs that are exceptions to the allow action.
-	// Peers that are allowed by policy or exception must still be verified or
-	// trusted in order to register.
+	// Except is a list of peer IDs that are exceptions to the Allow policy.
+	// If Allow is true, then all peers are allowed except those listed in
+	// Except.  If Allow is false, then no peers are allowed except those
+	// listed in Except.  in other words, Allow=true means that Except is a
+	// deny-list and Allow=false means that Except is an allow-list.
 	Except []string
 
-	// Trust is either false or true, and determines whether an allowed peer
-	// can skip (true) on-chain verification or not (false), by default.
-	Trust bool
-	// TrustExcept is a list of peer IDs that are exceptions to the trust
-	// action.  If Trust is false then all allowed peers must be verified,
-	// except those listed here.  If Trust is true, then only the peers
-	// listed here require verification.
-	TrustExcept []string
+	// Publish determines whether or not peers are allowed to publish
+	// advertisements for a provider with adifferen peer ID.
+	Publish bool
+	// PublisherExcept is a list of peer IDs that are exceptions to the Publish
+	// policy.  If Publish is false, then all allowed peers cannot publish
+	// advertisements for providers with a different peer ID, unless listed in
+	// PublishExcept.  If Publish is true, then all allowed peers can publish
+	// advertisements for any provider, unless listed in PublishExcept.
+	PublishExcept []string
+
+	// RateLimit is either false or true, and determines whether an allowed peer
+	// if subject to rate limiting (true) or not (false), by default.
+	RateLimit bool
+	// RateLimitExcept is a list of peer IDs that are exceptions to the
+	// RateLimit policy.  If RateLimit is false then all allowed peers are not
+	// rate-limited unless they appear in the RateLimitExcept list.  If
+	// RateLimit is true, then only the peers listed in RateLimitExcept are not
+	// rate-limited.
+	RateLimitExcept []string
 }
 
 // NewPolicy returns Policy with values set to their defaults.
 func NewPolicy() Policy {
 	return Policy{
-		Allow: true,
-		Trust: true,
+		Allow:   true,
+		Publish: true,
 	}
 }
