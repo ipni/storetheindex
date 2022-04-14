@@ -34,6 +34,15 @@ spec:
               mountPath: /data
             - name: config
               mountPath: /config
+          readinessProbe:
+            httpGet:
+              port: finder
+              path: /health
+            initialDelaySeconds: 10
+            failureThreshold: 3
+            successThreshold: 1
+            timeoutSeconds: 5
+            periodSeconds: 10
       volumes:
         - name: config
           configMap:
