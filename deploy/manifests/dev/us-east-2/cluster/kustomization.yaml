@@ -10,3 +10,4 @@ resources:
   - storetheindex
   - cluster-autoscaler
   - monitoring
+  - aws-ebs-csi-driver
