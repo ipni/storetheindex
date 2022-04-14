@@ -3,10 +3,11 @@ on:
   push:
     paths-ignore:
       - 'deploy/**'
+      - 'doc'
+    tags:
+      - 'v*'
     branches:
       - main
-    tags:
-      - v*
 
 jobs:
   publisher:
