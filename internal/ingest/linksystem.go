@@ -110,15 +110,10 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (*schema.Advertise
 		return nil, "", errBadAdvert
 	}
 
-	// Verify that the advertised provider has signed, and
-	// therefore approved, the advertisement regardless of who
-	// published the advertisement.
-	if signerID != provID && !reg.CanPublishForOthers(signerID) {
-		// TODO: Have policy that allows a signer (publisher) to
-		// sign advertisements for certain providers.  This will
-		// allow that signer to add, update, and delete indexed
-		// content on behalf of those providers.
-		log.Errorw("Advertisement not signed by provider", "provider", ad.Provider, "signer", signerID)
+	// Verify that the advertised is signed by the provider or by an allowed
+	// publisher.
+	if signerID != provID && !reg.PublishAllowed(signerID, provID) {
+		log.Errorw("Advertisement not signed by provider or allowed publisher", "provider", ad.Provider, "signer", signerID)
 		return nil, "", errInvalidAdvertSignature
 	}
 

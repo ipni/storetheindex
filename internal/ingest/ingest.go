@@ -145,7 +145,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	// Create and start pubsub subscriber.  This also registers the storage
 	// hook to index data as it is received.
-	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Authorized), legs.UseLatestSyncHandler(&syncHandler{ing}))
+	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Allowed), legs.UseLatestSyncHandler(&syncHandler{ing}))
 	if err != nil {
 		log.Errorw("Failed to start pubsub subscriber", "err", err)
 		return nil, errors.New("ingester subscriber failed")

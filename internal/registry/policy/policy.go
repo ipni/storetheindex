@@ -10,19 +10,17 @@ import (
 )
 
 type Policy struct {
-	allow                  bool
-	except                 map[peer.ID]struct{}
-	exemptRateLimits       bool
-	exemptRateLimitsExcept map[peer.ID]struct{}
-	exemptSelfPublisher    map[peer.ID]struct{}
-	rwmutex                sync.RWMutex
+	allow           bool
+	except          map[peer.ID]struct{}
+	publish         bool
+	publishExcept   map[peer.ID]struct{}
+	rateLimit       bool
+	rateLimitExcept map[peer.ID]struct{}
+	rwmutex         sync.RWMutex
 }
 
 func New(cfg config.Policy) (*Policy, error) {
-	policy := &Policy{
-		allow:            cfg.Allow,
-		exemptRateLimits: cfg.ExemptRateLimits,
-	}
+	policy := &Policy{}
 
 	err := policy.Config(cfg)
 	if err != nil {
@@ -31,9 +29,7 @@ func New(cfg config.Policy) (*Policy, error) {
 	return policy, nil
 }
 
-// Allowed returns true if the policy allows the peer to index content.  This
-// check does not check whether the peer is trusted. An allowed peer must still
-// be verified.
+// Allowed returns true if the policy allows the peer to index content.
 func (p *Policy) Allowed(peerID peer.ID) bool {
 	p.rwmutex.RLock()
 	defer p.rwmutex.RUnlock()
@@ -41,48 +37,42 @@ func (p *Policy) Allowed(peerID peer.ID) bool {
 }
 
 func (p *Policy) allowed(peerID peer.ID) bool {
-	_, ok := p.except[peerID]
-	if p.allow {
+	return evalPolicy(peerID, p.allow, p.except)
+}
+
+// PublishAllowed returns true if policy allows the publisher to publish
+// advertisements for the identified provider.  This assumes that both are
+// already allowed by policy.
+func (p *Policy) PublishAllowed(publisherID, providerID peer.ID) bool {
+	p.rwmutex.RLock()
+	defer p.rwmutex.RUnlock()
+	return p.publishAllowed(publisherID, providerID)
+}
+
+func (p *Policy) publishAllowed(publisherID, providerID peer.ID) bool {
+	if publisherID == providerID {
+		return true
+	}
+	return evalPolicy(publisherID, p.publish, p.publishExcept)
+}
+
+// RateLimited determines if the peer is rate limited.
+func (p *Policy) RateLimited(peerID peer.ID) bool {
+	p.rwmutex.RLock()
+	defer p.rwmutex.RUnlock()
+	return p.rateLimited(peerID)
+}
+
+func (p *Policy) rateLimited(peerID peer.ID) bool {
+	return evalPolicy(peerID, p.rateLimit, p.rateLimitExcept)
+}
+
+func evalPolicy(peerID peer.ID, policy bool, exceptions map[peer.ID]struct{}) bool {
+	_, ok := exceptions[peerID]
+	if policy {
 		return !ok
 	}
 	return ok
-}
-
-// Trusted returns true if the peer is explicitly trusted.  A trusted peer is
-// allowed to register without requiring verification.
-func (p *Policy) Trusted(peerID peer.ID) bool {
-	p.rwmutex.RLock()
-	defer p.rwmutex.RUnlock()
-	return p.trusted(peerID)
-}
-
-func (p *Policy) trusted(peerID peer.ID) bool {
-	_, ok := p.exemptRateLimitsExcept[peerID]
-	if p.exemptRateLimits {
-		return !ok
-	}
-	return ok
-}
-
-// Check returns three bool values.
-//   The first is true if the peer is allowed to make advertisements.
-//   The second is true if the peer is not rate limited.
-//   The third is true if the peer may make advertisements on behalf of others.
-func (p *Policy) Check(peerID peer.ID) (bool, bool, bool) {
-	p.rwmutex.RLock()
-	defer p.rwmutex.RUnlock()
-
-	if !p.allowed(peerID) {
-		return false, false, false
-	}
-
-	_, exempt := p.exemptSelfPublisher[peerID]
-
-	if !p.trusted(peerID) {
-		return true, false, exempt
-	}
-
-	return true, true, exempt
 }
 
 // Allow alters the policy to allow the specified peer.  Returns true if the
@@ -139,7 +129,8 @@ func (p *Policy) Config(cfg config.Policy) error {
 	defer p.rwmutex.Unlock()
 
 	p.allow = cfg.Allow
-	p.exemptRateLimits = cfg.ExemptRateLimits
+	p.publish = cfg.Publish
+	p.rateLimit = cfg.RateLimit
 
 	var err error
 	p.except, err = getExceptPeerIDs(cfg.Except)
@@ -152,14 +143,14 @@ func (p *Policy) Config(cfg config.Policy) error {
 		return errors.New("policy does not allow any peers")
 	}
 
-	p.exemptRateLimitsExcept, err = getExceptPeerIDs(cfg.ExemptRateLimitsExcept)
+	p.publishExcept, err = getExceptPeerIDs(cfg.PublishExcept)
 	if err != nil {
-		return fmt.Errorf("cannot read trust except list: %s", err)
+		return fmt.Errorf("cannot read publish except list: %s", err)
 	}
 
-	p.exemptSelfPublisher, err = getExemptPublishers(cfg.ExemptSelfPublisher)
+	p.rateLimitExcept, err = getExceptPeerIDs(cfg.RateLimitExcept)
 	if err != nil {
-		return fmt.Errorf("cannot read exempt publisher list: %s", err)
+		return fmt.Errorf("cannot read rate limit except list: %s", err)
 	}
 
 	return nil
@@ -171,10 +162,12 @@ func (p *Policy) ToConfig() config.Policy {
 	defer p.rwmutex.RUnlock()
 
 	return config.Policy{
-		Allow:                  p.allow,
-		Except:                 getExceptStrings(p.except),
-		ExemptRateLimits:       p.exemptRateLimits,
-		ExemptRateLimitsExcept: getExceptStrings(p.exemptRateLimitsExcept),
+		Allow:           p.allow,
+		Except:          getExceptStrings(p.except),
+		Publish:         p.publish,
+		PublishExcept:   getExceptStrings(p.publishExcept),
+		RateLimit:       p.rateLimit,
+		RateLimitExcept: getExceptStrings(p.rateLimitExcept),
 	}
 }
 
@@ -190,22 +183,6 @@ func getExceptPeerIDs(excepts []string) (map[peer.ID]struct{}, error) {
 			return nil, fmt.Errorf("error decoding peer id %q: %s", except, err)
 		}
 		exceptIDs[excPeerID] = struct{}{}
-	}
-	return exceptIDs, nil
-}
-
-func getExemptPublishers(exempts []string) (map[peer.ID]struct{}, error) {
-	if len(exempts) == 0 {
-		return nil, nil
-	}
-
-	exceptIDs := make(map[peer.ID]struct{}, len(exempts))
-	for _, exempt := range exempts {
-		pid, err := peer.Decode(exempt)
-		if err != nil {
-			return nil, fmt.Errorf("error decoding peer id %s: %q", exempt, err)
-		}
-		exceptIDs[pid] = struct{}{}
 	}
 	return exceptIDs, nil
 }

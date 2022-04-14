@@ -233,8 +233,7 @@ running:
 // indicate where/how discovery is done.
 func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) error {
 	// If provider is not allowed, then ignore request
-	allowed, _, _ := r.policy.Check(peerID)
-	if !allowed {
+	if !r.policy.Allowed(peerID) {
 		return v0.NewError(ErrNotAllowed, http.StatusForbidden)
 	}
 
@@ -263,34 +262,25 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 		return err
 	}
 
-	allowed, trusted, _ := r.policy.Check(info.AddrInfo.ID)
-
 	// If provider is not allowed, then ignore request.
-	if !allowed {
+	if !r.policy.Allowed(info.AddrInfo.ID) {
 		return v0.NewError(ErrNotAllowed, http.StatusForbidden)
 	}
 
-	// If allowed provider is not trusted, then they require authentication
-	// before being registered.  This means going through discovery and looking
-	// up a miner ID on-chain.
-	if !trusted {
-		return v0.NewError(ErrNotTrusted, http.StatusForbidden)
-	}
-
 	// If publisher is valid and different than the provider, check if the
-	// publisher is allowed.
+	// publisher is allowed, and is allowed to publish on behalf of the
+	// provider.
 	if info.Publisher.Validate() == nil && info.Publisher != info.AddrInfo.ID {
-		allowed, trusted, _ := r.policy.Check(info.Publisher)
-		if !allowed {
-			return v0.NewError(ErrNotAllowed, http.StatusForbidden)
+		if !r.policy.Allowed(info.Publisher) {
+			return v0.NewError(ErrPublisherNotAllowed, http.StatusForbidden)
 		}
-		if !trusted {
-			return v0.NewError(ErrNotTrusted, http.StatusForbidden)
+		if !r.policy.PublishAllowed(info.Publisher, info.AddrInfo.ID) {
+			return v0.NewError(ErrCannotPublish, http.StatusForbidden)
 		}
 	}
 
-	// If allowed provider and publisher are trusted, register immediately
-	// without verification.
+	// If provider is allowed and publisher is allowed to publish for the
+	// provider, then register.
 	errCh := make(chan error, 1)
 	r.actions <- func() {
 		errCh <- r.syncRegister(ctx, info)
@@ -305,33 +295,14 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 	return nil
 }
 
-// Check if the peer is trusted by policy, or if it has been previously
-// verified and registered as a provider.
-func (r *Registry) Authorized(peerID peer.ID) (bool, error) {
-	allowed, trusted, _ := r.policy.Check(peerID)
-
-	if !allowed {
-		return false, nil
-	}
-
-	// Peer is allowed but not trusted, see if it is a registered provider.
-	if !trusted {
-		regOk := make(chan bool)
-		r.actions <- func() {
-			_, ok := r.providers[peerID]
-			regOk <- ok
-		}
-		return <-regOk, nil
-	}
-
-	return true, nil
+// Allowed checks if the peer is allowed by policy.
+func (r *Registry) Allowed(peerID peer.ID) (bool, error) {
+	return r.policy.Allowed(peerID), nil
 }
 
-// Check if a peer is able to publish for other providers.
-func (r *Registry) CanPublishForOthers(peerID peer.ID) bool {
-	_, _, CanPublishForOthers := r.policy.Check(peerID)
-
-	return CanPublishForOthers
+// PublishAllowed checks if a peer is allowed to publish for other providers.
+func (r *Registry) PublishAllowed(publisherID, providerID peer.ID) bool {
+	return r.policy.PublishAllowed(publisherID, providerID)
 }
 
 func (r *Registry) SetPolicy(policyCfg config.Policy) error {
@@ -624,8 +595,7 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 		}
 
 		// If provider is not allowed, then do not load into registry.
-		allowed, _, _ := r.policy.Check(peerID)
-		if !allowed {
+		if !r.policy.Allowed(peerID) {
 			log.Warnw("Refusing to load registry data for forbidden peer", "peer", peerID)
 			continue
 		}

@@ -20,8 +20,8 @@ type mockDiscoverer struct {
 
 const (
 	exceptID   = "12D3KooWK7CTS7cyWi51PeNE3cTjS2F2kDCZaQVU4A5xBmb9J1do"
-	trustedID  = "12D3KooWSG3JuvEjRkSxt93ADTjQxqe4ExbBwSkQ9Zyk1WfBaZJF"
-	trustedID2 = "12D3KooWKSNuuq77xqnpPLnU3fq1bTQW2TwSZL2Z4QTHEYpUVzfr"
+	limitedID  = "12D3KooWSG3JuvEjRkSxt93ADTjQxqe4ExbBwSkQ9Zyk1WfBaZJF"
+	limitedID2 = "12D3KooWKSNuuq77xqnpPLnU3fq1bTQW2TwSZL2Z4QTHEYpUVzfr"
 
 	minerDiscoAddr = "stitest999999"
 	minerAddr      = "/ip4/127.0.0.1/tcp/9999"
@@ -33,10 +33,12 @@ const (
 
 var discoveryCfg = config.Discovery{
 	Policy: config.Policy{
-		Allow:                  false,
-		Except:                 []string{exceptID, trustedID, trustedID2, publisherID},
-		ExemptRateLimits:       false,
-		ExemptRateLimitsExcept: []string{trustedID, trustedID2, publisherID},
+		Allow:           false,
+		Except:          []string{exceptID, limitedID, limitedID2, publisherID},
+		RateLimit:       false,
+		RateLimitExcept: []string{limitedID, limitedID2, publisherID},
+		Publish:         false,
+		PublishExcept:   []string{publisherID},
 	},
 	PollInterval:   config.Duration(time.Minute),
 	RediscoverWait: config.Duration(time.Minute),
@@ -83,11 +85,19 @@ func TestNewRegistryDiscovery(t *testing.T) {
 	}
 	t.Log("created new registry")
 
-	peerID, err := peer.Decode(trustedID)
+	peerID, err := peer.Decode(limitedID)
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
 	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/3002")
+	if err != nil {
+		t.Fatalf("Cannot create multiaddr: %s", err)
+	}
+	pubID, err := peer.Decode(publisherID)
+	if err != nil {
+		t.Fatal("bad publisher ID:", err)
+	}
+	pubAddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	if err != nil {
 		t.Fatalf("Cannot create multiaddr: %s", err)
 	}
@@ -96,6 +106,8 @@ func TestNewRegistryDiscovery(t *testing.T) {
 			ID:    peerID,
 			Addrs: []multiaddr.Multiaddr{maddr},
 		},
+		Publisher:     pubID,
+		PublisherAddr: pubAddr,
 	}
 
 	err = r.Register(ctx, info)
@@ -148,7 +160,7 @@ func TestDiscoveryAllowed(t *testing.T) {
 		t.Error("did not get correct porvider id")
 	}
 
-	peerID, err = peer.Decode(trustedID)
+	peerID, err = peer.Decode(limitedID)
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
@@ -210,7 +222,7 @@ func TestDatastore(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	peerID, err := peer.Decode(trustedID)
+	peerID, err := peer.Decode(limitedID)
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
@@ -224,7 +236,7 @@ func TestDatastore(t *testing.T) {
 			Addrs: []multiaddr.Multiaddr{maddr},
 		},
 	}
-	peerID, err = peer.Decode(trustedID2)
+	peerID, err = peer.Decode(limitedID2)
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
@@ -335,8 +347,8 @@ func TestDatastore(t *testing.T) {
 func TestPollProvider(t *testing.T) {
 	cfg := config.Discovery{
 		Policy: config.Policy{
-			Allow:            true,
-			ExemptRateLimits: true,
+			Allow:   true,
+			Publish: true,
 		},
 		RediscoverWait: config.Duration(time.Minute),
 	}
@@ -352,7 +364,7 @@ func TestPollProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	peerID, err := peer.Decode(trustedID)
+	peerID, err := peer.Decode(limitedID)
 	if err != nil {
 		t.Fatal("bad provider ID:", err)
 	}
