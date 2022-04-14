@@ -18,7 +18,6 @@ type Ingest struct {
 	// or a chain of advertisement entries.  The value is an integer string
 	// ending in "s", "m", "h" for seconds. minutes, hours.
 	SyncTimeout Duration
-
 	// How many ingest worker goroutines to spawn. This controls how many
 	// concurrent ingest from different providers we can handle.
 	IngestWorkerCount int

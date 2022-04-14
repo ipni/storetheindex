@@ -77,6 +77,12 @@ type ProviderInfo struct {
 	lastContactTime time.Time
 }
 
+type polling struct {
+	interval   time.Duration
+	retryAfter time.Duration
+	stopAfter  time.Duration
+}
+
 func (p *ProviderInfo) dsKey() datastore.Key {
 	return datastore.NewKey(path.Join(providerKeyPath, p.AddrInfo.ID.String()))
 }
@@ -151,13 +157,40 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 	}
 	log.Infow("loaded providers into registry", "count", count)
 
+	pollOverrides, err := makePollOverrideMap(cfg.PollOverrides)
+	if err != nil {
+		return nil, err
+	}
+	poll := polling{
+		interval:   time.Duration(cfg.PollInterval),
+		retryAfter: time.Duration(cfg.PollRetryAfter),
+		stopAfter:  time.Duration(cfg.PollStopAfter),
+	}
+
 	go r.run()
-	go r.runPollCheck(
-		time.Duration(cfg.PollInterval),
-		time.Duration(cfg.PollRetryAfter),
-		time.Duration(cfg.PollStopAfter))
+	go r.runPollCheck(poll, pollOverrides)
 
 	return r, nil
+}
+
+func makePollOverrideMap(cfgPollOverrides []config.Polling) (map[peer.ID]polling, error) {
+	if len(cfgPollOverrides) == 0 {
+		return nil, nil
+	}
+
+	pollOverrides := make(map[peer.ID]polling, len(cfgPollOverrides))
+	for _, poll := range cfgPollOverrides {
+		peerID, err := peer.Decode(poll.ProviderID)
+		if err != nil {
+			return nil, fmt.Errorf("cannot decode provider ID %q in PollOverrides: %s", poll.ProviderID, err)
+		}
+		pollOverrides[peerID] = polling{
+			interval:   time.Duration(poll.Interval),
+			retryAfter: time.Duration(poll.RetryAfter),
+			stopAfter:  time.Duration(poll.StopAfter),
+		}
+	}
+	return pollOverrides, nil
 }
 
 // Close waits for any pending discoverer to finish and then stops the registry
@@ -194,18 +227,25 @@ func (r *Registry) run() {
 	}
 }
 
-func (r *Registry) runPollCheck(pollInterval, pollRetryAfter, pollStopAfter time.Duration) {
-	if pollRetryAfter < time.Minute {
-		pollRetryAfter = time.Minute
+func (r *Registry) runPollCheck(poll polling, pollOverrides map[peer.ID]polling) {
+	retryAfter := poll.retryAfter
+	for i := range pollOverrides {
+		if pollOverrides[i].retryAfter < retryAfter {
+			retryAfter = pollOverrides[i].retryAfter
+		}
 	}
-	timer := time.NewTimer(pollRetryAfter)
+
+	if retryAfter < time.Minute {
+		retryAfter = time.Minute
+	}
+	timer := time.NewTimer(retryAfter)
 running:
 	for {
 		select {
 		case <-timer.C:
 			r.cleanup()
-			r.pollProviders(pollInterval, pollRetryAfter, pollStopAfter)
-			timer.Reset(pollRetryAfter)
+			r.pollProviders(poll, pollOverrides)
+			timer.Reset(retryAfter)
 		case <-r.closing:
 			break running
 		}
@@ -649,27 +689,31 @@ func (r *Registry) cleanup() {
 	r.discoWait.Done()
 }
 
-func (r *Registry) pollProviders(pollInterval, pollRetryAfter, pollStopAfter time.Duration) {
-	pollStopAfter += pollInterval
+func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling) {
 	r.actions <- func() {
 		now := time.Now()
-		for _, info := range r.providers {
+		for peerID, info := range r.providers {
 			if info.Publisher.Validate() != nil {
 				// No publisher.
 				continue
 			}
+			override, ok := pollOverrides[peerID]
+			if ok {
+				poll = override
+			}
 			if info.lastContactTime.IsZero() {
 				// There has been no contact since startup.  Poll during next
-				// call to this function if no updated for provider.
-				info.lastContactTime = now.Add(-pollInterval)
+				// call to this function if no update for provider.
+				info.lastContactTime = now.Add(-poll.interval)
 				continue
 			}
 			noContactTime := now.Sub(info.lastContactTime)
-			if noContactTime < pollInterval {
+			if noContactTime < poll.interval {
 				// Not enough time since last contact.
 				continue
 			}
-			if noContactTime > pollStopAfter {
+			poll.stopAfter += poll.interval
+			if noContactTime > poll.stopAfter {
 				// Too much time since last contact.
 				log.Warnw("Lost contact with provider's publisher", "publisher", info.Publisher, "provider", info.AddrInfo.ID, "since", info.lastContactTime)
 				// Remove the non-responsive publisher.
