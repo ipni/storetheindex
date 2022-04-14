@@ -14,13 +14,6 @@ var indexerHostFlag = altsrc.NewStringFlag(&cli.StringFlag{
 	Value:    "localhost",
 })
 
-var indexerIDFlag = altsrc.NewStringFlag(&cli.StringFlag{
-	Name:     "peerid",
-	Usage:    "Peer ID of indexer to use, when using libp2p",
-	EnvVars:  []string{"INDEXER_ID"},
-	Required: false,
-})
-
 var cacheSizeFlag = &cli.Int64Flag{
 	Name:     "cachesize",
 	Usage:    "Maximum number of multihashes that result cache can hold, 0 to disable cache",
@@ -98,7 +91,13 @@ var findFlags = []cli.Flag{
 		Required: false,
 	},
 	indexerHostFlag,
-	indexerIDFlag,
+	&cli.StringFlag{
+		Name:     "indexerid",
+		Usage:    "Indexer peer ID to use when protocol=libp2p",
+		Aliases:  []string{"iid"},
+		EnvVars:  []string{"INDEXER_ID"},
+		Required: false,
+	},
 	&cli.StringFlag{
 		Name:     "protocol",
 		Usage:    "Protocol to query the indexer (http, libp2p currently supported)",
@@ -128,7 +127,7 @@ var importFlags = []cli.Flag{
 var adminPolicyFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:     "peer",
-		Usage:    "Peer ID of publisher or provider",
+		Usage:    "Peer ID of publisher or provider to allow or block",
 		Aliases:  []string{"p"},
 		Required: true,
 	},
@@ -142,7 +141,7 @@ var adminReloadPolicyFlags = []cli.Flag{
 var adminSyncFlags = []cli.Flag{
 	indexerHostFlag,
 	&cli.StringFlag{
-		Name:     "peer",
+		Name:     "pubid",
 		Usage:    "Publisher peer ID",
 		Aliases:  []string{"p"},
 		Required: true,
@@ -211,7 +210,7 @@ var initFlags = []cli.Flag{
 
 var providersGetFlags = []cli.Flag{
 	&cli.StringFlag{
-		Name:     "peer",
+		Name:     "provid",
 		Usage:    "Provider peer ID",
 		Aliases:  []string{"p"},
 		Required: true,
