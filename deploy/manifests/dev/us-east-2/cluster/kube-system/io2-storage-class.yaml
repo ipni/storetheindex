@@ -11,9 +11,9 @@ parameters:
   # requested volume. The maximum supported also depends on the instance type i.e. K8S worker node 
   # type.
   # 
-  # To avoid hitting the upper IOPS limit, here we configure a low value, 10, and let the CSI increase it
+  # To avoid hitting the upper IOPS limit, here we configure a low value, 1, and let the CSI increase it
   # automatically to the minimum required. This means volumes of size 5TiB, currently provisioned 
-  # for storetheindex will demand 50,000 IOPS.
+  # for storetheindex will demand 5,000 IOPS.
   #
   # For specific use-cases where IOPS is carefully calculated based on the PVC sizes, consider 
   # defining explicit storage class.
@@ -21,5 +21,5 @@ parameters:
   # See: 
   #  - https://github.com/kubernetes-sigs/aws-ebs-csi-driver#createvolume-parameters
   #  - https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html#EBSVolumeTypes_piops
-  iopsPerGB: "10"
+  iopsPerGB: "1"
   allowAutoIOPSPerGBIncrease: "true"
