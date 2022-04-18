@@ -33,3 +33,7 @@ output "dev_cid_contact_nameservers" {
 output "dev_cid_contact_zone_id" {
   value = aws_route53_zone.dev_external.zone_id
 }
+
+output "amp_endpoint" {
+  value = aws_prometheus_workspace.monitoring.prometheus_endpoint
+}

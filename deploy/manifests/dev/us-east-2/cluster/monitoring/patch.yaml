@@ -23,3 +23,12 @@ rules:
       - get
       - list
       - watch
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-k8s
+  namespace: monitoring
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/dev_monitoring"

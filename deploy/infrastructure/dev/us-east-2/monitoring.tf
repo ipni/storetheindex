@@ -38,7 +38,7 @@ module "monitoring_role" {
     aws_iam_policy.monitoring.arn,
   ]
 
-  oidc_fully_qualified_subjects = ["system:serviceaccount:grafana-agent:grafana-agent"]
+  oidc_fully_qualified_subjects = ["system:serviceaccount:monitoring:prometheus-k8s"]
 
   tags = local.tags
 }
