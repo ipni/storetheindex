@@ -3,7 +3,6 @@ resource "aws_prometheus_workspace" "monitoring" {
   tags  = local.tags
 }
 
-# Placeholder for setting up remote_write and hook up to PL graphana
 data "aws_iam_policy_document" "monitoring" {
   statement {
     effect = "Allow"
