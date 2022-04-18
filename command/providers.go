@@ -37,7 +37,7 @@ func getProvidersCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	peerID, err := peer.Decode(cctx.String("peer"))
+	peerID, err := peer.Decode(cctx.String("provid"))
 	if err != nil {
 		return err
 	}
