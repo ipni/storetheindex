@@ -7,7 +7,7 @@ data:
     - groups:
       - system:bootstrappers
       - system:nodes
-      rolearn: arn:aws:iam::407967248065:role/default_node_group-eks-node-group-20220326104849172600000002
+      rolearn: arn:aws:iam::407967248065:role/dev-ue2-m4-xl-eks-node-group
       username: system:node:{{EC2PrivateDNSName}}
   mapUsers: |
     - userarn: arn:aws:iam::407967248065:user/masih
