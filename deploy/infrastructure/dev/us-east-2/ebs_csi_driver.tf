@@ -5,7 +5,7 @@ module "ebs_csi_controller_role" {
   create_role = true
 
   role_name    = "${local.environment_name}_ebs_csi_controller"
-  role_path = local.iam_path
+  role_path    = local.iam_path
   provider_url = module.eks.oidc_provider
 
   role_policy_arns = [
