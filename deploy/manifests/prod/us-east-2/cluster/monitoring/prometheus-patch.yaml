@@ -1,0 +1,10 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: k8s
+  namespace: monitoring
+spec:
+  remoteWrite:
+    - url: https://aps-workspaces.us-east-2.amazonaws.com/workspaces/ws-02af630f-e4e0-444f-a59b-e5632f79b46f/api/v1/remote_write
+      sigv4:
+        region: us-east-2
