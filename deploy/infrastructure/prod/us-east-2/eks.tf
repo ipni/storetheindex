@@ -1,6 +1,6 @@
 module "eks" {
   source  = "registry.terraform.io/terraform-aws-modules/eks/aws"
-  version = "18.19.0"
+  version = "18.20.2"
 
   cluster_name    = local.environment_name
   cluster_version = "1.22"
@@ -39,9 +39,9 @@ module "eks" {
     #  - https://aws.amazon.com/ec2/instance-types/#Memory_Optimized
     #  - https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html#solid-state-drives
     prod-ue2-r5b-xl = {
-      min_size       = 1
+      min_size       = 3
       max_size       = 7
-      desired_size   = 1
+      desired_size   = 3
       instance_types = ["r5b.xlarge"]
       taints         = {
         dedicated = {
