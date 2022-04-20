@@ -30,7 +30,8 @@ func registerCommand(cctx *cli.Context) error {
 		return err
 	}
 
-	client, err := v0client.New(cctx.String("indexer"))
+	indexerHost := cliIndexer(cctx, "admin")
+	client, err := v0client.New(indexerHost)
 	if err != nil {
 		return err
 	}
@@ -40,6 +41,6 @@ func registerCommand(cctx *cli.Context) error {
 		return fmt.Errorf("failed to register providers: %s", err)
 	}
 
-	fmt.Println("Registered provider", cfg.Identity.PeerID, "at indexer", cctx.String("indexer"))
+	fmt.Println("Registered provider", cfg.Identity.PeerID, "at indexer", indexerHost)
 	return nil
 }

@@ -46,7 +46,7 @@ func findCmd(cctx *cli.Context) error {
 
 	switch protocol {
 	case "http":
-		cl, err = httpclient.New(cctx.String("indexer"))
+		cl, err = httpclient.New(cliIndexer(cctx, "finder"))
 		if err != nil {
 			return err
 		}
@@ -61,7 +61,7 @@ func findCmd(cctx *cli.Context) error {
 			return err
 		}
 
-		err = c.Connect(cctx.Context, cctx.String("indexer"))
+		err = c.Connect(cctx.Context, cliIndexer(cctx, "finder"))
 		if err != nil {
 			return err
 		}
