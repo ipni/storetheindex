@@ -33,7 +33,7 @@ var list = &cli.Command{
 }
 
 func getProvidersCmd(cctx *cli.Context) error {
-	cl, err := httpclient.New(cctx.String("indexer"))
+	cl, err := httpclient.New(cliIndexer(cctx, "finder"))
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func getProvidersCmd(cctx *cli.Context) error {
 }
 
 func listProvidersCmd(cctx *cli.Context) error {
-	cl, err := httpclient.New(cctx.String("indexer"))
+	cl, err := httpclient.New(cliIndexer(cctx, "finder"))
 	if err != nil {
 		return err
 	}

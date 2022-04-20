@@ -1,6 +1,10 @@
 package command
 
 import (
+	"fmt"
+
+	"github.com/filecoin-project/storetheindex/config"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 )
@@ -11,7 +15,6 @@ var indexerHostFlag = altsrc.NewStringFlag(&cli.StringFlag{
 	EnvVars:  []string{"INDEXER"},
 	Aliases:  []string{"i"},
 	Required: false,
-	Value:    "localhost",
 })
 
 var cacheSizeFlag = &cli.Int64Flag{
@@ -263,4 +266,59 @@ var syntheticFlags = []cli.Flag{
 		Aliases:  []string{"s"},
 		Required: false,
 	},
+}
+
+// cliIndexer reads the indexer host from CLI flag or from config.
+func cliIndexer(cctx *cli.Context, addrType string) string {
+	idxr := cctx.String("indexer")
+	if idxr != "" {
+		return idxr
+	}
+
+	idxr = indexerHost(addrType)
+	if idxr != "" {
+		return idxr
+	}
+
+	return "localhost"
+}
+
+func indexerHost(addrType string) string {
+	// No indexer given on command line, get from config.
+	cfg, err := config.Load("")
+	if err != nil {
+		return ""
+	}
+	if cfg.Addresses.Finder == "" {
+		return ""
+	}
+	var maddr multiaddr.Multiaddr
+	switch addrType {
+	case "finder":
+		maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Finder)
+	case "admin":
+		maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Admin)
+	case "ingest":
+		maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Ingest)
+	default:
+		return ""
+	}
+	if err != nil {
+		return ""
+	}
+	return multiaddrHost(maddr)
+}
+
+func multiaddrHost(maddr multiaddr.Multiaddr) string {
+	for _, proto := range []int{multiaddr.P_IP4, multiaddr.P_IP6} {
+		addr, err := maddr.ValueForProtocol(proto)
+		if err == nil {
+			port, err := maddr.ValueForProtocol(multiaddr.P_TCP)
+			if err == nil {
+				addr = fmt.Sprint(addr, ":", port)
+			}
+			return addr
+		}
+	}
+	return ""
 }

@@ -49,7 +49,7 @@ var AdminCmd = &cli.Command{
 }
 
 func syncCmd(cctx *cli.Context) error {
-	cl, err := httpclient.New(cctx.String("indexer"))
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func syncCmd(cctx *cli.Context) error {
 }
 
 func allowCmd(cctx *cli.Context) error {
-	cl, err := httpclient.New(cctx.String("indexer"))
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func allowCmd(cctx *cli.Context) error {
 }
 
 func blockCmd(cctx *cli.Context) error {
-	cl, err := httpclient.New(cctx.String("indexer"))
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func blockCmd(cctx *cli.Context) error {
 }
 
 func reloadPolicyCmd(cctx *cli.Context) error {
-	cl, err := httpclient.New(cctx.String("indexer"))
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
