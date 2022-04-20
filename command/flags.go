@@ -275,6 +275,15 @@ func cliIndexer(cctx *cli.Context, addrType string) string {
 		return idxr
 	}
 
+	idxr = indexerHost(addrType)
+	if idxr != "" {
+		return idxr
+	}
+
+	return "localhost"
+}
+
+func indexerHost(addrType string) string {
 	// No indexer given on command line, get from config.
 	cfg, err := config.Load("")
 	if err != nil {
