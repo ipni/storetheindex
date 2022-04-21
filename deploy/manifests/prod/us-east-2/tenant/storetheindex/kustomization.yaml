@@ -26,4 +26,4 @@ secretGenerator:
 images:
   - name: storetheindex
     newName: filecoin/storetheindex
-    newTag: f93b333c402b71820b04efdd2629884eaa636cf7
+    newTag: 1b16c2dd77b55cb83be99410b514068e059b952d
