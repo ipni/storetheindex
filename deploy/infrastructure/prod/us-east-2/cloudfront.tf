@@ -6,7 +6,10 @@ locals {
 resource "aws_cloudfront_distribution" "cdn" {
   enabled = true
 
-  aliases     = ["${local.cdn_subdomain}.${aws_route53_zone.prod_external.name}"]
+  aliases = [
+    "${local.cdn_subdomain}.${aws_route53_zone.prod_external.name}",
+    "infra.cid.contact",
+  ]
   price_class = "PriceClass_All"
 
   origin {
@@ -54,7 +57,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
   }
   viewer_certificate {
-    acm_certificate_arn = module.cdn_cert.acm_certificate_arn
+    acm_certificate_arn = module.cid_contact_cert.acm_certificate_arn
     ssl_support_method  = "sni-only"
   }
 }
@@ -93,5 +96,27 @@ module "records" {
         zone_id = aws_cloudfront_distribution.cdn.hosted_zone_id
       }
     },
+  ]
+}
+
+module "cid_contact_cert" {
+  source  = "registry.terraform.io/terraform-aws-modules/acm/aws"
+  version = "3.4.0"
+
+  #  Certificate must be in us-east-1 as dictated by CloudFront
+  providers = {
+    aws = aws.use1
+  }
+
+  domain_name = "cid.contact"
+
+  # Validation is done manually by creating CNAME records on cloudflare, since nameserver for this
+  # domain is managed externally from AWS via cloudflare nameservers.
+  validate_certificate = false
+
+  subject_alternative_names = [
+    "*.cid.contact",
+    "*.prod.cid.contact",
+    "*.infra.cid.contact",
   ]
 }
