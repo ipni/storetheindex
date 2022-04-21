@@ -9,3 +9,4 @@ resources:
 
 patchesStrategicMerge:
   - sa-patch.yaml
+

@@ -1,5 +1,8 @@
-output "kms_sti_flux_arn" {
+output "kms_sti_alias_arn" {
   value = aws_kms_alias.kms_sti.arn
+}
+output "kms_cluster_alias_arn" {
+  value = aws_kms_alias.kms_cluster.arn
 }
 
 output "kustomize_controller_role_arn" {
