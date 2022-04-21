@@ -1,3 +1,13 @@
+client:
+  url: ${PROMTAIL_URL}
+  basic_auth:
+    username: ${PROMTAIL_USERNAME}
+    password: ${PROMTAIL_PASSWORD}
+  tenant_id: ${PROMTAIL_TENANT_ID}
+  external_labels:
+    owner: ${PROMTAIL_LABEL_OWNER}
+    environment: ${PROMTAIL_LABEL_ENV}
+    region: ${PROMTAIL_LABEL_REGION}
 scrape_configs:
   - pipeline_stages:
       - docker:
@@ -29,7 +39,7 @@ scrape_configs:
       - action: replace
         source_labels:
           - __meta_kubernetes_pod_name
-        target_label: instance
+        target_label: pod_name
       - action: replace
         source_labels:
           - __meta_kubernetes_pod_container_name
@@ -74,7 +84,7 @@ scrape_configs:
       - action: replace
         source_labels:
           - __meta_kubernetes_pod_name
-        target_label: instance
+        target_label: pod_name
       - action: replace
         source_labels:
           - __meta_kubernetes_pod_container_name
@@ -125,7 +135,7 @@ scrape_configs:
       - action: replace
         source_labels:
           - __meta_kubernetes_pod_name
-        target_label: instance
+        target_label: pod_name
       - action: replace
         source_labels:
           - __meta_kubernetes_pod_container_name
@@ -178,7 +188,7 @@ scrape_configs:
       - action: replace
         source_labels:
           - __meta_kubernetes_pod_name
-        target_label: instance
+        target_label: pod_name
       - action: replace
         source_labels:
           - __meta_kubernetes_pod_container_name
@@ -224,7 +234,7 @@ scrape_configs:
       - action: replace
         source_labels:
           - __meta_kubernetes_pod_name
-        target_label: instance
+        target_label: pod_name
       - action: replace
         source_labels:
           - __meta_kubernetes_pod_container_name

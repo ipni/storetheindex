@@ -76,7 +76,7 @@ data "aws_iam_policy_document" "kustomize_controller" {
       "kms:DescribeKey",
     ]
 
-    resources = [aws_kms_key.kms_sti.arn]
+    resources = [aws_kms_key.kms_sti.arn, aws_kms_key.kms_cluster.arn]
   }
 }
 
@@ -101,4 +101,73 @@ module "kustomize_controller_role" {
   ]
 
   oidc_fully_qualified_subjects = ["system:serviceaccount:flux-system:kustomize-controller"]
+}
+
+resource "aws_kms_alias" "kms_cluster" {
+  target_key_id = aws_kms_key.kms_cluster.key_id
+  name          = "alias${local.iam_path}cluster"
+}
+
+resource "aws_kms_key" "kms_cluster" {
+  description = "Key used to encrypt cluster level secrets"
+  policy      = data.aws_iam_policy_document.kms_cluster.json
+  is_enabled  = true
+}
+
+data "aws_iam_policy_document" "kms_cluster" {
+  statement {
+    sid = "Enable IAM User Permissions"
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::407967248065:root"]
+    }
+
+    actions   = ["kms:*"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "Allow access for Devs via sops"
+
+    principals {
+      type = "AWS"
+
+      identifiers = [
+        "arn:aws:iam::407967248065:user/masih",
+        "arn:aws:iam::407967248065:user/marco",
+        "arn:aws:iam::407967248065:user/gammazero",
+        "arn:aws:iam::407967248065:user/will.scott",
+        "arn:aws:iam::407967248065:user/kylehuntsman",
+        "arn:aws:iam::407967248065:user/steveFraser",
+        "arn:aws:iam::407967248065:user/cmharden",
+      ]
+    }
+
+    actions = [
+      "kms:Encrypt",
+      "kms:Decrypt",
+      "kms:ReEncrypt*",
+      "kms:GenerateDataKey*",
+      "kms:DescribeKey"
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "Allow Flux to decrypt"
+
+    principals {
+      type = "AWS"
+
+      identifiers = [
+        module.kustomize_controller_role.iam_role_arn
+      ]
+    }
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+    ]
+  }
 }

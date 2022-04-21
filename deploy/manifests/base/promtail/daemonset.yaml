@@ -16,13 +16,18 @@ spec:
         - name: promtail
           image: grafana/promtail:2.5.0
           args:
-            - -client.url=https://<instanceId>:<apiKey>@<instanceUrl>/api/prom/push
             - -config.file=/etc/promtail/config.yaml
+            - -config.expand-env=true
           env:
             - name: HOSTNAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+          envFrom:
+            - configMapRef:
+                name: promtail-env
+            - secretRef:
+                name: promtail-auth
           readinessProbe:
             httpGet:
               path: /ready

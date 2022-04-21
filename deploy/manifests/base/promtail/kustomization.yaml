@@ -11,3 +11,15 @@ configMapGenerator:
   - name: promtail-config
     files:
       - config.yaml
+  - name: promtail-env
+    literals:
+      - PROMTAIL_URL=http://localhost:1234/loki/api/v1/push
+      - PROMTAIL_TENANT_ID=
+      - PROMTAIL_LABEL_OWNER=
+      - PROMTAIL_LABEL_ENV=
+      - PROMTAIL_LABEL_REGION=
+
+secretGenerator:
+  - name: promtail-auth
+    envs:
+      - auth.env

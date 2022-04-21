@@ -1,0 +1,6 @@
+creation_rules:
+  - path_regex: '.+\.env'
+    kms: 'arn:aws:kms:us-east-2:407967248065:alias/prod/us-east-2/cluster'
+  - path_regex: '.+\.y(a)?ml'
+    encrypted_regex: '^(data|stringData)$'
+    kms: 'arn:aws:kms:us-east-2:407967248065:alias/prod/us-east-2/cluster'
