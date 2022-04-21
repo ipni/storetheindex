@@ -332,6 +332,12 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	return out, nil
 }
 
+// Announce send an annouce message to directly to go-legs, instead of through pubsub.
+func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, addrInfo peer.AddrInfo) error {
+	log.Infow("Handling direct announce request", "peer", addrInfo.ID)
+	return ing.sub.Announce(ctx, nextCid, addrInfo.ID, addrInfo.Addrs)
+}
+
 func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int64, resync bool) (ipld.Node, error) {
 	// Consider the value of < 1 as no-limit.
 	var rLimit selector.RecursionLimit
