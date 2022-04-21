@@ -7,7 +7,7 @@ require (
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.2.15
-	github.com/filecoin-project/go-legs v0.3.12
+	github.com/filecoin-project/go-legs v0.3.13
 	github.com/frankban/quicktest v1.14.2
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.1

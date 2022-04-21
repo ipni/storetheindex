@@ -120,9 +120,8 @@ func (h *IngestHandler) Announce(r io.Reader) error {
 		return err
 	}
 
-	// todo: support mulitple multiaddrs?
-	if len(an.Addrs) > 1 {
-		return fmt.Errorf("must specify 1 location to fetch on direct announcments")
+	if len(an.Addrs) == 0 {
+		return fmt.Errorf("must specify location to fetch on direct announcments")
 	}
 
 	// todo: require auth?
@@ -132,11 +131,16 @@ func (h *IngestHandler) Announce(r io.Reader) error {
 		return fmt.Errorf("could not decode addrs from announce message: %w", err)
 	}
 
-	pid, err := peer.AddrInfoFromP2pAddr(addrs[0])
+	ais, err := peer.AddrInfosFromP2pAddrs(addrs...)
 	if err != nil {
 		return err
 	}
-	allow, err := h.registry.Allowed(pid.ID)
+	if len(ais) > 1 {
+		return errors.New("peer id must be the same for all addresses")
+	}
+	addrInfo := ais[0]
+
+	allow, err := h.registry.Allowed(addrInfo.ID)
 	if err != nil {
 		err = fmt.Errorf("error checking if peer allowed: %w", err)
 		return v0.NewError(err, http.StatusInternalServerError)
@@ -144,16 +148,14 @@ func (h *IngestHandler) Announce(r io.Reader) error {
 	if !allow {
 		return v0.NewError(errors.New("not allowed to announce"), http.StatusForbidden)
 	}
-	cur, err := h.ingester.GetLatestSync(pid.ID)
+	cur, err := h.ingester.GetLatestSync(addrInfo.ID)
 	if err == nil {
 		if cur.Equals(an.Cid) {
 			return nil
 		}
 	}
 
-	// We set context background because this will be an async process. We don't
+	// Use background context because this will be an async process. We don't
 	// want to attach the context to the request context that started this.
-	h.ingester.Sync(context.Background(), pid.ID, pid.Addrs[0], 0, false)
-
-	return nil
+	return h.ingester.Announce(context.Background(), an.Cid, addrInfo)
 }

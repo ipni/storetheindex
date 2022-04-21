@@ -22,6 +22,7 @@ import (
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -65,7 +66,7 @@ func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 
 func InitIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *ingest.Ingester {
 	cfg := config.NewIngest()
-	ds := datastore.NewMapDatastore()
+	ds := dssync.MutexWrap(datastore.NewMapDatastore())
 	host, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
 	if err != nil {
 		t.Fatal(err)
