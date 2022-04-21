@@ -13,6 +13,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-datastore"
+	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
@@ -84,7 +85,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	ds := datastore.NewMapDatastore()
+	ds := dssync.MutexWrap(datastore.NewMapDatastore())
 	ing, err := ingest.NewIngester(config.NewIngest(), host, idx, reg, ds)
 	if err != nil {
 		panic(err)
