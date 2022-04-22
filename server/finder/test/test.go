@@ -23,10 +23,7 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
-const (
-	providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
-	protocolID = 0x300000
-)
+const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
 
 var rng = rand.New(rand.NewSource(1413))
 

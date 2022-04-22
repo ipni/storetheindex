@@ -73,7 +73,8 @@ func TestSubscribe(t *testing.T) {
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
 	ctx := context.Background()
-	te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
+	err := te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
+	require.NoError(t, err)
 	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
 	<-wait
@@ -88,7 +89,8 @@ func TestSubscribe(t *testing.T) {
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 4},
 		}}.Build(t, te.publisherLinkSys, someOtherProviderPriv)
-	te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
+	err = te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
+	require.NoError(t, err)
 
 	wait, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
@@ -130,7 +132,8 @@ func TestSubscribe(t *testing.T) {
 	te.reg.BlockPeer(te.pubHost.ID())
 	te.reg.BlockPeer(someOtherProvider)
 
-	te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
+	err = te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
+	require.NoError(t, err)
 
 	// We are manually syncing here to not rely on the pubsub mechanism inside a test.
 	// This will fetch the add and put it into our datastore, but will not process it.
@@ -313,7 +316,8 @@ func TestRestartDuringSync(t *testing.T) {
 	te.ingester = ingester
 
 	// And sync to C
-	te.publisher.UpdateRoot(ctx, cCid.(cidlink.Link).Cid)
+	err = te.publisher.UpdateRoot(ctx, cCid.(cidlink.Link).Cid)
+	require.NoError(t, err)
 
 	end, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
@@ -382,7 +386,8 @@ func TestFailDuringSync(t *testing.T) {
 	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), bMhs), "bMHs should not be indexed yet")
 
 	// And sync to C
-	te.publisher.UpdateRoot(ctx, cCid.(cidlink.Link).Cid)
+	err = te.publisher.UpdateRoot(ctx, cCid.(cidlink.Link).Cid)
+	require.NoError(t, err)
 
 	end, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
@@ -516,7 +521,8 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 
 	ctx := context.Background()
 
-	te.publisher.SetRoot(ctx, chainHead.(cidlink.Link).Cid)
+	err = te.publisher.SetRoot(ctx, chainHead.(cidlink.Link).Cid)
+	require.NoError(t, err)
 
 	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
@@ -549,7 +555,8 @@ func TestSyncWithDepth(t *testing.T) {
 
 	ctx := context.Background()
 
-	te.publisher.SetRoot(ctx, chainHead.(cidlink.Link).Cid)
+	err = te.publisher.SetRoot(ctx, chainHead.(cidlink.Link).Cid)
+	require.NoError(t, err)
 
 	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 1, false)
 	require.NoError(t, err)
@@ -590,7 +597,8 @@ func TestRmWithNoEntries(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	te.publisher.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
+	err = te.publisher.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
+	require.NoError(t, err)
 
 	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
@@ -671,7 +679,8 @@ func TestReSyncWithDepth(t *testing.T) {
 		},
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
-	te.publisher.SetRoot(context.Background(), adHead.(cidlink.Link).Cid)
+	err := te.publisher.SetRoot(context.Background(), adHead.(cidlink.Link).Cid)
+	require.NoError(t, err)
 	wait, err := te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 1, false)
 	require.NoError(t, err)
 	<-wait
@@ -708,7 +717,8 @@ func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 	cLink := allAdLinks[2]
 	allMHs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 
-	te.publisher.SetRoot(context.Background(), bLink.(cidlink.Link).Cid)
+	err := te.publisher.SetRoot(context.Background(), bLink.(cidlink.Link).Cid)
+	require.NoError(t, err)
 	wait, err := te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 0, false)
 	require.NoError(t, err)
 	<-wait
@@ -716,8 +726,10 @@ func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[0:2]))
 	require.Error(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMHs[2:]))
 
-	te.ingester.sub.SetLatestSync(te.pubHost.ID(), aLink.(cidlink.Link).Cid)
-	te.publisher.SetRoot(context.Background(), cLink.(cidlink.Link).Cid)
+	err = te.ingester.sub.SetLatestSync(te.pubHost.ID(), aLink.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	err = te.publisher.SetRoot(context.Background(), cLink.(cidlink.Link).Cid)
+	require.NoError(t, err)
 	wait, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 0, false)
 	require.NoError(t, err)
 	<-wait

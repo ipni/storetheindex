@@ -35,14 +35,10 @@ var log = logging.Logger("indexer/ingest")
 
 // prefix used to track latest sync in datastore.
 const (
-	syncPrefix  = "/sync/"
-	admapPrefix = "/admap/"
-	// This prefix represents all the ads we've already processed.
+	// syncPrefix identifies the latest sync for each provider.
+	syncPrefix = "/sync/"
+	// adProcessedPrefix identifies all processed advertisements.
 	adProcessedPrefix = "/adProcessed/"
-
-	// Absolute maximum number of entries an advertisement can have. Should
-	// only effect misconfigured publisher.
-	entriesDepthLimit = 16384
 )
 
 type adProcessedEvent struct {
@@ -400,7 +396,11 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 		return err
 	}
 	// We've processed this ad, so we can remove it from our datastore.
-	ing.ds.Delete(context.Background(), dsKey(adCid.String()))
+	err = ing.ds.Delete(context.Background(), dsKey(adCid.String()))
+	if err != nil {
+		// Log the error, but do not return. Continue on to save the procesed ad.
+		log.Errorw("Cound not remove advertisement from datastore", "err", err)
+	}
 	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
 }
 
@@ -689,7 +689,6 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 			"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
 
 		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad)
-
 		if err == nil {
 			// No error at all, we processed this ad successfully.
 			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))
@@ -699,10 +698,11 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 		if errors.As(err, &adIngestErr) {
 			switch adIngestErr.state {
 			case adIngestDecodingErr, adIngestMalformedErr, adIngestEntryChunkErr, adIngestContentNotFound:
-				// These error cases are permament. e.g. if we try again later we will hit the same error. So we log and drop this error.
+				// These error cases are permament. If retried later the same
+				// error will happen. So log and drop this error.
 				log.Errorw("Skipping ad because of a permanant error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
-				err = nil
 				stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
+				err = nil
 			}
 			stats.RecordWithOptions(context.Background(),
 				stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
