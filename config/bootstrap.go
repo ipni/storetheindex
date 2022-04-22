@@ -28,15 +28,15 @@ var defaultBootstrapAddresses = []string{
 }
 
 // Bootstrap configures other nodes to connect to for the purpose of exchanging
-// gossip pubsub.  The nodes listed here must be running pubsub and must also
-// be subscribed to the indexer/ingest topic.  The peers can be other indexers,
-// or IPFS nodes with pubsub enabled and subscribed to the topic.
+// gossip pubsub. The nodes listed here must be running pubsub and must also be
+// subscribed to the indexer/ingest topic. The peers can be other indexers, or
+// IPFS nodes with pubsub enabled and subscribed to the topic.
 type Bootstrap struct {
-	// Peers is the local node's bootstrap peer addresses
+	// Peers is the local node's bootstrap peer addresses.
 	Peers []string
 	// MinimumPeers governs whether to bootstrap more connections. If the node
 	// has less open connections than this number, it will open connections to
-	// the bootstrap nodes.  Set to 0 to disable bootstrapping.
+	// the bootstrap nodes. Set to 0 to disable bootstrapping.
 	MinimumPeers int
 }
 

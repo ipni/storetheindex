@@ -15,7 +15,7 @@ import (
 
 var FindCmd = &cli.Command{
 	Name:   "find",
-	Usage:  "Find value by multihash in indexer",
+	Usage:  "Find value by CID or multihash in indexer",
 	Flags:  findFlags,
 	Action: findCmd,
 }

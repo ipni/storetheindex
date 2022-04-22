@@ -11,7 +11,8 @@ type Discovery struct {
 	// LotusGateway is the host or host:port for a lotus gateway used to
 	// verify providers on the blockchain.
 	LotusGateway string
-	// Policy configures which providers are allowed and blocked
+	// Policy configures which providers are allowed and blocked, rate-limited,
+	// and allow to publish on behalf of others.
 	Policy Policy
 	// PollInterval is the amount of time to wait without getting any updates
 	// for a provider, before sending a request for the latest advertisement.
@@ -19,17 +20,17 @@ type Discovery struct {
 	PollInterval Duration
 	// PollRetryAfter is the amount of time from one poll attempt, without a
 	// response, to the next poll attempt, and is also the time between checks
-	// for providers to poll.  This value must be smaller than PollStopAfter
-	// for there to be more than one poll attempt for a provider.
+	// for providers to poll. This value must be smaller than PollStopAfter for
+	// there to be more than one poll attempt for a provider.
 	PollRetryAfter Duration
 	// PollStopAfter is the amount of time, from the start of polling, to
 	// continuing polling for the latest advertisment without getting a
-	// responce.
+	// response.
 	PollStopAfter Duration
-	// PollOverrides configures polling for a specific providers.
+	// PollOverrides configures polling for specific providers.
 	PollOverrides []Polling
 	// RediscoverWait is the amount of time that must pass before a provider
-	// can be discovered following a previous discovery attempt.  A value of 0
+	// can be discovered following a previous discovery attempt. A value of 0
 	// means there is no wait time.
 	RediscoverWait Duration
 	// Timeout is the maximum amount of time that the indexer will spend trying
@@ -38,13 +39,17 @@ type Discovery struct {
 }
 
 // Polling is a set of polling parameters that is applied to a specific
-// provider.  The values override the matching Poll values in the Discovery
+// provider. The values override the matching Poll values in the Discovery
 // config.
 type Polling struct {
+	// ProviderID identifies the provider that this override applies to.
 	ProviderID string
-	Interval   Duration
+	// Interval overrides Discovery.PollInterval.
+	Interval Duration
+	// RetryAfter overrides Discovery.PollRetryAfter.
 	RetryAfter Duration
-	StopAfter  Duration
+	// StopAfter overrides Discovery.PollStopAfter.
+	StopAfter Duration
 }
 
 // NewDiscovery returns Discovery with values set to their defaults.

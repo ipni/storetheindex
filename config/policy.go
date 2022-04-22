@@ -1,12 +1,12 @@
 package config
 
 // Policy configures which peers are allowed, are rate-limited and which may
-// publish on behalf of others.  Currently, the allow policy is applied to both
-// providers and publishers.  The RateLimit and Publish policies applies to
+// publish on behalf of others. Currently, the allow policy is applied to both
+// providers and publishers. The RateLimit and Publish policies applies to
 // publishers.
 //
-// Publishers and providers are not the same.  Publishers are peers that supply
-// data to the indexer.  Providers are the peers that appear in advertisements
+// Publishers and providers are not the same. Publishers are peers that supply
+// data to the indexer. Providers are the peers that appear in advertisements
 // and are where clients will retrieve content from.
 type Policy struct {
 	// Allow is either false or true, and determines whether a peer is allowed
@@ -14,27 +14,27 @@ type Policy struct {
 	Allow bool
 	// Except is a list of peer IDs that are exceptions to the Allow policy.
 	// If Allow is true, then all peers are allowed except those listed in
-	// Except.  If Allow is false, then no peers are allowed except those
-	// listed in Except.  in other words, Allow=true means that Except is a
-	// deny-list and Allow=false means that Except is an allow-list.
+	// Except. If Allow is false, then no peers are allowed except those listed
+	// in Except. in other words, Allow=true means that Except is a deny-list
+	// and Allow=false means that Except is an allow-list.
 	Except []string
 
 	// Publish determines whether or not peers are allowed to publish
-	// advertisements for a provider with adifferen peer ID.
+	// advertisements for a provider with a differen peer ID.
 	Publish bool
 	// PublisherExcept is a list of peer IDs that are exceptions to the Publish
-	// policy.  If Publish is false, then all allowed peers cannot publish
+	// policy. If Publish is false, then all allowed peers cannot publish
 	// advertisements for providers with a different peer ID, unless listed in
-	// PublishExcept.  If Publish is true, then all allowed peers can publish
+	// PublishExcept. If Publish is true, then all allowed peers can publish
 	// advertisements for any provider, unless listed in PublishExcept.
 	PublishExcept []string
 
-	// RateLimit is either false or true, and determines whether an allowed peer
-	// if subject to rate limiting (true) or not (false), by default.
+	// RateLimit is either false or true, and determines whether an allowed
+	// peer if subject to rate limiting (true) or not (false), by default.
 	RateLimit bool
 	// RateLimitExcept is a list of peer IDs that are exceptions to the
-	// RateLimit policy.  If RateLimit is false then all allowed peers are not
-	// rate-limited unless they appear in the RateLimitExcept list.  If
+	// RateLimit policy. If RateLimit is false then all allowed peers are not
+	// rate-limited unless they appear in the RateLimitExcept list. If
 	// RateLimit is true, then only the peers listed in RateLimitExcept are not
 	// rate-limited.
 	RateLimitExcept []string

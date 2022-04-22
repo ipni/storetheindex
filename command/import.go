@@ -32,7 +32,7 @@ var importManifest = &cli.Command{
 
 var ImportCmd = &cli.Command{
 	Name:  "import",
-	Usage: "Imports data to indexer from different sources",
+	Usage: "Imports data directly into indexer, bypassing ingestion process",
 	Subcommands: []*cli.Command{
 		importCidList,
 		importCar,

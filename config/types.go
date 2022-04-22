@@ -5,7 +5,8 @@ import (
 	"time"
 )
 
-// Duration wraps time.Duration to provide json serialization and deserialization.
+// Duration wraps time.Duration to provide json serialization and
+// deserialization.
 //
 // NOTE: the zero value encodes to an empty string.
 type Duration time.Duration
