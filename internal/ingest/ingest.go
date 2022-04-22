@@ -118,7 +118,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	// Construct the selector used when syncing entries of an advertisement
 	// with non-configurable recursion limit.
-	entSel := ssb.ExploreRecursive(selector.RecursionLimitDepth(entriesDepthLimit),
+	entSel := ssb.ExploreRecursive(recursionLimit(cfg.EntriesDepthLimit),
 		ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
 			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
 		})).Node()
@@ -145,7 +145,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	// Create and start pubsub subscriber.  This also registers the storage
 	// hook to index data as it is received.
-	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Allowed), legs.UseLatestSyncHandler(&syncHandler{ing}))
+	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Allowed), legs.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)), legs.UseLatestSyncHandler(&syncHandler{ing}))
 	if err != nil {
 		log.Errorw("Failed to start pubsub subscriber", "err", err)
 		return nil, errors.New("ingester subscriber failed")
@@ -231,7 +231,7 @@ func (ing *Ingester) Close() error {
 //
 // The Context argument controls the lifetime of the sync.  Canceling it
 // cancels the sync and causes the multihash channel to close without any data.
-func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, resync bool) (<-chan cid.Cid, error) {
+func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int, resync bool) (<-chan cid.Cid, error) {
 	if err := peerID.Validate(); err != nil {
 		return nil, err
 	}
@@ -338,14 +338,9 @@ func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, addrInfo pee
 	return ing.sub.Announce(ctx, nextCid, addrInfo.ID, addrInfo.Addrs)
 }
 
-func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int64, resync bool) (ipld.Node, error) {
+func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int, resync bool) (ipld.Node, error) {
 	// Consider the value of < 1 as no-limit.
-	var rLimit selector.RecursionLimit
-	if depth < 1 {
-		rLimit = selector.RecursionLimitNone()
-	} else {
-		rLimit = selector.RecursionLimitDepth(depth)
-	}
+	rLimit := recursionLimit(depth)
 	log := log.With("depth", depth)
 
 	var stopAt ipld.Link
@@ -583,6 +578,7 @@ func (ing *Ingester) startIngesterLoop(workerPoolSize int) {
 }
 
 func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
+	log := log.With("publisher", syncFinishedEvent.PeerID)
 	// 1. Group the incoming CIDs by provider.
 	adsGroupedByProvider := map[peer.ID][]adInfo{}
 	for _, c := range syncFinishedEvent.SyncedCids {
@@ -742,4 +738,12 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 			err:       nil,
 		}
 	}
+}
+
+// recursionLimit returns the recursion limit for the given depth..
+func recursionLimit(depth int) selector.RecursionLimit {
+	if depth < 1 {
+		return selector.RecursionLimitNone()
+	}
+	return selector.RecursionLimitDepth(int64(depth))
 }

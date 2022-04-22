@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -125,7 +126,7 @@ func (c *Config) UpgradeConfig(filePath string) (bool, error) {
 	if c.Version == version {
 		return false, nil
 	}
-	prevName := filePath + ".prev"
+	prevName := fmt.Sprintf("%s.v%d", filePath, c.Version)
 	err := os.Rename(filePath, prevName)
 	if err != nil {
 		return false, err

@@ -155,7 +155,7 @@ var adminSyncFlags = []cli.Flag{
 	},
 	&cli.Int64Flag{
 		Name:  "depth",
-		Usage: "Depth limit of advertisements (distance from current) to sync. No limit if unspecified.",
+		Usage: "Depth limit of advertisements (distance from current) to sync. No limit if -1. Unspecified or 0 defaults to indexer config.",
 	},
 	&cli.BoolFlag{
 		Name:  "resync",
