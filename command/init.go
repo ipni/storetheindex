@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/multiformats/go-multiaddr"
@@ -11,7 +12,7 @@ import (
 
 var InitCmd = &cli.Command{
 	Name:   "init",
-	Usage:  "Initialize indexer node config file and identity",
+	Usage:  "Initialize or upgrade indexer node config file",
 	Flags:  initFlags,
 	Action: initCommand,
 }
@@ -116,6 +117,14 @@ func initCommand(cctx *cli.Context) error {
 	if topic != "" {
 		cfg.Ingest.PubSubTopic = topic
 	}
+
+	override := config.Polling{
+		ProviderID: "12D3KooWRYLtcVBtDpBZDt5zkAVFceEHyozoQxr4giccF7fquHR2",
+		Interval:   config.Duration(12 * time.Hour),
+		RetryAfter: config.Duration(45 * time.Minute),
+		StopAfter:  config.Duration(3 * time.Hour),
+	}
+	cfg.Discovery.PollOverrides = []config.Polling{override}
 
 	return cfg.Save(configFile)
 }

@@ -74,6 +74,9 @@ func TestInit(t *testing.T) {
 	if cfg.Indexer.ValueStoreType != storeType {
 		t.Error("value store type was not configured")
 	}
+	if cfg.Version != config.Version {
+		t.Error("did not init config with correct version")
+	}
 
 	t.Log(cfg.String())
 }

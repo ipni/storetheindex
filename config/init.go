@@ -21,7 +21,7 @@ func Init(out io.Writer) (*Config, error) {
 
 func InitWithIdentity(identity Identity) (*Config, error) {
 	conf := &Config{
-		// setup the node's default addresses.
+		Version:   Version,
 		Addresses: NewAddresses(),
 		Bootstrap: NewBootstrap(),
 		Datastore: NewDatastore(),
@@ -46,7 +46,7 @@ func CreateIdentity(out io.Writer) (Identity, error) {
 	if err != nil {
 		return ident, err
 	}
-	fmt.Fprintf(out, "done\n")
+	fmt.Fprintln(out, "done")
 
 	sk = priv
 	pk = pub
@@ -64,6 +64,6 @@ func CreateIdentity(out io.Writer) (Identity, error) {
 		return ident, err
 	}
 	ident.PeerID = id.Pretty()
-	fmt.Fprintf(out, "peer identity: %s\n", ident.PeerID)
+	fmt.Fprintln(out, "peer identity:", ident.PeerID)
 	return ident, nil
 }

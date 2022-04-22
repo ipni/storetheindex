@@ -32,7 +32,7 @@ const (
 	// EnvDir is the environment variable used to change the path root.
 	EnvDir = "STORETHEINDEX_PATH"
 
-	version = 1
+	Version = 1
 )
 
 var (
@@ -116,11 +116,6 @@ func Load(filePath string) (*Config, error) {
 	return &cfg, nil
 }
 
-// CanUpgrade determines if the config can be converted to the current version.
-func (c *Config) CanUpgrade() bool {
-	return c.Version != version
-}
-
 // UpgradeConfig upgrades (or downgrades) the config file to the current
 // version. If the config file is at the current version a backup is still
 // created and the config rewritten with any unconfigured values set to their
@@ -131,7 +126,7 @@ func (c *Config) UpgradeConfig(filePath string) error {
 	if err != nil {
 		return err
 	}
-	c.Version = version
+	c.Version = Version
 	err = c.Save(filePath)
 	if err != nil {
 		return err

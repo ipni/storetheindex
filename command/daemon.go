@@ -82,7 +82,7 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 		return fmt.Errorf("cannot load config file: %w", err)
 	}
-	if cfg.CanUpgrade() {
+	if cfg.Version != config.Version {
 		log.Warn("Configuration file out-of-date. Upgrade by running: ./storetheindex init --upgrade")
 	}
 
