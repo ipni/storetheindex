@@ -12,6 +12,10 @@ secretGenerator:
 - name: indexer-identity
   files:
   - indexer-0.key=indexer-0-identity.encrypted
+  - indexer-1.key=indexer-1-identity.encrypted
+replicas:
+- name: indexer
+  count: 2
 images:
 - name: storetheindex
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
