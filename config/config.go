@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -120,22 +121,22 @@ func (c *Config) CanUpgrade() bool {
 	return c.Version != version
 }
 
-// UpgradeConfig upgrades (or downgrades) the config file to the current version.
-func (c *Config) UpgradeConfig(filePath string) (bool, error) {
-	if c.Version == version {
-		return false, nil
-	}
-	prevName := filePath + ".prev"
+// UpgradeConfig upgrades (or downgrades) the config file to the current
+// version. If the config file is at the current version a backup is still
+// created and the config rewritten with any unconfigured values set to their
+// defaults.
+func (c *Config) UpgradeConfig(filePath string) error {
+	prevName := fmt.Sprintf("%s.v%d", filePath, c.Version)
 	err := os.Rename(filePath, prevName)
 	if err != nil {
-		return false, err
+		return err
 	}
 	c.Version = version
 	err = c.Save(filePath)
 	if err != nil {
-		return false, err
+		return err
 	}
-	return true, nil
+	return nil
 }
 
 // Save writes the json-serialized config to the specified path.

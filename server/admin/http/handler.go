@@ -80,7 +80,7 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	depthStr := query.Get("depth")
 	if depthStr != "" {
 		var err error
-		depth, err = strconv.ParseInt(depthStr, 10, 64)
+		depth, err = strconv.ParseInt(depthStr, 10, 0)
 		if err != nil {
 			log.Errorw("Cannot unmarshal recursion depth as integer", "depthStr", depthStr, "err", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -129,7 +129,7 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	// Start the sync, but do not wait for it to complete.
 	//
 	// TODO: Provide some way for the client to see if the indexer has synced.
-	_, err = h.ingester.Sync(h.ctx, peerID, syncAddr, depth, resync)
+	_, err = h.ingester.Sync(h.ctx, peerID, syncAddr, int(depth), resync)
 	if err != nil {
 		msg := "Cannot sync with peer"
 		log.Errorw(msg, "err", err)

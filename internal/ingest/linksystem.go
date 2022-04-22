@@ -95,7 +95,7 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (*schema.Advertise
 		log.Errorw("Cannot decode advertisement", "err", err)
 		return nil, "", errBadAdvert
 	}
-	// Verify advertisement signature
+	// Verify advertisement signature.
 	signerID, err := ad.VerifySignature()
 	if err != nil {
 		// stop exchange, verification of signature failed.
@@ -120,17 +120,17 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (*schema.Advertise
 	return ad, provID, nil
 }
 
-// ingestEntryChunk determines the logic to run when a new block is received through
-// graphsync.
+// ingestEntryChunk determines the logic to run when a new block is received
+// through graphsync.
 //
 // For a chain of advertisements, the storage hook sees the advertisements from
 // newest to oldest, and starts an entries sync goroutine for each
-// advertisement.  These goroutines each wait for the sync goroutine associated
+// advertisement. These goroutines each wait for the sync goroutine associated
 // with the previous advertisement to complete before beginning their sync for
 // content blocks.
 //
 // When a non-advertisement block is received, it means that the entries sync
-// is running and is collecting content chunks for an advertisement.  Now this
+// is running and is collecting content chunks for an advertisement. Now this
 // hook is being called for each entry in an advertisement's chain of entries.
 // Process the entry and save all the multihashes in it as indexes in the
 // indexer-core.
@@ -145,8 +145,8 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schem
 	}
 	defer func() {
 		// Remove the content block from the data store now that processing it
-		// has finished.  This prevents storing redundant information in
-		// several datastores.
+		// has finished. This prevents storing redundant information in several
+		// datastores.
 		err := ing.ds.Delete(context.Background(), entryChunkKey)
 		if err != nil {
 			log.Errorw("Error deleting index from datastore", "err", err)
@@ -185,8 +185,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read provider id: %w", err)}
 	}
 
-	// Register provider or update existing registration.  The
-	// provider must be allowed by policy to be registered.
+	// Register provider or update existing registration. The provider must be
+	// allowed by policy to be registered.
 	var pubInfo peer.AddrInfo
 	peerStore := ing.sub.HttpPeerStore()
 	if peerStore != nil {
@@ -275,15 +275,15 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	return nil
 }
 
-// indexContentBlock indexes the content multihashes in a block of data.  First
-// the advertisement is loaded to get the context ID and metadata.  Then the
+// indexContentBlock indexes the content multihashes in a block of data. First
+// the advertisement is loaded to get the context ID and metadata. Then the
 // metadata and multihashes in the content block are indexed by the
 // indexer-core.
 //
-// The pubID is the peer ID of the message publisher.  This is not necessarily
-// the same as the provider ID in the advertisement.  The publisher is the
+// The pubID is the peer ID of the message publisher. This is not necessarily
+// the same as the provider ID in the advertisement. The publisher is the
 // source of the indexed content, the provider is where content can be
-// retrieved from.  It is the provider ID that needs to be stored by the
+// retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
 func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, pubID peer.ID, nentries ipld.Node) error {
 	log := log.With("publisher", pubID, "adCid", adCid)
@@ -294,7 +294,7 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 		return fmt.Errorf("cannot decode entries: %w", err)
 	}
 
-	// Load the advertisement data for this chunk.  If there are more chunks to
+	// Load the advertisement data for this chunk. If there are more chunks to
 	// follow, then cache the ad data.
 	value, isRm, err := getAdData(ad)
 	if err != nil {
@@ -413,8 +413,8 @@ func getAdData(ad schema.Advertisement) (value indexer.Value, isRm bool, err err
 
 // decodeIPLDNode decodes an ipld.Node from bytes read from an io.Reader.
 func decodeIPLDNode(codec uint64, r io.Reader, prototype ipld.NodePrototype) (ipld.Node, error) {
-	// NOTE: Considering using the schema prototypes.  This was failing, using
-	// a map gives flexibility.  Maybe is worth revisiting this again in the
+	// NOTE: Considering using the schema prototypes. This was failing, using a
+	// map gives flexibility. Maybe is worth revisiting this again in the
 	// future.
 	nb := prototype.NewBuilder()
 	decoder, err := multicodec.LookupDecoder(codec)
@@ -429,7 +429,7 @@ func decodeIPLDNode(codec uint64, r io.Reader, prototype ipld.NodePrototype) (ip
 }
 
 // Checks if an IPLD node is an advertisement, by looking to see if it has a
-// "Signature" field.  We may need additional checks if we extend the schema
+// "Signature" field. Additional checks may be needed if the schema is extended
 // with new types that are traversable.
 func isAdvertisement(n ipld.Node) bool {
 	indexID, _ := n.LookupByString("Signature")
