@@ -1,29 +1,22 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
 namespace: storetheindex
-
 resources:
-  - ../../../../base/storetheindex
-  - ingress.yaml
-  - pod-monitor.yaml
-
+- ../../../../base/storetheindex
+- ingress.yaml
+- pod-monitor.yaml
+- github-auth.yaml
 patchesStrategicMerge:
-  - patch-indexer.yaml
-
-replicas:
-  - name: indexer
-    count: 2
-
+- patch-indexer.yaml
 secretGenerator:
-  - name: indexer-identity
-    files:
-      - indexer-0.key=indexer-0-identity.encrypted
-      - indexer-1.key=indexer-1-identity.encrypted
-
-# This is to keep the production deployment unchanged as a result of base overlay changes until it 
-# is automated like dev. 
+- name: indexer-identity
+  files:
+  - indexer-0.key=indexer-0-identity.encrypted
+  - indexer-1.key=indexer-1-identity.encrypted
+replicas:
+- name: indexer
+  count: 2
 images:
-  - name: storetheindex
-    newName: filecoin/storetheindex
-    newTag: 1b16c2dd77b55cb83be99410b514068e059b952d
+- name: storetheindex
+  newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
+  newTag: 0.4.10 # {"$imagepolicy": "storetheindex:storetheindex:tag"}
