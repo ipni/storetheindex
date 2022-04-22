@@ -36,7 +36,7 @@ type Ingest struct {
 // NewIngest returns Ingest with values set to their defaults.
 func NewIngest() Ingest {
 	return Ingest{
-		AdvertisementDepthLimit: -1,
+		AdvertisementDepthLimit: 33554432,
 		EntriesDepthLimit:       65536,
 		IngestWorkerCount:       10,
 		PubSubTopic:             "/indexer/ingest/mainnet",

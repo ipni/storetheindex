@@ -43,11 +43,11 @@ const (
 
 type adProcessedEvent struct {
 	publisher peer.ID
-	// The head of the chain we're proecessing.
+	// Head of the chain being proecessed.
 	headAdCid cid.Cid
-	// The actual adCid we're processing.
+	// Actual adCid being processing.
 	adCid cid.Cid
-	// if not nil we failed to process the ad for adCid
+	// A non-nil value indicates failure to process the ad for adCid.
 	err error
 }
 
@@ -85,12 +85,13 @@ type Ingester struct {
 
 	cancelOnSyncFinished context.CancelFunc
 
-	// A map of providers currently being processed. A worker holds the lock of a
-	// provider while ingesting ads for that provider.
+	// A map of providers currently being processed. A worker holds the lock of
+	// a provider while ingesting ads for that provider.
 	providersBeingProcessed   map[peer.ID]*sync.Mutex
 	providersBeingProcessedMu sync.Mutex
 	providerAdChainStaging    map[peer.ID]*atomic.Value
-	// toWorkers is a channel used to ask the worker pool to start processing the ad chain for a given provider
+	// toWorkers is a channel used to ask the worker pool to start processing
+	// the ad chain for a given provider
 	toWorkers      chan providerID
 	closeWorkers   chan struct{}
 	waitForWorkers sync.WaitGroup
@@ -103,9 +104,9 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	lsys := mkLinkSystem(ds, reg)
 
 	// Construct a selector that recursively looks for nodes with field
-	// "PreviousID" as per Advertisement schema.  Note that the entries within
-	// an advertisement are synced separately triggered by storage hook, so
-	// that we can check if a chain of chunks exist already before syncing it.
+	// "PreviousID" as per Advertisement schema. Note that the entries within
+	// an advertisement are synced separately, triggered by storage hook. This
+	// allows checking if a chain of chunks already exists before syncing it.
 	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
 	adSel := ssb.ExploreFields(
 		func(efsb builder.ExploreFieldsSpecBuilder) {
@@ -139,8 +140,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		closeWorkers:            make(chan struct{}),
 	}
 
-	// Create and start pubsub subscriber.  This also registers the storage
-	// hook to index data as it is received.
+	// Create and start pubsub subscriber. This also registers the storage hook
+	// to index data as it is received.
 	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Allowed), legs.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)), legs.UseLatestSyncHandler(&syncHandler{ing}))
 	if err != nil {
 		log.Errorw("Failed to start pubsub subscriber", "err", err)
@@ -198,13 +199,13 @@ func (ing *Ingester) Close() error {
 }
 
 // Sync syncs advertisements, up to the the latest advertisement, from a
-// publisher.  A channel is returned that gives the caller the option to wait
-// for Sync to complete.  The channel returns the final CID that was synced by
+// publisher. A channel is returned that gives the caller the option to wait
+// for Sync to complete. The channel returns the final CID that was synced by
 // the call to Sync.
 //
 // Sync works by first fetching each advertisement from the specidief peer
 // starting at the most recent and traversing to the advertisement last seen by
-// the indexer, or until the advertisement depth limit is reached.  Then the
+// the indexer, or until the advertisement depth limit is reached. Then the
 // entries in each advertisement are synced and the multihashes in each entry
 // are indexed.
 //
@@ -212,8 +213,8 @@ func (ing *Ingester) Close() error {
 // parameters: depth, and resync.
 //
 // The depth argument specifies the recursion depth limit to use during sync.
-// Its value may less than 1 for no limit, or greater than 1 for an explicit
-// limit.
+// Its value may less than -1 for no limit, 0 to use the indexer's configured
+// value, or greater than 1 for an explicit limit.
 //
 // The resync argument specifies whether to stop the traversal at the latest
 // known advertisement that is already synced. If set to true, the traversal
@@ -225,8 +226,8 @@ func (ing *Ingester) Close() error {
 // false. Otherwise, a custom selector with the given depth limit and stop link
 // is constructed and used for traversal. See legs.Subscriber.Sync.
 //
-// The Context argument controls the lifetime of the sync.  Canceling it
-// cancels the sync and causes the multihash channel to close without any data.
+// The Context argument controls the lifetime of the sync. Canceling it cancels
+// the sync and causes the multihash channel to close without any data.
 func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int, resync bool) (<-chan cid.Cid, error) {
 	if err := peerID.Validate(); err != nil {
 		return nil, err
@@ -243,8 +244,8 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		log.Info("Explicitly syncing the latest advertisement from peer")
 
 		var sel ipld.Node
-		// If depth is non-zero or traversal should not stop at the latest synced, then construct a
-		// selector to behave accordingly.
+		// If depth is non-zero or traversal should not stop at the latest
+		// synced, then construct a selector to behave accordingly.
 		if depth != 0 || resync {
 			var err error
 			sel, err = ing.makeLimitedDepthSelector(peerID, depth, resync)
@@ -264,7 +265,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		}
 
 		// Start syncing. Notifications for the finished sync are sent
-		// asynchronously.  Sync with cid.Undef so that the latest head is
+		// asynchronously. Sync with cid.Undef so that the latest head is
 		// queried by go-legs via head-publisher.
 		//
 		// Note that if the selector is nil the default selector is used where
@@ -278,7 +279,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		if resync {
 			// If this is a resync, then it is necessary to mark the ad as
 			// unprocessed so that everything can be reingested from the start
-			// of this sync.  Create a scoped block-hook to do this.
+			// of this sync. Create a scoped block-hook to do this.
 			opts = append(opts, legs.ScopedBlockHook(func(i peer.ID, c cid.Cid) {
 				err := ing.markAdUnprocessed(c)
 				if err != nil {
@@ -291,11 +292,11 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 			log.Errorw("Failed to sync with provider", "err", err)
 			return
 		}
-		// Do not persist the latest sync here, because that is done in
-		// after we've processed the ad.
+		// Do not persist the latest sync here, because that is done after
+		// processing the ad.
 
-		// If latest head had already finished syncing, then do not wait
-		// for syncDone since it will never happen.
+		// If latest head had already finished syncing, then do not wait for
+		// syncDone since it will never happen.
 		if latest == c && !resync {
 			log.Infow("Latest advertisement already processed", "adCid", c)
 			out <- c
@@ -308,10 +309,10 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 			case adProcessedEvent := <-syncDone:
 				log.Debugw("Synced advertisement", "adCid", adProcessedEvent.adCid)
 				if adProcessedEvent.adCid == c || adProcessedEvent.err != nil && adProcessedEvent.headAdCid == c {
-					// If we had an error than the adProcessedEvent.adCid will be the cid
-					// that caused the error, and we won't get any future
-					// adProcessedEvents. Therefore we check the headAdCid to see if this
-					// was the sync we started.
+					// If an error occurred then the adProcessedEvent.adCid
+					// will be the cid that caused the error, and there will
+					// not be any future adProcessedEvents. Therefore check the
+					// headAdCid to see if this was the sync that was started.
 					out <- c
 					ing.signalMetricsUpdate()
 					return
@@ -328,7 +329,8 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	return out, nil
 }
 
-// Announce send an annouce message to directly to go-legs, instead of through pubsub.
+// Announce send an annouce message to directly to go-legs, instead of through
+// pubsub.
 func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, addrInfo peer.AddrInfo) error {
 	log.Infow("Handling direct announce request", "peer", addrInfo.ID)
 	return ing.sub.Announce(ctx, nextCid, addrInfo.ID, addrInfo.Addrs)
@@ -365,14 +367,14 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int, resync 
 }
 
 // markAdUnprocessed takes an advertisement CID and marks it as
-// unprocessed. This lets the ad be re-ingested in case we want to re-ingest
-// with different depths or are processing even earlier ads and need to
-// reprocess later ones so that the indexer re-ingests the later ones in the
-// context of the earlier ads, and thus become consistent.
+// unprocessed. This lets the ad be re-ingested in case we re-ingesting with
+// different depths or are processing even earlier ads and need to reprocess
+// later ones so that the indexer re-ingests the later ones in the context of
+// the earlier ads, and thus become consistent.
 //
 // During a sync, this should be called be in order from newest to oldest
-// ad. This is so that if an something fails to get marked as unprocessed we
-// still hold the constraint that if an ad is processed, all older ads are also
+// ad. This is so that if an something fails to get marked as unprocessed the
+// constraint is maintained that if an ad is processed, all older ads are also
 // processed.
 func (ing *Ingester) markAdUnprocessed(adCid cid.Cid) error {
 	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{0})
@@ -395,7 +397,7 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 	if err != nil {
 		return err
 	}
-	// We've processed this ad, so we can remove it from our datastore.
+	// This ad is processed, so remove it from the datastore.
 	err = ing.ds.Delete(context.Background(), dsKey(adCid.String()))
 	if err != nil {
 		// Log the error, but do not return. Continue on to save the procesed ad.
@@ -404,9 +406,9 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
 }
 
-// distributeEvents reads a adProcessedEvent, sent by a peer handler, and copies
-// the event to all channels in outEventsChans. This delivers the event to all
-// onAdProcessed channel readers.
+// distributeEvents reads a adProcessedEvent, sent by a peer handler, and
+// copies the event to all channels in outEventsChans. This delivers the event
+// to all onAdProcessed channel readers.
 func (ing *Ingester) distributeEvents() {
 	for event := range ing.inEvents {
 		// Send update to all change notification channels.
@@ -484,7 +486,7 @@ func (ing *Ingester) signalMetricsUpdate() {
 	}
 }
 
-// metricsUpdate periodically updates metrics.  This goroutine exits when the
+// metricsUpdate periodically updates metrics. This goroutine exits when the
 // sigUpdate channel is closed, when Close is called.
 func (ing *Ingester) metricsUpdater() {
 	hasUpdate := true
@@ -553,7 +555,8 @@ type adInfo struct {
 }
 
 type workerAssignment struct {
-	// none represents a nil assignment. Used because we can't store nil in atomic.Value.
+	// none represents a nil assignment. Used because a nil in atomic.Value
+	// cannot be stored.
 	none      bool
 	adInfos   []adInfo
 	publisher peer.ID
@@ -582,8 +585,9 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 	// 1. Group the incoming CIDs by provider.
 	adsGroupedByProvider := map[peer.ID][]adInfo{}
 	for _, c := range syncFinishedEvent.SyncedCids {
-		// Group the CIDs by the provider. Most of the time a publisher will only
-		// publish Ads for one provider, but it's possible that an ad chain can include multiple providers.
+		// Group the CIDs by the provider. Most of the time a publisher will
+		// only publish Ads for one provider, but it's possible that an ad
+		// chain can include multiple providers.
 
 		if ing.adAlreadyprocessed(c) {
 			// This ad has been processed so all earlier ads already have been
@@ -627,8 +631,8 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		})
 
 		if oldAssignment == nil || oldAssignment.(workerAssignment).none {
-			// No previous run scheduled a worker to handle this provider, so let's
-			// schedule one
+			// No previous run scheduled a worker to handle this provider, so
+			// schedule one.
 			ing.toWorkers <- providerID(p)
 		}
 	}
@@ -646,31 +650,31 @@ func (ing *Ingester) ingestWorker() {
 }
 
 func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
-
-	// It's assumed that the runIngestStep puts a mutex in this map.
+	// It is assumed that the runIngestStep puts a mutex in this map.
 	ing.providersBeingProcessed[provider].Lock()
 	defer ing.providersBeingProcessed[provider].Unlock()
 
-	// Pull out the assignment for this provider. Note that runIngestStep populates this atomic.Value.
+	// Pull out the assignment for this provider. Note that runIngestStep
+	// populates this atomic.Value.
 	assignmentInterface := ing.providerAdChainStaging[provider].Swap(workerAssignment{none: true})
 	if assignmentInterface == nil || assignmentInterface.(workerAssignment).none {
-		// Note this is here for completeness. This wouldn't happen normally.  We
-		// could get here if someone manually calls this function outside the ingest
-		// loop.
-		// Nothing to do – no assignment.
+		// Note this is here for completeness. This would not happen
+		// normally. Execution could get here if someone manually calls this
+		// function outside the ingest loop. Nothing to do – no assignment.
 		return
 	}
 	assignment := assignmentInterface.(workerAssignment)
 
-	// Filter out ads that we've already processed and any earlier ads
+	// Filter out ads that are already processed, and any earlier ads.
 	splitAtIndex := len(assignment.adInfos)
 	for i, ai := range assignment.adInfos {
-		// iterate latest to earliest
+		// Iterate latest to earliest.
 		if ing.adAlreadyprocessed(ai.cid) {
-			// We've process this ad already, so we know we've processed all
-			// earlier ads too. Break here and split at this index later. The cids
-			// before this index are newer and we haven't processed them, the cids
-			// after are older and we already have processed them.
+			// This ad is already processed, which means that all earlier ads
+			// are also processed. Break here and split at this index
+			// later. The cids before this index are newer and have not been
+			// processed yet; the cids after are older and have already been
+			// processed.
 			splitAtIndex = i
 			break
 		}
@@ -679,7 +683,7 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 	log.Infow("Running worker on ad stack", "headAdCid", assignment.adInfos[0].cid, "publisher", assignment.publisher, "numAdsToProcess", splitAtIndex)
 	var count int
 	for i := splitAtIndex - 1; i >= 0; i-- {
-		// Note that we are iterating backwards here. Earliest to newest.
+		// Note that iteration proceeds backwards here. Earliest to newest.
 		ai := assignment.adInfos[i]
 
 		count++
@@ -690,7 +694,7 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 
 		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad)
 		if err == nil {
-			// No error at all, we processed this ad successfully.
+			// No error at all, this ad was processed successfully.
 			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))
 		}
 
@@ -716,8 +720,8 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 		if err != nil {
 			log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "publisher", assignment.provider, "err", err, "adsLeftToProcess", i+1)
 
-			// Tell anyone who's waiting that the sync finished for this head because we errored.
-			// TODO(mm) would be better to propagate the error.
+			// Tell anyone waiting that the sync finished for this head because
+			// of error.  TODO(mm) would be better to propagate the error.
 			ing.inEvents <- adProcessedEvent{
 				publisher: assignment.publisher,
 				headAdCid: assignment.adInfos[0].cid,
@@ -740,7 +744,7 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 	}
 }
 
-// recursionLimit returns the recursion limit for the given depth..
+// recursionLimit returns the recursion limit for the given depth.
 func recursionLimit(depth int) selector.RecursionLimit {
 	if depth < 1 {
 		return selector.RecursionLimitNone()
