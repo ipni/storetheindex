@@ -56,7 +56,7 @@ Administrative:
 Testing:
 
 - `import` Imports data to indexer from different sources
-- `register` Register provider information with an idexer
+- `register` Register provider information with an indexer
 - `synthetic` Generate synthetic load to import in indexer
 
 ## Help
