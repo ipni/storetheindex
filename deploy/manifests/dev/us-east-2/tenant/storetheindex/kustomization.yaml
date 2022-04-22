@@ -19,4 +19,4 @@ replicas:
 images:
 - name: storetheindex
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
-  newTag: 20220422122739-65727bd180db3ec4caf7b7eb12d1fa849ca63951 # {"$imagepolicy": "storetheindex:storetheindex:tag"}
+  newTag: 20220422125935-f6b533706c57f06456f7092c0849ac37951f6f10 # {"$imagepolicy": "storetheindex:storetheindex:tag"}
