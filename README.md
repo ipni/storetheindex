@@ -64,7 +64,7 @@ To see a list of available commands, see `storetheindex --help`. For help with c
 
 
 ## Configuration
-The storetheindex config file is a JSON document located at `$STORETHEINDEX_PATH`/config. It is read once, either for an offline command, or when starting the daemon. For documentation of the items in the config file, see the [godoc documentation](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config) of the corresponding config data structures.
+The storetheindex config file [documentation](https://github.com/filecoin-project/storetheindex/blob/main/doc/config.md#the-storetheindex-config-file)
 
 ## License
 [SPDX-License-Identifier: Apache-2.0 OR MIT](LICENSE.md)
