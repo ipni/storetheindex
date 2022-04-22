@@ -38,15 +38,11 @@ func initCommand(cctx *cli.Context) error {
 			return err
 		}
 		prevVer := cfg.Version
-		upgraded, err := cfg.UpgradeConfig(configFile)
+		err = cfg.UpgradeConfig(configFile)
 		if err != nil {
 			return fmt.Errorf("cannot upgrade: %s", err)
 		}
-		if upgraded {
-			fmt.Println("Upgraded", configFile, "from version", prevVer, "to", cfg.Version)
-		} else {
-			fmt.Println("Config at current version, nothing to upgrade")
-		}
+		fmt.Println("Upgraded", configFile, "from version", prevVer, "to", cfg.Version)
 		return nil
 	}
 
