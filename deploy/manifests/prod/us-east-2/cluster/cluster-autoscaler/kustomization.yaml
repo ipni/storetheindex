@@ -6,3 +6,7 @@ resources:
 
 patchesStrategicMerge:
   - patch.yaml
+
+replicas:
+  - name: cluster-autoscaler
+    count: 0
