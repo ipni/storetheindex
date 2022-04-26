@@ -9,6 +9,7 @@ resource "aws_cloudfront_distribution" "cdn" {
   aliases = [
     "${local.cdn_subdomain}.${aws_route53_zone.prod_external.name}",
     "infra.cid.contact",
+    "cid.contact",
   ]
   price_class = "PriceClass_All"
 
@@ -115,6 +116,7 @@ module "cid_contact_cert" {
   validate_certificate = false
 
   subject_alternative_names = [
+    "cid.contact",
     "*.cid.contact",
     "*.prod.cid.contact",
     "*.infra.cid.contact",
