@@ -7,8 +7,8 @@ resources:
   # - flux-system
   # - external-dns
   - cert-manager
-  - storetheindex
-  - cluster-autoscaler
+  # - storetheindex
+  # - cluster-autoscaler
   - monitoring
-  - aws-ebs-csi-driver
+  # - aws-ebs-csi-driver
   - promtail
