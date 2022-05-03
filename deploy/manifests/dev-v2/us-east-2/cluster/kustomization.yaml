@@ -7,7 +7,7 @@ resources:
   # - external-dns
   - cert-manager
   # - storetheindex
-  # - cluster-autoscaler
+  - cluster-autoscaler
   # - monitoring
   # - aws-ebs-csi-driver
   # - promtail
