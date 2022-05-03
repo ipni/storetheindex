@@ -4,9 +4,8 @@ kind: Kustomization
 resources:
   # - ../../../base/ingress-nginx
   - kube-system
-  # - flux-system
   # - external-dns
-  # - cert-manager
+  - cert-manager
   # - storetheindex
   # - cluster-autoscaler
   # - monitoring
