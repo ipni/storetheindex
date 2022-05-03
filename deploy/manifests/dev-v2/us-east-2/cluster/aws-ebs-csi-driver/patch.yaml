@@ -4,7 +4,7 @@ metadata:
   name: ebs-csi-controller-sa
   namespace: kube-system
   annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/dev/us-east-2/dev_ebs_csi_controller"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/dev-v2-ebs-csi-controller"
 
 ---
 apiVersion: apps/v1
