@@ -31,4 +31,4 @@ metadata:
   name: prometheus-k8s
   namespace: monitoring
   annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/dev_monitoring"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/dev-v2-monitoring"

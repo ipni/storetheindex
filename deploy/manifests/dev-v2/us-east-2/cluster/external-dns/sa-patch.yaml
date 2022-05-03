@@ -3,4 +3,4 @@ kind: ServiceAccount
 metadata:
   name: external-dns
   annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/dev_external_dns"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/dev-v2-external-dns"
