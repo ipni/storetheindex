@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: kustomize-controller
-  namespace: flux-system
-  annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/dev_kustomize_controller"

@@ -4,9 +4,9 @@ kind: Kustomization
 namespace: flux-system
 
 resources:
-  - ../../../../base/flux-system
+  # - ../../../../base/flux-system
   - cluster-cd.yaml
 
-patchesStrategicMerge:
-  - sa-patch.yaml
+# patchesStrategicMerge:
+#   - sa-patch.yaml
 
