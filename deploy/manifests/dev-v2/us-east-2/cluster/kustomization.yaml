@@ -7,7 +7,7 @@ resources:
   # - flux-system
   # - external-dns
   # - cert-manager
-  # # - storetheindex
+  # - storetheindex
   # - cluster-autoscaler
   # - monitoring
   # - aws-ebs-csi-driver
