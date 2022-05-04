@@ -13,7 +13,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: storetheindex
-    namspace: wego-system
+    namespace: wego-system
   prune: true
 
 ---
