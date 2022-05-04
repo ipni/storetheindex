@@ -9,4 +9,4 @@ commonLabels:
 resources:
   - namespace.yaml
   - flux-cd.yaml
-  - flux-rbac.yaml
+  # - flux-rbac.yaml
