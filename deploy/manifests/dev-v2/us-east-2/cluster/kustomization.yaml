@@ -8,6 +8,6 @@ resources:
   - cert-manager
   # - storetheindex
   - cluster-autoscaler
-  - monitoring
+  # - monitoring
   - aws-ebs-csi-driver
   - promtail
