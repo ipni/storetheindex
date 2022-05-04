@@ -3,6 +3,7 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
 kind: Kustomization
 metadata:
   name: storetheindex-tenant
+  namespace: storetheindex
 spec:
   serviceAccountName: flux
   decryption:
@@ -20,6 +21,7 @@ apiVersion: image.toolkit.fluxcd.io/v1beta1
 kind: ImageRepository
 metadata:
   name: storetheindex
+  namespace: storetheindex
 spec:
   interval: 5m
   image: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
@@ -44,6 +46,7 @@ apiVersion: image.toolkit.fluxcd.io/v1beta1
 kind: ImageUpdateAutomation
 metadata:
   name: storetheindex
+  namespace: storetheindex
 spec:
   interval: 5m
   sourceRef:
