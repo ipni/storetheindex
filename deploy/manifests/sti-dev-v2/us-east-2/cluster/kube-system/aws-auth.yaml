@@ -12,7 +12,7 @@ data:
     - groups:
       - system:bootstrappers
       - system:nodes
-      rolearn: arn:aws:iam::407967248065:role/-nodegroup-iam-service-role_dev-v2-default_dev-v2-pool-0
+      rolearn: arn:aws:iam::407967248065:role/iam-service-role-sti-dev-v2-nodegroup-pool-0
       username: system:node:{{EC2PrivateDNSName}}
   mapUsers: |
     - userarn: arn:aws:iam::407967248065:user/masih
