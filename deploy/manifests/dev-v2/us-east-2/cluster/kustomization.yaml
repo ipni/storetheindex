@@ -5,6 +5,7 @@ resources:
   - ../../../base/ingress-nginx
   - kube-system
   - cert-manager
+  - external-dns
   - storetheindex
   - cluster-autoscaler
   - monitoring
