@@ -4,7 +4,7 @@ metadata:
   name: cluster-autoscaler
   namespace: kube-system
   annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/dev-v2-cluster-autoscaler"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/sti-dev-v2-cluster-autoscaler"
 
 ---
 apiVersion: apps/v1
@@ -24,4 +24,4 @@ spec:
             - --cloud-provider=aws
             - --skip-nodes-with-local-storage=false
             - --expander=least-waste
-            - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/dev-v2
+            - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/sti-dev-v2

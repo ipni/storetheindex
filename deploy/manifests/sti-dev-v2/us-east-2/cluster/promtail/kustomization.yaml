@@ -14,7 +14,7 @@ configMapGenerator:
       - PROMTAIL_URL=https://logs-prod-us-central1.grafana.net/loki/api/v1/push
       - PROMTAIL_TENANT_ID=storetheindex
       - PROMTAIL_LABEL_OWNER=storetheindex
-      - PROMTAIL_LABEL_ENV=dev-v2
+      - PROMTAIL_LABEL_ENV=sti-dev-v2
       - PROMTAIL_LABEL_REGION=us-east-2
 
 secretGenerator:

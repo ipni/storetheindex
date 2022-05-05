@@ -4,7 +4,7 @@ metadata:
   name: cert-manager
   namespace: cert-manager
   annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/dev-v2-cert-manager"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/sti-dev-v2-cert-manager"
 
 ---
 apiVersion: v1
@@ -13,4 +13,4 @@ metadata:
   name: cert-manager-webhook
   namespace: cert-manager
   annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/dev-v2-cert-manager"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/sti-dev-v2-cert-manager"
