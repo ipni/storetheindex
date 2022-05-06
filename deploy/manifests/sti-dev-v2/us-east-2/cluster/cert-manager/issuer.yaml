@@ -14,4 +14,4 @@ spec:
             region: us-east-2
         selector:
           dnsZones:
-            - dev.cid.contact
+            - sti-dev-v2.cid.contact
