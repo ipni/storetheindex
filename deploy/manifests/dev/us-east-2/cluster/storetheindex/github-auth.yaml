@@ -2,7 +2,6 @@ apiVersion: v1
 kind: Secret
 metadata:
     name: github-auth
-    namespace: storetheindex
 type: Opaque
 stringData:
     username: ENC[AES256_GCM,data:QCXDM28HdA==,iv:isGwcm0Qb0SaGvQg4ira5HYGgYNTneMLCJJf0ZVVGjE=,tag:kLU3iFKxUsoVCKVb+TiNWQ==,type:str]
