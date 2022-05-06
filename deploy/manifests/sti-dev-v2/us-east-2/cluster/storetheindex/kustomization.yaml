@@ -7,5 +7,6 @@ commonLabels:
   toolkit.fluxcd.io/tenant: storetheindex
 
 resources:
+  - namespace.yaml
   - flux-cd.yaml
   - flux-rbac.yaml
