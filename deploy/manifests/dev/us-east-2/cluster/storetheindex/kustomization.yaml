@@ -8,6 +8,5 @@ commonLabels:
 
 resources:
   - namespace.yaml
-  - github-auth.yaml
   - flux-cd.yaml
   - flux-rbac.yaml
