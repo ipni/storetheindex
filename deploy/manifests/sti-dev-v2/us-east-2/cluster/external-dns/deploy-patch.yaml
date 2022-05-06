@@ -19,7 +19,7 @@ spec:
           args:
             - --source=service
             - --source=ingress
-            - --domain-filter=sti-dev-v2.cid.contact
+            - --domain-filter=dev-v2.cid.contact
             - --provider=aws
             - --policy=upsert-only
             - --aws-zone-type=public

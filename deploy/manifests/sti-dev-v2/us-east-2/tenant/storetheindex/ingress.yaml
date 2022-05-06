@@ -9,10 +9,10 @@ metadata:
 spec:
   tls:
     - hosts:
-        - sti-dev-v2.cid.contact
+        - dev-v2.cid.contact
       secretName: indexer-ingress-tls
   rules:
-    - host: sti-dev-v2.cid.contact
+    - host: dev-v2.cid.contact
       http:
         paths:
           - path: /ingest
