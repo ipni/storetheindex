@@ -8,4 +8,4 @@ commonLabels:
 
 resources:
   - flux-cd.yaml
-  # - flux-rbac.yaml
+  - flux-rbac.yaml

@@ -15,7 +15,7 @@ kind: Kustomization
 metadata:
   name: storetheindex-tenant
 spec:
-  # serviceAccountName: flux
+  serviceAccountName: flux
   decryption:
     provider: sops
   interval: 5m
