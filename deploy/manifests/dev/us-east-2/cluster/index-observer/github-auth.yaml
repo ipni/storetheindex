@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: github-auth
+    namespace: index-observer
+type: Opaque
+stringData:
+    username: ENC[AES256_GCM,data:uU+Je06igg==,iv:irfMIUykbIy3P+mwXSFpU/TVPmRBktO9BMS7OHNnGi4=,tag:F/zbhoO6bVgxpz3PBae/GA==,type:str]
+    password: ENC[AES256_GCM,data:hbLzoKQKm399LY0CgZY08J6r5+vCePwJPt8HNsKQSOgh9gDrF0sh2w==,iv:5DpBpO35JPM9S3YJ3NIMknRlA6rfD5KZGJp39SBvi7k=,tag:zt8BXw9t59KNZMSQ86b2bg==,type:str]
+sops:
+    kms:
+        - arn: arn:aws:kms:us-east-2:407967248065:alias/dev/us-east-2/cluster
+          created_at: "2022-05-09T15:17:50Z"
+          enc: AQICAHjPLKH8p/5QB+TsPnURNgsbMMOlVWn14S9WvEpahS2p4wHyFtdNZ2OzCx43PYeEDvL8AAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMq1emCpt+Awdbu1FmAgEQgDvmUzvUqdtRzZNkIiH+iBeZQoMd+x7hDF6j+BBNQoUso1HLfbXJOCd1tNj78SY/1jydnGXj+4MoU28dVQ==
+          aws_profile: ""
+    gcp_kms: []
+    azure_kv: []
+    hc_vault: []
+    age: []
+    lastmodified: "2022-05-09T15:17:51Z"
+    mac: ENC[AES256_GCM,data:HDvKBudsQqOnY1RYO7Iv+Y8KFFUleQbaoRsh3Rhq3RLGi2MPUeEngGYEGQDjYq0iGKaxvjA9mOBrybN/3rZXIKWRhZnYwgmCA50XobdCwryWuFQX7uzcRo8B69t5GRJ2mE5C50xKeVhqjXYqZuxo3hDwsbgnVQdsY2dtCzc/gnI=,iv:pg6/ILhcptiznsP2gi/4PWS4GHwwTztTngZ38WFBDzc=,tag:kIMgjnGg4D4XNpx4gMvaWA==,type:str]
+    pgp: []
+    encrypted_regex: ^(data|stringData)$
+    version: 3.7.2
