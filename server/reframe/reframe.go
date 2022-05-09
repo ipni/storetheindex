@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"net/http"
 
+	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/server/finder/handler"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-delegated-routing/client"
@@ -15,8 +17,8 @@ import (
 	"github.com/multiformats/go-varint"
 )
 
-func NewReframeHTTPHandler(fh *handler.FinderHandler) http.HandlerFunc {
-	return server.DelegatedRoutingAsyncHandler(NewReframeService(fh))
+func NewReframeHTTPHandler(indexer indexer.Interface, registry *registry.Registry) http.HandlerFunc {
+	return server.DelegatedRoutingAsyncHandler(NewReframeService(handler.NewFinderHandler(indexer, registry)))
 }
 
 func NewReframeService(fh *handler.FinderHandler) *ReframeService {
@@ -61,8 +63,8 @@ func (x *ReframeService) PutIPNS(id []byte, record []byte) (<-chan client.PutIPN
 	return nil, routing.ErrNotSupported
 }
 
-var bitswapBytes = varint.ToUvarint(uint64(multicodec.TransportBitswap))
+var BitswapMetadataBytes = varint.ToUvarint(uint64(multicodec.TransportBitswap))
 
 func isBitswapMetadata(meta []byte) bool {
-	return bytes.Equal(meta, bitswapBytes)
+	return bytes.Equal(meta, BitswapMetadataBytes)
 }
