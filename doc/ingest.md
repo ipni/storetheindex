@@ -61,13 +61,13 @@ and a linked list of entry chunks should be no more than 400 chunks long. Above 
 
 The reference provider currently supports Bitswap and Filecoin protocols. The structure of the metadata format for these protocols is defined in [the library](https://github.com/filecoin-project/index-provider/tree/main/metadata).
 
-The network indexer nodes expect that metadata begins with a Uvar identifying the protocol, followed by protocol-specific metadata.
+The network indexer nodes expect that metadata begins with a Uvar identifying the protocol, followed by protocol-specific metadata. This may be repeated for additional supported protocols. Specified protocols are expected to be ordered in increasing order.
 
 * Bitswap
-  * uvarint protocol `0x3E0000`.
+  * uvarint protocol `0x0900` (TransportBitswap in the multicodec table).
   * no following metadata.
 * filecoin graphsync
-  * uvarint protcol `0x3F0000`.
+  * uvarint protcol `0x0910`  (TransportGraphsyncFilecoinv1 in the multicodec table).
   * the following bytes should be a cbor encoded struct of:
     * PieceCID, a link
 	* VerifiedDeal, boolean
