@@ -1,6 +1,6 @@
-# Publishes storetheindex container images to the private AWS ECR.
-# The images published to ECR are used in Kubernetes clusters to server cid.contact.
-name: ECR
+# Publishes storetheindex container images to the public Docker Hub registry.
+# See: https://hub.docker.com/r/filecoin/storetheindex
+name: Docker Hub
 
 on:
   # The tags in this repo are pushed via CI, the push events for which will not trigger workflows.
@@ -24,7 +24,7 @@ jobs:
       id-token: write
       contents: read
     env:
-      ECR_REGISTRY: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex
+      DOCKERHUB_REGISTRY: filecoin
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -36,17 +36,14 @@ jobs:
           fi
           echo "Using image tag: ${IMAGE_TAG}"
           echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
-      - name: AWS Login
-        uses: aws-actions/configure-aws-credentials@v1
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
         with:
-          aws-region: us-east-2
-          role-to-assume: "arn:aws:iam::407967248065:role/common/github_actions"
-          role-duration-seconds: 1200
-      - name: Login to Amazon ECR
-        run: aws ecr get-login-password | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Publish Container Image
         run: |
-          IMAGE_NAME="${ECR_REGISTRY}/storetheindex:${IMAGE_TAG}"
+          IMAGE_NAME="${DOCKERHUB_REGISTRY}/storetheindex:${IMAGE_TAG}"
           docker build -t "${IMAGE_NAME}" .
           docker push "${IMAGE_NAME}"
           echo "Published image ${IMAGE_NAME}"
