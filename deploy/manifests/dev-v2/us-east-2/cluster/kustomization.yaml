@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../../base/ingress-nginx
+  - kube-system
+  - cert-manager
+  - external-dns
+  - storetheindex
+  - cluster-autoscaler
+  - monitoring
+  - aws-ebs-csi-driver
+  - promtail

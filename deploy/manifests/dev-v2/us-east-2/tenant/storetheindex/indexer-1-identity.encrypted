@@ -1,0 +1,22 @@
+{
+	"data": "ENC[AES256_GCM,data:6EMX0kbRVLCQMaI2bSxVkONwh37XIr5ty4NpF/AcOqgnl0kpkWKUOjYUdTzh7yjnyZFbBgnOAMbPp5p5qZdrwldoEtk=,iv:DOn2vUH3u85+MSc/ULICzhIfNfyibprMFDsddxg1CUo=,tag:qOPdSiRKWO95BmcC3RH9Pg==,type:str]",
+	"sops": {
+		"kms": [
+			{
+				"arn": "arn:aws:kms:us-east-2:407967248065:alias/sti-dev-v2-flux",
+				"created_at": "2022-05-11T12:45:41Z",
+				"enc": "AQICAHj4pNU1OL6Loln3lLPVVVcE8tUsBP+ckObaD+Pa2UNc6wFrH9Hzln3CXpzTlCCwk6sOAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMfiXzpjbQUcRPENv1AgEQgDvSr5we+bJl+JEV6i0H/JaG5hCCzfSZZv7zrtSEM/r00Qk7Mc7xDk6AHqpLuJm6MPxUXe/WgdmmKNhOvg==",
+				"aws_profile": ""
+			}
+		],
+		"gcp_kms": null,
+		"azure_kv": null,
+		"hc_vault": null,
+		"age": null,
+		"lastmodified": "2022-05-11T12:45:42Z",
+		"mac": "ENC[AES256_GCM,data:2tohpWM88XJdIKV1ABh5ZaEi5eCcJtweVCIg0N21g7Os2IdJj9dDi9xh87wFonmQgdmUffYktlxaQb+LRqR9UA0uJv8MwUVsvZLG5sd9LjpnrEU0ImgI7mIKxQYa6sZzEJJrMwNKFTvWGkXjv0aRgJSPzs2OZ6oRZh6Xzrb5os0=,iv:x72tabY3HgTbqr8Ftd+YVHzZzqippNp88yr6cd5ONu4=,tag:ZFWtu5chMDNSVa5IrfisrQ==,type:str]",
+		"pgp": null,
+		"encrypted_regex": "^(data|stringData)$",
+		"version": "3.7.2"
+	}
+}
