@@ -5,6 +5,7 @@ metadata:
 provisioner: ebs.csi.aws.com
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
+reclaimPolicy: retain
 parameters:
   type: io2
   # `iopsPerGB` is I/O operations per second per GiB, which is multiplied by the size of the 
