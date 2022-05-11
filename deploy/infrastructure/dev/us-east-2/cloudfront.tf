@@ -30,7 +30,9 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   default_cache_behavior {
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    # We need to allow GET and PUT. CloudFront does not support configuring allowed methods selectively.
+    # Hence the complete method list.
+    allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = local.cdn_origin_id
 
