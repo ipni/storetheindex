@@ -9,6 +9,7 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/filecoin-project/storetheindex/server/reframe"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
@@ -66,6 +67,9 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 
 	r.HandleFunc("/providers", h.listProviders).Methods(http.MethodGet)
 	r.HandleFunc("/providers/{providerid}", h.getProvider).Methods(http.MethodGet)
+
+	reframeHandler := reframe.NewReframeHTTPHandler(indexer, registry)
+	r.HandleFunc("/reframe", reframeHandler)
 
 	server := &http.Server{
 		Handler:      r,
