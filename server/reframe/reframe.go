@@ -35,7 +35,7 @@ func (x *ReframeService) FindProviders(key cid.Cid) (<-chan client.FindProviders
 	if err != nil {
 		return nil, err
 	}
-	ch := make(chan client.FindProvidersAsyncResult)
+	ch := make(chan client.FindProvidersAsyncResult, 1)
 	peerAddrs := []peer.AddrInfo{}
 	for _, mhr := range fr.MultihashResults {
 		if !bytes.Equal(mhr.Multihash, mh) {
