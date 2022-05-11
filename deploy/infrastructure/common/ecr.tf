@@ -4,6 +4,7 @@ module "ecr_ue2" {
   repositories = [
     "storetheindex/storetheindex",
     "index-observer/index-observer",
+    "autoretrieve/autoretrieve",
   ]
   tags = local.tags
 }
