@@ -49,6 +49,8 @@ module "github_actions_role" {
 
   oidc_subjects_with_wildcards = [
     "repo:filecoin-project/storetheindex:*",
-    "repo:filecoin-shipyard/index-observer:*"
+    "repo:filecoin-shipyard/index-observer:*",
+    "repo:application-research/autoretrieve:*",
+    "repo:masih/autoretrieve:*" # Allow work from da fork until access to the main repo is sorted.
   ]
 }
