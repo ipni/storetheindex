@@ -4,10 +4,10 @@ kind: Kustomization
 resources:
   - ../../../base/ingress-nginx
   - kube-system
-  - cert-manager
-  - external-dns
-  - storetheindex
-  - cluster-autoscaler
-  - monitoring
-  - aws-ebs-csi-driver
-  - promtail
+  # - cert-manager
+  # - external-dns
+  # - storetheindex
+  # - cluster-autoscaler
+  # - monitoring
+  # - aws-ebs-csi-driver
+  # - promtail
