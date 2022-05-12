@@ -1,11 +1,11 @@
 {
-	"data": "ENC[AES256_GCM,data:VP9ZbzGkpnKBf5fNgyUIJccVCSb906IUlyVdLzC7UOy20wJ0yDUI5GfE+ZfsJn6f1W+A5Yzb68xPW38lRzE8nktpL0M=,iv:2jJXz8TPHr2oEQOnr9SIRIUaO7R7aPRRiXYkvqk/oE4=,tag:PZ6dCeeh6Oh0ShhQe1kqEg==,type:str]",
+	"data": "ENC[AES256_GCM,data:o9/ktfkhOJe3cDwRRYkM364g0onssB8wS5lcXBsFW1/atqprn8ZHocHmK0lgp5uyIru+Gctdi6Im9ElBUM5zkMMD6uw=,iv:5bMAHfzjjVoMwIcOCanVdiIheQePeaXitdEs4sxCegw=,tag:/AJZVQjrfRqWz1hYa/qCOQ==,type:str]",
 	"sops": {
 		"kms": [
 			{
-				"arn": "arn:aws:kms:us-east-2:407967248065:alias/sti-dev-v2-flux",
-				"created_at": "2022-05-11T12:45:46Z",
-				"enc": "AQICAHj4pNU1OL6Loln3lLPVVVcE8tUsBP+ckObaD+Pa2UNc6wEiCfljiiSPBpXvHOuniSCsAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQM+e20Qbq/PoZmwe2UAgEQgDsdocqwklR45GHqo+Q+RTBpx7zaRlREtegfuYSqCj1WiMude7qVpaQGRj5VXFPvPKpuoX7ZBZRSxW8FDQ==",
+				"arn": "arn:aws:kms:us-east-2:407967248065:alias/sti-dev-v3-flux",
+				"created_at": "2022-05-12T22:33:43Z",
+				"enc": "AQICAHijN7A9DYX4tnfIrs3FJK8zcNnGPs//gerk+/dR8QTTfQG6D2auYXD3vzfZ9zEB4YqpAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQM1XyWInk/OFNuJDaiAgEQgDt7UQRyWBpQ6j3FexU8+yow8e9mHKaQdqrExRRPlOTJ/N3Mr9H+LTj1rVii0fRldLPQFoA02/SrQPpjug==",
 				"aws_profile": ""
 			}
 		],
@@ -13,10 +13,10 @@
 		"azure_kv": null,
 		"hc_vault": null,
 		"age": null,
-		"lastmodified": "2022-05-11T12:45:47Z",
-		"mac": "ENC[AES256_GCM,data:Nakf24K2KRyz/q7GBpUGlHhhne2b6Z543PsLCiXdLznlT/FoV936tLWPwXcw3blJlQI9+p0ccY0rWy6cX/dvA+NqT5teUmVydleHj+VyLRiEGEDAL4Lq6qEWq7yaZdAk7Yi/cUmW/wDzfMOH7EUXvNyQEBBwjUAH+r8KGU7x2bc=,iv:MnU4yz73mBZpYz457Vvvh4w/hnZnXL3KjqJgV9HUA14=,tag:bwUMulQFgNHRY2euigSmfQ==,type:str]",
+		"lastmodified": "2022-05-12T22:33:43Z",
+		"mac": "ENC[AES256_GCM,data:mitzX4vFouFejlSnhbsmHsqdBTkMP99DYK2zmreoqCruIYSTMJOk2b+13KmUfx3807N+TXm0+UtItAGJJ7h9XP0q/i+3r40d3/lmEwqc95NYnxf2K1VqRTaWtjIsAVJNL3KCKyjImkeqexdLw1wCTn2EoTFWECJIBzvNq6dBKRc=,iv:wzuX52oRxVZ0eIj5IG6T4SB8zrY9E0ayOrs7RiVENrQ=,tag:xlwfOEqUpZ1u5FJwB1Cb7g==,type:str]",
 		"pgp": null,
 		"encrypted_regex": "^(data|stringData)$",
-		"version": "3.7.2"
+		"version": "3.7.1"
 	}
 }
