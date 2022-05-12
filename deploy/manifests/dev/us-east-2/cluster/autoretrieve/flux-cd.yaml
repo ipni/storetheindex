@@ -6,7 +6,7 @@ spec:
   interval: 5m
   url: https://github.com/application-research/autoretrieve.git
   ref:
-    branch: main
+    branch: master
   secretRef:
     name: github-auth
 ---
@@ -62,7 +62,7 @@ spec:
   git:
     checkout:
       ref:
-        branch: main
+        branch: master
     commit:
       author:
         name: sti-bot

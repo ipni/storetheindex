@@ -1,8 +1,13 @@
 output "kms_sti_alias_arn" {
   value = aws_kms_alias.kms_sti.arn
 }
+
 output "kms_cluster_alias_arn" {
   value = aws_kms_alias.kms_cluster.arn
+}
+
+output "kms_autoretrieve_alias_arn" {
+  value = aws_kms_alias.kms_autoretrieve.arn
 }
 
 output "kustomize_controller_role_arn" {

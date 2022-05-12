@@ -9,7 +9,7 @@ loop while the long term plans are being decided. This deployment also facilitat
 forwarding to the PL grafana for `autoretrieve`.
 
 Note that the [_application
-level_ manifests](https://github.com/application-research/autoretrieve/tree/main/deploy/manifests/dev/us-east-2)
+level_ manifests](https://github.com/application-research/autoretrieve/tree/master/deploy/manifests/dev/us-east-2)
 are located at the `autoretrieve` repo itself.
 
 See:
