@@ -1,4 +1,4 @@
 creation_rules:
   - path_regex: .*
     encrypted_regex: '^(data|stringData)$'
-    kms: 'arn:aws:kms:us-east-2:407967248065:alias/sti-dev-v2-flux'
+    kms: 'arn:aws:kms:us-east-2:407967248065:alias/sti-dev-v3-flux'
