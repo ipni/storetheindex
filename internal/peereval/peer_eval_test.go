@@ -29,12 +29,12 @@ func init() {
 }
 
 func TestNew(t *testing.T) {
-	except, err := StringsToPeerIDs([]string{exceptIDStr, "bad ID"})
+	_, err := StringsToPeerIDs([]string{exceptIDStr, "bad ID"})
 	if err == nil {
 		t.Error("expected error with bad except ID")
 	}
 
-	except, err = StringsToPeerIDs([]string{exceptIDStr})
+	except, err := StringsToPeerIDs([]string{exceptIDStr})
 	if err != nil {
 		t.Fatal(err)
 	}

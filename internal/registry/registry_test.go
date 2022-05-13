@@ -195,7 +195,7 @@ func TestDiscoveryAllowed(t *testing.T) {
 		t.Error("should not have cleaned up discovery times")
 	}
 	r.cleanup()
-	r.actions <- func() { return }
+	r.actions <- func() {}
 	if len(r.discoverTimes) != 0 {
 		t.Error("should have cleaned up discovery times")
 	}
