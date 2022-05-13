@@ -21,6 +21,8 @@ type Ingest struct {
 	IngestWorkerCount int
 	// PubSubTopic used to advertise ingestion announcements.
 	PubSubTopic string
+	// RateLimit contains rate-limiting configuration.
+	RateLimit RateLimit
 	// StoreBatchSize is the number of entries in each write to the value
 	// store. Specifying a value less than 2 disables batching. This should be
 	// smaller than the maximum number of multihashes in an entry block to
@@ -40,6 +42,7 @@ func NewIngest() Ingest {
 		EntriesDepthLimit:       65536,
 		IngestWorkerCount:       10,
 		PubSubTopic:             "/indexer/ingest/mainnet",
+		RateLimit:               NewRateLimit(),
 		StoreBatchSize:          4096,
 		SyncTimeout:             Duration(2 * time.Hour),
 	}

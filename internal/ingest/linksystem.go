@@ -120,56 +120,13 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 	return provID, nil
 }
 
-// ingestEntryChunk determines the logic to run when a new block is received
-// through graphsync.
-//
-// For a chain of advertisements, the storage hook sees the advertisements from
-// newest to oldest, and starts an entries sync goroutine for each
-// advertisement. These goroutines each wait for the sync goroutine associated
-// with the previous advertisement to complete before beginning their sync for
-// content blocks.
-//
-// When a non-advertisement block is received, it means that the entries sync
-// is running and is collecting content chunks for an advertisement. Now this
-// hook is being called for each entry in an advertisement's chain of entries.
-// Process the entry and save all the multihashes in it as indexes in the
-// indexer-core.
-func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schema.Advertisement, entryChunkCid cid.Cid) error {
-	log := log.With("publisher", publisher, "adCid", adCid, "cid", entryChunkCid)
-
-	// Get data corresponding to the block.
-	entryChunkKey := dsKey(entryChunkCid.String())
-	val, err := ing.ds.Get(context.Background(), entryChunkKey)
-	if err != nil {
-		return fmt.Errorf("cannot fetch the node from datastore: %w", err)
-	}
-	defer func() {
-		// Remove the content block from the data store now that processing it
-		// has finished. This prevents storing redundant information in several
-		// datastores.
-		err := ing.ds.Delete(context.Background(), entryChunkKey)
-		if err != nil {
-			log.Errorw("Error deleting index from datastore", "err", err)
-		}
-	}()
-
-	// Decode block to IPLD node
-	node, err := decodeIPLDNode(entryChunkCid.Prefix().Codec, bytes.NewBuffer(val), schema.EntryChunkPrototype)
-	if err != nil {
-		return fmt.Errorf("failed to decode ipldNode: %w", err)
-	}
-
-	err = ing.indexContentBlock(adCid, ad, publisher, node)
-	if err != nil {
-		return fmt.Errorf("failed processing entries for advertisement: %w", err)
-	}
-
-	ing.signalMetricsUpdate()
-	return nil
-}
-
 // ingestAd fetches all the entries for a single advertisement and processes
-// them.
+// them. This is called for each advertisement in a synced chain by an ingester
+// worker. The worker begins processing the synced advertisement chain when it
+// receives notification that a peer has finished a sync for advertisements.
+//
+// Advertisements are processed from oldest to newest, which is the reverse
+// order that they were received in.
 func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement) error {
 	stats.Record(context.Background(), metrics.IngestChange.M(1))
 	ingestStart := time.Now()
@@ -272,6 +229,47 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	if len(errsIngestingEntryChunks) > 0 {
 		return adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to ingest entry chunks: %v", errsIngestingEntryChunks)}
 	}
+	return nil
+}
+
+// ingestEntryChunk ingests a block of entries as that block is received
+// through graphsync.
+//
+// When each advertisement on a chain is processed by ingestAd, that
+// advertisement's entries are synced in a spearate legs.Subscriber.Sync
+// operation. This function is used as a scoped block hook, and is called for
+// each block that is received.
+func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schema.Advertisement, entryChunkCid cid.Cid) error {
+	log := log.With("publisher", publisher, "adCid", adCid, "cid", entryChunkCid)
+
+	// Get data corresponding to the block.
+	entryChunkKey := dsKey(entryChunkCid.String())
+	val, err := ing.ds.Get(context.Background(), entryChunkKey)
+	if err != nil {
+		return fmt.Errorf("cannot fetch the node from datastore: %w", err)
+	}
+	defer func() {
+		// Remove the content block from the data store now that processing it
+		// has finished. This prevents storing redundant information in several
+		// datastores.
+		err := ing.ds.Delete(context.Background(), entryChunkKey)
+		if err != nil {
+			log.Errorw("Error deleting index from datastore", "err", err)
+		}
+	}()
+
+	// Decode block to IPLD node
+	node, err := decodeIPLDNode(entryChunkCid.Prefix().Codec, bytes.NewBuffer(val), schema.EntryChunkPrototype)
+	if err != nil {
+		return fmt.Errorf("failed to decode ipldNode: %w", err)
+	}
+
+	err = ing.indexContentBlock(adCid, ad, publisher, node)
+	if err != nil {
+		return fmt.Errorf("failed processing entries for advertisement: %w", err)
+	}
+
+	ing.signalMetricsUpdate()
 	return nil
 }
 

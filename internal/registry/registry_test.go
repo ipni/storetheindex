@@ -33,12 +33,10 @@ const (
 
 var discoveryCfg = config.Discovery{
 	Policy: config.Policy{
-		Allow:           false,
-		Except:          []string{exceptID, limitedID, limitedID2, publisherID},
-		RateLimit:       false,
-		RateLimitExcept: []string{limitedID, limitedID2, publisherID},
-		Publish:         false,
-		PublishExcept:   []string{publisherID},
+		Allow:         false,
+		Except:        []string{exceptID, limitedID, limitedID2, publisherID},
+		Publish:       false,
+		PublishExcept: []string{publisherID},
 	},
 	PollInterval:   config.Duration(time.Minute),
 	RediscoverWait: config.Duration(time.Minute),
