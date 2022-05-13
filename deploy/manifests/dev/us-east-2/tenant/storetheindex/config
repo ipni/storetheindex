@@ -40,7 +40,7 @@
     "Policy": {
       "Allow": false,
       "Except": [
-        "QmQzqxhK82kAmKvARFZSkUVS6fo9sySaiogAnx5EnZ6ZmC",
+        "QmQzqxhK82kAmKvARFZSkUVS6fo9sySaiogAnx5EnZ6ZmC"
       ],
       "Publish": true,
       "PublishExcept": null,
