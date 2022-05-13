@@ -13,6 +13,11 @@ secretGenerator:
   files:
   - indexer-0.key=indexer-0-identity.encrypted
   - indexer-1.key=indexer-1-identity.encrypted
+configMapGenerator:
+- name: indexer-config
+  behavior: replace
+  files:
+    - config 
 replicas:
 - name: indexer
   count: 2
