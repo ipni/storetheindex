@@ -332,7 +332,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 // Announce send an annouce message to directly to go-legs, instead of through
 // pubsub.
 func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, addrInfo peer.AddrInfo) error {
-	log.Infow("Handling direct announce request", "peer", addrInfo.ID)
+	log.Infow("Handling direct announce request", "peer", addrInfo.ID, "cid", nextCid, "addrs", addrInfo.Addrs)
 	return ing.sub.Announce(ctx, nextCid, addrInfo.ID, addrInfo.Addrs)
 }
 

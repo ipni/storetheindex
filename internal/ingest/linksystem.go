@@ -71,14 +71,14 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 			}
 			// If it is an advertisement.
 			if isAdvertisement(n) {
-				log.Infow("Received advertisement")
-
 				// Verify that the signature is correct and the advertisement
 				// is valid.
-				_, _, err := verifyAdvertisement(n, reg)
+				provID, err := verifyAdvertisement(n, reg)
 				if err != nil {
 					return err
 				}
+
+				log.Infow("Received advertisement", "provider", provID)
 			} else {
 				log.Debug("Received IPLD node")
 			}
@@ -89,35 +89,35 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 	return lsys
 }
 
-func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (*schema.Advertisement, peer.ID, error) {
+func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 	ad, err := schema.UnwrapAdvertisement(n)
 	if err != nil {
 		log.Errorw("Cannot decode advertisement", "err", err)
-		return nil, "", errBadAdvert
+		return "", errBadAdvert
 	}
 	// Verify advertisement signature.
 	signerID, err := ad.VerifySignature()
 	if err != nil {
 		// stop exchange, verification of signature failed.
 		log.Errorw("Advertisement signature verification failed", "err", err)
-		return nil, "", errInvalidAdvertSignature
+		return "", errInvalidAdvertSignature
 	}
 
 	// Get provider ID from advertisement.
 	provID, err := peer.Decode(ad.Provider)
 	if err != nil {
-		log.Errorw("Cannot get provider from advertisement", "err", err)
-		return nil, "", errBadAdvert
+		log.Errorw("Cannot get provider from advertisement", "err", err, "signer", signerID)
+		return "", errBadAdvert
 	}
 
-	// Verify that the advertised is signed by the provider or by an allowed
+	// Verify that the advertisement is signed by the provider or by an allowed
 	// publisher.
 	if signerID != provID && !reg.PublishAllowed(signerID, provID) {
 		log.Errorw("Advertisement not signed by provider or allowed publisher", "provider", ad.Provider, "signer", signerID)
-		return nil, "", errInvalidAdvertSignature
+		return "", errInvalidAdvertSignature
 	}
 
-	return ad, provID, nil
+	return provID, nil
 }
 
 // ingestEntryChunk determines the logic to run when a new block is received
