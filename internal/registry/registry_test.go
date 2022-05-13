@@ -75,11 +75,11 @@ func (m *mockDiscoverer) Discover(ctx context.Context, peerID peer.ID, filecoinA
 }
 
 func TestNewRegistryDiscovery(t *testing.T) {
-	mockDisco := newMockDiscoverer(t, exceptID)
+	mockDiscoverer := newMockDiscoverer(t, exceptID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDisco)
+	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDiscoverer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,11 +128,11 @@ func TestNewRegistryDiscovery(t *testing.T) {
 }
 
 func TestDiscoveryAllowed(t *testing.T) {
-	mockDisco := newMockDiscoverer(t, exceptID)
+	mockDiscoverer := newMockDiscoverer(t, exceptID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDisco)
+	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDiscoverer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestDiscoveryAllowed(t *testing.T) {
 	}
 	t.Log("discovered mock miner", minerDiscoAddr)
 
-	info := r.ProviderInfoByAddr(minerDiscoAddr)
+	info := r.ProviderInfo(peerID)
 	if info == nil {
 		t.Fatal("did not get provider info for miner")
 	}
@@ -180,14 +180,29 @@ func TestDiscoveryAllowed(t *testing.T) {
 		t.Error("failed to register directly:", err)
 	}
 
+	if !r.IsRegistered(peerID) {
+		t.Error("peer is not registered")
+	}
+
 	infos := r.AllProviderInfo()
 	if len(infos) != 2 {
 		t.Fatal("expected 2 provider infos")
 	}
+
+	r.cleanup()
+	r.actions <- func() { r.rediscoverWait = 0 }
+	if len(r.discoverTimes) == 0 {
+		t.Error("should not have cleaned up discovery times")
+	}
+	r.cleanup()
+	r.actions <- func() { return }
+	if len(r.discoverTimes) != 0 {
+		t.Error("should have cleaned up discovery times")
+	}
 }
 
 func TestDiscoveryBlocked(t *testing.T) {
-	mockDisco := newMockDiscoverer(t, exceptID)
+	mockDiscoverer := newMockDiscoverer(t, exceptID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -196,7 +211,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 		t.Fatal("bad provider ID:", err)
 	}
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDisco)
+	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDiscoverer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +225,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 		t.Fatal("expected error:", ErrNotAllowed, "got:", err)
 	}
 
-	into := r.ProviderInfoByAddr(minerDiscoAddr)
+	into := r.ProviderInfo(peerID)
 	if into != nil {
 		t.Error("should not have found provider info for miner")
 	}
@@ -218,7 +233,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 
 func TestDatastore(t *testing.T) {
 	dataStorePath := t.TempDir()
-	mockDisco := newMockDiscoverer(t, exceptID)
+	mockDiscoverer := newMockDiscoverer(t, exceptID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -266,7 +281,7 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewRegistry(ctx, discoveryCfg, dstore, mockDisco)
+	r, err := NewRegistry(ctx, discoveryCfg, dstore, mockDiscoverer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +321,7 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err = NewRegistry(ctx, discoveryCfg, dstore, mockDisco)
+	r, err = NewRegistry(ctx, discoveryCfg, dstore, mockDiscoverer)
 	if err != nil {
 		t.Fatal(err)
 	}

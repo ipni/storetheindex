@@ -165,4 +165,24 @@ func TestPolicyAccess(t *testing.T) {
 	if p.Allowed(otherID) {
 		t.Error("peer ID should not be allowed")
 	}
+
+	cfg := p.ToConfig()
+	if cfg.Allow != true {
+		t.Error("wrong config.Allow")
+	}
+	if cfg.Publish != true {
+		t.Error("wrong config.Publish")
+	}
+	if cfg.RateLimit != true {
+		t.Error("wrong config.RateLimit")
+	}
+	if len(cfg.Except) != 1 {
+		t.Fatal("expected 1 item in cfg.Except")
+	}
+	if cfg.Except[0] != otherIDStr {
+		t.Error("wrong ID in cfg.Except")
+	}
+	if len(cfg.PublishExcept) != 1 {
+		t.Fatal("expected 1 item in cfg.PublishExcept")
+	}
 }
