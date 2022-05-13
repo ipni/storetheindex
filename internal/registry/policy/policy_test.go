@@ -71,8 +71,8 @@ func TestNewPolicy(t *testing.T) {
 	policyCfg.Except = nil
 
 	_, err = New(policyCfg)
-	if err == nil {
-		t.Error("expected error with inaccessible policy")
+	if err != nil {
+		t.Error(err)
 	}
 
 	policyCfg.Allow = true
@@ -193,5 +193,13 @@ func TestPolicyAccess(t *testing.T) {
 	}
 	if len(cfg.PublishExcept) != 1 {
 		t.Fatal("expected 1 item in cfg.PublishExcept")
+	}
+
+	p, err = New(config.Policy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.NoneAllowed() {
+		t.Error("expected inaccessible policy")
 	}
 }

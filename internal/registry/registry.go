@@ -132,6 +132,10 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 	if err != nil {
 		return nil, err
 	}
+	// Log warning if no peers are allowed.
+	if regPolicy.NoneAllowed() {
+		log.Warn("Policy does not allow any peers to index content")
+	}
 
 	r := &Registry{
 		actions:   make(chan func()),
@@ -349,6 +353,11 @@ func (r *Registry) SetPolicy(policyCfg config.Policy) error {
 	if err != nil {
 		return err
 	}
+	// Log warning if no peers are allowed.
+	if newPol.NoneAllowed() {
+		log.Warn("Policy does not allow any peers to index content")
+	}
+
 	r.policy.Copy(newPol)
 	return nil
 }

@@ -1,7 +1,6 @@
 package policy
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 
@@ -21,11 +20,6 @@ func New(cfg config.Policy) (*Policy, error) {
 	allow, err := peerutil.NewStrings(cfg.Allow, cfg.Except)
 	if err != nil {
 		return nil, fmt.Errorf("bad allow policy: %s", err)
-	}
-
-	// Error if no peers are allowed.
-	if !allow.Any(true) {
-		return nil, errors.New("policy does not allow any peers")
 	}
 
 	publish, err := peerutil.NewStrings(cfg.Publish, cfg.PublishExcept)
@@ -113,4 +107,9 @@ func (p *Policy) ToConfig() config.Policy {
 		RateLimit:       p.rateLimit.Default(),
 		RateLimitExcept: p.rateLimit.ExceptStrings(),
 	}
+}
+
+// Return true if no peers are allowed.
+func (p *Policy) NoneAllowed() bool {
+	return !p.allow.Any(true)
 }

@@ -414,8 +414,11 @@ func TestAllowed(t *testing.T) {
 	}
 
 	err = r.SetPolicy(config.Policy{})
-	if err == nil {
-		t.Error("expected error with block policy with no exceptions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.policy.NoneAllowed() {
+		t.Error("expected inaccessible policy")
 	}
 
 	err = r.SetPolicy(config.Policy{
