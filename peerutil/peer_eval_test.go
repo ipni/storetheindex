@@ -1,4 +1,4 @@
-package peereval
+package peerutil
 
 import (
 	"testing"

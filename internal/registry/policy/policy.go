@@ -6,19 +6,19 @@ import (
 	"sync"
 
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/peereval"
+	"github.com/filecoin-project/storetheindex/peerutil"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 type Policy struct {
-	allow     peereval.PeerEval
-	publish   peereval.PeerEval
-	rateLimit peereval.PeerEval
+	allow     peerutil.PeerEval
+	publish   peerutil.PeerEval
+	rateLimit peerutil.PeerEval
 	rwmutex   sync.RWMutex
 }
 
 func New(cfg config.Policy) (*Policy, error) {
-	allow, err := peereval.NewStrings(cfg.Allow, cfg.Except)
+	allow, err := peerutil.NewStrings(cfg.Allow, cfg.Except)
 	if err != nil {
 		return nil, fmt.Errorf("bad allow policy: %s", err)
 	}
@@ -28,12 +28,12 @@ func New(cfg config.Policy) (*Policy, error) {
 		return nil, errors.New("policy does not allow any peers")
 	}
 
-	publish, err := peereval.NewStrings(cfg.Publish, cfg.PublishExcept)
+	publish, err := peerutil.NewStrings(cfg.Publish, cfg.PublishExcept)
 	if err != nil {
 		return nil, fmt.Errorf("bad publish policy: %s", err)
 	}
 
-	rateLimit, err := peereval.NewStrings(cfg.RateLimit, cfg.RateLimitExcept)
+	rateLimit, err := peerutil.NewStrings(cfg.RateLimit, cfg.RateLimitExcept)
 	if err != nil {
 		return nil, fmt.Errorf("bad rate limit policy: %s", err)
 	}

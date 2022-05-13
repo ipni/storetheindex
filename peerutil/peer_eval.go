@@ -1,7 +1,4 @@
-// Package peereval defines a boolean value with a set of peer IDs. This serves
-// a the basis for simple policies that apply to all peers except those in set
-// of peer IDs.
-package peereval
+package peerutil
 
 import (
 	"fmt"
@@ -12,6 +9,9 @@ import (
 // PeerEval is a boolean value with a set of zero or more peer ID values.
 // Evaluating a peer ID returns the boolean value, or its opposite if the peer
 // ID is in the set of IDs.
+//
+// This serves a the basis for simple policies that apply to all peers except
+// those in the set of peer IDs.
 type PeerEval struct {
 	value  bool
 	except map[peer.ID]struct{}
