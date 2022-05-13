@@ -9,6 +9,11 @@ data:
       - system:nodes
       rolearn: arn:aws:iam::407967248065:role/dev-ue2-m4-xl-eks-node-group
       username: system:node:{{EC2PrivateDNSName}}
+    - groups:
+      - system:bootstrappers
+      - system:nodes
+      rolearn: arn:aws:iam::407967248065:role/dev-ue2-r5b-xl-eks-node-group
+      username: system:node:{{EC2PrivateDNSName}}
   mapUsers: |
     - userarn: arn:aws:iam::407967248065:user/masih
       username: masih
