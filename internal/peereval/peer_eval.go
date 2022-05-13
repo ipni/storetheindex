@@ -36,6 +36,25 @@ func New(value bool, except ...peer.ID) PeerEval {
 	}
 }
 
+func NewStrings(value bool, except []string) (PeerEval, error) {
+	var exceptIDs map[peer.ID]struct{}
+	if len(except) != 0 {
+		exceptIDs = make(map[peer.ID]struct{}, len(except))
+		for _, exceptID := range except {
+			peerID, err := peer.Decode(exceptID)
+			if err != nil {
+				return PeerEval{}, fmt.Errorf("error decoding peer id %q: %s", exceptID, err)
+			}
+			exceptIDs[peerID] = struct{}{}
+		}
+	}
+
+	return PeerEval{
+		value:  value,
+		except: exceptIDs,
+	}, nil
+}
+
 // Eval returns the boolean value for the specified peer.
 func (p *PeerEval) Eval(peerID peer.ID) bool {
 	_, ok := p.except[peerID]
@@ -92,22 +111,4 @@ func (p *PeerEval) ExceptStrings() []string {
 		i++
 	}
 	return exceptStrs
-}
-
-// StringsToPeerIDs converts a peer ID strings to peer.ID values.
-func StringsToPeerIDs(except []string) ([]peer.ID, error) {
-	if len(except) == 0 {
-		return nil, nil
-	}
-
-	var err error
-	exceptIDs := make([]peer.ID, len(except))
-	for i, exceptID := range except {
-		exceptIDs[i], err = peer.Decode(exceptID)
-		if err != nil {
-			return nil, fmt.Errorf("error decoding peer id %q: %s", exceptID, err)
-		}
-	}
-
-	return exceptIDs, nil
 }

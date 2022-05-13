@@ -345,7 +345,12 @@ func (r *Registry) PublishAllowed(publisherID, providerID peer.ID) bool {
 }
 
 func (r *Registry) SetPolicy(policyCfg config.Policy) error {
-	return r.policy.Config(policyCfg)
+	newPol, err := policy.New(policyCfg)
+	if err != nil {
+		return err
+	}
+	r.policy.Copy(newPol)
+	return nil
 }
 
 // AllowPeer configures the policy to allow messages published by the

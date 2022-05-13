@@ -54,15 +54,22 @@ func TestNewPolicy(t *testing.T) {
 	if err == nil {
 		t.Error("expected error with bad RateLimitExcept ID")
 	}
-
 	policyCfg.RateLimitExcept = nil
+
+	policyCfg.PublishExcept = append(policyCfg.PublishExcept, "bad ID")
+	_, err = New(policyCfg)
+	if err == nil {
+		t.Error("expected error with bad PublishExcept ID")
+	}
+	policyCfg.PublishExcept = nil
+
 	policyCfg.Except = append(policyCfg.Except, "bad ID")
 	_, err = New(policyCfg)
 	if err == nil {
 		t.Error("expected error with bad except ID")
 	}
-
 	policyCfg.Except = nil
+
 	_, err = New(policyCfg)
 	if err == nil {
 		t.Error("expected error with inaccessible policy")
@@ -127,10 +134,12 @@ func TestPolicyAccess(t *testing.T) {
 	policyCfg.Allow = true
 	policyCfg.Publish = true
 	policyCfg.RateLimit = true
-	err = p.Config(policyCfg)
+
+	newPol, err := New(policyCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
+	p.Copy(newPol)
 
 	if !p.Allowed(otherID) {
 		t.Error("peer ID should be allowed by policy")

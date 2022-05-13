@@ -18,13 +18,31 @@ type Policy struct {
 }
 
 func New(cfg config.Policy) (*Policy, error) {
-	pol := &Policy{}
-
-	err := pol.Config(cfg)
+	allow, err := peereval.NewStrings(cfg.Allow, cfg.Except)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("bad allow policy: %s", err)
 	}
-	return pol, nil
+
+	// Error if no peers are allowed.
+	if !allow.Any(true) {
+		return nil, errors.New("policy does not allow any peers")
+	}
+
+	publish, err := peereval.NewStrings(cfg.Publish, cfg.PublishExcept)
+	if err != nil {
+		return nil, fmt.Errorf("bad publish policy: %s", err)
+	}
+
+	rateLimit, err := peereval.NewStrings(cfg.RateLimit, cfg.RateLimitExcept)
+	if err != nil {
+		return nil, fmt.Errorf("bad rate limit policy: %s", err)
+	}
+
+	return &Policy{
+		allow:     allow,
+		publish:   publish,
+		rateLimit: rateLimit,
+	}, nil
 }
 
 // Allowed returns true if the policy allows the peer to index content.
@@ -70,35 +88,16 @@ func (p *Policy) Block(peerID peer.ID) bool {
 	return p.allow.SetPeer(peerID, false)
 }
 
-// Config applies the configuration.
-func (p *Policy) Config(cfg config.Policy) error {
+// Copy copies another policy.
+func (p *Policy) Copy(other *Policy) {
 	p.rwmutex.Lock()
 	defer p.rwmutex.Unlock()
 
-	except, err := peereval.StringsToPeerIDs(cfg.Except)
-	if err != nil {
-		return fmt.Errorf("bad allow policy: %s", err)
-	}
-	p.allow = peereval.New(cfg.Allow, except...)
-
-	// Error if no peers are allowed.
-	if !p.allow.Any(true) {
-		return errors.New("policy does not allow any peers")
-	}
-
-	except, err = peereval.StringsToPeerIDs(cfg.PublishExcept)
-	if err != nil {
-		return fmt.Errorf("bad publish policy: %s", err)
-	}
-	p.publish = peereval.New(cfg.Publish, except...)
-
-	except, err = peereval.StringsToPeerIDs(cfg.RateLimitExcept)
-	if err != nil {
-		return fmt.Errorf("bad rate limit policy: %s", err)
-	}
-	p.rateLimit = peereval.New(cfg.RateLimit, except...)
-
-	return nil
+	other.rwmutex.RLock()
+	p.allow = other.allow
+	p.publish = other.publish
+	p.rateLimit = other.rateLimit
+	other.rwmutex.RUnlock()
 }
 
 // ToConfig converts a Policy into a config.Policy.

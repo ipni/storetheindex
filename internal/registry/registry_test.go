@@ -359,6 +359,81 @@ func TestDatastore(t *testing.T) {
 	}
 }
 
+func TestAllowed(t *testing.T) {
+	cfg := config.Discovery{
+		Policy: config.Policy{
+			Allow:   true,
+			Publish: true,
+		},
+		RediscoverWait: config.Duration(time.Minute),
+	}
+
+	ctx := context.Background()
+
+	r, err := NewRegistry(ctx, cfg, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubID, err := peer.Decode(publisherID)
+	if err != nil {
+		t.Fatal("bad publisher ID:", err)
+	}
+
+	ok, err := r.Allowed(pubID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("peer should be allowed")
+	}
+	if !r.PublishAllowed(pubID, pubID) {
+		t.Fatal("peer should be allowed")
+	}
+
+	if !r.BlockPeer(pubID) {
+		t.Error("should have update policy to block peer")
+	}
+	ok, err = r.Allowed(pubID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("peer should be blocked")
+	}
+
+	if !r.AllowPeer(pubID) {
+		t.Error("should have update policy to allow peer")
+	}
+	ok, err = r.Allowed(pubID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("peer should be allowed")
+	}
+
+	err = r.SetPolicy(config.Policy{})
+	if err == nil {
+		t.Error("expected error with block policy with no exceptions")
+	}
+
+	err = r.SetPolicy(config.Policy{
+		Allow:  true,
+		Except: []string{publisherID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ok, err = r.Allowed(pubID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("peer should be blocked")
+	}
+}
+
 func TestPollProvider(t *testing.T) {
 	cfg := config.Discovery{
 		Policy: config.Policy{

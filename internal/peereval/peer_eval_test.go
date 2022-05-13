@@ -29,22 +29,25 @@ func init() {
 }
 
 func TestNew(t *testing.T) {
-	_, err := StringsToPeerIDs([]string{exceptIDStr, "bad ID"})
+	_, err := NewStrings(false, []string{exceptIDStr, "bad ID"})
 	if err == nil {
 		t.Error("expected error with bad except ID")
 	}
 
-	except, err := StringsToPeerIDs([]string{exceptIDStr})
+	except := []string{exceptIDStr}
+
+	p, err := NewStrings(false, except)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	p := New(false, except...)
 	if !p.Any(true) {
 		t.Error("true should be possible")
 	}
 
-	p = New(true, except...)
+	p, err = NewStrings(true, except)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !p.Any(true) {
 		t.Error("true should be possible")
 	}
@@ -166,29 +169,28 @@ func TestTrueDefault(t *testing.T) {
 }
 
 func TestExceptStrings(t *testing.T) {
-	exceptIDs, err := StringsToPeerIDs(nil)
+	p, err := NewStrings(false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exceptIDs != nil {
-		t.Fatal("expected nil peer id slice")
+	if len(p.ExceptStrings()) != 0 {
+		t.Fatal("should not be any except strings")
 	}
 
 	except := []string{exceptIDStr, otherIDStr}
-	exceptIDs, err = StringsToPeerIDs(except)
+
+	p, err = NewStrings(false, except)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	p := New(false, exceptIDs...)
-
-	exstrs := p.ExceptStrings()
-	if len(exstrs) != 2 {
+	exStrs := p.ExceptStrings()
+	if len(exStrs) != 2 {
 		t.Fatal("wrong number of except strings")
 	}
 
-	for _, exstr := range exstrs {
-		if exstr != except[0] && exstr != except[1] {
+	for _, exStr := range exStrs {
+		if exStr != except[0] && exStr != except[1] {
 			t.Fatal("except strings does not match original")
 		}
 	}
