@@ -28,9 +28,9 @@ module "eks" {
       instance_types = ["m4.xlarge"]
     }
     dev-ue2-r5b-xl = {
-      min_size       = 2
+      min_size       = 3
       max_size       = 3
-      desired_size   = 2
+      desired_size   = 3
       instance_types = ["r5b.xlarge"]
       taints         = {
         dedicated = {
