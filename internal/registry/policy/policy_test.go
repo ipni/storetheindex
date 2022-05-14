@@ -54,18 +54,25 @@ func TestNewPolicy(t *testing.T) {
 	if err == nil {
 		t.Error("expected error with bad RateLimitExcept ID")
 	}
-
 	policyCfg.RateLimitExcept = nil
+
+	policyCfg.PublishExcept = append(policyCfg.PublishExcept, "bad ID")
+	_, err = New(policyCfg)
+	if err == nil {
+		t.Error("expected error with bad PublishExcept ID")
+	}
+	policyCfg.PublishExcept = nil
+
 	policyCfg.Except = append(policyCfg.Except, "bad ID")
 	_, err = New(policyCfg)
 	if err == nil {
 		t.Error("expected error with bad except ID")
 	}
-
 	policyCfg.Except = nil
+
 	_, err = New(policyCfg)
-	if err == nil {
-		t.Error("expected error with inaccessible policy")
+	if err != nil {
+		t.Error(err)
 	}
 
 	policyCfg.Allow = true
@@ -127,10 +134,12 @@ func TestPolicyAccess(t *testing.T) {
 	policyCfg.Allow = true
 	policyCfg.Publish = true
 	policyCfg.RateLimit = true
-	err = p.Config(policyCfg)
+
+	newPol, err := New(policyCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
+	p.Copy(newPol)
 
 	if !p.Allowed(otherID) {
 		t.Error("peer ID should be allowed by policy")
@@ -164,5 +173,33 @@ func TestPolicyAccess(t *testing.T) {
 	p.Block(otherID)
 	if p.Allowed(otherID) {
 		t.Error("peer ID should not be allowed")
+	}
+
+	cfg := p.ToConfig()
+	if cfg.Allow != true {
+		t.Error("wrong config.Allow")
+	}
+	if cfg.Publish != true {
+		t.Error("wrong config.Publish")
+	}
+	if cfg.RateLimit != true {
+		t.Error("wrong config.RateLimit")
+	}
+	if len(cfg.Except) != 1 {
+		t.Fatal("expected 1 item in cfg.Except")
+	}
+	if cfg.Except[0] != otherIDStr {
+		t.Error("wrong ID in cfg.Except")
+	}
+	if len(cfg.PublishExcept) != 1 {
+		t.Fatal("expected 1 item in cfg.PublishExcept")
+	}
+
+	p, err = New(config.Policy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.NoneAllowed() {
+		t.Error("expected inaccessible policy")
 	}
 }

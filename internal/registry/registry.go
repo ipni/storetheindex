@@ -41,10 +41,10 @@ type Registry struct {
 	providers map[peer.ID]*ProviderInfo
 	sequences *sequences
 
-	discoverer discovery.Discoverer
-	discoWait  sync.WaitGroup
-	discoTimes map[string]time.Time
-	policy     *policy.Policy
+	discoverer    discovery.Discoverer
+	discoverWait  sync.WaitGroup
+	discoverTimes map[string]time.Time
+	policy        *policy.Policy
 
 	discoveryTimeout time.Duration
 	rediscoverWait   time.Duration
@@ -126,26 +126,29 @@ func (p *ProviderInfo) UnmarshalJSON(data []byte) error {
 // NewRegistry creates a new provider registry, giving it provider policy
 // configuration, a datastore to persist provider data, and a Discoverer
 // interface.  The context is only used for cancellation of this function.
-func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, disco discovery.Discoverer) (*Registry, error) {
+func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, discoverer discovery.Discoverer) (*Registry, error) {
 	// Create policy from config
-	discoPolicy, err := policy.New(cfg.Policy)
+	regPolicy, err := policy.New(cfg.Policy)
 	if err != nil {
 		return nil, err
+	}
+	// Log warning if no peers are allowed.
+	if regPolicy.NoneAllowed() {
+		log.Warn("Policy does not allow any peers to index content")
 	}
 
 	r := &Registry{
 		actions:   make(chan func()),
 		closed:    make(chan struct{}),
 		closing:   make(chan struct{}),
-		policy:    discoPolicy,
+		policy:    regPolicy,
 		providers: map[peer.ID]*ProviderInfo{},
 		sequences: newSequences(0),
 
 		rediscoverWait:   time.Duration(cfg.RediscoverWait),
 		discoveryTimeout: time.Duration(cfg.Timeout),
 
-		discoverer: disco,
-		discoTimes: map[string]time.Time{},
+		discoverer: discoverer,
 
 		dstore:   dstore,
 		syncChan: make(chan *ProviderInfo, 1),
@@ -261,7 +264,7 @@ running:
 
 	// Wait for any pending discoveries to complete, then stop the main run
 	// goroutine.
-	r.discoWait.Wait()
+	r.discoverWait.Wait()
 	close(r.actions)
 }
 
@@ -308,7 +311,7 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 	}
 
 	// If publisher is valid and different than the provider, check if the
-	// publisher is allowed, and is allowed to publish on behalf of the
+	// publisher is allowed, and is also allowed to publish on behalf of the
 	// provider.
 	if info.Publisher.Validate() == nil && info.Publisher != info.AddrInfo.ID {
 		if !r.policy.Allowed(info.Publisher) {
@@ -346,7 +349,17 @@ func (r *Registry) PublishAllowed(publisherID, providerID peer.ID) bool {
 }
 
 func (r *Registry) SetPolicy(policyCfg config.Policy) error {
-	return r.policy.Config(policyCfg)
+	newPol, err := policy.New(policyCfg)
+	if err != nil {
+		return err
+	}
+	// Log warning if no peers are allowed.
+	if newPol.NoneAllowed() {
+		log.Warn("Policy does not allow any peers to index content")
+	}
+
+	r.policy.Copy(newPol)
+	return nil
 }
 
 // AllowPeer configures the policy to allow messages published by the
@@ -465,23 +478,6 @@ func (r *Registry) IsRegistered(providerID peer.ID) bool {
 	return found
 }
 
-// ProviderInfoByAddr finds a registered provider using its discovery address
-func (r *Registry) ProviderInfoByAddr(discoAddr string) *ProviderInfo {
-	infoChan := make(chan *ProviderInfo)
-	r.actions <- func() {
-		// TODO: consider adding a map of discoAddr->providerID
-		for _, info := range r.providers {
-			if info.DiscoveryAddr == discoAddr {
-				infoChan <- info
-				break
-			}
-		}
-		close(infoChan)
-	}
-
-	return <-infoChan
-}
-
 // ProviderInfo returns information for a registered provider
 func (r *Registry) ProviderInfo(providerID peer.ID) *ProviderInfo {
 	infoChan := make(chan *ProviderInfo)
@@ -518,16 +514,19 @@ func (r *Registry) CheckSequence(peerID peer.ID, seq uint64) error {
 	return r.sequences.check(peerID, seq)
 }
 
-func (r *Registry) syncStartDiscover(peerID peer.ID, discoAddr string, errCh chan<- error) {
-	err := r.syncNeedDiscover(discoAddr)
+func (r *Registry) syncStartDiscover(peerID peer.ID, spID string, errCh chan<- error) {
+	err := r.syncNeedDiscover(spID)
 	if err != nil {
 		errCh <- err
 		return
 	}
 
 	// Mark discovery as in progress
-	r.discoTimes[discoAddr] = time.Time{}
-	r.discoWait.Add(1)
+	if r.discoverTimes == nil {
+		r.discoverTimes = make(map[string]time.Time)
+	}
+	r.discoverTimes[spID] = time.Time{}
+	r.discoverWait.Add(1)
 
 	// Do discovery asynchronously; do not block other discovery requests
 	go func() {
@@ -538,21 +537,21 @@ func (r *Registry) syncStartDiscover(peerID peer.ID, discoAddr string, errCh cha
 			defer cancel()
 		}
 
-		discoData, discoErr := r.discover(ctx, peerID, discoAddr)
+		discoverData, discoverErr := r.discover(ctx, peerID, spID)
 		r.actions <- func() {
 			defer close(errCh)
-			defer r.discoWait.Done()
+			defer r.discoverWait.Done()
 
 			// Update discovery completion time.
-			r.discoTimes[discoAddr] = time.Now()
-			if discoErr != nil {
-				errCh <- discoErr
+			r.discoverTimes[spID] = time.Now()
+			if discoverErr != nil {
+				errCh <- discoverErr
 				return
 			}
 
 			info := &ProviderInfo{
-				AddrInfo:      discoData.AddrInfo,
-				DiscoveryAddr: discoAddr,
+				AddrInfo:      discoverData.AddrInfo,
+				DiscoveryAddr: spID,
 			}
 			if err := r.syncRegister(ctx, info); err != nil {
 				errCh <- err
@@ -572,8 +571,8 @@ func (r *Registry) syncRegister(ctx context.Context, info *ProviderInfo) error {
 	return nil
 }
 
-func (r *Registry) syncNeedDiscover(discoAddr string) error {
-	completed, ok := r.discoTimes[discoAddr]
+func (r *Registry) syncNeedDiscover(spID string) error {
+	completed, ok := r.discoverTimes[spID]
 	if ok {
 		// Check if discovery already in progress
 		if completed.IsZero() {
@@ -655,38 +654,41 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 	return count, nil
 }
 
-func (r *Registry) discover(ctx context.Context, peerID peer.ID, discoAddr string) (*discovery.Discovered, error) {
+func (r *Registry) discover(ctx context.Context, peerID peer.ID, spID string) (*discovery.Discovered, error) {
 	if r.discoverer == nil {
 		return nil, ErrNoDiscovery
 	}
 
-	discoData, err := r.discoverer.Discover(ctx, peerID, discoAddr)
+	discoverData, err := r.discoverer.Discover(ctx, peerID, spID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot discover provider: %s", err)
 	}
 
-	return discoData, nil
+	return discoverData, nil
 }
 
 func (r *Registry) cleanup() {
-	r.discoWait.Add(1)
+	r.discoverWait.Add(1)
 	r.sequences.retire()
 	r.actions <- func() {
+		if len(r.discoverTimes) == 0 {
+			return
+		}
 		now := time.Now()
-		for id, completed := range r.discoTimes {
+		for spID, completed := range r.discoverTimes {
 			if completed.IsZero() {
 				continue
 			}
 			if r.rediscoverWait != 0 && now.Sub(completed) < r.rediscoverWait {
 				continue
 			}
-			delete(r.discoTimes, id)
+			delete(r.discoverTimes, spID)
 		}
-		if len(r.discoTimes) == 0 {
-			r.discoTimes = make(map[string]time.Time)
+		if len(r.discoverTimes) == 0 {
+			r.discoverTimes = nil // remove empty map
 		}
 	}
-	r.discoWait.Done()
+	r.discoverWait.Done()
 }
 
 func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling) {
