@@ -126,7 +126,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
 		})).Node()
 
-	rateApply, err := peerutil.NewPolicy(cfg.RateLimit.Apply, cfg.RateLimit.Except)
+	rateApply, err := peerutil.NewPolicyStrings(cfg.RateLimit.Apply, cfg.RateLimit.Except)
 	if err != nil {
 		log.Errorw("Bad setting rate limit for peers", "err", err)
 	}

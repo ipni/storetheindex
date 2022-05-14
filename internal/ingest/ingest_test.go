@@ -42,6 +42,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/test"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -54,7 +55,11 @@ const (
 
 var (
 	ingestCfg = config.Ingest{
-		PubSubTopic:       "test/ingest",
+		PubSubTopic: "test/ingest",
+		RateLimit: config.RateLimit{
+			Apply:           true,
+			BlocksPerSecond: 100000,
+		},
 		StoreBatchSize:    256,
 		SyncTimeout:       config.Duration(time.Minute),
 		IngestWorkerCount: 1,
@@ -64,6 +69,10 @@ var (
 
 func TestSubscribe(t *testing.T) {
 	te := setupTestEnv(t, true)
+
+	limiter := te.ingester.getRateLimiter(te.pubHost.ID())
+	require.NotNil(t, limiter)
+	require.Equal(t, limiter.Limit(), rate.Limit(ingestCfg.RateLimit.BlocksPerSecond))
 
 	// Check that we sync with an ad chain
 	adHead := typehelpers.RandomAdBuilder{

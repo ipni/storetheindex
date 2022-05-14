@@ -26,15 +26,9 @@ func New(cfg config.Policy) (*Policy, error) {
 		return nil, fmt.Errorf("bad publish policy: %s", err)
 	}
 
-	rateLimit, err := peerutil.NewPolicyStrings(cfg.RateLimit, cfg.RateLimitExcept)
-	if err != nil {
-		return nil, fmt.Errorf("bad rate limit policy: %s", err)
-	}
-
 	return &Policy{
-		allow:     allow,
-		publish:   publish,
-		rateLimit: rateLimit,
+		allow:   allow,
+		publish: publish,
 	}, nil
 }
 
@@ -82,7 +76,6 @@ func (p *Policy) Copy(other *Policy) {
 	other.rwmutex.RLock()
 	p.allow = other.allow
 	p.publish = other.publish
-	p.rateLimit = other.rateLimit
 	other.rwmutex.RUnlock()
 }
 

@@ -158,9 +158,6 @@ func TestPolicyAccess(t *testing.T) {
 	if cfg.Publish != true {
 		t.Error("wrong config.Publish")
 	}
-	if cfg.RateLimit != true {
-		t.Error("wrong config.RateLimit")
-	}
 	if len(cfg.Except) != 1 {
 		t.Fatal("expected 1 item in cfg.Except")
 	}
