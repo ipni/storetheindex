@@ -45,7 +45,7 @@ const (
 
 type adProcessedEvent struct {
 	publisher peer.ID
-	// Head of the chain being proecessed.
+	// Head of the chain being processed.
 	headAdCid cid.Cid
 	// Actual adCid being processing.
 	adCid cid.Cid
@@ -78,7 +78,7 @@ type Ingester struct {
 	inEvents chan adProcessedEvent
 
 	// outEventsChans is a slice of channels, where each channel delivers a
-	// copy of an adProccedEvent to an onAdProcessed reader.
+	// copy of an adProcessedEvent to an onAdProcessed reader.
 	outEventsChans map[peer.ID][]chan adProcessedEvent
 	outEventsMutex sync.Mutex
 
@@ -162,7 +162,26 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		legs.AllowPeer(reg.Allowed),
 		legs.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)),
 		legs.UseLatestSyncHandler(&syncHandler{ing}),
-		legs.RateLimiter(ing.getRateLimiter))
+		legs.RateLimiter(ing.getRateLimiter),
+		legs.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
+		legs.BlockHook(func(_ peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
+			// The only kind of block we should get by loading CIDs here should be Advertisement.
+			// Because:
+			//  - the default subscription selector only selects advertisements.
+			//  - explicit Ingester.Sync only selects advertisement.
+			//  - entries are synced with an explicit selector separate from advertisement syncs and
+			//    should use legs.ScopedBlockHook to override this hook and decode chunks
+			//    instead.
+			//
+			// Therefore, we only attempt to load advertisements here and signal failure if the
+			// load fails.
+			if ad, err := ing.loadAd(c); err != nil {
+				actions.FailSync(err)
+			} else if ad.PreviousID != nil {
+				actions.SetNextSyncCid((*(ad.PreviousID)).(cidlink.Link).Cid)
+			}
+		}),
+	)
 
 	if err != nil {
 		log.Errorw("Failed to start pubsub subscriber", "err", err)
@@ -195,7 +214,7 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 	if ing.rateLimit == 0 || !ing.rateApply.Eval(publisher) {
 		return rate.NewLimiter(rate.Inf, 0)
 	}
-	// Retrun rate limiter with rate setting from config.
+	// Return rate limiter with rate setting from config.
 	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
 }
 
@@ -311,10 +330,17 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 			// If this is a resync, then it is necessary to mark the ad as
 			// unprocessed so that everything can be reingested from the start
 			// of this sync. Create a scoped block-hook to do this.
-			opts = append(opts, legs.ScopedBlockHook(func(i peer.ID, c cid.Cid) {
+			opts = append(opts, legs.ScopedBlockHook(func(i peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
 				err := ing.markAdUnprocessed(c)
 				if err != nil {
 					log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
+				}
+				// Decode and set next segment CID appropriately. Because scoped block hook
+				// overrides the subscriber's general block hook.
+				if ad, err := ing.loadAd(c); err != nil {
+					actions.FailSync(err)
+				} else if ad.PreviousID != nil {
+					actions.SetNextSyncCid((*(ad.PreviousID)).(cidlink.Link).Cid)
 				}
 			}))
 		}
@@ -360,7 +386,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	return out, nil
 }
 
-// Announce send an annouce message to directly to go-legs, instead of through
+// Announce send an announce message to directly to go-legs, instead of through
 // pubsub.
 func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, addrInfo peer.AddrInfo) error {
 	log.Infow("Handling direct announce request", "peer", addrInfo.ID, "cid", nextCid, "addrs", addrInfo.Addrs)
@@ -411,7 +437,7 @@ func (ing *Ingester) markAdUnprocessed(adCid cid.Cid) error {
 	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{0})
 }
 
-func (ing *Ingester) adAlreadyprocessed(adCid cid.Cid) bool {
+func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) bool {
 	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
 	if err != nil {
 		if err != datastore.ErrNotFound {
@@ -620,7 +646,7 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
 
-		if ing.adAlreadyprocessed(c) {
+		if ing.adAlreadyProcessed(c) {
 			// This ad has been processed so all earlier ads already have been
 			// processed.
 			break
@@ -700,7 +726,7 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 	splitAtIndex := len(assignment.adInfos)
 	for i, ai := range assignment.adInfos {
 		// Iterate latest to earliest.
-		if ing.adAlreadyprocessed(ai.cid) {
+		if ing.adAlreadyProcessed(ai.cid) {
 			// This ad is already processed, which means that all earlier ads
 			// are also processed. Break here and split at this index
 			// later. The cids before this index are newer and have not been
