@@ -10,24 +10,24 @@ import (
 )
 
 type Policy struct {
-	allow     peerutil.PeerEval
-	publish   peerutil.PeerEval
-	rateLimit peerutil.PeerEval
+	allow     peerutil.Policy
+	publish   peerutil.Policy
+	rateLimit peerutil.Policy
 	rwmutex   sync.RWMutex
 }
 
 func New(cfg config.Policy) (*Policy, error) {
-	allow, err := peerutil.NewStrings(cfg.Allow, cfg.Except)
+	allow, err := peerutil.NewPolicyStrings(cfg.Allow, cfg.Except)
 	if err != nil {
 		return nil, fmt.Errorf("bad allow policy: %s", err)
 	}
 
-	publish, err := peerutil.NewStrings(cfg.Publish, cfg.PublishExcept)
+	publish, err := peerutil.NewPolicyStrings(cfg.Publish, cfg.PublishExcept)
 	if err != nil {
 		return nil, fmt.Errorf("bad publish policy: %s", err)
 	}
 
-	rateLimit, err := peerutil.NewStrings(cfg.RateLimit, cfg.RateLimitExcept)
+	rateLimit, err := peerutil.NewPolicyStrings(cfg.RateLimit, cfg.RateLimitExcept)
 	if err != nil {
 		return nil, fmt.Errorf("bad rate limit policy: %s", err)
 	}

@@ -28,15 +28,15 @@ func init() {
 	}
 }
 
-func TestNew(t *testing.T) {
-	_, err := NewStrings(false, []string{exceptIDStr, "bad ID"})
+func TestNewPolicy(t *testing.T) {
+	_, err := NewPolicyStrings(false, []string{exceptIDStr, "bad ID"})
 	if err == nil {
 		t.Error("expected error with bad except ID")
 	}
 
 	except := []string{exceptIDStr}
 
-	p, err := NewStrings(false, except)
+	p, err := NewPolicyStrings(false, except)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestNew(t *testing.T) {
 		t.Error("true should be possible")
 	}
 
-	p, err = NewStrings(true, except)
+	p, err = NewPolicyStrings(true, except)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestNew(t *testing.T) {
 		t.Error("true should be possible")
 	}
 
-	p = New(false)
+	p = NewPolicy(false)
 	if p.Any(true) {
 		t.Error("should not be true for any peers")
 	}
@@ -61,7 +61,7 @@ func TestNew(t *testing.T) {
 		t.Fatal("should not have been updated to be false for peer")
 	}
 
-	p = New(true)
+	p = NewPolicy(true)
 	if !p.Any(true) {
 		t.Error("should by true for any peers")
 	}
@@ -75,7 +75,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestFalseDefault(t *testing.T) {
-	p := New(false, exceptID)
+	p := NewPolicy(false, exceptID)
 
 	if p.Default() {
 		t.Fatal("expected false default")
@@ -122,7 +122,7 @@ func TestFalseDefault(t *testing.T) {
 }
 
 func TestTrueDefault(t *testing.T) {
-	p := New(true, exceptID)
+	p := NewPolicy(true, exceptID)
 
 	if !p.Default() {
 		t.Fatal("expected true default")
@@ -169,7 +169,7 @@ func TestTrueDefault(t *testing.T) {
 }
 
 func TestExceptStrings(t *testing.T) {
-	p, err := NewStrings(false, nil)
+	p, err := NewPolicyStrings(false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestExceptStrings(t *testing.T) {
 
 	except := []string{exceptIDStr, otherIDStr}
 
-	p, err = NewStrings(false, except)
+	p, err = NewPolicyStrings(false, except)
 	if err != nil {
 		t.Fatal(err)
 	}

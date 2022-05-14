@@ -6,22 +6,22 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-// PeerEval is a boolean value with a set of zero or more peer ID values.
+// Policy is a boolean value with a set of zero or more peer ID values.
 // Evaluating a peer ID returns the boolean value, or its opposite if the peer
 // ID is in the set of IDs.
 //
-// This serves a the basis for simple policies that apply to all peers except
-// those in the set of peer IDs.
-type PeerEval struct {
+// This serves a basis for simple policies where the boolean value applies to
+// all peers except those in the set of peer IDs.
+type Policy struct {
 	value  bool
 	except map[peer.ID]struct{}
 }
 
-// New creates a new PeerEval.
+// New creates a new Policy.
 //
-// The PeerEval evaluates to the given boolean value for all peers, except
+// The Policy evaluates to the given boolean value for all peers, except
 // those listed in the except list.
-func New(value bool, except ...peer.ID) PeerEval {
+func NewPolicy(value bool, except ...peer.ID) Policy {
 	var exceptIDs map[peer.ID]struct{}
 	if len(except) != 0 {
 		exceptIDs = make(map[peer.ID]struct{}, len(except))
@@ -30,33 +30,33 @@ func New(value bool, except ...peer.ID) PeerEval {
 		}
 	}
 
-	return PeerEval{
+	return Policy{
 		value:  value,
 		except: exceptIDs,
 	}
 }
 
-func NewStrings(value bool, except []string) (PeerEval, error) {
+func NewPolicyStrings(value bool, except []string) (Policy, error) {
 	var exceptIDs map[peer.ID]struct{}
 	if len(except) != 0 {
 		exceptIDs = make(map[peer.ID]struct{}, len(except))
 		for _, exceptID := range except {
 			peerID, err := peer.Decode(exceptID)
 			if err != nil {
-				return PeerEval{}, fmt.Errorf("error decoding peer id %q: %s", exceptID, err)
+				return Policy{}, fmt.Errorf("error decoding peer id %q: %s", exceptID, err)
 			}
 			exceptIDs[peerID] = struct{}{}
 		}
 	}
 
-	return PeerEval{
+	return Policy{
 		value:  value,
 		except: exceptIDs,
 	}, nil
 }
 
 // Eval returns the boolean value for the specified peer.
-func (p *PeerEval) Eval(peerID peer.ID) bool {
+func (p *Policy) Eval(peerID peer.ID) bool {
 	_, ok := p.except[peerID]
 	if p.value {
 		return !ok
@@ -65,14 +65,14 @@ func (p *PeerEval) Eval(peerID peer.ID) bool {
 }
 
 // Any returns true if any it is possible for a true value to be returned.
-func (p *PeerEval) Any(value bool) bool {
+func (p *Policy) Any(value bool) bool {
 	return value == p.value || len(p.except) != 0
 }
 
 // SetPeer ensures that the specified peer evaluates to the specified value,
 // altering the except set if needed. Returns true if the except set was
 // updated.
-func (p *PeerEval) SetPeer(peerID peer.ID, value bool) bool {
+func (p *Policy) SetPeer(peerID peer.ID, value bool) bool {
 	// If the specified value is not equal to the default value then add the
 	// peerID as an exception.
 	if value != p.value {
@@ -95,12 +95,12 @@ func (p *PeerEval) SetPeer(peerID peer.ID, value bool) bool {
 }
 
 // Default returns the default value.
-func (p *PeerEval) Default() bool {
+func (p *Policy) Default() bool {
 	return p.value
 }
 
 // ExceptStrings returns the except list as a slice of peer.ID strings.
-func (p *PeerEval) ExceptStrings() []string {
+func (p *Policy) ExceptStrings() []string {
 	if len(p.except) == 0 {
 		return nil
 	}
