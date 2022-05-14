@@ -70,10 +70,6 @@ var (
 func TestSubscribe(t *testing.T) {
 	te := setupTestEnv(t, true)
 
-	limiter := te.ingester.getRateLimiter(te.pubHost.ID())
-	require.NotNil(t, limiter)
-	require.Equal(t, limiter.Limit(), rate.Limit(ingestCfg.RateLimit.BlocksPerSecond))
-
 	// Check that we sync with an ad chain
 	adHead := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
@@ -933,6 +929,39 @@ func TestMultiplePublishers(t *testing.T) {
 	lcid, err = i.GetLatestSync(pubHost2.ID())
 	require.NoError(t, err)
 	require.Equal(t, lcid, c2.(cidlink.Link).Cid)
+}
+
+func TestRateLimitConfig(t *testing.T) {
+	store := dssync.MutexWrap(datastore.NewMapDatastore())
+	reg := mkRegistry(t)
+	core := mkIndexer(t, true)
+	pubHost := mkTestHost()
+	h := mkTestHost()
+
+	cfg := ingestCfg
+	ingester, err := NewIngester(cfg, h, core, reg, store)
+	require.NoError(t, err)
+	limiter := ingester.getRateLimiter(pubHost.ID())
+	require.NotNil(t, limiter)
+	require.Equal(t, limiter.Limit(), rate.Limit(ingestCfg.RateLimit.BlocksPerSecond))
+	ingester.Close()
+
+	cfg.RateLimit.Apply = false
+	ingester, err = NewIngester(cfg, h, core, reg, store)
+	require.NoError(t, err)
+	limiter = ingester.getRateLimiter(pubHost.ID())
+	require.NotNil(t, limiter)
+	require.Equal(t, limiter.Limit(), rate.Inf)
+	ingester.Close()
+
+	cfg.RateLimit.Apply = true
+	cfg.RateLimit.BlocksPerSecond = 0
+	ingester, err = NewIngester(cfg, h, core, reg, store)
+	require.NoError(t, err)
+	limiter = ingester.getRateLimiter(pubHost.ID())
+	require.NotNil(t, limiter)
+	require.Equal(t, limiter.Limit(), rate.Inf)
+	ingester.Close()
 }
 
 func mkTestHost(opts ...libp2p.Option) host.Host {
