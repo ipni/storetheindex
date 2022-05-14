@@ -206,10 +206,22 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 
 	// Traverse entries based on the entries selector that limits recursion depth.
 	var errsIngestingEntryChunks []error
-	_, err = ing.sub.Sync(ctx, publisherID, entriesCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid) {
-		err := ing.ingestEntryChunk(ctx, p, adCid, ad, c)
+	_, err = ing.sub.Sync(ctx, publisherID, entriesCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
+		// Load CID as entry chunk since the selector should only select entry chunk nodes.
+		chunk, err := ing.loadEntryChunk(c)
 		if err != nil {
+			actions.FailSync(err)
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+			return
+		}
+		err = ing.ingestEntryChunk(ctx, p, adCid, ad, c, *chunk)
+		if err != nil {
+			actions.FailSync(err)
+			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+			return
+		}
+		if chunk.Next != nil {
+			actions.SetNextSyncCid((*(chunk.Next)).(cidlink.Link).Cid)
 		}
 	}))
 	if err != nil {
@@ -239,32 +251,21 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 // advertisement's entries are synced in a spearate legs.Subscriber.Sync
 // operation. This function is used as a scoped block hook, and is called for
 // each block that is received.
-func (ing *Ingester) ingestEntryChunk(ctx context.Context, publisher peer.ID, adCid cid.Cid, ad schema.Advertisement, entryChunkCid cid.Cid) error {
+func (ing *Ingester) ingestEntryChunk(ctx context.Context, publisher peer.ID, adCid cid.Cid, ad schema.Advertisement, entryChunkCid cid.Cid, chunk schema.EntryChunk) error {
 	log := log.With("publisher", publisher, "adCid", adCid, "cid", entryChunkCid)
 
-	// Get data corresponding to the block.
-	entryChunkKey := dsKey(entryChunkCid.String())
-	val, err := ing.ds.Get(ctx, entryChunkKey)
-	if err != nil {
-		return fmt.Errorf("cannot fetch the node from datastore: %w", err)
-	}
 	defer func() {
 		// Remove the content block from the data store now that processing it
 		// has finished. This prevents storing redundant information in several
 		// datastores.
+		entryChunkKey := dsKey(entryChunkCid.String())
 		err := ing.ds.Delete(ctx, entryChunkKey)
 		if err != nil {
 			log.Errorw("Error deleting index from datastore", "err", err)
 		}
 	}()
 
-	// Decode block to IPLD node
-	node, err := decodeIPLDNode(entryChunkCid.Prefix().Codec, bytes.NewBuffer(val), schema.EntryChunkPrototype)
-	if err != nil {
-		return fmt.Errorf("failed to decode ipldNode: %w", err)
-	}
-
-	err = ing.indexContentBlock(adCid, ad, publisher, node)
+	err := ing.indexContentBlock(adCid, ad, publisher, chunk)
 	if err != nil {
 		return fmt.Errorf("failed processing entries for advertisement: %w", err)
 	}
@@ -283,14 +284,8 @@ func (ing *Ingester) ingestEntryChunk(ctx context.Context, publisher peer.ID, ad
 // source of the indexed content, the provider is where content can be
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, pubID peer.ID, nentries ipld.Node) error {
+func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, pubID peer.ID, nchunk schema.EntryChunk) error {
 	log := log.With("publisher", pubID, "adCid", adCid)
-
-	// Decode the list of cids into a List_String
-	nchunk, err := schema.UnwrapEntryChunk(nentries)
-	if err != nil {
-		return fmt.Errorf("cannot decode entries: %w", err)
-	}
 
 	// Load the advertisement data for this chunk. If there are more chunks to
 	// follow, then cache the ad data.
@@ -392,6 +387,20 @@ func (ing *Ingester) loadAd(adCid cid.Cid) (schema.Advertisement, error) {
 	}
 
 	return *ad, nil
+}
+
+func (ing *Ingester) loadEntryChunk(eCid cid.Cid) (*schema.EntryChunk, error) {
+	entryChunkKey := dsKey(eCid.String())
+	val, err := ing.ds.Get(context.Background(), entryChunkKey)
+	if err != nil {
+		return nil, fmt.Errorf("cannot fetch the node from datastore: %w", err)
+	}
+
+	node, err := decodeIPLDNode(eCid.Prefix().Codec, bytes.NewBuffer(val), schema.EntryChunkPrototype)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode ipldNode: %w", err)
+	}
+	return schema.UnwrapEntryChunk(node)
 }
 
 func getAdData(ad schema.Advertisement) (value indexer.Value, isRm bool, err error) {

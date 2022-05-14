@@ -53,16 +53,19 @@ const (
 )
 
 var (
-	ingestCfg = config.Ingest{
-		PubSubTopic: "test/ingest",
+	defaultTestIngestConfig = config.Ingest{
+		AdvertisementDepthLimit: 100,
+		EntriesDepthLimit:       100,
+		IngestWorkerCount:       1,
+		PubSubTopic:             "test/ingest",
 		RateLimit: config.RateLimit{
 			Apply:           true,
 			BlocksPerSecond: 100,
 			BurstSize:       1000,
 		},
-		StoreBatchSize:    256,
-		SyncTimeout:       config.Duration(time.Minute),
-		IngestWorkerCount: 1,
+		StoreBatchSize:        256,
+		SyncTimeout:           config.Duration(time.Minute),
+		SyncSegmentDepthLimit: 1, // By default run all tests using segmented sync.
 	}
 	rng = rand.New(rand.NewSource(1413))
 )
@@ -313,7 +316,7 @@ func TestRestartDuringSync(t *testing.T) {
 	// Now we bring up the ingester again.
 	ingesterHost := mkTestHost(libp2p.Identity(te.ingesterPriv))
 	connectHosts(t, te.pubHost, ingesterHost)
-	ingester, err := NewIngester(ingestCfg, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds)
+	ingester, err := NewIngester(defaultTestIngestConfig, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ingester.Close()
@@ -950,12 +953,12 @@ func TestRateLimitConfig(t *testing.T) {
 	pubHost := mkTestHost()
 	h := mkTestHost()
 
-	cfg := ingestCfg
+	cfg := defaultTestIngestConfig
 	ingester, err := NewIngester(cfg, h, core, reg, store)
 	require.NoError(t, err)
 	limiter := ingester.getRateLimiter(pubHost.ID())
 	require.NotNil(t, limiter)
-	require.Equal(t, limiter.Limit(), rate.Limit(ingestCfg.RateLimit.BlocksPerSecond))
+	require.Equal(t, limiter.Limit(), rate.Limit(defaultTestIngestConfig.RateLimit.BlocksPerSecond))
 	ingester.Close()
 
 	cfg.RateLimit.Apply = false
@@ -1046,16 +1049,20 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 }
 func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.Publisher, ipld.LinkSystem) {
 	lsys := mkProvLinkSystem(store)
-	ls, err := dtsync.NewPublisher(h, store, lsys, ingestCfg.PubSubTopic)
+	ls, err := dtsync.NewPublisher(h, store, lsys, defaultTestIngestConfig.PubSubTopic)
 	require.NoError(t, err)
 	return ls, lsys
 }
 
 func mkIngest(t *testing.T, h host.Host) (*Ingester, *engine.Engine, *registry.Registry) {
+	return mkIngestWithConfig(t, h, defaultTestIngestConfig)
+}
+
+func mkIngestWithConfig(t *testing.T, h host.Host, cfg config.Ingest) (*Ingester, *engine.Engine, *registry.Registry) {
 	store := dssync.MutexWrap(datastore.NewMapDatastore())
 	reg := mkRegistry(t)
 	core := mkIndexer(t, true)
-	ing, err := NewIngester(ingestCfg, h, core, reg, store)
+	ing, err := NewIngester(cfg, h, core, reg, store)
 	require.NoError(t, err)
 	return ing, core, reg
 }
@@ -1189,6 +1196,7 @@ type testEnv struct {
 type testEnvOpts struct {
 	publisherLinkSysFn  func(ds datastore.Batching) ipld.LinkSystem
 	skipIngesterCleanup bool
+	ingestConfig        *config.Ingest
 }
 
 func (te *testEnv) Close(t *testing.T) {
@@ -1236,6 +1244,10 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 		f(testOpt)
 	}
 
+	if testOpt.ingestConfig == nil {
+		testOpt.ingestConfig = &defaultTestIngestConfig
+	}
+
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 
 	ingesterPriv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
@@ -1244,7 +1256,8 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	pubHost := mkTestHost(libp2p.Identity(priv))
-	i, core, reg := mkIngest(t, ingesterHost)
+
+	i, core, reg := mkIngestWithConfig(t, ingesterHost, *testOpt.ingestConfig)
 
 	var lsys ipld.LinkSystem
 	if testOpt.publisherLinkSysFn != nil {
@@ -1253,7 +1266,7 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 		lsys = mkProvLinkSystem(srcStore)
 	}
 
-	pub, err := dtsync.NewPublisher(pubHost, srcStore, lsys, ingestCfg.PubSubTopic)
+	pub, err := dtsync.NewPublisher(pubHost, srcStore, lsys, defaultTestIngestConfig.PubSubTopic)
 	require.NoError(t, err)
 
 	if shouldConnectHosts {
