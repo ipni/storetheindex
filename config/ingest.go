@@ -61,6 +61,7 @@ func (c *Ingest) populateUnset() {
 	if c.IngestWorkerCount == 0 {
 		c.IngestWorkerCount = def.IngestWorkerCount
 	}
+	c.RateLimit.populateUnset()
 	if c.PubSubTopic == "" {
 		c.PubSubTopic = def.PubSubTopic
 	}

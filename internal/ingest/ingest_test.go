@@ -58,7 +58,8 @@ var (
 		PubSubTopic: "test/ingest",
 		RateLimit: config.RateLimit{
 			Apply:           true,
-			BlocksPerSecond: 100000,
+			BlocksPerSecond: 100,
+			BurstSize:       1000,
 		},
 		StoreBatchSize:    256,
 		SyncTimeout:       config.Duration(time.Minute),

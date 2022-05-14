@@ -102,6 +102,7 @@ type Ingester struct {
 	// RateLimiting
 	rateApply peerutil.Policy
 	rateLimit rate.Limit
+	rateBurst int
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -152,6 +153,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		rateApply: rateApply,
 		rateLimit: rate.Limit(cfg.RateLimit.BlocksPerSecond),
+		rateBurst: cfg.RateLimit.BurstSize,
 	}
 
 	// Create and start pubsub subscriber. This also registers the storage hook
@@ -193,9 +195,8 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 	if ing.rateLimit == 0 || !ing.rateApply.Eval(publisher) {
 		return rate.NewLimiter(rate.Inf, 0)
 	}
-	// Retrun rate limiter with rate setting from config. Burst is set to 1
-	// since only single blocks are counted at a time.
-	return rate.NewLimiter(ing.rateLimit, 1)
+	// Retrun rate limiter with rate setting from config.
+	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
 }
 
 func (ing *Ingester) Close() error {
