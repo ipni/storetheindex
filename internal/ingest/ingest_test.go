@@ -506,7 +506,9 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	require.Equal(t, cCid.(cidlink.Link).Cid, adProcessedEvent.adCid)
 
 	allMhs := typehelpers.AllMultihashesFromAdChain(t, cAd, te.publisherLinkSys)
-	require.NoError(t, checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs))
+	requireTrueEventually(t, func() bool {
+		return checkAllIndexed(te.ingester.indexer, te.pubHost.ID(), allMhs) == nil
+	}, testRetryInterval, testRetryTimeout, "Expected all ads from publisher 1 to have been indexed.")
 }
 
 func TestWithDuplicatedEntryChunks(t *testing.T) {
@@ -865,12 +867,11 @@ func TestMultiplePublishers(t *testing.T) {
 	srcStore1 := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcStore2 := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
-	pubHost1Priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
-	require.NoError(t, err)
-	pubHost1 := mkTestHost(libp2p.Identity(pubHost1Priv))
-	pubHost2Priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
-	require.NoError(t, err)
-	pubHost2 := mkTestHost(libp2p.Identity(pubHost2Priv))
+	pubHost1 := mkTestHost()
+	pubHost1Priv := pubHost1.Peerstore().PrivKey(pubHost1.ID())
+	pubHost2 := mkTestHost()
+	pubHost2Priv := pubHost2.Peerstore().PrivKey(pubHost2.ID())
+
 	i, core, _ := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
@@ -886,50 +887,64 @@ func TestMultiplePublishers(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with two random advertisement publications for each of them.
-	c1 := typehelpers.RandomAdBuilder{
+	headAd1 := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
 		}}.Build(t, lsys1, pubHost1Priv)
-	err = pub1.UpdateRoot(ctx, c1.(cidlink.Link).Cid)
+	headAd1Cid := headAd1.(cidlink.Link).Cid
+
+	err := pub1.UpdateRoot(ctx, headAd1Cid)
 	require.NoError(t, err)
-	mhs := typehelpers.AllMultihashesFromAdLink(t, c1, lsys1)
+	mhs := typehelpers.AllMultihashesFromAdLink(t, headAd1, lsys1)
 	wait, err := i.Sync(ctx, pubHost1.ID(), nil, 0, false)
 	require.NoError(t, err)
-	<-wait
+	gotC1 := <-wait
+	require.Equal(t, headAd1Cid, gotC1, "expected latest synced cid to match head of ad chain")
 
-	require.NoError(t, checkAllIndexed(i.indexer, pubHost1.ID(), mhs))
+	requireTrueEventually(t, func() bool {
+		return checkAllIndexed(i.indexer, pubHost1.ID(), mhs) == nil
+	}, testRetryInterval, testRetryTimeout, "Expected all ads from publisher 1 to have been indexed.")
 
-	c2 := typehelpers.RandomAdBuilder{
+	headAd2 := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
 			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
 		}}.Build(t, lsys2, pubHost2Priv)
-	err = pub2.UpdateRoot(ctx, c2.(cidlink.Link).Cid)
+	headAd2Cid := headAd2.(cidlink.Link).Cid
+
+	err = pub2.UpdateRoot(ctx, headAd2Cid)
 	require.NoError(t, err)
-	mhs = typehelpers.AllMultihashesFromAdLink(t, c2, lsys2)
+	mhs = typehelpers.AllMultihashesFromAdLink(t, headAd2, lsys2)
 
 	wait, err = i.Sync(ctx, pubHost2.ID(), nil, 0, false)
 	require.NoError(t, err)
-	<-wait
+	gotC2 := <-wait
+	require.Equal(t, headAd2Cid, gotC2, "expected latest synced cid to match head of ad chain")
 
-	require.NoError(t, checkAllIndexed(i.indexer, pubHost2.ID(), mhs))
+	requireTrueEventually(t, func() bool {
+		return checkAllIndexed(i.indexer, pubHost2.ID(), mhs) == nil
+	}, testRetryInterval, testRetryTimeout, "Expected all ads from publisher 2 to have been indexed.")
 
-	// Check that subscriber recorded latest sync.
-	lnk := i.sub.GetLatestSync(pubHost1.ID())
-	require.Equal(t, lnk, c1)
-	lnk = i.sub.GetLatestSync(pubHost2.ID())
-	require.Equal(t, lnk, c2)
+	// Assert that the latest processed ad cid eventually matches the expected cid.
+	requireTrueEventually(t, func() bool {
+		gotLatestSync, err := i.GetLatestSync(pubHost1.ID())
+		require.NoError(t, err)
+		return headAd1Cid.Equals(gotLatestSync)
+	}, testRetryInterval, testRetryTimeout, "Expected latest processed ad cid to be headAd1 for publisher 1.")
+	requireTrueEventually(t, func() bool {
+		gotLatestSync, err := i.GetLatestSync(pubHost2.ID())
+		require.NoError(t, err)
+		return headAd2Cid.Equals(gotLatestSync)
+	}, testRetryInterval, testRetryTimeout, "Expected latest processed ad cid to be headAd2 for publisher 2.")
 
-	lcid, err := i.GetLatestSync(pubHost1.ID())
-	require.NoError(t, err)
-	require.Equal(t, lcid, c1.(cidlink.Link).Cid)
-
-	lcid, err = i.GetLatestSync(pubHost2.ID())
-	require.NoError(t, err)
-	require.Equal(t, lcid, c2.(cidlink.Link).Cid)
+	// Assert that getting the latest synced from legs publisher matches the latest processed.
+	gotLink1 := i.sub.GetLatestSync(pubHost1.ID())
+	require.Equal(t, gotLink1, headAd1)
+	gotLink2 := i.sub.GetLatestSync(pubHost2.ID())
+	require.Equal(t, gotLink2, headAd2)
 }
 
 func TestRateLimitConfig(t *testing.T) {
