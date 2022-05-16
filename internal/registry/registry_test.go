@@ -438,6 +438,7 @@ func TestPollProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer r.Close()
 
 	peerID, err := peer.Decode(limitedID)
 	if err != nil {
@@ -547,6 +548,7 @@ func TestPollProviderOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer r.Close()
 
 	peerID, err := peer.Decode(limitedID)
 	if err != nil {

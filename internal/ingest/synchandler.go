@@ -9,7 +9,7 @@ type syncHandler struct {
 	ing *Ingester
 }
 
-func (h *syncHandler) SetLatestSync(p peer.ID, c cid.Cid) {
+func (h *syncHandler) SetLatestSync(peer.ID, cid.Cid) {
 	// NOOP
 	// We don't care what go-legs tells us about it's latest sync, we are using
 	// the latestSync mechanism to traverse to the last processed Ad.
