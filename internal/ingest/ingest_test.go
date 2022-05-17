@@ -990,13 +990,13 @@ func mkTestHost(opts ...libp2p.Option) host.Host {
 
 // Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
-	valueStore, err := storethehash.New(t.TempDir())
+	valueStore, err := storethehash.New(t.TempDir(), storethehash.IndexBitSize(8))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var resultCache cache.Interface
 	if withCache {
-		resultCache = radixcache.New(100000)
+		resultCache = radixcache.New(1000)
 	}
 	return engine.New(resultCache, valueStore)
 }
