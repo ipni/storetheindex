@@ -934,8 +934,11 @@ func TestMultiplePublishers(t *testing.T) {
 
 func TestRateLimitConfig(t *testing.T) {
 	store := dssync.MutexWrap(datastore.NewMapDatastore())
+	defer store.Close()
 	reg := mkRegistry(t)
+	defer reg.Close()
 	core := mkIndexer(t, true)
+	defer core.Close()
 	pubHost := mkTestHost()
 	h := mkTestHost()
 
