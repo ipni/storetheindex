@@ -28,13 +28,13 @@ type RateLimit struct {
 func NewRateLimit() RateLimit {
 	return RateLimit{
 		BlocksPerSecond: 100,
-		BurstSize:       1000,
+		BurstSize:       500,
 	}
 }
 
 // populateUnset replaces zero-values in the config with default values.
 func (c *RateLimit) populateUnset() {
 	if c.BurstSize == 0 {
-		c.BurstSize = 10 * c.BlocksPerSecond
+		c.BurstSize = 5 * c.BlocksPerSecond
 	}
 }
