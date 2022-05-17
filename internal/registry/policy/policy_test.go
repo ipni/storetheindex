@@ -31,10 +31,10 @@ func init() {
 
 func TestNewPolicy(t *testing.T) {
 	policyCfg := config.Policy{
-		Allow:           false,
-		Except:          []string{exceptIDStr},
-		RateLimit:       false,
-		RateLimitExcept: []string{exceptIDStr},
+		Allow:         false,
+		Except:        []string{exceptIDStr},
+		Publish:       false,
+		PublishExcept: []string{exceptIDStr},
 	}
 
 	_, err := New(policyCfg)
@@ -49,13 +49,6 @@ func TestNewPolicy(t *testing.T) {
 	}
 
 	policyCfg.Allow = false
-	policyCfg.RateLimitExcept = append(policyCfg.RateLimitExcept, "bad ID")
-	_, err = New(policyCfg)
-	if err == nil {
-		t.Error("expected error with bad RateLimitExcept ID")
-	}
-	policyCfg.RateLimitExcept = nil
-
 	policyCfg.PublishExcept = append(policyCfg.PublishExcept, "bad ID")
 	_, err = New(policyCfg)
 	if err == nil {
@@ -84,12 +77,10 @@ func TestNewPolicy(t *testing.T) {
 
 func TestPolicyAccess(t *testing.T) {
 	policyCfg := config.Policy{
-		Allow:           false,
-		Except:          []string{exceptIDStr},
-		RateLimit:       false,
-		RateLimitExcept: []string{exceptIDStr},
-		Publish:         false,
-		PublishExcept:   []string{exceptIDStr},
+		Allow:         false,
+		Except:        []string{exceptIDStr},
+		Publish:       false,
+		PublishExcept: []string{exceptIDStr},
 	}
 
 	p, err := New(policyCfg)
@@ -114,13 +105,6 @@ func TestPolicyAccess(t *testing.T) {
 		t.Error("peer ID should be allowed to publish")
 	}
 
-	if p.RateLimited(otherID) {
-		t.Error("peer ID should not be rate-limited")
-	}
-	if !p.RateLimited(exceptID) {
-		t.Error("peer ID should be rate-limited")
-	}
-
 	p.Allow(otherID)
 	if !p.Allowed(otherID) {
 		t.Error("peer ID should be allowed by policy")
@@ -133,7 +117,6 @@ func TestPolicyAccess(t *testing.T) {
 
 	policyCfg.Allow = true
 	policyCfg.Publish = true
-	policyCfg.RateLimit = true
 
 	newPol, err := New(policyCfg)
 	if err != nil {
@@ -158,13 +141,6 @@ func TestPolicyAccess(t *testing.T) {
 		t.Error("peer ID be allowed to publish to self")
 	}
 
-	if !p.RateLimited(otherID) {
-		t.Error("peer ID should be rate-limited")
-	}
-	if p.RateLimited(exceptID) {
-		t.Error("peer ID should not be rate-limited")
-	}
-
 	p.Allow(exceptID)
 	if !p.Allowed(exceptID) {
 		t.Error("peer ID should be allowed by policy")
@@ -181,9 +157,6 @@ func TestPolicyAccess(t *testing.T) {
 	}
 	if cfg.Publish != true {
 		t.Error("wrong config.Publish")
-	}
-	if cfg.RateLimit != true {
-		t.Error("wrong config.RateLimit")
 	}
 	if len(cfg.Except) != 1 {
 		t.Fatal("expected 1 item in cfg.Except")

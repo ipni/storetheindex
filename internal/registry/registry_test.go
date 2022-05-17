@@ -33,12 +33,10 @@ const (
 
 var discoveryCfg = config.Discovery{
 	Policy: config.Policy{
-		Allow:           false,
-		Except:          []string{exceptID, limitedID, limitedID2, publisherID},
-		RateLimit:       false,
-		RateLimitExcept: []string{limitedID, limitedID2, publisherID},
-		Publish:         false,
-		PublishExcept:   []string{publisherID},
+		Allow:         false,
+		Except:        []string{exceptID, limitedID, limitedID2, publisherID},
+		Publish:       false,
+		PublishExcept: []string{publisherID},
 	},
 	PollInterval:   config.Duration(time.Minute),
 	RediscoverWait: config.Duration(time.Minute),
@@ -380,11 +378,7 @@ func TestAllowed(t *testing.T) {
 		t.Fatal("bad publisher ID:", err)
 	}
 
-	ok, err := r.Allowed(pubID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
+	if !r.Allowed(pubID) {
 		t.Fatal("peer should be allowed")
 	}
 	if !r.PublishAllowed(pubID, pubID) {
@@ -394,22 +388,14 @@ func TestAllowed(t *testing.T) {
 	if !r.BlockPeer(pubID) {
 		t.Error("should have update policy to block peer")
 	}
-	ok, err = r.Allowed(pubID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ok {
+	if r.Allowed(pubID) {
 		t.Fatal("peer should be blocked")
 	}
 
 	if !r.AllowPeer(pubID) {
 		t.Error("should have update policy to allow peer")
 	}
-	ok, err = r.Allowed(pubID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
+	if !r.Allowed(pubID) {
 		t.Fatal("peer should be allowed")
 	}
 
@@ -428,11 +414,7 @@ func TestAllowed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ok, err = r.Allowed(pubID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ok {
+	if r.Allowed(pubID) {
 		t.Fatal("peer should be blocked")
 	}
 }

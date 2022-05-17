@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/filecoin-project/storetheindex/peerutil"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
@@ -29,6 +30,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
+	"golang.org/x/time/rate"
 )
 
 var log = logging.Logger("indexer/ingest")
@@ -96,6 +98,11 @@ type Ingester struct {
 	closeWorkers   chan struct{}
 	waitForWorkers sync.WaitGroup
 	toStaging      <-chan legs.SyncFinished
+
+	// RateLimiting
+	rateApply peerutil.Policy
+	rateLimit rate.Limit
+	rateBurst int
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -120,6 +127,11 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
 		})).Node()
 
+	rateApply, err := peerutil.NewPolicyStrings(cfg.RateLimit.Apply, cfg.RateLimit.Except)
+	if err != nil {
+		log.Errorw("Bad setting rate limit for peers", "err", err)
+	}
+
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
@@ -138,11 +150,20 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		providerAdChainStaging:  make(map[peer.ID]*atomic.Value),
 		toWorkers:               make(chan providerID),
 		closeWorkers:            make(chan struct{}),
+
+		rateApply: rateApply,
+		rateLimit: rate.Limit(cfg.RateLimit.BlocksPerSecond),
+		rateBurst: cfg.RateLimit.BurstSize,
 	}
 
 	// Create and start pubsub subscriber. This also registers the storage hook
 	// to index data as it is received.
-	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel, legs.AllowPeer(reg.Allowed), legs.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)), legs.UseLatestSyncHandler(&syncHandler{ing}))
+	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel,
+		legs.AllowPeer(reg.Allowed),
+		legs.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)),
+		legs.UseLatestSyncHandler(&syncHandler{ing}),
+		legs.RateLimiter(ing.getRateLimiter))
+
 	if err != nil {
 		log.Errorw("Failed to start pubsub subscriber", "err", err)
 		return nil, errors.New("ingester subscriber failed")
@@ -166,6 +187,16 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	log.Debugf("Ingester started and all hooks and linksystem registered")
 
 	return ing, nil
+}
+
+func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
+	// If rateLimiting disabled or publisher is not rate-limited, then return
+	// infinite rate limiter.
+	if ing.rateLimit == 0 || !ing.rateApply.Eval(publisher) {
+		return rate.NewLimiter(rate.Inf, 0)
+	}
+	// Retrun rate limiter with rate setting from config.
+	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
 }
 
 func (ing *Ingester) Close() error {

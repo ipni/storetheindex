@@ -32,7 +32,7 @@ const (
 	// EnvDir is the environment variable used to change the path root.
 	EnvDir = "STORETHEINDEX_PATH"
 
-	Version = 1
+	Version = 2
 )
 
 var (

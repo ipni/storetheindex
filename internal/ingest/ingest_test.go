@@ -42,6 +42,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/test"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -54,7 +55,12 @@ const (
 
 var (
 	ingestCfg = config.Ingest{
-		PubSubTopic:       "test/ingest",
+		PubSubTopic: "test/ingest",
+		RateLimit: config.RateLimit{
+			Apply:           true,
+			BlocksPerSecond: 100,
+			BurstSize:       1000,
+		},
 		StoreBatchSize:    256,
 		SyncTimeout:       config.Duration(time.Minute),
 		IngestWorkerCount: 1,
@@ -926,6 +932,42 @@ func TestMultiplePublishers(t *testing.T) {
 	require.Equal(t, lcid, c2.(cidlink.Link).Cid)
 }
 
+func TestRateLimitConfig(t *testing.T) {
+	store := dssync.MutexWrap(datastore.NewMapDatastore())
+	defer store.Close()
+	reg := mkRegistry(t)
+	defer reg.Close()
+	core := mkIndexer(t, true)
+	defer core.Close()
+	pubHost := mkTestHost()
+	h := mkTestHost()
+
+	cfg := ingestCfg
+	ingester, err := NewIngester(cfg, h, core, reg, store)
+	require.NoError(t, err)
+	limiter := ingester.getRateLimiter(pubHost.ID())
+	require.NotNil(t, limiter)
+	require.Equal(t, limiter.Limit(), rate.Limit(ingestCfg.RateLimit.BlocksPerSecond))
+	ingester.Close()
+
+	cfg.RateLimit.Apply = false
+	ingester, err = NewIngester(cfg, h, core, reg, store)
+	require.NoError(t, err)
+	limiter = ingester.getRateLimiter(pubHost.ID())
+	require.NotNil(t, limiter)
+	require.Equal(t, limiter.Limit(), rate.Inf)
+	ingester.Close()
+
+	cfg.RateLimit.Apply = true
+	cfg.RateLimit.BlocksPerSecond = 0
+	ingester, err = NewIngester(cfg, h, core, reg, store)
+	require.NoError(t, err)
+	limiter = ingester.getRateLimiter(pubHost.ID())
+	require.NotNil(t, limiter)
+	require.Equal(t, limiter.Limit(), rate.Inf)
+	ingester.Close()
+}
+
 func mkTestHost(opts ...libp2p.Option) host.Host {
 	// 10x Faster than the default identity option in libp2p.New
 	var defaultIdentity libp2p.Option = func(cfg *libp2p.Config) error {
@@ -948,13 +990,13 @@ func mkTestHost(opts ...libp2p.Option) host.Host {
 
 // Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
-	valueStore, err := storethehash.New(t.TempDir())
+	valueStore, err := storethehash.New(t.TempDir(), storethehash.IndexBitSize(8))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var resultCache cache.Interface
 	if withCache {
-		resultCache = radixcache.New(100000)
+		resultCache = radixcache.New(1000)
 	}
 	return engine.New(resultCache, valueStore)
 }

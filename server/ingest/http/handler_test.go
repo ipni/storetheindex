@@ -63,11 +63,10 @@ func (m *mockIndexer) Iter() (indexer.Iterator, error)                    { retu
 func init() {
 	var discoveryCfg = config.Discovery{
 		Policy: config.Policy{
-			Allow:           false,
-			Except:          []string{ident.PeerID},
-			Publish:         true,
-			RateLimit:       false,
-			RateLimitExcept: []string{ident.PeerID},
+			Allow:         false,
+			Except:        []string{ident.PeerID},
+			Publish:       true,
+			PublishExcept: []string{ident.PeerID},
 		},
 	}
 

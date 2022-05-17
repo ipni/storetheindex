@@ -10,10 +10,9 @@ import (
 )
 
 type Policy struct {
-	allow     peerutil.Policy
-	publish   peerutil.Policy
-	rateLimit peerutil.Policy
-	rwmutex   sync.RWMutex
+	allow   peerutil.Policy
+	publish peerutil.Policy
+	rwmutex sync.RWMutex
 }
 
 func New(cfg config.Policy) (*Policy, error) {
@@ -27,15 +26,9 @@ func New(cfg config.Policy) (*Policy, error) {
 		return nil, fmt.Errorf("bad publish policy: %s", err)
 	}
 
-	rateLimit, err := peerutil.NewPolicyStrings(cfg.RateLimit, cfg.RateLimitExcept)
-	if err != nil {
-		return nil, fmt.Errorf("bad rate limit policy: %s", err)
-	}
-
 	return &Policy{
-		allow:     allow,
-		publish:   publish,
-		rateLimit: rateLimit,
+		allow:   allow,
+		publish: publish,
 	}, nil
 }
 
@@ -57,13 +50,6 @@ func (p *Policy) PublishAllowed(publisherID, providerID peer.ID) bool {
 		return true
 	}
 	return p.publish.Eval(publisherID)
-}
-
-// RateLimited determines if the peer is rate limited.
-func (p *Policy) RateLimited(peerID peer.ID) bool {
-	p.rwmutex.RLock()
-	defer p.rwmutex.RUnlock()
-	return p.rateLimit.Eval(peerID)
 }
 
 // Allow alters the policy to allow the specified peer.  Returns true if the
@@ -90,7 +76,6 @@ func (p *Policy) Copy(other *Policy) {
 	other.rwmutex.RLock()
 	p.allow = other.allow
 	p.publish = other.publish
-	p.rateLimit = other.rateLimit
 	other.rwmutex.RUnlock()
 }
 
@@ -100,12 +85,10 @@ func (p *Policy) ToConfig() config.Policy {
 	defer p.rwmutex.RUnlock()
 
 	return config.Policy{
-		Allow:           p.allow.Default(),
-		Except:          p.allow.ExceptStrings(),
-		Publish:         p.publish.Default(),
-		PublishExcept:   p.publish.ExceptStrings(),
-		RateLimit:       p.rateLimit.Default(),
-		RateLimitExcept: p.rateLimit.ExceptStrings(),
+		Allow:         p.allow.Default(),
+		Except:        p.allow.ExceptStrings(),
+		Publish:       p.publish.Default(),
+		PublishExcept: p.publish.ExceptStrings(),
 	}
 }
 
