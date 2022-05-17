@@ -207,7 +207,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	// Traverse entries based on the entries selector that limits recursion depth.
 	var errsIngestingEntryChunks []error
 	_, err = ing.sub.Sync(ctx, publisherID, entriesCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid) {
-		err := ing.ingestEntryChunk(p, adCid, ad, c)
+		err := ing.ingestEntryChunk(ctx, p, adCid, ad, c)
 		if err != nil {
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 		}
@@ -239,12 +239,12 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 // advertisement's entries are synced in a spearate legs.Subscriber.Sync
 // operation. This function is used as a scoped block hook, and is called for
 // each block that is received.
-func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schema.Advertisement, entryChunkCid cid.Cid) error {
+func (ing *Ingester) ingestEntryChunk(ctx context.Context, publisher peer.ID, adCid cid.Cid, ad schema.Advertisement, entryChunkCid cid.Cid) error {
 	log := log.With("publisher", publisher, "adCid", adCid, "cid", entryChunkCid)
 
 	// Get data corresponding to the block.
 	entryChunkKey := dsKey(entryChunkCid.String())
-	val, err := ing.ds.Get(context.Background(), entryChunkKey)
+	val, err := ing.ds.Get(ctx, entryChunkKey)
 	if err != nil {
 		return fmt.Errorf("cannot fetch the node from datastore: %w", err)
 	}
@@ -252,7 +252,7 @@ func (ing *Ingester) ingestEntryChunk(publisher peer.ID, adCid cid.Cid, ad schem
 		// Remove the content block from the data store now that processing it
 		// has finished. This prevents storing redundant information in several
 		// datastores.
-		err := ing.ds.Delete(context.Background(), entryChunkKey)
+		err := ing.ds.Delete(ctx, entryChunkKey)
 		if err != nil {
 			log.Errorw("Error deleting index from datastore", "err", err)
 		}
