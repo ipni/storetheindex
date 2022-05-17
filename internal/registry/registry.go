@@ -339,8 +339,8 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 }
 
 // Allowed checks if the peer is allowed by policy.
-func (r *Registry) Allowed(peerID peer.ID) (bool, error) {
-	return r.policy.Allowed(peerID), nil
+func (r *Registry) Allowed(peerID peer.ID) bool {
+	return r.policy.Allowed(peerID)
 }
 
 // PublishAllowed checks if a peer is allowed to publish for other providers.
