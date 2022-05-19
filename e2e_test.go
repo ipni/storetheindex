@@ -46,10 +46,6 @@ func (e *e2eTestRunner) run(name string, args ...string) []byte {
 
 	cmd := exec.CommandContext(e.ctx, name, args...)
 	cmd.Env = e.env
-	// Behaviour seems to be platform specific.
-	// Assure std in/err is not set otherwise combined output fails.
-	cmd.Stdin = nil
-	cmd.Stderr = nil
 	out, err := cmd.CombinedOutput()
 	qt.Assert(e.t, err, qt.IsNil, qt.Commentf("err: %v, output: %s", err, out))
 	return out
