@@ -209,6 +209,52 @@ func AllMultihashesFromAdChainDepth(t *testing.T, ad *schema.Advertisement, lsys
 	return out
 }
 
+func AllMultihashesFromAd(t *testing.T, ad *schema.Advertisement, lsys ipld.LinkSystem) []multihash.Multihash {
+	var out []multihash.Multihash
+
+	progress := traversal.Progress{
+		Cfg: &traversal.Config{
+			LinkSystem: lsys,
+			LinkTargetNodePrototypeChooser: func(l datamodel.Link, lc linking.LinkContext) (datamodel.NodePrototype, error) {
+				return basicnode.Prototype.Any, nil
+			},
+		},
+	}
+
+	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
+	sel, err := ssb.ExploreFields(
+		func(efsb builder.ExploreFieldsSpecBuilder) {
+			efsb.Insert("Entries",
+				ssb.ExploreRecursive(selector.RecursionLimitNone(),
+					ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
+						efsb.Insert("Next", ssb.ExploreRecursiveEdge())
+					})))
+		}).Selector()
+	require.NoError(t, err)
+
+	adNode, err := ad.ToNode()
+	require.NoError(t, err)
+
+	err = progress.WalkMatching(
+		adNode,
+		sel,
+		func(p traversal.Progress, n datamodel.Node) error {
+			b, err := n.AsBytes()
+			if err != nil {
+				return err
+			}
+			_, mh, err := multihash.MHFromBytes(b)
+			if err != nil {
+				return err
+			}
+			out = append(out, mh)
+			return nil
+		})
+	require.NoError(t, err)
+
+	return out
+}
+
 func AllAds(t *testing.T, ad *schema.Advertisement, lsys ipld.LinkSystem) []*schema.Advertisement {
 	var out []*schema.Advertisement
 	progress := traversal.Progress{
