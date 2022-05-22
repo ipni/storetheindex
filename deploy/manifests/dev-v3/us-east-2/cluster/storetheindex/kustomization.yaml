@@ -11,3 +11,4 @@ resources:
   - github-auth.yaml
   - flux-cd.yaml
   - flux-rbac.yaml
+  - io2-storage-class.yaml
