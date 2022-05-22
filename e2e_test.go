@@ -47,7 +47,7 @@ func (e *e2eTestRunner) run(name string, args ...string) []byte {
 	cmd := exec.CommandContext(e.ctx, name, args...)
 	cmd.Env = e.env
 	out, err := cmd.CombinedOutput()
-	qt.Assert(e.t, err, qt.IsNil, qt.Commentf("output: %s", out))
+	qt.Assert(e.t, err, qt.IsNil, qt.Commentf("err: %v, output: %s", err, out))
 	return out
 }
 
@@ -122,7 +122,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	case "windows":
 		t.Skip("skipping test on", runtime.GOOS)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	e := &e2eTestRunner{
 		t:   t,

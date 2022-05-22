@@ -1,6 +1,7 @@
 resource "aws_iam_openid_connect_provider" "github" {
   client_id_list = [
     "https://github.com/filecoin-project",
+    "https://github.com/filecoin-shipyard",
     "sts.amazonaws.com"
   ]
 
@@ -12,7 +13,7 @@ resource "aws_iam_openid_connect_provider" "github" {
 
 data "aws_iam_policy_document" "github_actions" {
   statement {
-    effect  = "Allow"
+    effect = "Allow"
     actions = [
       "ecr:GetAuthorizationToken",
       "ecr:BatchCheckLayerAvailability",
@@ -46,5 +47,9 @@ module "github_actions_role" {
     aws_iam_policy.github_actions.arn,
   ]
 
-  oidc_subjects_with_wildcards = ["repo:filecoin-project/storetheindex:*"]
+  oidc_subjects_with_wildcards = [
+    "repo:filecoin-project/storetheindex:*",
+    "repo:filecoin-shipyard/index-observer:*",
+    "repo:application-research/autoretrieve:*"
+  ]
 }

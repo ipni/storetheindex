@@ -1,3 +1,5 @@
+# Publishes storetheindex container images to the private AWS ECR.
+# The images published to ECR are used in Kubernetes clusters to server cid.contact.
 name: ECR
 
 on:

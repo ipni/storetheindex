@@ -33,12 +33,10 @@ const (
 
 var discoveryCfg = config.Discovery{
 	Policy: config.Policy{
-		Allow:           false,
-		Except:          []string{exceptID, limitedID, limitedID2, publisherID},
-		RateLimit:       false,
-		RateLimitExcept: []string{limitedID, limitedID2, publisherID},
-		Publish:         false,
-		PublishExcept:   []string{publisherID},
+		Allow:         false,
+		Except:        []string{exceptID, limitedID, limitedID2, publisherID},
+		Publish:       false,
+		PublishExcept: []string{publisherID},
 	},
 	PollInterval:   config.Duration(time.Minute),
 	RediscoverWait: config.Duration(time.Minute),
@@ -75,11 +73,11 @@ func (m *mockDiscoverer) Discover(ctx context.Context, peerID peer.ID, filecoinA
 }
 
 func TestNewRegistryDiscovery(t *testing.T) {
-	mockDisco := newMockDiscoverer(t, exceptID)
+	mockDiscoverer := newMockDiscoverer(t, exceptID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDisco)
+	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDiscoverer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,11 +126,11 @@ func TestNewRegistryDiscovery(t *testing.T) {
 }
 
 func TestDiscoveryAllowed(t *testing.T) {
-	mockDisco := newMockDiscoverer(t, exceptID)
+	mockDiscoverer := newMockDiscoverer(t, exceptID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDisco)
+	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDiscoverer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +148,7 @@ func TestDiscoveryAllowed(t *testing.T) {
 	}
 	t.Log("discovered mock miner", minerDiscoAddr)
 
-	info := r.ProviderInfoByAddr(minerDiscoAddr)
+	info := r.ProviderInfo(peerID)
 	if info == nil {
 		t.Fatal("did not get provider info for miner")
 	}
@@ -180,14 +178,29 @@ func TestDiscoveryAllowed(t *testing.T) {
 		t.Error("failed to register directly:", err)
 	}
 
+	if !r.IsRegistered(peerID) {
+		t.Error("peer is not registered")
+	}
+
 	infos := r.AllProviderInfo()
 	if len(infos) != 2 {
 		t.Fatal("expected 2 provider infos")
 	}
+
+	r.cleanup()
+	r.actions <- func() { r.rediscoverWait = 0 }
+	if len(r.discoverTimes) == 0 {
+		t.Error("should not have cleaned up discovery times")
+	}
+	r.cleanup()
+	r.actions <- func() {}
+	if len(r.discoverTimes) != 0 {
+		t.Error("should have cleaned up discovery times")
+	}
 }
 
 func TestDiscoveryBlocked(t *testing.T) {
-	mockDisco := newMockDiscoverer(t, exceptID)
+	mockDiscoverer := newMockDiscoverer(t, exceptID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -196,7 +209,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 		t.Fatal("bad provider ID:", err)
 	}
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDisco)
+	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDiscoverer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +223,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 		t.Fatal("expected error:", ErrNotAllowed, "got:", err)
 	}
 
-	into := r.ProviderInfoByAddr(minerDiscoAddr)
+	into := r.ProviderInfo(peerID)
 	if into != nil {
 		t.Error("should not have found provider info for miner")
 	}
@@ -218,7 +231,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 
 func TestDatastore(t *testing.T) {
 	dataStorePath := t.TempDir()
-	mockDisco := newMockDiscoverer(t, exceptID)
+	mockDiscoverer := newMockDiscoverer(t, exceptID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -266,7 +279,7 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewRegistry(ctx, discoveryCfg, dstore, mockDisco)
+	r, err := NewRegistry(ctx, discoveryCfg, dstore, mockDiscoverer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +319,7 @@ func TestDatastore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err = NewRegistry(ctx, discoveryCfg, dstore, mockDisco)
+	r, err = NewRegistry(ctx, discoveryCfg, dstore, mockDiscoverer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,6 +357,68 @@ func TestDatastore(t *testing.T) {
 	}
 }
 
+func TestAllowed(t *testing.T) {
+	cfg := config.Discovery{
+		Policy: config.Policy{
+			Allow:   true,
+			Publish: true,
+		},
+		RediscoverWait: config.Duration(time.Minute),
+	}
+
+	ctx := context.Background()
+
+	r, err := NewRegistry(ctx, cfg, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubID, err := peer.Decode(publisherID)
+	if err != nil {
+		t.Fatal("bad publisher ID:", err)
+	}
+
+	if !r.Allowed(pubID) {
+		t.Fatal("peer should be allowed")
+	}
+	if !r.PublishAllowed(pubID, pubID) {
+		t.Fatal("peer should be allowed")
+	}
+
+	if !r.BlockPeer(pubID) {
+		t.Error("should have update policy to block peer")
+	}
+	if r.Allowed(pubID) {
+		t.Fatal("peer should be blocked")
+	}
+
+	if !r.AllowPeer(pubID) {
+		t.Error("should have update policy to allow peer")
+	}
+	if !r.Allowed(pubID) {
+		t.Fatal("peer should be allowed")
+	}
+
+	err = r.SetPolicy(config.Policy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.policy.NoneAllowed() {
+		t.Error("expected inaccessible policy")
+	}
+
+	err = r.SetPolicy(config.Policy{
+		Allow:  true,
+		Except: []string{publisherID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Allowed(pubID) {
+		t.Fatal("peer should be blocked")
+	}
+}
+
 func TestPollProvider(t *testing.T) {
 	cfg := config.Discovery{
 		Policy: config.Policy{
@@ -363,6 +438,7 @@ func TestPollProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer r.Close()
 
 	peerID, err := peer.Decode(limitedID)
 	if err != nil {
@@ -472,6 +548,7 @@ func TestPollProviderOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer r.Close()
 
 	peerID, err := peer.Decode(limitedID)
 	if err != nil {

@@ -17,7 +17,10 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/filecoin-project/storetheindex/server/reframe"
 	"github.com/filecoin-project/storetheindex/test/util"
+	"github.com/ipfs/go-cid"
+	reframeclient "github.com/ipfs/go-delegated-routing/client"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -44,11 +47,9 @@ func InitIndex(t *testing.T, withCache bool) indexer.Interface {
 func InitRegistry(t *testing.T) *registry.Registry {
 	var discoveryCfg = config.Discovery{
 		Policy: config.Policy{
-			Allow:           false,
-			Except:          []string{providerID},
-			Publish:         false,
-			RateLimit:       false,
-			RateLimitExcept: []string{providerID},
+			Allow:   false,
+			Except:  []string{providerID},
+			Publish: false,
 		},
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),
@@ -78,6 +79,51 @@ func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 	}
 	if !v.Equal(vals[0]) {
 		t.Fatal("stored and retrieved values are different")
+	}
+}
+
+func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Finder, rc *reframeclient.Client, ind indexer.Interface, reg *registry.Registry) {
+	// Generate some multihashes and populate indexer
+	mhs := util.RandomMultihashes(15, rng)
+	p, err := peer.Decode(providerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctxID := []byte("test-context-id")
+	metadata := reframe.BitswapMetadataBytes
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := indexer.Value{
+		ProviderID:    p,
+		ContextID:     ctxID,
+		MetadataBytes: metadata,
+	}
+	populateIndex(ind, mhs[:10], v, t)
+
+	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	info := &registry.ProviderInfo{
+		AddrInfo: peer.AddrInfo{
+			ID:    p,
+			Addrs: []multiaddr.Multiaddr{a},
+		},
+	}
+	err = reg.Register(ctx, info)
+	if err != nil {
+		t.Fatal("could not register provider info:", err)
+	}
+
+	// Get single multihash
+	peerAddrs, err := rc.FindProviders(ctx, cid.NewCidV1(cid.Raw, mhs[0]))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(peerAddrs) != 1 {
+		t.Fatalf("expecting one peer addr, got %d", len(peerAddrs))
+	}
+	if peerAddrs[0].ID != p {
+		t.Fatalf("expecting %v, got %v", p, peerAddrs[0].ID)
 	}
 }
 

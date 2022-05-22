@@ -140,13 +140,9 @@ func (h *IngestHandler) Announce(r io.Reader) error {
 	}
 	addrInfo := ais[0]
 
-	allow, err := h.registry.Allowed(addrInfo.ID)
-	if err != nil {
-		err = fmt.Errorf("error checking if peer allowed: %w", err)
-		return v0.NewError(err, http.StatusInternalServerError)
-	}
-	if !allow {
-		return v0.NewError(errors.New("not allowed to announce"), http.StatusForbidden)
+	if !h.registry.Allowed(addrInfo.ID) {
+		err = fmt.Errorf("announce requests not allowed from peer %s", addrInfo.ID)
+		return v0.NewError(err, http.StatusForbidden)
 	}
 	cur, err := h.ingester.GetLatestSync(addrInfo.ID)
 	if err == nil {

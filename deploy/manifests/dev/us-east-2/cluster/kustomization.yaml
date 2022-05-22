@@ -12,3 +12,5 @@ resources:
   - monitoring
   - aws-ebs-csi-driver
   - promtail
+  - index-observer
+  - autoretrieve

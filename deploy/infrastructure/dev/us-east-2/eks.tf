@@ -27,6 +27,25 @@ module "eks" {
       desired_size   = 3
       instance_types = ["m4.xlarge"]
     }
+    dev-ue2-r5a-2xl = {
+      min_size       = 1
+      max_size       = 7
+      desired_size   = 1
+      instance_types = ["r5a.2xlarge"]
+    }
+    dev-ue2-r5b-xl = {
+      min_size       = 3
+      max_size       = 3
+      desired_size   = 3
+      instance_types = ["r5b.xlarge"]
+      taints         = {
+        dedicated = {
+          key    = "dedicated"
+          value  = "r5b"
+          effect = "NO_SCHEDULE"
+        }
+      }
+    }
   }
 
   tags = local.tags

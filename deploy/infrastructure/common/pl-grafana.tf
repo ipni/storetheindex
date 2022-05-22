@@ -20,7 +20,7 @@ module "metrics_reader_group" {
   source  = "registry.terraform.io/terraform-aws-modules/iam/aws//modules/iam-group-with-policies"
   version = "4.18.0"
 
-  name        = "metrics_viewer"
+  name = "metrics_viewer"
   group_users = [
     module.pl_grafana_user.iam_user_name
   ]
