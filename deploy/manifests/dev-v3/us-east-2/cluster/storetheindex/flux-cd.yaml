@@ -85,7 +85,7 @@ spec:
         - {{.}}
         {{ end -}}
     push:
-      branch: 'cd/dev-v2'
+      branch: 'cd/dev-v3'
   update:
     strategy: Setters
     path: "./deploy/manifests/sti-dev-v3/us-east-2/tenant/storetheindex"
