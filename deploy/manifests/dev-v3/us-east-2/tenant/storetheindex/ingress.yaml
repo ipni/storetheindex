@@ -7,7 +7,6 @@ metadata:
     cert-manager.io/cluster-issuer: "letsencrypt"
   namespace: storetheindex
 spec:
-  ingressClassName: nginx
   tls:
     - hosts:
         - dev-v3.cid.contact
