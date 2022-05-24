@@ -172,23 +172,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		legs.RateLimiter(ing.getRateLimiter),
 		legs.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
 		legs.HttpClient(rclient.StandardClient()),
-		legs.BlockHook(func(_ peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
-			// The only kind of block we should get by loading CIDs here should be Advertisement.
-			// Because:
-			//  - the default subscription selector only selects advertisements.
-			//  - explicit Ingester.Sync only selects advertisement.
-			//  - entries are synced with an explicit selector separate from advertisement syncs and
-			//    should use legs.ScopedBlockHook to override this hook and decode chunks
-			//    instead.
-			//
-			// Therefore, we only attempt to load advertisements here and signal failure if the
-			// load fails.
-			if ad, err := ing.loadAd(c); err != nil {
-				actions.FailSync(err)
-			} else if ad.PreviousID != nil {
-				actions.SetNextSyncCid((*(ad.PreviousID)).(cidlink.Link).Cid)
-			}
-		}),
+		legs.BlockHook(ing.generalLegsBlockHook),
 	)
 
 	if err != nil {
@@ -214,6 +198,26 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	log.Debugf("Ingester started and all hooks and linksystem registered")
 
 	return ing, nil
+}
+
+func (ing *Ingester) generalLegsBlockHook(_ peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
+	// The only kind of block we should get by loading CIDs here should be Advertisement.
+	// Because:
+	//  - the default subscription selector only selects advertisements.
+	//  - explicit Ingester.Sync only selects advertisement.
+	//  - entries are synced with an explicit selector separate from advertisement syncs and
+	//    should use legs.ScopedBlockHook to override this hook and decode chunks
+	//    instead.
+	//
+	// Therefore, we only attempt to load advertisements here and signal failure if the
+	// load fails.
+	if ad, err := ing.loadAd(c); err != nil {
+		actions.FailSync(err)
+	} else if ad.PreviousID != nil {
+		actions.SetNextSyncCid((*(ad.PreviousID)).(cidlink.Link).Cid)
+	} else {
+		actions.SetNextSyncCid(cid.Undef)
+	}
 }
 
 func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
@@ -343,13 +347,9 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 				if err != nil {
 					log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
 				}
-				// Decode and set next segment CID appropriately. Because scoped block hook
-				// overrides the subscriber's general block hook.
-				if ad, err := ing.loadAd(c); err != nil {
-					actions.FailSync(err)
-				} else if ad.PreviousID != nil {
-					actions.SetNextSyncCid((*(ad.PreviousID)).(cidlink.Link).Cid)
-				}
+				// Call the general hook because scoped block hook overrides the subscriber's
+				// general block hook.
+				ing.generalLegsBlockHook(i, c, actions)
 			}))
 		}
 		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
@@ -767,9 +767,9 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 		if errors.As(err, &adIngestErr) {
 			switch adIngestErr.state {
 			case adIngestDecodingErr, adIngestMalformedErr, adIngestEntryChunkErr, adIngestContentNotFound:
-				// These error cases are permament. If retried later the same
+				// These error cases are permanent. If retried later the same
 				// error will happen. So log and drop this error.
-				log.Errorw("Skipping ad because of a permanant error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
+				log.Errorw("Skipping ad because of a permanent error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
 				stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
 				err = nil
 			}

@@ -222,6 +222,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		}
 		if chunk.Next != nil {
 			actions.SetNextSyncCid((*(chunk.Next)).(cidlink.Link).Cid)
+		} else {
+			actions.SetNextSyncCid(cid.Undef)
 		}
 	}))
 	if err != nil {
@@ -248,7 +250,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 // through graphsync.
 //
 // When each advertisement on a chain is processed by ingestAd, that
-// advertisement's entries are synced in a spearate legs.Subscriber.Sync
+// advertisement's entries are synced in a separate legs.Subscriber.Sync
 // operation. This function is used as a scoped block hook, and is called for
 // each block that is received.
 func (ing *Ingester) ingestEntryChunk(ctx context.Context, publisher peer.ID, adCid cid.Cid, ad schema.Advertisement, entryChunkCid cid.Cid, chunk schema.EntryChunk) error {
@@ -265,7 +267,7 @@ func (ing *Ingester) ingestEntryChunk(ctx context.Context, publisher peer.ID, ad
 		}
 	}()
 
-	err := ing.indexContentBlock(adCid, ad, publisher, chunk)
+	err := ing.indexContentBlock(adCid, ad, publisher, entryChunkCid, chunk)
 	if err != nil {
 		return fmt.Errorf("failed processing entries for advertisement: %w", err)
 	}
@@ -284,8 +286,8 @@ func (ing *Ingester) ingestEntryChunk(ctx context.Context, publisher peer.ID, ad
 // source of the indexed content, the provider is where content can be
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, pubID peer.ID, nchunk schema.EntryChunk) error {
-	log := log.With("publisher", pubID, "adCid", adCid)
+func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, pubID peer.ID, chunkCid cid.Cid, nchunk schema.EntryChunk) error {
+	log := log.With("publisher", pubID, "adCid", adCid, "chunkCid", chunkCid)
 
 	// Load the advertisement data for this chunk. If there are more chunks to
 	// follow, then cache the ad data.
