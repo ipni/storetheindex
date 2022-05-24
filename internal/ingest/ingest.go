@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/peerutil"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
@@ -156,6 +157,12 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		rateBurst: cfg.RateLimit.BurstSize,
 	}
 
+	// Instantiate retryable HTTP client used by legs httpsync.
+	rclient := retryablehttp.NewClient()
+	rclient.RetryMax = cfg.HttpSyncRetryMax
+	rclient.RetryWaitMin = time.Duration(cfg.HttpSyncRetryWaitMin)
+	rclient.RetryWaitMax = time.Duration(cfg.HttpSyncRetryWaitMax)
+
 	// Create and start pubsub subscriber. This also registers the storage hook
 	// to index data as it is received.
 	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel,
@@ -164,6 +171,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		legs.UseLatestSyncHandler(&syncHandler{ing}),
 		legs.RateLimiter(ing.getRateLimiter),
 		legs.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
+		legs.HttpClient(rclient.StandardClient()),
 		legs.BlockHook(func(_ peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
 			// The only kind of block we should get by loading CIDs here should be Advertisement.
 			// Because:

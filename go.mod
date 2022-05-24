@@ -12,6 +12,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.7.4
+	github.com/hashicorp/go-retryablehttp v0.7.1
 	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipfs/go-delegated-routing v0.2.0
@@ -81,6 +82,7 @@ require (
 	github.com/hannahhoward/cbor-gen-for v0.0.0-20200817222906-ea96cece81f1 // indirect
 	github.com/hannahhoward/go-pubsub v0.0.0-20200423002714-8d62886cc36e // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/huin/goupnp v1.0.2 // indirect
