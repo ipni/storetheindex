@@ -21,6 +21,7 @@ parameters:
   # See: 
   #  - https://github.com/kubernetes-sigs/aws-ebs-csi-driver#createvolume-parameters
   #  - https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html#EBSVolumeTypes_piops
-  # iopsPerGB: "1"
-  iops: "5120"
-  # allowAutoIOPSPerGBIncrease: "true"
+  iopsPerGB: "1"
+  # iops: "5120"
+  allowAutoIOPSPerGBIncrease: "true"
+  
