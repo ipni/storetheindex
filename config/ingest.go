@@ -44,6 +44,12 @@ type Ingest struct {
 	// -1 disables the segmentation where the sync will be done in a single call
 	// and zero means use the default value.
 	SyncSegmentDepthLimit int
+	// HttpSyncRetryWaitMin sets the minimum time to wait before retrying a failed HTTP sync.
+	HttpSyncRetryWaitMin Duration
+	// HttpSyncRetryWaitMax sets the maximum time to wait before retrying a failed HTTP sync.
+	HttpSyncRetryWaitMax Duration
+	// HttpSyncRetryMax sets the maximum number of times HTTP sync requests should be retried.
+	HttpSyncRetryMax int
 }
 
 // NewIngest returns Ingest with values set to their defaults.
@@ -57,6 +63,9 @@ func NewIngest() Ingest {
 		StoreBatchSize:          4096,
 		SyncTimeout:             Duration(2 * time.Hour),
 		SyncSegmentDepthLimit:   2_000,
+		HttpSyncRetryWaitMin:    Duration(1 * time.Second),
+		HttpSyncRetryWaitMax:    Duration(30 * time.Second),
+		HttpSyncRetryMax:        4,
 	}
 }
 
@@ -85,5 +94,14 @@ func (c *Ingest) populateUnset() {
 	}
 	if c.SyncSegmentDepthLimit == 0 {
 		c.SyncSegmentDepthLimit = def.SyncSegmentDepthLimit
+	}
+	if c.HttpSyncRetryWaitMin == 0 {
+		c.HttpSyncRetryWaitMin = def.HttpSyncRetryWaitMin
+	}
+	if c.HttpSyncRetryWaitMax == 0 {
+		c.HttpSyncRetryWaitMax = def.HttpSyncRetryWaitMax
+	}
+	if c.HttpSyncRetryMax == 0 {
+		c.HttpSyncRetryMax = def.HttpSyncRetryMax
 	}
 }
