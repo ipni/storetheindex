@@ -162,6 +162,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	rclient.RetryMax = cfg.HttpSyncRetryMax
 	rclient.RetryWaitMin = time.Duration(cfg.HttpSyncRetryWaitMin)
 	rclient.RetryWaitMax = time.Duration(cfg.HttpSyncRetryWaitMax)
+	rclient.Logger = nil // Disable default verbose logging of every HTTP request.
 
 	// Create and start pubsub subscriber. This also registers the storage hook
 	// to index data as it is received.
