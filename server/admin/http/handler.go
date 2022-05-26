@@ -11,7 +11,6 @@ import (
 	"strconv"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/importer"
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -22,18 +21,20 @@ import (
 )
 
 type adminHandler struct {
-	ctx      context.Context
-	indexer  indexer.Interface
-	ingester *ingest.Ingester
-	reg      *registry.Registry
+	ctx           context.Context
+	indexer       indexer.Interface
+	ingester      *ingest.Ingester
+	reg           *registry.Registry
+	reloadErrChan chan<- chan error
 }
 
-func newHandler(ctx context.Context, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry) *adminHandler {
+func newHandler(ctx context.Context, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error) *adminHandler {
 	return &adminHandler{
-		ctx:      ctx,
-		indexer:  indexer,
-		ingester: ingester,
-		reg:      reg,
+		ctx:           ctx,
+		indexer:       indexer,
+		ingester:      ingester,
+		reg:           reg,
+		reloadErrChan: reloadErrChan,
 	}
 }
 
@@ -141,22 +142,14 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (h *adminHandler) reloadPolicy(w http.ResponseWriter, r *http.Request) {
-	cfg, err := config.Load("")
+func (h *adminHandler) reloadConfig(w http.ResponseWriter, r *http.Request) {
+	errChan := make(chan error)
+	h.reloadErrChan <- errChan
+	err := <-errChan
 	if err != nil {
-		log.Errorw("Failed to load config", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	err = h.reg.SetPolicy(cfg.Discovery.Policy)
-	if err != nil {
-		log.Errorw("Failed to set policy config", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	log.Info("Reloaded policy from configuration file")
 	w.WriteHeader(http.StatusOK)
 }
 

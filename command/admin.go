@@ -31,10 +31,10 @@ var block = &cli.Command{
 }
 
 var reload = &cli.Command{
-	Name:   "reload-policy",
-	Usage:  "Reload the policy from the configuration file",
-	Flags:  adminReloadPolicyFlags,
-	Action: reloadPolicyCmd,
+	Name:   "reload-config",
+	Usage:  "Reload policy and rate limit settings from the configuration file",
+	Flags:  adminReloadConfigFlags,
+	Action: reloadConfigCmd,
 }
 
 var AdminCmd = &cli.Command{
@@ -107,15 +107,15 @@ func blockCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func reloadPolicyCmd(cctx *cli.Context) error {
+func reloadConfigCmd(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
-	err = cl.ReloadPolicy(cctx.Context)
+	err = cl.ReloadConfig(cctx.Context)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Reloaded policy from configuration file")
+	fmt.Println("Reloaded indexer configuration")
 	return nil
 }

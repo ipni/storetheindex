@@ -23,7 +23,7 @@ type Server struct {
 	server *http.Server
 }
 
-func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, options ...ServerOption) (*Server, error) {
+func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error, options ...ServerOption) (*Server, error) {
 	if ingester == nil {
 		panic("ingester cannot be nil")
 	}
@@ -53,7 +53,7 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 		server: server,
 	}
 
-	h := newHandler(ctx, indexer, ingester, reg)
+	h := newHandler(ctx, indexer, ingester, reg, reloadErrChan)
 
 	// Set protocol handlers
 	// Import routes
@@ -62,12 +62,12 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 
 	// Admin routes
 	r.HandleFunc("/healthcheck", h.healthCheckHandler).Methods(http.MethodGet)
+	r.HandleFunc("/reloadconfig", h.reloadConfig).Methods(http.MethodPost)
 
 	// Ingester routes
 	r.HandleFunc("/ingest/allow/{peer}", h.allowPeer).Methods(http.MethodPut)
 	r.HandleFunc("/ingest/block/{peer}", h.blockPeer).Methods(http.MethodPut)
 	r.HandleFunc("/ingest/sync/{peer}", h.sync).Methods(http.MethodPost)
-	r.HandleFunc("/ingest/reloadpolicy", h.reloadPolicy).Methods(http.MethodPost)
 
 	// Metrics routes
 	r.Handle("/metrics", metrics.Start(coremetrics.DefaultViews))

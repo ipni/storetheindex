@@ -136,7 +136,7 @@ var adminPolicyFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
-var adminReloadPolicyFlags = []cli.Flag{
+var adminReloadConfigFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
