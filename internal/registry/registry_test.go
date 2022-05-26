@@ -502,6 +502,8 @@ func TestPollProvider(t *testing.T) {
 	// stop.
 	poll.stopAfter = 0
 	r.pollProviders(poll, nil)
+	// wait some time to pass poll interval (for low-res timers)
+	time.Sleep(time.Second)
 	r.pollProviders(poll, nil)
 	r.pollProviders(poll, nil)
 
