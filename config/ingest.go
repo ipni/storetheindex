@@ -50,6 +50,8 @@ type Ingest struct {
 	HttpSyncRetryWaitMax Duration
 	// HttpSyncRetryMax sets the maximum number of times HTTP sync requests should be retried.
 	HttpSyncRetryMax int
+	// HttpSyncTimeout sets the time limit for HTTP sync requests.
+	HttpSyncTimeout Duration
 }
 
 // NewIngest returns Ingest with values set to their defaults.
@@ -66,6 +68,7 @@ func NewIngest() Ingest {
 		HttpSyncRetryWaitMin:    Duration(1 * time.Second),
 		HttpSyncRetryWaitMax:    Duration(30 * time.Second),
 		HttpSyncRetryMax:        4,
+		HttpSyncTimeout:         Duration(10 * time.Second),
 	}
 }
 
@@ -103,5 +106,8 @@ func (c *Ingest) populateUnset() {
 	}
 	if c.HttpSyncRetryMax == 0 {
 		c.HttpSyncRetryMax = def.HttpSyncRetryMax
+	}
+	if c.HttpSyncTimeout == 0 {
+		c.HttpSyncTimeout = def.HttpSyncTimeout
 	}
 }
