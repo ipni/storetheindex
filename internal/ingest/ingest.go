@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -158,11 +159,16 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	}
 
 	// Instantiate retryable HTTP client used by legs httpsync.
-	rclient := retryablehttp.NewClient()
-	rclient.RetryMax = cfg.HttpSyncRetryMax
-	rclient.RetryWaitMin = time.Duration(cfg.HttpSyncRetryWaitMin)
-	rclient.RetryWaitMax = time.Duration(cfg.HttpSyncRetryWaitMax)
-	rclient.Logger = nil // Disable default verbose logging of every HTTP request.
+	rclient := &retryablehttp.Client{
+		HTTPClient: &http.Client{
+			Timeout: time.Duration(cfg.HttpSyncTimeout),
+		},
+		RetryWaitMin: time.Duration(cfg.HttpSyncRetryWaitMin),
+		RetryWaitMax: time.Duration(cfg.HttpSyncRetryWaitMax),
+		RetryMax:     cfg.HttpSyncRetryMax,
+		CheckRetry:   retryablehttp.DefaultRetryPolicy,
+		Backoff:      retryablehttp.DefaultBackoff,
+	}
 
 	// Create and start pubsub subscriber. This also registers the storage hook
 	// to index data as it is received.
