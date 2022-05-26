@@ -10,6 +10,8 @@ import (
 const testMinerAddr = "t01000"
 
 func TestDiscoverer(t *testing.T) {
+	t.Skip("Skipping because requires network access and may cause HTTP 403")
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
