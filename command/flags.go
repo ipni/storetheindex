@@ -6,16 +6,15 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
-	"github.com/urfave/cli/v2/altsrc"
 )
 
-var indexerHostFlag = altsrc.NewStringFlag(&cli.StringFlag{
+var indexerHostFlag = &cli.StringFlag{
 	Name:     "indexer",
 	Usage:    "Host or host:port of indexer to use",
 	EnvVars:  []string{"INDEXER"},
 	Aliases:  []string{"i"},
 	Required: false,
-})
+}
 
 var cacheSizeFlag = &cli.Int64Flag{
 	Name:     "cachesize",
