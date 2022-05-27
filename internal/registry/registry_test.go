@@ -632,8 +632,10 @@ func TestPollProviderOverrides(t *testing.T) {
 	// Check that sync channel was not written since polling should have
 	// stopped.
 	select {
-	case <-r.SyncChan():
-		t.Fatal("sync channel should not have beem written to")
+	case pinfo := <-r.SyncChan():
+		if pinfo.AddrInfo.ID == peerID {
+			t.Fatal("sync channel should not have beem written to for override peer")
+		}
 	default:
 	}
 
