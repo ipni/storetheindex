@@ -2,9 +2,14 @@ package reframe
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/filecoin-project/go-indexer-core"
+	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
+	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/server/finder/handler"
 	"github.com/ipfs/go-cid"
@@ -15,6 +20,8 @@ import (
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/multiformats/go-varint"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 )
 
 func NewReframeHTTPHandler(indexer indexer.Interface, registry *registry.Registry) http.HandlerFunc {
@@ -30,6 +37,15 @@ type ReframeService struct {
 }
 
 func (x *ReframeService) FindProviders(key cid.Cid) (<-chan client.FindProvidersAsyncResult, error) {
+	startTime := time.Now()
+	var found bool
+	defer func() {
+		msecPerMh := coremetrics.MsecSince(startTime)
+		_ = stats.RecordWithOptions(context.Background(),
+			stats.WithTags(tag.Insert(metrics.Method, "reframe"), tag.Insert(metrics.Found, fmt.Sprintf("%v", found))),
+			stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
+	}()
+
 	mh := key.Hash()
 	fr, err := x.finderHandler.Find([]multihash.Multihash{mh})
 	if err != nil {
