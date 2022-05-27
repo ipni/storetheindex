@@ -313,8 +313,12 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 	var prevBatch []multihash.Multihash
 
 	// Iterate over all entries and ingest (or remove) them.
-	var count int
+	var count, tooShortCount int
 	for _, entry := range nchunk.Entries {
+		if len(entry) < 4 {
+			tooShortCount++
+			continue
+		}
 		batch = append(batch, entry)
 
 		// Process full batch of multihashes.
@@ -332,6 +336,9 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 			prevBatch, batch = batch, prevBatch
 			batch = batch[:0]
 		}
+	}
+	if tooShortCount != 0 {
+		log.Warnw("Ignored entries that were less than 4 bytes", "ignored", tooShortCount)
 	}
 
 	// Process any remaining multihashes.
