@@ -36,7 +36,7 @@ type ReframeService struct {
 	finderHandler *handler.FinderHandler
 }
 
-func (x *ReframeService) FindProviders(key cid.Cid) (<-chan client.FindProvidersAsyncResult, error) {
+func (x *ReframeService) FindProviders(ctx context.Context, key cid.Cid) (<-chan client.FindProvidersAsyncResult, error) {
 	startTime := time.Now()
 	var found bool
 	defer func() {
@@ -71,11 +71,11 @@ func (x *ReframeService) FindProviders(key cid.Cid) (<-chan client.FindProviders
 	return ch, nil
 }
 
-func (x *ReframeService) GetIPNS(id []byte) (<-chan client.GetIPNSAsyncResult, error) {
+func (x *ReframeService) GetIPNS(ctx context.Context, id []byte) (<-chan client.GetIPNSAsyncResult, error) {
 	return nil, routing.ErrNotSupported
 }
 
-func (x *ReframeService) PutIPNS(id []byte, record []byte) (<-chan client.PutIPNSAsyncResult, error) {
+func (x *ReframeService) PutIPNS(ctx context.Context, id []byte, record []byte) (<-chan client.PutIPNSAsyncResult, error) {
 	return nil, routing.ErrNotSupported
 }
 
