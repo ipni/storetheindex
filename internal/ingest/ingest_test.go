@@ -194,7 +194,9 @@ func blockableLinkSys(afterBlock func() (io.Reader, error)) (opt func(teo *testE
 					if isBlocked {
 						fmt.Println("blocked read")
 						hitBlockedRead <- l.(cidlink.Link).Cid
-						return afterBlock()
+						if afterBlock != nil {
+							return afterBlock()
+						}
 					}
 					return backendLsys.StorageReadOpener(lc, l)
 				}
@@ -997,6 +999,98 @@ func mkTestHost(opts ...libp2p.Option) host.Host {
 	opts = append(opts, libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
 	h, _ := libp2p.New(opts...)
 	return h
+}
+
+func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
+	te := setupTestEnv(t, true, blockableLsysOpt)
+	defer te.Close(t)
+	headLink := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 3},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 4},
+		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
+	headCid := headLink.(cidlink.Link).Cid
+	ads := typehelpers.AllAdLinks(t, headLink, te.publisherLinkSys)
+	mhs := typehelpers.AllMultihashesFromAdLink(t, headLink, te.publisherLinkSys)
+	pubAddrInfo := te.pubHost.Peerstore().PeerInfo(te.pubHost.ID())
+
+	err := te.publisher.SetRoot(context.Background(), headCid)
+	require.NoError(t, err)
+
+	// Block syncing of head ad entries
+	headAd := typehelpers.AdFromLink(t, headLink, te.publisherLinkSys)
+	blockedReads.add(headAd.Entries.(cidlink.Link).Cid)
+
+	// Instantiate a sync
+	wait, err := te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 0, false)
+	require.NoError(t, err)
+
+	// Assert that all multihashes except the head multihash are indexed eventually
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs[:3])
+	// Asset that the head ad multihash is not indexed.
+	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), mhs[3:])
+
+	// Announce an ad CID and assert that call to announce is deferred since
+	// we have blocked the processing.
+	ad2Cid := ads[2].(cidlink.Link).Cid
+	err = te.ingester.Announce(context.Background(), ad2Cid, pubAddrInfo)
+	require.NoError(t, err)
+	gotPendingAnnounce, found := te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
+	require.True(t, found)
+	require.Equal(t, pendingAnnounce{
+		addrInfo: pubAddrInfo,
+		nextCid:  ad2Cid,
+	}, gotPendingAnnounce)
+
+	// Announce another CID and assert the pending announce is updated to the latest announced CID.
+	ad3Cid := ads[3].(cidlink.Link).Cid
+	err = te.ingester.Announce(context.Background(), ad3Cid, pubAddrInfo)
+	require.NoError(t, err)
+	gotPendingAnnounce, found = te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
+	require.True(t, found)
+	require.Equal(t, pendingAnnounce{
+		addrInfo: pubAddrInfo,
+		nextCid:  ad3Cid,
+	}, gotPendingAnnounce)
+
+	// Unblock the processing and assert that everything is indexed.
+	<-hitBlockedRead
+	require.Equal(t, headCid, <-wait)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+
+	// Assert that there is no pending announce.
+	requireTrueEventually(t, func() bool {
+		_, found := te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
+		return !found
+	}, testRetryInterval, testRetryTimeout, "Expected the pending announce to have been processed")
+}
+
+func TestAnnounceIsNotDeferredOnNoInProgressIngest(t *testing.T) {
+	te := setupTestEnv(t, true)
+	defer te.Close(t)
+	headLink := typehelpers.RandomAdBuilder{
+		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
+			{ChunkCount: 10, EntriesPerChunk: 7, EntriesSeed: 1},
+			{ChunkCount: 5, EntriesPerChunk: 11, EntriesSeed: 2},
+			{ChunkCount: 4, EntriesPerChunk: 12, EntriesSeed: 3},
+		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
+	headCid := headLink.(cidlink.Link).Cid
+	mhs := typehelpers.AllMultihashesFromAdLink(t, headLink, te.publisherLinkSys)
+	pubAddrInfo := te.pubHost.Peerstore().PeerInfo(te.pubHost.ID())
+
+	// Announce the head ad CID.
+	err := te.ingester.Announce(context.Background(), headCid, pubAddrInfo)
+	require.NoError(t, err)
+	// Assert that there is no pending announce.
+	_, found := te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
+	require.False(t, found)
+
+	// Assert that all multihashes in ad chain are indexed eventually, since Announce triggers
+	// a background sync and should eventually process the ads.
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
 }
 
 // Make new indexer engine
