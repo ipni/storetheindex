@@ -23,10 +23,10 @@ spec:
               mountPath: /identity
           resources:
             limits:
-              cpu: "2"
+              cpu: "3.5"
               memory: 25Gi
             requests:
-              cpu: "2"
+              cpu: "3.5"
               memory: 25Gi
       # Require r5b instance types to run index provider pods.
       tolerations:
