@@ -57,6 +57,12 @@ type adProcessedEvent struct {
 
 type providerID peer.ID
 
+// pendingAnnounce captures an announcement received from a provider that await processing.
+type pendingAnnounce struct {
+	addrInfo peer.AddrInfo
+	nextCid  cid.Cid
+}
+
 // Ingester is a type that uses go-legs for the ingestion protocol.
 type Ingester struct {
 	host    host.Host
@@ -91,7 +97,7 @@ type Ingester struct {
 
 	// A map of providers currently being processed. A worker holds the lock of
 	// a provider while ingesting ads for that provider.
-	providersBeingProcessed   map[peer.ID]*sync.Mutex
+	providersBeingProcessed   map[peer.ID]chan struct{}
 	providersBeingProcessedMu sync.Mutex
 	providerAdChainStaging    map[peer.ID]*atomic.Value
 	// toWorkers is a channel used to ask the worker pool to start processing
@@ -105,6 +111,10 @@ type Ingester struct {
 	rateApply peerutil.Policy
 	rateLimit rate.Limit
 	rateBurst int
+
+	// providersPendingAnnounce maps the provider ID to the latest announcement received from the
+	// provider that is waiting to be processed.
+	providersPendingAnnounce sync.Map
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -148,7 +158,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		closePendingSyncs: make(chan struct{}),
 
-		providersBeingProcessed: make(map[peer.ID]*sync.Mutex),
+		providersBeingProcessed: make(map[peer.ID]chan struct{}),
 		providerAdChainStaging:  make(map[peer.ID]*atomic.Value),
 		toWorkers:               make(chan providerID),
 		closeWorkers:            make(chan struct{}),
@@ -404,8 +414,33 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 // Announce send an announce message to directly to go-legs, instead of through
 // pubsub.
 func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, addrInfo peer.AddrInfo) error {
-	log.Infow("Handling direct announce request", "peer", addrInfo.ID, "cid", nextCid, "addrs", addrInfo.Addrs)
-	return ing.sub.Announce(ctx, nextCid, addrInfo.ID, addrInfo.Addrs)
+	provider := addrInfo.ID
+	log := log.With("provider", provider, "cid", nextCid, "addrs", addrInfo.Addrs)
+
+	ing.providersBeingProcessedMu.Lock()
+	pc, ok := ing.providersBeingProcessed[provider]
+	if !ok {
+		pc = make(chan struct{}, 1)
+		ing.providersBeingProcessed[provider] = pc
+	}
+	ing.providersBeingProcessedMu.Unlock()
+
+	select {
+	case pc <- struct{}{}:
+		log.Info("Handling direct announce request")
+		err := ing.sub.Announce(ctx, nextCid, provider, addrInfo.Addrs)
+		<-pc
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		ing.providersPendingAnnounce.Store(provider, pendingAnnounce{
+			addrInfo: addrInfo,
+			nextCid:  nextCid,
+		})
+		log.Info("Deferred handling direct announce request")
+		return nil
+	}
 }
 
 func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int, resync bool) (ipld.Node, error) {
@@ -689,14 +724,16 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 	for p, adInfos := range adsGroupedByProvider {
 		ing.providersBeingProcessedMu.Lock()
 		if _, ok := ing.providersBeingProcessed[p]; !ok {
-			ing.providersBeingProcessed[p] = &sync.Mutex{}
+			ing.providersBeingProcessed[p] = make(chan struct{}, 1)
 		}
-		if _, ok := ing.providerAdChainStaging[p]; !ok {
-			ing.providerAdChainStaging[p] = &atomic.Value{}
+		wa, ok := ing.providerAdChainStaging[p]
+		if !ok {
+			wa = &atomic.Value{}
+			ing.providerAdChainStaging[p] = wa
 		}
 		ing.providersBeingProcessedMu.Unlock()
 
-		oldAssignment := ing.providerAdChainStaging[p].Swap(workerAssignment{
+		oldAssignment := wa.Swap(workerAssignment{
 			adInfos:   adInfos,
 			publisher: syncFinishedEvent.PeerID,
 			provider:  p,
@@ -716,16 +753,17 @@ func (ing *Ingester) ingestWorker() {
 		case <-ing.closeWorkers:
 			return
 		case provider := <-ing.toWorkers:
-			ing.ingestWorkerLogic(peer.ID(provider))
+			pid := peer.ID(provider)
+			pc := ing.providersBeingProcessed[pid]
+			pc <- struct{}{}
+			ing.ingestWorkerLogic(pid)
+			ing.handlePendingAnnounce(pid)
+			<-pc
 		}
 	}
 }
 
 func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
-	// It is assumed that the runIngestStep puts a mutex in this map.
-	ing.providersBeingProcessed[provider].Lock()
-	defer ing.providersBeingProcessed[provider].Unlock()
-
 	// Pull out the assignment for this provider. Note that runIngestStep
 	// populates this atomic.Value.
 	assignmentInterface := ing.providerAdChainStaging[provider].Swap(workerAssignment{none: true})
@@ -814,6 +852,30 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 			err:       nil,
 		}
 	}
+}
+
+func (ing *Ingester) handlePendingAnnounce(pid peer.ID) {
+	log := log.With("provider", pid)
+	// Process pending announce request if any.
+	// Note that the pending announce  is deleted regardless of whether it was successfully
+	// processed or not. Because, the cause of failure may be non-recoverable e.g. address
+	// change and not removing it will block processing of future pending announces.
+	v, found := ing.providersPendingAnnounce.LoadAndDelete(pid)
+	if !found {
+		return
+	}
+	pa, ok := v.(pendingAnnounce)
+	if !ok {
+		log.Errorw("Cannot handle pending announce; unexpected type", "got", v)
+		return
+	}
+	log = log.With("cid", pa.nextCid, "addrinfo", pa.addrInfo)
+	err := ing.sub.Announce(context.Background(), pa.nextCid, pa.addrInfo.ID, pa.addrInfo.Addrs)
+	if err != nil {
+		log.Errorw("Failed to handle pending announce", "err", err)
+		return
+	}
+	log.Info("Successfully handled pending announce")
 }
 
 // recursionLimit returns the recursion limit for the given depth.
