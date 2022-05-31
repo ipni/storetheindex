@@ -36,8 +36,12 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// shutdownTimeout is the duration that a graceful shutdown has to complete.
-const shutdownTimeout = 5 * time.Second
+const (
+	// configCheckInterval is the time between config update checks.
+	configCheckInterval = 30 * time.Second
+	// shutdownTimeout is the duration that a graceful shutdown has to complete.
+	shutdownTimeout = 5 * time.Second
+)
 
 // Recognized valuestore type names.
 const (
@@ -303,7 +307,28 @@ func daemonCommand(cctx *cli.Context) error {
 	// Output message to user (not to log).
 	fmt.Println("Indexer is ready")
 
-	var finalErr error
+	var cfgPath string
+	if cctx.Bool("watch-config") {
+		cfgPath, err = config.Filename("")
+		if err != nil {
+			log.Errorw("Cannot get config file name", "err", err)
+		}
+	}
+
+	var finalErr, statErr error
+	var modTime time.Time
+	var ticker *time.Ticker
+	var timeChan <-chan time.Time
+
+	if cfgPath != "" {
+		modTime, _, statErr = fileChanged(cfgPath, modTime)
+		if statErr != nil {
+			log.Error(err)
+		}
+		ticker = time.NewTicker(configCheckInterval)
+		timeChan = ticker.C
+	}
+
 	for endDaemon := false; !endDaemon; {
 		select {
 		case <-cctx.Done():
@@ -326,7 +351,24 @@ func daemonCommand(cctx *cli.Context) error {
 			if errChan != nil {
 				errChan <- err
 			}
+		case <-timeChan:
+			var changed bool
+			modTime, changed, err = fileChanged(cfgPath, modTime)
+			if err != nil {
+				if statErr == nil {
+					log.Errorw("Cannot stat config file", "err", err, "path", cfgPath)
+					statErr = err
+				}
+				continue
+			}
+			statErr = nil
+			if changed {
+				reloadErrChan <- nil
+			}
 		}
+	}
+	if ticker != nil {
+		ticker.Stop()
 	}
 
 	log.Infow("Shutting down daemon")
@@ -383,6 +425,17 @@ func daemonCommand(cctx *cli.Context) error {
 
 	log.Info("Indexer stopped")
 	return finalErr
+}
+
+func fileChanged(filePath string, modTime time.Time) (time.Time, bool, error) {
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return modTime, false, fmt.Errorf("cannot stat config file: %w", err)
+	}
+	if fi.ModTime() != modTime {
+		return fi.ModTime(), true, nil
+	}
+	return modTime, false, nil
 }
 
 func createValueStore(cfgIndexer config.Indexer) (indexer.Interface, error) {
