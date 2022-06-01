@@ -112,6 +112,7 @@ Default:
   "NoResourceManager": false
 }
 ```
+
 ## `Bootstrap`
 Description: [Bootstrap](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Bootstrap)
 
@@ -213,3 +214,10 @@ Default:
   "BurstSize": 500
 }
 ```
+
+## Runtime Reloadable Items
+The storetheindex daemon can reload some portions of its config without restarting the entire daemon. This is done by using the admin sub-command `reload-config`, send the daemon process a `SIGHUP` signal, or simply updating the config when the daemon is run with the `--watch-config` flag. The reloadable portions of the config files are:
+- [`Discovery.Policy`](#discoverypolicy)
+- [`Ingest.IngestWorkerCount`](#ingest)
+- [`Ingest.RateLimit`](#ingestratelimit)
+- [`Ingest.StoreBatchSize`](#ingest)

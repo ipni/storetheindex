@@ -32,7 +32,7 @@ var block = &cli.Command{
 
 var reload = &cli.Command{
 	Name:   "reload-config",
-	Usage:  "Reload policy and rate limit settings from the configuration file",
+	Usage:  "Reload policy, rate limit, workers, and batch settings from the configuration file",
 	Flags:  adminReloadConfigFlags,
 	Action: reloadConfigCmd,
 }
