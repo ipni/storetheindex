@@ -83,7 +83,7 @@ type Ingester struct {
 	ds      datastore.Batching
 	indexer indexer.Interface
 
-	batchSize int
+	batchSize uint32
 	closeOnce sync.Once
 	sigUpdate chan struct{}
 
@@ -114,12 +114,15 @@ type Ingester struct {
 	providersBeingProcessed   map[peer.ID]chan struct{}
 	providersBeingProcessedMu sync.Mutex
 	providerAdChainStaging    map[peer.ID]*atomic.Value
-	// toWorkers is a channel used to ask the worker pool to start processing
-	// the ad chain for a given provider
+
+	closeWorkers chan struct{}
+	// toStaging receives sync finished events used to call to runIngestStep.
+	toStaging <-chan legs.SyncFinished
+	// toWorkers is used to ask the worker pool to start processing the ad
+	// chain for a given provider.
 	toWorkers      chan providerID
-	closeWorkers   chan struct{}
 	waitForWorkers sync.WaitGroup
-	toStaging      <-chan legs.SyncFinished
+	workerPoolSize int
 
 	// RateLimiting
 	rateApply peerutil.Policy
@@ -159,7 +162,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		host:        h,
 		ds:          ds,
 		indexer:     idxr,
-		batchSize:   cfg.StoreBatchSize,
+		batchSize:   uint32(cfg.StoreBatchSize),
 		sigUpdate:   make(chan struct{}, 1),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		entriesSel:  entSel,
@@ -216,7 +219,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	if cfg.IngestWorkerCount == 0 {
 		return nil, errors.New("ingester worker count must be > 0")
 	}
-	ing.startIngesterLoop(cfg.IngestWorkerCount)
+	ing.RunWorkers(cfg.IngestWorkerCount)
+	go ing.runIngesterLoop()
 
 	// Start distributor to send SyncFinished messages to interested parties.
 	go ing.distributeEvents()
@@ -672,6 +676,14 @@ func (ing *Ingester) GetLatestSync(peerID peer.ID) (cid.Cid, error) {
 	return c, err
 }
 
+func (ing *Ingester) BatchSize() int {
+	return int(atomic.LoadUint32(&ing.batchSize))
+}
+
+func (ing *Ingester) SetBatchSize(batchSize int) {
+	atomic.StoreUint32(&ing.batchSize, uint32(batchSize))
+}
+
 func (ing *Ingester) SetRateLimit(cfgRateLimit config.RateLimit) error {
 	apply, burst, limit, err := configRateLimit(cfgRateLimit)
 	if err != nil {
@@ -688,21 +700,24 @@ func (ing *Ingester) SetRateLimit(cfgRateLimit config.RateLimit) error {
 	return nil
 }
 
-func (ing *Ingester) startIngesterLoop(workerPoolSize int) {
-	// startup the worker pool
-	for i := 0; i < workerPoolSize; i++ {
+func (ing *Ingester) RunWorkers(n int) {
+	for n > ing.workerPoolSize {
+		// Start worker.
 		ing.waitForWorkers.Add(1)
-		go func() {
-			defer ing.waitForWorkers.Done()
-			ing.ingestWorker()
-		}()
+		go ing.ingestWorker()
+		ing.workerPoolSize++
 	}
+	for n < ing.workerPoolSize {
+		// Stop worker.
+		ing.closeWorkers <- struct{}{}
+		ing.workerPoolSize--
+	}
+}
 
-	go func() {
-		for syncFinishedEvent := range ing.toStaging {
-			ing.runIngestStep(syncFinishedEvent)
-		}
-	}()
+func (ing *Ingester) runIngesterLoop() {
+	for syncFinishedEvent := range ing.toStaging {
+		ing.runIngestStep(syncFinishedEvent)
+	}
 }
 
 func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
@@ -766,9 +781,13 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 }
 
 func (ing *Ingester) ingestWorker() {
+	log.Debug("started ingest worker")
+	defer ing.waitForWorkers.Done()
+
 	for {
 		select {
 		case <-ing.closeWorkers:
+			log.Debug("stopped ingest worker")
 			return
 		case provider := <-ing.toWorkers:
 			pid := peer.ID(provider)

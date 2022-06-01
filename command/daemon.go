@@ -493,6 +493,8 @@ func reloadConfig(filePath string, ingester *ingest.Ingester, reg *registry.Regi
 		if err != nil {
 			return fmt.Errorf("failed to set rate limit config: %w", err)
 		}
+		ingester.SetBatchSize(cfg.Ingest.StoreBatchSize)
+		ingester.RunWorkers(cfg.Ingest.IngestWorkerCount)
 	}
 
 	fmt.Println("Reloaded policy and rate limit configuration")
