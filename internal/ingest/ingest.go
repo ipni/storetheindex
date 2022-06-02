@@ -63,13 +63,27 @@ type pendingAnnounce struct {
 	nextCid  cid.Cid
 }
 
+type adInfo struct {
+	cid cid.Cid
+	ad  schema.Advertisement
+}
+
+type workerAssignment struct {
+	// none represents a nil assignment. Used because a nil in atomic.Value
+	// cannot be stored.
+	none      bool
+	adInfos   []adInfo
+	publisher peer.ID
+	provider  peer.ID
+}
+
 // Ingester is a type that uses go-legs for the ingestion protocol.
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
 	indexer indexer.Interface
 
-	batchSize int
+	batchSize uint32
 	closeOnce sync.Once
 	sigUpdate chan struct{}
 
@@ -100,21 +114,26 @@ type Ingester struct {
 	providersBeingProcessed   map[peer.ID]chan struct{}
 	providersBeingProcessedMu sync.Mutex
 	providerAdChainStaging    map[peer.ID]*atomic.Value
-	// toWorkers is a channel used to ask the worker pool to start processing
-	// the ad chain for a given provider
+
+	closeWorkers chan struct{}
+	// toStaging receives sync finished events used to call to runIngestStep.
+	toStaging <-chan legs.SyncFinished
+	// toWorkers is used to ask the worker pool to start processing the ad
+	// chain for a given provider.
 	toWorkers      chan providerID
-	closeWorkers   chan struct{}
 	waitForWorkers sync.WaitGroup
-	toStaging      <-chan legs.SyncFinished
+	workerPoolSize int
 
 	// RateLimiting
 	rateApply peerutil.Policy
-	rateLimit rate.Limit
 	rateBurst int
 
 	// providersPendingAnnounce maps the provider ID to the latest announcement received from the
 	// provider that is waiting to be processed.
 	providersPendingAnnounce sync.Map
+
+	rateLimit rate.Limit
+	rateMutex sync.Mutex
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -139,16 +158,11 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
 		})).Node()
 
-	rateApply, err := peerutil.NewPolicyStrings(cfg.RateLimit.Apply, cfg.RateLimit.Except)
-	if err != nil {
-		log.Errorw("Bad setting rate limit for peers", "err", err)
-	}
-
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
 		indexer:     idxr,
-		batchSize:   cfg.StoreBatchSize,
+		batchSize:   uint32(cfg.StoreBatchSize),
 		sigUpdate:   make(chan struct{}, 1),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		entriesSel:  entSel,
@@ -162,10 +176,12 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		providerAdChainStaging:  make(map[peer.ID]*atomic.Value),
 		toWorkers:               make(chan providerID),
 		closeWorkers:            make(chan struct{}),
+	}
 
-		rateApply: rateApply,
-		rateLimit: rate.Limit(cfg.RateLimit.BlocksPerSecond),
-		rateBurst: cfg.RateLimit.BurstSize,
+	var err error
+	ing.rateApply, ing.rateBurst, ing.rateLimit, err = configRateLimit(cfg.RateLimit)
+	if err != nil {
+		log.Error(err.Error())
 	}
 
 	// Instantiate retryable HTTP client used by legs httpsync.
@@ -203,7 +219,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	if cfg.IngestWorkerCount == 0 {
 		return nil, errors.New("ingester worker count must be > 0")
 	}
-	ing.startIngesterLoop(cfg.IngestWorkerCount)
+	ing.RunWorkers(cfg.IngestWorkerCount)
+	go ing.runIngesterLoop()
 
 	// Start distributor to send SyncFinished messages to interested parties.
 	go ing.distributeEvents()
@@ -238,6 +255,9 @@ func (ing *Ingester) generalLegsBlockHook(_ peer.ID, c cid.Cid, actions legs.Seg
 }
 
 func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
+	ing.rateMutex.Lock()
+	defer ing.rateMutex.Unlock()
+
 	// If rateLimiting disabled or publisher is not rate-limited, then return
 	// infinite rate limiter.
 	if ing.rateLimit == 0 || !ing.rateApply.Eval(publisher) {
@@ -656,35 +676,48 @@ func (ing *Ingester) GetLatestSync(peerID peer.ID) (cid.Cid, error) {
 	return c, err
 }
 
-type adInfo struct {
-	cid cid.Cid
-	ad  schema.Advertisement
+func (ing *Ingester) BatchSize() int {
+	return int(atomic.LoadUint32(&ing.batchSize))
 }
 
-type workerAssignment struct {
-	// none represents a nil assignment. Used because a nil in atomic.Value
-	// cannot be stored.
-	none      bool
-	adInfos   []adInfo
-	publisher peer.ID
-	provider  peer.ID
+func (ing *Ingester) SetBatchSize(batchSize int) {
+	atomic.StoreUint32(&ing.batchSize, uint32(batchSize))
 }
 
-func (ing *Ingester) startIngesterLoop(workerPoolSize int) {
-	// startup the worker pool
-	for i := 0; i < workerPoolSize; i++ {
-		ing.waitForWorkers.Add(1)
-		go func() {
-			defer ing.waitForWorkers.Done()
-			ing.ingestWorker()
-		}()
+func (ing *Ingester) SetRateLimit(cfgRateLimit config.RateLimit) error {
+	apply, burst, limit, err := configRateLimit(cfgRateLimit)
+	if err != nil {
+		return err
 	}
 
-	go func() {
-		for syncFinishedEvent := range ing.toStaging {
-			ing.runIngestStep(syncFinishedEvent)
-		}
-	}()
+	ing.rateMutex.Lock()
+
+	ing.rateApply = apply
+	ing.rateBurst = burst
+	ing.rateLimit = limit
+
+	ing.rateMutex.Unlock()
+	return nil
+}
+
+func (ing *Ingester) RunWorkers(n int) {
+	for n > ing.workerPoolSize {
+		// Start worker.
+		ing.waitForWorkers.Add(1)
+		go ing.ingestWorker()
+		ing.workerPoolSize++
+	}
+	for n < ing.workerPoolSize {
+		// Stop worker.
+		ing.closeWorkers <- struct{}{}
+		ing.workerPoolSize--
+	}
+}
+
+func (ing *Ingester) runIngesterLoop() {
+	for syncFinishedEvent := range ing.toStaging {
+		ing.runIngestStep(syncFinishedEvent)
+	}
 }
 
 func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
@@ -748,9 +781,13 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 }
 
 func (ing *Ingester) ingestWorker() {
+	log.Debug("started ingest worker")
+	defer ing.waitForWorkers.Done()
+
 	for {
 		select {
 		case <-ing.closeWorkers:
+			log.Debug("stopped ingest worker")
 			return
 		case provider := <-ing.toWorkers:
 			pid := peer.ID(provider)
@@ -884,4 +921,30 @@ func recursionLimit(depth int) selector.RecursionLimit {
 		return selector.RecursionLimitNone()
 	}
 	return selector.RecursionLimitDepth(int64(depth))
+}
+
+func configRateLimit(cfgRateLimit config.RateLimit) (apply peerutil.Policy, burst int, limit rate.Limit, err error) {
+	if cfgRateLimit.BlocksPerSecond == 0 {
+		log.Info("rate limiting disabled")
+		return
+	}
+	if cfgRateLimit.BlocksPerSecond < 0 {
+		err = errors.New("BlocksPerSecond must be greater than or equal to 0")
+		return
+	}
+	if cfgRateLimit.BurstSize < 0 {
+		err = errors.New("BurstSize must be greater than or equal to 0")
+		return
+	}
+
+	apply, err = peerutil.NewPolicyStrings(cfgRateLimit.Apply, cfgRateLimit.Except)
+	if err != nil {
+		err = fmt.Errorf("error setting rate limit for peers: %w", err)
+		return
+	}
+	burst = cfgRateLimit.BurstSize
+	limit = rate.Limit(cfgRateLimit.BlocksPerSecond)
+
+	log.Info("rate limiting enabled")
+	return
 }

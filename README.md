@@ -49,7 +49,7 @@ Administrative:
 - `admin` Perform admin activities with an indexer
   - `allow` Allow advertisements and content from peer
   - `block` Block advertisements and content from peer
-  - `reload` Reload the policy from the configuration file
+  - `reload` Reload the policy and ingest settings from the configuration file
   - `sync` Sync indexer with provider
 - `init` Initialize or upgrade indexer node config file
 

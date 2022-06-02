@@ -309,7 +309,9 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 		}
 	}()
 
-	batch := make([]multihash.Multihash, 0, ing.batchSize)
+	batchSize := ing.BatchSize()
+
+	batch := make([]multihash.Multihash, 0, batchSize)
 	var prevBatch []multihash.Multihash
 
 	// Iterate over all entries and ingest (or remove) them.
@@ -330,7 +332,7 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 			}
 			count += len(batch)
 			if prevBatch == nil {
-				prevBatch = make([]multihash.Multihash, 0, ing.batchSize)
+				prevBatch = make([]multihash.Multihash, 0, batchSize)
 			}
 			// Since batchChan is unbuffered, the goroutine is done reading the previous batch.
 			prevBatch, batch = batch, prevBatch

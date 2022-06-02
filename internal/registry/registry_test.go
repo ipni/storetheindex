@@ -569,16 +569,6 @@ func TestPollProviderOverrides(t *testing.T) {
 		t.Fatal("failed to register directly:", err)
 	}
 
-	r, err = NewRegistry(ctx, cfg, dstore, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = r.RegisterOrUpdate(ctx, peerID, []string{minerAddr}, cid.Undef, pub)
-	if err != nil {
-		t.Fatal("failed to register directly:", err)
-	}
-
 	poll := polling{
 		interval:   2 * time.Hour,
 		retryAfter: time.Hour,
@@ -587,6 +577,7 @@ func TestPollProviderOverrides(t *testing.T) {
 
 	overrides := make(map[peer.ID]polling)
 	overrides[peerID] = polling{
+		interval:   0,
 		retryAfter: time.Minute,
 		stopAfter:  time.Hour,
 	}
