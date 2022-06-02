@@ -82,7 +82,7 @@ var daemonFlags = []cli.Flag{
 	&cli.BoolFlag{
 		Name:     "watch-config",
 		Usage:    "Watch for changes to config file and automatically reload",
-		EnvVars:  []string{"INDEXER_WATCH_CONFIG"},
+		EnvVars:  []string{"STORETHEINDEX_WATCH_CONFIG"},
 		Value:    false,
 		Required: false,
 	},
