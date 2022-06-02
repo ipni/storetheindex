@@ -580,13 +580,28 @@ func TestSyncWithDepth(t *testing.T) {
 	te.Close(t)
 }
 
+type coreWrap struct {
+	indexer.Interface
+	mhs []multihash.Multihash
+}
+
+func (c *coreWrap) Put(value indexer.Value, mhs ...multihash.Multihash) error {
+	c.mhs = append(c.mhs, mhs...)
+	return c.Interface.Put(value, mhs...)
+}
+
 func TestRmWithNoEntries(t *testing.T) {
 	te := setupTestEnv(t, true)
+	cw := &coreWrap{
+		Interface: te.ingester.indexer,
+	}
+	te.ingester.indexer = cw
 
 	chainHead := typehelpers.RandomAdBuilder{
 		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
 			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
 			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
+			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 3},
 		},
 		AddRmWithNoEntries: true,
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
@@ -617,9 +632,22 @@ func TestRmWithNoEntries(t *testing.T) {
 	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", chainHead, lcid)
 
 	allMhs := typehelpers.AllMultihashesFromAdChain(t, prevAd, te.publisherLinkSys)
+
+	first := allMhs[0]
+
 	// Remove the mhs from the first ad (since the last add removed this from the indexer)
 	allMhs = allMhs[1:]
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+
+	// Check that first multihash was never ingested in the first place,
+	// indicating it was skipped.
+	var found bool
+	for _, mh := range cw.mhs {
+		if bytes.Equal(mh, first) {
+			found = true
+		}
+	}
+	require.False(t, found)
 }
 
 func TestSync(t *testing.T) {
@@ -1344,7 +1372,7 @@ type testEnv struct {
 	publisherLinkSys ipld.LinkSystem
 	ingester         *Ingester
 	ingesterHost     host.Host
-	core             *engine.Engine
+	core             indexer.Interface
 	reg              *registry.Registry
 	skipIngCleanup   bool
 }
