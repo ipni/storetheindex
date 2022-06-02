@@ -2,11 +2,11 @@ package typehelpers
 
 import (
 	"fmt"
+	"github.com/filecoin-project/storetheindex/test/util"
 	"math/rand"
 	"testing"
 
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
-	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
@@ -110,9 +110,10 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 }
 
 type RandomEntryChunkBuilder struct {
-	ChunkCount      uint8
-	EntriesPerChunk uint8
-	EntriesSeed     int64
+	ChunkCount             uint8
+	EntriesPerChunk        uint8
+	EntriesSeed            int64
+	WithInvalidMultihashes bool
 }
 
 func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datamodel.Link {
@@ -120,7 +121,18 @@ func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datam
 	prng := rand.New(rand.NewSource(b.EntriesSeed))
 
 	for i := 0; i < int(b.ChunkCount); i++ {
-		mhs := util.RandomMultihashes(int(b.EntriesPerChunk), prng)
+
+		var mhs []multihash.Multihash
+
+		if b.WithInvalidMultihashes {
+			for i := uint8(0); i < b.EntriesPerChunk; i++ {
+				badmh := multihash.Multihash(fmt.Sprintf("invalid mh %d", prng.Int63()))
+				mhs = append(mhs, badmh)
+			}
+		} else {
+			mhs = util.RandomMultihashes(int(b.EntriesPerChunk), prng)
+		}
+
 		var err error
 
 		chunk := schema.EntryChunk{
@@ -197,10 +209,11 @@ func AllMultihashesFromAdChainDepth(t *testing.T, ad *schema.Advertisement, lsys
 			if err != nil {
 				return err
 			}
-			_, mh, err := multihash.MHFromBytes(b)
-			if err != nil {
-				return err
-			}
+			mh := multihash.Multihash(b)
+			//_, mh, err := multihash.MHFromBytes(b)
+			//if err != nil {
+			//	return err
+			//}
 			out = append(out, mh)
 			return nil
 		})
