@@ -20,6 +20,7 @@ configMapGenerator:
       - STORETHEINDEX_LOTUS_GATEWAY=wss://api.chain.love
       - STORETHEINDEX_PATH=/config
       - STORETHEINDEX_LISTEN_ADMIN=/ip4/0.0.0.0/tcp/3002
+      - STORETHEINDEX_WATCH_CONFIG=true
   - name: indexer-config
     behavior: create
     files:

@@ -40,7 +40,7 @@ const (
 	// configCheckInterval is the time between config update checks.
 	configCheckInterval = 30 * time.Second
 	// shutdownTimeout is the duration that a graceful shutdown has to complete.
-	shutdownTimeout = 5 * time.Second
+	shutdownTimeout = 10 * time.Second
 )
 
 // Recognized valuestore type names.
