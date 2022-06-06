@@ -812,6 +812,10 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 	}
 	assignment := assignmentInterface.(workerAssignment)
 
+	rmCtxID := make(map[string]struct{})
+	var skips []int
+	skip := -1
+
 	// Filter out ads that are already processed, and any earlier ads.
 	splitAtIndex := len(assignment.adInfos)
 	for i, ai := range assignment.adInfos {
@@ -825,6 +829,19 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 			splitAtIndex = i
 			break
 		}
+		ctxIdStr := string(ai.ad.ContextID)
+		// This ad was deleted by a later remove. Push previous onto skips
+		// stack, and set latest skip.
+		if _, ok := rmCtxID[ctxIdStr]; ok {
+			skips = append(skips, skip)
+			skip = i
+			continue
+		}
+		// If this is a remove, do not skip this ad, but skip all earlier
+		// (deeped in chain) ads with the same context ID.
+		if ai.ad.IsRm {
+			rmCtxID[ctxIdStr] = struct{}{}
+		}
 	}
 
 	log.Infow("Running worker on ad stack", "headAdCid", assignment.adInfos[0].cid, "publisher", assignment.publisher, "numAdsToProcess", splitAtIndex)
@@ -832,8 +849,31 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 	for i := splitAtIndex - 1; i >= 0; i-- {
 		// Note that iteration proceeds backwards here. Earliest to newest.
 		ai := assignment.adInfos[i]
-
 		count++
+
+		// If this ad is skipped because it gets deleted later in the chain,
+		// then mark this ad as processed.
+		if i == skip {
+			// Pop the next skip off the stack.
+			skip = skips[len(skips)-1]
+			skips = skips[:len(skips)-1]
+			log.Infow("Skipping advertisement with deleted context",
+				"adCid", ai.cid,
+				"publisher", assignment.publisher,
+				"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
+
+			if markErr := ing.markAdProcessed(assignment.publisher, ai.cid); markErr != nil {
+				log.Errorw("Failed to mark ad as processed", "err", markErr)
+			}
+			// Distribute the atProcessedEvent notices to waiting Sync calls.
+			ing.inEvents <- adProcessedEvent{
+				publisher: assignment.publisher,
+				headAdCid: assignment.adInfos[0].cid,
+				adCid:     ai.cid,
+			}
+			continue
+		}
+
 		log.Infow("Processing advertisement",
 			"adCid", ai.cid,
 			"publisher", assignment.publisher,
@@ -886,7 +926,6 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 			publisher: assignment.publisher,
 			headAdCid: assignment.adInfos[0].cid,
 			adCid:     ai.cid,
-			err:       nil,
 		}
 	}
 }
