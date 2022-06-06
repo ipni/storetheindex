@@ -715,7 +715,7 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 				continue
 			}
 			poll.stopAfter += poll.interval
-			if noContactTime > poll.stopAfter {
+			if noContactTime >= poll.stopAfter {
 				// Too much time since last contact.
 				log.Warnw("Lost contact with provider's publisher", "publisher", info.Publisher, "provider", info.AddrInfo.ID, "since", info.lastContactTime)
 				// Remove the non-responsive publisher.

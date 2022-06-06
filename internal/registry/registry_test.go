@@ -502,6 +502,8 @@ func TestPollProvider(t *testing.T) {
 	// stop.
 	poll.stopAfter = 0
 	r.pollProviders(poll, nil)
+	// wait some time to pass poll interval (for low-res timers)
+	time.Sleep(time.Second)
 	r.pollProviders(poll, nil)
 	r.pollProviders(poll, nil)
 
@@ -567,16 +569,6 @@ func TestPollProviderOverrides(t *testing.T) {
 		t.Fatal("failed to register directly:", err)
 	}
 
-	r, err = NewRegistry(ctx, cfg, dstore, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = r.RegisterOrUpdate(ctx, peerID, []string{minerAddr}, cid.Undef, pub)
-	if err != nil {
-		t.Fatal("failed to register directly:", err)
-	}
-
 	poll := polling{
 		interval:   2 * time.Hour,
 		retryAfter: time.Hour,
@@ -585,6 +577,7 @@ func TestPollProviderOverrides(t *testing.T) {
 
 	overrides := make(map[peer.ID]polling)
 	overrides[peerID] = polling{
+		interval:   0,
 		retryAfter: time.Minute,
 		stopAfter:  time.Hour,
 	}
@@ -612,6 +605,8 @@ func TestPollProviderOverrides(t *testing.T) {
 		stopAfter:  0,
 	}
 	r.pollProviders(poll, overrides)
+	// wait some time to pass poll interval (for low-res timers)
+	time.Sleep(time.Second)
 	r.pollProviders(poll, overrides)
 	r.pollProviders(poll, overrides)
 
@@ -628,8 +623,10 @@ func TestPollProviderOverrides(t *testing.T) {
 	// Check that sync channel was not written since polling should have
 	// stopped.
 	select {
-	case <-r.SyncChan():
-		t.Fatal("sync channel should not have beem written to")
+	case pinfo := <-r.SyncChan():
+		if pinfo.AddrInfo.ID == peerID {
+			t.Fatal("sync channel should not have beem written to for override peer")
+		}
 	default:
 	}
 

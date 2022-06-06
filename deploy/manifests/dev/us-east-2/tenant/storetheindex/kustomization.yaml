@@ -8,20 +8,16 @@ resources:
 - github-auth.yaml
 patchesStrategicMerge:
 - patch-indexer.yaml
+- indexer-config.yaml
 secretGenerator:
 - name: indexer-identity
   files:
   - indexer-0.key=indexer-0-identity.encrypted
   - indexer-1.key=indexer-1-identity.encrypted
-configMapGenerator:
-- name: indexer-config
-  behavior: replace
-  files:
-    - config 
 replicas:
 - name: indexer
   count: 2
 images:
 - name: storetheindex
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
-  newTag: 20220518150351-5196842aca0e4b64c184198116a27b032cc67ba0 # {"$imagepolicy": "storetheindex:storetheindex:tag"}
+  newTag: 20220602000206-a95638ba32aa5ffe3b9fc39f246910d76c0b696e # {"$imagepolicy": "storetheindex:storetheindex:tag"}

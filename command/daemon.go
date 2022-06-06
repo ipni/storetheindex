@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/filecoin-project/go-indexer-core"
@@ -15,7 +17,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/storetheindex/config"
-	legingest "github.com/filecoin-project/storetheindex/internal/ingest"
+	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/lotus"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	httpadminserver "github.com/filecoin-project/storetheindex/server/admin/http"
@@ -34,8 +36,12 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// shutdownTimeout is the duration that a graceful shutdown has to complete.
-const shutdownTimeout = 5 * time.Second
+const (
+	// configCheckInterval is the time between config update checks.
+	configCheckInterval = 30 * time.Second
+	// shutdownTimeout is the duration that a graceful shutdown has to complete.
+	shutdownTimeout = 10 * time.Second
+)
 
 // Recognized valuestore type names.
 const (
@@ -73,14 +79,14 @@ func daemonCommand(cctx *cli.Context) error {
 		logging.SetLogLevel("graphsync", "warn")
 	}
 
-	cfg, err := config.Load("")
+	cfg, err := loadConfig("")
 	if err != nil {
-		if err == config.ErrNotInitialized {
+		if errors.Is(err, config.ErrNotInitialized) {
 			fmt.Fprintln(os.Stderr, "storetheindex is not initialized")
 			fmt.Fprintln(os.Stderr, "To initialize, run the command: ./storetheindex init")
 			os.Exit(1)
 		}
-		return fmt.Errorf("cannot load config file: %w", err)
+		return err
 	}
 	if cfg.Version != config.Version {
 		log.Warn("Configuration file out-of-date. Upgrade by running: ./storetheindex init --upgrade")
@@ -162,7 +168,7 @@ func daemonCommand(cctx *cli.Context) error {
 
 	var (
 		cancelP2pServers context.CancelFunc
-		ingester         *legingest.Ingester
+		ingester         *ingest.Ingester
 		p2pHost          host.Host
 	)
 
@@ -201,7 +207,7 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 
 		// Initialize ingester.
-		ingester, err = legingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore)
+		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore)
 		if err != nil {
 			return err
 		}
@@ -249,6 +255,8 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 	}
 
+	reloadErrChan := make(chan chan error, 1)
+
 	// Create admin HTTP server
 	var adminSvr *httpadminserver.Server
 	if cfg.Addresses.Admin != "" && !cctx.Bool("noadmin") {
@@ -260,7 +268,7 @@ func daemonCommand(cctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		adminSvr, err = httpadminserver.New(adminAddr.String(), indexerCore, ingester, reg)
+		adminSvr, err = httpadminserver.New(adminAddr.String(), indexerCore, ingester, reg, reloadErrChan)
 		if err != nil {
 			return err
 		}
@@ -293,16 +301,74 @@ func daemonCommand(cctx *cli.Context) error {
 		fmt.Println("Ingest server:\t disabled")
 	}
 
+	reloadSig := make(chan os.Signal, 1)
+	signal.Notify(reloadSig, syscall.SIGHUP)
+
 	// Output message to user (not to log).
 	fmt.Println("Indexer is ready")
 
-	var finalErr error
-	select {
-	case <-cctx.Done():
-		// Command was canceled (ctrl-c)
-	case err = <-errChan:
-		log.Errorw("Failed to start server", "err", err)
-		finalErr = ErrDaemonStart
+	var cfgPath string
+	if cctx.Bool("watch-config") {
+		cfgPath, err = config.Filename("")
+		if err != nil {
+			log.Errorw("Cannot get config file name", "err", err)
+		}
+	}
+
+	var finalErr, statErr error
+	var modTime time.Time
+	var ticker *time.Ticker
+	var timeChan <-chan time.Time
+
+	if cfgPath != "" {
+		modTime, _, statErr = fileChanged(cfgPath, modTime)
+		if statErr != nil {
+			log.Error(err)
+		}
+		ticker = time.NewTicker(configCheckInterval)
+		timeChan = ticker.C
+	}
+
+	for endDaemon := false; !endDaemon; {
+		select {
+		case <-cctx.Done():
+			// Command was canceled (ctrl-c)
+			endDaemon = true
+		case err = <-errChan:
+			log.Errorw("Failed to start server", "err", err)
+			finalErr = ErrDaemonStart
+			endDaemon = true
+		case <-reloadSig:
+			reloadErrChan <- nil
+		case errChan := <-reloadErrChan:
+			err = reloadConfig("", ingester, reg)
+			if err != nil {
+				log.Errorw("Error reloading conifg", "err", err)
+				if errChan != nil {
+					err = errors.New("could not reload configuration")
+				}
+			}
+			if errChan != nil {
+				errChan <- err
+			}
+		case <-timeChan:
+			var changed bool
+			modTime, changed, err = fileChanged(cfgPath, modTime)
+			if err != nil {
+				if statErr == nil {
+					log.Errorw("Cannot stat config file", "err", err, "path", cfgPath)
+					statErr = err
+				}
+				continue
+			}
+			statErr = nil
+			if changed {
+				reloadErrChan <- nil
+			}
+		}
+	}
+	if ticker != nil {
+		ticker.Stop()
 	}
 
 	log.Infow("Shutting down daemon")
@@ -361,6 +427,17 @@ func daemonCommand(cctx *cli.Context) error {
 	return finalErr
 }
 
+func fileChanged(filePath string, modTime time.Time) (time.Time, bool, error) {
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return modTime, false, fmt.Errorf("cannot stat config file: %w", err)
+	}
+	if fi.ModTime() != modTime {
+		return fi.ModTime(), true, nil
+	}
+	return modTime, false, nil
+}
+
 func createValueStore(cfgIndexer config.Indexer) (indexer.Interface, error) {
 	dir, err := config.Path("", cfgIndexer.ValueStoreDir)
 	if err != nil {
@@ -382,4 +459,44 @@ func createValueStore(cfgIndexer config.Indexer) (indexer.Interface, error) {
 	}
 
 	return nil, fmt.Errorf("unrecognized store type: %s", cfgIndexer.ValueStoreType)
+}
+
+func loadConfig(filePath string) (*config.Config, error) {
+	cfg, err := config.Load(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot load config file: %w", err)
+	}
+	if cfg.Version != config.Version {
+		log.Warn("Configuration file out-of-date. Upgrade by running: ./storetheindex init --upgrade")
+	}
+
+	if cfg.Datastore.Type != "levelds" {
+		return nil, fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Datastore.Type)
+	}
+
+	return cfg, nil
+}
+
+func reloadConfig(filePath string, ingester *ingest.Ingester, reg *registry.Registry) error {
+	cfg, err := loadConfig(filePath)
+	if err != nil {
+		return err
+	}
+
+	err = reg.SetPolicy(cfg.Discovery.Policy)
+	if err != nil {
+		return fmt.Errorf("failed to set policy config: %w", err)
+	}
+
+	if ingester != nil {
+		err = ingester.SetRateLimit(cfg.Ingest.RateLimit)
+		if err != nil {
+			return fmt.Errorf("failed to set rate limit config: %w", err)
+		}
+		ingester.SetBatchSize(cfg.Ingest.StoreBatchSize)
+		ingester.RunWorkers(cfg.Ingest.IngestWorkerCount)
+	}
+
+	fmt.Println("Reloaded policy and rate limit configuration")
+	return nil
 }

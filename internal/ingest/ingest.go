@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/peerutil"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
@@ -45,7 +47,7 @@ const (
 
 type adProcessedEvent struct {
 	publisher peer.ID
-	// Head of the chain being proecessed.
+	// Head of the chain being processed.
 	headAdCid cid.Cid
 	// Actual adCid being processing.
 	adCid cid.Cid
@@ -55,13 +57,33 @@ type adProcessedEvent struct {
 
 type providerID peer.ID
 
+// pendingAnnounce captures an announcement received from a provider that await processing.
+type pendingAnnounce struct {
+	addrInfo peer.AddrInfo
+	nextCid  cid.Cid
+}
+
+type adInfo struct {
+	cid cid.Cid
+	ad  schema.Advertisement
+}
+
+type workerAssignment struct {
+	// none represents a nil assignment. Used because a nil in atomic.Value
+	// cannot be stored.
+	none      bool
+	adInfos   []adInfo
+	publisher peer.ID
+	provider  peer.ID
+}
+
 // Ingester is a type that uses go-legs for the ingestion protocol.
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
 	indexer indexer.Interface
 
-	batchSize int
+	batchSize uint32
 	closeOnce sync.Once
 	sigUpdate chan struct{}
 
@@ -78,7 +100,7 @@ type Ingester struct {
 	inEvents chan adProcessedEvent
 
 	// outEventsChans is a slice of channels, where each channel delivers a
-	// copy of an adProccedEvent to an onAdProcessed reader.
+	// copy of an adProcessedEvent to an onAdProcessed reader.
 	outEventsChans map[peer.ID][]chan adProcessedEvent
 	outEventsMutex sync.Mutex
 
@@ -89,20 +111,29 @@ type Ingester struct {
 
 	// A map of providers currently being processed. A worker holds the lock of
 	// a provider while ingesting ads for that provider.
-	providersBeingProcessed   map[peer.ID]*sync.Mutex
+	providersBeingProcessed   map[peer.ID]chan struct{}
 	providersBeingProcessedMu sync.Mutex
 	providerAdChainStaging    map[peer.ID]*atomic.Value
-	// toWorkers is a channel used to ask the worker pool to start processing
-	// the ad chain for a given provider
+
+	closeWorkers chan struct{}
+	// toStaging receives sync finished events used to call to runIngestStep.
+	toStaging <-chan legs.SyncFinished
+	// toWorkers is used to ask the worker pool to start processing the ad
+	// chain for a given provider.
 	toWorkers      chan providerID
-	closeWorkers   chan struct{}
 	waitForWorkers sync.WaitGroup
-	toStaging      <-chan legs.SyncFinished
+	workerPoolSize int
 
 	// RateLimiting
 	rateApply peerutil.Policy
-	rateLimit rate.Limit
 	rateBurst int
+
+	// providersPendingAnnounce maps the provider ID to the latest announcement received from the
+	// provider that is waiting to be processed.
+	providersPendingAnnounce sync.Map
+
+	rateLimit rate.Limit
+	rateMutex sync.Mutex
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -127,16 +158,11 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
 		})).Node()
 
-	rateApply, err := peerutil.NewPolicyStrings(cfg.RateLimit.Apply, cfg.RateLimit.Except)
-	if err != nil {
-		log.Errorw("Bad setting rate limit for peers", "err", err)
-	}
-
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
 		indexer:     idxr,
-		batchSize:   cfg.StoreBatchSize,
+		batchSize:   uint32(cfg.StoreBatchSize),
 		sigUpdate:   make(chan struct{}, 1),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		entriesSel:  entSel,
@@ -146,14 +172,28 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		closePendingSyncs: make(chan struct{}),
 
-		providersBeingProcessed: make(map[peer.ID]*sync.Mutex),
+		providersBeingProcessed: make(map[peer.ID]chan struct{}),
 		providerAdChainStaging:  make(map[peer.ID]*atomic.Value),
 		toWorkers:               make(chan providerID),
 		closeWorkers:            make(chan struct{}),
+	}
 
-		rateApply: rateApply,
-		rateLimit: rate.Limit(cfg.RateLimit.BlocksPerSecond),
-		rateBurst: cfg.RateLimit.BurstSize,
+	var err error
+	ing.rateApply, ing.rateBurst, ing.rateLimit, err = configRateLimit(cfg.RateLimit)
+	if err != nil {
+		log.Error(err.Error())
+	}
+
+	// Instantiate retryable HTTP client used by legs httpsync.
+	rclient := &retryablehttp.Client{
+		HTTPClient: &http.Client{
+			Timeout: time.Duration(cfg.HttpSyncTimeout),
+		},
+		RetryWaitMin: time.Duration(cfg.HttpSyncRetryWaitMin),
+		RetryWaitMax: time.Duration(cfg.HttpSyncRetryWaitMax),
+		RetryMax:     cfg.HttpSyncRetryMax,
+		CheckRetry:   retryablehttp.DefaultRetryPolicy,
+		Backoff:      retryablehttp.DefaultBackoff,
 	}
 
 	// Create and start pubsub subscriber. This also registers the storage hook
@@ -162,7 +202,11 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		legs.AllowPeer(reg.Allowed),
 		legs.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)),
 		legs.UseLatestSyncHandler(&syncHandler{ing}),
-		legs.RateLimiter(ing.getRateLimiter))
+		legs.RateLimiter(ing.getRateLimiter),
+		legs.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
+		legs.HttpClient(rclient.StandardClient()),
+		legs.BlockHook(ing.generalLegsBlockHook),
+	)
 
 	if err != nil {
 		log.Errorw("Failed to start pubsub subscriber", "err", err)
@@ -175,7 +219,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	if cfg.IngestWorkerCount == 0 {
 		return nil, errors.New("ingester worker count must be > 0")
 	}
-	ing.startIngesterLoop(cfg.IngestWorkerCount)
+	ing.RunWorkers(cfg.IngestWorkerCount)
+	go ing.runIngesterLoop()
 
 	// Start distributor to send SyncFinished messages to interested parties.
 	go ing.distributeEvents()
@@ -189,13 +234,36 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	return ing, nil
 }
 
+func (ing *Ingester) generalLegsBlockHook(_ peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
+	// The only kind of block we should get by loading CIDs here should be Advertisement.
+	// Because:
+	//  - the default subscription selector only selects advertisements.
+	//  - explicit Ingester.Sync only selects advertisement.
+	//  - entries are synced with an explicit selector separate from advertisement syncs and
+	//    should use legs.ScopedBlockHook to override this hook and decode chunks
+	//    instead.
+	//
+	// Therefore, we only attempt to load advertisements here and signal failure if the
+	// load fails.
+	if ad, err := ing.loadAd(c); err != nil {
+		actions.FailSync(err)
+	} else if ad.PreviousID != nil {
+		actions.SetNextSyncCid((*(ad.PreviousID)).(cidlink.Link).Cid)
+	} else {
+		actions.SetNextSyncCid(cid.Undef)
+	}
+}
+
 func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
+	ing.rateMutex.Lock()
+	defer ing.rateMutex.Unlock()
+
 	// If rateLimiting disabled or publisher is not rate-limited, then return
 	// infinite rate limiter.
 	if ing.rateLimit == 0 || !ing.rateApply.Eval(publisher) {
 		return rate.NewLimiter(rate.Inf, 0)
 	}
-	// Retrun rate limiter with rate setting from config.
+	// Return rate limiter with rate setting from config.
 	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
 }
 
@@ -311,11 +379,14 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 			// If this is a resync, then it is necessary to mark the ad as
 			// unprocessed so that everything can be reingested from the start
 			// of this sync. Create a scoped block-hook to do this.
-			opts = append(opts, legs.ScopedBlockHook(func(i peer.ID, c cid.Cid) {
+			opts = append(opts, legs.ScopedBlockHook(func(i peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
 				err := ing.markAdUnprocessed(c)
 				if err != nil {
 					log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
 				}
+				// Call the general hook because scoped block hook overrides the subscriber's
+				// general block hook.
+				ing.generalLegsBlockHook(i, c, actions)
 			}))
 		}
 		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
@@ -360,11 +431,36 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	return out, nil
 }
 
-// Announce send an annouce message to directly to go-legs, instead of through
+// Announce send an announce message to directly to go-legs, instead of through
 // pubsub.
 func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, addrInfo peer.AddrInfo) error {
-	log.Infow("Handling direct announce request", "peer", addrInfo.ID, "cid", nextCid, "addrs", addrInfo.Addrs)
-	return ing.sub.Announce(ctx, nextCid, addrInfo.ID, addrInfo.Addrs)
+	provider := addrInfo.ID
+	log := log.With("provider", provider, "cid", nextCid, "addrs", addrInfo.Addrs)
+
+	ing.providersBeingProcessedMu.Lock()
+	pc, ok := ing.providersBeingProcessed[provider]
+	if !ok {
+		pc = make(chan struct{}, 1)
+		ing.providersBeingProcessed[provider] = pc
+	}
+	ing.providersBeingProcessedMu.Unlock()
+
+	select {
+	case pc <- struct{}{}:
+		log.Info("Handling direct announce request")
+		err := ing.sub.Announce(ctx, nextCid, provider, addrInfo.Addrs)
+		<-pc
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		ing.providersPendingAnnounce.Store(provider, pendingAnnounce{
+			addrInfo: addrInfo,
+			nextCid:  nextCid,
+		})
+		log.Info("Deferred handling direct announce request")
+		return nil
+	}
 }
 
 func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int, resync bool) (ipld.Node, error) {
@@ -411,7 +507,7 @@ func (ing *Ingester) markAdUnprocessed(adCid cid.Cid) error {
 	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{0})
 }
 
-func (ing *Ingester) adAlreadyprocessed(adCid cid.Cid) bool {
+func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) bool {
 	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
 	if err != nil {
 		if err != datastore.ErrNotFound {
@@ -580,35 +676,48 @@ func (ing *Ingester) GetLatestSync(peerID peer.ID) (cid.Cid, error) {
 	return c, err
 }
 
-type adInfo struct {
-	cid cid.Cid
-	ad  schema.Advertisement
+func (ing *Ingester) BatchSize() int {
+	return int(atomic.LoadUint32(&ing.batchSize))
 }
 
-type workerAssignment struct {
-	// none represents a nil assignment. Used because a nil in atomic.Value
-	// cannot be stored.
-	none      bool
-	adInfos   []adInfo
-	publisher peer.ID
-	provider  peer.ID
+func (ing *Ingester) SetBatchSize(batchSize int) {
+	atomic.StoreUint32(&ing.batchSize, uint32(batchSize))
 }
 
-func (ing *Ingester) startIngesterLoop(workerPoolSize int) {
-	// startup the worker pool
-	for i := 0; i < workerPoolSize; i++ {
-		ing.waitForWorkers.Add(1)
-		go func() {
-			defer ing.waitForWorkers.Done()
-			ing.ingestWorker()
-		}()
+func (ing *Ingester) SetRateLimit(cfgRateLimit config.RateLimit) error {
+	apply, burst, limit, err := configRateLimit(cfgRateLimit)
+	if err != nil {
+		return err
 	}
 
-	go func() {
-		for syncFinishedEvent := range ing.toStaging {
-			ing.runIngestStep(syncFinishedEvent)
-		}
-	}()
+	ing.rateMutex.Lock()
+
+	ing.rateApply = apply
+	ing.rateBurst = burst
+	ing.rateLimit = limit
+
+	ing.rateMutex.Unlock()
+	return nil
+}
+
+func (ing *Ingester) RunWorkers(n int) {
+	for n > ing.workerPoolSize {
+		// Start worker.
+		ing.waitForWorkers.Add(1)
+		go ing.ingestWorker()
+		ing.workerPoolSize++
+	}
+	for n < ing.workerPoolSize {
+		// Stop worker.
+		ing.closeWorkers <- struct{}{}
+		ing.workerPoolSize--
+	}
+}
+
+func (ing *Ingester) runIngesterLoop() {
+	for syncFinishedEvent := range ing.toStaging {
+		ing.runIngestStep(syncFinishedEvent)
+	}
 }
 
 func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
@@ -620,7 +729,7 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
 
-		if ing.adAlreadyprocessed(c) {
+		if ing.adAlreadyProcessed(c) {
 			// This ad has been processed so all earlier ads already have been
 			// processed.
 			break
@@ -648,14 +757,16 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 	for p, adInfos := range adsGroupedByProvider {
 		ing.providersBeingProcessedMu.Lock()
 		if _, ok := ing.providersBeingProcessed[p]; !ok {
-			ing.providersBeingProcessed[p] = &sync.Mutex{}
+			ing.providersBeingProcessed[p] = make(chan struct{}, 1)
 		}
-		if _, ok := ing.providerAdChainStaging[p]; !ok {
-			ing.providerAdChainStaging[p] = &atomic.Value{}
+		wa, ok := ing.providerAdChainStaging[p]
+		if !ok {
+			wa = &atomic.Value{}
+			ing.providerAdChainStaging[p] = wa
 		}
 		ing.providersBeingProcessedMu.Unlock()
 
-		oldAssignment := ing.providerAdChainStaging[p].Swap(workerAssignment{
+		oldAssignment := wa.Swap(workerAssignment{
 			adInfos:   adInfos,
 			publisher: syncFinishedEvent.PeerID,
 			provider:  p,
@@ -670,21 +781,26 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 }
 
 func (ing *Ingester) ingestWorker() {
+	log.Debug("started ingest worker")
+	defer ing.waitForWorkers.Done()
+
 	for {
 		select {
 		case <-ing.closeWorkers:
+			log.Debug("stopped ingest worker")
 			return
 		case provider := <-ing.toWorkers:
-			ing.ingestWorkerLogic(peer.ID(provider))
+			pid := peer.ID(provider)
+			pc := ing.providersBeingProcessed[pid]
+			pc <- struct{}{}
+			ing.ingestWorkerLogic(pid)
+			ing.handlePendingAnnounce(pid)
+			<-pc
 		}
 	}
 }
 
 func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
-	// It is assumed that the runIngestStep puts a mutex in this map.
-	ing.providersBeingProcessed[provider].Lock()
-	defer ing.providersBeingProcessed[provider].Unlock()
-
 	// Pull out the assignment for this provider. Note that runIngestStep
 	// populates this atomic.Value.
 	assignmentInterface := ing.providerAdChainStaging[provider].Swap(workerAssignment{none: true})
@@ -700,7 +816,7 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 	splitAtIndex := len(assignment.adInfos)
 	for i, ai := range assignment.adInfos {
 		// Iterate latest to earliest.
-		if ing.adAlreadyprocessed(ai.cid) {
+		if ing.adAlreadyProcessed(ai.cid) {
 			// This ad is already processed, which means that all earlier ads
 			// are also processed. Break here and split at this index
 			// later. The cids before this index are newer and have not been
@@ -733,9 +849,9 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 		if errors.As(err, &adIngestErr) {
 			switch adIngestErr.state {
 			case adIngestDecodingErr, adIngestMalformedErr, adIngestEntryChunkErr, adIngestContentNotFound:
-				// These error cases are permament. If retried later the same
+				// These error cases are permanent. If retried later the same
 				// error will happen. So log and drop this error.
-				log.Errorw("Skipping ad because of a permanant error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
+				log.Errorw("Skipping ad because of a permanent error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
 				stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
 				err = nil
 			}
@@ -775,10 +891,60 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 	}
 }
 
+func (ing *Ingester) handlePendingAnnounce(pid peer.ID) {
+	log := log.With("provider", pid)
+	// Process pending announce request if any.
+	// Note that the pending announce  is deleted regardless of whether it was successfully
+	// processed or not. Because, the cause of failure may be non-recoverable e.g. address
+	// change and not removing it will block processing of future pending announces.
+	v, found := ing.providersPendingAnnounce.LoadAndDelete(pid)
+	if !found {
+		return
+	}
+	pa, ok := v.(pendingAnnounce)
+	if !ok {
+		log.Errorw("Cannot handle pending announce; unexpected type", "got", v)
+		return
+	}
+	log = log.With("cid", pa.nextCid, "addrinfo", pa.addrInfo)
+	err := ing.sub.Announce(context.Background(), pa.nextCid, pa.addrInfo.ID, pa.addrInfo.Addrs)
+	if err != nil {
+		log.Errorw("Failed to handle pending announce", "err", err)
+		return
+	}
+	log.Info("Successfully handled pending announce")
+}
+
 // recursionLimit returns the recursion limit for the given depth.
 func recursionLimit(depth int) selector.RecursionLimit {
 	if depth < 1 {
 		return selector.RecursionLimitNone()
 	}
 	return selector.RecursionLimitDepth(int64(depth))
+}
+
+func configRateLimit(cfgRateLimit config.RateLimit) (apply peerutil.Policy, burst int, limit rate.Limit, err error) {
+	if cfgRateLimit.BlocksPerSecond == 0 {
+		log.Info("rate limiting disabled")
+		return
+	}
+	if cfgRateLimit.BlocksPerSecond < 0 {
+		err = errors.New("BlocksPerSecond must be greater than or equal to 0")
+		return
+	}
+	if cfgRateLimit.BurstSize < 0 {
+		err = errors.New("BurstSize must be greater than or equal to 0")
+		return
+	}
+
+	apply, err = peerutil.NewPolicyStrings(cfgRateLimit.Apply, cfgRateLimit.Except)
+	if err != nil {
+		err = fmt.Errorf("error setting rate limit for peers: %w", err)
+		return
+	}
+	burst = cfgRateLimit.BurstSize
+	limit = rate.Limit(cfgRateLimit.BlocksPerSecond)
+
+	log.Info("rate limiting enabled")
+	return
 }

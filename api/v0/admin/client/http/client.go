@@ -120,9 +120,9 @@ func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Mu
 	return c.ingestRequest(ctx, peerID, "sync", http.MethodPost, data, q...)
 }
 
-// ReloadPolicy reloads the policy from the configuration file.
-func (c *Client) ReloadPolicy(ctx context.Context) error {
-	u := c.baseURL + path.Join(ingestResource, "reloadpolicy")
+// ReloadConfig reloads reloadable parts of the configuration file.
+func (c *Client) ReloadConfig(ctx context.Context) error {
+	u := c.baseURL + "/reloadconfig"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, nil)
 	if err != nil {

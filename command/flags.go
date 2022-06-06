@@ -6,16 +6,15 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
-	"github.com/urfave/cli/v2/altsrc"
 )
 
-var indexerHostFlag = altsrc.NewStringFlag(&cli.StringFlag{
+var indexerHostFlag = &cli.StringFlag{
 	Name:     "indexer",
 	Usage:    "Host or host:port of indexer to use",
 	EnvVars:  []string{"INDEXER"},
 	Aliases:  []string{"i"},
 	Required: false,
-})
+}
 
 var cacheSizeFlag = &cli.Int64Flag{
 	Name:     "cachesize",
@@ -80,6 +79,15 @@ var daemonFlags = []cli.Flag{
 		Value:    false,
 		Required: false,
 	},
+	&cli.BoolFlag{
+		Name:  "watch-config",
+		Usage: "Watch for changes to config file and automatically reload",
+		// Note: `INDEXER_WATCH_CONFIG` is added for backward compatibility.
+		//       Remove it once `STORETHEINDEX_WATCH_CONFIG` is rolled out in both environments.
+		EnvVars:  []string{"INDEXER_WATCH_CONFIG", "STORETHEINDEX_WATCH_CONFIG"},
+		Value:    false,
+		Required: false,
+	},
 }
 
 var findFlags = []cli.Flag{
@@ -137,7 +145,7 @@ var adminPolicyFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
-var adminReloadPolicyFlags = []cli.Flag{
+var adminReloadConfigFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
