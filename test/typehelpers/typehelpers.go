@@ -2,11 +2,11 @@ package typehelpers
 
 import (
 	"fmt"
-	"github.com/filecoin-project/storetheindex/test/util"
 	"math/rand"
 	"testing"
 
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
+	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
@@ -209,12 +209,7 @@ func AllMultihashesFromAdChainDepth(t *testing.T, ad *schema.Advertisement, lsys
 			if err != nil {
 				return err
 			}
-			mh := multihash.Multihash(b)
-			//_, mh, err := multihash.MHFromBytes(b)
-			//if err != nil {
-			//	return err
-			//}
-			out = append(out, mh)
+			out = append(out, multihash.Multihash(b))
 			return nil
 		})
 	require.NoError(t, err)
