@@ -37,8 +37,8 @@ jobs:
                 labels: ['cd', `env:${env}`]
               });
             } catch (e) {
-              if (!e.message.includes('A pull request already exists')) {
+              if (!e.message.includes('A pull request already exists') && !e.message.includes('No commits between')) {
                 throw e
               }
-              core.info('Skipped PR creation since it already exists.')
+              core.info(`Skipped PR creation: ${e.message}`)
             }
