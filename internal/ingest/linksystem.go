@@ -309,18 +309,18 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 		}
 	}()
 
-	batchSize := ing.BatchSize()
-
-	batch := make([]multihash.Multihash, 0, batchSize)
+	batch := make([]multihash.Multihash, 0, ing.batchSize)
 	var prevBatch []multihash.Multihash
 
 	// Iterate over all entries and ingest (or remove) them.
-	var count, tooShortCount int
+	var count, badMultihashCount int
 	for _, entry := range nchunk.Entries {
-		if len(entry) < 4 {
-			tooShortCount++
+		if _, err = multihash.Decode(entry); err != nil {
+			badMultihashCount++
+			log.Warnw("Ignoring bad multihash", "err", err)
 			continue
 		}
+
 		batch = append(batch, entry)
 
 		// Process full batch of multihashes.
@@ -332,15 +332,15 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 			}
 			count += len(batch)
 			if prevBatch == nil {
-				prevBatch = make([]multihash.Multihash, 0, batchSize)
+				prevBatch = make([]multihash.Multihash, 0, ing.batchSize)
 			}
 			// Since batchChan is unbuffered, the goroutine is done reading the previous batch.
 			prevBatch, batch = batch, prevBatch
 			batch = batch[:0]
 		}
 	}
-	if tooShortCount != 0 {
-		log.Warnw("Ignored entries that were less than 4 bytes", "ignored", tooShortCount)
+	if badMultihashCount != 0 {
+		log.Warnw("Ignored bad multihashes", "ignored", badMultihashCount)
 	}
 
 	// Process any remaining multihashes.
