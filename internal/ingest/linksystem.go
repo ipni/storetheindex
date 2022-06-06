@@ -316,8 +316,11 @@ func (ing *Ingester) indexContentBlock(adCid cid.Cid, ad schema.Advertisement, p
 	var count, badMultihashCount int
 	for _, entry := range nchunk.Entries {
 		if _, err = multihash.Decode(entry); err != nil {
+			// Only log first error to prevent log flooding.
+			if badMultihashCount == 0 {
+				log.Warnw("Ignoring bad multihash", "err", err)
+			}
 			badMultihashCount++
-			log.Warnw("Ignoring bad multihash", "err", err)
 			continue
 		}
 
