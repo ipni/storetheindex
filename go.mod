@@ -15,7 +15,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.1
 	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-datastore v0.5.1
-	github.com/ipfs/go-delegated-routing v0.2.1
+	github.com/ipfs/go-delegated-routing v0.2.2
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/ipfs/go-ipfs v0.12.1
 	github.com/ipfs/go-log/v2 v2.5.1
@@ -107,7 +107,7 @@ require (
 	github.com/ipfs/go-peertaskqueue v0.7.1 // indirect
 	github.com/ipfs/go-unixfs v0.3.1 // indirect
 	github.com/ipfs/go-verifcid v0.0.1 // indirect
-	github.com/ipld/edelweiss v0.1.1 // indirect
+	github.com/ipld/edelweiss v0.1.2 // indirect
 	github.com/ipld/go-codec-dagpb v1.3.1 // indirect
 	github.com/ipld/go-storethehash v0.1.7 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
