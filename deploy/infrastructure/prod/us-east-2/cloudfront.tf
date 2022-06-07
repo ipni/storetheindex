@@ -54,6 +54,20 @@ resource "aws_cloudfront_distribution" "cdn" {
     max_ttl                = 86400
   }
 
+  ordered_cache_behavior {
+    path_pattern           = "/reframe"
+    # CloudFront does not support configuring allowed methods selectively.
+    # Hence the complete method list.
+    allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = local.cdn_origin_id
+    cache_policy_id        = aws_cloudfront_cache_policy.reframe.id
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 0
+    max_ttl                = 0
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
@@ -62,6 +76,28 @@ resource "aws_cloudfront_distribution" "cdn" {
   viewer_certificate {
     acm_certificate_arn = module.cid_contact_cert.acm_certificate_arn
     ssl_support_method  = "sni-only"
+  }
+}
+
+resource "aws_cloudfront_cache_policy" "reframe" {
+  name = "reframe"
+
+  # We have to set non-zero TTL values because otherwise CloudFront won't let 
+  # the query strings settings to be configured.
+  min_ttl     = 0
+  default_ttl = 3600
+  max_ttl     = 86400
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "none"
+    }
+    query_strings_config {
+      query_string_behavior = "all"
+    }
   }
 }
 
@@ -82,6 +118,8 @@ module "cdn_cert" {
   domain_name               = aws_route53_zone.prod_external.name
   zone_id                   = aws_route53_zone.prod_external.zone_id
   subject_alternative_names = ["*.${aws_route53_zone.prod_external.name}"]
+
+  tags = local.tags
 }
 
 module "records" {
@@ -123,4 +161,6 @@ module "cid_contact_cert" {
     "*.prod.cid.contact",
     "*.infra.cid.contact",
   ]
+
+  tags = local.tags
 }
