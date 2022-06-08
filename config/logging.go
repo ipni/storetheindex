@@ -32,7 +32,7 @@ func (c *Logging) populateUnset() {
 	if c.Level == "" {
 		c.Level = def.Level
 
-		// If not default logging level was set, and no level set for loggers,
+		// If no overall logging level was set, and no level set for loggers,
 		// then set levels for certain loggers.
 		if len(c.Loggers) == 0 {
 			c.Loggers = def.Loggers
