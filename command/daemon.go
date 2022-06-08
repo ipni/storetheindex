@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -65,13 +66,14 @@ var DaemonCmd = &cli.Command{
 }
 
 func daemonCommand(cctx *cli.Context) error {
-	err := logging.SetLogLevel("*", cctx.String("log-level"))
+	logLevel := strings.ToLower(cctx.String("log-level"))
+	err := logging.SetLogLevel("*", logLevel)
 	if err != nil {
 		return err
 	}
 	// Do not log some facilities at info or debug level, unless "log-all" flag
 	// is true.
-	if !cctx.Bool("log-all") && (cctx.String("log-level") == "info" || cctx.String("log-level") == "debug") {
+	if !cctx.Bool("log-all") && logLevel == "info" || logLevel == "debug" {
 		logging.SetLogLevel("basichost", "warn")
 		logging.SetLogLevel("bootstrap", "warn")
 		logging.SetLogLevel("dt_graphsync", "warn")
