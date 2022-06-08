@@ -491,8 +491,7 @@ func loadConfig(filePath string) (*config.Config, error) {
 }
 
 func reloadConfig(cctx *cli.Context, ingester *ingest.Ingester, reg *registry.Registry) error {
-	filePath := cctx.String("ConfigPath")
-	cfg, err := loadConfig(filePath)
+	cfg, err := loadConfig("")
 	if err != nil {
 		return err
 	}
