@@ -20,6 +20,7 @@ type Config struct {
 	Discovery Discovery // provider pubsub peers
 	Indexer   Indexer   // indexer code configuration
 	Ingest    Ingest    // ingestion related configuration.
+	Logging   Logging   // logging configuration.
 }
 
 const (
@@ -105,6 +106,7 @@ func Load(filePath string) (*Config, error) {
 		Discovery: NewDiscovery(),
 		Indexer:   NewIndexer(),
 		Ingest:    NewIngest(),
+		Logging:   NewLogging(),
 	}
 
 	if err = json.NewDecoder(f).Decode(&cfg); err != nil {
@@ -178,4 +180,5 @@ func (c *Config) populateUnset() {
 	c.Discovery.populateUnset()
 	c.Indexer.populateUnset()
 	c.Ingest.populateUnset()
+	c.Logging.populateUnset()
 }

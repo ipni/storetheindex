@@ -29,6 +29,7 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 		Identity:  identity,
 		Indexer:   NewIndexer(),
 		Ingest:    NewIngest(),
+		Logging:   NewLogging(),
 	}
 
 	return conf, nil
