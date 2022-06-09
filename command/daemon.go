@@ -65,20 +65,6 @@ var DaemonCmd = &cli.Command{
 }
 
 func daemonCommand(cctx *cli.Context) error {
-	err := logging.SetLogLevel("*", cctx.String("log-level"))
-	if err != nil {
-		return err
-	}
-	// Do not log some facilities at info or debug level, unless "log-all" flag
-	// is true.
-	if !cctx.Bool("log-all") && (cctx.String("log-level") == "info" || cctx.String("log-level") == "debug") {
-		logging.SetLogLevel("basichost", "warn")
-		logging.SetLogLevel("bootstrap", "warn")
-		logging.SetLogLevel("dt_graphsync", "warn")
-		logging.SetLogLevel("dt-impl", "warn")
-		logging.SetLogLevel("graphsync", "warn")
-	}
-
 	cfg, err := loadConfig("")
 	if err != nil {
 		if errors.Is(err, config.ErrNotInitialized) {
@@ -88,6 +74,12 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 		return err
 	}
+
+	err = setLoggingConfig(cfg.Logging)
+	if err != nil {
+		return err
+	}
+
 	if cfg.Version != config.Version {
 		log.Warn("Configuration file out-of-date. Upgrade by running: ./storetheindex init --upgrade")
 	}
@@ -341,7 +333,7 @@ func daemonCommand(cctx *cli.Context) error {
 		case <-reloadSig:
 			reloadErrChan <- nil
 		case errChan := <-reloadErrChan:
-			err = reloadConfig("", ingester, reg)
+			err = reloadConfig(ingester, reg)
 			if err != nil {
 				log.Errorw("Error reloading conifg", "err", err)
 				if errChan != nil {
@@ -461,6 +453,23 @@ func createValueStore(cfgIndexer config.Indexer) (indexer.Interface, error) {
 	return nil, fmt.Errorf("unrecognized store type: %s", cfgIndexer.ValueStoreType)
 }
 
+func setLoggingConfig(cfgLogging config.Logging) error {
+	// Set overall log level.
+	err := logging.SetLogLevel("*", cfgLogging.Level)
+	if err != nil {
+		return err
+	}
+
+	// Set level for individual loggers.
+	for loggerName, level := range cfgLogging.Loggers {
+		err = logging.SetLogLevel(loggerName, level)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func loadConfig(filePath string) (*config.Config, error) {
 	cfg, err := config.Load(filePath)
 	if err != nil {
@@ -477,8 +486,8 @@ func loadConfig(filePath string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func reloadConfig(filePath string, ingester *ingest.Ingester, reg *registry.Registry) error {
-	cfg, err := loadConfig(filePath)
+func reloadConfig(ingester *ingest.Ingester, reg *registry.Registry) error {
+	cfg, err := loadConfig("")
 	if err != nil {
 		return err
 	}
@@ -497,6 +506,11 @@ func reloadConfig(filePath string, ingester *ingest.Ingester, reg *registry.Regi
 		ingester.RunWorkers(cfg.Ingest.IngestWorkerCount)
 	}
 
-	fmt.Println("Reloaded policy and rate limit configuration")
+	err = setLoggingConfig(cfg.Logging)
+	if err != nil {
+		return fmt.Errorf("failed to configure logging: %w", err)
+	}
+
+	fmt.Println("Reloaded policy, rate limit, and logging configuration")
 	return nil
 }

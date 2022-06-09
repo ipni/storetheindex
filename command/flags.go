@@ -30,14 +30,6 @@ var fileFlag = &cli.StringFlag{
 	Required: true,
 }
 
-var logLevelFlag = &cli.StringFlag{
-	Name:     "log-level",
-	Usage:    "Set the log level",
-	EnvVars:  []string{"GOLOG_LOG_LEVEL"},
-	Value:    "info",
-	Required: false,
-}
-
 var providerFlag = &cli.StringFlag{
 	Name:     "provider",
 	Usage:    "Provider's peer ID",
@@ -47,14 +39,6 @@ var providerFlag = &cli.StringFlag{
 
 var daemonFlags = []cli.Flag{
 	cacheSizeFlag,
-	logLevelFlag,
-	&cli.BoolFlag{
-		Name:     "log-all",
-		Usage:    "Log for subsystems that are normally only logged at warn level",
-		EnvVars:  []string{"LOG_ALL"},
-		Value:    false,
-		Required: false,
-	},
 	&cli.BoolFlag{
 		Name:     "noadmin",
 		Usage:    "Disable admin server",
