@@ -75,7 +75,7 @@ func daemonCommand(cctx *cli.Context) error {
 		return err
 	}
 
-	err = setLoggingConfig(cctx, cfg.Logging)
+	err = setLoggingConfig(cfg.Logging)
 	if err != nil {
 		return err
 	}
@@ -333,7 +333,7 @@ func daemonCommand(cctx *cli.Context) error {
 		case <-reloadSig:
 			reloadErrChan <- nil
 		case errChan := <-reloadErrChan:
-			err = reloadConfig(cctx, ingester, reg)
+			err = reloadConfig(ingester, reg)
 			if err != nil {
 				log.Errorw("Error reloading conifg", "err", err)
 				if errChan != nil {
@@ -453,13 +453,9 @@ func createValueStore(cfgIndexer config.Indexer) (indexer.Interface, error) {
 	return nil, fmt.Errorf("unrecognized store type: %s", cfgIndexer.ValueStoreType)
 }
 
-func setLoggingConfig(cctx *cli.Context, cfgLogging config.Logging) error {
+func setLoggingConfig(cfgLogging config.Logging) error {
 	// Set overall log level.
-	logLevel := cctx.String("log-level")
-	if logLevel == "" {
-		logLevel = cfgLogging.Level
-	}
-	err := logging.SetLogLevel("*", logLevel)
+	err := logging.SetLogLevel("*", cfgLogging.Level)
 	if err != nil {
 		return err
 	}
@@ -490,7 +486,7 @@ func loadConfig(filePath string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func reloadConfig(cctx *cli.Context, ingester *ingest.Ingester, reg *registry.Registry) error {
+func reloadConfig(ingester *ingest.Ingester, reg *registry.Registry) error {
 	cfg, err := loadConfig("")
 	if err != nil {
 		return err
@@ -510,7 +506,7 @@ func reloadConfig(cctx *cli.Context, ingester *ingest.Ingester, reg *registry.Re
 		ingester.RunWorkers(cfg.Ingest.IngestWorkerCount)
 	}
 
-	err = setLoggingConfig(cctx, cfg.Logging)
+	err = setLoggingConfig(cfg.Logging)
 	if err != nil {
 		return fmt.Errorf("failed to configure logging: %w", err)
 	}
