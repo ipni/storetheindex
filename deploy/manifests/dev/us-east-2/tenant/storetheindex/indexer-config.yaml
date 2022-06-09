@@ -80,6 +80,16 @@ data:
         "SyncTimeout": "2h0m0s",
         "IngestWorkerCount": 10,
         "SyncSegmentDepthLimit": 2000
+      },
+      "Logging": {
+        "Level": "info",
+          "Loggers": {
+          "basichost": "warn",
+          "bootstrap": "warn",
+          "dt-impl": "warn",
+          "dt_graphsync": "warn",
+          "graphsync": "warn"
+        }
       }
     }
 
