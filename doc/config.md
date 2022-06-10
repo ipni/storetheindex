@@ -68,13 +68,19 @@ config file at runtime.
   },
   "Indexer": {
     "CacheSize": 300000,
+    "ConfigCheckInterval": "30s",
     "GCInterval": "30m0s",
+    "ShutdownTimeout": "10s",
     "ValueStoreDir": "valuestore",
     "ValueStoreType": "sth"
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
     "EntriesDepthLimit": 65536,
+    "HttpSyncRetryMax": 4,
+    "HttpSyncRetryWaitMax": "30s",
+    "HttpSyncRetryWaitMin": "1s",
+    "HttpSyncTimeout": "10s",
     "IngestWorkerCount": 10,
     "PubSubTopic": "/indexer/ingest/mainnet",
     "RateLimit": {
@@ -85,11 +91,7 @@ config file at runtime.
     },
     "StoreBatchSize": 4096,
     "SyncSegmentDepthLimit": 2000,
-    "SyncTimeout": "2h0m0s",
-    "HttpSyncRetryWaitMin": "1s",
-    "HttpSyncRetryWaitMax": "30s",
-    "HttpSyncRetryMax": 4,
-    "HttpSyncTimeout": "10s"
+    "SyncTimeout": "2h0m0s"
   },
   "Logging": {
     "Level": "info",
@@ -211,15 +213,16 @@ Default:
 "Ingest": {
   "AdvertisementDepthLimit": 33554432,
   "EntriesDepthLimit": 65536,
+  "HttpSyncRetryMax": 4,
+  "HttpSyncRetryWaitMax": "30s",
+  "HttpSyncRetryWaitMin": "1s",
+  "HttpSyncTimeout": "10s",
   "IngestWorkerCount": 10,
   "PubSubTopic": "/indexer/ingest/mainnet",
   "RateLimit": {},
   "StoreBatchSize": 4096,
-  "SyncTimeout": "2h0m0s",
-  "HttpSyncRetryWaitMin": "1s",
-  "HttpSyncRetryWaitMax": "30s",
-  "HttpSyncRetryMax": 4,
-  "HttpSyncTimeout": "10s"
+  "SyncSegmentDepthLimit": 2000,
+  "SyncTimeout": "2h0m0s"
 }
 ```
 
