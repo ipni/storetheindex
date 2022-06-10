@@ -18,9 +18,8 @@ var indexerHostFlag = &cli.StringFlag{
 
 var cacheSizeFlag = &cli.Int64Flag{
 	Name:     "cachesize",
-	Usage:    "Maximum number of multihashes that result cache can hold, 0 to disable cache",
+	Usage:    "Maximum number of multihashes that result cache can hold, -1 to disable cache",
 	Required: false,
-	Value:    -1,
 }
 
 var fileFlag = &cli.StringFlag{
@@ -64,12 +63,10 @@ var daemonFlags = []cli.Flag{
 		Required: false,
 	},
 	&cli.BoolFlag{
-		Name:  "watch-config",
-		Usage: "Watch for changes to config file and automatically reload",
-		// Note: `INDEXER_WATCH_CONFIG` is added for backward compatibility.
-		//       Remove it once `STORETHEINDEX_WATCH_CONFIG` is rolled out in both environments.
-		EnvVars:  []string{"INDEXER_WATCH_CONFIG", "STORETHEINDEX_WATCH_CONFIG"},
-		Value:    false,
+		Name:     "watch-config",
+		Usage:    "Watch for changes to config file and automatically reload",
+		EnvVars:  []string{"STORETHEINDEX_WATCH_CONFIG"},
+		Value:    true,
 		Required: false,
 	},
 }

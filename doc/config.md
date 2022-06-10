@@ -68,13 +68,19 @@ config file at runtime.
   },
   "Indexer": {
     "CacheSize": 300000,
+    "ConfigCheckInterval": "30s",
     "GCInterval": "30m0s",
+    "ShutdownTimeout": "10s",
     "ValueStoreDir": "valuestore",
     "ValueStoreType": "sth"
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
     "EntriesDepthLimit": 65536,
+    "HttpSyncRetryMax": 4,
+    "HttpSyncRetryWaitMax": "30s",
+    "HttpSyncRetryWaitMin": "1s",
+    "HttpSyncTimeout": "10s",
     "IngestWorkerCount": 10,
     "PubSubTopic": "/indexer/ingest/mainnet",
     "RateLimit": {
@@ -84,7 +90,18 @@ config file at runtime.
       "BurstSize": 500
     },
     "StoreBatchSize": 4096,
+    "SyncSegmentDepthLimit": 2000,
     "SyncTimeout": "2h0m0s"
+  },
+  "Logging": {
+    "Level": "info",
+    "Loggers": {
+      "basichost": "warn",
+      "bootstrap": "warn",
+      "dt-impl": "warn",
+      "dt_graphsync": "warn",
+      "graphsync": "warn"
+    }
   }
 }
 ```
@@ -180,7 +197,9 @@ Default:
 ```json
 "Indexer": {
   "CacheSize": 300000,
+  "ConfigCheckInterval": "30s",
   "GCInterval": "30m0s",
+  "ShutdownTimeout": "10s",
   "ValueStoreDir": "valuestore",
   "ValueStoreType": "sth"
 }
@@ -194,10 +213,15 @@ Default:
 "Ingest": {
   "AdvertisementDepthLimit": 33554432,
   "EntriesDepthLimit": 65536,
+  "HttpSyncRetryMax": 4,
+  "HttpSyncRetryWaitMax": "30s",
+  "HttpSyncRetryWaitMin": "1s",
+  "HttpSyncTimeout": "10s",
   "IngestWorkerCount": 10,
   "PubSubTopic": "/indexer/ingest/mainnet",
   "RateLimit": {},
   "StoreBatchSize": 4096,
+  "SyncSegmentDepthLimit": 2000,
   "SyncTimeout": "2h0m0s"
 }
 ```
@@ -215,9 +239,30 @@ Default:
 }
 ```
 
+## `Logging`
+Description: [Logging](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Logging)
+
+Default:
+```json
+"Logging": {
+  "Level": "info",
+  "Loggers": {
+    "basichost": "warn",
+    "bootstrap": "warn",
+    "dt-impl": "warn",
+    "dt_graphsync": "warn",
+    "graphsync": "warn"
+  }
+}
+```
+
 ## Runtime Reloadable Items
 The storetheindex daemon can reload some portions of its config without restarting the entire daemon. This is done by editing the config file and then using the admin sub-command `reload-config` or sending the daemon process a `SIGHUP` signal. The daemon will automatically reload the edited config after 30 seconds when the daemon is run with the `--watch-config` flag or with the environ variable `STORETHEINDEX_WATCH_CONFIG=true`. The reloadable portions of the config files are:
+
 - [`Discovery.Policy`](#discoverypolicy)
+- [`Indexer.ConfigCheckInterval`](#indexer)
+- [`Indexer.ShutdownTimeout`](#indexer)
 - [`Ingest.IngestWorkerCount`](#ingest)
 - [`Ingest.RateLimit`](#ingestratelimit)
 - [`Ingest.StoreBatchSize`](#ingest)
+- [`Logging`](#logging)

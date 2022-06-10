@@ -36,13 +36,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-const (
-	// configCheckInterval is the time between config update checks.
-	configCheckInterval = 30 * time.Second
-	// shutdownTimeout is the duration that a graceful shutdown has to complete.
-	shutdownTimeout = 10 * time.Second
-)
-
 // Recognized valuestore type names.
 const (
 	vstoreMemory       = "memory"
@@ -98,7 +91,7 @@ func daemonCommand(cctx *cli.Context) error {
 	// Create result cache
 	var resultCache cache.Interface
 	cacheSize := int(cctx.Int64("cachesize"))
-	if cacheSize < 0 {
+	if cacheSize == 0 {
 		cacheSize = cfg.Indexer.CacheSize
 	}
 	if cacheSize > 0 {
@@ -247,7 +240,7 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 	}
 
-	reloadErrChan := make(chan chan error, 1)
+	reloadErrsChan := make(chan chan error, 1)
 
 	// Create admin HTTP server
 	var adminSvr *httpadminserver.Server
@@ -260,17 +253,17 @@ func daemonCommand(cctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		adminSvr, err = httpadminserver.New(adminAddr.String(), indexerCore, ingester, reg, reloadErrChan)
+		adminSvr, err = httpadminserver.New(adminAddr.String(), indexerCore, ingester, reg, reloadErrsChan)
 		if err != nil {
 			return err
 		}
 	}
 
 	log.Info("Starting http servers")
-	errChan := make(chan error, 3)
+	svrErrChan := make(chan error, 3)
 	if adminSvr != nil {
 		go func() {
-			errChan <- adminSvr.Start()
+			svrErrChan <- adminSvr.Start()
 		}()
 		fmt.Println("Admin server:\t", cfg.Addresses.Admin)
 	} else {
@@ -278,7 +271,7 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 	if finderSvr != nil {
 		go func() {
-			errChan <- finderSvr.Start()
+			svrErrChan <- finderSvr.Start()
 		}()
 		fmt.Println("Finder server:\t", cfg.Addresses.Finder)
 	} else {
@@ -286,7 +279,7 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 	if ingestSvr != nil {
 		go func() {
-			errChan <- ingestSvr.Start()
+			svrErrChan <- ingestSvr.Start()
 		}()
 		fmt.Println("Ingest server:\t", cfg.Addresses.Ingest)
 	} else {
@@ -317,7 +310,7 @@ func daemonCommand(cctx *cli.Context) error {
 		if statErr != nil {
 			log.Error(err)
 		}
-		ticker = time.NewTicker(configCheckInterval)
+		ticker = time.NewTicker(time.Duration(cfg.Indexer.ConfigCheckInterval))
 		timeChan = ticker.C
 	}
 
@@ -326,14 +319,15 @@ func daemonCommand(cctx *cli.Context) error {
 		case <-cctx.Done():
 			// Command was canceled (ctrl-c)
 			endDaemon = true
-		case err = <-errChan:
+		case err = <-svrErrChan:
 			log.Errorw("Failed to start server", "err", err)
 			finalErr = ErrDaemonStart
 			endDaemon = true
 		case <-reloadSig:
-			reloadErrChan <- nil
-		case errChan := <-reloadErrChan:
-			err = reloadConfig(ingester, reg)
+			reloadErrsChan <- nil
+		case errChan := <-reloadErrsChan:
+			prevCfgChk := cfg.Indexer.ConfigCheckInterval
+			cfg, err = reloadConfig(cfgPath, ingester, reg)
 			if err != nil {
 				log.Errorw("Error reloading conifg", "err", err)
 				if errChan != nil {
@@ -342,6 +336,9 @@ func daemonCommand(cctx *cli.Context) error {
 			}
 			if errChan != nil {
 				errChan <- err
+			}
+			if prevCfgChk != cfg.Indexer.ConfigCheckInterval {
+				ticker.Reset(time.Duration(cfg.Indexer.ConfigCheckInterval))
 			}
 		case <-timeChan:
 			var changed bool
@@ -355,7 +352,7 @@ func daemonCommand(cctx *cli.Context) error {
 			}
 			statErr = nil
 			if changed {
-				reloadErrChan <- nil
+				reloadErrsChan <- nil
 			}
 		}
 	}
@@ -365,7 +362,7 @@ func daemonCommand(cctx *cli.Context) error {
 
 	log.Infow("Shutting down daemon")
 
-	ctx, cancel = context.WithTimeout(context.Background(), shutdownTimeout)
+	ctx, cancel = context.WithTimeout(context.Background(), time.Duration(cfg.Indexer.ShutdownTimeout))
 	defer cancel()
 
 	go func() {
@@ -486,21 +483,21 @@ func loadConfig(filePath string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func reloadConfig(ingester *ingest.Ingester, reg *registry.Registry) error {
-	cfg, err := loadConfig("")
+func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Registry) (*config.Config, error) {
+	cfg, err := loadConfig(cfgPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = reg.SetPolicy(cfg.Discovery.Policy)
 	if err != nil {
-		return fmt.Errorf("failed to set policy config: %w", err)
+		return nil, fmt.Errorf("failed to set policy config: %w", err)
 	}
 
 	if ingester != nil {
 		err = ingester.SetRateLimit(cfg.Ingest.RateLimit)
 		if err != nil {
-			return fmt.Errorf("failed to set rate limit config: %w", err)
+			return nil, fmt.Errorf("failed to set rate limit config: %w", err)
 		}
 		ingester.SetBatchSize(cfg.Ingest.StoreBatchSize)
 		ingester.RunWorkers(cfg.Ingest.IngestWorkerCount)
@@ -508,9 +505,9 @@ func reloadConfig(ingester *ingest.Ingester, reg *registry.Registry) error {
 
 	err = setLoggingConfig(cfg.Logging)
 	if err != nil {
-		return fmt.Errorf("failed to configure logging: %w", err)
+		return nil, fmt.Errorf("failed to configure logging: %w", err)
 	}
 
 	fmt.Println("Reloaded policy, rate limit, and logging configuration")
-	return nil
+	return cfg, nil
 }

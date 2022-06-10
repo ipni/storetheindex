@@ -11,16 +11,33 @@ type Ingest struct {
 	// the default value. Limiting the depth of advertisements can be done if
 	// there is a need to prevent an indexer from ingesting long chains of
 	// advertisements.
-	// Note that sync is divided across multiple individual calls to a provider.
-	// See SyncSegmentDepthLimit.
+	//
+	// A chain of advertisements is synced by separate requests to the provider
+	// for each advertisement. These requests are done in groups (segments) of
+	// size set by SyncSegmentDepthLimit. AdvertisementDepthLimit sets the
+	// limit on the total number of advertisements across all segments.
 	AdvertisementDepthLimit int
-	// EntriesDepthLimit is the total maximum recursion depth limit when syncing
-	// advertisement entries. The value -1 means no limit and zero means use
-	// the default value. The purpose is to prevent overload from extremely
-	// long entry chains resulting from publisher misconfiguration.
-	// Note that sync is divided across multiple individual calls to a provider.
-	// See SyncSegmentDepthLimit.
+	// EntriesDepthLimit is the total maximum recursion depth limit when
+	// syncing advertisement entries. The value -1 means no limit and zero
+	// means use the default value. The purpose is to prevent overload from
+	// extremely long entry chains resulting from publisher misconfiguration.
+	//
+	// A chain of multihash entries chunks is synced by separate requests to
+	// the provider for each chunk. These requests are done in groups
+	// (segments) of size set by SyncSegmentDepthLimit. EntriesDepthLimit sets
+	// the limit on the total number of entries chunks across all segments.
 	EntriesDepthLimit int
+	// HttpSyncRetryMax sets the maximum number of times HTTP sync requests
+	// should be retried.
+	HttpSyncRetryMax int
+	// HttpSyncRetryWaitMax sets the maximum time to wait before retrying a
+	// failed HTTP sync.
+	HttpSyncRetryWaitMax Duration
+	// HttpSyncRetryWaitMin sets the minimum time to wait before retrying a
+	// failed HTTP sync.
+	HttpSyncRetryWaitMin Duration
+	// HttpSyncTimeout sets the time limit for HTTP sync requests.
+	HttpSyncTimeout Duration
 	// IngestWorkerCount sets how many ingest worker goroutines to spawn. This
 	// controls how many concurrent ingest from different providers we can handle.
 	IngestWorkerCount int
@@ -34,24 +51,16 @@ type Ingest struct {
 	// smaller than the maximum number of multihashes in an entry block to
 	// write concurrently to the value store.
 	StoreBatchSize int
-	// SyncTimeout is the maximum amount of time allowed for a sync to complete
-	// before it is canceled. This can be a sync of a chain of advertisements
-	// or a chain of advertisement entries. The value is an integer string
-	// ending in "s", "m", "h" for seconds. minutes, hours.
-	SyncTimeout Duration
 	// SyncSegmentDepthLimit is the depth limit of a single sync in a series of
 	// calls that collectively sync advertisements or their entries. The value
 	// -1 disables the segmentation where the sync will be done in a single call
 	// and zero means use the default value.
 	SyncSegmentDepthLimit int
-	// HttpSyncRetryWaitMin sets the minimum time to wait before retrying a failed HTTP sync.
-	HttpSyncRetryWaitMin Duration
-	// HttpSyncRetryWaitMax sets the maximum time to wait before retrying a failed HTTP sync.
-	HttpSyncRetryWaitMax Duration
-	// HttpSyncRetryMax sets the maximum number of times HTTP sync requests should be retried.
-	HttpSyncRetryMax int
-	// HttpSyncTimeout sets the time limit for HTTP sync requests.
-	HttpSyncTimeout Duration
+	// SyncTimeout is the maximum amount of time allowed for a sync to complete
+	// before it is canceled. This can be a sync of a chain of advertisements
+	// or a chain of advertisement entries. The value is an integer string
+	// ending in "s", "m", "h" for seconds. minutes, hours.
+	SyncTimeout Duration
 }
 
 // NewIngest returns Ingest with values set to their defaults.
@@ -59,16 +68,16 @@ func NewIngest() Ingest {
 	return Ingest{
 		AdvertisementDepthLimit: 33554432,
 		EntriesDepthLimit:       65536,
+		HttpSyncRetryMax:        4,
+		HttpSyncRetryWaitMax:    Duration(30 * time.Second),
+		HttpSyncRetryWaitMin:    Duration(1 * time.Second),
+		HttpSyncTimeout:         Duration(10 * time.Second),
 		IngestWorkerCount:       10,
 		PubSubTopic:             "/indexer/ingest/mainnet",
 		RateLimit:               NewRateLimit(),
 		StoreBatchSize:          4096,
-		SyncTimeout:             Duration(2 * time.Hour),
 		SyncSegmentDepthLimit:   2_000,
-		HttpSyncRetryWaitMin:    Duration(1 * time.Second),
-		HttpSyncRetryWaitMax:    Duration(30 * time.Second),
-		HttpSyncRetryMax:        4,
-		HttpSyncTimeout:         Duration(10 * time.Second),
+		SyncTimeout:             Duration(2 * time.Hour),
 	}
 }
 
@@ -82,32 +91,32 @@ func (c *Ingest) populateUnset() {
 	if c.EntriesDepthLimit == 0 {
 		c.EntriesDepthLimit = def.EntriesDepthLimit
 	}
-	if c.IngestWorkerCount == 0 {
-		c.IngestWorkerCount = def.IngestWorkerCount
-	}
-	c.RateLimit.populateUnset()
-	if c.PubSubTopic == "" {
-		c.PubSubTopic = def.PubSubTopic
-	}
-	if c.StoreBatchSize == 0 {
-		c.StoreBatchSize = def.StoreBatchSize
-	}
-	if c.SyncTimeout == 0 {
-		c.SyncTimeout = def.SyncTimeout
-	}
-	if c.SyncSegmentDepthLimit == 0 {
-		c.SyncSegmentDepthLimit = def.SyncSegmentDepthLimit
-	}
-	if c.HttpSyncRetryWaitMin == 0 {
-		c.HttpSyncRetryWaitMin = def.HttpSyncRetryWaitMin
+	if c.HttpSyncRetryMax == 0 {
+		c.HttpSyncRetryMax = def.HttpSyncRetryMax
 	}
 	if c.HttpSyncRetryWaitMax == 0 {
 		c.HttpSyncRetryWaitMax = def.HttpSyncRetryWaitMax
 	}
-	if c.HttpSyncRetryMax == 0 {
-		c.HttpSyncRetryMax = def.HttpSyncRetryMax
+	if c.HttpSyncRetryWaitMin == 0 {
+		c.HttpSyncRetryWaitMin = def.HttpSyncRetryWaitMin
 	}
 	if c.HttpSyncTimeout == 0 {
 		c.HttpSyncTimeout = def.HttpSyncTimeout
+	}
+	if c.IngestWorkerCount == 0 {
+		c.IngestWorkerCount = def.IngestWorkerCount
+	}
+	if c.PubSubTopic == "" {
+		c.PubSubTopic = def.PubSubTopic
+	}
+	c.RateLimit.populateUnset()
+	if c.StoreBatchSize == 0 {
+		c.StoreBatchSize = def.StoreBatchSize
+	}
+	if c.SyncSegmentDepthLimit == 0 {
+		c.SyncSegmentDepthLimit = def.SyncSegmentDepthLimit
+	}
+	if c.SyncTimeout == 0 {
+		c.SyncTimeout = def.SyncTimeout
 	}
 }
