@@ -69,6 +69,10 @@ data:
       "Ingest": {
         "AdvertisementDepthLimit": 33554432,
         "EntriesDepthLimit": 65536,
+        "HttpSyncRetryMax": 4,
+        "HttpSyncRetryWaitMax": "30s",
+        "HttpSyncRetryWaitMin": "1s",
+        "HttpSyncTimeout": "10s",
         "IngestWorkerCount": 10,
         "PubSubTopic": "/indexer/ingest/mainnet",
         "RateLimit": {
@@ -78,12 +82,8 @@ data:
           "BurstSize": 500
         },
         "StoreBatchSize": 4096,
-        "SyncTimeout": "2h0m0s",
         "SyncSegmentDepthLimit": 2000,
-        "HttpSyncRetryWaitMin": "1s",
-        "HttpSyncRetryWaitMax": "30s",
-        "HttpSyncRetryMax": 4,
-        "HttpSyncTimeout": "10s"
+        "SyncTimeout": "2h0m0s"
       },
       "Logging": {
         "Level": "info",
