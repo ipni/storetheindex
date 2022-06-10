@@ -63,12 +63,10 @@ var daemonFlags = []cli.Flag{
 		Required: false,
 	},
 	&cli.BoolFlag{
-		Name:  "watch-config",
-		Usage: "Watch for changes to config file and automatically reload",
-		// Note: `INDEXER_WATCH_CONFIG` is added for backward compatibility.
-		//       Remove it once `STORETHEINDEX_WATCH_CONFIG` is rolled out in both environments.
-		EnvVars:  []string{"INDEXER_WATCH_CONFIG", "STORETHEINDEX_WATCH_CONFIG"},
-		Value:    false,
+		Name:     "watch-config",
+		Usage:    "Watch for changes to config file and automatically reload",
+		EnvVars:  []string{"STORETHEINDEX_WATCH_CONFIG"},
+		Value:    true,
 		Required: false,
 	},
 }
