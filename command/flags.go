@@ -18,9 +18,8 @@ var indexerHostFlag = &cli.StringFlag{
 
 var cacheSizeFlag = &cli.Int64Flag{
 	Name:     "cachesize",
-	Usage:    "Maximum number of multihashes that result cache can hold, 0 to disable cache",
+	Usage:    "Maximum number of multihashes that result cache can hold, -1 to disable cache",
 	Required: false,
-	Value:    -1,
 }
 
 var fileFlag = &cli.StringFlag{
