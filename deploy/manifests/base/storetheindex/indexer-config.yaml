@@ -60,11 +60,16 @@ data:
       },
       "Indexer": {
         "CacheSize": 300000,
+        "ConfigCheckInterval": "30s",
+        "GCInterval": "30m0s",
+        "ShutdownTimeout": "15s",
         "ValueStoreDir": "/data/valuestore",
-        "ValueStoreType": "sth",
-        "GCInterval": "30m0s"
+        "ValueStoreType": "sth"
       },
       "Ingest": {
+        "AdvertisementDepthLimit": 33554432,
+        "EntriesDepthLimit": 65536,
+        "IngestWorkerCount": 10,
         "PubSubTopic": "/indexer/ingest/mainnet",
         "RateLimit": {
           "Apply": false,
@@ -74,8 +79,11 @@ data:
         },
         "StoreBatchSize": 4096,
         "SyncTimeout": "2h0m0s",
-        "IngestWorkerCount": 10,
-        "SyncSegmentDepthLimit": 2000
+        "SyncSegmentDepthLimit": 2000,
+        "HttpSyncRetryWaitMin": "1s",
+        "HttpSyncRetryWaitMax": "30s",
+        "HttpSyncRetryMax": 4,
+        "HttpSyncTimeout": "10s"
       },
       "Logging": {
         "Level": "info",
