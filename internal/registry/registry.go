@@ -525,7 +525,7 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 		return 0, err
 	}
 
-	var newCount int
+	var newProvs []*ProviderInfo
 	for _, pInfo := range provs {
 		if r.IsRegistered(pInfo.AddrInfo.ID) {
 			continue
@@ -533,11 +533,24 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 		regInfo := &ProviderInfo{
 			AddrInfo: pInfo.AddrInfo,
 		}
-		if pInfo.Publisher != nil {
+
+		var pubErr error
+		if pInfo.Publisher == nil {
+			pubErr = errors.New("missing publisher")
+		} else if pInfo.Publisher.ID.Validate() != nil {
+			pubErr = errors.New("bad publisher id")
+		} else if len(pInfo.Publisher.Addrs) == 0 {
+			pubErr = errors.New("publisher missing addresses")
+		}
+		if pubErr != nil {
+			// If publisher does not have a valid ID and addresses, then use
+			// provider ad publisher.
+			log.Infow("Provider does not have valid publisher, assuming same as provider", "reason", pubErr, "provider", regInfo.AddrInfo.ID)
+			regInfo.Publisher = regInfo.AddrInfo.ID
+			regInfo.PublisherAddr = regInfo.AddrInfo.Addrs[0]
+		} else {
 			regInfo.Publisher = pInfo.Publisher.ID
-			if len(pInfo.Publisher.Addrs) != 0 {
-				regInfo.PublisherAddr = pInfo.Publisher.Addrs[0]
-			}
+			regInfo.PublisherAddr = pInfo.Publisher.Addrs[0]
 		}
 
 		err = r.Register(ctx, regInfo)
@@ -545,11 +558,23 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 			log.Infow("Cannot register provider", "provider", pInfo.AddrInfo.ID, "err", err)
 			continue
 		}
-		newCount++
-	}
-	log.Infow("Imported new providers from other indexer", "from", fromURL.String(), "count", newCount)
 
-	return newCount, nil
+		newProvs = append(newProvs, regInfo)
+	}
+	log.Infow("Imported new providers from other indexer", "from", fromURL.String(), "count", len(newProvs))
+
+	// Start gorouting to sync with all the new providers.
+	go func() {
+		for _, pinfo := range newProvs {
+			select {
+			case r.syncChan <- pinfo:
+			case <-r.closing:
+				return
+			}
+		}
+	}()
+
+	return len(newProvs), nil
 }
 
 func (r *Registry) CheckSequence(peerID peer.ID, seq uint64) error {
