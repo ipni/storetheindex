@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 
@@ -140,6 +141,43 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 
 	// Return (202) Accepted
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (h *adminHandler) importProviders(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Errorw("failed reading import cidlist request", "err", err)
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+	var params map[string][]byte
+	err = json.Unmarshal(body, &params)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	from, ok := params["indexer"]
+	if !ok {
+		http.Error(w, "missing indexer url in request", http.StatusBadRequest)
+		return
+	}
+
+	fromURL := &url.URL{}
+	err = fromURL.UnmarshalBinary(from)
+	if err != nil {
+		http.Error(w, "bad indexer url: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	_, err = h.reg.ImportProviders(h.ctx, fromURL)
+	if err != nil {
+		msg := "Cannot get providers from other indexer"
+		log.Errorw(msg, "err", err)
+		http.Error(w, msg, http.StatusBadGateway)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *adminHandler) reloadConfig(w http.ResponseWriter, r *http.Request) {

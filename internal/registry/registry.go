@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path"
 	"sync"
 	"time"
 
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
+	httpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry/discovery"
@@ -334,7 +336,7 @@ func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
 		return err
 	}
 
-	log.Infow("registered provider", "id", info.AddrInfo.ID, "addrs", info.AddrInfo.Addrs)
+	log.Infow("Registered provider", "id", info.AddrInfo.ID, "addrs", info.AddrInfo.Addrs)
 	return nil
 }
 
@@ -508,6 +510,46 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	}
 	<-done
 	return infos
+}
+
+// ImportProviders reads providers from another indexer and registers any that
+// are not already registered. Returns the count of newly registered providers.
+func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, error) {
+	cl, err := httpclient.New(fromURL.String())
+	if err != nil {
+		return 0, err
+	}
+
+	provs, err := cl.ListProviders(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	var newCount int
+	for _, pInfo := range provs {
+		if r.IsRegistered(pInfo.AddrInfo.ID) {
+			continue
+		}
+		regInfo := &ProviderInfo{
+			AddrInfo: pInfo.AddrInfo,
+		}
+		if pInfo.Publisher != nil {
+			regInfo.Publisher = pInfo.Publisher.ID
+			if len(pInfo.Publisher.Addrs) != 0 {
+				regInfo.PublisherAddr = pInfo.Publisher.Addrs[0]
+			}
+		}
+
+		err = r.Register(ctx, regInfo)
+		if err != nil {
+			log.Infow("Cannot register provider", "provider", pInfo.AddrInfo.ID, "err", err)
+			continue
+		}
+		newCount++
+	}
+	log.Infow("Imported new providers from other indexer", "from", fromURL.String(), "count", newCount)
+
+	return newCount, nil
 }
 
 func (r *Registry) CheckSequence(peerID peer.ID, seq uint64) error {

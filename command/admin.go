@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"net/url"
 
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -30,6 +31,13 @@ var block = &cli.Command{
 	Action: blockCmd,
 }
 
+var importProviders = &cli.Command{
+	Name:   "import-providers",
+	Usage:  "Import provider information from another indexer",
+	Flags:  importProvidersFlags,
+	Action: importProvidersCmd,
+}
+
 var reload = &cli.Command{
 	Name:   "reload-config",
 	Usage:  "Reload policy, rate limit, workers, and batch settings from the configuration file",
@@ -44,6 +52,7 @@ var AdminCmd = &cli.Command{
 		sync,
 		allow,
 		block,
+		importProviders,
 		reload,
 	},
 }
@@ -104,6 +113,24 @@ func blockCmd(cctx *cli.Context) error {
 		return err
 	}
 	fmt.Println("Blocking advertisements and content from peer", peerID)
+	return nil
+}
+
+func importProvidersCmd(cctx *cli.Context) error {
+	fromURL := &url.URL{
+		Scheme: "http",
+		Host:   cctx.String("from"),
+		Path:   "/providers",
+	}
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	err = cl.ImportProviders(cctx.Context, fromURL)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Imported providers from indexer", fromURL.String())
 	return nil
 }
 

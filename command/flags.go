@@ -220,6 +220,16 @@ var providersListFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
+var importProvidersFlags = []cli.Flag{
+	&cli.StringFlag{
+		Name:     "from",
+		Usage:    "Host or host:port of indexer to get providers from",
+		Aliases:  []string{"f"},
+		Required: true,
+	},
+	indexerHostFlag,
+}
+
 var registerFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:     "config",

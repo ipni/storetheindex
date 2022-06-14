@@ -77,14 +77,14 @@ func (e *e2eTestRunner) start(prog string, args ...string) *exec.Cmd {
 			switch name {
 			case "storetheindex":
 				if strings.Contains(line, "Indexer is ready") {
-					close(e.indexerReady)
+					e.indexerReady <- struct{}{}
 				}
 			case "provider":
 				line = strings.ToLower(line)
 				if strings.Contains(line, "connected to peer successfully") {
-					close(e.providerHasPeer)
+					e.providerHasPeer <- struct{}{}
 				} else if strings.Contains(line, "admin http server listening") {
-					close(e.providerReady)
+					e.providerReady <- struct{}{}
 				}
 			}
 		}
@@ -129,9 +129,9 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		dir: t.TempDir(),
 		ctx: ctx,
 
-		indexerReady:    make(chan struct{}),
-		providerReady:   make(chan struct{}),
-		providerHasPeer: make(chan struct{}),
+		indexerReady:    make(chan struct{}, 1),
+		providerReady:   make(chan struct{}, 1),
+		providerHasPeer: make(chan struct{}, 1),
 	}
 
 	carPath := filepath.Join(e.dir, "sample-wrapped-v2.car")
@@ -282,6 +282,34 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 		return nil
 	})
+
+	root2 := filepath.Join(e.dir, ".storetheindex2")
+	e.env = append(e.env, fmt.Sprintf("%s=%s", config.EnvDir, root2))
+	e.run(indexer, "init", "--store", "memory", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap",
+		"--listen-admin", "/ip4/127.0.0.1/tcp/3202", "--listen-finder", "/ip4/127.0.0.1/tcp/3200", "--listen-ingest", "/ip4/127.0.0.1/tcp/3201")
+
+	cmdIndexer2 := e.start(indexer, "daemon")
+	select {
+	case <-e.indexerReady:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for indexer2 to start")
+	}
+
+	outProviders := e.run(indexer, "providers", "list", "--indexer", "localhost:3200")
+	if !strings.HasPrefix(string(outProviders), "No providers registered with indexer") {
+		t.Errorf("expected no providers message, got %q", string(outProviders))
+	}
+
+	// import providers from first indexer.
+	e.run(indexer, "admin", "import-providers", "--indexer", "localhost:3202", "--from", "localhost:3000")
+
+	outProviders = e.run(indexer, "providers", "list", "--indexer", "localhost:3200")
+
+	// Check that provider ID now appears in providers output.
+	if !strings.Contains(string(outProviders), providerID) {
+		t.Errorf("expected provider id in providers output after import-providers, got %q", string(outProviders))
+	}
+	e.stop(cmdIndexer2, time.Second)
 
 	e.stop(cmdIndexer, time.Second)
 	e.stop(cmdProvider, time.Second)
