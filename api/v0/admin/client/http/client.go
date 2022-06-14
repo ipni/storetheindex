@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -118,6 +119,46 @@ func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Mu
 	}
 
 	return c.ingestRequest(ctx, peerID, "sync", http.MethodPost, data, q...)
+}
+
+// ImportProviders
+func (c *Client) ImportProviders(ctx context.Context, fromURL *url.URL) error {
+	if fromURL == nil || fromURL.String() == "" {
+		return errors.New("missing indexer url")
+	}
+
+	u := c.baseURL + "/importproviders"
+
+	binURL, err := fromURL.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	params := map[string][]byte{
+		"indexer": binURL,
+	}
+	bodyData, err := json.Marshal(&params)
+	if err != nil {
+		return err
+	}
+	body := bytes.NewBuffer(bodyData)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
+	}
+
+	return nil
 }
 
 // ReloadConfig reloads reloadable parts of the configuration file.

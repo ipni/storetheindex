@@ -62,6 +62,7 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 
 	// Admin routes
 	r.HandleFunc("/healthcheck", h.healthCheckHandler).Methods(http.MethodGet)
+	r.HandleFunc("/importproviders", h.importProviders).Methods(http.MethodPost)
 	r.HandleFunc("/reloadconfig", h.reloadConfig).Methods(http.MethodPost)
 
 	// Ingester routes
