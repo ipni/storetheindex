@@ -18,7 +18,15 @@ type Advertisement struct {
     Addresses [String]
     # Signature is the signature of this advertisement.
     Signature Bytes
-    # Entries is a link to the chained EntryChunk instances that contain the multihashes advertised. 
+    # Entries is a link to a data structure that contains the advertised multihashes.
+    # The data structure can either be:
+    #  * an interlinked chain of EntryChunk nodes, or 
+    #  * an IPLD HAMT ADL, where the keys in the map represent the multihashes and the values are 
+    #    simply set to true.
+    #
+    # See: 
+    #  * https://ipld.io/specs/advanced-data-layouts/hamt/spec
+    #  * https://ipld.io/specs/advanced-data-layouts/hamt/spec/#use-as-a-set
     Entries Link
     # ContextID is the unique identifier for the collection of advertised multihashes.
     ContextID Bytes

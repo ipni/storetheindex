@@ -1,16 +1,19 @@
 package typehelpers
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"testing"
 
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/test/util"
+	hamt "github.com/ipld/go-ipld-adl-hamt"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
+	"github.com/ipld/go-ipld-prime/node/bindnode"
 	"github.com/ipld/go-ipld-prime/traversal"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
@@ -21,7 +24,7 @@ import (
 )
 
 type RandomAdBuilder struct {
-	EntryChunkBuilders []RandomEntryChunkBuilder
+	EntryBuilders      []EntryBuilder
 	Seed               int64
 	AddRmWithNoEntries bool
 }
@@ -35,12 +38,12 @@ func (b RandomAdBuilder) BuildWithFakeSig(t *testing.T, lsys ipld.LinkSystem, si
 }
 
 func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey crypto.PrivKey, fakeSig bool) datamodel.Link {
-	if len(b.EntryChunkBuilders) == 0 {
+	if len(b.EntryBuilders) == 0 {
 		return nil
 	}
 
 	// Limit chain to be at most 256 links
-	b.EntryChunkBuilders = b.EntryChunkBuilders[:len(b.EntryChunkBuilders)%256]
+	b.EntryBuilders = b.EntryBuilders[:len(b.EntryBuilders)%256]
 
 	p, err := peer.IDFromPrivateKey(signingKey)
 	require.NoError(t, err)
@@ -50,7 +53,7 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 
 	var headLink datamodel.Link
 
-	for i, ecb := range b.EntryChunkBuilders {
+	for i, ecb := range b.EntryBuilders {
 		ctxID := []byte("test-context-id-" + fmt.Sprint(i))
 		ec := ecb.Build(t, lsys)
 		if ec == nil {
@@ -109,16 +112,22 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 	return headLink
 }
 
+type EntryBuilder interface {
+	Build(t *testing.T, lsys ipld.LinkSystem) datamodel.Link
+}
+
+var _ EntryBuilder = (*RandomEntryChunkBuilder)(nil)
+
 type RandomEntryChunkBuilder struct {
 	ChunkCount             uint8
 	EntriesPerChunk        uint8
-	EntriesSeed            int64
+	Seed                   int64
 	WithInvalidMultihashes bool
 }
 
 func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datamodel.Link {
 	var headLink ipld.Link
-	prng := rand.New(rand.NewSource(b.EntriesSeed))
+	prng := rand.New(rand.NewSource(b.Seed))
 
 	for i := 0; i < int(b.ChunkCount); i++ {
 
@@ -151,13 +160,51 @@ func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datam
 	return headLink
 }
 
+var _ EntryBuilder = (*RandomHamtEntryBuilder)(nil)
+
+type RandomHamtEntryBuilder struct {
+	BucketSize             int
+	BitWidth               int
+	MultihashCount         uint32
+	Seed                   int64
+	WithInvalidMultihashes bool
+}
+
+func (b RandomHamtEntryBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datamodel.Link {
+	prng := rand.New(rand.NewSource(b.Seed))
+	hb := hamt.NewBuilder(hamt.Prototype{
+		BitWidth:   b.BitWidth,
+		BucketSize: b.BucketSize,
+	}).WithLinking(lsys, schema.Linkproto)
+
+	ma, err := hb.BeginMap(0)
+	require.NoError(t, err)
+	for i := 0; i < int(b.MultihashCount); i++ {
+		data := fmt.Sprintf("invalid mh %d", prng.Int63())
+		var mh multihash.Multihash
+		if b.WithInvalidMultihashes {
+			mh = multihash.Multihash(data)
+		} else {
+			var err error
+			mh, err = multihash.Sum([]byte(data), multihash.SHA2_256, -1)
+			require.NoError(t, err)
+		}
+		require.NoError(t, ma.AssembleKey().AssignBytes(mh))
+		require.NoError(t, ma.AssembleValue().AssignBool(true))
+	}
+	require.NoError(t, ma.Finish())
+	hn := hb.Build().(*hamt.Node).Substrate()
+
+	link, err := lsys.Store(ipld.LinkContext{Ctx: context.TODO()}, schema.Linkproto, hn)
+	require.NoError(t, err)
+	return link
+}
+
 func AllMultihashesFromAdChain(t *testing.T, ad *schema.Advertisement, lsys ipld.LinkSystem) []multihash.Multihash {
 	return AllMultihashesFromAdChainDepth(t, ad, lsys, 0)
 }
 
 func AllMultihashesFromAdChainDepth(t *testing.T, ad *schema.Advertisement, lsys ipld.LinkSystem, entriesDepth int) []multihash.Multihash {
-	var out []multihash.Multihash
-
 	progress := traversal.Progress{
 		Cfg: &traversal.Config{
 			LinkSystem: lsys,
@@ -178,13 +225,23 @@ func AllMultihashesFromAdChainDepth(t *testing.T, ad *schema.Advertisement, lsys
 	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
 	exploreEntriesRecursively := func(efsb builder.ExploreFieldsSpecBuilder) {
 		efsb.Insert("Entries",
-			ssb.ExploreRecursive(rLimit,
-				ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
-					// In the EntryChunk
-					efsb.Insert("Entries", ssb.ExploreAll(ssb.Matcher()))
-					// Recurse with "Next"
-					efsb.Insert("Next", ssb.ExploreRecursiveEdge())
-				})))
+			ssb.ExploreUnion(
+				// EntryChunk
+				ssb.ExploreRecursive(rLimit,
+					ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
+						// In the EntryChunk
+						efsb.Insert("Entries", ssb.ExploreAll(ssb.Matcher()))
+						// Recurse with "Next"
+						efsb.Insert("Next", ssb.ExploreRecursiveEdge())
+					}),
+				),
+				// Select entries node itself, which can be a link (in ad), or HAMT root node.
+				// Because both fields in EntryChunk and ad are called "Entries", the former has
+				// []Bytes as value and the latter has a link as value.
+				// TODO: improve once selector builder API is rich enough to allow us to conditionally explore.
+				ssb.Matcher(),
+			),
+		)
 	}
 	sel, err := ssb.ExploreFields(
 		func(efsb builder.ExploreFieldsSpecBuilder) {
@@ -201,25 +258,57 @@ func AllMultihashesFromAdChainDepth(t *testing.T, ad *schema.Advertisement, lsys
 	adNode, err := ad.ToNode()
 	require.NoError(t, err)
 
+	var out []multihash.Multihash
 	err = progress.WalkMatching(
 		adNode,
 		sel,
-		func(p traversal.Progress, n datamodel.Node) error {
-			b, err := n.AsBytes()
-			if err != nil {
-				return err
-			}
-			out = append(out, multihash.Multihash(b))
-			return nil
-		})
+		multihashCollector(lsys, &out))
 	require.NoError(t, err)
-
 	return out
 }
 
-func AllMultihashesFromAd(t *testing.T, ad *schema.Advertisement, lsys ipld.LinkSystem) []multihash.Multihash {
-	var out []multihash.Multihash
+func multihashCollector(lsys ipld.LinkSystem, out *[]multihash.Multihash) func(p traversal.Progress, n datamodel.Node) error {
+	return func(p traversal.Progress, n datamodel.Node) error {
+		b, err := n.AsBytes()
+		if err != nil {
+			if h, _ := n.LookupByString("hamt"); h != nil {
+				rootNode, err := lsys.Load(ipld.LinkContext{Ctx: context.TODO()}, p.LastBlock.Link, hamt.HashMapRootPrototype)
+				if err != nil {
+					return err
+				}
+				root, ok := bindnode.Unwrap(rootNode).(*hamt.HashMapRoot)
+				if !ok {
+					return fmt.Errorf("expected HAMT root node; got %v", rootNode)
+				}
+				node := hamt.Node{
+					HashMapRoot: *root,
+				}.WithLinking(lsys, schema.Linkproto)
 
+				it := node.MapIterator()
+				for !it.Done() {
+					k, _, err := it.Next()
+					if err != nil {
+						return err
+					}
+					s, err := k.AsString()
+					if err != nil {
+						return err
+					}
+					*out = append(*out, []byte(s))
+				}
+				return nil
+			} else if e, _ := n.LookupByString("Entries"); e != nil {
+				// Ignore selector matching Entries link in an ad or Entries field in EntryChunk.
+				return nil
+			}
+			return err
+		}
+		*out = append(*out, b)
+		return nil
+	}
+}
+
+func AllMultihashesFromAd(t *testing.T, ad *schema.Advertisement, lsys ipld.LinkSystem) []multihash.Multihash {
 	progress := traversal.Progress{
 		Cfg: &traversal.Config{
 			LinkSystem: lsys,
@@ -230,36 +319,36 @@ func AllMultihashesFromAd(t *testing.T, ad *schema.Advertisement, lsys ipld.Link
 	}
 
 	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
-	sel, err := ssb.ExploreFields(
-		func(efsb builder.ExploreFieldsSpecBuilder) {
-			efsb.Insert("Entries",
-				ssb.ExploreRecursive(selector.RecursionLimitNone(),
-					ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
-						efsb.Insert("Next", ssb.ExploreRecursiveEdge())
-					})))
-		}).Selector()
+	sel, err := ssb.ExploreUnion(
+		ssb.ExploreFields(
+			func(efsb builder.ExploreFieldsSpecBuilder) {
+				efsb.Insert("Entries",
+					ssb.ExploreRecursive(selector.RecursionLimitNone(),
+						ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
+							efsb.Insert("Next", ssb.ExploreRecursiveEdge())
+						})),
+				)
+			}),
+		// Select entries node itself, which can be a link (in ad), or HAMT root node.
+		// Because both fields in EntryChunk and ad are called "Entries", the former has
+		// []Bytes as value and the latter has a link as value.
+		// TODO: improve once selector builder API is rich enough to allow us to conditionally explore.
+		ssb.ExploreFields(
+			func(efsb builder.ExploreFieldsSpecBuilder) {
+				efsb.Insert("Entries", ssb.Matcher())
+			}),
+	).Selector()
 	require.NoError(t, err)
 
 	adNode, err := ad.ToNode()
 	require.NoError(t, err)
 
+	var out []multihash.Multihash
 	err = progress.WalkMatching(
 		adNode,
 		sel,
-		func(p traversal.Progress, n datamodel.Node) error {
-			b, err := n.AsBytes()
-			if err != nil {
-				return err
-			}
-			_, mh, err := multihash.MHFromBytes(b)
-			if err != nil {
-				return err
-			}
-			out = append(out, mh)
-			return nil
-		})
+		multihashCollector(lsys, &out))
 	require.NoError(t, err)
-
 	return out
 }
 

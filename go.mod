@@ -8,24 +8,25 @@ require (
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-indexer-core v0.2.16
 	github.com/filecoin-project/go-legs v0.4.4
-	github.com/frankban/quicktest v1.14.2
+	github.com/frankban/quicktest v1.14.3
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.7.4
 	github.com/hashicorp/go-retryablehttp v0.7.1
-	github.com/ipfs/go-cid v0.1.0
+	github.com/ipfs/go-cid v0.2.0
 	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipfs/go-delegated-routing v0.2.2
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/ipfs/go-ipfs v0.12.1
 	github.com/ipfs/go-log/v2 v2.5.1
-	github.com/ipld/go-ipld-prime v0.16.0
+	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
+	github.com/ipld/go-ipld-prime v0.16.1-0.20220607093021-c88f0b441e80
 	github.com/libp2p/go-libp2p v0.20.1
 	github.com/libp2p/go-libp2p-core v0.16.1
 	github.com/libp2p/go-msgio v0.2.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-multiaddr v0.5.0
-	github.com/multiformats/go-multicodec v0.4.1
+	github.com/multiformats/go-multicodec v0.5.0
 	github.com/multiformats/go-multihash v0.1.0
 	github.com/multiformats/go-varint v0.0.6
 	github.com/prometheus/client_golang v1.12.1
@@ -59,7 +60,7 @@ require (
 	github.com/elastic/gosigar v0.12.0 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
 	github.com/filecoin-project/go-cbor-util v0.0.0-20191219014500-08c40a1e63a2 // indirect
-	github.com/filecoin-project/go-data-transfer v1.15.1 // indirect
+	github.com/filecoin-project/go-data-transfer v1.15.2-0.20220616083012-ea4de61af197 // indirect
 	github.com/filecoin-project/go-ds-versioning v0.1.1 // indirect
 	github.com/filecoin-project/go-statemachine v1.0.2-0.20220322104818-27f8fbb86dfd // indirect
 	github.com/filecoin-project/go-statestore v0.2.0 // indirect
@@ -77,7 +78,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
-	github.com/google/go-cmp v0.5.7 // indirect
+	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
@@ -176,7 +177,8 @@ require (
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/syndtr/goleveldb v1.0.0 // indirect
-	github.com/whyrusleeping/cbor-gen v0.0.0-20220302191723-37c43cae8e14 // indirect
+	github.com/twmb/murmur3 v1.1.6 // indirect
+	github.com/whyrusleeping/cbor-gen v0.0.0-20220514204315-f29c37e9c44c // indirect
 	github.com/whyrusleeping/chunker v0.0.0-20181014151217-fe64bd25879f // indirect
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7 // indirect
 	github.com/whyrusleeping/timecache v0.0.0-20160911033111-cfcb2f1abfee // indirect

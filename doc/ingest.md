@@ -2,7 +2,7 @@
 
 There are two parts to the ingestion / providing protocol used by store the index.
 
-1. Advertisments maintains an immutable authenticated data structure where providers describe what content they are have available.
+1. Advertisements maintains an immutable authenticated data structure where providers describe what content they are have available.
 2. Announcements are a transient notification that the content on a provider has changed.
 
 ## Advertisements
@@ -12,68 +12,71 @@ There are two parts to the ingestion / providing protocol used by store the inde
 An individual advertisement is an [IPLD](https://ipld.io/docs/data-model/) object with the following [schema](https://github.com/filecoin-project/storetheindex/blob/main/api/v0/ingest/schema/schema.ipldsch):
 ```
 type Advertisement struct {
-	# Previous advertisement.
-	PreviousID optional Link_Advertisement
-	# Provider ID of the advertisement.
-	Provider String
-	# Addresses, as list of multiaddr strings, to use for content retrieval.
-	Addresses List_String
-	# Advertisement signature.
-	Signature Bytes
-	# Entries with a link to the list of CIDs
-	Entries Link
-	# Context ID for entries.
-	ContextID Bytes
-	# Serialized v0.Metadata for all entries in advertisement.
-	Metadata Bytes
-	# IsRm or Put?
-	IsRm Bool
+    PreviousID optional Link
+    Provider String
+    Addresses [String]
+    Signature Bytes
+    Entries Link
+    ContextID Bytes
+    Metadata Bytes
+    IsRm Bool
 }
 ```
 
 * The `PreviousID` is the CID of the previous advertisement, and is empty for the 'genesis'.
 * The Provider is the `peer.ID` of the libp2p host providing the content.
 * The Addresses are the multiaddrs to provide to clients in order to connect to the provider.
-* Entries is CID to the list of Multihashes this advertisement is indicating are available.
+* Entries is a link to a data structure that contains the advertised multihashes.
 * ContextID is an identifier you may use to subsequently update a an advertisement. It has the following semantics:
   * If a ContextID is used with different entries, those entries will be _added_ to the association with that ContextID
   * If a ContextID is used with different provider, addresses, or metadata, all previous CIDs advertised under that ContextID will have their provider, addresses, and metadata updated to the most recent.
-  * If a ContextID is used with the `IsRM` flag set, all previous CIDs advertised under that ContextID will be removed.
-* Metadata represents additional opaque data that will be forwarded to client queries for any of the CIDs in this advertisement. It is expected to start with a `varint` indicating the remaining format of metadata. Store the index operators mauy limit the length of this field, and it is recommended to keep it below 100 bytes.
+  * If a ContextID is used with the `IsRm` flag set, all previous CIDs advertised under that ContextID will be removed.
+* Metadata represents additional opaque data that will be forwarded to client queries for any of the CIDs in this advertisement. It is expected to start with a `varint` indicating the remaining format of metadata. Store the index operators may limit the length of this field, and it is recommended to keep it below 100 bytes.
 
 #### Entries data structure
 
-Entries is defined as the following schema:
+The Entries data structure can be one of the following:
+* an interlinked chain of `EntryChunk` nodes, or
+* an [IPLD HAMT ADL](https://ipld.io/specs/advanced-data-layouts/hamt/spec), where the keys in the map represent the multihashes and the values are simply set to true.
+
+##### `EntryChunk` Chain
+The `EntryChunk` chain is defined as the following schema:
+
 ```
 type EntryChunk struct {
-	Entries List_Bytes
-	Next optional Link_EntryChunk
+    Entries [Bytes]
+    Next optional Link
 }
 ```
 
 The primary `Entries` list is the array of multihashes in the advertisement.
 If an advertisement has more CIDs than fit into a single block for purposes of data transfer, they may be split into multiple chunks, conceptually a linked list, by using `Next` as a reference ot the next chunk.
 
-In terms of concrete constriants, each EntryChunbk shouldstay below 4MB,
-and a linked list of entry chunks should be no more than 400 chunks long. Above these constraints, the list of entries should be split into multiple advertisements. Practically, this means that each individidual advertisement can hold up to approximately 40 million multihashes.
+In terms of concrete constraints, each `EntryChunk` should stay below 4MB,
+and a linked list of entry chunks should be no more than 400 chunks long. Above these constraints, the list of entries should be split into multiple advertisements. Practically, this means that each individual advertisement can hold up to approximately 40 million multihashes.
+
+##### HAMT
+The HAMT must follow the IPLD specification of [HAMT ADL](https://ipld.io/specs/advanced-data-layouts/hamt/spec).
+The HAMT data structure is [used as a set](https://ipld.io/specs/advanced-data-layouts/hamt/spec/#use-as-a-set) to capture the list of multihashes being advertised.
+This is where the keys in the HAMT represent the mulithhashes being advertised, and the values are simply set to `true`.
 
 #### Metadata
 
 The reference provider currently supports Bitswap and Filecoin protocols. The structure of the metadata format for these protocols is defined in [the library](https://github.com/filecoin-project/index-provider/tree/main/metadata).
 
-The network indexer nodes expect that metadata begins with a Uvar identifying the protocol, followed by protocol-specific metadata. This may be repeated for additional supported protocols. Specified protocols are expected to be ordered in increasing order.
+The network indexer nodes expect that metadata begins with a `uvarint` identifying the protocol, followed by protocol-specific metadata. This may be repeated for additional supported protocols. Specified protocols are expected to be ordered in increasing order.
 
 * Bitswap
-  * uvarint protocol `0x0900` (TransportBitswap in the multicodec table).
+  * `uvarint` protocol `0x0900` ([`TransportBitswap`](https://github.com/multiformats/multicodec/blob/master/table.csv#L133) in the multicodec table).
   * no following metadata.
 * filecoin graphsync
-  * uvarint protcol `0x0910`  (TransportGraphsyncFilecoinv1 in the multicodec table).
+  * `uvarint` protcol `0x0910`  ([`TransportGraphsyncFilecoinv1`](https://github.com/multiformats/multicodec/blob/master/table.csv#L134) in the multicodec table).
   * the following bytes should be a cbor encoded struct of:
     * PieceCID, a link
 	* VerifiedDeal, boolean
     * FastRetrieval, boolean
 * http
-  * the proposed uvarint protocol is `0x3D0000`.
+  * the proposed `uvarint` protocol is `0x3D0000`.
   * the following bytes are not yet defined.
 
 ### Advertisement transfer

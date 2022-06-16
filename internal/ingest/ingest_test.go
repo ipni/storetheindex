@@ -31,9 +31,7 @@ import (
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
-	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
-	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	"github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -75,9 +73,9 @@ func TestSubscribe(t *testing.T) {
 
 	// Check that we sync with an ad chain
 	adHead := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 100, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 2},
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
 	ctx := context.Background()
@@ -93,9 +91,9 @@ func TestSubscribe(t *testing.T) {
 	someOtherProviderPriv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	adHead = typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 4},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 3},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 100, Seed: 4},
 		}}.Build(t, te.publisherLinkSys, someOtherProviderPriv)
 	err = te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
 	require.NoError(t, err)
@@ -113,9 +111,9 @@ func TestSubscribe(t *testing.T) {
 	someOtherProviderPriv, _, err = test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	adHead = typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 5},
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 6},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 5},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 100, Seed: 6},
 		}}.BuildWithFakeSig(t, te.publisherLinkSys, someOtherProviderPriv)
 	mhs = typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 
@@ -129,9 +127,9 @@ func TestSubscribe(t *testing.T) {
 	someOtherProviderPriv, _, err = test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	adHead = typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 7},
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 8},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 100, Seed: 7},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 8},
 		}}.Build(t, te.publisherLinkSys, someOtherProviderPriv)
 
 	someOtherProvider, err = peer.IDFromPrivateKey(someOtherProviderPriv)
@@ -212,9 +210,9 @@ func TestFailDuringResync(t *testing.T) {
 	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(failBlockedRead)
 	te := setupTestEnv(t, true, blockableLsysOpt)
 	adHead := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 2},
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -266,10 +264,10 @@ func TestRestartDuringSync(t *testing.T) {
 	})
 
 	cCid := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 100, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 2},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 3},
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
 	cAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.AdvertisementPrototype)
@@ -343,10 +341,10 @@ func TestFailDuringSync(t *testing.T) {
 	te := setupTestEnv(t, true, blockableLsysOpt)
 
 	cAdBuilder := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1}, // A
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2}, // B
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3}, // C
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 1}, // A
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 100, Seed: 2},                  // B
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 3}, // C
 		}}
 
 	cCid := cAdBuilder.Build(t, te.publisherLinkSys, te.publisherPriv)
@@ -421,10 +419,10 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	te.ingester.cancelOnSyncFinished = func() {}
 
 	cAdBuilder := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1}, // A
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2}, // B
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3}, // C
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 1}, // A
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 100, Seed: 2},                  // B
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 3}, // C
 		}}
 
 	cCid := cAdBuilder.Build(t, te.publisherLinkSys, te.publisherPriv)
@@ -513,9 +511,9 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 	te := setupTestEnv(t, true)
 
 	chainHead := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 1},
 		},
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
@@ -548,9 +546,9 @@ func TestSyncWithDepth(t *testing.T) {
 	te := setupTestEnv(t, true)
 
 	chainHead := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2},
 		},
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
@@ -598,10 +596,10 @@ func TestRmWithNoEntries(t *testing.T) {
 	te.ingester.indexer = cw
 
 	chainHead := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 3},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 3},
 		},
 		AddRmWithNoEntries: true,
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
@@ -707,9 +705,9 @@ func TestSync(t *testing.T) {
 func TestReSyncWithDepth(t *testing.T) {
 	te := setupTestEnv(t, false)
 	adHead := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 2},
 		},
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
@@ -739,10 +737,10 @@ func TestReSyncWithDepth(t *testing.T) {
 func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 	te := setupTestEnv(t, false)
 	adHead := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 3},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 2},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 3},
 		},
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 	allAdLinks := typehelpers.AllAdLinks(t, adHead, te.publisherLinkSys)
@@ -784,15 +782,11 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 
 	const entriesDepth = 10
 
-	totalChunkCount := int(entriesDepth * 2)
+	totalChunkCount := entriesDepth * 2
 
-	// Replace ingester entries selector with on that has a much smapper limit,
+	// Replace ingester entries selector with on that has a much smaller limit,
 	// for testing.
-	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
-	ing.entriesSel = ssb.ExploreRecursive(selector.RecursionLimitDepth(entriesDepth),
-		ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
-			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
-		})).Node()
+	ing.entriesSel = Selectors.EntriesWithLimit(selector.RecursionLimitDepth(entriesDepth))
 
 	adCid, _, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -840,7 +834,10 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	for i := 0; i < totalChunkCount; i++ {
 		mhs, nextChunkCid = decodeEntriesChunk(t, srcStore, nextChunkCid)
 		// If chunk depth is within limit
-		if i < entriesDepth {
+		// Note that 1 is added to the entries depth because the entries sync process peaks the
+		// first node in order to detect the type of entries, i.e. HAMT vs EntryChunk chain.
+		// Therefore, the max entries traversal depth is 1 plus the configured max.
+		if i < entriesDepth+1 {
 			// Assert chunk multihashes are indexed
 			requireIndexedEventually(t, ing.indexer, providerID, mhs)
 		} else {
@@ -918,10 +915,10 @@ func TestMultiplePublishers(t *testing.T) {
 
 	// Test with two random advertisement publications for each of them.
 	headAd1 := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 100, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 2},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 100, Seed: 3},
 		}}.Build(t, lsys1, pubHost1Priv)
 	headAd1Cid := headAd1.(cidlink.Link).Cid
 
@@ -936,10 +933,10 @@ func TestMultiplePublishers(t *testing.T) {
 	requireIndexedEventually(t, i.indexer, pubHost1.ID(), mhs)
 
 	headAd2 := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 1},
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 2},
-			{ChunkCount: 10, EntriesPerChunk: 10, EntriesSeed: 3},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 1},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 100, Seed: 2},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 3},
 		}}.Build(t, lsys2, pubHost2Priv)
 	headAd2Cid := headAd2.(cidlink.Link).Cid
 
@@ -1034,11 +1031,11 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 	te := setupTestEnv(t, true, blockableLsysOpt)
 	defer te.Close(t)
 	headLink := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 3},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 4},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 1},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 2},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 3},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 4},
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 	headCid := headLink.(cidlink.Link).Cid
 	ads := typehelpers.AllAdLinks(t, headLink, te.publisherLinkSys)
@@ -1100,10 +1097,10 @@ func TestAnnounceIsNotDeferredOnNoInProgressIngest(t *testing.T) {
 	te := setupTestEnv(t, true)
 	defer te.Close(t)
 	headLink := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 10, EntriesPerChunk: 7, EntriesSeed: 1},
-			{ChunkCount: 5, EntriesPerChunk: 11, EntriesSeed: 2},
-			{ChunkCount: 4, EntriesPerChunk: 12, EntriesSeed: 3},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 7, Seed: 1},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 55, Seed: 2},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 4, EntriesPerChunk: 12, Seed: 3},
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 	headCid := headLink.(cidlink.Link).Cid
 	mhs := typehelpers.AllMultihashesFromAdLink(t, headLink, te.publisherLinkSys)
@@ -1126,11 +1123,11 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 	te := setupTestEnv(t, true, blockableLsysOpt)
 	defer te.Close(t)
 	headLink := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1}, // 0: A <- tail
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2}, // 1: B
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 3}, // 2: C
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 4}, // 3: D <- head
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1}, // 0: A <- tail
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 2},                  // 1: B
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 3}, // 2: C
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 4}, // 3: D <- head
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 	headCid := headLink.(cidlink.Link).Cid
 	ads := typehelpers.AllAdLinks(t, headLink, te.publisherLinkSys)

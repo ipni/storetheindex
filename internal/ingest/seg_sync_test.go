@@ -21,15 +21,21 @@ func TestAdsSyncedViaSegmentsAreProcessed(t *testing.T) {
 	})
 	defer te.Close(t)
 	rng := rand.New(rand.NewSource(1413))
-	var cb []typehelpers.RandomEntryChunkBuilder
+	var cb []typehelpers.EntryBuilder
 	for i := 0; i < 50; i++ {
-		chunkCount := rng.Int31n(100)
-		ePerChunk := rng.Int31n(100)
-		cb = append(cb, typehelpers.RandomEntryChunkBuilder{ChunkCount: uint8(uint32(chunkCount)), EntriesPerChunk: uint8(ePerChunk), EntriesSeed: rng.Int63()})
+		chunkCount := rng.Int31n(50)
+		ePerChunk := rng.Int31n(50)
+		seed := rng.Int63()
+		kindChunk := rng.Float32() > 0.5 // Flip a coin to decide what kind of entries to generate.
+		if kindChunk {
+			cb = append(cb, typehelpers.RandomEntryChunkBuilder{ChunkCount: uint8(chunkCount), EntriesPerChunk: uint8(ePerChunk), Seed: seed})
+		} else {
+			cb = append(cb, typehelpers.RandomHamtEntryBuilder{MultihashCount: uint32(chunkCount * ePerChunk), Seed: seed})
+		}
 	}
 
 	headAd := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: cb,
+		EntryBuilders: cb,
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 	headAdCid := headAd.(cidlink.Link).Cid
 
