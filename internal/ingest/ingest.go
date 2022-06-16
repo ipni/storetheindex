@@ -24,9 +24,7 @@ import (
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
-	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
-	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -81,6 +79,7 @@ type workerAssignment struct {
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
+	lsys    ipld.LinkSystem
 	indexer indexer.Interface
 
 	batchSize uint32
@@ -139,33 +138,16 @@ type Ingester struct {
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
 // communication with providers.
 func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
-	lsys := mkLinkSystem(ds, reg)
-
-	// Construct a selector that recursively looks for nodes with field
-	// "PreviousID" as per Advertisement schema. Note that the entries within
-	// an advertisement are synced separately, triggered by storage hook. This
-	// allows checking if a chain of chunks already exists before syncing it.
-	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
-	adSel := ssb.ExploreFields(
-		func(efsb builder.ExploreFieldsSpecBuilder) {
-			efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
-		}).Node()
-
-	// Construct the selector used when syncing entries of an advertisement
-	// with non-configurable recursion limit.
-	entSel := ssb.ExploreRecursive(recursionLimit(cfg.EntriesDepthLimit),
-		ssb.ExploreFields(func(efsb builder.ExploreFieldsSpecBuilder) {
-			efsb.Insert("Next", ssb.ExploreRecursiveEdge()) // Next field in EntryChunk
-		})).Node()
 
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
+		lsys:        mkLinkSystem(ds, reg),
 		indexer:     idxr,
 		batchSize:   uint32(cfg.StoreBatchSize),
 		sigUpdate:   make(chan struct{}, 1),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
-		entriesSel:  entSel,
+		entriesSel:  Selectors.EntriesWithLimit(recursionLimit(cfg.EntriesDepthLimit)),
 		reg:         reg,
 		cfg:         cfg,
 		inEvents:    make(chan adProcessedEvent, 1),
@@ -198,7 +180,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	// Create and start pubsub subscriber. This also registers the storage hook
 	// to index data as it is received.
-	sub, err := legs.NewSubscriber(h, ds, lsys, cfg.PubSubTopic, adSel,
+	sub, err := legs.NewSubscriber(h, ds, ing.lsys, cfg.PubSubTopic, Selectors.AdSequence,
 		legs.AllowPeer(reg.Allowed),
 		legs.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)),
 		legs.UseLatestSyncHandler(&syncHandler{ing}),
@@ -481,16 +463,8 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int, resync 
 	}
 	// The stop link may be nil, in which case it is treated as no stop link.
 	// Log it regardless for debugging purposes.
-	log = log.With("stopAt", stopAt)
-
-	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
-	adSequence := ssb.ExploreFields(
-		func(efsb builder.ExploreFieldsSpecBuilder) {
-			efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
-		}).Node()
-
-	log.Debug("Custom selector constructed for explicit sync")
-	return legs.ExploreRecursiveWithStopNode(rLimit, adSequence, stopAt), nil
+	log.Debugw("Custom selector constructed for explicit sync", "stopAt", stopAt)
+	return legs.ExploreRecursiveWithStopNode(rLimit, Selectors.AdSequence, stopAt), nil
 }
 
 // markAdUnprocessed takes an advertisement CID and marks it as

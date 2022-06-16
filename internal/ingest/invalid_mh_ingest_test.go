@@ -6,6 +6,7 @@ import (
 
 	"github.com/filecoin-project/storetheindex/test/typehelpers"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,10 +15,13 @@ func TestInvalidMultihashesAreNotIngested(t *testing.T) {
 	defer te.Close(t)
 
 	headAd := typehelpers.RandomAdBuilder{
-		EntryChunkBuilders: []typehelpers.RandomEntryChunkBuilder{
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 1, WithInvalidMultihashes: true},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 2, WithInvalidMultihashes: false},
-			{ChunkCount: 1, EntriesPerChunk: 1, EntriesSeed: 3, WithInvalidMultihashes: true},
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1, WithInvalidMultihashes: true},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2, WithInvalidMultihashes: false},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 3, WithInvalidMultihashes: true},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 4, WithInvalidMultihashes: false},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 5, WithInvalidMultihashes: true},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 6, WithInvalidMultihashes: false},
 		},
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 	headAdCid := headAd.(cidlink.Link).Cid
@@ -25,6 +29,9 @@ func TestInvalidMultihashesAreNotIngested(t *testing.T) {
 	err := te.publisher.SetRoot(ctx, headAdCid)
 	require.NoError(t, err)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, headAd, te.publisherLinkSys)
+	require.Len(t, mhs, 6) // 6 ads; one mh each.
+	validMhs := []multihash.Multihash{mhs[1], mhs[3], mhs[5]}
+	invalidMhs := []multihash.Multihash{mhs[0], mhs[2], mhs[4]}
 
 	providerID := te.pubHost.ID()
 	subject := te.ingester
@@ -36,7 +43,7 @@ func TestInvalidMultihashesAreNotIngested(t *testing.T) {
 	require.Equal(t, headAdCid, gotHeadAd, "Expected latest synced cid to match head of ad chain")
 
 	requireTrueEventually(t, func() bool {
-		return checkAllIndexed(subject.indexer, providerID, mhs[1:2]) == nil
+		return checkAllIndexed(subject.indexer, providerID, validMhs) == nil
 	}, testRetryInterval, testRetryTimeout, "Expected only valid multihashes to be indexed")
 
 	requireTrueEventually(t, func() bool {
@@ -45,17 +52,19 @@ func TestInvalidMultihashesAreNotIngested(t *testing.T) {
 		return latestSync.Equals(headAdCid)
 	}, testRetryInterval, testRetryTimeout, "Expected all ads from publisher to have been indexed")
 
-	_, b, err := subject.indexer.Get(mhs[0])
-	require.NoError(t, err)
-	require.False(t, b)
+	// Assert valid multihash indices correspond to the expected provider.
+	for _, mh := range validMhs {
+		gotIdx, b, err := subject.indexer.Get(mh)
+		require.NoError(t, err)
+		require.True(t, b)
+		require.Equal(t, 1, len(gotIdx))
+		require.Equal(t, providerID, gotIdx[0].ProviderID)
+	}
 
-	get, b, err := subject.indexer.Get(mhs[1])
-	require.NoError(t, err)
-	require.True(t, b)
-	require.Equal(t, 1, len(get))
-	require.Equal(t, providerID, get[0].ProviderID)
-
-	_, b, err = subject.indexer.Get(mhs[2])
-	require.NoError(t, err)
-	require.False(t, b)
+	// Assert invalid multihashes are not indexed.
+	for _, mh := range invalidMhs {
+		_, b, err := subject.indexer.Get(mh)
+		require.NoError(t, err)
+		require.False(t, b)
+	}
 }
