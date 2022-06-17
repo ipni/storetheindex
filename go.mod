@@ -20,7 +20,7 @@ require (
 	github.com/ipfs/go-ipfs v0.12.1
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
-	github.com/ipld/go-ipld-prime v0.16.1-0.20220607093021-c88f0b441e80
+	github.com/ipld/go-ipld-prime v0.17.0
 	github.com/libp2p/go-libp2p v0.20.1
 	github.com/libp2p/go-libp2p-core v0.16.1
 	github.com/libp2p/go-msgio v0.2.0
