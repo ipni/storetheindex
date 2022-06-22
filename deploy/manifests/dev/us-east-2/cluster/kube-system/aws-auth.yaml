@@ -48,3 +48,7 @@ data:
       username: cmharden
       groups:
         - system:masters
+    - userarn: arn:aws:iam::407967248065:user/hannahhoward
+      username: hannahhoward
+      groups:
+        - system:masters
