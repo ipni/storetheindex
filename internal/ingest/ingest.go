@@ -188,6 +188,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		legs.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
 		legs.HttpClient(rclient.StandardClient()),
 		legs.BlockHook(ing.generalLegsBlockHook),
+		legs.ResendAnnounce(cfg.ResendDirectAnnounce),
 	)
 
 	if err != nil {
