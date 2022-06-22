@@ -89,6 +89,7 @@ config file at runtime.
       "BlocksPerSecond": 100,
       "BurstSize": 500
     },
+    "ResendDirectAnnounce": true,
     "StoreBatchSize": 4096,
     "SyncSegmentDepthLimit": 2000,
     "SyncTimeout": "2h0m0s"
@@ -220,6 +221,7 @@ Default:
   "IngestWorkerCount": 10,
   "PubSubTopic": "/indexer/ingest/mainnet",
   "RateLimit": {},
+  "ResendDirectAnnounce": false,
   "StoreBatchSize": 4096,
   "SyncSegmentDepthLimit": 2000,
   "SyncTimeout": "2h0m0s"
