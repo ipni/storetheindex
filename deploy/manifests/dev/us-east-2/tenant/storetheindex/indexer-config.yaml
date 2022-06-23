@@ -101,7 +101,7 @@ data:
         }
       },
       "Peering": {
-        "Peers": null,
+        "Peers": null
       }
     }
 
