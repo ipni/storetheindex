@@ -21,6 +21,7 @@ type Config struct {
 	Indexer   Indexer   // indexer code configuration
 	Ingest    Ingest    // ingestion related configuration.
 	Logging   Logging   // logging configuration.
+	Peering   Peering   // peering service configuration.
 }
 
 const (
@@ -107,6 +108,7 @@ func Load(filePath string) (*Config, error) {
 		Indexer:   NewIndexer(),
 		Ingest:    NewIngest(),
 		Logging:   NewLogging(),
+		Peering:   NewPeering(),
 	}
 
 	if err = json.NewDecoder(f).Decode(&cfg); err != nil {
