@@ -79,7 +79,7 @@ data "aws_iam_policy_document" "kust_ctrlr" {
       "kms:DescribeKey",
     ]
 
-    resources = [aws_kms_key.kms_sti.arn, aws_kms_key.kms_cluster.arn, aws_kms_key.kms_autoretrieve.arn]
+    resources = [aws_kms_key.kms_sti.arn, aws_kms_key.kms_cluster.arn, aws_kms_key.kms_autoretrieve.arn, aws_kms_key.kms_index_provider.arn]
   }
 }
 

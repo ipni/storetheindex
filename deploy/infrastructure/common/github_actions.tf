@@ -49,6 +49,7 @@ module "github_actions_role" {
 
   oidc_subjects_with_wildcards = [
     "repo:filecoin-project/storetheindex:*",
+    "repo:filecoin-project/index-provider:*",
     "repo:filecoin-shipyard/index-observer:*",
     "repo:application-research/autoretrieve:*"
   ]

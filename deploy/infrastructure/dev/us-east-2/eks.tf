@@ -38,7 +38,7 @@ module "eks" {
       max_size       = 3
       desired_size   = 3
       instance_types = ["r5b.xlarge"]
-      taints         = {
+      taints = {
         dedicated = {
           key    = "dedicated"
           value  = "r5b"

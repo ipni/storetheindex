@@ -10,6 +10,10 @@ output "kms_autoretrieve_alias_arn" {
   value = aws_kms_alias.kms_autoretrieve.arn
 }
 
+output "kms_index_provider_alias_arn" {
+  value = aws_kms_alias.kms_index_provider.arn
+}
+
 output "kustomize_controller_role_arn" {
   value = module.kustomize_controller_role.iam_role_arn
 }
