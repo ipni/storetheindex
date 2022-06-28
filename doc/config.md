@@ -104,6 +104,11 @@ config file at runtime.
       "graphsync": "warn"
     }
   }
+  "Peering": {
+    "Peers": [
+      "/ip4/10.11.12.13/3003/p2p/12D3KooWH1cT2UxrKYikmrksmCsdekvb6yuhxvNMup68DLpFEKZ3"
+    ]
+  }
 }
 ```
 
@@ -258,6 +263,16 @@ Default:
 }
 ```
 
+## `Peering`
+Description: [Peering]((https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Peering)
+
+Default:
+```json
+"Peering": {
+  "Peers": null,
+}
+```
+
 ## Runtime Reloadable Items
 The storetheindex daemon can reload some portions of its config without restarting the entire daemon. This is done by editing the config file and then using the admin sub-command `reload-config` or sending the daemon process a `SIGHUP` signal. The daemon will automatically reload the edited config after 30 seconds when the daemon is run with the `--watch-config` flag or with the environ variable `STORETHEINDEX_WATCH_CONFIG=true`. The reloadable portions of the config files are:
 
@@ -268,3 +283,4 @@ The storetheindex daemon can reload some portions of its config without restarti
 - [`Ingest.RateLimit`](#ingestratelimit)
 - [`Ingest.StoreBatchSize`](#ingest)
 - [`Logging`](#logging)
+- [`Peering`](#peering)

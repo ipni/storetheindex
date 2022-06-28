@@ -27,6 +27,7 @@ import (
 	p2pingestserver "github.com/filecoin-project/storetheindex/server/ingest/libp2p"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/ipfs/go-ipfs/core/bootstrap"
+	"github.com/ipfs/go-ipfs/peering"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -155,6 +156,7 @@ func daemonCommand(cctx *cli.Context) error {
 		cancelP2pServers context.CancelFunc
 		ingester         *ingest.Ingester
 		p2pHost          host.Host
+		peeringService   *peering.PeeringService
 	)
 
 	// Create libp2p host and servers
@@ -215,6 +217,11 @@ func daemonCommand(cctx *cli.Context) error {
 				return fmt.Errorf("bootstrap failed: %s", err)
 			}
 			defer bootstrapper.Close()
+		}
+
+		peeringService, err = reloadPeering(cfg.Peering, nil, p2pHost)
+		if err != nil {
+			return fmt.Errorf("error reloading peering service: %s", err)
 		}
 
 		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)
@@ -327,18 +334,32 @@ func daemonCommand(cctx *cli.Context) error {
 			reloadErrsChan <- nil
 		case errChan := <-reloadErrsChan:
 			prevCfgChk := cfg.Indexer.ConfigCheckInterval
+			if prevCfgChk != cfg.Indexer.ConfigCheckInterval {
+				ticker.Reset(time.Duration(cfg.Indexer.ConfigCheckInterval))
+			}
+
 			cfg, err = reloadConfig(cfgPath, ingester, reg)
 			if err != nil {
 				log.Errorw("Error reloading conifg", "err", err)
 				if errChan != nil {
-					err = errors.New("could not reload configuration")
+					errChan <- errors.New("could not reload configuration")
+					continue
 				}
 			}
-			if errChan != nil {
-				errChan <- err
+
+			if p2pHost != nil {
+				peeringService, err = reloadPeering(cfg.Peering, peeringService, p2pHost)
+				if err != nil {
+					log.Errorw("Error reloading peering service", "err", err)
+					if errChan != nil {
+						errChan <- errors.New("could not reload peering service")
+						continue
+					}
+				}
 			}
-			if prevCfgChk != cfg.Indexer.ConfigCheckInterval {
-				ticker.Reset(time.Duration(cfg.Indexer.ConfigCheckInterval))
+
+			if errChan != nil {
+				errChan <- nil
 			}
 		case <-timeChan:
 			var changed bool
@@ -373,6 +394,13 @@ func daemonCommand(cctx *cli.Context) error {
 			os.Exit(-1)
 		}
 	}()
+
+	if peeringService != nil {
+		err = peeringService.Stop()
+		if err != nil {
+			log.Errorw("Error stopping peering service", "err", err)
+		}
+	}
 
 	if cancelP2pServers != nil {
 		cancelP2pServers()
@@ -510,4 +538,57 @@ func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Regis
 
 	fmt.Println("Reloaded policy, rate limit, and logging configuration")
 	return cfg, nil
+}
+
+func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p2pHost host.Host) (*peering.PeeringService, error) {
+	// If no peers are configured, then stop peering service if it is running.
+	if len(cfg.Peers) == 0 {
+		if peeringService != nil {
+			err := peeringService.Stop()
+			if err != nil {
+				return nil, fmt.Errorf("error stopping peering service: %w", err)
+			}
+		}
+		return nil, nil
+	}
+
+	curPeers, err := cfg.PeerAddrs()
+	if err != nil {
+		return nil, fmt.Errorf("bad peering peer: %s", err)
+	}
+
+	// If peering service is not running, add peers and start service.
+	if peeringService == nil {
+		peeringService = peering.NewPeeringService(p2pHost)
+		for i := range curPeers {
+			peeringService.AddPeer(curPeers[i])
+		}
+		err = peeringService.Start()
+		if err != nil {
+			return nil, fmt.Errorf("failed to start peering service: %w", err)
+		}
+		return peeringService, nil
+	}
+
+	// Peering service is running, so remove peers that are no longer listed.
+	prevPeers := peeringService.ListPeers()
+
+	for _, prev := range prevPeers {
+		found := false
+		for _, cur := range curPeers {
+			if cur.ID == prev.ID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			peeringService.RemovePeer(prev.ID)
+		}
+	}
+
+	for i := range curPeers {
+		peeringService.AddPeer(curPeers[i])
+	}
+
+	return peeringService, nil
 }

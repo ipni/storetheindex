@@ -29,7 +29,7 @@ type Indexer struct {
 func NewIndexer() Indexer {
 	return Indexer{
 		CacheSize:           300000,
-		ConfigCheckInterval: Duration(30 * time.Minute),
+		ConfigCheckInterval: Duration(30 * time.Second),
 		GCInterval:          Duration(30 * time.Minute),
 		ShutdownTimeout:     Duration(10 * time.Second),
 		ValueStoreDir:       "valuestore",
