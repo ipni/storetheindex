@@ -9,9 +9,10 @@ loop while the long term plans are being decided. This deployment also facilitat
 forwarding to the PL grafana for `autoretrieve`.
 
 Note that the [_application
-level_ manifests](https://github.com/application-research/autoretrieve/tree/master/deploy/manifests/dev/us-east-2)
-are located at the `autoretrieve` repo itself.
+level_ manifests](https://github.com/filecoin-project/autoretrieve-deploy/tree/main/deploy/manifests/dev/us-east-2)
+are located in a seperate repo
 
 See:
 
 - https://github.com/application-research/autoretrieve
+- https://github.com/filecoin-project/autoretrieve-deploy
