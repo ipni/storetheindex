@@ -4,9 +4,9 @@ metadata:
   name: autoretrieve
 spec:
   interval: 5m
-  url: https://github.com/application-research/autoretrieve.git
+  url: https://github.com/filecoin-project/autoretrieve-deploy.git
   ref:
-    branch: master
+    branch: main
   secretRef:
     name: github-auth
 ---
