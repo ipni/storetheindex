@@ -6,13 +6,16 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
+
+// AVG_MH_SIZE is a slight overcount over the expected size of a multihash as a way of estimating the number of entries in the primary value store.
+const AVG_MH_SIZE = 40
 
 // FinderHandler provides request handling functionality for the finder server
 // that is common to all protocols.
@@ -106,6 +109,23 @@ func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastAdvertisement, info.LastAdvertisementTime, info.Publisher, info.PublisherAddr)
 
 	return json.Marshal(&rsp)
+}
+
+func (h *FinderHandler) GetStats() ([]byte, error) {
+	size, err := h.indexer.Size()
+	if err != nil {
+		return nil, err
+	}
+
+	type Stats struct {
+		EntriesEstimate int64
+	}
+
+	s := Stats{
+		EntriesEstimate: size / AVG_MH_SIZE,
+	}
+
+	return json.Marshal(&s)
 }
 
 func providerResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) (model.ProviderResult, error) {
