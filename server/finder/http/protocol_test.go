@@ -160,3 +160,37 @@ func TestProviderInfo(t *testing.T) {
 		t.Errorf("Error closing indexer core: %s", err)
 	}
 }
+
+func TestGetStats(t *testing.T) {
+	ind := test.InitIndex(t, true)
+	defer ind.Close()
+	reg := test.InitRegistry(t)
+	defer reg.Close()
+
+	s := setupServer(ind, reg, t)
+	httpClient := setupClient(s.URL(), t)
+
+	// Start server
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	test.GetStatsTest(ctx, t, httpClient)
+
+	err := s.Shutdown(ctx)
+	if err != nil {
+		t.Error("shutdown error:", err)
+	}
+	err = <-errChan
+	if err != nil {
+		t.Fatal(err)
+	}
+}

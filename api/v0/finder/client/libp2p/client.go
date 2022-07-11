@@ -109,6 +109,19 @@ func (c *Client) ListProviders(ctx context.Context) ([]*model.ProviderInfo, erro
 	return providers, nil
 }
 
+func (c *Client) GetStats(ctx context.Context) (*model.Stats, error) {
+	req := &pb.FinderMessage{
+		Type: pb.FinderMessage_GET_STATS,
+	}
+
+	data, err := c.sendRecv(ctx, req, pb.FinderMessage_GET_STATS_RESPONSE)
+	if err != nil {
+		return nil, err
+	}
+
+	return model.UnmarshalStats(data)
+}
+
 func (c *Client) sendRecv(ctx context.Context, req *pb.FinderMessage, expectRspType pb.FinderMessage_MessageType) ([]byte, error) {
 	resp := new(pb.FinderMessage)
 	err := c.p2pc.SendRequest(ctx, req, func(data []byte) error {

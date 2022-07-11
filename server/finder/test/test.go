@@ -284,6 +284,16 @@ func ListProvidersTest(t *testing.T, c client.Finder, providerID peer.ID) {
 	}
 }
 
+func GetStatsTest(ctx context.Context, t *testing.T, c client.Finder) {
+	stats, err := c.GetStats(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.EntriesEstimate <= 0 {
+		t.Fatalf("should have non-zero, index entries estimate")
+	}
+}
+
 func Register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID {
 	peerID, err := peer.Decode(providerID)
 	if err != nil {

@@ -118,15 +118,11 @@ func (h *FinderHandler) GetStats() ([]byte, error) {
 		return nil, err
 	}
 
-	type Stats struct {
-		EntriesEstimate int64
-	}
-
-	s := Stats{
+	s := model.Stats{
 		EntriesEstimate: size / avg_mh_size,
 	}
 
-	return json.Marshal(&s)
+	return model.MarshalStats(&s)
 }
 
 func providerResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) (model.ProviderResult, error) {

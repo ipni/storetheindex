@@ -39,7 +39,7 @@ type FindResponse struct {
 	// Signature []byte	// Providers signature.
 }
 
-// Equal compares ProviderResult values to determine if they are equal.  The
+// Equal compares ProviderResult values to determine if they are equal. The
 // provider addresses are omitted from the comparison.
 func (pr ProviderResult) Equal(other ProviderResult) bool {
 	if !bytes.Equal(pr.ContextID, other.ContextID) {
@@ -54,10 +54,10 @@ func (pr ProviderResult) Equal(other ProviderResult) bool {
 	return true
 }
 
-// MarshalReq serializes the request. Currently uses JSON, but could use
-// anything else.
+// MarshalFindRequest serializes the request. Currently uses JSON, but could
+// use anything else.
 //
-// NOTE: Consider using other serialization formats?  We could maybe use IPLD
+// NOTE: Consider using other serialization formats? We could maybe use IPLD
 // schemas instead of structs for requests and response so we have any codec by
 // design.
 func MarshalFindRequest(r *FindRequest) ([]byte, error) {
