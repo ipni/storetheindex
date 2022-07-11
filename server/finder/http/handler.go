@@ -145,6 +145,18 @@ func (h *httpHandler) getProvider(w http.ResponseWriter, r *http.Request) {
 	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
+// GET /providers",
+func (h *httpHandler) getStats(w http.ResponseWriter, r *http.Request) {
+	data, err := h.finderHandler.GetStats()
+	if err != nil {
+		log.Errorw("cannot get stats", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
 func getProviderID(r *http.Request) (peer.ID, error) {
 	vars := mux.Vars(r)
 	pid := vars["providerid"]
