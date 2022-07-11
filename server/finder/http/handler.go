@@ -145,7 +145,7 @@ func (h *httpHandler) getProvider(w http.ResponseWriter, r *http.Request) {
 	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
-// GET /providers",
+// GET /stats",
 func (h *httpHandler) getStats(w http.ResponseWriter, r *http.Request) {
 	data, err := h.finderHandler.GetStats()
 	if err != nil {

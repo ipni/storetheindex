@@ -63,6 +63,7 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	r.PathPrefix("/multihash").Handler(corMhR)
 
 	r.HandleFunc("/health", h.health).Methods(http.MethodGet)
+	r.HandleFunc("/stats", h.getStats).Methods(http.MethodGet)
 	r.Handle("/", http.FileServer(http.FS(webUI)))
 
 	r.HandleFunc("/providers", h.listProviders).Methods(http.MethodGet)
