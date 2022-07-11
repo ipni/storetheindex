@@ -17,6 +17,7 @@ import (
 const (
 	finderPath    = "/multihash"
 	providersPath = "/providers"
+	statsPath     = "/stats"
 )
 
 // Client is an http client for the indexer finder API
@@ -24,6 +25,7 @@ type Client struct {
 	c            *http.Client
 	finderURL    string
 	providersURL string
+	statsURL     string
 }
 
 // New creates a new finder HTTP client.
@@ -37,6 +39,7 @@ func New(baseURL string, options ...httpclient.Option) (*Client, error) {
 		c:            c,
 		finderURL:    baseURL + finderPath,
 		providersURL: baseURL + providersPath,
+		statsURL:     baseURL + statsPath,
 	}, nil
 }
 
@@ -127,6 +130,32 @@ func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*model.Pr
 		return nil, err
 	}
 	return &providerInfo, nil
+}
+
+func (c *Client) GetStats(ctx context.Context) (*model.Stats, error) {
+	u := fmt.Sprint(c.statsURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("Accept", "application/json")
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, httpclient.ReadError(resp.StatusCode, body)
+	}
+
+	return model.UnmarshalStats(body)
 }
 
 func (c *Client) sendRequest(req *http.Request) (*model.FindResponse, error) {

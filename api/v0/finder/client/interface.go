@@ -19,4 +19,7 @@ type Finder interface {
 	GetProvider(context.Context, peer.ID) (*model.ProviderInfo, error)
 	// ListPrividers gets information about all providers known to the indexer.
 	ListProviders(context.Context) ([]*model.ProviderInfo, error)
+
+	// GetStats get statistics for indexer.
+	GetStats(context.Context) (*model.Stats, error)
 }

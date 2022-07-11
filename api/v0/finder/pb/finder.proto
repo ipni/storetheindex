@@ -16,6 +16,8 @@ message FinderMessage {
         LIST_PROVIDERS_RESPONSE = 4;
         GET_PROVIDER = 5;
         GET_PROVIDER_RESPONSE = 6;
+        GET_STATS = 7;
+        GET_STATS_RESPONSE = 8;
     }
 
     // defines what type of message it is.

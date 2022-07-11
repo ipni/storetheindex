@@ -68,6 +68,8 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	r.HandleFunc("/providers", h.listProviders).Methods(http.MethodGet)
 	r.HandleFunc("/providers/{providerid}", h.getProvider).Methods(http.MethodGet)
 
+	r.HandleFunc("/stats", h.getStats).Methods(http.MethodGet)
+
 	reframeHandler := reframe.NewReframeHTTPHandler(indexer, registry)
 	r.HandleFunc("/reframe", reframeHandler)
 

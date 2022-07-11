@@ -64,6 +64,9 @@ func (h *libp2pHandler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgb
 	case pb.FinderMessage_LIST_PROVIDERS:
 		handle = h.listProviders
 		rspType = pb.FinderMessage_LIST_PROVIDERS_RESPONSE
+	case pb.FinderMessage_GET_STATS:
+		handle = h.getStats
+		rspType = pb.FinderMessage_GET_STATS_RESPONSE
 	default:
 		return nil, fmt.Errorf("unsupported message type %d", req.GetType())
 	}
@@ -139,6 +142,16 @@ func (h *libp2pHandler) getProvider(ctx context.Context, p peer.ID, msg *pb.Find
 
 	if len(data) == 0 {
 		return nil, v0.NewError(errors.New("provider not found"), http.StatusNotFound)
+	}
+
+	return data, nil
+}
+
+func (h *libp2pHandler) getStats(ctx context.Context, p peer.ID, msg *pb.FinderMessage) ([]byte, error) {
+	data, err := h.finderHandler.GetStats()
+	if err != nil {
+		log.Errorw("cannot get stats", "err", err)
+		return nil, v0.NewError(nil, http.StatusInternalServerError)
 	}
 
 	return data, nil
