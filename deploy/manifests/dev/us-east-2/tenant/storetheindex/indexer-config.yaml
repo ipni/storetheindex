@@ -45,12 +45,8 @@ data:
       "Discovery": {
         "LotusGateway": "wss://api.chain.love",
         "Policy": {
-          "Allow": false,
+          "Allow": true,
           "Except": [
-            "QmQzqxhK82kAmKvARFZSkUVS6fo9sySaiogAnx5EnZ6ZmC",
-            "12D3KooWDtiA9w5c37MnFpGWr2M12m8neoUqDroHEMsJVuf3ELi7",
-            "12D3KooWBwUERBhJPtZ7hg5N3q1DesvJ67xx9RLdSaStBz9Y6Ny8",
-            "12D3KooWLDf6KCzeMv16qPRaJsTLKJ5fR523h65iaYSRNfrQy7eU"
           ],
           "Publish": true,
           "PublishExcept": null
