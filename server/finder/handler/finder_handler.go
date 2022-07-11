@@ -14,8 +14,9 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
-// AVG_MH_SIZE is a slight overcount over the expected size of a multihash as a way of estimating the number of entries in the primary value store.
-const AVG_MH_SIZE = 40
+// avg_mh_size is a slight overcount over the expected size of a multihash as a
+// way of estimating the number of entries in the primary value store.
+const avg_mh_size = 40
 
 // FinderHandler provides request handling functionality for the finder server
 // that is common to all protocols.
@@ -122,7 +123,7 @@ func (h *FinderHandler) GetStats() ([]byte, error) {
 	}
 
 	s := Stats{
-		EntriesEstimate: size / AVG_MH_SIZE,
+		EntriesEstimate: size / avg_mh_size,
 	}
 
 	return json.Marshal(&s)
