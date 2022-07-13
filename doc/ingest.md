@@ -26,12 +26,13 @@ type Advertisement struct {
 * The `PreviousID` is the CID of the previous advertisement, and is empty for the 'genesis'.
 * The Provider is the `peer.ID` of the libp2p host providing the content.
 * The Addresses are the multiaddrs to provide to clients in order to connect to the provider.
+  * The provider addresses in the indexer are always updated by the latest advertisement received.
 * Entries is a link to a data structure that contains the advertised multihashes.
-* ContextID is an identifier you may use to subsequently update a an advertisement. It has the following semantics:
+* ContextID is an identifier used to subsequently update or delete an advertisement. It has the following semantics:
   * If a ContextID is used with different entries, those entries will be _added_ to the association with that ContextID
-  * If a ContextID is used with different provider, addresses, or metadata, all previous CIDs advertised under that ContextID will have their provider, addresses, and metadata updated to the most recent.
+  * If a ContextID is used with different metadata, all previous CIDs advertised under that ContextID will have their metadata updated to the most recent.
   * If a ContextID is used with the `IsRm` flag set, all previous CIDs advertised under that ContextID will be removed.
-* Metadata represents additional opaque data that will be forwarded to client queries for any of the CIDs in this advertisement. It is expected to start with a `varint` indicating the remaining format of metadata. Store the index operators may limit the length of this field, and it is recommended to keep it below 100 bytes.
+* Metadata represents additional opaque data that is returned in client query responses for any of the CIDs in this advertisement. It is expected to start with a `varint` indicating the remaining format of metadata. The opaque data is send to the provider when retrieving content for the provider to use to retrieve the content. Storetheindex operators may limit the length of this field, and it is recommended to keep it below 100 bytes.
 
 #### Entries data structure
 
@@ -128,16 +129,15 @@ There are two ways that a provider may pro-actively alert indexer(s) of new cont
 
 ### Gossipsub
 
-The announcment contains the CID of the head, and the multiaddr (either the libp2p host or the HTTP host) where it should be fetched from. The format is [here](https://github.com/filecoin-project/go-legs/blob/main/dtsync/message.go#L15).
+The announcment contains the CID of the head and the multiaddr (either the libp2p host or the HTTP host) where it should be fetched from. The format is [here](https://pkg.go.dev/github.com/filecoin-project/go-legs@v0.4.5/dtsync#Message).
 
 It is sent over a gossip sub topic, that defaults to `/indexer/ingest/<network>`. For our production network, this is `/indexer/ingest/mainnet`.
-
 
 The legs provider will generate gossip announcements automatically on it's host.
 
 ### HTTP
 
-alternatively, an announcement can be sent to a specific known network indexer.
+Alternatively, an announcement can be sent to a specific known network indexer.
 The network indexer may then relay that announcement over gossip sub to other indexers to allow broader discover of a provider chosing to selectively announce in this way.
 
 Announcements are sent as HTTP PUT requests to [`/ingest/announce`](https://github.com/filecoin-project/storetheindex/blob/main/server/ingest/http/server.go#L50) on the index node's 'ingest' server.
