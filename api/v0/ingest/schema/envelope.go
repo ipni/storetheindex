@@ -54,7 +54,7 @@ func (r *advSignatureRecord) UnmarshalRecord(buf []byte) error {
 func signaturePayload(ad *Advertisement, oldFormat bool) ([]byte, error) {
 	bindex := cid.Undef.Bytes()
 	if ad.PreviousID != nil {
-		bindex = (*ad.PreviousID).(cidlink.Link).Cid.Bytes()
+		bindex = ad.PreviousID.(cidlink.Link).Cid.Bytes()
 	}
 	ent := ad.Entries.(cidlink.Link).Cid.Bytes()
 

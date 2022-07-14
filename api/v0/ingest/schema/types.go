@@ -11,7 +11,7 @@ import (
 
 type (
 	Advertisement struct {
-		PreviousID *ipld.Link
+		PreviousID ipld.Link
 		Provider   string
 		Addresses  []string
 		Signature  []byte
@@ -22,7 +22,7 @@ type (
 	}
 	EntryChunk struct {
 		Entries []multihash.Multihash
-		Next    *ipld.Link
+		Next    ipld.Link
 	}
 )
 

@@ -231,7 +231,7 @@ func (ing *Ingester) generalLegsBlockHook(_ peer.ID, c cid.Cid, actions legs.Seg
 	if ad, err := ing.loadAd(c); err != nil {
 		actions.FailSync(err)
 	} else if ad.PreviousID != nil {
-		actions.SetNextSyncCid((*(ad.PreviousID)).(cidlink.Link).Cid)
+		actions.SetNextSyncCid(ad.PreviousID.(cidlink.Link).Cid)
 	} else {
 		actions.SetNextSyncCid(cid.Undef)
 	}

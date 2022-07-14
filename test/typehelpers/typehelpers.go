@@ -68,9 +68,7 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 			Metadata:  metadata,
 		}
 
-		if headLink != nil {
-			ad.PreviousID = &headLink
-		}
+		ad.PreviousID = headLink
 
 		if !fakeSig {
 			err := ad.Sign(signingKey)
@@ -88,7 +86,7 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 		ctxID := []byte("test-context-id-" + fmt.Sprint(0))
 
 		ad := schema.Advertisement{
-			PreviousID: &headLink,
+			PreviousID: headLink,
 			Provider:   p.String(),
 			Addresses:  addrs,
 			Entries:    schema.NoEntries,
@@ -143,14 +141,10 @@ func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datam
 		}
 
 		var err error
-
 		chunk := schema.EntryChunk{
+			Next:    headLink,
 			Entries: mhs,
 		}
-		if headLink != nil {
-			chunk.Next = &headLink
-		}
-
 		node, err := chunk.ToNode()
 		require.NoError(t, err)
 		headLink, err = lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
@@ -417,8 +411,8 @@ func AllAdLinks(t *testing.T, head datamodel.Link, lsys ipld.LinkSystem) []datam
 	out := []datamodel.Link{head}
 	ad := AdFromLink(t, head, lsys)
 	for ad.PreviousID != nil {
-		out = append(out, *ad.PreviousID)
-		ad = AdFromLink(t, *ad.PreviousID, lsys)
+		out = append(out, ad.PreviousID)
+		ad = AdFromLink(t, ad.PreviousID, lsys)
 	}
 
 	// Flip order so the latest is last

@@ -286,7 +286,7 @@ func TestRestartDuringSync(t *testing.T) {
 
 	blockedReads.add(bAd.Entries.(cidlink.Link).Cid)
 
-	bCid := *cAd.PreviousID
+	bCid := cAd.PreviousID
 
 	ctx := context.Background()
 	err = te.publisher.SetRoot(ctx, bCid.(cidlink.Link).Cid)
@@ -367,7 +367,7 @@ func TestFailDuringSync(t *testing.T) {
 
 	blockedReads.add(bAd.Entries.(cidlink.Link).Cid)
 
-	bCid := (*cAd.PreviousID)
+	bCid := cAd.PreviousID
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -444,8 +444,8 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	bEntChunk := bAd.Entries
 	blockedReads.add(bAd.Entries.(cidlink.Link).Cid)
 
-	bCid := *cAd.PreviousID
-	aCid := *bAd.PreviousID
+	bCid := cAd.PreviousID
+	aCid := bAd.PreviousID
 
 	ctx := context.Background()
 	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
@@ -610,7 +610,7 @@ func TestRmWithNoEntries(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotNil(t, ad.PreviousID)
-	prevAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, *ad.PreviousID, schema.AdvertisementPrototype)
+	prevAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, ad.PreviousID, schema.AdvertisementPrototype)
 	require.NoError(t, err)
 	prevAd, err := schema.UnwrapAdvertisement(prevAdNode)
 	require.NoError(t, err)
@@ -887,7 +887,7 @@ func decodeEntriesChunk(t *testing.T, store datastore.Batching, c cid.Cid) ([]mu
 		return ec.Entries, cid.Undef
 	}
 
-	return ec.Entries, (*ec.Next).(cidlink.Link).Cid
+	return ec.Entries, ec.Next.(cidlink.Link).Cid
 }
 
 func TestMultiplePublishers(t *testing.T) {
@@ -1258,7 +1258,7 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 
 func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash) {
 	var out []multihash.Multihash
-	var nextLnk *ipld.Link
+	var nextLnk ipld.Link
 	for i := 0; i < size; i++ {
 		mhs := util.RandomMultihashes(testEntriesChunkSize, rng)
 		chunk := &schema.EntryChunk{
@@ -1270,9 +1270,9 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 		lnk, err := lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
 		require.NoError(t, err)
 		out = append(out, mhs...)
-		nextLnk = &lnk
+		nextLnk = lnk
 	}
-	return *nextLnk, out
+	return nextLnk, out
 }
 
 func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash, peer.ID) {
