@@ -323,7 +323,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		}
 
 		if chunk != nil && chunk.Next != nil {
-			nextChunkCid := (*chunk.Next).(cidlink.Link).Cid
+			nextChunkCid := chunk.Next.(cidlink.Link).Cid
 			// Traverse remaining entry chunks based on the entries selector that limits recursion depth.
 			_, err = ing.sub.Sync(ctx, publisherID, nextChunkCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
 				// Load CID as entry chunk since the selector should only select entry chunk nodes.
@@ -340,7 +340,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 					return
 				}
 				if chunk.Next != nil {
-					actions.SetNextSyncCid((*(chunk.Next)).(cidlink.Link).Cid)
+					actions.SetNextSyncCid(chunk.Next.(cidlink.Link).Cid)
 				} else {
 					actions.SetNextSyncCid(cid.Undef)
 				}

@@ -135,7 +135,7 @@ func generateAdvertisement(rng *rand.Rand) *stischema.Advertisement {
 	mhs := util.RandomMultihashes(7, rng)
 	prev := ipld.Link(cidlink.Link{Cid: cid.NewCidV1(cid.Raw, mhs[0])})
 	return &stischema.Advertisement{
-		PreviousID: &prev,
+		PreviousID: prev,
 		Provider:   mhs[1].String(),
 		Addresses: []string{
 			mhs[2].String(),
@@ -153,6 +153,6 @@ func generateEntryChunk(rng *rand.Rand) *stischema.EntryChunk {
 	next := ipld.Link(cidlink.Link{Cid: cid.NewCidV1(cid.Raw, mhs[0])})
 	return &stischema.EntryChunk{
 		Entries: mhs,
-		Next:    &next,
+		Next:    next,
 	}
 }
