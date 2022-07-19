@@ -50,6 +50,7 @@ type Registry struct {
 
 	discoveryTimeout time.Duration
 	rediscoverWait   time.Duration
+	stopAfter        time.Duration
 
 	syncChan chan *ProviderInfo
 }
@@ -149,6 +150,7 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 
 		rediscoverWait:   time.Duration(cfg.RediscoverWait),
 		discoveryTimeout: time.Duration(cfg.Timeout),
+		stopAfter:        time.Duration(cfg.PollStopAfter),
 
 		discoverer: discoverer,
 
@@ -502,9 +504,12 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	r.actions <- func() {
 		infos = make([]*ProviderInfo, len(r.providers))
 		var i int
+		earliest := time.Now().Add(r.stopAfter * -1)
 		for _, info := range r.providers {
-			infos[i] = info
-			i++
+			if info.lastContactTime.After(earliest) {
+				infos[i] = info
+				i++
+			}
 		}
 		close(done)
 	}
