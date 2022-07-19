@@ -39,8 +39,17 @@ var importProviders = &cli.Command{
 }
 
 var reload = &cli.Command{
-	Name:   "reload-config",
-	Usage:  "Reload policy, rate limit, workers, and batch settings from the configuration file",
+	Name:  "reload-config",
+	Usage: "Reload various settings from the configuration file",
+	Description: "Reloades the following portions of the config file:" +
+		" Discovery.Policy," +
+		" Indexer.ConfigCheckInterval," +
+		" Indexer.ShutdownTimeout," +
+		" Ingest.IngestWorkerCount," +
+		" Ingest.RateLimit," +
+		" Ingest.StoreBatchSize," +
+		" Logging," +
+		" Peering",
 	Flags:  adminReloadConfigFlags,
 	Action: reloadConfigCmd,
 }
@@ -49,11 +58,11 @@ var AdminCmd = &cli.Command{
 	Name:  "admin",
 	Usage: "Perform admin activities with an indexer",
 	Subcommands: []*cli.Command{
-		sync,
 		allow,
 		block,
 		importProviders,
 		reload,
+		sync,
 	},
 }
 

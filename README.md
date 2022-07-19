@@ -9,7 +9,7 @@ This repo provides an indexer implementation that can be used to index data stor
 ## Design
 - [About the Indexer](https://github.com/filecoin-project/storetheindex/blob/main/doc/indexer_about.md#about-the-indexer)
 - [Ingestion Process](https://github.com/filecoin-project/storetheindex/blob/main/doc/ingest.md#providing-data-to-a-network-indexer)
-- [Creating an Index Provicer](https://github.com/filecoin-project/storetheindex/blob/main/doc/creating-an-index-provider.md#creating-an-index-provider)
+- [Creating an Index Provider](https://github.com/filecoin-project/storetheindex/blob/main/doc/creating-an-index-provider.md#creating-an-index-provider)
 
 ## Current Status
 Released for production: The current production release is running at https://cid.contact 
@@ -27,6 +27,11 @@ go get github.com/filecoin-project/storetheindex
 Initialize the storetheindex repository and configuration:
 ```sh
 storetheindex init
+```
+
+Optionally, edit the configuration
+```sh
+edit ~/.storetheindex/config 
 ```
 
 ## Running the Indexer Service
@@ -49,7 +54,8 @@ Administrative:
 - `admin` Perform admin activities with an indexer
   - `allow` Allow advertisements and content from peer
   - `block` Block advertisements and content from peer
-  - `reload` Reload the policy and ingest settings from the configuration file
+  - `import-providers` Import provider information from another indexer
+  - `reload-config` Reload various settings from the configuration file
   - `sync` Sync indexer with provider
 - `init` Initialize or upgrade indexer node config file
 

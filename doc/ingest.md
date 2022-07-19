@@ -7,7 +7,13 @@ There are two parts to the ingestion / providing protocol used by store the inde
 
 ## Advertisements
 
-### Advertisement data structures + construction
+### Advertisement data structures and construction
+
+Index content is an IPLD graph. The indexer reads the advertisement chain starting from the head, reading previous advertisements until a previously seen advertisement, or the end of the chain, is reached. The advertisements and their entries are then processed in order from earliest to head.
+
+![index-ad-ipld-graph](index-ad-ipld-graph.png)
+
+Multihash data is “paginated” by downloading blocks (chunks) of multihashes. These chunks are linked together using IPLD links.
 
 An individual advertisement is an [IPLD](https://ipld.io/docs/data-model/) object with the following [schema](https://github.com/filecoin-project/storetheindex/blob/main/api/v0/ingest/schema/schema.ipldsch):
 ```
@@ -51,7 +57,7 @@ type EntryChunk struct {
 ```
 
 The primary `Entries` list is the array of multihashes in the advertisement.
-If an advertisement has more CIDs than fit into a single block for purposes of data transfer, they may be split into multiple chunks, conceptually a linked list, by using `Next` as a reference ot the next chunk.
+If an advertisement has more CIDs than fit into a single block for purposes of data transfer, they may be split into multiple chunks, conceptually a linked list, by using `Next` as a reference to the next chunk.
 
 In terms of concrete constraints, each `EntryChunk` should stay below 4MB,
 and a linked list of entry chunks should be no more than 400 chunks long. Above these constraints, the list of entries should be split into multiple advertisements. Practically, this means that each individual advertisement can hold up to approximately 40 million multihashes.
@@ -59,7 +65,7 @@ and a linked list of entry chunks should be no more than 400 chunks long. Above 
 ##### HAMT
 The HAMT must follow the IPLD specification of [HAMT ADL](https://ipld.io/specs/advanced-data-layouts/hamt/spec).
 The HAMT data structure is [used as a set](https://ipld.io/specs/advanced-data-layouts/hamt/spec/#use-as-a-set) to capture the list of multihashes being advertised.
-This is where the keys in the HAMT represent the mulithhashes being advertised, and the values are simply set to `true`.
+This is where the keys in the HAMT represent the multihashes being advertised, and the values are simply set to `true`.
 
 #### Metadata
 
@@ -71,7 +77,7 @@ The network indexer nodes expect that metadata begins with a `uvarint` identifyi
   * `uvarint` protocol `0x0900` ([`TransportBitswap`](https://github.com/multiformats/multicodec/blob/master/table.csv#L133) in the multicodec table).
   * no following metadata.
 * filecoin graphsync
-  * `uvarint` protcol `0x0910`  ([`TransportGraphsyncFilecoinv1`](https://github.com/multiformats/multicodec/blob/master/table.csv#L134) in the multicodec table).
+  * `uvarint` protocol `0x0910`  ([`TransportGraphsyncFilecoinv1`](https://github.com/multiformats/multicodec/blob/master/table.csv#L134) in the multicodec table).
   * the following bytes should be a cbor encoded struct of:
     * PieceCID, a link
 	* VerifiedDeal, boolean
@@ -106,7 +112,7 @@ The multiprotocol is named [`/legs/head/<network-identifier>/<version>`](https:/
 
 #### HTTP
 
-The IPLD objects of advertisements and entries are represented as files named as their CIDs in an HTTP directory. These files are immutible, so can be safely cached or stored on CDNs.
+The IPLD objects of advertisements and entries are represented as files named as their CIDs in an HTTP directory. These files are immutable, so can be safely cached or stored on CDNs.
 
 The head protocol is the same as above, but not wrapped in a libp2p multiprotocol.
 A client wanting to know the latest advertisement CID will ask for the file named `head` in the same directory as the advertisements/entries, and will expect back a [signed response](https://github.com/filecoin-project/go-legs/blob/de87e8542506a86af3fef2026e9eb9b954251b8b/httpsync/message.go#L60-L64) for the current head.
@@ -129,7 +135,7 @@ There are two ways that a provider may pro-actively alert indexer(s) of new cont
 
 ### Gossipsub
 
-The announcment contains the CID of the head and the multiaddr (either the libp2p host or the HTTP host) where it should be fetched from. The format is [here](https://pkg.go.dev/github.com/filecoin-project/go-legs@v0.4.5/dtsync#Message).
+The announcement contains the CID of the head and the multiaddr (either the libp2p host or the HTTP host) where it should be fetched from. The format is [here](https://pkg.go.dev/github.com/filecoin-project/go-legs@v0.4.5/dtsync#Message).
 
 It is sent over a gossip sub topic, that defaults to `/indexer/ingest/<network>`. For our production network, this is `/indexer/ingest/mainnet`.
 
@@ -138,7 +144,7 @@ The legs provider will generate gossip announcements automatically on it's host.
 ### HTTP
 
 Alternatively, an announcement can be sent to a specific known network indexer.
-The network indexer may then relay that announcement over gossip sub to other indexers to allow broader discover of a provider chosing to selectively announce in this way.
+The network indexer may then relay that announcement over gossip sub to other indexers to allow broader discover of a provider choosing to selectively announce in this way.
 
 Announcements are sent as HTTP PUT requests to [`/ingest/announce`](https://github.com/filecoin-project/storetheindex/blob/main/server/ingest/http/server.go#L50) on the index node's 'ingest' server.
 Note that the ingest server is not the same http server as the primary publicly exposed query server. This is because the index node operator may choose not to expose it, or may protect it so that only selected providers are given access to this endpoint due to potential denial of service concerns.
