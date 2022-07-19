@@ -502,13 +502,11 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	var infos []*ProviderInfo
 	done := make(chan struct{})
 	r.actions <- func() {
-		infos = make([]*ProviderInfo, len(r.providers))
-		var i int
+		infos = make([]*ProviderInfo, 0, len(r.providers))
 		earliest := time.Now().Add(r.stopAfter * -1)
 		for _, info := range r.providers {
 			if info.lastContactTime.After(earliest) {
-				infos[i] = info
-				i++
+				infos = append(infos, info)
 			}
 		}
 		close(done)
