@@ -83,7 +83,7 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create a valuestore of the configured type.
-	valueStore, err := createValueStore(cfg.Indexer)
+	valueStore, err := createValueStore(cctx.Context, cfg.Indexer)
 	if err != nil {
 		return err
 	}
@@ -455,7 +455,7 @@ func fileChanged(filePath string, modTime time.Time) (time.Time, bool, error) {
 	return modTime, false, nil
 }
 
-func createValueStore(cfgIndexer config.Indexer) (indexer.Interface, error) {
+func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.Interface, error) {
 	dir, err := config.Path("", cfgIndexer.ValueStoreDir)
 	if err != nil {
 		return nil, err
@@ -468,7 +468,7 @@ func createValueStore(cfgIndexer config.Indexer) (indexer.Interface, error) {
 
 	switch cfgIndexer.ValueStoreType {
 	case vstoreStorethehash:
-		return storethehash.New(dir, storethehash.GCInterval(time.Duration(cfgIndexer.GCInterval)))
+		return storethehash.New(ctx, dir, storethehash.GCInterval(time.Duration(cfgIndexer.GCInterval)))
 	case vstorePogreb:
 		return pogreb.New(dir)
 	case vstoreMemory:

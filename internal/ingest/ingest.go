@@ -620,21 +620,47 @@ func (ing *Ingester) metricsUpdater() {
 func (ing *Ingester) autoSync() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	for provInfo := range ing.reg.SyncChan() {
-		ing.waitForPendingSyncs.Add(1)
+		if provInfo.Deleted {
+			ing.sub.RemoveHandler(provInfo.Publisher)
 
-		go func(pubID peer.ID, pubAddr multiaddr.Multiaddr, provID peer.ID) {
-			defer ing.waitForPendingSyncs.Done()
+			// In a separate gorouting, tell the core to delete the provider
+			// content, and delete from the registry datastore when done.
+			ing.waitForPendingSyncs.Add(1)
+			go func(provID peer.ID) {
+				defer ing.waitForPendingSyncs.Done()
 
-			log := log.With("provider", provID, "publisher", pubID, "addr", pubAddr)
-			log.Info("Auto-syncing the latest advertisement with publisher")
+				log := log.With("provider", provID)
+				log.Infow("Removing index content for provider")
+				err := ing.indexer.RemoveProvider(provID)
+				if err != nil {
+					log.Errorw("Failed to remove provider content", "err", err)
+					return
+				}
+				log.Infow("Finished removing index content for provider")
+				err = ing.reg.RemoveProvider(ctx, provID)
+				if err != nil {
+					log.Errorw("Failed to remove deleted provider from registry", "err", err)
+				}
+			}(provInfo.AddrInfo.ID)
+		} else {
+			// If a separate goroutine, attempt to sync the provider at its last
+			// know publisher.
+			ing.waitForPendingSyncs.Add(1)
+			go func(pubID peer.ID, pubAddr multiaddr.Multiaddr, provID peer.ID) {
+				defer ing.waitForPendingSyncs.Done()
 
-			_, err := ing.sub.Sync(ctx, pubID, cid.Undef, nil, pubAddr)
-			if err != nil {
-				log.Errorw("Failed to auto-sync with publisher", "err", err)
-				return
-			}
-		}(provInfo.Publisher, provInfo.PublisherAddr, provInfo.AddrInfo.ID)
+				log := log.With("provider", provID, "publisher", pubID, "addr", pubAddr)
+				log.Info("Auto-syncing the latest advertisement with publisher")
+
+				_, err := ing.sub.Sync(ctx, pubID, cid.Undef, nil, pubAddr)
+				if err != nil {
+					log.Errorw("Failed to auto-sync with publisher", "err", err)
+					return
+				}
+			}(provInfo.Publisher, provInfo.PublisherAddr, provInfo.AddrInfo.ID)
+		}
 	}
 }
 

@@ -6,8 +6,8 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
-	github.com/filecoin-project/go-indexer-core v0.2.17
-	github.com/filecoin-project/go-legs v0.4.5
+	github.com/filecoin-project/go-indexer-core v0.2.18-0.20220720202247-6216bb1a7c71
+	github.com/filecoin-project/go-legs v0.4.6
 	github.com/frankban/quicktest v1.14.3
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.1
@@ -113,7 +113,7 @@ require (
 	github.com/ipfs/go-verifcid v0.0.1 // indirect
 	github.com/ipld/edelweiss v0.1.2 // indirect
 	github.com/ipld/go-codec-dagpb v1.4.0 // indirect
-	github.com/ipld/go-storethehash v0.1.8 // indirect
+	github.com/ipld/go-storethehash v0.1.9 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect

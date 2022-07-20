@@ -72,8 +72,11 @@ type ProviderInfo struct {
 	Publisher peer.ID `json:",omitempty"`
 	// PublisherAddr contains the last seen publisher multiaddr.
 	PublisherAddr multiaddr.Multiaddr `json:",omitempty"`
+	// Deleted indicates this provider has been deleted, but may not be
+	// completely removed from the core yet.
+	Deleted bool `json:",omitempty"`
 
-	// lastContactTime is the last time the publisher contexted the
+	// lastContactTime is the last time the publisher contacted the
 	// indexer. This is not persisted, so that the time since last contact is
 	// reset when the indexer is started. If not reset, then it would appear
 	// the publisher was unreachable for the indexer downtime.
@@ -87,7 +90,11 @@ type polling struct {
 }
 
 func (p *ProviderInfo) dsKey() datastore.Key {
-	return datastore.NewKey(path.Join(providerKeyPath, p.AddrInfo.ID.String()))
+	return peerIDToDsKey(p.AddrInfo.ID)
+}
+
+func peerIDToDsKey(peerID peer.ID) datastore.Key {
+	return datastore.NewKey(path.Join(providerKeyPath, peerID.String()))
 }
 
 func (p *ProviderInfo) MarshalJSON() ([]byte, error) {
@@ -150,7 +157,6 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 
 		rediscoverWait:   time.Duration(cfg.RediscoverWait),
 		discoveryTimeout: time.Duration(cfg.Timeout),
-		stopAfter:        time.Duration(cfg.PollStopAfter),
 
 		discoverer: discoverer,
 
@@ -502,12 +508,11 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	var infos []*ProviderInfo
 	done := make(chan struct{})
 	r.actions <- func() {
-		infos = make([]*ProviderInfo, 0, len(r.providers))
-		earliest := time.Now().Add(r.stopAfter * -1)
+		infos = make([]*ProviderInfo, len(r.providers))
+		var i int
 		for _, info := range r.providers {
-			if info.lastContactTime.After(earliest) {
-				infos = append(infos, info)
-			}
+			infos[i] = info
+			i++
 		}
 		close(done)
 	}
@@ -578,6 +583,14 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 	}()
 
 	return len(newProvs), nil
+}
+
+func (r *Registry) RemoveProvider(ctx context.Context, providerID peer.ID) error {
+	errChan := make(chan error)
+	r.actions <- func() {
+		errChan <- r.syncRemoveProvider(ctx, providerID)
+	}
+	return <-errChan
 }
 
 func (r *Registry) CheckSequence(peerID peer.ID, seq uint64) error {
@@ -671,7 +684,7 @@ func (r *Registry) syncPersistProvider(ctx context.Context, info *ProviderInfo) 
 		return err
 	}
 	if err = r.dstore.Sync(ctx, dsKey); err != nil {
-		return fmt.Errorf("cannot sync provider info: %s", err)
+		return err
 	}
 	return nil
 }
@@ -713,6 +726,17 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 		err = json.Unmarshal(ent.Value, pinfo)
 		if err != nil {
 			return 0, err
+		}
+
+		if pinfo.Deleted {
+			log.Warnw("Found deleted provider to remove from core", "provider", pinfo.AddrInfo.ID)
+			// Tell the ingester to delete the provider from the core. This is
+			// done in a separate goroutine because the ingester may not be
+			// available during loading the providers.
+			go func(provInfo *ProviderInfo) {
+				r.syncChan <- provInfo
+			}(pinfo)
+			continue
 		}
 
 		if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr == nil && pinfo.Publisher == pinfo.AddrInfo.ID {
@@ -787,21 +811,20 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 			poll.stopAfter += poll.interval
 			if noContactTime >= poll.stopAfter {
 				// Too much time since last contact.
-				log.Warnw("Lost contact with provider's publisher", "publisher", info.Publisher, "provider", info.AddrInfo.ID, "since", info.lastContactTime)
-				// Remove the non-responsive publisher.
-				info = &ProviderInfo{
-					AddrInfo:              info.AddrInfo,
-					DiscoveryAddr:         info.DiscoveryAddr,
-					LastAdvertisement:     info.LastAdvertisement,
-					LastAdvertisementTime: info.LastAdvertisementTime,
-					lastContactTime:       info.lastContactTime,
-					Publisher:             peer.ID(""),
-					PublisherAddr:         nil,
+				log.Warnw("Lost contact with provider, too long with no updates", "publisher", info.Publisher, "provider", info.AddrInfo.ID, "since", info.lastContactTime)
+				// Remove the dead provider from the registry.
+				delete(r.providers, info.AddrInfo.ID)
+				// Tell the ingester to remove the provider's content from the
+				// core.
+				info.Deleted = true
+				// Update the saved provider info to indicate it is being
+				// deleted. The ingester will finish removing the provider
+				// information from the registry datastore once it is removed
+				// from the core.
+				if err := r.syncPersistProvider(context.Background(), info); err != nil {
+					log.Errorw("Failed to update deleted provider info", "err", err)
 				}
-				if err := r.syncRegister(context.Background(), info); err != nil {
-					log.Errorw("Failed to update provider info", "err", err)
-				}
-				continue
+
 			}
 			select {
 			case r.syncChan <- info:
@@ -810,6 +833,25 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 			}
 		}
 	}
+}
+
+func (r *Registry) syncRemoveProvider(ctx context.Context, providerID peer.ID) error {
+	// Remove the provider from the registry.
+	delete(r.providers, providerID)
+
+	if r.dstore == nil {
+		return nil
+	}
+
+	dsKey := peerIDToDsKey(providerID)
+	err := r.dstore.Delete(ctx, dsKey)
+	if err != nil {
+		return err
+	}
+	if err = r.dstore.Sync(ctx, dsKey); err != nil {
+		return err
+	}
+	return nil
 }
 
 // stringsToMultiaddrs converts a slice of string into a slice of Multiaddr
