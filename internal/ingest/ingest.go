@@ -766,7 +766,9 @@ func (ing *Ingester) ingestWorker() {
 			return
 		case provider := <-ing.toWorkers:
 			pid := peer.ID(provider)
+			ing.providersBeingProcessedMu.Lock()
 			pc := ing.providersBeingProcessed[pid]
+			ing.providersBeingProcessedMu.Unlock()
 			pc <- struct{}{}
 			ing.ingestWorkerLogic(pid)
 			ing.handlePendingAnnounce(pid)
@@ -778,7 +780,11 @@ func (ing *Ingester) ingestWorker() {
 func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 	// Pull out the assignment for this provider. Note that runIngestStep
 	// populates this atomic.Value.
-	assignmentInterface := ing.providerAdChainStaging[provider].Swap(workerAssignment{none: true})
+	ing.providersBeingProcessedMu.Lock()
+	wa := ing.providerAdChainStaging[provider]
+	ing.providersBeingProcessedMu.Unlock()
+
+	assignmentInterface := wa.Swap(workerAssignment{none: true})
 	if assignmentInterface == nil || assignmentInterface.(workerAssignment).none {
 		// Note this is here for completeness. This would not happen
 		// normally. Execution could get here if someone manually calls this
