@@ -617,6 +617,24 @@ func (ing *Ingester) metricsUpdater() {
 	}
 }
 
+// RemoveProvider removes all data for the specified provider. The following
+// are removed:
+//   - go-legs publisher handler
+func (ing *Ingester) RemoveProvider(ctx context.Context, providerID peer.ID) error {
+	log := log.With("provider", providerID)
+	log.Infow("Removing index content for provider")
+	err := ing.indexer.RemoveProvider(ctx, providerID)
+	if err != nil {
+		return fmt.Errorf("error removing provider content from indexer core: %w", err)
+	}
+	err = ing.reg.RemoveProvider(ctx, providerID)
+	if err != nil {
+		return fmt.Errorf("error removeing deleted provider from registry: %w", err)
+	}
+	log.Infow("Finished removing index content for provider")
+	return nil
+}
+
 func (ing *Ingester) autoSync() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -630,18 +648,9 @@ func (ing *Ingester) autoSync() {
 			ing.waitForPendingSyncs.Add(1)
 			go func(provID peer.ID) {
 				defer ing.waitForPendingSyncs.Done()
-
-				log := log.With("provider", provID)
-				log.Infow("Removing index content for provider")
-				err := ing.indexer.RemoveProvider(provID)
-				if err != nil {
-					log.Errorw("Failed to remove provider content", "err", err)
+				if err := ing.RemoveProvider(ctx, provID); err != nil {
+					log.Errorw("Failed to remove deleted provider", "err", err, "provider", provID)
 					return
-				}
-				log.Infow("Finished removing index content for provider")
-				err = ing.reg.RemoveProvider(ctx, provID)
-				if err != nil {
-					log.Errorw("Failed to remove deleted provider from registry", "err", err)
 				}
 			}(provInfo.AddrInfo.ID)
 		} else {

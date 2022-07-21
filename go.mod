@@ -6,7 +6,7 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
-	github.com/filecoin-project/go-indexer-core v0.2.18-0.20220720202247-6216bb1a7c71
+	github.com/filecoin-project/go-indexer-core v0.2.18
 	github.com/filecoin-project/go-legs v0.4.6
 	github.com/frankban/quicktest v1.14.3
 	github.com/gogo/protobuf v1.3.2

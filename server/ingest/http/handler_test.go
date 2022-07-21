@@ -53,7 +53,7 @@ func (m *mockIndexer) Put(value indexer.Value, mhs ...multihash.Multihash) error
 }
 
 func (m *mockIndexer) Remove(indexer.Value, ...multihash.Multihash) error { return nil }
-func (m *mockIndexer) RemoveProvider(peer.ID) error                       { return nil }
+func (m *mockIndexer) RemoveProvider(context.Context, peer.ID) error      { return nil }
 func (m *mockIndexer) RemoveProviderContext(peer.ID, []byte) error        { return nil }
 func (m *mockIndexer) Size() (int64, error)                               { return 0, nil }
 func (m *mockIndexer) Flush() error                                       { return nil }
