@@ -503,6 +503,21 @@ func (r *Registry) ProviderInfo(providerID peer.ID) *ProviderInfo {
 	r.actions <- func() {
 		stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(r.providers))))
 		info, ok := r.providers[providerID]
+		if ok && !info.Inactive() {
+			infoChan <- info
+		}
+		close(infoChan)
+	}
+
+	return <-infoChan
+}
+
+// providerInfoAlways returns information for a registered provider even if inactive.
+func (r *Registry) providerInfoAlways(providerID peer.ID) *ProviderInfo {
+	infoChan := make(chan *ProviderInfo)
+	r.actions <- func() {
+		stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(r.providers))))
+		info, ok := r.providers[providerID]
 		if ok {
 			infoChan <- info
 		}
@@ -517,11 +532,11 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	var infos []*ProviderInfo
 	done := make(chan struct{})
 	r.actions <- func() {
-		infos = make([]*ProviderInfo, len(r.providers))
-		var i int
+		infos = make([]*ProviderInfo, 0, len(r.providers))
 		for _, info := range r.providers {
-			infos[i] = info
-			i++
+			if !info.Inactive() {
+				infos = append(infos, info)
+			}
 		}
 		close(done)
 	}

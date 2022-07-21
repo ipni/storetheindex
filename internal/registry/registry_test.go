@@ -506,6 +506,17 @@ func TestPollProvider(t *testing.T) {
 		t.Fatal("Expected sync channel to be written")
 	}
 
+	// Inactive provider should not be returned.
+	pinfo := r.ProviderInfo(peerID)
+	if pinfo != nil {
+		t.Fatal("expected inactive provider not to be returned")
+	}
+
+	pinfo = r.providerInfoAlways(peerID)
+	if pinfo == nil {
+		t.Fatal("expected inactive provider to still be present")
+	}
+
 	// Set stopAfter to 0 so that stopAfter will have elapsed since last
 	// contact. This will make publisher appear unresponsive and polling will
 	// stop.
@@ -518,7 +529,11 @@ func TestPollProvider(t *testing.T) {
 
 	// Check that provider has been removed from registry after provider
 	// appeared non-responsive.
-	pinfo := r.ProviderInfo(peerID)
+	pinfo = r.ProviderInfo(peerID)
+	if pinfo != nil {
+		t.Fatal("expected provider to be removed from registry")
+	}
+	pinfo = r.providerInfoAlways(peerID)
 	if pinfo != nil {
 		t.Fatal("expected provider to be removed from registry")
 	}
