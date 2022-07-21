@@ -78,8 +78,10 @@ type ProviderInfo struct {
 	// the publisher was unreachable for the indexer downtime.
 	lastContactTime time.Time
 
-	// deleted is uses as a signal to the ingester to delete the provider's data.
+	// deleted is used as a signal to the ingester to delete the provider's data.
 	deleted bool
+	// inactive means polling the publisher with no response yet.
+	inactive bool
 }
 
 type polling struct {
@@ -90,6 +92,10 @@ type polling struct {
 
 func (p *ProviderInfo) Deleted() bool {
 	return p.deleted
+}
+
+func (p *ProviderInfo) Inactive() bool {
+	return p.inactive
 }
 
 func (p *ProviderInfo) dsKey() datastore.Key {
@@ -809,11 +815,14 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 			}
 			noContactTime := now.Sub(info.lastContactTime)
 			if noContactTime < poll.interval {
-				// Not enough time since last contact.
+				// Had recent enough contact, no need to poll.
 				continue
 			}
-			poll.stopAfter += poll.interval
-			if noContactTime >= poll.stopAfter {
+			sincePollingStarted := noContactTime - poll.interval
+			// If more than stopAfter time has elapsed since polling started,
+			// then the publisher is considered permanently unresponsive, so
+			// remove it.
+			if sincePollingStarted >= poll.stopAfter {
 				// Too much time since last contact.
 				log.Warnw("Lost contact with provider, too long with no updates", "publisher", info.Publisher, "provider", info.AddrInfo.ID, "since", info.lastContactTime)
 				// Remove the dead provider from the registry.
@@ -822,6 +831,10 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 				}
 				// Tell the ingester to remove data for the provider.
 				info.deleted = true
+			} else if sincePollingStarted >= 2*poll.retryAfter {
+				// Still polling after at least one retry, so mark inactive.
+				// This will exclude the provider from find responses.
+				info.inactive = true
 			}
 			select {
 			case r.syncChan <- info:

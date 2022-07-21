@@ -74,6 +74,10 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 					// If provider not in registry, do not return in result.
 					continue
 				}
+				// Omit provider info if it is marked as inactive.
+				if pinfo.Inactive() {
+					continue
+				}
 				addrs = pinfo.AddrInfo.Addrs
 				provAddrs[provID] = addrs
 			}

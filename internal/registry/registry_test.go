@@ -473,6 +473,9 @@ func TestPollProvider(t *testing.T) {
 		if pinfo.Publisher != pubID {
 			t.Fatal("Wrong publisher ID")
 		}
+		if pinfo.Inactive() {
+			t.Error("Expected provider not to be marked inactive")
+		}
 	case <-timeout:
 		t.Fatal("Expected sync channel to be written")
 	}
@@ -492,7 +495,13 @@ func TestPollProvider(t *testing.T) {
 		t.Fatal("actions channel blocked")
 	}
 	select {
-	case <-r.SyncChan():
+	case pinfo := <-r.SyncChan():
+		if pinfo.AddrInfo.ID != peerID {
+			t.Fatalf("unexpected provider info on sync channel, expected %q got %q", peerID.String(), pinfo.AddrInfo.ID.String())
+		}
+		if !pinfo.Inactive() {
+			t.Error("Expected provider to be marked inactive")
+		}
 	case <-timeout:
 		t.Fatal("Expected sync channel to be written")
 	}
