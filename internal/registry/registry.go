@@ -50,7 +50,6 @@ type Registry struct {
 
 	discoveryTimeout time.Duration
 	rediscoverWait   time.Duration
-	stopAfter        time.Duration
 
 	syncChan chan *ProviderInfo
 }
