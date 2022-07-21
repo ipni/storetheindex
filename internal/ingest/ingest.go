@@ -500,7 +500,7 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 		return err
 	}
 	// This ad is processed, so remove it from the datastore.
-	err = ing.ds.Delete(context.Background(), dsKey(adCid.String()))
+	err = ing.ds.Delete(context.Background(), datastore.NewKey(adCid.String()))
 	if err != nil {
 		// Log the error, but do not return. Continue on to save the procesed ad.
 		log.Errorw("Cound not remove advertisement from datastore", "err", err)
@@ -617,21 +617,18 @@ func (ing *Ingester) metricsUpdater() {
 	}
 }
 
-// RemoveProvider removes all data for the specified provider. The following
-// are removed:
-//   - go-legs publisher handler
-func (ing *Ingester) RemoveProvider(ctx context.Context, providerID peer.ID) error {
-	log := log.With("provider", providerID)
-	log.Infow("Removing index content for provider")
-	err := ing.indexer.RemoveProvider(ctx, providerID)
-	if err != nil {
-		return fmt.Errorf("error removing provider content from indexer core: %w", err)
+// removePublisher removes data for the identified publisher. This is done as
+// part of removing a provider.
+func (ing *Ingester) removePublisher(ctx context.Context, publisherID peer.ID) error {
+	if publisherID.Validate() != nil {
+		// Invalid publisher ID, registered provider never got a published ad.
+		return nil
 	}
-	err = ing.reg.RemoveProvider(ctx, providerID)
+	ing.sub.RemoveHandler(publisherID)
+	err := ing.ds.Delete(ctx, datastore.NewKey(syncPrefix+publisherID.String()))
 	if err != nil {
-		return fmt.Errorf("error removeing deleted provider from registry: %w", err)
+		return fmt.Errorf("could not remove latest sync for publisher %s: %w", publisherID, err)
 	}
-	log.Infow("Finished removing index content for provider")
 	return nil
 }
 
@@ -640,42 +637,38 @@ func (ing *Ingester) autoSync() {
 	defer cancel()
 
 	for provInfo := range ing.reg.SyncChan() {
-		if provInfo.Deleted {
-			ing.sub.RemoveHandler(provInfo.Publisher)
-
-			// In a separate gorouting, tell the core to delete the provider
-			// content, and delete from the registry datastore when done.
-			ing.waitForPendingSyncs.Add(1)
-			go func(provID peer.ID) {
-				defer ing.waitForPendingSyncs.Done()
-				if err := ing.RemoveProvider(ctx, provID); err != nil {
-					log.Errorw("Failed to remove deleted provider", "err", err, "provider", provID)
-					return
-				}
-			}(provInfo.AddrInfo.ID)
-		} else {
-			// If a separate goroutine, attempt to sync the provider at its last
-			// know publisher.
-			ing.waitForPendingSyncs.Add(1)
-			go func(pubID peer.ID, pubAddr multiaddr.Multiaddr, provID peer.ID) {
-				defer ing.waitForPendingSyncs.Done()
-
-				log := log.With("provider", provID, "publisher", pubID, "addr", pubAddr)
-				log.Info("Auto-syncing the latest advertisement with publisher")
-
-				_, err := ing.sub.Sync(ctx, pubID, cid.Undef, nil, pubAddr)
-				if err != nil {
-					log.Errorw("Failed to auto-sync with publisher", "err", err)
-					return
-				}
-			}(provInfo.Publisher, provInfo.PublisherAddr, provInfo.AddrInfo.ID)
+		if provInfo.Deleted() {
+			if err := ing.removePublisher(ctx, provInfo.Publisher); err != nil {
+				log.Errorw("Error removing provider", "err", err, "provider", provInfo.AddrInfo.ID)
+			}
+			// Do not remove provider info from core, because that requires
+			// scanning the entire core valuestore. Instead, let the finder
+			// delete provider contexts as deleted providers appear in find
+			// results.
+			continue
 		}
+
+		// If a separate goroutine, attempt to sync the provider at its last
+		// know publisher.
+		ing.waitForPendingSyncs.Add(1)
+		go func(pubID peer.ID, pubAddr multiaddr.Multiaddr, provID peer.ID) {
+			defer ing.waitForPendingSyncs.Done()
+
+			log := log.With("provider", provID, "publisher", pubID, "addr", pubAddr)
+			log.Info("Auto-syncing the latest advertisement with publisher")
+
+			_, err := ing.sub.Sync(ctx, pubID, cid.Undef, nil, pubAddr)
+			if err != nil {
+				log.Errorw("Failed to auto-sync with publisher", "err", err)
+				return
+			}
+		}(provInfo.Publisher, provInfo.PublisherAddr, provInfo.AddrInfo.ID)
 	}
 }
 
 // Get the latest CID synced for the peer.
-func (ing *Ingester) GetLatestSync(peerID peer.ID) (cid.Cid, error) {
-	b, err := ing.ds.Get(context.Background(), datastore.NewKey(syncPrefix+peerID.String()))
+func (ing *Ingester) GetLatestSync(publisherID peer.ID) (cid.Cid, error) {
+	b, err := ing.ds.Get(context.Background(), datastore.NewKey(syncPrefix+publisherID.String()))
 	if err != nil {
 		if err == datastore.ErrNotFound {
 			return cid.Undef, nil

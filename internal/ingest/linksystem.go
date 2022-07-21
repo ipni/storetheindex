@@ -39,10 +39,6 @@ var (
 	errInvalidAdvertSignature = errors.New("invalid advertisement signature")
 )
 
-func dsKey(k string) datastore.Key {
-	return datastore.NewKey(k)
-}
-
 // mkLinkSystem makes the indexer linkSystem which checks advertisement
 // signatures at storage. If the signature is not valid the traversal/exchange
 // is terminated.
@@ -50,7 +46,7 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
-		val, err := ds.Get(lctx.Ctx, dsKey(c.String()))
+		val, err := ds.Get(lctx.Ctx, datastore.NewKey(c.String()))
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +82,7 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 				log.Debug("Received IPLD node")
 			}
 			// Any other type of node (like entries) are stored right away.
-			return ds.Put(lctx.Ctx, dsKey(c.String()), origBuf)
+			return ds.Put(lctx.Ctx, datastore.NewKey(c.String()), origBuf)
 		}, nil
 	}
 	return lsys
@@ -239,7 +235,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		}
 		defer func() {
 			for _, c := range hamtCids {
-				err := ing.ds.Delete(ctx, dsKey(c.String()))
+				err := ing.ds.Delete(ctx, datastore.NewKey(c.String()))
 				if err != nil {
 					log.Errorw("Error deleting HAMT cid from datastore", "cid", c, "err", err)
 				}
@@ -378,7 +374,7 @@ func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertiseme
 		// Remove the content block from the data store now that processing it
 		// has finished. This prevents storing redundant information in several
 		// datastores.
-		entryChunkKey := dsKey(entryChunkCid.String())
+		entryChunkKey := datastore.NewKey(entryChunkCid.String())
 		err := ing.ds.Delete(ctx, entryChunkKey)
 		if err != nil {
 			log.Errorw("Error deleting index from datastore", "err", err)
@@ -531,7 +527,7 @@ func (ing *Ingester) loadHamt(c cid.Cid) (*hamt.Node, error) {
 }
 
 func (ing *Ingester) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Node, error) {
-	key := dsKey(c.String())
+	key := datastore.NewKey(c.String())
 	val, err := ing.ds.Get(context.Background(), key)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch the node from datastore: %w", err)

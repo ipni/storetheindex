@@ -520,13 +520,14 @@ func TestPollProvider(t *testing.T) {
 		if pinfo.AddrInfo.ID != peerID {
 			t.Fatalf("unexpected provider info on sync channel, expected %q got %q", peerID.String(), pinfo.AddrInfo.ID.String())
 		}
-		if !pinfo.Deleted {
+		if !pinfo.Deleted() {
 			t.Fatal("expected delete request for unresponsive provider")
 		}
 	default:
 		t.Fatal("sync channel should have deleted provider")
 	}
 
+	// This should still be ok to call even after provider is removed.
 	err = r.RemoveProvider(context.Background(), peerID)
 	if err != nil {
 		t.Fatal(err)
@@ -630,7 +631,7 @@ func TestPollProviderOverrides(t *testing.T) {
 		if pinfo.AddrInfo.ID != peerID {
 			t.Fatalf("unexpected provider info on sync channel, expected %q got %q", peerID.String(), pinfo.AddrInfo.ID.String())
 		}
-		if !pinfo.Deleted {
+		if !pinfo.Deleted() {
 			t.Fatal("expected delete request for unresponsive provider")
 		}
 	default:
@@ -640,10 +641,8 @@ func TestPollProviderOverrides(t *testing.T) {
 	// Check that sync channel was not written since polling should have
 	// stopped.
 	select {
-	case pinfo := <-r.SyncChan():
-		if pinfo.AddrInfo.ID == peerID {
-			t.Fatal("sync channel should not have beem written to for override peer")
-		}
+	case <-r.SyncChan():
+		t.Fatal("sync channel should not have beem written to for override peer")
 	default:
 	}
 

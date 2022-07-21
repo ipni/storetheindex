@@ -864,7 +864,7 @@ func requireNotIndexed(t *testing.T, ix indexer.Interface, p peer.ID, mhs []mult
 
 func getAdEntriesCid(t *testing.T, store datastore.Batching, ad cid.Cid) cid.Cid {
 	ctx := context.TODO()
-	val, err := store.Get(ctx, dsKey(ad.String()))
+	val, err := store.Get(ctx, datastore.NewKey(ad.String()))
 	require.NoError(t, err)
 	nad, err := decodeIPLDNode(ad.Prefix().Codec, bytes.NewBuffer(val), schema.AdvertisementPrototype)
 	require.NoError(t, err)
@@ -875,7 +875,7 @@ func getAdEntriesCid(t *testing.T, store datastore.Batching, ad cid.Cid) cid.Cid
 
 func decodeEntriesChunk(t *testing.T, store datastore.Batching, c cid.Cid) ([]multihash.Multihash, cid.Cid) {
 	ctx := context.TODO()
-	val, err := store.Get(ctx, dsKey(c.String()))
+	val, err := store.Get(ctx, datastore.NewKey(c.String()))
 	require.NoError(t, err)
 	nentries, err := decodeIPLDNode(c.Prefix().Codec, bytes.NewBuffer(val), schema.EntryChunkPrototype)
 	require.NoError(t, err)
@@ -1213,7 +1213,7 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
 		c := lnk.(cidlink.Link).Cid
-		val, err := ds.Get(lctx.Ctx, dsKey(c.String()))
+		val, err := ds.Get(lctx.Ctx, datastore.NewKey(c.String()))
 		if err != nil {
 			return nil, err
 		}
@@ -1223,7 +1223,7 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 		buf := bytes.NewBuffer(nil)
 		return buf, func(lnk ipld.Link) error {
 			c := lnk.(cidlink.Link).Cid
-			return ds.Put(lctx.Ctx, dsKey(c.String()), buf.Bytes())
+			return ds.Put(lctx.Ctx, datastore.NewKey(c.String()), buf.Bytes())
 		}, nil
 	}
 	return lsys
