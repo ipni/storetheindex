@@ -473,6 +473,9 @@ func TestPollProvider(t *testing.T) {
 		if pinfo.Publisher != pubID {
 			t.Fatal("Wrong publisher ID")
 		}
+		if pinfo.Inactive() {
+			t.Error("Expected provider not to be marked inactive")
+		}
 	case <-timeout:
 		t.Fatal("Expected sync channel to be written")
 	}
@@ -492,9 +495,26 @@ func TestPollProvider(t *testing.T) {
 		t.Fatal("actions channel blocked")
 	}
 	select {
-	case <-r.SyncChan():
+	case pinfo := <-r.SyncChan():
+		if pinfo.AddrInfo.ID != peerID {
+			t.Fatalf("unexpected provider info on sync channel, expected %q got %q", peerID.String(), pinfo.AddrInfo.ID.String())
+		}
+		if !pinfo.Inactive() {
+			t.Error("Expected provider to be marked inactive")
+		}
 	case <-timeout:
 		t.Fatal("Expected sync channel to be written")
+	}
+
+	// Inactive provider should not be returned.
+	pinfo := r.ProviderInfo(peerID)
+	if pinfo != nil {
+		t.Fatal("expected inactive provider not to be returned")
+	}
+
+	pinfo = r.providerInfoAlways(peerID)
+	if pinfo == nil {
+		t.Fatal("expected inactive provider to still be present")
 	}
 
 	// Set stopAfter to 0 so that stopAfter will have elapsed since last
@@ -507,22 +527,34 @@ func TestPollProvider(t *testing.T) {
 	r.pollProviders(poll, nil)
 	r.pollProviders(poll, nil)
 
-	// Check that publisher has been removed from provider info when publisher
+	// Check that provider has been removed from registry after provider
 	// appeared non-responsive.
-	pinfo := r.ProviderInfo(peerID)
-	if pinfo == nil {
-		t.Fatal("did not find registered provider")
+	pinfo = r.ProviderInfo(peerID)
+	if pinfo != nil {
+		t.Fatal("expected provider to be removed from registry")
 	}
-	if pinfo.Publisher.Validate() == nil {
-		t.Fatal("should not have valid publisher after polling stopped")
+	pinfo = r.providerInfoAlways(peerID)
+	if pinfo != nil {
+		t.Fatal("expected provider to be removed from registry")
 	}
 
-	// Check that sync channel was not written since polling should have
-	// stopped.
+	// Check that delete provider sent over sync channel.
 	select {
-	case <-r.SyncChan():
-		t.Fatal("sync channel should not have beem written to")
+	case pinfo = <-r.SyncChan():
+		if pinfo.AddrInfo.ID != peerID {
+			t.Fatalf("unexpected provider info on sync channel, expected %q got %q", peerID.String(), pinfo.AddrInfo.ID.String())
+		}
+		if !pinfo.Deleted() {
+			t.Fatal("expected delete request for unresponsive provider")
+		}
 	default:
+		t.Fatal("sync channel should have deleted provider")
+	}
+
+	// This should still be ok to call even after provider is removed.
+	err = r.RemoveProvider(context.Background(), peerID)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	err = r.Close()
@@ -610,23 +642,31 @@ func TestPollProviderOverrides(t *testing.T) {
 	r.pollProviders(poll, overrides)
 	r.pollProviders(poll, overrides)
 
-	// Check that publisher has been removed from provider info when publisher
+	// Check that provider has been removed from registry after provider
 	// appeared non-responsive.
 	pinfo := r.ProviderInfo(peerID)
-	if pinfo == nil {
-		t.Fatal("did not find registered provider")
+	if pinfo != nil {
+		t.Fatal("expected provider to be removed from registry")
 	}
-	if pinfo.Publisher.Validate() == nil {
-		t.Fatal("should not have valid publisher after polling stopped")
+
+	// Check that delete provider sent over sync channel.
+	select {
+	case pinfo = <-r.SyncChan():
+		if pinfo.AddrInfo.ID != peerID {
+			t.Fatalf("unexpected provider info on sync channel, expected %q got %q", peerID.String(), pinfo.AddrInfo.ID.String())
+		}
+		if !pinfo.Deleted() {
+			t.Fatal("expected delete request for unresponsive provider")
+		}
+	default:
+		t.Fatal("sync channel should have deleted provider")
 	}
 
 	// Check that sync channel was not written since polling should have
 	// stopped.
 	select {
-	case pinfo := <-r.SyncChan():
-		if pinfo.AddrInfo.ID == peerID {
-			t.Fatal("sync channel should not have beem written to for override peer")
-		}
+	case <-r.SyncChan():
+		t.Fatal("sync channel should not have beem written to for override peer")
 	default:
 	}
 

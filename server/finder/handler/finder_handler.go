@@ -9,10 +9,13 @@ import (
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/internal/registry"
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
+
+var log = logging.Logger("indexer/finder")
 
 // avg_mh_size is a slight overcount over the expected size of a multihash as a
 // way of estimating the number of entries in the primary value store.
@@ -57,7 +60,22 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 			if !ok {
 				pinfo := h.registry.ProviderInfo(provID)
 				if pinfo == nil {
+					// If provider not in registry, then provider was deleted.
+					// Tell the indexed core to delete the contextID for the
+					// deleted provider. Delete the contextID from the core,
+					// because there is no way to delete all records for the
+					// provider without a scan of the entire core valuestore.
+					go func(value indexer.Value) {
+						err := h.indexer.RemoveProviderContext(value.ProviderID, value.ContextID)
+						if err != nil {
+							log.Errorw("Error removing provider context", "err", err)
+						}
+					}(values[j])
 					// If provider not in registry, do not return in result.
+					continue
+				}
+				// Omit provider info if it is marked as inactive.
+				if pinfo.Inactive() {
 					continue
 				}
 				addrs = pinfo.AddrInfo.Addrs

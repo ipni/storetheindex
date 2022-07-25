@@ -500,7 +500,7 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 		return err
 	}
 	// This ad is processed, so remove it from the datastore.
-	err = ing.ds.Delete(context.Background(), dsKey(adCid.String()))
+	err = ing.ds.Delete(context.Background(), datastore.NewKey(adCid.String()))
 	if err != nil {
 		// Log the error, but do not return. Continue on to save the procesed ad.
 		log.Errorw("Cound not remove advertisement from datastore", "err", err)
@@ -617,12 +617,40 @@ func (ing *Ingester) metricsUpdater() {
 	}
 }
 
+// removePublisher removes data for the identified publisher. This is done as
+// part of removing a provider.
+func (ing *Ingester) removePublisher(ctx context.Context, publisherID peer.ID) error {
+	if publisherID.Validate() != nil {
+		// Invalid publisher ID, registered provider never got a published ad.
+		return nil
+	}
+	ing.sub.RemoveHandler(publisherID)
+	err := ing.ds.Delete(ctx, datastore.NewKey(syncPrefix+publisherID.String()))
+	if err != nil {
+		return fmt.Errorf("could not remove latest sync for publisher %s: %w", publisherID, err)
+	}
+	return nil
+}
+
 func (ing *Ingester) autoSync() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	for provInfo := range ing.reg.SyncChan() {
-		ing.waitForPendingSyncs.Add(1)
 
+	for provInfo := range ing.reg.SyncChan() {
+		if provInfo.Deleted() {
+			if err := ing.removePublisher(ctx, provInfo.Publisher); err != nil {
+				log.Errorw("Error removing provider", "err", err, "provider", provInfo.AddrInfo.ID)
+			}
+			// Do not remove provider info from core, because that requires
+			// scanning the entire core valuestore. Instead, let the finder
+			// delete provider contexts as deleted providers appear in find
+			// results.
+			continue
+		}
+
+		// If a separate goroutine, attempt to sync the provider at its last
+		// know publisher.
+		ing.waitForPendingSyncs.Add(1)
 		go func(pubID peer.ID, pubAddr multiaddr.Multiaddr, provID peer.ID) {
 			defer ing.waitForPendingSyncs.Done()
 
@@ -639,8 +667,8 @@ func (ing *Ingester) autoSync() {
 }
 
 // Get the latest CID synced for the peer.
-func (ing *Ingester) GetLatestSync(peerID peer.ID) (cid.Cid, error) {
-	b, err := ing.ds.Get(context.Background(), datastore.NewKey(syncPrefix+peerID.String()))
+func (ing *Ingester) GetLatestSync(publisherID peer.ID) (cid.Cid, error) {
+	b, err := ing.ds.Get(context.Background(), datastore.NewKey(syncPrefix+publisherID.String()))
 	if err != nil {
 		if err == datastore.ErrNotFound {
 			return cid.Undef, nil

@@ -72,11 +72,16 @@ type ProviderInfo struct {
 	// PublisherAddr contains the last seen publisher multiaddr.
 	PublisherAddr multiaddr.Multiaddr `json:",omitempty"`
 
-	// lastContactTime is the last time the publisher contexted the
+	// lastContactTime is the last time the publisher contacted the
 	// indexer. This is not persisted, so that the time since last contact is
 	// reset when the indexer is started. If not reset, then it would appear
 	// the publisher was unreachable for the indexer downtime.
 	lastContactTime time.Time
+
+	// deleted is used as a signal to the ingester to delete the provider's data.
+	deleted bool
+	// inactive means polling the publisher with no response yet.
+	inactive bool
 }
 
 type polling struct {
@@ -85,8 +90,20 @@ type polling struct {
 	stopAfter  time.Duration
 }
 
+func (p *ProviderInfo) Deleted() bool {
+	return p.deleted
+}
+
+func (p *ProviderInfo) Inactive() bool {
+	return p.inactive
+}
+
 func (p *ProviderInfo) dsKey() datastore.Key {
-	return datastore.NewKey(path.Join(providerKeyPath, p.AddrInfo.ID.String()))
+	return peerIDToDsKey(p.AddrInfo.ID)
+}
+
+func peerIDToDsKey(peerID peer.ID) datastore.Key {
+	return datastore.NewKey(path.Join(providerKeyPath, peerID.String()))
 }
 
 func (p *ProviderInfo) MarshalJSON() ([]byte, error) {
@@ -486,6 +503,21 @@ func (r *Registry) ProviderInfo(providerID peer.ID) *ProviderInfo {
 	r.actions <- func() {
 		stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(r.providers))))
 		info, ok := r.providers[providerID]
+		if ok && !info.Inactive() {
+			infoChan <- info
+		}
+		close(infoChan)
+	}
+
+	return <-infoChan
+}
+
+// providerInfoAlways returns information for a registered provider even if inactive.
+func (r *Registry) providerInfoAlways(providerID peer.ID) *ProviderInfo {
+	infoChan := make(chan *ProviderInfo)
+	r.actions <- func() {
+		stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(r.providers))))
+		info, ok := r.providers[providerID]
 		if ok {
 			infoChan <- info
 		}
@@ -500,11 +532,11 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	var infos []*ProviderInfo
 	done := make(chan struct{})
 	r.actions <- func() {
-		infos = make([]*ProviderInfo, len(r.providers))
-		var i int
+		infos = make([]*ProviderInfo, 0, len(r.providers))
 		for _, info := range r.providers {
-			infos[i] = info
-			i++
+			if !info.Inactive() {
+				infos = append(infos, info)
+			}
 		}
 		close(done)
 	}
@@ -575,6 +607,26 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 	}()
 
 	return len(newProvs), nil
+}
+
+func (r *Registry) RemoveProvider(ctx context.Context, providerID peer.ID) error {
+	var pinfo *ProviderInfo
+	errChan := make(chan error)
+	r.actions <- func() {
+		pinfo = r.providers[providerID]
+		// Remove provider from datastore and memory.
+		errChan <- r.syncRemoveProvider(ctx, providerID)
+	}
+	err := <-errChan
+	if err != nil {
+		return err
+	}
+	if pinfo != nil {
+		// Tell ingester to delete its provider data.
+		pinfo.deleted = true
+		r.syncChan <- pinfo
+	}
+	return nil
 }
 
 func (r *Registry) CheckSequence(peerID peer.ID, seq uint64) error {
@@ -668,7 +720,7 @@ func (r *Registry) syncPersistProvider(ctx context.Context, info *ProviderInfo) 
 		return err
 	}
 	if err = r.dstore.Sync(ctx, dsKey); err != nil {
-		return fmt.Errorf("cannot sync provider info: %s", err)
+		return err
 	}
 	return nil
 }
@@ -778,27 +830,26 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 			}
 			noContactTime := now.Sub(info.lastContactTime)
 			if noContactTime < poll.interval {
-				// Not enough time since last contact.
+				// Had recent enough contact, no need to poll.
 				continue
 			}
-			poll.stopAfter += poll.interval
-			if noContactTime >= poll.stopAfter {
+			sincePollingStarted := noContactTime - poll.interval
+			// If more than stopAfter time has elapsed since polling started,
+			// then the publisher is considered permanently unresponsive, so
+			// remove it.
+			if sincePollingStarted >= poll.stopAfter {
 				// Too much time since last contact.
-				log.Warnw("Lost contact with provider's publisher", "publisher", info.Publisher, "provider", info.AddrInfo.ID, "since", info.lastContactTime)
-				// Remove the non-responsive publisher.
-				info = &ProviderInfo{
-					AddrInfo:              info.AddrInfo,
-					DiscoveryAddr:         info.DiscoveryAddr,
-					LastAdvertisement:     info.LastAdvertisement,
-					LastAdvertisementTime: info.LastAdvertisementTime,
-					lastContactTime:       info.lastContactTime,
-					Publisher:             peer.ID(""),
-					PublisherAddr:         nil,
+				log.Warnw("Lost contact with provider, too long with no updates", "publisher", info.Publisher, "provider", info.AddrInfo.ID, "since", info.lastContactTime)
+				// Remove the dead provider from the registry.
+				if err := r.syncRemoveProvider(context.Background(), peerID); err != nil {
+					log.Errorw("Failed to update deleted provider info", "err", err)
 				}
-				if err := r.syncRegister(context.Background(), info); err != nil {
-					log.Errorw("Failed to update provider info", "err", err)
-				}
-				continue
+				// Tell the ingester to remove data for the provider.
+				info.deleted = true
+			} else if sincePollingStarted >= 2*poll.retryAfter {
+				// Still polling after at least one retry, so mark inactive.
+				// This will exclude the provider from find responses.
+				info.inactive = true
 			}
 			select {
 			case r.syncChan <- info:
@@ -807,6 +858,25 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 			}
 		}
 	}
+}
+
+func (r *Registry) syncRemoveProvider(ctx context.Context, providerID peer.ID) error {
+	// Remove the provider from the registry.
+	delete(r.providers, providerID)
+
+	if r.dstore == nil {
+		return nil
+	}
+
+	dsKey := peerIDToDsKey(providerID)
+	err := r.dstore.Delete(ctx, dsKey)
+	if err != nil {
+		return err
+	}
+	if err = r.dstore.Sync(ctx, dsKey); err != nil {
+		return err
+	}
+	return nil
 }
 
 // stringsToMultiaddrs converts a slice of string into a slice of Multiaddr
