@@ -100,3 +100,27 @@ func TestGetStats(t *testing.T) {
 	}
 	test.GetStatsTest(ctx, t, c)
 }
+
+func TestRemoveProvider(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Initialize everything
+	ind := test.InitIndex(t, true)
+	reg := test.InitRegistry(t)
+	s, sh := setupServer(ctx, ind, reg, t)
+	c := setupClient(s.ID(), t)
+	err := c.ConnectAddrs(ctx, sh.Addrs()...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.RemoveProviderTest(ctx, t, c, ind, reg)
+
+	if err = reg.Close(); err != nil {
+		t.Errorf("Error closing registry: %s", err)
+	}
+	if err = ind.Close(); err != nil {
+		t.Errorf("Error closing indexer core: %s", err)
+	}
+}

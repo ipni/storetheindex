@@ -194,3 +194,43 @@ func TestGetStats(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRemoveProvider(t *testing.T) {
+	// Initialize everything
+	ind := test.InitIndex(t, true)
+	reg := test.InitRegistry(t)
+	s := setupServer(ind, reg, t)
+	c := setupClient(s.URL(), t)
+
+	// Start server
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	// Test must complete in 5 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	test.RemoveProviderTest(ctx, t, c, ind, reg)
+
+	err := s.Shutdown(ctx)
+	if err != nil {
+		t.Error("shutdown error:", err)
+	}
+	err = <-errChan
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = reg.Close(); err != nil {
+		t.Errorf("Error closing registry: %s", err)
+	}
+	if err = ind.Close(); err != nil {
+		t.Errorf("Error closing indexer core: %s", err)
+	}
+}

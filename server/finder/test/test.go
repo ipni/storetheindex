@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -281,6 +282,83 @@ func ListProvidersTest(t *testing.T, c client.Finder, providerID peer.ID) {
 	}
 	if providers[0].AddrInfo.ID != providerID {
 		t.Fatal("wrong peer id")
+	}
+}
+
+func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
+	// Generate some multihashes and populate indexer
+	mhs := util.RandomMultihashes(15, rng)
+	p, err := peer.Decode(providerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctxID := []byte("test-context-id")
+	metadata := []byte("test-metadata")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := indexer.Value{
+		ProviderID:    p,
+		ContextID:     ctxID,
+		MetadataBytes: metadata,
+	}
+	populateIndex(ind, mhs[:10], v, t)
+
+	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	info := &registry.ProviderInfo{
+		AddrInfo: peer.AddrInfo{
+			ID:    p,
+			Addrs: []multiaddr.Multiaddr{a},
+		},
+	}
+	err = reg.Register(ctx, info)
+	if err != nil {
+		t.Fatal("could not register provider info:", err)
+	}
+
+	// Get single multihash
+	resp, err := c.Find(ctx, mhs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.MultihashResults) != 1 {
+		t.Fatal("expected 1 value in response")
+	}
+
+	provResult := model.ProviderResult{
+		ContextID: v.ContextID,
+		Provider: peer.AddrInfo{
+			ID:    v.ProviderID,
+			Addrs: info.AddrInfo.Addrs,
+		},
+		Metadata: v.MetadataBytes,
+	}
+
+	expectedResults := []model.ProviderResult{provResult}
+	err = checkResponse(resp, mhs[:1], expectedResults)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("removing provider from registry")
+	err = reg.RemoveProvider(ctx, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Get single multihash
+	resp, err = c.Find(ctx, mhs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("index values in resp:", len(resp.MultihashResults))
+	if len(resp.MultihashResults) != 0 {
+		t.Fatal("expected 0 multihashes in response")
+	}
+
+	_, err = c.GetProvider(ctx, p)
+	if err == nil || !strings.HasSuffix(err.Error(), "not found") {
+		t.Fatal("expected 'error not found' from GetProvider")
 	}
 }
 
