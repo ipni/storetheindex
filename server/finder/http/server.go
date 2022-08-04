@@ -49,53 +49,28 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	h := newHandler(indexer, registry)
 
 	// Client routes
-	cidR := mux.NewRouter().StrictSlash(true)
-	cidR.HandleFunc("/cid/{cid}", h.findCid).Methods(http.MethodGet, http.MethodOptions)
-	corCidR := handlers.CORS(handlers.AllowedOrigins([]string{"*"}))(cidR)
-
-	mhR := mux.NewRouter().StrictSlash(true)
-	mhR.HandleFunc("/multihash/{multihash}", h.find).Methods(http.MethodGet, http.MethodOptions)
-	mhR.HandleFunc("/multihash", h.findBatch).Methods(http.MethodPost, http.MethodOptions)
-	corMhR := handlers.CORS(handlers.AllowedOrigins([]string{"*"}))(mhR)
-
 	r := mux.NewRouter().StrictSlash(true)
-	r.Use(mux.CORSMethodMiddleware(r))
-	r.Use(jsonContentTypeAndTerminateOnOptions)
-	r.PathPrefix("/cid").Handler(corCidR)
-	r.PathPrefix("/multihash").Handler(corMhR)
-
-	r.HandleFunc("/health", h.health).Methods(http.MethodGet, http.MethodOptions)
 	r.Handle("/", http.FileServer(http.FS(webUI)))
-
-	r.HandleFunc("/providers", h.listProviders).Methods(http.MethodGet, http.MethodOptions)
-	r.HandleFunc("/providers/{providerid}", h.getProvider).Methods(http.MethodGet, http.MethodOptions)
-
-	r.HandleFunc("/stats", h.getStats).Methods(http.MethodGet, http.MethodOptions)
+	r.HandleFunc("/cid/{cid}", h.findCid).Methods(http.MethodGet)
+	r.HandleFunc("/multihash/{multihash}", h.find).Methods(http.MethodGet)
+	r.HandleFunc("/multihash", h.findBatch).Methods(http.MethodPost)
+	r.HandleFunc("/health", h.health).Methods(http.MethodGet)
+	r.HandleFunc("/providers", h.listProviders).Methods(http.MethodGet)
+	r.HandleFunc("/providers/{providerid}", h.getProvider).Methods(http.MethodGet)
+	r.HandleFunc("/stats", h.getStats).Methods(http.MethodGet)
 
 	reframeHandler := reframe.NewReframeHTTPHandler(indexer, registry)
 	r.HandleFunc("/reframe", reframeHandler)
 
+	cors := handlers.CORS(handlers.AllowedOrigins([]string{"*"}))
 	server := &http.Server{
-		Handler:      r,
+		Handler:      cors(r),
 		WriteTimeout: cfg.apiWriteTimeout,
 		ReadTimeout:  cfg.apiReadTimeout,
 	}
 	s := &Server{server, l}
 
 	return s, nil
-}
-
-func jsonContentTypeAndTerminateOnOptions(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-
-		// On OPTIONS in the context of CORS support, once headers are written we are done.
-		// Therefore, do not proceed with the remaining handlers.
-		if r.Method != http.MethodOptions {
-			next.ServeHTTP(w, r)
-		}
-	})
 }
 
 func (s *Server) Start() error {
