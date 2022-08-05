@@ -257,8 +257,8 @@ github.com/filecoin-project/go-data-transfer v1.15.2-0.20220616083012-ea4de61af1
 github.com/filecoin-project/go-ds-versioning v0.0.0-20211206185234-508abd7c2aff/go.mod h1:C9/l9PnB1+mwPa26BBVpCjG/XQCB0yj/q5CK2J8X1I4=
 github.com/filecoin-project/go-ds-versioning v0.1.1 h1:JiyBqaQlwC+UM0WhcBtVEeT3XrX59mQhT8U3p7nu86o=
 github.com/filecoin-project/go-ds-versioning v0.1.1/go.mod h1:C9/l9PnB1+mwPa26BBVpCjG/XQCB0yj/q5CK2J8X1I4=
-github.com/filecoin-project/go-indexer-core v0.2.18 h1:zSWFh88CjdctKFQm4oLwQ0GoZFJ4cHQbyffq0o+a9NM=
-github.com/filecoin-project/go-indexer-core v0.2.18/go.mod h1:BIsKVvT0X6H5+rma35+gGXVaS1TNN4LFuWfp646OPBA=
+github.com/filecoin-project/go-indexer-core v0.2.19 h1:1qJYpK9iuwDIi2+Heu5OOnpeOaemEPbePfp/2vfval8=
+github.com/filecoin-project/go-indexer-core v0.2.19/go.mod h1:SxmXm55AKeKlZsEIIBDTiM7FGauBsDpGobOetQzkohw=
 github.com/filecoin-project/go-legs v0.4.6 h1:u7sj4wE5l7An5wI3I3YnXcLikKAKxTbPk2vxd67lS9s=
 github.com/filecoin-project/go-legs v0.4.6/go.mod h1:JQ3hA6xpJdbR8euZ2rO0jkxaMxeidXf0LDnVuqPAe9s=
 github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe/go.mod h1:FGwQgZAt2Gh5mjlwJUlVB62JeYdo+if0xWxSEfBD9ig=
@@ -288,8 +288,8 @@ github.com/fsnotify/fsnotify v1.5.1/go.mod h1:T3375wBYaZdLLcVNkcVbzGHY7f1l/uK5T5
 github.com/gabriel-vasile/mimetype v1.4.0/go.mod h1:fA8fi6KUiG7MgQQ+mEWotXoEOvmxRtOJlERCzSmRvr8=
 github.com/gammazero/keymutex v0.0.2 h1:cmpLBJHdEwn+WlR5Z/o9/BN92znSZTp5AKPQDpu1QcI=
 github.com/gammazero/keymutex v0.0.2/go.mod h1:qtzWCCLMisQUmVa4dvqHVgwfh4BP2YB7JxNDGXnsKrs=
-github.com/gammazero/radixtree v0.2.5 h1:muPQ4eEgCkUymFWPiVQRuXOQv4IhWg8YXH2r71MoqPM=
-github.com/gammazero/radixtree v0.2.5/go.mod h1:VPqqCDZ3YZZxAzUUsIF/ytFBigVWV7JIV1Stld8hri0=
+github.com/gammazero/radixtree v0.3.0 h1:8CVHGuCXMoY1sAE11fMpkrELaXmX2+jpgBOcplXhDdw=
+github.com/gammazero/radixtree v0.3.0/go.mod h1:qvmbw16a4HlQ53wB7V74gNpjKl1Q9hsT+5YTrFXtvK4=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/gliderlabs/ssh v0.1.1/go.mod h1:U7qILu1NlMHj9FlMhZLlkCdDnU1DBEAqr0aevW3Awn0=
 github.com/go-check/check v0.0.0-20180628173108-788fd7840127/go.mod h1:9ES+weclKsC9YodN5RgxqK/VD9HM9JsCSh7rNhMZE98=
@@ -721,8 +721,8 @@ github.com/ipld/go-ipld-prime v0.16.1-0.20220607093021-c88f0b441e80/go.mod h1:aY
 github.com/ipld/go-ipld-prime v0.17.0 h1:+U2peiA3aQsE7mrXjD2nYZaZrCcakoz2Wge8K42Ld8g=
 github.com/ipld/go-ipld-prime v0.17.0/go.mod h1:aYcKm5TIvGfY8P3QBKz/2gKcLxzJ1zDaD+o0bOowhgs=
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20211210234204-ce2a1c70cd73/go.mod h1:2PJ0JgxyB08t0b2WKrcuqI3di0V+5n6RS/LTUJhkoxY=
-github.com/ipld/go-storethehash v0.1.9 h1:+J/8UgvRvXcOgEUTKDO3sGCGLMzRzco5Z9X3DYt5g8M=
-github.com/ipld/go-storethehash v0.1.9/go.mod h1:Gh52e3JFIbzULuRAP6oPBbJ5jJCNlOakihQ5DVtCv14=
+github.com/ipld/go-storethehash v0.1.11 h1:lyJ4z4ZwOr2Et86Au4a39FsHmTRbQGPNjfm+6p6S734=
+github.com/ipld/go-storethehash v0.1.11/go.mod h1:Gh52e3JFIbzULuRAP6oPBbJ5jJCNlOakihQ5DVtCv14=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52 h1:QG4CGBqCeuBo6aZlGAamSkxWdgWfZGeE49eUOWJPA4c=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52/go.mod h1:fdg+/X9Gg4AsAIzWpEHwnqd+QY3b7lajxyjE1m4hkq4=
 github.com/jackpal/gateway v1.0.5/go.mod h1:lTpwd4ACLXmpyiCTRtfiNyVnUmqT9RivzCDQetPfnjA=
