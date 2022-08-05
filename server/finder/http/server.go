@@ -52,12 +52,12 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	h := newHandler(indexer, registry)
 
 	// Compile index template.
-	var webUIRendered []byte
 	t, err := template.ParseFS(webUI, "index.html")
 	if err != nil {
 		return nil, err
 	}
-	if err = t.Execute(bytes.NewBuffer(webUIRendered), struct {
+	var buf bytes.Buffer
+	if err = t.Execute(&buf, struct {
 		URL string
 	}{
 		URL: cfg.homepageURL,
@@ -69,7 +69,7 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	r := mux.NewRouter().StrictSlash(true)
 	compileTime := time.Now()
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeContent(w, r, "index.html", compileTime, bytes.NewReader(webUIRendered))
+		http.ServeContent(w, r, "index.html", compileTime, bytes.NewReader(buf.Bytes()))
 	}).Methods(http.MethodGet)
 	r.HandleFunc("/cid/{cid}", h.findCid).Methods(http.MethodGet)
 	r.HandleFunc("/multihash/{multihash}", h.find).Methods(http.MethodGet)

@@ -138,3 +138,25 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 		})
 	}
 }
+
+func TestServer_Landing(t *testing.T) {
+	ind := test.InitIndex(t, false)
+	reg := test.InitRegistry(t)
+	s, err := New("127.0.0.1:0", ind, reg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, ind.Close())
+		require.NoError(t, reg.Close())
+	})
+
+	rr := httptest.NewRecorder()
+
+	req, err := http.NewRequest(http.MethodGet, "/", nil)
+	require.NoError(t, err)
+
+	s.server.Handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	gotBody := rr.Body.String()
+	require.NotEmpty(t, gotBody)
+	require.True(t, strings.Contains(gotBody, "https://web.cid.contact/"))
+}
