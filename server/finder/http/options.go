@@ -9,6 +9,7 @@ const (
 	apiWriteTimeout = 30 * time.Second
 	apiReadTimeout  = 30 * time.Second
 	maxConns        = 8_000
+	defaultHomepage = "https://web.cid.contact/"
 )
 
 // serverConfig is a structure containing all the options that can be used when constructing an http server
@@ -16,6 +17,7 @@ type serverConfig struct {
 	apiWriteTimeout time.Duration
 	apiReadTimeout  time.Duration
 	maxConns        int
+	homepageURL     string
 }
 
 // ServerOption for httpserver
@@ -27,6 +29,7 @@ var serverDefaults = func(o *serverConfig) error {
 	o.apiWriteTimeout = apiWriteTimeout
 	o.apiReadTimeout = apiReadTimeout
 	o.maxConns = maxConns
+	o.homepageURL = defaultHomepage
 	return nil
 }
 
@@ -57,6 +60,14 @@ func WriteTimeout(t time.Duration) ServerOption {
 func ReadTimeout(t time.Duration) ServerOption {
 	return func(c *serverConfig) error {
 		c.apiReadTimeout = t
+		return nil
+	}
+}
+
+// WithHomepage config for API
+func WithHomepage(URL string) ServerOption {
+	return func(c *serverConfig) error {
+		c.homepageURL = URL
 		return nil
 	}
 }
