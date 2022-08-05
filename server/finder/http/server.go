@@ -1,11 +1,14 @@
 package httpfinderserver
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"fmt"
 	"net"
 	"net/http"
+	"text/template"
+	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -48,9 +51,26 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	// Resource handler
 	h := newHandler(indexer, registry)
 
+	// Compile index template.
+	var webUIRendered []byte
+	t, err := template.ParseFS(webUI, "index.html")
+	if err != nil {
+		return nil, err
+	}
+	if err = t.Execute(bytes.NewBuffer(webUIRendered), struct {
+		URL string
+	}{
+		URL: cfg.homepageURL,
+	}); err != nil {
+		return nil, err
+	}
+
 	// Client routes
 	r := mux.NewRouter().StrictSlash(true)
-	r.Handle("/", http.FileServer(http.FS(webUI)))
+	compileTime := time.Now()
+	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, "index.html", compileTime, bytes.NewReader(webUIRendered))
+	}).Methods(http.MethodGet)
 	r.HandleFunc("/cid/{cid}", h.findCid).Methods(http.MethodGet)
 	r.HandleFunc("/multihash/{multihash}", h.find).Methods(http.MethodGet)
 	r.HandleFunc("/multihash", h.findBatch).Methods(http.MethodPost)
