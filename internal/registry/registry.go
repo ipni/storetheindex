@@ -415,15 +415,18 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 		}
 
 		if publisher.ID.Validate() == nil {
-			if len(publisher.Addrs) == 0 {
-				log.Warnw("Publisher has no addresses", "publisher", publisher.ID, "provider", providerID)
-			} else if publisher.ID != info.Publisher {
+			if publisher.ID != info.Publisher {
 				// Publisher ID changed.
 				info.Publisher = publisher.ID
-				info.PublisherAddr = publisher.Addrs[0]
 				fullRegister = true
+				// There is a new publisher, but no new publisher addresses.
+				if len(publisher.Addrs) != 0 {
+					log.Warnw("Publisher has no addresses", "publisher", publisher.ID, "provider", providerID)
+					// Use provider addr if publisher and provider are same.
+					info.PublisherAddr = nil
+				}
 			} else if len(publisher.Addrs) != 0 {
-				// Use provided publisher addrs.
+				// Use new publisher addrs if any given.
 				info.PublisherAddr = publisher.Addrs[0]
 			}
 		}
@@ -442,6 +445,16 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 		}
 	}
 
+	if len(addrs) != 0 {
+		maddrs, err := stringsToMultiaddrs(addrs)
+		if err != nil {
+			panic(err)
+		}
+		info.AddrInfo.Addrs = maddrs
+	}
+
+	// If there is no publisher addr and the publisher is the same as the
+	// provider, then use the provider address if there is one.
 	if info.Publisher.Validate() == nil && info.PublisherAddr == nil && info.Publisher == info.AddrInfo.ID {
 		if len(info.AddrInfo.Addrs) == 0 {
 			log.Warnw("Register provider with no provider or publisher addresses",
@@ -449,14 +462,6 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 		} else {
 			info.PublisherAddr = info.AddrInfo.Addrs[0]
 		}
-	}
-
-	if len(addrs) != 0 {
-		maddrs, err := stringsToMultiaddrs(addrs)
-		if err != nil {
-			panic(err)
-		}
-		info.AddrInfo.Addrs = maddrs
 	}
 
 	now := time.Now()
@@ -473,7 +478,7 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 		return r.Register(ctx, info)
 	}
 
-	// If laready registered and no new IDs, register without verification.
+	// If aready registered and no new IDs, register without verification.
 	errCh := make(chan error, 1)
 	r.actions <- func() {
 		errCh <- r.syncRegister(ctx, info)
