@@ -9,9 +9,12 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry/discovery"
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multihash"
+	"github.com/stretchr/testify/require"
 )
 
 type mockDiscoverer struct {
@@ -666,7 +669,7 @@ func TestPollProviderOverrides(t *testing.T) {
 	// stopped.
 	select {
 	case <-r.SyncChan():
-		t.Fatal("sync channel should not have beem written to for override peer")
+		t.Fatal("sync channel should not have been written to for override peer")
 	default:
 	}
 
@@ -674,4 +677,31 @@ func TestPollProviderOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
+	ctx := context.Background()
+	subject, err := NewRegistry(ctx, config.NewDiscovery(), datastore.NewMapDatastore(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, subject.Close()) })
+
+	// Register a provider first
+	provId, err := peer.Decode(exceptID)
+	require.NoError(t, err)
+	ma, err := multiaddr.NewMultiaddr(publisherAddr)
+	require.NoError(t, err)
+	err = subject.Register(ctx, &ProviderInfo{
+		AddrInfo: peer.AddrInfo{
+			ID:    provId,
+			Addrs: []multiaddr.Multiaddr{ma},
+		},
+	})
+	require.NoError(t, err)
+
+	// Assert that updating publisher for the registered provider with empty addrs does not panic.
+	mh, err := multihash.Sum([]byte("fish"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+	c := cid.NewCidV1(cid.Raw, mh)
+	err = subject.RegisterOrUpdate(ctx, provId, []string{publisherAddr}, c, peer.AddrInfo{ID: publisherID})
+	require.NoError(t, err)
 }
