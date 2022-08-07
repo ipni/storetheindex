@@ -415,7 +415,9 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 		}
 
 		if publisher.ID.Validate() == nil {
-			if publisher.ID != info.Publisher {
+			if len(publisher.Addrs) == 0 {
+				log.Warnw("Publisher has no addresses", "publisher", publisher.ID, "provider", providerID)
+			} else if publisher.ID != info.Publisher {
 				// Publisher ID changed.
 				info.Publisher = publisher.ID
 				info.PublisherAddr = publisher.Addrs[0]
