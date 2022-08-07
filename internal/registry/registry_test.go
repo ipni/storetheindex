@@ -226,8 +226,8 @@ func TestDiscoveryBlocked(t *testing.T) {
 		t.Fatal("expected error:", ErrNotAllowed, "got:", err)
 	}
 
-	into := r.ProviderInfo(peerID)
-	if into != nil {
+	info := r.ProviderInfo(peerID)
+	if info != nil {
 		t.Error("should not have found provider info for miner")
 	}
 }
@@ -704,4 +704,16 @@ func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 	c := cid.NewCidV1(cid.Raw, mh)
 	err = subject.RegisterOrUpdate(ctx, provId, []string{publisherAddr}, c, peer.AddrInfo{ID: publisherID})
 	require.NoError(t, err)
+
+	info := subject.ProviderInfo(provId)
+	require.NotNil(t, info)
+	require.Nil(t, info.PublisherAddr)
+
+	// Register a publisher that has no addresses, but publisherID is same as
+	// provider. Registry should use provider's address as publisher.
+	err = subject.RegisterOrUpdate(ctx, provId, []string{publisherAddr}, c, peer.AddrInfo{ID: provId})
+	info = subject.ProviderInfo(provId)
+	require.NoError(t, err)
+	require.NotNil(t, info)
+	require.Equal(t, info.AddrInfo.Addrs[0], info.PublisherAddr)
 }
