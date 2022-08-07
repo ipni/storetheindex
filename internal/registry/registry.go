@@ -448,9 +448,10 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 	if len(addrs) != 0 {
 		maddrs, err := stringsToMultiaddrs(addrs)
 		if err != nil {
-			panic(err)
+			log.Errorw("Invalid provider address", "err", err)
+		} else if len(maddrs) != 0 {
+			info.AddrInfo.Addrs = maddrs
 		}
-		info.AddrInfo.Addrs = maddrs
 	}
 
 	// If there is no publisher addr and the publisher is the same as the
