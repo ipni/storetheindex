@@ -769,7 +769,10 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 		pinfo := new(ProviderInfo)
 		err = json.Unmarshal(ent.Value, pinfo)
 		if err != nil {
-			return 0, err
+			log.Errorw("Cannot load provider info", "err", err, "provider", peerID)
+			pinfo.AddrInfo.ID = peerID
+			// Add the provider to the set of registered providers so that it
+			// does not get delisted. The next update should fix the addresses.
 		}
 
 		if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr == nil && pinfo.Publisher == pinfo.AddrInfo.ID {
