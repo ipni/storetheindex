@@ -308,6 +308,9 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		log = log.With("entriesKind", "EntryChunk")
 		// We have already peaked the first EntryChunk as part of probing the entries type.
 		// So process that first
+		ingestTotalTime := int64(0)
+		totalChunksCount := 1
+		ingestStartTime := time.Now()
 		chunk, err := ing.loadEntryChunk(syncedFirstEntryCid)
 		if err != nil {
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
@@ -317,11 +320,13 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 				errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 			}
 		}
+		ingestTotalTime += time.Since(ingestStartTime).Milliseconds()
 
 		if chunk != nil && chunk.Next != nil {
 			nextChunkCid := chunk.Next.(cidlink.Link).Cid
 			// Traverse remaining entry chunks based on the entries selector that limits recursion depth.
 			_, err = ing.sub.Sync(ctx, publisherID, nextChunkCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
+				ingestStartTime = time.Now()
 				// Load CID as entry chunk since the selector should only select entry chunk nodes.
 				chunk, err := ing.loadEntryChunk(c)
 				if err != nil {
@@ -340,6 +345,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 				} else {
 					actions.SetNextSyncCid(cid.Undef)
 				}
+				ingestTotalTime += time.Since(ingestStartTime).Milliseconds()
+				totalChunksCount++
 			}))
 			if err != nil {
 				if strings.Contains(err.Error(), "datatransfer failed: content not found") {
@@ -348,6 +355,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 				return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to sync entries: %w", err)}
 			}
 		}
+
+		log = log.With("ingestTotalTime", ingestTotalTime/1000.0).With("totalChunksCount", totalChunksCount)
 	}
 	elapsed := time.Since(startTime)
 	// Record how long sync took.
