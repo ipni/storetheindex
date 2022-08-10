@@ -25,6 +25,7 @@ import (
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/node/bindnode"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
 	"go.uber.org/zap"
@@ -149,18 +150,36 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 
 	// Register provider or update existing registration. The provider must be
 	// allowed by policy to be registered.
-	var pubInfo peer.AddrInfo
+	var publisher peer.AddrInfo
 	peerStore := ing.sub.HttpPeerStore()
 	if peerStore != nil {
-		pubInfo = peerStore.PeerInfo(publisherID)
+		publisher = peerStore.PeerInfo(publisherID)
 	}
-	if len(pubInfo.Addrs) == 0 {
+	if len(publisher.Addrs) == 0 {
 		peerStore = ing.host.Peerstore()
 		if peerStore != nil {
-			pubInfo = peerStore.PeerInfo(publisherID)
+			publisher = peerStore.PeerInfo(publisherID)
 		}
 	}
-	err = ing.reg.RegisterOrUpdate(context.Background(), providerID, ad.Addresses, adCid, pubInfo)
+
+	var maddrs []multiaddr.Multiaddr
+	if len(ad.Addresses) != 0 {
+		maddrs = make([]multiaddr.Multiaddr, 0, len(ad.Addresses))
+		for _, addr := range ad.Addresses {
+			maddr, err := multiaddr.NewMultiaddr(addr)
+			if err != nil {
+				log.Warnw("Bad address in advertisement", "address", addr)
+				continue
+			}
+			maddrs = append(maddrs, maddr)
+		}
+	}
+
+	provider := peer.AddrInfo{
+		ID:    providerID,
+		Addrs: maddrs,
+	}
+	err = ing.reg.RegisterOrUpdate(context.Background(), provider, adCid, publisher)
 	if err != nil {
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
