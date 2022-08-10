@@ -717,3 +717,75 @@ func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 	require.NotNil(t, info)
 	require.Equal(t, info.AddrInfo.Addrs[0], info.PublisherAddr)
 }
+
+func TestFilterIPs(t *testing.T) {
+	cfg := config.NewDiscovery()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	maddrLocal, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	require.NoError(t, err)
+	maddrPvt, err := multiaddr.NewMultiaddr("/ip4/10.0.1.1/tcp/9999")
+	require.NoError(t, err)
+
+	provID, err := peer.Decode(limitedID)
+	require.NoError(t, err)
+	provAddr, err := multiaddr.NewMultiaddr("/dns4/provider.example.com/tcp/12345")
+	require.NoError(t, err)
+
+	pubID, err := peer.Decode(publisherID)
+	require.NoError(t, err)
+	pubAddr, err := multiaddr.NewMultiaddr("/dns4/publisher.example.com/tcp/9876")
+	require.NoError(t, err)
+
+	dstore := datastore.NewMapDatastore()
+	reg, err := NewRegistry(ctx, cfg, dstore, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, reg.Close()) })
+
+	publisher := peer.AddrInfo{
+		ID:    pubID,
+		Addrs: []multiaddr.Multiaddr{maddrPvt, pubAddr, maddrLocal},
+	}
+
+	err = reg.RegisterOrUpdate(ctx, provID, []string{maddrPvt.String(), provAddr.String(), maddrLocal.String()}, cid.Undef, publisher)
+	require.NoError(t, err)
+	require.NoError(t, reg.Close())
+
+	cfg.FilterIPs = true
+	reg, err = NewRegistry(ctx, cfg, dstore, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, reg.Close()) })
+
+	// Check that loading from datastore filtered IPs.
+	pinfo := reg.ProviderInfo(provID)
+	require.NotNil(t, pinfo)
+	require.Equal(t, 1, len(pinfo.AddrInfo.Addrs))
+	require.Equal(t, provAddr, pinfo.AddrInfo.Addrs[0])
+	// Expect nil because first publisher addr was private, so that was what
+	// was persisted.
+	require.Nil(t, pinfo.PublisherAddr)
+
+	// Check the RegisterOrUpdate filters IPs.
+	err = reg.RegisterOrUpdate(ctx, provID, []string{maddrPvt.String(), provAddr.String(), maddrLocal.String()}, cid.Undef, publisher)
+	require.NoError(t, err)
+	pinfo = reg.ProviderInfo(provID)
+	require.NotNil(t, pinfo)
+	require.Equal(t, 1, len(pinfo.AddrInfo.Addrs))
+	require.Equal(t, provAddr, pinfo.AddrInfo.Addrs[0])
+	require.Equal(t, pubAddr.String(), pinfo.PublisherAddr.String())
+
+	// Check the Register filters IPs.
+	err = reg.Register(ctx, &ProviderInfo{
+		AddrInfo: peer.AddrInfo{
+			ID:    pubID,
+			Addrs: []multiaddr.Multiaddr{maddrPvt, pubAddr, maddrLocal},
+		},
+	})
+	require.NoError(t, err)
+	pinfo = reg.ProviderInfo(pubID)
+	require.NotNil(t, pinfo)
+	require.Equal(t, 1, len(pinfo.AddrInfo.Addrs))
+	require.Equal(t, pubAddr, pinfo.AddrInfo.Addrs[0])
+}

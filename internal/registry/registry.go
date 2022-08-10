@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/filecoin-project/go-legs/mautil"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
 	"github.com/filecoin-project/storetheindex/config"
@@ -40,6 +41,7 @@ type Registry struct {
 	closeOnce sync.Once
 	closing   chan struct{}
 	dstore    datastore.Datastore
+	filterIPs bool
 	providers map[peer.ID]*ProviderInfo
 	sequences *sequences
 
@@ -160,6 +162,7 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 		actions:   make(chan func()),
 		closed:    make(chan struct{}),
 		closing:   make(chan struct{}),
+		filterIPs: cfg.FilterIPs,
 		policy:    regPolicy,
 		providers: map[peer.ID]*ProviderInfo{},
 		sequences: newSequences(0),
@@ -315,6 +318,10 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 // Register is used to directly register a provider, bypassing discovery and
 // adding discovered data directly to the registry.
 func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
+	if r.filterIPs {
+		info.AddrInfo.Addrs = mautil.FilterPrivateIPs(info.AddrInfo.Addrs)
+	}
+
 	if len(info.AddrInfo.Addrs) == 0 {
 		return errors.New("missing provider address")
 	}
@@ -398,6 +405,10 @@ func (r *Registry) BlockPeer(peerID peer.ID) bool {
 // If publisher has a valid ID, then the data in publisher replaces the
 // provider's previous publisher information.
 func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, addrs []string, adID cid.Cid, publisher peer.AddrInfo) error {
+	if r.filterIPs {
+		publisher.Addrs = mautil.FilterPrivateIPs(publisher.Addrs)
+	}
+
 	var fullRegister bool
 	// Check that the provider has been discovered and validated
 	info := r.ProviderInfo(providerID)
@@ -450,6 +461,9 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 		if err != nil {
 			log.Errorw("Invalid provider address", "err", err)
 		} else if len(maddrs) != 0 {
+			if r.filterIPs {
+				maddrs = mautil.FilterPrivateIPs(maddrs)
+			}
 			info.AddrInfo.Addrs = maddrs
 		}
 	}
@@ -773,6 +787,18 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 			pinfo.AddrInfo.ID = peerID
 			// Add the provider to the set of registered providers so that it
 			// does not get delisted. The next update should fix the addresses.
+		}
+
+		if r.filterIPs {
+			pinfo.AddrInfo.Addrs = mautil.FilterPrivateIPs(pinfo.AddrInfo.Addrs)
+			if pinfo.Publisher.Validate() == nil {
+				pubAddrs := mautil.FilterPrivateIPs([]multiaddr.Multiaddr{pinfo.PublisherAddr})
+				if len(pubAddrs) == 0 {
+					pinfo.PublisherAddr = nil
+				} else {
+					pinfo.PublisherAddr = pubAddrs[0]
+				}
+			}
 		}
 
 		if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr == nil && pinfo.Publisher == pinfo.AddrInfo.ID {
