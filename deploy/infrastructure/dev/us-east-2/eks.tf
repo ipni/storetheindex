@@ -46,6 +46,34 @@ module "eks" {
         }
       }
     }
+    dev-ue2b-r5b-2xl = {
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 1
+      instance_types = ["r5b.2xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2b.id]
+      taints = {
+        dedicated = {
+          key    = "dedicated"
+          value  = "r5b"
+          effect = "NO_SCHEDULE"
+        }
+      }
+    }
+    dev-ue2c-r5b-2xl = {
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 1
+      instance_types = ["r5b.2xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2c.id]
+      taints = {
+        dedicated = {
+          key    = "dedicated"
+          value  = "r5b"
+          effect = "NO_SCHEDULE"
+        }
+      }
+    }
   }
 
   tags = local.tags
@@ -53,4 +81,30 @@ module "eks" {
 
 data "aws_eks_cluster_auth" "this" {
   name = module.eks.cluster_id
+}
+
+data "aws_subnet" "ue2b" {
+  vpc_id = module.vpc.vpc_id
+
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-2b"]
+  }
+  filter {
+    name   = "subnet-id"
+    values = module.vpc.private_subnets
+  }
+}
+
+data "aws_subnet" "ue2c" {
+  vpc_id = module.vpc.vpc_id
+
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-2c"]
+  }
+  filter {
+    name   = "subnet-id"
+    values = module.vpc.private_subnets
+  }
 }
