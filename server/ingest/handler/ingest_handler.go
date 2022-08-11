@@ -92,9 +92,14 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 		return err
 	}
 
+	maddrs, err := stringsToMultiaddrs(ingReq.Addrs)
+	if err != nil {
+		return err
+	}
+
 	provider := peer.AddrInfo{
 		ID:    ingReq.ProviderID,
-		Addrs: stringsToMultiaddrs(ingReq.Addrs),
+		Addrs: maddrs,
 	}
 
 	// Register provider if not registered, or update addreses if already registered
@@ -162,17 +167,17 @@ func (h *IngestHandler) Announce(r io.Reader) error {
 	return h.ingester.Announce(context.Background(), an.Cid, addrInfo)
 }
 
-func stringsToMultiaddrs(addrs []string) []multiaddr.Multiaddr {
+func stringsToMultiaddrs(addrs []string) ([]multiaddr.Multiaddr, error) {
 	if len(addrs) == 0 {
-		return nil
+		return nil, nil
 	}
-	maddrs := make([]multiaddr.Multiaddr, 0, len(addrs))
-	for _, addr := range addrs {
-		maddr, err := multiaddr.NewMultiaddr(addr)
+	maddrs := make([]multiaddr.Multiaddr, len(addrs))
+	for i, addr := range addrs {
+		var err error
+		maddrs[i], err = multiaddr.NewMultiaddr(addr)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("bad address: %s", err)
 		}
-		maddrs = append(maddrs, maddr)
 	}
-	return maddrs
+	return maddrs, nil
 }
