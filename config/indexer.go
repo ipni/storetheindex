@@ -23,6 +23,8 @@ type Indexer struct {
 	ValueStoreDir string
 	// Type of valuestore to use, such as "sth" or "pogreb".
 	ValueStoreType string
+	// sth bits to use
+	STHBits uint8
 }
 
 // NewIndexer returns Indexer with values set to their defaults.
@@ -34,6 +36,7 @@ func NewIndexer() Indexer {
 		ShutdownTimeout:     Duration(10 * time.Second),
 		ValueStoreDir:       "valuestore",
 		ValueStoreType:      "sth",
+		STHBits:             24,
 	}
 }
 
@@ -58,5 +61,8 @@ func (c *Indexer) populateUnset() {
 	}
 	if c.ValueStoreType == "" {
 		c.ValueStoreType = def.ValueStoreType
+	}
+	if c.STHBits == 0 {
+		c.STHBits = def.STHBits
 	}
 }

@@ -476,7 +476,12 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 
 	switch cfgIndexer.ValueStoreType {
 	case vstoreStorethehash:
-		return storethehash.New(ctx, dir, storethehash.GCInterval(time.Duration(cfgIndexer.GCInterval)))
+		return storethehash.New(
+			ctx,
+			dir,
+			storethehash.GCInterval(time.Duration(cfgIndexer.GCInterval)),
+			storethehash.IndexBitSize(cfgIndexer.STHBits),
+		)
 	case vstorePogreb:
 		return pogreb.New(dir)
 	case vstoreMemory:
