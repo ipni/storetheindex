@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: indexer-config
-  namespace: storetheindex
+  namespace: storetheindex-debug
 data:
   config: |
     {
@@ -67,7 +67,7 @@ data:
         "ShutdownTimeout": "15s",
         "ValueStoreDir": "/data/valuestore",
         "ValueStoreType": "sth",
-        "STHBits": 32
+        "STHBits": 30
       },
       "Ingest": {
         "AdvertisementDepthLimit": 33554432,
