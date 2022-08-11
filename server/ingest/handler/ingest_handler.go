@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 )
 
 // IngestHandler provides request handling functionality for the ingest server
@@ -91,8 +92,18 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 		return err
 	}
 
+	maddrs, err := stringsToMultiaddrs(ingReq.Addrs)
+	if err != nil {
+		return err
+	}
+
+	provider := peer.AddrInfo{
+		ID:    ingReq.ProviderID,
+		Addrs: maddrs,
+	}
+
 	// Register provider if not registered, or update addreses if already registered
-	err = h.registry.RegisterOrUpdate(ctx, ingReq.ProviderID, ingReq.Addrs, cid.Undef, peer.AddrInfo{})
+	err = h.registry.RegisterOrUpdate(ctx, provider, cid.Undef, peer.AddrInfo{})
 	if err != nil {
 		return err
 	}
@@ -154,4 +165,19 @@ func (h *IngestHandler) Announce(r io.Reader) error {
 	// Use background context because this will be an async process. We don't
 	// want to attach the context to the request context that started this.
 	return h.ingester.Announce(context.Background(), an.Cid, addrInfo)
+}
+
+func stringsToMultiaddrs(addrs []string) ([]multiaddr.Multiaddr, error) {
+	if len(addrs) == 0 {
+		return nil, nil
+	}
+	maddrs := make([]multiaddr.Multiaddr, len(addrs))
+	for i, addr := range addrs {
+		var err error
+		maddrs[i], err = multiaddr.NewMultiaddr(addr)
+		if err != nil {
+			return nil, fmt.Errorf("bad address: %s", err)
+		}
+	}
+	return maddrs, nil
 }

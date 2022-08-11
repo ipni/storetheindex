@@ -182,6 +182,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	// to index data as it is received.
 	sub, err := legs.NewSubscriber(h, ds, ing.lsys, cfg.PubSubTopic, Selectors.AdSequence,
 		legs.AllowPeer(reg.Allowed),
+		legs.FilterIPs(reg.FilterIPsEnabled()),
 		legs.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)),
 		legs.UseLatestSyncHandler(&syncHandler{ing}),
 		legs.RateLimiter(ing.getRateLimiter),

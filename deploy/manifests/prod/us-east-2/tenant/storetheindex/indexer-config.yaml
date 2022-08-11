@@ -43,6 +43,7 @@ data:
         "Dir": "/data/datastore"
       },
       "Discovery": {
+        "FilterIPs": true,
         "LotusGateway": "wss://api.chain.love",
         "Policy": {
           "Allow": true,

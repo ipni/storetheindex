@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/filecoin-project/go-legs/mautil"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
 	"github.com/filecoin-project/storetheindex/config"
@@ -40,6 +41,7 @@ type Registry struct {
 	closeOnce sync.Once
 	closing   chan struct{}
 	dstore    datastore.Datastore
+	filterIPs bool
 	providers map[peer.ID]*ProviderInfo
 	sequences *sequences
 
@@ -160,6 +162,7 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 		actions:   make(chan func()),
 		closed:    make(chan struct{}),
 		closing:   make(chan struct{}),
+		filterIPs: cfg.FilterIPs,
 		policy:    regPolicy,
 		providers: map[peer.ID]*ProviderInfo{},
 		sequences: newSequences(0),
@@ -315,6 +318,10 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 // Register is used to directly register a provider, bypassing discovery and
 // adding discovered data directly to the registry.
 func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
+	if r.filterIPs {
+		info.AddrInfo.Addrs = mautil.FilterPrivateIPs(info.AddrInfo.Addrs)
+	}
+
 	if len(info.AddrInfo.Addrs) == 0 {
 		return errors.New("missing provider address")
 	}
@@ -393,25 +400,37 @@ func (r *Registry) BlockPeer(peerID peer.ID) bool {
 	return r.policy.Block(peerID)
 }
 
+// FilterIPsEnabled returns true if IP address filtering is enabled.
+func (r *Registry) FilterIPsEnabled() bool {
+	return r.filterIPs
+}
+
 // RegisterOrUpdate attempts to register an unregistered provider, or updates
 // the addresses and latest advertisement of an already registered provider.
 // If publisher has a valid ID, then the data in publisher replaces the
 // provider's previous publisher information.
-func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, addrs []string, adID cid.Cid, publisher peer.AddrInfo) error {
+func (r *Registry) RegisterOrUpdate(ctx context.Context, provider peer.AddrInfo, adID cid.Cid, publisher peer.AddrInfo) error {
+	if r.filterIPs {
+		provider.Addrs = mautil.FilterPrivateIPs(provider.Addrs)
+		publisher.Addrs = mautil.FilterPrivateIPs(publisher.Addrs)
+	}
+
 	var fullRegister bool
 	// Check that the provider has been discovered and validated
-	info := r.ProviderInfo(providerID)
+	info := r.ProviderInfo(provider.ID)
 	if info != nil {
 		info = &ProviderInfo{
-			AddrInfo: peer.AddrInfo{
-				ID:    providerID,
-				Addrs: info.AddrInfo.Addrs,
-			},
+			AddrInfo:              info.AddrInfo,
 			DiscoveryAddr:         info.DiscoveryAddr,
 			LastAdvertisement:     info.LastAdvertisement,
 			LastAdvertisementTime: info.LastAdvertisementTime,
 			Publisher:             info.Publisher,
 			PublisherAddr:         info.PublisherAddr,
+		}
+
+		// If new addrs provided, update to use these.
+		if len(provider.Addrs) != 0 {
+			info.AddrInfo.Addrs = provider.Addrs
 		}
 
 		if publisher.ID.Validate() == nil {
@@ -421,7 +440,7 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 				fullRegister = true
 				// There is a new publisher, but no new publisher addresses.
 				if len(publisher.Addrs) != 0 {
-					log.Warnw("Publisher has no addresses", "publisher", publisher.ID, "provider", providerID)
+					log.Warnw("Publisher has no addresses", "publisher", publisher.ID, "provider", provider.ID)
 					// Use provider addr if publisher and provider are same.
 					info.PublisherAddr = nil
 				}
@@ -433,24 +452,13 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, providerID peer.ID, add
 	} else {
 		fullRegister = true
 		info = &ProviderInfo{
-			AddrInfo: peer.AddrInfo{
-				ID: providerID,
-			},
+			AddrInfo: provider,
 		}
 		if publisher.ID.Validate() == nil {
 			info.Publisher = publisher.ID
 		}
 		if len(publisher.Addrs) != 0 {
 			info.PublisherAddr = publisher.Addrs[0]
-		}
-	}
-
-	if len(addrs) != 0 {
-		maddrs, err := stringsToMultiaddrs(addrs)
-		if err != nil {
-			log.Errorw("Invalid provider address", "err", err)
-		} else if len(maddrs) != 0 {
-			info.AddrInfo.Addrs = maddrs
 		}
 	}
 
@@ -775,6 +783,18 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 			// does not get delisted. The next update should fix the addresses.
 		}
 
+		if r.filterIPs {
+			pinfo.AddrInfo.Addrs = mautil.FilterPrivateIPs(pinfo.AddrInfo.Addrs)
+			if pinfo.Publisher.Validate() == nil {
+				pubAddrs := mautil.FilterPrivateIPs([]multiaddr.Multiaddr{pinfo.PublisherAddr})
+				if len(pubAddrs) == 0 {
+					pinfo.PublisherAddr = nil
+				} else {
+					pinfo.PublisherAddr = pubAddrs[0]
+				}
+			}
+		}
+
 		if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr == nil && pinfo.Publisher == pinfo.AddrInfo.ID {
 			pinfo.PublisherAddr = pinfo.AddrInfo.Addrs[0]
 		}
@@ -888,21 +908,4 @@ func (r *Registry) syncRemoveProvider(ctx context.Context, providerID peer.ID) e
 		return err
 	}
 	return nil
-}
-
-// stringsToMultiaddrs converts a slice of string into a slice of Multiaddr
-func stringsToMultiaddrs(addrs []string) ([]multiaddr.Multiaddr, error) {
-	if len(addrs) == 0 {
-		return nil, nil
-	}
-
-	maddrs := make([]multiaddr.Multiaddr, len(addrs))
-	for i, m := range addrs {
-		var err error
-		maddrs[i], err = multiaddr.NewMultiaddr(m)
-		if err != nil {
-			return nil, fmt.Errorf("bad address: %s", err)
-		}
-	}
-	return maddrs, nil
 }

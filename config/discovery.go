@@ -8,6 +8,9 @@ import (
 // advertisements, which peers to allow and block, and time related settings
 // for provider discovery
 type Discovery struct {
+	// FilterIPs, when true, removes any private, loopback, or unspecified IP
+	// addresses from provider and publisher addresses.
+	FilterIPs bool
 	// LotusGateway is the host or host:port for a lotus gateway used to
 	// verify providers on the blockchain.
 	LotusGateway string
