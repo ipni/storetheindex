@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: indexer-config
-  namespace: storetheindex-debug
+  namespace: storetheindex
 data:
   config: |
     {
