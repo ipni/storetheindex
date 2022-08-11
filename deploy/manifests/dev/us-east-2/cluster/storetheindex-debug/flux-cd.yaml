@@ -1,0 +1,24 @@
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: GitRepository
+metadata:
+  name: storetheindex
+spec:
+  interval: 5m
+  url: https://github.com/filecoin-project/storetheindex.git
+  ref:
+    branch: main
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
+kind: Kustomization
+metadata:
+  name: storetheindex
+spec:
+  serviceAccountName: flux
+  decryption:
+    provider: sops
+  interval: 1m
+  path: "./deploy/manifests/dev/us-east-2/tenant/storetheindex-debug"
+  sourceRef:
+    kind: GitRepository
+    name: storetheindex
+  prune: true
