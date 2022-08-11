@@ -23,7 +23,8 @@ type Indexer struct {
 	ValueStoreDir string
 	// Type of valuestore to use, such as "sth" or "pogreb".
 	ValueStoreType string
-	// sth bits to use
+	// bits for bucket size in store the hash. Note: this should not be changed
+	// from it's value at initialization or the datastore will be corrupted.
 	STHBits uint8
 }
 
