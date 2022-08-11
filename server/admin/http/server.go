@@ -18,15 +18,14 @@ import (
 var log = logging.Logger("indexer/admin")
 
 type Server struct {
-	cancel context.CancelFunc
-	l      net.Listener
-	server *http.Server
+	ctx     context.Context
+	cancel  context.CancelFunc
+	l       net.Listener
+	server  *http.Server
+	handler *adminHandler
 }
 
-func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error, options ...ServerOption) (*Server, error) {
-	if ingester == nil {
-		panic("ingester cannot be nil")
-	}
+func New(listen string, options ...ServerOption) (*Server, error) {
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
@@ -48,27 +47,27 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &Server{
-		cancel: cancel,
-		l:      l,
-		server: server,
+		ctx:     ctx,
+		cancel:  cancel,
+		l:       l,
+		server:  server,
+		handler: nil,
 	}
-
-	h := newHandler(ctx, indexer, ingester, reg, reloadErrChan)
 
 	// Set protocol handlers
 	// Import routes
-	r.HandleFunc("/import/manifest/{provider}", h.importManifest).Methods(http.MethodPost)
-	r.HandleFunc("/import/cidlist/{provider}", h.importCidList).Methods(http.MethodPost)
+	r.HandleFunc("/import/manifest/{provider}", s.importManifest).Methods(http.MethodPost)
+	r.HandleFunc("/import/cidlist/{provider}", s.importCidList).Methods(http.MethodPost)
 
 	// Admin routes
-	r.HandleFunc("/healthcheck", h.healthCheckHandler).Methods(http.MethodGet)
-	r.HandleFunc("/importproviders", h.importProviders).Methods(http.MethodPost)
-	r.HandleFunc("/reloadconfig", h.reloadConfig).Methods(http.MethodPost)
+	r.HandleFunc("/healthcheck", s.healthCheckHandler).Methods(http.MethodGet)
+	r.HandleFunc("/importproviders", s.importProviders).Methods(http.MethodPost)
+	r.HandleFunc("/reloadconfig", s.reloadConfig).Methods(http.MethodPost)
 
 	// Ingester routes
-	r.HandleFunc("/ingest/allow/{peer}", h.allowPeer).Methods(http.MethodPut)
-	r.HandleFunc("/ingest/block/{peer}", h.blockPeer).Methods(http.MethodPut)
-	r.HandleFunc("/ingest/sync/{peer}", h.sync).Methods(http.MethodPost)
+	r.HandleFunc("/ingest/allow/{peer}", s.allowPeer).Methods(http.MethodPut)
+	r.HandleFunc("/ingest/block/{peer}", s.blockPeer).Methods(http.MethodPut)
+	r.HandleFunc("/ingest/sync/{peer}", s.sync).Methods(http.MethodPost)
 
 	// Metrics routes
 	r.Handle("/metrics", metrics.Start(coremetrics.DefaultViews))
@@ -81,6 +80,16 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 	return s, nil
 }
 
+func (s *Server) SetHandler(indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error) error {
+	if ingester == nil {
+		panic("ingester cannot be nil")
+	}
+
+	h := newHandler(s.ctx, indexer, ingester, reg, reloadErrChan)
+	s.handler = h
+	return nil
+}
+
 func (s *Server) Start() error {
 	log.Infow("admin http server listening", "listen_addr", s.l.Addr())
 	return s.server.Serve(s.l)
@@ -90,4 +99,68 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	log.Info("admin http server shutdown")
 	s.cancel() // stop any sync in progress
 	return s.server.Shutdown(ctx)
+}
+
+func (s *Server) importManifest(w http.ResponseWriter, r *http.Request) {
+	if s.handler == nil {
+		http.Error(w, "handler not set", http.StatusInternalServerError)
+		return
+	}
+	s.handler.importManifest(w, r)
+}
+
+func (s *Server) importCidList(w http.ResponseWriter, r *http.Request) {
+	if s.handler == nil {
+		http.Error(w, "handler not set", http.StatusInternalServerError)
+		return
+	}
+	s.handler.importCidList(w, r)
+}
+
+func (s *Server) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	if s.handler == nil {
+		http.Error(w, "handler not set. not ready yet.", http.StatusInternalServerError)
+		return
+	}
+	s.handler.healthCheckHandler(w, r)
+}
+
+func (s *Server) importProviders(w http.ResponseWriter, r *http.Request) {
+	if s.handler == nil {
+		http.Error(w, "handler not set. not ready yet.", http.StatusInternalServerError)
+		return
+	}
+	s.handler.importProviders(w, r)
+}
+
+func (s *Server) reloadConfig(w http.ResponseWriter, r *http.Request) {
+	if s.handler == nil {
+		http.Error(w, "handler not set. not ready yet.", http.StatusInternalServerError)
+		return
+	}
+	s.handler.reloadConfig(w, r)
+}
+
+func (s *Server) allowPeer(w http.ResponseWriter, r *http.Request) {
+	if s.handler == nil {
+		http.Error(w, "handler not set. not ready yet.", http.StatusInternalServerError)
+		return
+	}
+	s.handler.allowPeer(w, r)
+}
+
+func (s *Server) blockPeer(w http.ResponseWriter, r *http.Request) {
+	if s.handler == nil {
+		http.Error(w, "handler not set. not ready yet.", http.StatusInternalServerError)
+		return
+	}
+	s.handler.blockPeer(w, r)
+}
+
+func (s *Server) sync(w http.ResponseWriter, r *http.Request) {
+	if s.handler == nil {
+		http.Error(w, "handler not set. not ready yet.", http.StatusInternalServerError)
+		return
+	}
+	s.handler.sync(w, r)
 }

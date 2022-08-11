@@ -82,6 +82,32 @@ func daemonCommand(cctx *cli.Context) error {
 		return fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Datastore.Type)
 	}
 
+	// Create admin HTTP server
+	var adminSvr *httpadminserver.Server
+	if cfg.Addresses.Admin != "" && !cctx.Bool("noadmin") {
+		maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Admin)
+		if err != nil {
+			return fmt.Errorf("bad admin address in config %s: %s", cfg.Addresses.Admin, err)
+		}
+		adminAddr, err := manet.ToNetAddr(maddr)
+		if err != nil {
+			return err
+		}
+		adminSvr, err = httpadminserver.New(adminAddr.String())
+		if err != nil {
+			return err
+		}
+	}
+	svrErrChan := make(chan error, 3)
+	if adminSvr != nil {
+		go func() {
+			svrErrChan <- adminSvr.Start()
+		}()
+		fmt.Println("Admin server:\t", cfg.Addresses.Admin)
+	} else {
+		fmt.Println("Admin server:\t disabled")
+	}
+
 	// Create a valuestore of the configured type.
 	valueStore, err := createValueStore(cctx.Context, cfg.Indexer)
 	if err != nil {
@@ -250,33 +276,14 @@ func daemonCommand(cctx *cli.Context) error {
 
 	reloadErrsChan := make(chan chan error, 1)
 
-	// Create admin HTTP server
-	var adminSvr *httpadminserver.Server
+	// load admin server.
 	if cfg.Addresses.Admin != "" && !cctx.Bool("noadmin") {
-		maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Admin)
-		if err != nil {
-			return fmt.Errorf("bad admin address in config %s: %s", cfg.Addresses.Admin, err)
-		}
-		adminAddr, err := manet.ToNetAddr(maddr)
-		if err != nil {
-			return err
-		}
-		adminSvr, err = httpadminserver.New(adminAddr.String(), indexerCore, ingester, reg, reloadErrsChan)
-		if err != nil {
+		if err = adminSvr.SetHandler(indexerCore, ingester, reg, reloadErrsChan); err != nil {
 			return err
 		}
 	}
 
 	log.Info("Starting http servers")
-	svrErrChan := make(chan error, 3)
-	if adminSvr != nil {
-		go func() {
-			svrErrChan <- adminSvr.Start()
-		}()
-		fmt.Println("Admin server:\t", cfg.Addresses.Admin)
-	} else {
-		fmt.Println("Admin server:\t disabled")
-	}
 	if finderSvr != nil {
 		go func() {
 			svrErrChan <- finderSvr.Start()
