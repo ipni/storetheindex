@@ -46,30 +46,30 @@ module "eks" {
         }
       }
     }
-    dev-ue2b-r5b-2xl = {
+    dev-ue2b-r5b-4xl = {
       min_size       = 1
       max_size       = 3
       desired_size   = 1
-      instance_types = ["r5b.2xlarge"]
+      instance_types = ["r5b.4xlarge"]
       subnet_ids     = [data.aws_subnet.ue2b.id]
       taints = {
         dedicated = {
           key    = "dedicated"
-          value  = "r5b-2xl"
+          value  = "r5b-4xl"
           effect = "NO_SCHEDULE"
         }
       }
     }
-    dev-ue2c-r5b-2xl = {
+    dev-ue2c-r5b-4xl = {
       min_size       = 1
       max_size       = 3
       desired_size   = 1
-      instance_types = ["r5b.2xlarge"]
+      instance_types = ["r5b.4xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c.id]
       taints = {
         dedicated = {
           key    = "dedicated"
-          value  = "r5b-2xl"
+          value  = "r5b-4xl"
           effect = "NO_SCHEDULE"
         }
       }
