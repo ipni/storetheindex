@@ -55,7 +55,7 @@ module "eks" {
       taints = {
         dedicated = {
           key    = "dedicated"
-          value  = "r5b"
+          value  = "r5b-2xl"
           effect = "NO_SCHEDULE"
         }
       }
@@ -69,7 +69,7 @@ module "eks" {
       taints = {
         dedicated = {
           key    = "dedicated"
-          value  = "r5b"
+          value  = "r5b-2xl"
           effect = "NO_SCHEDULE"
         }
       }

@@ -5,6 +5,15 @@ metadata:
 spec:
   template:
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.kubernetes.io/instance-type
+                    operator: In
+                    values:
+                      - "r5b.2xlarge"
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
@@ -32,7 +41,7 @@ spec:
       tolerations:
         - key: dedicated
           operator: Equal
-          value: r5b
+          value: r5b-2xl
           effect: NoSchedule
       volumes:
         - name: identity
