@@ -641,3 +641,17 @@ func TestFilterIPs(t *testing.T) {
 	require.Equal(t, 1, len(pinfo.AddrInfo.Addrs))
 	require.Equal(t, pubAddr, pinfo.AddrInfo.Addrs[0])
 }
+
+func TestRegistry_loadPersistedProvidersFiltersNilAddrGracefully(t *testing.T) {
+	ctx := context.Background()
+	ds := datastore.NewMapDatastore()
+	pid, err := peer.Decode("12D3KooWK7CTS7cyWi51PeNE3cTjS2F2kDCZaQVU4A5xBmb9J1do")
+	require.NoError(t, err)
+
+	err = ds.Put(ctx, peerIDToDsKey(pid), []byte(`{"PublisherAddr": null,"AddrInfo": {},"LastAdvertisement":null,"LastAdvertisementTime":"0001-01-01T00:00:00Z","Publisher":"`+pid.String()+`"}`))
+	require.NoError(t, err)
+	cfg := config.NewDiscovery()
+	cfg.FilterIPs = true
+	_, err = NewRegistry(ctx, cfg, ds, nil)
+	require.NoError(t, err)
+}
