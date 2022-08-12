@@ -795,7 +795,8 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 			}
 		}
 
-		if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr == nil && pinfo.Publisher == pinfo.AddrInfo.ID {
+		if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr == nil && pinfo.Publisher == pinfo.AddrInfo.ID &&
+			len(pinfo.AddrInfo.Addrs) != 0 {
 			pinfo.PublisherAddr = pinfo.AddrInfo.Addrs[0]
 		}
 		r.providers[peerID] = pinfo
