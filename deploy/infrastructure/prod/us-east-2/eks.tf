@@ -51,5 +51,60 @@ module "eks" {
         }
       }
     }
+    prod-ue2a-r5b-4xl = {
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 1
+      instance_types = ["r5b.4xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2a.id]
+      taints         = {
+        dedicated = {
+          key    = "dedicated"
+          value  = "r5b-4xl"
+          effect = "NO_SCHEDULE"
+        }
+      }
+    }
+    prod-ue2b-r5b-4xl = {
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 1
+      instance_types = ["r5b.4xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2b.id]
+      taints         = {
+        dedicated = {
+          key    = "dedicated"
+          value  = "r5b-4xl"
+          effect = "NO_SCHEDULE"
+        }
+      }
+    }
   }
 }
+
+data "aws_subnet" "ue2a" {
+  vpc_id = module.vpc.vpc_id
+
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-2a"]
+  }
+  filter {
+    name   = "subnet-id"
+    values = module.vpc.private_subnets
+  }
+}
+
+data "aws_subnet" "ue2b" {
+  vpc_id = module.vpc.vpc_id
+
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-2b"]
+  }
+  filter {
+    name   = "subnet-id"
+    values = module.vpc.private_subnets
+  }
+}
+
