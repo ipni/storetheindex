@@ -785,7 +785,7 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 
 		if r.filterIPs {
 			pinfo.AddrInfo.Addrs = mautil.FilterPrivateIPs(pinfo.AddrInfo.Addrs)
-			if pinfo.Publisher.Validate() == nil {
+			if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr != nil {
 				pubAddrs := mautil.FilterPrivateIPs([]multiaddr.Multiaddr{pinfo.PublisherAddr})
 				if len(pubAddrs) == 0 {
 					pinfo.PublisherAddr = nil
