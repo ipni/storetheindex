@@ -29,6 +29,7 @@ import (
 	"github.com/ipfs/go-ipfs/core/bootstrap"
 	"github.com/ipfs/go-ipfs/peering"
 	logging "github.com/ipfs/go-log/v2"
+	sth "github.com/ipld/go-storethehash/store"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -479,8 +480,9 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		return storethehash.New(
 			ctx,
 			dir,
-			storethehash.GCInterval(time.Duration(cfgIndexer.GCInterval)),
-			storethehash.IndexBitSize(cfgIndexer.STHBits),
+			sth.GCInterval(time.Duration(cfgIndexer.GCInterval)),
+			sth.GCTimeLimit(time.Duration(cfgIndexer.GCTimeLimit)),
+			sth.IndexBitSize(cfgIndexer.STHBits),
 		)
 	case vstorePogreb:
 		return pogreb.New(dir)

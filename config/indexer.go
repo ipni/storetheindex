@@ -15,6 +15,9 @@ type Indexer struct {
 	// GCInterval configures the garbage collection interval for valuestores
 	// that support it.
 	GCInterval Duration
+	// GCTimeLimit configures the maximum amount of time a garbage collection
+	// cycle may run.
+	GCTimeLimit Duration
 	// ShutdownTimeout is the duration that a graceful shutdown has to complete
 	// before the daemon process is terminated.
 	ShutdownTimeout Duration
@@ -34,6 +37,7 @@ func NewIndexer() Indexer {
 		CacheSize:           300000,
 		ConfigCheckInterval: Duration(30 * time.Second),
 		GCInterval:          Duration(30 * time.Minute),
+		GCTimeLimit:         Duration(5 * time.Minute),
 		ShutdownTimeout:     Duration(10 * time.Second),
 		ValueStoreDir:       "valuestore",
 		ValueStoreType:      "sth",
@@ -53,6 +57,9 @@ func (c *Indexer) populateUnset() {
 	}
 	if c.GCInterval == 0 {
 		c.GCInterval = def.GCInterval
+	}
+	if c.GCTimeLimit == 0 {
+		c.GCTimeLimit = def.GCTimeLimit
 	}
 	if c.ShutdownTimeout == 0 {
 		c.ShutdownTimeout = def.ShutdownTimeout
