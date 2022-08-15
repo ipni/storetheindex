@@ -5,6 +5,7 @@ metadata:
 spec:
   template:
     spec:
+      terminationGracePeriodSeconds: 300
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -47,7 +48,6 @@ spec:
         - name: identity
           secret:
             secretName: indexer-identity
-      - terminationGracePeriodSeconds: 300
   volumeClaimTemplates:
     - metadata:
         name: data
