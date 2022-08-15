@@ -256,6 +256,9 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 }
 
 func (ing *Ingester) Close() error {
+	// Tell workers to stop ingestion in progress.
+	ing.cancelWorkers()
+
 	// Close leg transport.
 	err := ing.sub.Close()
 	log.Info("legs subscriber stopped")
@@ -840,7 +843,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 	splitAtIndex := len(assignment.adInfos)
 	for i, ai := range assignment.adInfos {
 		if ctx.Err() != nil {
-			log.Infow("Ingest worker canceled while ingesting ads", "provider", provider)
+			log.Infow("Ingest worker canceled while ingesting ads", "provider", provider, "err", ctx.Err())
 			ing.inEvents <- adProcessedEvent{
 				publisher: assignment.publisher,
 				headAdCid: assignment.adInfos[0].cid,
@@ -882,7 +885,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		count++
 
 		if ctx.Err() != nil {
-			log.Infow("Ingest worker canceled while processing ads", "provider", provider)
+			log.Infow("Ingest worker canceled while processing ads", "provider", provider, "err", ctx.Err())
 			ing.inEvents <- adProcessedEvent{
 				publisher: assignment.publisher,
 				headAdCid: assignment.adInfos[0].cid,
