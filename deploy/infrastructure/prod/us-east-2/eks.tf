@@ -38,19 +38,6 @@ module "eks" {
     # See:
     #  - https://aws.amazon.com/ec2/instance-types/#Memory_Optimized
     #  - https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html#solid-state-drives
-    prod-ue2-r5b-xl = {
-      min_size       = 3
-      max_size       = 7
-      desired_size   = 3
-      instance_types = ["r5b.xlarge"]
-      taints         = {
-        dedicated = {
-          key    = "dedicated"
-          value  = "r5b"
-          effect = "NO_SCHEDULE"
-        }
-      }
-    }
     prod-ue2a-r5b-4xl = {
       min_size       = 1
       max_size       = 3
