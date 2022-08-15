@@ -105,6 +105,8 @@ type Ingester struct {
 
 	waitForPendingSyncs sync.WaitGroup
 	closePendingSyncs   chan struct{}
+	cancelWorkers       context.CancelFunc
+	workersCtx          context.Context
 
 	cancelOnSyncFinished context.CancelFunc
 
@@ -203,6 +205,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	if cfg.IngestWorkerCount == 0 {
 		return nil, errors.New("ingester worker count must be > 0")
 	}
+
+	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 	ing.RunWorkers(cfg.IngestWorkerCount)
 	go ing.runIngesterLoop()
 
@@ -254,6 +258,7 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 func (ing *Ingester) Close() error {
 	// Close leg transport.
 	err := ing.sub.Close()
+	log.Info("legs subscriber stopped")
 
 	// Dismiss any event readers.
 	ing.outEventsMutex.Lock()
@@ -269,13 +274,18 @@ func (ing *Ingester) Close() error {
 		ing.cancelOnSyncFinished()
 		close(ing.closeWorkers)
 		ing.waitForWorkers.Wait()
+		log.Info("Workers stopped")
+
 		close(ing.closePendingSyncs)
 		ing.waitForPendingSyncs.Wait()
+		log.Info("Pending sync processing stopped")
 
 		// Stop the distribution goroutine.
 		close(ing.inEvents)
 
 		close(ing.sigUpdate)
+
+		log.Info("Ingester stopped")
 	})
 
 	return err
@@ -708,7 +718,7 @@ func (ing *Ingester) RunWorkers(n int) {
 	for n > ing.workerPoolSize {
 		// Start worker.
 		ing.waitForWorkers.Add(1)
-		go ing.ingestWorker()
+		go ing.ingestWorker(ing.workersCtx)
 		ing.workerPoolSize++
 	}
 	for n < ing.workerPoolSize {
@@ -784,7 +794,7 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 	}
 }
 
-func (ing *Ingester) ingestWorker() {
+func (ing *Ingester) ingestWorker(ctx context.Context) {
 	log.Debug("started ingest worker")
 	defer ing.waitForWorkers.Done()
 
@@ -799,14 +809,14 @@ func (ing *Ingester) ingestWorker() {
 			pc := ing.providersBeingProcessed[pid]
 			ing.providersBeingProcessedMu.Unlock()
 			pc <- struct{}{}
-			ing.ingestWorkerLogic(pid)
-			ing.handlePendingAnnounce(pid)
+			ing.ingestWorkerLogic(ctx, pid)
+			ing.handlePendingAnnounce(ctx, pid)
 			<-pc
 		}
 	}
 }
 
-func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
+func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 	// Pull out the assignment for this provider. Note that runIngestStep
 	// populates this atomic.Value.
 	ing.providersBeingProcessedMu.Lock()
@@ -829,6 +839,16 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 	// Filter out ads that are already processed, and any earlier ads.
 	splitAtIndex := len(assignment.adInfos)
 	for i, ai := range assignment.adInfos {
+		if ctx.Err() != nil {
+			log.Infow("Ingest worker canceled while ingesting ads", "provider", provider)
+			ing.inEvents <- adProcessedEvent{
+				publisher: assignment.publisher,
+				headAdCid: assignment.adInfos[0].cid,
+				adCid:     ai.cid,
+				err:       ctx.Err(),
+			}
+			return
+		}
 		// Iterate latest to earliest.
 		if ing.adAlreadyProcessed(ai.cid) {
 			// This ad is already processed, which means that all earlier ads
@@ -860,6 +880,17 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 		// Note that iteration proceeds backwards here. Earliest to newest.
 		ai := assignment.adInfos[i]
 		count++
+
+		if ctx.Err() != nil {
+			log.Infow("Ingest worker canceled while processing ads", "provider", provider)
+			ing.inEvents <- adProcessedEvent{
+				publisher: assignment.publisher,
+				headAdCid: assignment.adInfos[0].cid,
+				adCid:     ai.cid,
+				err:       ctx.Err(),
+			}
+			return
+		}
 
 		// If this ad is skipped because it gets deleted later in the chain,
 		// then mark this ad as processed.
@@ -940,7 +971,10 @@ func (ing *Ingester) ingestWorkerLogic(provider peer.ID) {
 	}
 }
 
-func (ing *Ingester) handlePendingAnnounce(pid peer.ID) {
+func (ing *Ingester) handlePendingAnnounce(ctx context.Context, pid peer.ID) {
+	if ctx.Err() != nil {
+		return
+	}
 	log := log.With("provider", pid)
 	// Process pending announce request if any.
 	// Note that the pending announce  is deleted regardless of whether it was successfully
@@ -956,7 +990,7 @@ func (ing *Ingester) handlePendingAnnounce(pid peer.ID) {
 		return
 	}
 	log = log.With("cid", pa.nextCid, "addrinfo", pa.addrInfo)
-	err := ing.sub.Announce(context.Background(), pa.nextCid, pa.addrInfo.ID, pa.addrInfo.Addrs)
+	err := ing.sub.Announce(ctx, pa.nextCid, pa.addrInfo.ID, pa.addrInfo.Addrs)
 	if err != nil {
 		log.Errorw("Failed to handle pending announce", "err", err)
 		return
