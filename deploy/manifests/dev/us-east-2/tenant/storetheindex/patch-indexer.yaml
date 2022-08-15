@@ -47,6 +47,7 @@ spec:
         - name: identity
           secret:
             secretName: indexer-identity
+      - terminationGracePeriodSeconds: 300
   volumeClaimTemplates:
     - metadata:
         name: data
