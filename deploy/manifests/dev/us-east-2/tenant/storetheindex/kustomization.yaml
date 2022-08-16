@@ -6,6 +6,7 @@ resources:
 - ingress.yaml
 - pod-monitor.yaml
 - github-auth.yaml
+- instances
 patchesStrategicMerge:
 - patch-indexer.yaml
 - indexer-config.yaml

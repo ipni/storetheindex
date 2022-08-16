@@ -1,0 +1,16 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: indexer
+spec:
+  ports:
+    - name: finder
+      port: 3000
+      targetPort: finder
+    - name: ingest
+      port: 3001
+      targetPort: ingest
+  selector:
+    app: indexer-single
+  type: ClusterIP
+  clusterIP: None

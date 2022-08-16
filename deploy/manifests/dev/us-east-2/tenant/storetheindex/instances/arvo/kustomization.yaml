@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - ../../../../../../base/storetheindex-single
+  - ingress.yaml
+
+namePrefix: arvo-
+
+commonLabels:
+  name: arvo
+
+secretGenerator:
+  - name: identity
+    behavior: replace
+    files:
+      - identity.key=identity.key.encrypted # 12D3KooWQAvGBkEMh8bSFroNNaDMv2AKZfEbzsXADNV497kyfAKZ
+
+configMapGenerator:
+  - name: config
+    behavior: replace
+    files:
+      - config=config.json
+
+patchesStrategicMerge:
+  - pvc.yaml
+  - deployment.yaml
+
+images:
+  - name: storetheindex
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+    newTag: 20220812173641-93e48840e1c6a87bf9de3ad1a3f9bcb0cd633663
