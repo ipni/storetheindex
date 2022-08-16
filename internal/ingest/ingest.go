@@ -120,6 +120,7 @@ type Ingester struct {
 	// toWorkers is used to ask the worker pool to start processing the ad
 	// chain for a given provider.
 	toWorkers      chan providerID
+	toWorkersQueue int64
 	waitForWorkers sync.WaitGroup
 	workerPoolSize int
 
@@ -156,7 +157,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		providersBeingProcessed: make(map[peer.ID]chan struct{}),
 		providerAdChainStaging:  make(map[peer.ID]*atomic.Value),
-		toWorkers:               make(chan providerID),
+		toWorkers:               make(chan providerID, 1000),
 		closeWorkers:            make(chan struct{}),
 	}
 
@@ -780,6 +781,8 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 			// No previous run scheduled a worker to handle this provider, so
 			// schedule one.
 			ing.toWorkers <- providerID(p)
+			atomic.AddInt64(&ing.toWorkersQueue, 1)
+			stats.Record(context.Background(), metrics.AdIngestQueued.M(ing.toWorkersQueue))
 		}
 	}
 }
@@ -794,6 +797,8 @@ func (ing *Ingester) ingestWorker() {
 			log.Debug("stopped ingest worker")
 			return
 		case provider := <-ing.toWorkers:
+			atomic.AddInt64(&ing.toWorkersQueue, -1)
+			stats.Record(context.Background(), metrics.AdIngestQueued.M(ing.toWorkersQueue))
 			pid := peer.ID(provider)
 			ing.providersBeingProcessedMu.Lock()
 			pc := ing.providersBeingProcessed[pid]
