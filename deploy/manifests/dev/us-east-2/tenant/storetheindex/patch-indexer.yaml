@@ -3,6 +3,7 @@ kind: StatefulSet
 metadata:
   name: indexer
 spec:
+  replicas: 2
   template:
     spec:
       affinity:
