@@ -39,7 +39,6 @@ func (q *Queue) Push(p providerID, a adInfo) {
 
 func (q *Queue) Pop() providerID {
 	q.lk.Lock()
-	defer q.lk.Unlock()
 
 	for len(q.order) == 0 {
 		q.waiters++
@@ -56,6 +55,7 @@ func (q *Queue) Pop() providerID {
 	p := q.order[0]
 	q.order = q.order[1:]
 	delete(q.states, p)
+	q.lk.Unlock()
 	return p
 }
 
