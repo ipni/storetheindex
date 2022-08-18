@@ -7,7 +7,7 @@ import (
 // Indexer holds configuration for the indexer core. Setting any of these items
 // to their zero-value configures the default value.
 type Indexer struct {
-	// Maximum number of CIDs that cache can hold. Setting to -1 disables the
+	// CacheSize is the maximum number of CIDs that cache can hold. Setting to -1 disables the
 	// cache.
 	CacheSize int
 	// ConfigCheckInterval is the time between config file update checks.
@@ -21,14 +21,26 @@ type Indexer struct {
 	// ShutdownTimeout is the duration that a graceful shutdown has to complete
 	// before the daemon process is terminated.
 	ShutdownTimeout Duration
-	// Directory where value store is kept. If this is not an absolute path
+	// ValueStoreDir is the directory where value store is kept. If this is not an absolute path
 	// then the location is relative to the indexer repo directory.
 	ValueStoreDir string
-	// Type of valuestore to use, such as "sth" or "pogreb".
+	// ValueStoreType specifies type of valuestore to use, such as "sth" or "pogreb".
 	ValueStoreType string
-	// bits for bucket size in store the hash. Note: this should not be changed
-	// from it's value at initialization or the datastore will be corrupted.
+	// STHBits is bits for bucket size in store the hash. Note: this should not be changed
+	// from its value at initialization or the datastore will be corrupted.
 	STHBits uint8
+	// ValueStoreCodec configures the marshalling format of values stored by the valuestore.
+	// It can be one of "json" or "binary". If unspecified, json format is used by default.
+	//
+	// Note that the format must not be changed after a valuestore is initialized. Changing
+	// the format for a pre-existing valuestore will result in failure and potentially data
+	// corruption.
+	ValueStoreCodec string
+
+	//TODO: If left unspecified, could the functionality instead be to use whatever the existing
+	//      value store uses? If there is no existing value store, then use binary by default.
+	//      For this we need probing mechanisms in go-indexer-core.
+	//      While at it, do the same for STHBits.
 }
 
 // NewIndexer returns Indexer with values set to their defaults.
@@ -42,6 +54,7 @@ func NewIndexer() Indexer {
 		ValueStoreDir:       "valuestore",
 		ValueStoreType:      "sth",
 		STHBits:             24,
+		ValueStoreCodec:     "json",
 	}
 }
 
@@ -72,5 +85,8 @@ func (c *Indexer) populateUnset() {
 	}
 	if c.STHBits == 0 {
 		c.STHBits = def.STHBits
+	}
+	if c.ValueStoreCodec == "" {
+		c.ValueStoreCodec = def.ValueStoreCodec
 	}
 }

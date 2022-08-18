@@ -257,8 +257,8 @@ github.com/filecoin-project/go-data-transfer v1.15.2-0.20220616083012-ea4de61af1
 github.com/filecoin-project/go-ds-versioning v0.0.0-20211206185234-508abd7c2aff/go.mod h1:C9/l9PnB1+mwPa26BBVpCjG/XQCB0yj/q5CK2J8X1I4=
 github.com/filecoin-project/go-ds-versioning v0.1.1 h1:JiyBqaQlwC+UM0WhcBtVEeT3XrX59mQhT8U3p7nu86o=
 github.com/filecoin-project/go-ds-versioning v0.1.1/go.mod h1:C9/l9PnB1+mwPa26BBVpCjG/XQCB0yj/q5CK2J8X1I4=
-github.com/filecoin-project/go-indexer-core v0.3.0 h1:h9nMX1Ta/pr2E30L8Yr5piF+nl6VvTf6uqXj1RPdc/o=
-github.com/filecoin-project/go-indexer-core v0.3.0/go.mod h1:kRsyZvLlN2XWcURn6See+AUf1mWXhLOlfuNcTrLJU1Q=
+github.com/filecoin-project/go-indexer-core v0.5.0 h1:7oA4eSLZid44tAcG8ukmTFfWRoK9lUfiv839RHRiMGc=
+github.com/filecoin-project/go-indexer-core v0.5.0/go.mod h1:DZSnB2xM26aqGWcKLPc8MtXtQGi7rhnLjEGd1BwZT64=
 github.com/filecoin-project/go-legs v0.4.9 h1:9ccbv5zDPqMviEpSpf0TdfKKI64TMYGSiuY2A1EXHFY=
 github.com/filecoin-project/go-legs v0.4.9/go.mod h1:JQ3hA6xpJdbR8euZ2rO0jkxaMxeidXf0LDnVuqPAe9s=
 github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe/go.mod h1:FGwQgZAt2Gh5mjlwJUlVB62JeYdo+if0xWxSEfBD9ig=
