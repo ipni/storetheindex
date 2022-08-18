@@ -1,0 +1,35 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - ../../../../../../base/storetheindex-single
+  - ingress.yaml
+
+namePrefix: xabi-
+
+commonLabels:
+  name: xabi
+
+secretGenerator:
+  - name: identity
+    behavior: replace
+    files:
+      - identity.key=identity.key.encrypted # 12D3KooWJDFn3kswTMhG7vxgQ5c5oVrdXvYzmDeUoosbnSEYaoyM
+
+configMapGenerator:
+  - name: config
+    behavior: replace
+    files:
+      - config=config.json
+
+patchesStrategicMerge:
+  - pvc.yaml
+  - deployment.yaml
+
+images:
+  - name: storetheindex
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+    # Commit: https://github.com/filecoin-project/storetheindex/commit/ca7859d9bb905663908fbdc4aacbd31f14efdc19
+    newTag: 20220818175126-ca7859d9bb905663908fbdc4aacbd31f14efdc19

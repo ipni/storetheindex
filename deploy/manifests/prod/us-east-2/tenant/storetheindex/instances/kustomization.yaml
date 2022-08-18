@@ -8,3 +8,4 @@ resources:
   - pod-monitor.yaml
   - romi
   - tara
+  - xabi
