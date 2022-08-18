@@ -6,5 +6,5 @@ namespace: storetheindex
 resources:
   - pdb.yaml
   - pod-monitor.yaml
-  - arvo
-  - mya
+  - arvo # 30-bit bucket size, JSON value codec, 3 IOPS per GiB
+  - mya # 30-bit bucket size, JSON value codec, 3 IOPS per GiB

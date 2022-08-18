@@ -6,6 +6,6 @@ namespace: storetheindex
 resources:
   - pdb.yaml
   - pod-monitor.yaml
-  - romi
-  - tara
-  - xabi
+  - romi # 30-bit bucket size, JSON value codec, 5 IOPS per GiB
+  - tara # 30-bit bucket size, JSON value codec, 5 IOPS per GiB
+  - xabi # 30-bit bucket size, binary value codec, 5 IOPS per GiB 
