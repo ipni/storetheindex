@@ -1183,7 +1183,7 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 
 // Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
-	valueStore, err := storethehash.New(context.Background(), t.TempDir(), sth.IndexBitSize(8))
+	valueStore, err := storethehash.New(context.Background(), t.TempDir(), nil, sth.IndexBitSize(8))
 	if err != nil {
 		t.Fatal(err)
 	}

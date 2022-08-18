@@ -43,6 +43,9 @@ const (
 	vstoreMemory       = "memory"
 	vstorePogreb       = "pogreb"
 	vstoreStorethehash = "sth"
+
+	vstoreJsonCodec   = "json"
+	vstoreBinaryCodec = "binary"
 )
 
 var log = logging.Logger("indexer")
@@ -475,17 +478,28 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		return nil, err
 	}
 
+	var vcodec indexer.ValueCodec
+	switch cfgIndexer.ValueStoreCodec {
+	case vstoreJsonCodec:
+		vcodec = indexer.JsonValueCodec{}
+	case vstoreBinaryCodec:
+		vcodec = indexer.BinaryValueCodec{}
+	default:
+		return nil, fmt.Errorf("unrecognized value store codec: %s", cfgIndexer.ValueStoreCodec)
+	}
+
 	switch cfgIndexer.ValueStoreType {
 	case vstoreStorethehash:
 		return storethehash.New(
 			ctx,
 			dir,
+			vcodec,
 			sth.GCInterval(time.Duration(cfgIndexer.GCInterval)),
 			sth.GCTimeLimit(time.Duration(cfgIndexer.GCTimeLimit)),
 			sth.IndexBitSize(cfgIndexer.STHBits),
 		)
 	case vstorePogreb:
-		return pogreb.New(dir)
+		return pogreb.New(dir, vcodec)
 	case vstoreMemory:
 		return memory.New(), nil
 	}
