@@ -7,6 +7,7 @@ resources:
 - pod-monitor.yaml
 - github-auth.yaml
 - instances
+- indexstar
 patchesStrategicMerge:
 - patch-indexer.yaml
 - indexer-config.yaml

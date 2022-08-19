@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexstar
+spec:
+  template:
+    spec:
+      containers:
+        - name: indexstar
+          args:
+            - '--backends=https://cid.contact/'
+            - '--backends=https://romi.prod.cid.contact/'
+            - '--backends=https://tara.prod.cid.contact/'
+            - '--backends=https://xabi.prod.cid.contact/'
+            - '--backends=https://vega.prod.cid.contact/'
+            - '--backends=https://mya.dev.cid.contact/'
+            - '--backends=https://arvo.dev.cid.contact/'
+            - '--backends=https://cdn.dev.cid.contact/'
+            - '--backends=https://debug.dev.cid.contact/'
