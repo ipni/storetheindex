@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - ../../../../../base/indexstar
+  - ingress.yaml
+
+patchesStrategicMerge:
+  - deployment.yaml
+
+replicas:
+  - name: indexstar
+    count: 1
+
+images:
+  - name: indexstar
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/indexstar/indexstar
+    # https://github.com/filecoin-shipyard/indexstar/commit/ed1134d579d437b9c612550c279e533f1be15a7c
+    newTag: 20220819112004-ed1134d579d437b9c612550c279e533f1be15a7c

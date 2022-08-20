@@ -3,6 +3,7 @@ kind: StatefulSet
 metadata:
   name: indexer
 spec:
+  replicas: 2
   template:
     spec:
       affinity:
@@ -56,4 +57,4 @@ spec:
         storageClassName: io2
         resources:
           requests:
-            storage: 10Ti
+            storage: 20Ti

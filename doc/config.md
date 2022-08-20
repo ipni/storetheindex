@@ -70,6 +70,7 @@ config file at runtime.
     "CacheSize": 300000,
     "ConfigCheckInterval": "30s",
     "GCInterval": "30m0s",
+    "GCTimeLimit": "5m0s",
     "ShutdownTimeout": "10s",
     "ValueStoreDir": "valuestore",
     "ValueStoreType": "sth"
@@ -205,6 +206,7 @@ Default:
   "CacheSize": 300000,
   "ConfigCheckInterval": "30s",
   "GCInterval": "30m0s",
+  "GCTimeLimit": "5m0s",
   "ShutdownTimeout": "10s",
   "ValueStoreDir": "valuestore",
   "ValueStoreType": "sth"

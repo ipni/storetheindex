@@ -47,8 +47,9 @@ data:
         "FilterIPs": true,
         "LotusGateway": "wss://api.chain.love",
         "Policy": {
-          "Allow": true,
+          "Allow": false,
           "Except": [
+            "QmQzqxhK82kAmKvARFZSkUVS6fo9sySaiogAnx5EnZ6ZmC"
           ],
           "Publish": true,
           "PublishExcept": null

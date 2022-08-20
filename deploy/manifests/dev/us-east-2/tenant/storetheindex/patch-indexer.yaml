@@ -3,8 +3,10 @@ kind: StatefulSet
 metadata:
   name: indexer
 spec:
+  replicas: 2
   template:
     spec:
+      terminationGracePeriodSeconds: 300
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

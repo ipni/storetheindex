@@ -32,6 +32,7 @@ import (
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
+	sth "github.com/ipld/go-storethehash/store"
 	"github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -1182,7 +1183,7 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 
 // Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
-	valueStore, err := storethehash.New(context.Background(), t.TempDir(), storethehash.IndexBitSize(8))
+	valueStore, err := storethehash.New(context.Background(), t.TempDir(), nil, sth.IndexBitSize(8))
 	if err != nil {
 		t.Fatal(err)
 	}

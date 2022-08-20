@@ -6,6 +6,7 @@ module "ecr_ue2" {
     "index-observer/index-observer",
     "autoretrieve/autoretrieve",
     "index-provider/index-provider",
+    "indexstar/indexstar",
   ]
   tags = local.tags
 }

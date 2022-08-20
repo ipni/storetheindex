@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexer
+spec:
+  template:
+    spec:
+      containers:
+        - name: indexer
+          resources:
+            limits:
+              cpu: "10"
+              memory: 120Gi
+            requests:
+              cpu: "10"
+              memory: 120Gi
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.kubernetes.io/instance-type
+                    operator: In
+                    values:
+                      - r5b.4xlarge
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - us-east-2a
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: r5b-4xl
+          effect: NoSchedule

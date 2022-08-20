@@ -6,6 +6,7 @@ resources:
 - ingress.yaml
 - pod-monitor.yaml
 - github-auth.yaml
+- instances
 patchesStrategicMerge:
 - patch-indexer.yaml
 - indexer-config.yaml
@@ -14,10 +15,7 @@ secretGenerator:
   files:
   - indexer-0.key=indexer-0-identity.encrypted
   - indexer-1.key=indexer-1-identity.encrypted
-replicas:
-- name: indexer
-  count: 2
 images:
 - name: storetheindex
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
-  newTag: 20220812173641-93e48840e1c6a87bf9de3ad1a3f9bcb0cd633663 # {"$imagepolicy": "storetheindex:storetheindex:tag"}
+  newTag: 20220816144316-5785bc278b9f4322d3001e424b65db3ef9316be4 # {"$imagepolicy": "storetheindex:storetheindex:tag"}

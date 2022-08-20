@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - pdb.yaml
+  - pod-monitor.yaml
+  - romi # 30-bit bucket size, JSON value codec, 5 IOPS per GiB
+  - tara # 30-bit bucket size, JSON value codec, 5 IOPS per GiB
+  - xabi # 30-bit bucket size, binary value codec, 5 IOPS per GiB 
+  - vega # 30-bit bucket size, binary value codec, 5 IOPS per GiB, nft.storage only
