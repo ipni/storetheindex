@@ -1,6 +1,6 @@
 module github.com/filecoin-project/storetheindex
 
-go 1.17
+go 1.18
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0
@@ -9,6 +9,7 @@ require (
 	github.com/filecoin-project/go-indexer-core v0.5.0
 	github.com/filecoin-project/go-legs v0.4.9
 	github.com/frankban/quicktest v1.14.3
+	github.com/gammazero/deque v0.2.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0

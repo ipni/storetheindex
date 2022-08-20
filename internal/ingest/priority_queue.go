@@ -1,47 +1,51 @@
 package ingest
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/gammazero/deque"
+)
 
 type Queue struct {
 	lk     sync.Mutex
-	states map[providerID]adInfo
-	order  []providerID
+	states map[providerID]uint32
+	order  *deque.Deque[providerID]
 
 	// used if someone is pulling an empty queue
-	waiters    uint
 	notifyChan chan struct{}
 	doneChan   chan struct{}
 }
 
 func NewPriorityQueue() *Queue {
 	return &Queue{
-		states:     make(map[providerID]adInfo),
-		order:      []providerID{},
-		waiters:    0,
+		states:     make(map[providerID]uint32),
+		order:      deque.New[providerID](),
 		notifyChan: make(chan struct{}),
 		doneChan:   make(chan struct{}),
 	}
 }
 
-func (q *Queue) Push(p providerID, a adInfo) {
+func (q *Queue) Push(p providerID) {
 	q.lk.Lock()
 	defer q.lk.Unlock()
 
 	if _, ok := q.states[p]; !ok {
-		q.order = append(q.order, p)
+		q.order.PushBack(p)
+		q.states[p] = 1
+	} else {
+		q.states[p]++
 	}
-	q.states[p] = a
 
-	if q.waiters > 0 {
-		q.notifyChan <- struct{}{}
+	select {
+	case q.notifyChan <- struct{}{}:
+	default:
 	}
 }
 
 func (q *Queue) Pop() providerID {
 	q.lk.Lock()
 
-	for len(q.order) == 0 {
-		q.waiters++
+	for q.order.Len() == 0 {
 		q.lk.Unlock()
 		select {
 		case <-q.doneChan:
@@ -49,11 +53,9 @@ func (q *Queue) Pop() providerID {
 		case <-q.notifyChan:
 		}
 		q.lk.Lock()
-		q.waiters--
 	}
 
-	p := q.order[0]
-	q.order = q.order[1:]
+	p := q.order.PopFront()
 	delete(q.states, p)
 	q.lk.Unlock()
 	return p
@@ -85,7 +87,7 @@ func (q *Queue) Has(p providerID) bool {
 func (q *Queue) Length() int {
 	q.lk.Lock()
 	defer q.lk.Unlock()
-	return len(q.order)
+	return q.order.Len()
 }
 
 func (q *Queue) Close() {
