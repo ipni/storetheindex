@@ -17,5 +17,5 @@ replicas:
 images:
   - name: indexstar
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/indexstar/indexstar
-    # https://github.com/filecoin-shipyard/indexstar/commit/ed1134d579d437b9c612550c279e533f1be15a7c
-    newTag: 20220819112004-ed1134d579d437b9c612550c279e533f1be15a7c
+    # https://github.com/filecoin-shipyard/indexstar/commit/115164b2dc28c18a2e8b76795ca2738d93bf8d27
+    newTag: 20220822134009-115164b2dc28c18a2e8b76795ca2738d93bf8d27
