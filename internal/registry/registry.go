@@ -315,6 +315,18 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 	return nil
 }
 
+// Saw indicates that a provider was seen. just updates
+func (r *Registry) Saw(provider peer.ID) {
+	done := make(chan struct{})
+	r.actions <- func() {
+		if _, ok := r.providers[provider]; ok {
+			r.providers[provider].lastContactTime = time.Now()
+		}
+		close(done)
+	}
+	<-done
+}
+
 // Register is used to directly register a provider, bypassing discovery and
 // adding discovered data directly to the registry.
 func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {

@@ -792,6 +792,7 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		if oldAssignment == nil || oldAssignment.(workerAssignment).none {
 			// No previous run scheduled a worker to handle this provider, so
 			// schedule one.
+			ing.reg.Saw(p)
 			pushCount := ing.toWorkers.Push(providerID(p))
 			stats.Record(context.Background(), metrics.AdIngestQueued.M(int64(ing.toWorkers.Length())))
 			stats.Record(context.Background(), metrics.AdIngestBacklog.M(int64(pushCount)))
