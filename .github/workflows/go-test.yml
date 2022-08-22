@@ -10,7 +10,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ "ubuntu", "windows", "macos" ]
-        go: [ "1.17.x", "1.18.x" ]
+        # Changes in PR below require Go 1.18 and later:
+        #  - https://github.com/filecoin-project/storetheindex/pull/671
+        #
+        # Exclude "1.17.x" until unified CI is upgraded.
+        go: [ "1.18.x" ] 
     env:
       COVERAGES: ""
     runs-on: ${{ format('{0}-latest', matrix.os) }}
