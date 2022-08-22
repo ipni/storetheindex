@@ -121,7 +121,7 @@ type Ingester struct {
 	toStaging <-chan legs.SyncFinished
 	// toWorkers is used to ask the worker pool to start processing the ad
 	// chain for a given provider.
-	toWorkers      chan providerID
+	toWorkers      *Queue
 	waitForWorkers sync.WaitGroup
 	workerPoolSize int
 
@@ -158,7 +158,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		providersBeingProcessed: make(map[peer.ID]chan struct{}),
 		providerAdChainStaging:  make(map[peer.ID]*atomic.Value),
-		toWorkers:               make(chan providerID),
+		toWorkers:               NewPriorityQueue(),
 		closeWorkers:            make(chan struct{}),
 	}
 
@@ -277,8 +277,8 @@ func (ing *Ingester) Close() error {
 		ing.cancelOnSyncFinished()
 		close(ing.closeWorkers)
 		ing.waitForWorkers.Wait()
+		ing.toWorkers.Close()
 		log.Info("Workers stopped")
-
 		close(ing.closePendingSyncs)
 		ing.waitForPendingSyncs.Wait()
 		log.Info("Pending sync processing stopped")
@@ -792,7 +792,10 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		if oldAssignment == nil || oldAssignment.(workerAssignment).none {
 			// No previous run scheduled a worker to handle this provider, so
 			// schedule one.
-			ing.toWorkers <- providerID(p)
+			ing.reg.Saw(p)
+			pushCount := ing.toWorkers.Push(providerID(p))
+			stats.Record(context.Background(), metrics.AdIngestQueued.M(int64(ing.toWorkers.Length())))
+			stats.Record(context.Background(), metrics.AdIngestBacklog.M(int64(pushCount)))
 		}
 	}
 }
@@ -806,7 +809,8 @@ func (ing *Ingester) ingestWorker(ctx context.Context) {
 		case <-ing.closeWorkers:
 			log.Debug("stopped ingest worker")
 			return
-		case provider := <-ing.toWorkers:
+		case provider := <-ing.toWorkers.PopChan():
+			stats.Record(context.Background(), metrics.AdIngestQueued.M(int64(ing.toWorkers.Length())))
 			pid := peer.ID(provider)
 			ing.providersBeingProcessedMu.Lock()
 			pc := ing.providersBeingProcessed[pid]
