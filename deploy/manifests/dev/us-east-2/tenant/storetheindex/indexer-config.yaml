@@ -64,7 +64,8 @@ data:
         "CacheSize": 300000,
         "ConfigCheckInterval": "30s",
         "GCInterval": "30m0s",
-        "ShutdownTimeout": "15s",
+        "GCTimeLimit": "5m0s",
+        "ShutdownTimeout": "4m0s",
         "ValueStoreDir": "/data/valuestore",
         "ValueStoreType": "sth"
       },
