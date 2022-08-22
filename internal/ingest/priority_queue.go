@@ -25,7 +25,8 @@ func NewPriorityQueue() *Queue {
 	}
 }
 
-func (q *Queue) Push(p providerID) {
+// Push a provider into the set. returns the number of pushes this provider has had since last popped.
+func (q *Queue) Push(p providerID) uint32 {
 	q.lk.Lock()
 	defer q.lk.Unlock()
 
@@ -40,6 +41,7 @@ func (q *Queue) Push(p providerID) {
 	case q.notifyChan <- struct{}{}:
 	default:
 	}
+	return q.states[p]
 }
 
 func (q *Queue) Pop() providerID {
