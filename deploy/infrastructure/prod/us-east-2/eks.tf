@@ -44,7 +44,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["r5b.4xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a.id]
-      taints         = {
+      taints = {
         dedicated = {
           key    = "dedicated"
           value  = "r5b-4xl"
@@ -58,7 +58,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["r5b.4xlarge"]
       subnet_ids     = [data.aws_subnet.ue2b.id]
-      taints         = {
+      taints = {
         dedicated = {
           key    = "dedicated"
           value  = "r5b-4xl"

@@ -1,6 +1,7 @@
 locals {
-  cdn_origin_id = "${local.environment_name}_${local.region}_sti_cdn"
-  cdn_subdomain = "cdn"
+  indexstar_origin_id = "${local.environment_name}_${local.region}_indexstar"
+  cdn_origin_id       = "${local.environment_name}_${local.region}_sti_cdn"
+  cdn_subdomain       = "cdn"
 }
 
 resource "aws_cloudfront_distribution" "cdn" {
@@ -13,9 +14,26 @@ resource "aws_cloudfront_distribution" "cdn" {
   ]
   price_class = "PriceClass_All"
 
+  # storetheindex/indexer ingress.
   origin {
     domain_name = aws_route53_zone.prod_external.name
     origin_id   = local.cdn_origin_id
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+    }
+    origin_shield {
+      enabled              = true
+      origin_shield_region = local.region
+    }
+  }
+
+  # storetheindex/indexstar ingress.
+  origin {
+    domain_name = "indexstar.${aws_route53_zone.prod_external.name}"
+    origin_id   = local.indexstar_origin_id
     custom_origin_config {
       http_port              = 80
       https_port             = 443
@@ -55,17 +73,73 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   ordered_cache_behavior {
-    path_pattern           = "/reframe"
+    path_pattern = "reframe"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
     allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
     cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = local.cdn_origin_id
+    target_origin_id       = local.indexstar_origin_id
     cache_policy_id        = aws_cloudfront_cache_policy.reframe.id
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
     default_ttl            = 0
     max_ttl                = 0
+  }
+
+  ordered_cache_behavior {
+    path_pattern = "multihash/*"
+    # CloudFront does not support configuring allowed methods selectively.
+    # Hence the complete method list.
+    allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = local.indexstar_origin_id
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
+  }
+
+  ordered_cache_behavior {
+    path_pattern     = "cid/*"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = local.indexstar_origin_id
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
+  }
+
+  ordered_cache_behavior {
+    path_pattern     = "providers"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = local.indexstar_origin_id
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
   }
 
   restrictions {
@@ -130,8 +204,8 @@ module "records" {
 
   records = [
     {
-      name  = local.cdn_subdomain
-      type  = "A"
+      name = local.cdn_subdomain
+      type = "A"
       alias = {
         name    = aws_cloudfront_distribution.cdn.domain_name
         zone_id = aws_cloudfront_distribution.cdn.hosted_zone_id

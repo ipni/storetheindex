@@ -12,10 +12,9 @@ patchesStrategicMerge:
 
 replicas:
   - name: indexstar
-    count: 1
+    count: 10
 
 images:
   - name: indexstar
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/indexstar/indexstar
-    # https://github.com/filecoin-shipyard/indexstar/commit/115164b2dc28c18a2e8b76795ca2738d93bf8d27
-    newTag: 20220822134009-115164b2dc28c18a2e8b76795ca2738d93bf8d27
+    newTag: 20220823121245-fcd7b5d6a729488bf4910c1eb7fa5a82b1c6d5f0

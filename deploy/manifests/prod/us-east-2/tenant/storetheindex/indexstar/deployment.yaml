@@ -8,12 +8,10 @@ spec:
       containers:
         - name: indexstar
           args:
-            - '--backends=https://cid.contact/'
-            - '--backends=https://romi.prod.cid.contact/'
-            - '--backends=https://tara.prod.cid.contact/'
-            - '--backends=https://xabi.prod.cid.contact/'
-            - '--backends=https://vega.prod.cid.contact/'
-            - '--backends=https://mya.dev.cid.contact/'
-            - '--backends=https://arvo.dev.cid.contact/'
-            - '--backends=https://cdn.dev.cid.contact/'
-            - '--backends=https://debug.dev.cid.contact/'
+            # Use service names local to the namespace over HTTP to avoid
+            # TLS handshake overhead.
+            - '--backends=http://indexer:3000/'
+            - '--backends=http://romi-indexer:3000/'
+            - '--backends=http://tara-indexer:3000/'
+            - '--backends=http://xabi-indexer:3000/'
+            - '--backends=http://vega-indexer:3000/'

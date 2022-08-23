@@ -5,7 +5,7 @@ data "aws_iam_policy_document" "cert_manager" {
     resources = ["arn:aws:route53:::change/*"]
   }
   statement {
-    effect  = "Allow"
+    effect = "Allow"
     actions = [
       "route53:ChangeResourceRecordSets",
       "route53:ListResourceRecordSets"
