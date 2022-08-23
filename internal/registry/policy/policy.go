@@ -40,14 +40,19 @@ func (p *Policy) Allowed(peerID peer.ID) bool {
 }
 
 // PublishAllowed returns true if policy allows the publisher to publish
-// advertisements for the identified provider.  This assumes that both are
-// already allowed by policy.
+// advertisements for the identified provider, and the provider is allowed.
 func (p *Policy) PublishAllowed(publisherID, providerID peer.ID) bool {
 	p.rwmutex.RLock()
 	defer p.rwmutex.RUnlock()
 
+	// Publisher is always allowed to publish to self.
 	if publisherID == providerID {
 		return true
+	}
+	// Publisher may not publish advertisements for a provider that is not
+	// allowed to register.
+	if !p.allow.Eval(providerID) {
+		return false
 	}
 	return p.publish.Eval(publisherID)
 }

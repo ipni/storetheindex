@@ -130,8 +130,9 @@ func TestDiscoveryAllowed(t *testing.T) {
 	require.NoError(t, err)
 	t.Log("discovered mock miner", minerDiscoAddr)
 
-	info := r.ProviderInfo(peerID)
+	info, allowed := r.ProviderInfo(peerID)
 	require.NotNil(t, info)
+	require.True(t, allowed)
 	t.Log("got provider info for miner")
 
 	require.Equal(t, info.AddrInfo.ID, peerID, "did not get correct porvider id")
@@ -184,7 +185,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 		t.Fatal("expected error:", ErrNotAllowed, "got:", err)
 	}
 
-	info := r.ProviderInfo(peerID)
+	info, _ := r.ProviderInfo(peerID)
 	require.Nil(t, info, "should not have found provider info for miner")
 }
 
@@ -240,11 +241,13 @@ func TestDatastore(t *testing.T) {
 	err = r.RegisterOrUpdate(ctx, info2.AddrInfo, cid.Undef, publisher)
 	require.NoError(t, err)
 
-	pinfo := r.ProviderInfo(provID1)
+	pinfo, allowed := r.ProviderInfo(provID1)
 	require.NotNil(t, pinfo, "did not find registered provider")
+	require.True(t, allowed)
 
-	pinfo = r.ProviderInfo(provID2)
+	pinfo, allowed = r.ProviderInfo(provID2)
 	require.NotNil(t, pinfo, "did not find registered provider")
+	require.True(t, allowed)
 
 	require.NoError(t, r.Close())
 
@@ -292,16 +295,60 @@ func TestAllowed(t *testing.T) {
 	r, err := NewRegistry(ctx, cfg, nil, nil)
 	require.NoError(t, err)
 
+	provID, err := peer.Decode(limitedID)
+	require.NoError(t, err)
+	maddr, err := multiaddr.NewMultiaddr(minerAddr)
+	require.NoError(t, err)
+	provider := peer.AddrInfo{
+		ID:    provID,
+		Addrs: []multiaddr.Multiaddr{maddr},
+	}
+
 	pubID, err := peer.Decode(publisherID)
 	require.NoError(t, err)
+	pubAddr, err := multiaddr.NewMultiaddr(publisherAddr)
+	require.NoError(t, err)
+	publisher := peer.AddrInfo{
+		ID:    pubID,
+		Addrs: []multiaddr.Multiaddr{pubAddr},
+	}
+
+	err = r.RegisterOrUpdate(ctx, provider, cid.Undef, publisher)
+	require.NoError(t, err)
+
+	// Check that provider is allowed.
+	require.True(t, r.Allowed(provID), "peer should be allowed")
+	pinfo, allowed := r.ProviderInfo(provID)
+	require.NotNil(t, pinfo)
+	require.True(t, allowed)
+
+	require.True(t, r.PublishAllowed(provID, pubID), "peer should be allowed")
+	require.True(t, r.PublishAllowed(pubID, provID), "peer should be allowed")
+
+	// Block provider and check that provider is blocked.
+	require.True(t, r.BlockPeer(provID), "should have updated policy to block peer")
+	require.False(t, r.Allowed(provID), "peer should be blocked")
+	pinfo, allowed = r.ProviderInfo(provID)
+	require.NotNil(t, pinfo)
+	require.False(t, allowed)
+
+	require.True(t, r.PublishAllowed(provID, pubID), "peer can be allowed to publish when not allowed to register")
+	require.False(t, r.PublishAllowed(pubID, provID), "peer should not be allowed")
+
+	// Allow provider and check that provider is allowed again.
+	require.True(t, r.AllowPeer(provID), "should have updated policy to allow peer")
+	require.True(t, r.Allowed(provID), "peer should be allowed")
+	pinfo, allowed = r.ProviderInfo(provID)
+	require.NotNil(t, pinfo)
+	require.True(t, allowed)
 
 	require.True(t, r.Allowed(pubID), "peer should be allowed")
 	require.True(t, r.PublishAllowed(pubID, pubID), "peer should be allowed")
 
-	require.True(t, r.BlockPeer(pubID), "should have update policy to block peer")
+	require.True(t, r.BlockPeer(pubID), "should have updated policy to block peer")
 	require.False(t, r.Allowed(pubID), "peer should be blocked")
 
-	require.True(t, r.AllowPeer(pubID), "should have update policy to allow peer")
+	require.True(t, r.AllowPeer(pubID), "should have updated policy to allow peer")
 	require.True(t, r.Allowed(pubID), "peer should be allowed")
 
 	require.NoError(t, r.SetPolicy(config.Policy{}))
@@ -392,11 +439,9 @@ func TestPollProvider(t *testing.T) {
 	}
 
 	// Inactive provider should not be returned.
-	pinfo := r.ProviderInfo(peerID)
-	require.Nil(t, pinfo, "expected inactive provider not to be returned")
-
-	pinfo = r.providerInfoAlways(peerID)
+	pinfo, _ := r.ProviderInfo(peerID)
 	require.NotNil(t, pinfo, "expected inactive provider to still be present")
+	require.True(t, pinfo.Inactive(), "expected provider to be inactive")
 
 	// Set stopAfter to 0 so that stopAfter will have elapsed since last
 	// contact. This will make publisher appear unresponsive and polling will
@@ -410,10 +455,7 @@ func TestPollProvider(t *testing.T) {
 
 	// Check that provider has been removed from registry after provider
 	// appeared non-responsive.
-	pinfo = r.ProviderInfo(peerID)
-	require.Nil(t, pinfo, "expected provider to be removed from registry")
-
-	pinfo = r.providerInfoAlways(peerID)
+	pinfo, _ = r.ProviderInfo(peerID)
 	require.Nil(t, pinfo, "expected provider to be removed from registry")
 
 	// Check that delete provider sent over sync channel.
@@ -504,7 +546,7 @@ func TestPollProviderOverrides(t *testing.T) {
 
 	// Check that provider has been removed from registry after provider
 	// appeared non-responsive.
-	pinfo := r.ProviderInfo(peerID)
+	pinfo, _ := r.ProviderInfo(peerID)
 	require.Nil(t, pinfo, "expected provider to be removed from registry")
 
 	// Check that delete provider sent over sync channel.
@@ -552,14 +594,14 @@ func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 	err = subject.RegisterOrUpdate(ctx, provider, c, peer.AddrInfo{ID: publisherID})
 	require.NoError(t, err)
 
-	info := subject.ProviderInfo(provId)
+	info, _ := subject.ProviderInfo(provId)
 	require.NotNil(t, info)
 	require.Nil(t, info.PublisherAddr)
 
 	// Register a publisher that has no addresses, but publisherID is same as
 	// provider. Registry should use provider's address as publisher.
 	err = subject.RegisterOrUpdate(ctx, provider, c, peer.AddrInfo{ID: provId})
-	info = subject.ProviderInfo(provId)
+	info, _ = subject.ProviderInfo(provId)
 	require.NoError(t, err)
 	require.NotNil(t, info)
 	require.Equal(t, info.AddrInfo.Addrs[0], info.PublisherAddr)
@@ -611,7 +653,7 @@ func TestFilterIPs(t *testing.T) {
 	require.True(t, reg.FilterIPsEnabled())
 
 	// Check that loading from datastore filtered IPs.
-	pinfo := reg.ProviderInfo(provID)
+	pinfo, _ := reg.ProviderInfo(provID)
 	require.NotNil(t, pinfo)
 	require.Equal(t, 1, len(pinfo.AddrInfo.Addrs))
 	require.Equal(t, provAddr, pinfo.AddrInfo.Addrs[0])
@@ -622,7 +664,7 @@ func TestFilterIPs(t *testing.T) {
 	// Check the RegisterOrUpdate filters IPs.
 	err = reg.RegisterOrUpdate(ctx, provider, cid.Undef, publisher)
 	require.NoError(t, err)
-	pinfo = reg.ProviderInfo(provID)
+	pinfo, _ = reg.ProviderInfo(provID)
 	require.NotNil(t, pinfo)
 	require.Equal(t, 1, len(pinfo.AddrInfo.Addrs))
 	require.Equal(t, provAddr, pinfo.AddrInfo.Addrs[0])
@@ -636,7 +678,7 @@ func TestFilterIPs(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	pinfo = reg.ProviderInfo(pubID)
+	pinfo, _ = reg.ProviderInfo(pubID)
 	require.NotNil(t, pinfo)
 	require.Equal(t, 1, len(pinfo.AddrInfo.Addrs))
 	require.Equal(t, pubAddr, pinfo.AddrInfo.Addrs[0])
