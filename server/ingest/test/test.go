@@ -165,9 +165,12 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 		t.Fatal(err)
 	}
 
-	info := reg.ProviderInfo(providerID)
+	info, allowed := reg.ProviderInfo(providerID)
 	if info == nil {
 		t.Fatal("did not get infor for provider:", providerID)
+	}
+	if !allowed {
+		t.Fatal("provider not allowed")
 	}
 
 	maddr, err := multiaddr.NewMultiaddr(newAddr)

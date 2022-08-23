@@ -58,7 +58,7 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 			// before going to registry.
 			addrs, ok := provAddrs[provID]
 			if !ok {
-				pinfo := h.registry.ProviderInfo(provID)
+				pinfo, allowed := h.registry.ProviderInfo(provID)
 				if pinfo == nil {
 					// If provider not in registry, then provider was deleted.
 					// Tell the indexed core to delete the contextID for the
@@ -74,8 +74,8 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 					// If provider not in registry, do not return in result.
 					continue
 				}
-				// Omit provider info if it is marked as inactive.
-				if pinfo.Inactive() {
+				// Omit provider info if not allowed or marked as inactive.
+				if !allowed || pinfo.Inactive() {
 					continue
 				}
 				addrs = pinfo.AddrInfo.Addrs
@@ -120,8 +120,8 @@ func (h *FinderHandler) ListProviders() ([]byte, error) {
 }
 
 func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
-	info := h.registry.ProviderInfo(providerID)
-	if info == nil {
+	info, allowed := h.registry.ProviderInfo(providerID)
+	if info == nil || !allowed || info.Inactive() {
 		return nil, nil
 	}
 
