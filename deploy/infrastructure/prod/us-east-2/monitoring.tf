@@ -30,7 +30,7 @@ module "monitoring_role" {
   create_role = true
 
   role_name    = "monitoring"
-  role_path = local.iam_path
+  role_path    = local.iam_path
   provider_url = module.eks.oidc_provider
 
   role_policy_arns = [
