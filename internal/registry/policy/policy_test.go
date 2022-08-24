@@ -99,10 +99,10 @@ func TestPolicyAccess(t *testing.T) {
 		t.Error("peer ID should not be allowed to publish")
 	}
 	if !p.PublishAllowed(otherID, otherID) {
-		t.Error("peer ID should be allowed to publish to self")
+		t.Error("should be allowed to publish to self")
 	}
-	if !p.PublishAllowed(exceptID, otherID) {
-		t.Error("peer ID should be allowed to publish")
+	if p.PublishAllowed(exceptID, otherID) {
+		t.Error("should not be allowed to publish to blocked peer")
 	}
 
 	p.Allow(otherID)
@@ -131,8 +131,8 @@ func TestPolicyAccess(t *testing.T) {
 		t.Error("peer ID should not be allowed")
 	}
 
-	if !p.PublishAllowed(otherID, exceptID) {
-		t.Error("peer ID should be allowed to publish")
+	if p.PublishAllowed(otherID, exceptID) {
+		t.Error("should not be allowed to publish to blocked peer")
 	}
 	if p.PublishAllowed(exceptID, otherID) {
 		t.Error("peer ID should not be allowed to publish")

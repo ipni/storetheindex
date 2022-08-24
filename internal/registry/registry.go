@@ -429,7 +429,7 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, provider peer.AddrInfo,
 
 	var fullRegister bool
 	// Check that the provider has been discovered and validated
-	info := r.ProviderInfo(provider.ID)
+	info, _ := r.ProviderInfo(provider.ID)
 	if info != nil {
 		info = &ProviderInfo{
 			AddrInfo:              info.AddrInfo,
@@ -525,50 +525,40 @@ func (r *Registry) IsRegistered(providerID peer.ID) bool {
 	return found
 }
 
-// ProviderInfo returns information for a registered provider
-func (r *Registry) ProviderInfo(providerID peer.ID) *ProviderInfo {
+// ProviderInfo returns information for a registered provider.
+func (r *Registry) ProviderInfo(providerID peer.ID) (*ProviderInfo, bool) {
 	infoChan := make(chan *ProviderInfo)
 	r.actions <- func() {
-		stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(r.providers))))
-		info, ok := r.providers[providerID]
-		if ok && !info.Inactive() {
-			infoChan <- info
-		}
-		close(infoChan)
-	}
-
-	return <-infoChan
-}
-
-// providerInfoAlways returns information for a registered provider even if inactive.
-func (r *Registry) providerInfoAlways(providerID peer.ID) *ProviderInfo {
-	infoChan := make(chan *ProviderInfo)
-	r.actions <- func() {
-		stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(r.providers))))
 		info, ok := r.providers[providerID]
 		if ok {
 			infoChan <- info
 		}
 		close(infoChan)
 	}
-
-	return <-infoChan
+	pinfo := <-infoChan
+	if pinfo == nil {
+		return nil, false
+	}
+	return pinfo, r.policy.Allowed(providerID)
 }
 
-// AllProviderInfo returns information for all registered providers
+// AllProviderInfo returns information for all registered providers that are
+// active and allowed.
 func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	var infos []*ProviderInfo
 	done := make(chan struct{})
 	r.actions <- func() {
 		infos = make([]*ProviderInfo, 0, len(r.providers))
 		for _, info := range r.providers {
-			if !info.Inactive() {
+			if !info.Inactive() && r.policy.Allowed(info.AddrInfo.ID) {
 				infos = append(infos, info)
 			}
 		}
 		close(done)
 	}
 	<-done
+	// Stats tracks the number of active, allowed providers.
+	stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(infos))))
 	return infos
 }
 
@@ -780,12 +770,6 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 			return 0, fmt.Errorf("cannot decode provider ID: %s", err)
 		}
 
-		// If provider is not allowed, then do not load into registry.
-		if !r.policy.Allowed(peerID) {
-			log.Warnw("Refusing to load registry data for forbidden peer", "peer", peerID)
-			continue
-		}
-
 		pinfo := new(ProviderInfo)
 		err = json.Unmarshal(ent.Value, pinfo)
 		if err != nil {
@@ -811,6 +795,7 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 			len(pinfo.AddrInfo.Addrs) != 0 {
 			pinfo.PublisherAddr = pinfo.AddrInfo.Addrs[0]
 		}
+
 		r.providers[peerID] = pinfo
 		count++
 	}
@@ -858,7 +843,11 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 	r.actions <- func() {
 		now := time.Now()
 		for peerID, info := range r.providers {
-			if info.Publisher.Validate() != nil {
+			// If the provider is not allowed, then do not poll or delist.
+			if !r.policy.Allowed(peerID) {
+				continue
+			}
+			if info.Publisher.Validate() != nil || !r.policy.Allowed(info.Publisher) {
 				// No publisher.
 				continue
 			}

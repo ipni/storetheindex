@@ -120,8 +120,11 @@ func TestRegisterProvider(t *testing.T) {
 		t.Fatal("expected response to be", http.StatusOK)
 	}
 
-	pinfo := reg.ProviderInfo(peerID)
+	pinfo, allowed := reg.ProviderInfo(peerID)
 	if pinfo == nil {
 		t.Fatal("provider was not registered")
+	}
+	if !allowed {
+		t.Fatal("provider not allowed")
 	}
 }
