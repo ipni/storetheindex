@@ -187,13 +187,22 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	log = log.With("contextID", base64.StdEncoding.EncodeToString(ad.ContextID), "provider", ad.Provider)
 
 	if ad.IsRm {
-		log.Infow("Advertisement is for removal by context id")
+		if len(ad.ContextID) != 0 {
+			log.Infow("Advertisement is for removal by context id")
 
-		err = ing.indexer.RemoveProviderContext(providerID, ad.ContextID)
-		if err != nil {
-			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to remove provider context: %w", err)}
+			err = ing.indexer.RemoveProviderContext(providerID, ad.ContextID)
+			if err != nil {
+				return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to remove provider context: %w", err)}
+			}
+			return nil
+		} else {
+			log.Infow("Advertisement is for removal by provider")
+			err = ing.indexer.RemoveProvider(context.Background(), providerID)
+			if err != nil {
+				return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to remove provider: %w", err)}
+			}
+			return nil
 		}
-		return nil
 	}
 
 	// If advertisement has no entries, then this is for updating metadata only.

@@ -649,6 +649,74 @@ func TestRmWithNoEntries(t *testing.T) {
 	require.False(t, found)
 }
 
+func TestRmAll(t *testing.T) {
+	te := setupTestEnv(t, true)
+	cw := &coreWrap{
+		Interface: te.ingester.indexer,
+	}
+	te.ingester.indexer = cw
+
+	p1LastAdLink := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2},
+		},
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
+	chainHead := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 3},
+		},
+		AddRmAll: true,
+		HeadLink: p1LastAdLink,
+	}.Build(t, te.publisherLinkSys, priv)
+
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	ad, err := schema.UnwrapAdvertisement(adNode)
+	require.NoError(t, err)
+
+	require.NotNil(t, ad.PreviousID)
+	prevAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, ad.PreviousID, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	prevAd, err := schema.UnwrapAdvertisement(prevAdNode)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = te.publisher.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
+	require.NoError(t, err)
+
+	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+	<-wait
+	var lcid cid.Cid
+	requireTrueEventually(t, func() bool {
+		lcid, err = te.ingester.GetLatestSync(te.pubHost.ID())
+		require.NoError(t, err)
+		return chainHead.(cidlink.Link).Cid == lcid
+	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", chainHead, lcid)
+
+	allMhs := typehelpers.AllMultihashesFromAdChain(t, prevAd, te.publisherLinkSys)
+
+	last := allMhs[len(allMhs)-1]
+
+	// Remove the mhs from the last ad (since the last add removed this from the indexer)
+	allMhs = allMhs[:len(allMhs)-1]
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+
+	// Check that first multihash was never ingested in the first place,
+	// indicating it was skipped.
+	var found bool
+	for _, mh := range cw.mhs {
+		if bytes.Equal(mh, last) {
+			found = true
+		}
+	}
+	require.False(t, found)
+}
+
 func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()

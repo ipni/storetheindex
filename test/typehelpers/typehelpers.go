@@ -27,6 +27,8 @@ type RandomAdBuilder struct {
 	EntryBuilders      []EntryBuilder
 	Seed               int64
 	AddRmWithNoEntries bool
+	AddRmAll           bool
+	HeadLink           datamodel.Link
 }
 
 func (b RandomAdBuilder) Build(t *testing.T, lsys ipld.LinkSystem, signingKey crypto.PrivKey) datamodel.Link {
@@ -51,7 +53,7 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 	metadata := []byte("test-metadata")
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 
-	var headLink datamodel.Link
+	var headLink datamodel.Link = b.HeadLink
 
 	for i, ecb := range b.EntryBuilders {
 		ctxID := []byte("test-context-id-" + fmt.Sprint(i))
@@ -91,6 +93,29 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 			Addresses:  addrs,
 			Entries:    schema.NoEntries,
 			ContextID:  ctxID,
+			Metadata:   metadata,
+			IsRm:       true,
+		}
+
+		if !fakeSig {
+			err := ad.Sign(signingKey)
+			require.NoError(t, err)
+		}
+
+		node, err := ad.ToNode()
+		require.NoError(t, err)
+		headLink, err = lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
+		require.NoError(t, err)
+	}
+
+	if b.AddRmAll {
+		// this will add a remove-all to the end of the chain
+		ad := schema.Advertisement{
+			PreviousID: headLink,
+			Provider:   p.String(),
+			Addresses:  addrs,
+			Entries:    schema.NoEntries,
+			ContextID:  nil,
 			Metadata:   metadata,
 			IsRm:       true,
 		}

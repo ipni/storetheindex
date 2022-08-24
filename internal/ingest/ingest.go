@@ -839,7 +839,9 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 	}
 	assignment := assignmentInterface.(workerAssignment)
 
-	rmCtxID := make(map[string]struct{})
+	rmCtxID := make(map[string]bool)
+	rmProviderID := make(map[string]bool)
+
 	var skips []int
 	skip := -1
 
@@ -869,7 +871,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		ctxIdStr := string(ai.ad.ContextID)
 		// This ad was deleted by a later remove. Push previous onto skips
 		// stack, and set latest skip.
-		if _, ok := rmCtxID[ctxIdStr]; ok {
+		if rmCtxID[ctxIdStr] || rmProviderID[ai.ad.Provider] {
 			skips = append(skips, skip)
 			skip = i
 			continue
@@ -877,7 +879,11 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		// If this is a remove, do not skip this ad, but skip all earlier
 		// (deeped in chain) ads with the same context ID.
 		if ai.ad.IsRm {
-			rmCtxID[ctxIdStr] = struct{}{}
+			if len(ai.ad.ContextID) != 0 {
+				rmCtxID[ctxIdStr] = true
+			} else {
+				rmProviderID[ai.ad.Provider] = true
+			}
 		}
 	}
 
