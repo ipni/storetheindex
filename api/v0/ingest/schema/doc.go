@@ -3,7 +3,8 @@
 // The IsRm and Entries fields determine how the indexer handles
 // the advertisement. The following table describes this:
 //
-//  IsRm    Entries    Action
+//	IsRm    Entries    Action
+//
 // ------+-----------+------------------------------------
 // false | NoEntries | Update metadata
 // false | data      | Update metadata and index entries

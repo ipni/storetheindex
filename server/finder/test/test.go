@@ -31,7 +31,7 @@ const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
 
 var rng = rand.New(rand.NewSource(1413))
 
-//InitIndex initialize a new indexer engine.
+// InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
 	valueStore, err := storethehash.New(context.Background(), t.TempDir(), nil)
 	if err != nil {
