@@ -135,6 +135,9 @@ type Ingester struct {
 
 	rateLimit rate.Limit
 	rateMutex sync.Mutex
+
+	// map of providers that have been deleted. Incoming ads are checked against this map and get skipped if their provider is in there.
+	deletedProviders map[string]bool
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -160,6 +163,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		providerAdChainStaging:  make(map[peer.ID]*atomic.Value),
 		toWorkers:               NewPriorityQueue(),
 		closeWorkers:            make(chan struct{}),
+		deletedProviders:        make(map[string]bool),
 	}
 
 	var err error
@@ -840,7 +844,6 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 	assignment := assignmentInterface.(workerAssignment)
 
 	rmCtxID := make(map[string]bool)
-	rmProviderID := make(map[string]bool)
 
 	var skips []int
 	skip := -1
@@ -871,7 +874,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		ctxIdStr := string(ai.ad.ContextID)
 		// This ad was deleted by a later remove. Push previous onto skips
 		// stack, and set latest skip.
-		if rmCtxID[ctxIdStr] || rmProviderID[ai.ad.Provider] {
+		if rmCtxID[ctxIdStr] || ing.deletedProviders[ai.ad.Provider] {
 			skips = append(skips, skip)
 			skip = i
 			continue
@@ -882,7 +885,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			if len(ai.ad.ContextID) != 0 {
 				rmCtxID[ctxIdStr] = true
 			} else {
-				rmProviderID[ai.ad.Provider] = true
+				ing.deletedProviders[ai.ad.Provider] = true
 			}
 		}
 	}

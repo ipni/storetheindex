@@ -656,7 +656,7 @@ func TestRmAll(t *testing.T) {
 	}
 	te.ingester.indexer = cw
 
-	p1LastAdLink := typehelpers.RandomAdBuilder{
+	prevChainHead := typehelpers.RandomAdBuilder{
 		EntryBuilders: []typehelpers.EntryBuilder{
 			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1},
 			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2},
@@ -670,7 +670,7 @@ func TestRmAll(t *testing.T) {
 			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 3},
 		},
 		AddRmAll: true,
-		HeadLink: p1LastAdLink,
+		HeadLink: prevChainHead,
 	}.Build(t, te.publisherLinkSys, priv)
 
 	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.AdvertisementPrototype)
@@ -692,11 +692,13 @@ func TestRmAll(t *testing.T) {
 	require.NoError(t, err)
 	<-wait
 	var lcid cid.Cid
+
+	// even though we set publisher's head to `chainHead`, all ads from the second provider should not be ingested
 	requireTrueEventually(t, func() bool {
 		lcid, err = te.ingester.GetLatestSync(te.pubHost.ID())
 		require.NoError(t, err)
-		return chainHead.(cidlink.Link).Cid == lcid
-	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", chainHead, lcid)
+		return prevChainHead.(cidlink.Link).Cid == lcid
+	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", prevChainHead.(cidlink.Link).Cid, lcid)
 
 	allMhs := typehelpers.AllMultihashesFromAdChain(t, prevAd, te.publisherLinkSys)
 
@@ -711,6 +713,95 @@ func TestRmAll(t *testing.T) {
 	var found bool
 	for _, mh := range cw.mhs {
 		if bytes.Equal(mh, last) {
+			found = true
+		}
+	}
+	require.False(t, found)
+}
+
+func TestShouldSkipAdsForProviderAfterRmAll(t *testing.T) {
+	te := setupTestEnv(t, true)
+	cw := &coreWrap{
+		Interface: te.ingester.indexer,
+	}
+	te.ingester.indexer = cw
+
+	// generating an ad for provider with Remove All instruction
+	chainHead := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2},
+		},
+		AddRmAll: true,
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	_, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = te.publisher.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
+	require.NoError(t, err)
+
+	wait, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+	<-wait
+
+	// sending another ad from the same provider, that should be skipped at ingestion
+	chainHead = typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2},
+		},
+		HeadLink: chainHead,
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	_, err = te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+
+	err = te.publisher.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
+	require.NoError(t, err)
+
+	wait, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+	<-wait
+
+	// sending an add from a different provider that should be ingested
+	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
+	chainHead = typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 3},
+		},
+		HeadLink: chainHead,
+	}.Build(t, te.publisherLinkSys, priv)
+
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	ad, err := schema.UnwrapAdvertisement(adNode)
+	require.NoError(t, err)
+
+	err = te.publisher.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
+	require.NoError(t, err)
+
+	wait, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+	<-wait
+
+	var lcid cid.Cid
+
+	requireTrueEventually(t, func() bool {
+		lcid, err = te.ingester.GetLatestSync(te.pubHost.ID())
+		require.NoError(t, err)
+		return chainHead.(cidlink.Link).Cid == lcid
+	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", chainHead.(cidlink.Link).Cid, lcid)
+
+	mhs := typehelpers.AllMultihashesFromAd(t, ad, te.publisherLinkSys)
+	p, err := peer.Decode(ad.Provider)
+	require.NoError(t, err)
+	requireIndexedEventually(t, te.ingester.indexer, p, mhs)
+
+	// only one multihash from the latest ad should be ingested
+	var found bool
+	for _, mh := range cw.mhs {
+		if !bytes.Equal(mh, mhs[0]) {
 			found = true
 		}
 	}

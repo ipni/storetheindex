@@ -197,7 +197,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			return nil
 		} else {
 			log.Infow("Advertisement is for removal by provider")
-			err = ing.indexer.RemoveProvider(context.Background(), providerID)
+			err = ing.reg.RemoveProvider(context.Background(), providerID)
 			if err != nil {
 				return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to remove provider: %w", err)}
 			}
