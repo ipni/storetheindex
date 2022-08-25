@@ -65,7 +65,7 @@ data:
         "ConfigCheckInterval": "30s",
         "GCInterval": "30m0s",
         "GCTimeLimit": "5m0s",
-        "ShutdownTimeout": "4m0s",
+        "ShutdownTimeout": "15m",
         "ValueStoreDir": "/data/valuestore",
         "ValueStoreType": "sth"
       },
