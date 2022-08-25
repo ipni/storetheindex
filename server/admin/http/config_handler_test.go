@@ -2,7 +2,7 @@ package adminserver
 
 import (
 	"bufio"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -54,7 +54,7 @@ func Test_SetLogLevel_NoQueryParamsIsError(t *testing.T) {
 
 	qt.Check(t, rr.Code, qt.Equals, http.StatusBadRequest)
 
-	respBody, err := ioutil.ReadAll(rr.Body)
+	respBody, err := io.ReadAll(rr.Body)
 	qt.Assert(t, err, qt.IsNil)
 	qt.Check(t, strings.TrimSpace(string(respBody)), qt.Equals, "at least one <subsystem>=<level> query parameter must be specified")
 }
@@ -116,7 +116,7 @@ func Test_SetLogLevel(t *testing.T) {
 
 			qt.Check(t, rr.Code, qt.Equals, tt.wantStatus)
 
-			respBody, err := ioutil.ReadAll(rr.Body)
+			respBody, err := io.ReadAll(rr.Body)
 			qt.Assert(t, err, qt.IsNil)
 			qt.Check(t, strings.TrimSpace(string(respBody)), qt.Equals, tt.wantMessage)
 			if tt.wantAssertions != nil {

@@ -3,7 +3,6 @@ package httpclient
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -39,7 +38,7 @@ func New(baseURL, resource string, options ...Option) (*url.URL, *http.Client, e
 }
 
 func ReadErrorFrom(status int, r io.Reader) error {
-	body, err := ioutil.ReadAll(r)
+	body, err := io.ReadAll(r)
 	if err != nil {
 		return err
 	}
