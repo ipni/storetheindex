@@ -401,16 +401,17 @@ func daemonCommand(cctx *cli.Context) error {
 
 	log.Infow("Shutting down daemon")
 
-	ctx = context.Background()
+	shCtx := context.Background()
 	if cfg.Indexer.ShutdownTimeout > 0 {
-		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(cfg.Indexer.ShutdownTimeout))
-		defer cancel()
+		var shCancel context.CancelFunc
+		shCtx, shCancel = context.WithTimeout(context.Background(), time.Duration(cfg.Indexer.ShutdownTimeout))
+		defer shCancel()
 	}
 
 	go func() {
 		// Wait for context to be canceled.  If timeout, then exit with error.
-		<-ctx.Done()
-		if ctx.Err() == context.DeadlineExceeded {
+		<-shCtx.Done()
+		if shCtx.Err() == context.DeadlineExceeded {
 			fmt.Println("Timed out on shutdown, terminating...")
 			os.Exit(-1)
 		}
@@ -428,19 +429,19 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	if ingestSvr != nil {
-		if err = ingestSvr.Shutdown(ctx); err != nil {
+		if err = ingestSvr.Shutdown(shCtx); err != nil {
 			log.Errorw("Error shutting down ingest server", "err", err)
 			finalErr = ErrDaemonStop
 		}
 	}
 	if finderSvr != nil {
-		if err = finderSvr.Shutdown(ctx); err != nil {
+		if err = finderSvr.Shutdown(shCtx); err != nil {
 			log.Errorw("Error shutting down finder server", "err", err)
 			finalErr = ErrDaemonStop
 		}
 	}
 	if adminSvr != nil {
-		if err = adminSvr.Shutdown(ctx); err != nil {
+		if err = adminSvr.Shutdown(shCtx); err != nil {
 			log.Errorw("Error shutting down admin server", "err", err)
 			finalErr = ErrDaemonStop
 		}
@@ -458,8 +459,6 @@ func daemonCommand(cctx *cli.Context) error {
 		log.Errorw("Error closing value store", "err", err)
 		finalErr = ErrDaemonStop
 	}
-
-	cancel()
 
 	log.Info("Indexer stopped")
 	return finalErr
