@@ -13,8 +13,8 @@ patchesStrategicMerge:
 secretGenerator:
 - name: indexer-identity
   files:
-  - indexer-0.key=indexer-0-identity.encrypted
-  - indexer-1.key=indexer-1-identity.encrypted
+  - indexer-0.key=indexer-0-identity.encrypted # 12D3KooWDBjcDRQ7CKJeF9Yy3UKbriHfyETDrXKzTDB6biH3ibBd
+  - indexer-1.key=indexer-1-identity.encrypted # 12D3KooWSQpUgBZwbNuMN3ctZjMesnoH9UDhwEXroxParXQCgurN
 images:
 - name: storetheindex
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
