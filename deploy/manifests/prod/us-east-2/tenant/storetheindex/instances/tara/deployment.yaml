@@ -5,6 +5,7 @@ metadata:
 spec:
   template:
     spec:
+      terminationGracePeriodSeconds: 600
       containers:
         - name: indexer
           resources:
