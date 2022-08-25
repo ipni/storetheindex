@@ -22,6 +22,8 @@ type Indexer struct {
 	GCScanFree bool
 	// ShutdownTimeout is the duration that a graceful shutdown has to complete
 	// before the daemon process is terminated.
+	// A timeout of zero disables the shutdown timeout completely.
+	// if unset, defaults to no shutdown timeout.
 	ShutdownTimeout Duration
 	// ValueStoreDir is the directory where value store is kept. If this is not an absolute path
 	// then the location is relative to the indexer repo directory.
@@ -53,7 +55,7 @@ func NewIndexer() Indexer {
 		GCInterval:          Duration(30 * time.Minute),
 		GCTimeLimit:         Duration(5 * time.Minute),
 		GCScanFree:          false,
-		ShutdownTimeout:     Duration(10 * time.Second),
+		ShutdownTimeout:     0,
 		ValueStoreDir:       "valuestore",
 		ValueStoreType:      "sth",
 		STHBits:             24,
@@ -76,9 +78,6 @@ func (c *Indexer) populateUnset() {
 	}
 	if c.GCTimeLimit == 0 {
 		c.GCTimeLimit = def.GCTimeLimit
-	}
-	if c.ShutdownTimeout == 0 {
-		c.ShutdownTimeout = def.ShutdownTimeout
 	}
 	if c.ValueStoreDir == "" {
 		c.ValueStoreDir = def.ValueStoreDir
