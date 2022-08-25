@@ -401,8 +401,11 @@ func daemonCommand(cctx *cli.Context) error {
 
 	log.Infow("Shutting down daemon")
 
-	ctx, cancel = context.WithTimeout(context.Background(), time.Duration(cfg.Indexer.ShutdownTimeout))
-	defer cancel()
+	ctx = context.Background()
+	if cfg.Indexer.ShutdownTimeout > 0 {
+		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(cfg.Indexer.ShutdownTimeout))
+		defer cancel()
+	}
 
 	go func() {
 		// Wait for context to be canceled.  If timeout, then exit with error.
