@@ -6,7 +6,7 @@ spec:
   replicas: 2
   template:
     spec:
-      terminationGracePeriodSeconds: 300
+      terminationGracePeriodSeconds: 600
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
