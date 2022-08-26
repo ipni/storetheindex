@@ -451,7 +451,7 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash
 			continue
 		}
 		if len(decoded.Digest) < ing.minKeyLen {
-			log.Warnw("multihash too short, ignoring", "size", len(entry))
+			log.Warnw("multihash digest too short, ignoring", "size", len(decoded.Digest))
 			continue
 		}
 
