@@ -113,11 +113,17 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create a valuestore of the configured type.
-	valueStore, err := createValueStore(cctx.Context, cfg.Indexer)
+	valueStore, minKeyLen, err := createValueStore(cctx.Context, cfg.Indexer)
 	if err != nil {
 		return err
 	}
 	log.Info("Valuestore initialized")
+
+	// If the value store requires a minimum key length, make sure the ingester
+	// if configured with at least the minimum.
+	if minKeyLen > cfg.Ingest.MinimumKeyLength {
+		cfg.Ingest.MinimumKeyLength = minKeyLen
+	}
 
 	// Create result cache
 	var resultCache cache.Interface
@@ -467,15 +473,17 @@ func fileChanged(filePath string, modTime time.Time) (time.Time, bool, error) {
 	return modTime, false, nil
 }
 
-func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.Interface, error) {
+func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.Interface, int, error) {
+	const sthMinKeyLen = 4
+
 	dir, err := config.Path("", cfgIndexer.ValueStoreDir)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	log.Infow("Valuestore initializing/opening", "type", cfgIndexer.ValueStoreType, "path", dir)
 
 	if err = checkWritable(dir); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	var vcodec indexer.ValueCodec
@@ -485,12 +493,15 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 	case vstoreBinaryCodec:
 		vcodec = indexer.BinaryValueCodec{}
 	default:
-		return nil, fmt.Errorf("unrecognized value store codec: %s", cfgIndexer.ValueStoreCodec)
+		return nil, 0, fmt.Errorf("unrecognized value store codec: %s", cfgIndexer.ValueStoreCodec)
 	}
+
+	var vs indexer.Interface
+	var minKeyLen int
 
 	switch cfgIndexer.ValueStoreType {
 	case vstoreStorethehash:
-		return storethehash.New(
+		vs, err = storethehash.New(
 			ctx,
 			dir,
 			vcodec,
@@ -498,13 +509,18 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 			sth.GCTimeLimit(time.Duration(cfgIndexer.GCTimeLimit)),
 			sth.IndexBitSize(cfgIndexer.STHBits),
 		)
+		minKeyLen = sthMinKeyLen
 	case vstorePogreb:
-		return pogreb.New(dir, vcodec)
+		vs, err = pogreb.New(dir, vcodec)
 	case vstoreMemory:
-		return memory.New(), nil
+		vs, err = memory.New(), nil
+	default:
+		err = fmt.Errorf("unrecognized store type: %s", cfgIndexer.ValueStoreType)
 	}
-
-	return nil, fmt.Errorf("unrecognized store type: %s", cfgIndexer.ValueStoreType)
+	if err != nil {
+		return nil, 0, err
+	}
+	return vs, minKeyLen, nil
 }
 
 func setLoggingConfig(cfgLogging config.Logging) error {
