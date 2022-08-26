@@ -18,6 +18,7 @@ spec:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
           whenUnsatisfiable: ScheduleAnyway
+      terminationGracePeriodSeconds: 600
       containers:
         - name: indexer
           env:
