@@ -92,8 +92,6 @@ type Ingester struct {
 	entriesSel datamodel.Node
 	reg        *registry.Registry
 
-	cfg config.Ingest
-
 	// inEvents is used to send a adProcessedEvent to the distributeEvents
 	// goroutine, when an advertisement in marked complete or err'd.
 	inEvents chan adProcessedEvent
@@ -135,6 +133,9 @@ type Ingester struct {
 
 	rateLimit rate.Limit
 	rateMutex sync.Mutex
+
+	// Multihash minimum length
+	minKeyLen int
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -151,7 +152,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		entriesSel:  Selectors.EntriesWithLimit(recursionLimit(cfg.EntriesDepthLimit)),
 		reg:         reg,
-		cfg:         cfg,
 		inEvents:    make(chan adProcessedEvent, 1),
 
 		closePendingSyncs: make(chan struct{}),
@@ -160,6 +160,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		providerAdChainStaging:  make(map[peer.ID]*atomic.Value),
 		toWorkers:               NewPriorityQueue(),
 		closeWorkers:            make(chan struct{}),
+
+		minKeyLen: cfg.MinimumKeyLength,
 	}
 
 	var err error

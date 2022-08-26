@@ -441,12 +441,17 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash
 	// Iterate over all entries and ingest (or remove) them.
 	var count, badMultihashCount int
 	for _, entry := range mhs {
-		if _, err = multihash.Decode(entry); err != nil {
+		decoded, err := multihash.Decode(entry)
+		if err != nil {
 			// Only log first error to prevent log flooding.
 			if badMultihashCount == 0 {
 				log.Warnw("Ignoring bad multihash", "err", err)
 			}
 			badMultihashCount++
+			continue
+		}
+		if len(decoded.Digest) < ing.minKeyLen {
+			log.Warnw("multihash too short, ignoring", "size", len(entry))
 			continue
 		}
 
