@@ -6,7 +6,7 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
-	github.com/filecoin-project/go-indexer-core v0.5.2
+	github.com/filecoin-project/go-indexer-core v0.5.3
 	github.com/filecoin-project/go-legs v0.4.11
 	github.com/frankban/quicktest v1.14.3
 	github.com/gammazero/deque v0.2.0
@@ -22,7 +22,7 @@ require (
 	github.com/ipfs/kubo v0.14.0
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
 	github.com/ipld/go-ipld-prime v0.17.0
-	github.com/ipld/go-storethehash v0.2.3
+	github.com/ipld/go-storethehash v0.2.4
 	github.com/libp2p/go-libp2p v0.21.0
 	github.com/libp2p/go-libp2p-core v0.19.1
 	github.com/libp2p/go-msgio v0.2.0
