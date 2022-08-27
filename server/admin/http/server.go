@@ -2,6 +2,7 @@ package adminserver
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 
@@ -18,14 +19,17 @@ import (
 var log = logging.Logger("indexer/admin")
 
 type Server struct {
-	ctx     context.Context
 	cancel  context.CancelFunc
 	l       net.Listener
 	server  *http.Server
 	handler *adminHandler
 }
 
-func New(listen string, options ...ServerOption) (*Server, error) {
+func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error, options ...ServerOption) (*Server, error) {
+	if ingester == nil {
+		return nil, errors.New("ingester cannot be nil")
+	}
+
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err
@@ -47,11 +51,10 @@ func New(listen string, options ...ServerOption) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &Server{
-		ctx:     ctx,
 		cancel:  cancel,
 		l:       l,
 		server:  server,
-		handler: nil,
+		handler: newHandler(ctx, indexer, ingester, reg, reloadErrChan),
 	}
 
 	// Set protocol handlers
@@ -80,25 +83,15 @@ func New(listen string, options ...ServerOption) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) SetHandler(indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error) error {
-	if ingester == nil {
-		panic("ingester cannot be nil")
-	}
-
-	h := newHandler(s.ctx, indexer, ingester, reg, reloadErrChan)
-	s.handler = h
-	return nil
-}
-
 func (s *Server) Start() error {
 	log.Infow("admin http server listening", "listen_addr", s.l.Addr())
 	return s.server.Serve(s.l)
 }
 
-func (s *Server) Shutdown(ctx context.Context) error {
+func (s *Server) Close() error {
 	log.Info("admin http server shutdown")
 	s.cancel() // stop any sync in progress
-	return s.server.Shutdown(ctx)
+	return s.server.Shutdown(context.Background())
 }
 
 func (s *Server) importManifest(w http.ResponseWriter, r *http.Request) {

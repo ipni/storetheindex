@@ -63,7 +63,7 @@ func (s *Server) Start() error {
 	return s.server.Serve(s.l)
 }
 
-func (s *Server) Shutdown(ctx context.Context) error {
+func (s *Server) Close() error {
 	log.Info("ingest http server shutdown")
-	return s.server.Shutdown(ctx)
+	return s.server.Shutdown(context.Background())
 }
