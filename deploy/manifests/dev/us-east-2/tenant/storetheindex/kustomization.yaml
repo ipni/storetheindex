@@ -18,4 +18,4 @@ secretGenerator:
 images:
 - name: storetheindex
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
-  newTag: 20220826192838-5e35bebb187be3db8096347d635fdef13bd85a96 # {"$imagepolicy": "storetheindex:storetheindex:tag"}
+  newTag: 20220827185242-945940507682064093e846ecc8578a58a5f16535 # {"$imagepolicy": "storetheindex:storetheindex:tag"}

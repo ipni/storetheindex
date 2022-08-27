@@ -57,6 +57,7 @@
     "CacheSize": 300000,
     "ConfigCheckInterval": "30s",
     "GCInterval": "30m0s",
+    "GCScanFree": false,
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
     "ValueStoreType": "sth",
