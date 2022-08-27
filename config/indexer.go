@@ -18,6 +18,8 @@ type Indexer struct {
 	// GCTimeLimit configures the maximum amount of time a garbage collection
 	// cycle may run.
 	GCTimeLimit Duration
+	// GCScanFree rapidly scans for unused index files at the cost of bucket access.
+	GCScanFree bool
 	// ShutdownTimeout is the duration that a graceful shutdown has to complete
 	// before the daemon process is terminated.
 	ShutdownTimeout Duration
@@ -50,6 +52,7 @@ func NewIndexer() Indexer {
 		ConfigCheckInterval: Duration(30 * time.Second),
 		GCInterval:          Duration(30 * time.Minute),
 		GCTimeLimit:         Duration(5 * time.Minute),
+		GCScanFree:          false,
 		ShutdownTimeout:     Duration(10 * time.Second),
 		ValueStoreDir:       "valuestore",
 		ValueStoreType:      "sth",
