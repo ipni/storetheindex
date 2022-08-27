@@ -86,32 +86,6 @@ func daemonCommand(cctx *cli.Context) error {
 		return fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Datastore.Type)
 	}
 
-	// Create admin HTTP server
-	var adminSvr *httpadminserver.Server
-	if cfg.Addresses.Admin != "" && !cctx.Bool("noadmin") {
-		maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Admin)
-		if err != nil {
-			return fmt.Errorf("bad admin address in config %s: %s", cfg.Addresses.Admin, err)
-		}
-		adminAddr, err := manet.ToNetAddr(maddr)
-		if err != nil {
-			return err
-		}
-		adminSvr, err = httpadminserver.New(adminAddr.String())
-		if err != nil {
-			return err
-		}
-	}
-	svrErrChan := make(chan error, 3)
-	if adminSvr != nil {
-		go func() {
-			svrErrChan <- adminSvr.Start()
-		}()
-		fmt.Println("Admin server:\t", cfg.Addresses.Admin)
-	} else {
-		fmt.Println("Admin server:\t disabled")
-	}
-
 	// Create a valuestore of the configured type.
 	valueStore, minKeyLen, err := createValueStore(cctx.Context, cfg.Indexer)
 	if err != nil {
@@ -286,12 +260,24 @@ func daemonCommand(cctx *cli.Context) error {
 
 	reloadErrsChan := make(chan chan error, 1)
 
-	// load admin server.
+	// Create admin HTTP server
+	var adminSvr *httpadminserver.Server
 	if cfg.Addresses.Admin != "" && !cctx.Bool("noadmin") {
-		if err = adminSvr.SetHandler(indexerCore, ingester, reg, reloadErrsChan); err != nil {
+		maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Admin)
+		if err != nil {
+			return fmt.Errorf("bad admin address in config %s: %s", cfg.Addresses.Admin, err)
+		}
+		adminAddr, err := manet.ToNetAddr(maddr)
+		if err != nil {
+			return err
+		}
+		adminSvr, err = httpadminserver.New(adminAddr.String(), indexerCore, ingester, reg, reloadErrsChan)
+		if err != nil {
 			return err
 		}
 	}
+
+	svrErrChan := make(chan error, 3)
 
 	log.Info("Starting http servers")
 	if finderSvr != nil {
@@ -309,6 +295,14 @@ func daemonCommand(cctx *cli.Context) error {
 		fmt.Println("Ingest server:\t", cfg.Addresses.Ingest)
 	} else {
 		fmt.Println("Ingest server:\t disabled")
+	}
+	if adminSvr != nil {
+		go func() {
+			svrErrChan <- adminSvr.Start()
+		}()
+		fmt.Println("Admin server:\t", cfg.Addresses.Admin)
+	} else {
+		fmt.Println("Admin server:\t disabled")
 	}
 
 	reloadSig := make(chan os.Signal, 1)
@@ -401,21 +395,21 @@ func daemonCommand(cctx *cli.Context) error {
 
 	log.Infow("Shutting down daemon")
 
-	shCtx := context.Background()
+	// If a shutdown timeout is configured, then wait that amount of time for a
+	// gradeful shutdown to before exiting with error.
 	if cfg.Indexer.ShutdownTimeout > 0 {
-		var shCancel context.CancelFunc
-		shCtx, shCancel = context.WithTimeout(context.Background(), time.Duration(cfg.Indexer.ShutdownTimeout))
+		shCtx, shCancel := context.WithTimeout(context.Background(), time.Duration(cfg.Indexer.ShutdownTimeout))
 		defer shCancel()
-	}
 
-	go func() {
-		// Wait for context to be canceled.  If timeout, then exit with error.
-		<-shCtx.Done()
-		if shCtx.Err() == context.DeadlineExceeded {
-			fmt.Println("Timed out on shutdown, terminating...")
-			os.Exit(-1)
-		}
-	}()
+		go func() {
+			// Wait for context to be canceled. Exit with error if timeout.
+			<-shCtx.Done()
+			if shCtx.Err() == context.DeadlineExceeded {
+				fmt.Println("Timed out on shutdown, terminating...")
+				os.Exit(-1)
+			}
+		}()
+	}
 
 	if peeringService != nil {
 		err = peeringService.Stop()
@@ -429,19 +423,19 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	if ingestSvr != nil {
-		if err = ingestSvr.Shutdown(shCtx); err != nil {
+		if err = ingestSvr.Close(); err != nil {
 			log.Errorw("Error shutting down ingest server", "err", err)
 			finalErr = ErrDaemonStop
 		}
 	}
 	if finderSvr != nil {
-		if err = finderSvr.Shutdown(shCtx); err != nil {
+		if err = finderSvr.Close(); err != nil {
 			log.Errorw("Error shutting down finder server", "err", err)
 			finalErr = ErrDaemonStop
 		}
 	}
 	if adminSvr != nil {
-		if err = adminSvr.Shutdown(shCtx); err != nil {
+		if err = adminSvr.Close(); err != nil {
 			log.Errorw("Error shutting down admin server", "err", err)
 			finalErr = ErrDaemonStop
 		}

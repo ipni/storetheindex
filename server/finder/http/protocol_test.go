@@ -54,7 +54,7 @@ func TestFindIndexData(t *testing.T) {
 
 	test.FindIndexTest(ctx, t, c, ind, reg)
 
-	err := s.Shutdown(ctx)
+	err := s.Close()
 	if err != nil {
 		t.Error("shutdown error:", err)
 	}
@@ -101,7 +101,7 @@ func TestReframeFindIndexData(t *testing.T) {
 
 	test.ReframeFindIndexTest(ctx, t, c, reframeClient, ind, reg)
 
-	err = s.Shutdown(ctx)
+	err = s.Close()
 	if err != nil {
 		t.Error("shutdown error:", err)
 	}
@@ -144,7 +144,7 @@ func TestProviderInfo(t *testing.T) {
 
 	test.ListProvidersTest(t, httpClient, peerID)
 
-	err := s.Shutdown(ctx)
+	err := s.Close()
 	if err != nil {
 		t.Error("shutdown error:", err)
 	}
@@ -185,7 +185,7 @@ func TestGetStats(t *testing.T) {
 
 	test.GetStatsTest(ctx, t, httpClient)
 
-	err := s.Shutdown(ctx)
+	err := s.Close()
 	if err != nil {
 		t.Error("shutdown error:", err)
 	}
@@ -218,7 +218,7 @@ func TestRemoveProvider(t *testing.T) {
 
 	test.RemoveProviderTest(ctx, t, c, ind, reg)
 
-	err := s.Shutdown(ctx)
+	err := s.Close()
 	if err != nil {
 		t.Error("shutdown error:", err)
 	}
