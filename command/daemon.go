@@ -503,7 +503,8 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 			vcodec,
 			sth.GCInterval(time.Duration(cfgIndexer.GCInterval)),
 			sth.GCTimeLimit(time.Duration(cfgIndexer.GCTimeLimit)),
-			sth.GCScanFree(cfgIndexer.GCScanFree),
+			sth.BurstRate(cfgIndexer.STHBurstRate),
+			sth.SyncInterval(time.Duration(cfgIndexer.STHSyncInterval)),
 			sth.IndexBitSize(cfgIndexer.STHBits),
 		)
 		minKeyLen = sthMinKeyLen
