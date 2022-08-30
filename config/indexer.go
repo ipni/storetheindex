@@ -18,8 +18,6 @@ type Indexer struct {
 	// GCTimeLimit configures the maximum amount of time a garbage collection
 	// cycle may run.
 	GCTimeLimit Duration
-	// GCScanFree rapidly scans for unused index files at the cost of bucket access.
-	GCScanFree bool
 	// ShutdownTimeout is the duration that a graceful shutdown has to complete
 	// before the daemon process is terminated.
 	// A timeout of zero disables the shutdown timeout completely.
@@ -33,6 +31,11 @@ type Indexer struct {
 	// STHBits is bits for bucket size in store the hash. Note: this should not be changed
 	// from its value at initialization or the datastore will be corrupted.
 	STHBits uint8
+	// STHBurstRate specifies how much unwritten data can accumulate before
+	// causing data to be flushed to disk.
+	STHBurstRate uint64
+	// STHSyncInterval determines how frequently changes are flushed to disk.
+	STHSyncInterval Duration
 	// ValueStoreCodec configures the marshalling format of values stored by the valuestore.
 	// It can be one of "json" or "binary". If unspecified, json format is used by default.
 	//
@@ -54,11 +57,12 @@ func NewIndexer() Indexer {
 		ConfigCheckInterval: Duration(30 * time.Second),
 		GCInterval:          Duration(30 * time.Minute),
 		GCTimeLimit:         Duration(5 * time.Minute),
-		GCScanFree:          false,
 		ShutdownTimeout:     0,
 		ValueStoreDir:       "valuestore",
 		ValueStoreType:      "sth",
 		STHBits:             24,
+		STHBurstRate:        4 * 1024 * 1024,
+		STHSyncInterval:     Duration(time.Second),
 		ValueStoreCodec:     "json",
 	}
 }
@@ -87,6 +91,12 @@ func (c *Indexer) populateUnset() {
 	}
 	if c.STHBits == 0 {
 		c.STHBits = def.STHBits
+	}
+	if c.STHBurstRate == 0 {
+		c.STHBurstRate = def.STHBurstRate
+	}
+	if c.STHSyncInterval == 0 {
+		c.STHSyncInterval = def.STHSyncInterval
 	}
 	if c.ValueStoreCodec == "" {
 		c.ValueStoreCodec = def.ValueStoreCodec
