@@ -288,7 +288,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		// Therefore, we only care about the keys.
 		//
 		// Group the mutlihashes in StoreBatchSize batches and process as usual.
-		var mhs []multihash.Multihash
+		mhs := make([]multihash.Multihash, 0, ing.batchSize)
 		mi := hn.MapIterator()
 		for !mi.Done() {
 			k, _, err := mi.Next()
@@ -313,7 +313,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 				if err != nil {
 					return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 				}
-				mhs = nil
+				mhs = mhs[:0]
 			}
 		}
 		// Process any remaining multihashes from the batch cut-off.
@@ -414,7 +414,6 @@ func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertiseme
 // metadata and multihashes in the content block are indexed by the
 // indexer-core.
 func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash.Multihash, log *zap.SugaredLogger) error {
-
 	// Load the advertisement data for this chunk. If there are more chunks to
 	// follow, then cache the ad data.
 	value, isRm, err := getAdData(ad)
@@ -422,94 +421,48 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash
 		return err
 	}
 
-	batchChan := make(chan []multihash.Multihash)
-	errChan := make(chan error, 1)
-	// Start a goroutine that processes batches of multihashes.
-	go func() {
-		defer close(errChan)
-		for mhs := range batchChan {
-			if err := ing.storeBatch(value, mhs, isRm); err != nil {
-				errChan <- err
-				return
-			}
-		}
-	}()
-
-	batch := make([]multihash.Multihash, 0, ing.batchSize)
-	var prevBatch []multihash.Multihash
-
-	// Iterate over all entries and ingest (or remove) them.
-	var count, badMultihashCount int
-	for _, entry := range mhs {
-		decoded, err := multihash.Decode(entry)
+	// Iterate over all entries and ingest remove bad ones.
+	var badMultihashCount int
+	for i := 0; i < len(mhs); {
+		var badMultihash bool
+		decoded, err := multihash.Decode(mhs[i])
 		if err != nil {
 			// Only log first error to prevent log flooding.
 			if badMultihashCount == 0 {
 				log.Warnw("Ignoring bad multihash", "err", err)
 			}
+			badMultihash = true
+		} else if len(decoded.Digest) < ing.minKeyLen {
+			log.Warnw("Multihash digest too short, ignoring", "digestSize", len(decoded.Digest))
+			badMultihash = true
+		}
+		if badMultihash {
+			// Remove the bad multihash.
+			mhs[i] = mhs[len(mhs)-1]
+			mhs[len(mhs)-1] = nil
+			mhs = mhs[:len(mhs)-1]
 			badMultihashCount++
 			continue
 		}
-		if len(decoded.Digest) < ing.minKeyLen {
-			log.Warnw("Multihash digest too short, ignoring", "digestSize", len(decoded.Digest))
-			continue
-		}
-
-		batch = append(batch, entry)
-
-		// Process full batch of multihashes.
-		if len(batch) == cap(batch) {
-			select {
-			case batchChan <- batch:
-			case err = <-errChan:
-				return err
-			}
-			count += len(batch)
-			if prevBatch == nil {
-				prevBatch = make([]multihash.Multihash, 0, ing.batchSize)
-			}
-			// Since batchChan is unbuffered, the goroutine is done reading the previous batch.
-			prevBatch, batch = batch, prevBatch
-			batch = batch[:0]
-		}
+		i++
 	}
 	if badMultihashCount != 0 {
 		log.Warnw("Ignored bad multihashes", "ignored", badMultihashCount)
 	}
-
-	// Process any remaining multihashes.
-	if len(batch) != 0 {
-		select {
-		case batchChan <- batch:
-		case err = <-errChan:
-			return err
-		}
-		count += len(batch)
-	}
-
-	close(batchChan)
-	err = <-errChan
-	if err != nil {
-		return err
+	if len(mhs) == 0 {
+		return nil
 	}
 
 	if isRm {
-		log.Infow("Removed multihashes in entry chunk", "count", count)
-	} else {
-		log.Infow("Put multihashes in entry chunk", "count", count)
-	}
-	return nil
-}
-
-func (ing *Ingester) storeBatch(value indexer.Value, batch []multihash.Multihash, isRm bool) error {
-	if isRm {
-		if err := ing.indexer.Remove(value, batch...); err != nil {
+		if err := ing.indexer.Remove(value, mhs...); err != nil {
 			return fmt.Errorf("cannot remove multihashes from indexer: %w", err)
 		}
+		log.Infow("Removed multihashes in entry chunk", "count", len(mhs))
 	} else {
-		if err := ing.indexer.Put(value, batch...); err != nil {
+		if err := ing.indexer.Put(value, mhs...); err != nil {
 			return fmt.Errorf("cannot put multihashes into indexer: %w", err)
 		}
+		log.Infow("Put multihashes in entry chunk", "count", len(mhs))
 	}
 	return nil
 }
