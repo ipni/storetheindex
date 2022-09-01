@@ -40,7 +40,7 @@ module "eks" {
     #  - https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html#solid-state-drives
     prod-ue2a-r5b-4xl = {
       min_size       = 1
-      max_size       = 3
+      max_size       = 4
       desired_size   = 1
       instance_types = ["r5b.4xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a.id]
@@ -54,7 +54,7 @@ module "eks" {
     }
     prod-ue2b-r5b-4xl = {
       min_size       = 1
-      max_size       = 3
+      max_size       = 4
       desired_size   = 1
       instance_types = ["r5b.4xlarge"]
       subnet_ids     = [data.aws_subnet.ue2b.id]
