@@ -9,11 +9,14 @@ import (
 	"syscall"
 	"time"
 
+	pbl "github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/bloom"
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/go-indexer-core/cache"
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/memory"
+	"github.com/filecoin-project/go-indexer-core/store/pebble"
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/storetheindex/config"
@@ -43,6 +46,7 @@ const (
 	vstoreMemory       = "memory"
 	vstorePogreb       = "pogreb"
 	vstoreStorethehash = "sth"
+	vstorePebble       = "pebble"
 
 	vstoreJsonCodec   = "json"
 	vstoreBinaryCodec = "binary"
@@ -516,6 +520,45 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		vs, err = pogreb.New(dir, vcodec)
 	case vstoreMemory:
 		vs, err = memory.New(), nil
+	case vstorePebble:
+
+		// TODO: parameterize values and study what settings are right for sti
+
+		// Default options copied from cockroachdb with the addition of 1GiB cache.
+		// See:
+		// - https://github.com/cockroachdb/cockroach/blob/v22.1.6/pkg/storage/pebble.go#L479
+		pebbleOpts := &pbl.Options{
+			BytesPerSync:                10 << 20, // 10 MiB
+			WALBytesPerSync:             10 << 20, // 10 MiB
+			MaxConcurrentCompactions:    10,
+			MemTableSize:                64 << 20, // 64 MiB
+			MemTableStopWritesThreshold: 4,
+			LBaseMaxBytes:               64 << 20, // 64 MiB
+			L0CompactionThreshold:       2,
+			L0StopWritesThreshold:       1000,
+			WALMinSyncInterval:          func() time.Duration { return 30 * time.Second },
+		}
+
+		pebbleOpts.Experimental.ReadCompactionRate = 10 << 20 // 20 MiB
+		pebbleOpts.Experimental.MinDeletionRate = 128 << 20   // 128 MiB
+
+		const numLevels = 7
+		pebbleOpts.Levels = make([]pbl.LevelOptions, numLevels)
+		for i := 0; i < numLevels; i++ {
+			l := &pebbleOpts.Levels[i]
+			l.BlockSize = 32 << 10       // 32 KiB
+			l.IndexBlockSize = 256 << 10 // 256 KiB
+			l.FilterPolicy = bloom.FilterPolicy(10)
+			l.FilterType = pbl.TableFilter
+			if i > 0 {
+				l.TargetFileSize = pebbleOpts.Levels[i-1].TargetFileSize * 2
+			}
+			l.EnsureDefaults()
+		}
+		pebbleOpts.Levels[numLevels-1].FilterPolicy = nil
+		pebbleOpts.Cache = pbl.NewCache(1 << 30) // 1 GiB
+
+		vs, err = pebble.New(dir, pebbleOpts)
 	default:
 		err = fmt.Errorf("unrecognized store type: %s", cfgIndexer.ValueStoreType)
 	}
