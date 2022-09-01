@@ -33,7 +33,7 @@ var rng = rand.New(rand.NewSource(1413))
 
 // InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
-	valueStore, err := storethehash.New(context.Background(), t.TempDir(), nil)
+	valueStore, err := storethehash.New(context.Background(), t.TempDir(), nil, 4)
 	if err != nil {
 		t.Fatal(err)
 	}

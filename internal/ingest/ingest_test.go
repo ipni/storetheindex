@@ -44,6 +44,9 @@ import (
 )
 
 const (
+	testCorePutConcurrency  = 4
+	testEntryPutConcurrency = 4
+
 	testRetryInterval = 2 * time.Second
 	testRetryTimeout  = 15 * time.Second
 
@@ -55,6 +58,7 @@ var (
 	defaultTestIngestConfig = config.Ingest{
 		AdvertisementDepthLimit: 100,
 		EntriesDepthLimit:       100,
+		EntryPutConcurrency:     testEntryPutConcurrency,
 		IngestWorkerCount:       1,
 		PubSubTopic:             "test/ingest",
 		RateLimit: config.RateLimit{
@@ -1183,7 +1187,7 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 
 // Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
-	valueStore, err := storethehash.New(context.Background(), t.TempDir(), nil, sth.IndexBitSize(8))
+	valueStore, err := storethehash.New(context.Background(), t.TempDir(), nil, testCorePutConcurrency, sth.IndexBitSize(8))
 	if err != nil {
 		t.Fatal(err)
 	}

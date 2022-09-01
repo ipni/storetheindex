@@ -17,6 +17,7 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/peerutil"
+	"github.com/gammazero/workerpool"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -136,6 +137,9 @@ type Ingester struct {
 
 	// Multihash minimum length
 	minKeyLen int
+
+	// entryWP is a worker pool for asynchronous calls to indexer.Put.
+	entryWP *workerpool.WorkerPool
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -206,6 +210,10 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	if cfg.IngestWorkerCount == 0 {
 		return nil, errors.New("ingester worker count must be > 0")
+	}
+
+	if cfg.EntryPutConcurrency > 1 {
+		ing.entryWP = workerpool.New(cfg.EntryPutConcurrency)
 	}
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())

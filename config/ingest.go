@@ -27,6 +27,11 @@ type Ingest struct {
 	// (segments) of size set by SyncSegmentDepthLimit. EntriesDepthLimit sets
 	// the limit on the total number of entries chunks across all segments.
 	EntriesDepthLimit int
+	// EntryPutConcurrency is the number of goroutines used to asynchronously
+	// Put entry chunks. This allows fetching the next entry chunk without
+	// waiting for the current one to finish being written. A value of 1 means
+	// no concurrency, and zero uses the default.
+	EntryPutConcurrency int
 	// HttpSyncRetryMax sets the maximum number of times HTTP sync requests
 	// should be retried.
 	HttpSyncRetryMax int
@@ -77,6 +82,7 @@ func NewIngest() Ingest {
 	return Ingest{
 		AdvertisementDepthLimit: 33554432,
 		EntriesDepthLimit:       65536,
+		EntryPutConcurrency:     16,
 		HttpSyncRetryMax:        4,
 		HttpSyncRetryWaitMax:    Duration(30 * time.Second),
 		HttpSyncRetryWaitMin:    Duration(1 * time.Second),
@@ -99,6 +105,9 @@ func (c *Ingest) populateUnset() {
 	}
 	if c.EntriesDepthLimit == 0 {
 		c.EntriesDepthLimit = def.EntriesDepthLimit
+	}
+	if c.EntryPutConcurrency == 0 {
+		c.EntryPutConcurrency = def.EntryPutConcurrency
 	}
 	if c.HttpSyncRetryMax == 0 {
 		c.HttpSyncRetryMax = def.HttpSyncRetryMax

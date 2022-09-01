@@ -12,6 +12,10 @@ type Indexer struct {
 	CacheSize int
 	// ConfigCheckInterval is the time between config file update checks.
 	ConfigCheckInterval Duration
+	// CorePutConcurrency is the number of core goroutines used to write
+	// individual multihashes within a Put. A value of 1 means no concurrency,
+	// and zero uses the default.
+	CorePutConcurrency int
 	// GCInterval configures the garbage collection interval for valuestores
 	// that support it.
 	GCInterval Duration
@@ -55,6 +59,7 @@ func NewIndexer() Indexer {
 	return Indexer{
 		CacheSize:           300000,
 		ConfigCheckInterval: Duration(30 * time.Second),
+		CorePutConcurrency:  64,
 		GCInterval:          Duration(30 * time.Minute),
 		GCTimeLimit:         Duration(5 * time.Minute),
 		ShutdownTimeout:     0,
@@ -76,6 +81,9 @@ func (c *Indexer) populateUnset() {
 	}
 	if c.ConfigCheckInterval == 0 {
 		c.ConfigCheckInterval = def.ConfigCheckInterval
+	}
+	if c.CorePutConcurrency == 0 {
+		c.CorePutConcurrency = def.CorePutConcurrency
 	}
 	if c.GCInterval == 0 {
 		c.GCInterval = def.GCInterval
