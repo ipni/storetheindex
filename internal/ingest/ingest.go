@@ -293,6 +293,11 @@ func (ing *Ingester) Close() error {
 		ing.waitForPendingSyncs.Wait()
 		log.Info("Pending sync processing stopped")
 
+		if ing.entryWP != nil {
+			ing.entryWP.Stop()
+			log.Info("Entry workers stopped")
+		}
+
 		// Stop the distribution goroutine.
 		close(ing.inEvents)
 
