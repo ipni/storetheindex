@@ -344,8 +344,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			} else {
 				entryWG.Add(1)
 				ing.entryWP.Submit(func() {
-					err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
-					if err != nil {
+					if err := ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log); err != nil {
 						errsMutex.Lock()
 						errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 						errsMutex.Unlock()
@@ -389,8 +388,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 					chnk := *chunk
 					// Submit chunk to entry worker pool.
 					ing.entryWP.Submit(func() {
-						err = ing.ingestEntryChunk(ctx, ad, c, chnk, log)
-						if err != nil {
+						if err := ing.ingestEntryChunk(ctx, ad, c, chnk, log); err != nil {
 							errsMutex.Lock()
 							errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 							errsMutex.Unlock()
