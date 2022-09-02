@@ -501,6 +501,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 			ctx,
 			dir,
 			vcodec,
+			cfgIndexer.CorePutConcurrency,
 			sth.GCInterval(time.Duration(cfgIndexer.GCInterval)),
 			sth.GCTimeLimit(time.Duration(cfgIndexer.GCTimeLimit)),
 			sth.BurstRate(cfgIndexer.STHBurstRate),
