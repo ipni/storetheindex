@@ -44,15 +44,6 @@ jobs:
           # If package ./A imports ./B, and ./A's tests also cover ./B,
           # this means ./B's coverage will be significantly higher than 0%.
           run: go test -v -shuffle=on -coverprofile=module-coverage.txt -coverpkg=./... ./...
-      - name: Run tests (32 bit)
-        if: ${{ matrix.os != 'macos' }} # can't run 32 bit tests on OSX.
-        uses: protocol/multiple-go-modules@v1.2
-        env:
-          GOARCH: 386
-        with:
-          run: |
-            export "PATH=${{ env.PATH_386 }}:$PATH"
-            go test -v -shuffle=on ./...
       - name: Run tests with race detector
         if: ${{ matrix.os == 'ubuntu' }} # speed things up. Windows and OSX VMs are slow
         uses: protocol/multiple-go-modules@v1.2
