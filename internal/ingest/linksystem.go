@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
@@ -325,19 +326,40 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		}
 	} else {
 		log = log.With("entriesKind", "EntryChunk")
-		// We have already peaked the first EntryChunk as part of probing the entries type.
+
+		var entryWG sync.WaitGroup
+		var errsMutex sync.Mutex
+
+		// We have already peeked at the first EntryChunk as part of probing the entries type.
 		// So process that first
 		chunk, err := ing.loadEntryChunk(syncedFirstEntryCid)
 		if err != nil {
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 		} else {
-			err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
-			if err != nil {
-				errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+			if ing.entryWP == nil {
+				err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
+				if err != nil {
+					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+				}
+			} else {
+				entryWG.Add(1)
+				ing.entryWP.Submit(func() {
+					err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
+					if err != nil {
+						errsMutex.Lock()
+						errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+						errsMutex.Unlock()
+					}
+					entryWG.Done()
+				})
 			}
 		}
 
 		if chunk != nil && chunk.Next != nil {
+			var errCh chan error
+			if ing.entryWP != nil {
+				errCh = make(chan error, 1)
+			}
 			nextChunkCid := chunk.Next.(cidlink.Link).Cid
 			// Traverse remaining entry chunks based on the entries selector that limits recursion depth.
 			_, err = ing.sub.Sync(ctx, publisherID, nextChunkCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
@@ -348,18 +370,50 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 					return
 				}
-				err = ing.ingestEntryChunk(ctx, ad, c, *chunk, log)
-				if err != nil {
-					actions.FailSync(err)
-					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
-					return
+				if ing.entryWP == nil {
+					err = ing.ingestEntryChunk(ctx, ad, c, *chunk, log)
+					if err != nil {
+						actions.FailSync(err)
+						errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+						return
+					}
+				} else {
+					// If an error occurred, cause the segment sync to fail with that error.
+					select {
+					default:
+					case err = <-errCh:
+						actions.FailSync(err)
+						return
+					}
+					entryWG.Add(1)
+					chnk := *chunk
+					// Submit chunk to entry worker pool.
+					ing.entryWP.Submit(func() {
+						err = ing.ingestEntryChunk(ctx, ad, c, chnk, log)
+						if err != nil {
+							errsMutex.Lock()
+							errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+							errsMutex.Unlock()
+							// Tell segment sync to fail with the err.
+							select {
+							case errCh <- err:
+							default:
+							}
+						}
+						entryWG.Done()
+					})
 				}
+
 				if chunk.Next != nil {
 					actions.SetNextSyncCid(chunk.Next.(cidlink.Link).Cid)
 				} else {
 					actions.SetNextSyncCid(cid.Undef)
 				}
 			}))
+			if ing.entryWP != nil {
+				entryWG.Wait()
+			}
+
 			if err != nil {
 				if strings.Contains(err.Error(), "datatransfer failed: content not found") {
 					return adIngestError{adIngestContentNotFound, fmt.Errorf("failed to sync entries: %w", err)}

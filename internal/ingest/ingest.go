@@ -294,7 +294,7 @@ func (ing *Ingester) Close() error {
 		log.Info("Pending sync processing stopped")
 
 		if ing.entryWP != nil {
-			ing.entryWP.Stop()
+			ing.entryWP.StopWait()
 			log.Info("Entry workers stopped")
 		}
 
