@@ -331,7 +331,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		var errsMutex sync.Mutex
 		var entryWP *workerpool.WorkerPool
 
-		syncWriteEntries := ing.syncWriteEntries.Load()
+		syncWriteEntries := ing.syncWriteEntries()
 
 		// Create a WorkerPool with one worker. This allows all the Put calls
 		// to be queued, and processed while they are being queued.
