@@ -17,6 +17,7 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/gammazero/workerpool"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	hamt "github.com/ipld/go-ipld-adl-hamt"
@@ -327,8 +328,16 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	} else {
 		log = log.With("entriesKind", "EntryChunk")
 
-		var entryWG sync.WaitGroup
 		var errsMutex sync.Mutex
+		var entryWP *workerpool.WorkerPool
+
+		syncWriteEntries := ing.syncWriteEntries()
+
+		// Create a WorkerPool with one worker. This allows all the Put calls
+		// to be queued, and processed while they are being queued.
+		if !syncWriteEntries {
+			entryWP = workerpool.New(1)
+		}
 
 		// We have already peeked at the first EntryChunk as part of probing the entries type.
 		// So process that first
@@ -336,27 +345,25 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		if err != nil {
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 		} else {
-			if ing.entryWP == nil {
+			if syncWriteEntries {
 				err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
 				if err != nil {
 					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 				}
 			} else {
-				entryWG.Add(1)
-				ing.entryWP.Submit(func() {
+				entryWP.Submit(func() {
 					if err := ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log); err != nil {
 						errsMutex.Lock()
 						errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 						errsMutex.Unlock()
 					}
-					entryWG.Done()
 				})
 			}
 		}
 
 		if chunk != nil && chunk.Next != nil {
 			var errCh chan error
-			if ing.entryWP != nil {
+			if !syncWriteEntries {
 				errCh = make(chan error, 1)
 			}
 			nextChunkCid := chunk.Next.(cidlink.Link).Cid
@@ -369,7 +376,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 					return
 				}
-				if ing.entryWP == nil {
+				if syncWriteEntries {
 					err = ing.ingestEntryChunk(ctx, ad, c, *chunk, log)
 					if err != nil {
 						actions.FailSync(err)
@@ -384,10 +391,9 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 						actions.FailSync(err)
 						return
 					}
-					entryWG.Add(1)
 					chnk := *chunk
 					// Submit chunk to entry worker pool.
-					ing.entryWP.Submit(func() {
+					entryWP.Submit(func() {
 						if err := ing.ingestEntryChunk(ctx, ad, c, chnk, log); err != nil {
 							errsMutex.Lock()
 							errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
@@ -398,7 +404,6 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 							default:
 							}
 						}
-						entryWG.Done()
 					})
 				}
 
@@ -408,16 +413,18 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 					actions.SetNextSyncCid(cid.Undef)
 				}
 			}))
-			if ing.entryWP != nil {
-				entryWG.Wait()
-			}
-
 			if err != nil {
+				if !syncWriteEntries {
+					entryWP.StopWait()
+				}
 				if strings.Contains(err.Error(), "datatransfer failed: content not found") {
 					return adIngestError{adIngestContentNotFound, fmt.Errorf("failed to sync entries: %w", err)}
 				}
 				return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to sync entries: %w", err)}
 			}
+		}
+		if !syncWriteEntries {
+			entryWP.StopWait()
 		}
 	}
 	elapsed := time.Since(startTime)
