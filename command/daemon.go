@@ -417,7 +417,6 @@ func daemonCommand(cctx *cli.Context) error {
 			log.Errorw("Error stopping peering service", "err", err)
 		}
 	}
-	fmt.Println("---> Stopped peering service")
 
 	if cancelP2pServers != nil {
 		cancelP2pServers()
@@ -441,7 +440,6 @@ func daemonCommand(cctx *cli.Context) error {
 			finalErr = ErrDaemonStop
 		}
 	}
-	fmt.Println("---> Closed servers")
 
 	// If ingester set, close ingester
 	if ingester != nil {
@@ -450,13 +448,11 @@ func daemonCommand(cctx *cli.Context) error {
 			finalErr = ErrDaemonStop
 		}
 	}
-	fmt.Println("---> Closed ingestor")
 
 	if err = valueStore.Close(); err != nil {
 		log.Errorw("Error closing value store", "err", err)
 		finalErr = ErrDaemonStop
 	}
-	fmt.Println("---> Closed valuestore")
 
 	log.Info("Indexer stopped")
 	return finalErr
