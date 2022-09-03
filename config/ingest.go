@@ -27,11 +27,6 @@ type Ingest struct {
 	// (segments) of size set by SyncSegmentDepthLimit. EntriesDepthLimit sets
 	// the limit on the total number of entries chunks across all segments.
 	EntriesDepthLimit int
-	// SyncWriteEntries tells the indexer to process entry chunks
-	// synchronously, waiting for each to complete before fetching the next.
-	// When this is false, the indexer processes entry chunks asynchronously.
-	// This value is reloadable.
-	SyncWriteEntries bool
 	// HttpSyncRetryMax sets the maximum number of times HTTP sync requests
 	// should be retried.
 	HttpSyncRetryMax int
@@ -75,6 +70,11 @@ type Ingest struct {
 	// or a chain of advertisement entries. The value is an integer string
 	// ending in "s", "m", "h" for seconds. minutes, hours.
 	SyncTimeout Duration
+	// SyncWriteEntries, when true, tells the indexer to process entry chunks
+	// synchronously, waiting for each to complete before fetching the next.
+	// Otherwise, the indexer processes entry chunks asynchronously. This value
+	// is updated when the configuration is reloaded.
+	SyncWriteEntries bool
 }
 
 // NewIngest returns Ingest with values set to their defaults.

@@ -136,11 +136,10 @@ type Ingester struct {
 
 	// Multihash minimum length
 	minKeyLen int
-	// syncWriteEntries is accessed through Ingester.SetSyncWriteEntries() and
-	// Ingester.syncWriteEntries(). It tells the Ingester to handle write entry
-	// chunks synchronously, waiting for each to complete before fetching the
-	// next.
-	_syncWriteEntries uint32
+	// syncWriteEnts is accessed through SetSyncWriteEntries() and
+	// syncWriteEntries(). It tells the Ingester to handle writing entry chunks
+	// synchronously, waiting for each to complete before fetching the next.
+	syncWriteEnts uint32
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -271,11 +270,11 @@ func (ing *Ingester) SetSyncWriteEntries(val bool) {
 	if val {
 		b32 = 1
 	}
-	atomic.StoreUint32(&ing._syncWriteEntries, b32)
+	atomic.StoreUint32(&ing.syncWriteEnts, b32)
 }
 
 func (ing *Ingester) syncWriteEntries() bool {
-	return atomic.LoadUint32(&ing._syncWriteEntries) != 0
+	return atomic.LoadUint32(&ing.syncWriteEnts) != 0
 }
 
 func (ing *Ingester) Close() error {
