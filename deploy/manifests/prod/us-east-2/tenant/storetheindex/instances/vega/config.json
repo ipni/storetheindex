@@ -86,7 +86,7 @@
     "StoreBatchSize": 8192,
     "SyncSegmentDepthLimit": 2000,
     "SyncTimeout": "2h0m0s",
-    "EntryPutConcurrency": 16
+    "SyncWriteEntries": false
   },
   "Logging": {
     "Level": "info",
