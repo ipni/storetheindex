@@ -17,7 +17,6 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/peerutil"
-	"github.com/gammazero/workerpool"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -137,9 +136,9 @@ type Ingester struct {
 
 	// Multihash minimum length
 	minKeyLen int
-
-	// entryWP is a worker pool for asynchronous calls to indexer.Put.
-	entryWP *workerpool.WorkerPool
+	// syncWriteEntries tells the Ingester to handle write entry chunks
+	// synchronously, waiting for each to complete before fetching the next.
+	syncWriteEntries atomic.Bool
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -167,6 +166,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		minKeyLen: cfg.MinimumKeyLength,
 	}
+
+	ing.SetSyncWriteEntries(cfg.SyncWriteEntries)
 
 	var err error
 	ing.rateApply, ing.rateBurst, ing.rateLimit, err = configRateLimit(cfg.RateLimit)
@@ -210,10 +211,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	if cfg.IngestWorkerCount == 0 {
 		return nil, errors.New("ingester worker count must be > 0")
-	}
-
-	if cfg.EntryPutConcurrency > 1 {
-		ing.entryWP = workerpool.New(cfg.EntryPutConcurrency)
 	}
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
@@ -265,6 +262,10 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
 }
 
+func (ing *Ingester) SetSyncWriteEntries(syncWriteEntries bool) {
+	ing.syncWriteEntries.Store(syncWriteEntries)
+}
+
 func (ing *Ingester) Close() error {
 	// Tell workers to stop ingestion in progress.
 	ing.cancelWorkers()
@@ -292,11 +293,6 @@ func (ing *Ingester) Close() error {
 		close(ing.closePendingSyncs)
 		ing.waitForPendingSyncs.Wait()
 		log.Info("Pending sync processing stopped")
-
-		if ing.entryWP != nil {
-			ing.entryWP.StopWait()
-			log.Info("Entry workers stopped")
-		}
 
 		// Stop the distribution goroutine.
 		close(ing.inEvents)
