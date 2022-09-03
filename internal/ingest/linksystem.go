@@ -413,16 +413,18 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 					actions.SetNextSyncCid(cid.Undef)
 				}
 			}))
-			if !syncWriteEntries {
-				entryWP.StopWait()
-			}
-
 			if err != nil {
+				if !syncWriteEntries {
+					entryWP.StopWait()
+				}
 				if strings.Contains(err.Error(), "datatransfer failed: content not found") {
 					return adIngestError{adIngestContentNotFound, fmt.Errorf("failed to sync entries: %w", err)}
 				}
 				return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to sync entries: %w", err)}
 			}
+		}
+		if !syncWriteEntries {
+			entryWP.StopWait()
 		}
 	}
 	elapsed := time.Since(startTime)
