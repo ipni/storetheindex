@@ -93,7 +93,8 @@ config file at runtime.
     "ResendDirectAnnounce": true,
     "StoreBatchSize": 4096,
     "SyncSegmentDepthLimit": 2000,
-    "SyncTimeout": "2h0m0s"
+    "SyncTimeout": "2h0m0s",
+    "SyncWriteEntries": false
   },
   "Logging": {
     "Level": "info",
@@ -231,7 +232,8 @@ Default:
   "ResendDirectAnnounce": false,
   "StoreBatchSize": 4096,
   "SyncSegmentDepthLimit": 2000,
-  "SyncTimeout": "2h0m0s"
+  "SyncTimeout": "2h0m0s",
+  "SyncWriteEntries": false
 }
 ```
 

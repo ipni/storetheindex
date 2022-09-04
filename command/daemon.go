@@ -345,6 +345,9 @@ func daemonCommand(cctx *cli.Context) error {
 		case <-reloadSig:
 			reloadErrsChan <- nil
 		case errChan := <-reloadErrsChan:
+			// A reload has been triggered by putting either an error channel
+			// or nil on reloadErrsChan. If the reload signaler wants to know
+			// if an error occurred, the the error channel is not nil.
 			prevCfgChk := cfg.Indexer.ConfigCheckInterval
 			if prevCfgChk != cfg.Indexer.ConfigCheckInterval {
 				ticker.Reset(time.Duration(cfg.Indexer.ConfigCheckInterval))
@@ -581,7 +584,7 @@ func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Regis
 		return nil, fmt.Errorf("failed to configure logging: %w", err)
 	}
 
-	fmt.Println("Reloaded policy, rate limit, and logging configuration")
+	log.Info("Reloaded reloadable values from configuration")
 	return cfg, nil
 }
 

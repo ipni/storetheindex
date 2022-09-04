@@ -10,7 +10,6 @@ require (
 	github.com/filecoin-project/go-legs v0.4.11
 	github.com/frankban/quicktest v1.14.3
 	github.com/gammazero/deque v0.2.0
-	github.com/gammazero/workerpool v1.1.3
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
@@ -70,6 +69,7 @@ require (
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/gammazero/keymutex v0.1.0 // indirect
 	github.com/gammazero/radixtree v0.3.0 // indirect
+	github.com/gammazero/workerpool v1.1.3 // indirect
 	github.com/go-kit/log v0.2.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
