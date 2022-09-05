@@ -197,7 +197,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		return nil
 	}
 
-	// If advertisement has no entries, then this is for updating metadata only.
+	// If advertisement has no entries, then it is for updating metadata only.
 	if ad.Entries == schema.NoEntries {
 		// If this is a metadata update only, then ad will not have entries.
 		value := indexer.Value{
@@ -229,10 +229,13 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 
 	startTime := time.Now()
 
-	// The ad.Entries link can point to either a chain of EntryChunks or a HAMT.
-	// Sync the very first entry so that we can check which type it is.
-	// Note, this means the maximum depth of entries traversal will be 1 plus the configured max depth.
-	// TODO: See if it is worth detecting and reducing depth the depth in entries selectors by one.
+	// The ad.Entries link can point to either a chain of EntryChunks or a
+	// HAMT. Sync the very first entry so that we can check which type it is.
+	// This means the maximum depth of entries traversal will be 1 plus the
+	// configured max depth.
+	//
+	// TODO: See if it is worth detecting and reducing depth the depth in
+	// entries selectors by one.
 	syncedFirstEntryCid, err := ing.sub.Sync(ctx, publisherID, entriesCid, Selectors.One, nil)
 	if err != nil {
 		return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to sync first entry while checking entries type: %w", err)}
@@ -246,9 +249,9 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	var errsIngestingEntryChunks []error
 	if isHAMT(node) {
 		log = log.With("entriesKind", "hamt")
-		// Keep track of all CIDs in the HAMT to remove them later when the processing is done.
-		// This is equivalent behaviour to ingestEntryChunk which removes an entry chunk right afrer
-		// it is processed.
+		// Keep track of all CIDs in the HAMT to remove them later when the
+		// processing is done. This is equivalent behaviour to ingestEntryChunk
+		// which removes an entry chunk right afrer it is processed.
 		hamtCids := []cid.Cid{syncedFirstEntryCid}
 		gatherCids := func(_ peer.ID, c cid.Cid, _ legs.SegmentSyncActions) {
 			hamtCids = append(hamtCids, c)
@@ -273,10 +276,13 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			if e.HashMapNode != nil {
 				nodeCid := (*e.HashMapNode).(cidlink.Link).Cid
 				_, err = ing.sub.Sync(ctx, publisherID, nodeCid, Selectors.All, nil,
-					// Gather all the HAMT Cids so that we can remove them from datastore once finished processing.
+					// Gather all the HAMT Cids so that we can remove them from
+					// datastore once finished processing.
 					legs.ScopedBlockHook(gatherCids),
 					// Disable segmented sync.
-					// TODO: see if segmented sync for HAMT makes sense and if so modify block hook action above appropriately.
+					//
+					// TODO: see if segmented sync for HAMT makes sense and if
+					// so modify block hook action above appropriately.
 					legs.ScopedSegmentDepthLimit(-1))
 				if err != nil {
 					return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to sync remaining HAMT: %w", err)}
@@ -284,8 +290,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			}
 		}
 
-		// Start processing now that we have synced the entire HAMT.
-		// Note that HAMT is a map, and we are using the keys in the map to represent multihashes.
+		// Start processing now that the entire HAMT is synced. HAMT is a map,
+		// and we are using the keys in the map to represent multihashes.
 		// Therefore, we only care about the keys.
 		//
 		// Group the mutlihashes in StoreBatchSize batches and process as usual.
@@ -301,14 +307,18 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 				return adIngestError{adIngestMalformedErr, fmt.Errorf("HAMT key must be of type string: %w", err)}
 			}
 			mhs = append(mhs, multihash.Multihash(ks))
-			// Note that indexContentBlock also does batching with the same batchSize.
-			// The reason we need batching here is because here we are iterating over the _entire_
-			// HAMT keys, whereas indexContentBlock is meant to be given multihashes in a single
-			// EntryChunk which could be far fewer multihashes.
-			// Batching here allows us to only load into memory one batch worth of multihashes from
-			// the HAMT, instead of loading all the multihashes in the HAMT then batch them later in
+			// The reason we need batching here is because here we are
+			// iterating over the _entire_ HAMT keys, whereas indexContentBlock
+			// is meant to be given multihashes in a single EntryChunk which
+			// could be far fewer multihashes.
+			//
+			// Batching here allows us to only load into memory one batch worth
+			// of multihashes from the HAMT, instead of loading all the
+			// multihashes in the HAMT then batch them later in
 			// indexContentBlock.
-			// TODO: See how we can refactor code to make batching logic more flexible in indexContentBlock.
+			//
+			// TODO: See how we can refactor code to make batching logic more
+			// flexible in indexContentBlock.
 			if len(mhs) >= int(ing.batchSize) {
 				err := ing.indexAdMultihashes(ad, mhs, log)
 				if err != nil {
@@ -330,7 +340,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		var asyncEntries bool
 		var asyncWG sync.WaitGroup
 
-		// Take read-lock to prevent disabling entries chunk concurrency.
+		// Take read-lock to prevent entries chunk concurrency from being
+		// disabled while in use here.
 		ing.chunkConcurrencyRWMutex.RLock()
 		defer ing.chunkConcurrencyRWMutex.RUnlock()
 
@@ -339,8 +350,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			asyncEntries = true
 		}
 
-		// We have already peeked at the first EntryChunk as part of probing the entries type.
-		// So process that first
+		// We have already peeked at the first EntryChunk as part of probing
+		// the entries type, sSo process that first.
 		chunk, err := ing.loadEntryChunk(syncedFirstEntryCid)
 		if err != nil {
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
@@ -367,9 +378,11 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 				errCh = make(chan error, 1)
 			}
 			nextChunkCid := chunk.Next.(cidlink.Link).Cid
-			// Traverse remaining entry chunks based on the entries selector that limits recursion depth.
+			// Traverse remaining entry chunks based on the entries selector
+			// that limits recursion depth.
 			_, err = ing.sub.Sync(ctx, publisherID, nextChunkCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
-				// Load CID as entry chunk since the selector should only select entry chunk nodes.
+				// Load CID as entry chunk since the selector should only
+				// select entry chunk nodes.
 				chunk, err := ing.loadEntryChunk(c)
 				if err != nil {
 					actions.FailSync(err)
@@ -377,7 +390,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 					return
 				}
 				if asyncEntries {
-					// If an error occurred, cause the segment sync to fail with that error.
+					// If an error occurred, cause the segment sync to fail
+					// with that error.
 					select {
 					default:
 					case err = <-errCh:

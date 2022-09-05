@@ -77,7 +77,7 @@ config file at runtime.
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
-    "EntriesChunkConcurrency"; 0,
+    "EntriesChunkConcurrency": 0,
     "EntriesDepthLimit": 65536,
     "HttpSyncRetryMax": 4,
     "HttpSyncRetryWaitMax": "30s",
@@ -221,7 +221,7 @@ Default:
 ```json
 "Ingest": {
   "AdvertisementDepthLimit": 33554432,
-  "EntriesChunkConcurrency"; 0,
+  "EntriesChunkConcurrency": 0,
   "EntriesDepthLimit": 65536,
   "HttpSyncRetryMax": 4,
   "HttpSyncRetryWaitMax": "30s",
