@@ -327,25 +327,16 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	} else {
 		log = log.With("entriesKind", "EntryChunk")
 
-		var asyncWG sync.WaitGroup
-		var chunkFuncs chan func()
 		var asyncEntries bool
-		concurrency := ing.entriesChunkConcurrency()
+		var asyncWG sync.WaitGroup
 
-		// Create an async workers. This allows fetching the next entry chunk
-		// while processing previous ones.
-		if concurrency > 1 {
+		// Take read-lock to prevent disabling entries chunk concurrency.
+		ing.chunkConcurrencyRWMutex.RLock()
+		defer ing.chunkConcurrencyRWMutex.RUnlock()
+
+		chunkFuncs := ing.chunkWorkQueue
+		if chunkFuncs != nil {
 			asyncEntries = true
-			chunkFuncs = make(chan func())
-			asyncWG.Add(concurrency)
-			for g := 0; g < concurrency; g++ {
-				go func(fch <-chan func()) {
-					for f := range fch {
-						f()
-					}
-					asyncWG.Done()
-				}(chunkFuncs)
-			}
 		}
 
 		// We have already peeked at the first EntryChunk as part of probing the entries type.
@@ -355,10 +346,12 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 		} else {
 			if asyncEntries {
+				asyncWG.Add(1)
 				chunkFuncs <- func() {
 					if err := ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log); err != nil {
 						errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 					}
+					asyncWG.Done()
 				}
 			} else {
 				err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
@@ -391,6 +384,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 						actions.FailSync(err)
 						return
 					}
+					asyncWG.Add(1)
 					chnk := *chunk
 					chunkFuncs <- func() {
 						if err := ing.ingestEntryChunk(ctx, ad, c, chnk, log); err != nil {
@@ -401,6 +395,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 							default:
 							}
 						}
+						asyncWG.Done()
 					}
 				} else {
 					err = ing.ingestEntryChunk(ctx, ad, c, *chunk, log)
@@ -419,7 +414,6 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			}))
 			if err != nil {
 				if asyncEntries {
-					close(chunkFuncs)
 					asyncWG.Wait()
 				}
 				if strings.Contains(err.Error(), "datatransfer failed: content not found") {
@@ -429,7 +423,6 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			}
 		}
 		if asyncEntries {
-			close(chunkFuncs)
 			asyncWG.Wait()
 		}
 	}

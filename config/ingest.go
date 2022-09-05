@@ -17,11 +17,11 @@ type Ingest struct {
 	// size set by SyncSegmentDepthLimit. AdvertisementDepthLimit sets the
 	// limit on the total number of advertisements across all segments.
 	AdvertisementDepthLimit int
-	// EntriesChunkConcurrency is the number of additional goroutines for each
-	// publisher/worker to asynchronously process entry chunks. This allows
-	// fetching the next entry chunk without waiting for the current one to
-	// finish being written. A value of 1 means no concurrency, and zero uses
-	// the default. This value is reloadable.
+	// EntriesChunkConcurrency, tells the indexer to process chunks of
+	// multihash entries asynchronously using this number of goroutines, where
+	// this number is at least as large the worker pool size. If n is -1,
+	// asynchronous processing is disabled. If n < IngestWorkerCount, then n is
+	// set to IngestWorkerCount.
 	EntriesChunkConcurrency int
 	// EntriesDepthLimit is the total maximum recursion depth limit when
 	// syncing advertisement entries. The value -1 means no limit and zero
@@ -82,7 +82,6 @@ type Ingest struct {
 func NewIngest() Ingest {
 	return Ingest{
 		AdvertisementDepthLimit: 33554432,
-		EntriesChunkConcurrency: 8,
 		EntriesDepthLimit:       65536,
 		HttpSyncRetryMax:        4,
 		HttpSyncRetryWaitMax:    Duration(30 * time.Second),
@@ -103,9 +102,6 @@ func (c *Ingest) populateUnset() {
 
 	if c.AdvertisementDepthLimit == 0 {
 		c.AdvertisementDepthLimit = def.AdvertisementDepthLimit
-	}
-	if c.EntriesChunkConcurrency == 0 {
-		c.EntriesChunkConcurrency = def.EntriesChunkConcurrency
 	}
 	if c.EntriesDepthLimit == 0 {
 		c.EntriesDepthLimit = def.EntriesDepthLimit
