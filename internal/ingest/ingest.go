@@ -136,11 +136,11 @@ type Ingester struct {
 
 	// Multihash minimum length
 	minKeyLen int
-	// chunkConcurrency is accessed through SetEntriesChunkConcurrency() and
-	// entriesChunkConcurrency(). It tells the Ingester to handle writing entry chunks
-	// asynchronously using this main additional goroutines per
-	// publisher/worker.
-	chunkConcurrency int32
+
+	chunkConcurrency int
+	chunkWorkQueue   chan func()
+	// chunkConcurrencyRWMute protects access to chunkConcurrency and chunkWorkQueue.
+	chunkConcurrencyRWMutex sync.RWMutex
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -168,8 +168,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		minKeyLen: cfg.MinimumKeyLength,
 	}
-
-	ing.SetEntriesChunkConcurrency(cfg.EntriesChunkConcurrency)
 
 	var err error
 	ing.rateApply, ing.rateBurst, ing.rateLimit, err = configRateLimit(cfg.RateLimit)
@@ -217,6 +215,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 	ing.RunWorkers(cfg.IngestWorkerCount)
+	ing.SetEntriesChunkConcurrency(cfg.EntriesChunkConcurrency)
+
 	go ing.runIngesterLoop()
 
 	// Start distributor to send SyncFinished messages to interested parties.
@@ -265,19 +265,57 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 }
 
 // SetEntriesChunkConcurrency, tells the indexer to process chunks of multihash
-// entries asynchronously using this many additional goroutines per
-// publisher/worker.
+// entries asynchronously using a set of n goroutines where n is at least as
+// large the worker pool size. If n < 0, then asynchronous entry chunk
+// processing is disabled.
 func (ing *Ingester) SetEntriesChunkConcurrency(n int) {
-	atomic.StoreInt32(&ing.chunkConcurrency, int32(n))
-}
+	if n < 0 {
+		n = 0
+	} else if n < ing.workerPoolSize {
+		n = ing.workerPoolSize
+	}
 
-func (ing *Ingester) entriesChunkConcurrency() int {
-	return int(atomic.LoadInt32(&ing.chunkConcurrency))
+	ing.chunkConcurrencyRWMutex.Lock()
+	defer ing.chunkConcurrencyRWMutex.Unlock()
+
+	prevN := ing.chunkConcurrency
+
+	if n > prevN {
+		if ing.chunkWorkQueue == nil {
+			ing.chunkWorkQueue = make(chan func())
+		}
+		n -= prevN
+		for g := 0; g < n; g++ {
+			go func(fch <-chan func()) {
+				for f := range fch {
+					if f == nil {
+						return
+					}
+					f()
+				}
+			}(ing.chunkWorkQueue)
+		}
+	} else if n < prevN {
+		if n == 0 {
+			close(ing.chunkWorkQueue)
+			ing.chunkWorkQueue = nil
+		} else {
+			n = prevN - n
+			for g := 0; g < n; g++ {
+				ing.chunkWorkQueue <- nil
+			}
+		}
+	} else {
+		return
+	}
+
+	ing.chunkConcurrency = n
 }
 
 func (ing *Ingester) Close() error {
 	// Tell workers to stop ingestion in progress.
 	ing.cancelWorkers()
+	ing.SetEntriesChunkConcurrency(-1)
 
 	// Close leg transport.
 	err := ing.sub.Close()

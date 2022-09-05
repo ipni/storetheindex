@@ -77,6 +77,7 @@ config file at runtime.
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
+    "EntriesChunkConcurrency": 0,
     "EntriesDepthLimit": 65536,
     "HttpSyncRetryMax": 4,
     "HttpSyncRetryWaitMax": "30s",
@@ -93,8 +94,7 @@ config file at runtime.
     "ResendDirectAnnounce": true,
     "StoreBatchSize": 4096,
     "SyncSegmentDepthLimit": 2000,
-    "SyncTimeout": "2h0m0s",
-    "SyncWriteEntries": false
+    "SyncTimeout": "2h0m0s"
   },
   "Logging": {
     "Level": "info",
@@ -221,6 +221,7 @@ Default:
 ```json
 "Ingest": {
   "AdvertisementDepthLimit": 33554432,
+  "EntriesChunkConcurrency": 0,
   "EntriesDepthLimit": 65536,
   "HttpSyncRetryMax": 4,
   "HttpSyncRetryWaitMax": "30s",
@@ -232,8 +233,7 @@ Default:
   "ResendDirectAnnounce": false,
   "StoreBatchSize": 4096,
   "SyncSegmentDepthLimit": 2000,
-  "SyncTimeout": "2h0m0s",
-  "SyncWriteEntries": false
+  "SyncTimeout": "2h0m0s"
 }
 ```
 
@@ -283,6 +283,7 @@ The storetheindex daemon can reload some portions of its config without restarti
 - [`Discovery.Policy`](#discoverypolicy)
 - [`Indexer.ConfigCheckInterval`](#indexer)
 - [`Indexer.ShutdownTimeout`](#indexer)
+- [`Ingest.EntriesChunkConcurrency`](#ingest)
 - [`Ingest.IngestWorkerCount`](#ingest)
 - [`Ingest.RateLimit`](#ingestratelimit)
 - [`Ingest.StoreBatchSize`](#ingest)
