@@ -136,10 +136,11 @@ type Ingester struct {
 
 	// Multihash minimum length
 	minKeyLen int
-	// syncWriteEnts is accessed through SetSyncWriteEntries() and
-	// syncWriteEntries(). It tells the Ingester to handle writing entry chunks
-	// synchronously, waiting for each to complete before fetching the next.
-	syncWriteEnts uint32
+	// chunkConcurrency is accessed through SetEntriesChunkConcurrency() and
+	// entriesChunkConcurrency(). It tells the Ingester to handle writing entry chunks
+	// asynchronously using this main additional goroutines per
+	// publisher/worker.
+	chunkConcurrency int32
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -168,7 +169,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		minKeyLen: cfg.MinimumKeyLength,
 	}
 
-	ing.SetSyncWriteEntries(cfg.SyncWriteEntries)
+	ing.SetEntriesChunkConcurrency(cfg.EntriesChunkConcurrency)
 
 	var err error
 	ing.rateApply, ing.rateBurst, ing.rateLimit, err = configRateLimit(cfg.RateLimit)
@@ -263,18 +264,15 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
 }
 
-// SetSyncWriteEntries, when set to true, tells the indexer to process chunks
-// of multihash entries synchronously.
-func (ing *Ingester) SetSyncWriteEntries(val bool) {
-	var b32 uint32
-	if val {
-		b32 = 1
-	}
-	atomic.StoreUint32(&ing.syncWriteEnts, b32)
+// SetEntriesChunkConcurrency, tells the indexer to process chunks of multihash
+// entries asynchronously using this many additional goroutines per
+// publisher/worker.
+func (ing *Ingester) SetEntriesChunkConcurrency(n int) {
+	atomic.StoreInt32(&ing.chunkConcurrency, int32(n))
 }
 
-func (ing *Ingester) syncWriteEntries() bool {
-	return atomic.LoadUint32(&ing.syncWriteEnts) != 0
+func (ing *Ingester) entriesChunkConcurrency() int {
+	return int(atomic.LoadInt32(&ing.chunkConcurrency))
 }
 
 func (ing *Ingester) Close() error {
