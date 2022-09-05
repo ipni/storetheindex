@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
@@ -326,21 +327,25 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	} else {
 		log = log.With("entriesKind", "EntryChunk")
 
-		var asyncDone chan struct{}
+		var asyncWG sync.WaitGroup
 		var chunkFuncs chan func()
-		syncWriteEntries := ing.syncWriteEntries()
+		var asyncEntries bool
+		concurrency := ing.entriesChunkConcurrency()
 
-		// Create an async worker. This allows fetching the next entry chunk
-		// while the previous one is processes.
-		if !syncWriteEntries {
-			asyncDone = make(chan struct{})
-			chunkFuncs = make(chan func(), 1)
-			go func(fch <-chan func()) {
-				for f := range fch {
-					f()
-				}
-				close(asyncDone)
-			}(chunkFuncs)
+		// Create an async workers. This allows fetching the next entry chunk
+		// while processing previous ones.
+		if concurrency > 1 {
+			asyncEntries = true
+			chunkFuncs = make(chan func())
+			asyncWG.Add(concurrency)
+			for g := 0; g < concurrency; g++ {
+				go func(fch <-chan func()) {
+					for f := range fch {
+						f()
+					}
+					asyncWG.Done()
+				}(chunkFuncs)
+			}
 		}
 
 		// We have already peeked at the first EntryChunk as part of probing the entries type.
@@ -349,23 +354,23 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		if err != nil {
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 		} else {
-			if syncWriteEntries {
-				err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
-				if err != nil {
-					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
-				}
-			} else {
+			if asyncEntries {
 				chunkFuncs <- func() {
 					if err := ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log); err != nil {
 						errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 					}
+				}
+			} else {
+				err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
+				if err != nil {
+					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 				}
 			}
 		}
 
 		if chunk != nil && chunk.Next != nil {
 			var errCh chan error
-			if !syncWriteEntries {
+			if asyncEntries {
 				errCh = make(chan error, 1)
 			}
 			nextChunkCid := chunk.Next.(cidlink.Link).Cid
@@ -378,14 +383,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 					return
 				}
-				if syncWriteEntries {
-					err = ing.ingestEntryChunk(ctx, ad, c, *chunk, log)
-					if err != nil {
-						actions.FailSync(err)
-						errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
-						return
-					}
-				} else {
+				if asyncEntries {
 					// If an error occurred, cause the segment sync to fail with that error.
 					select {
 					default:
@@ -404,6 +402,13 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 							}
 						}
 					}
+				} else {
+					err = ing.ingestEntryChunk(ctx, ad, c, *chunk, log)
+					if err != nil {
+						actions.FailSync(err)
+						errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+						return
+					}
 				}
 
 				if chunk.Next != nil {
@@ -413,9 +418,9 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 				}
 			}))
 			if err != nil {
-				if !syncWriteEntries {
+				if asyncEntries {
 					close(chunkFuncs)
-					<-asyncDone
+					asyncWG.Wait()
 				}
 				if strings.Contains(err.Error(), "datatransfer failed: content not found") {
 					return adIngestError{adIngestContentNotFound, fmt.Errorf("failed to sync entries: %w", err)}
@@ -423,9 +428,9 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 				return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to sync entries: %w", err)}
 			}
 		}
-		if !syncWriteEntries {
+		if asyncEntries {
 			close(chunkFuncs)
-			<-asyncDone
+			asyncWG.Wait()
 		}
 	}
 	elapsed := time.Since(startTime)
