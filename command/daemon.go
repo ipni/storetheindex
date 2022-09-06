@@ -357,7 +357,7 @@ func daemonCommand(cctx *cli.Context) error {
 				ticker.Reset(time.Duration(cfg.Indexer.ConfigCheckInterval))
 			}
 
-			cfg, err = reloadConfig(cfgPath, ingester, reg)
+			cfg, err = reloadConfig(cfgPath, ingester, reg, valueStore)
 			if err != nil {
 				log.Errorw("Error reloading conifg", "err", err)
 				if errChan != nil {
@@ -601,7 +601,7 @@ func loadConfig(filePath string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Registry) (*config.Config, error) {
+func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Registry, valueStore indexer.Interface) (*config.Config, error) {
 	cfg, err := loadConfig(cfgPath)
 	if err != nil {
 		return nil, err
@@ -625,6 +625,11 @@ func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Regis
 	err = setLoggingConfig(cfg.Logging)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure logging: %w", err)
+	}
+
+	sthStore, ok := valueStore.(*storethehash.SthStorage)
+	if ok {
+		sthStore.SetPutConcurrency(cfg.Indexer.CorePutConcurrency)
 	}
 
 	log.Info("Reloaded reloadable values from configuration")
