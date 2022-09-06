@@ -65,7 +65,7 @@
     "STHBits": 30,
     "ValueStoreCodec": "binary",
     "STHSyncInterval": "3s",
-    "CorePutConcurrency": 256
+    "CorePutConcurrency": 32
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
