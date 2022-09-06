@@ -137,10 +137,10 @@ type Ingester struct {
 	// Multihash minimum length
 	minKeyLen int
 
-	chunkConcurrency int
-	chunkWorkQueue   chan func()
-	// chunkConcurrencyRWMute protects access to chunkConcurrency and chunkWorkQueue.
-	chunkConcurrencyRWMutex sync.RWMutex
+	// syncWriteEnts is accessed through SetSyncWriteEntries() and
+	// syncWriteEntries(). It tells the Ingester to handle writing entry chunks
+	// synchronously, waiting for each to complete before fetching the next.
+	syncWriteEnts uint32
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -215,7 +215,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 	ing.RunWorkers(cfg.IngestWorkerCount)
-	ing.SetEntriesChunkConcurrency(cfg.EntriesChunkConcurrency)
+	ing.SetSyncWriteEntries(cfg.SyncWriteEntries)
 
 	go ing.runIngesterLoop()
 
@@ -264,58 +264,23 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
 }
 
-// SetEntriesChunkConcurrency, tells the indexer to process chunks of multihash
-// entries asynchronously using a set of n goroutines where n is at least as
-// large the worker pool size. If n < 0, then asynchronous entry chunk
-// processing is disabled.
-func (ing *Ingester) SetEntriesChunkConcurrency(n int) {
-	if n < 0 {
-		n = 0
-	} else if n < ing.workerPoolSize {
-		n = ing.workerPoolSize
+// SetSyncWriteEntries, when set to true, tells the indexer to process chunks
+// of multihash entries synchronously.
+func (ing *Ingester) SetSyncWriteEntries(val bool) {
+	var b32 uint32
+	if val {
+		b32 = 1
 	}
+	atomic.StoreUint32(&ing.syncWriteEnts, b32)
+}
 
-	ing.chunkConcurrencyRWMutex.Lock()
-	defer ing.chunkConcurrencyRWMutex.Unlock()
-
-	prevN := ing.chunkConcurrency
-
-	if n > prevN {
-		if ing.chunkWorkQueue == nil {
-			ing.chunkWorkQueue = make(chan func())
-		}
-		n -= prevN
-		for g := 0; g < n; g++ {
-			go func(fch <-chan func()) {
-				for f := range fch {
-					if f == nil {
-						return
-					}
-					f()
-				}
-			}(ing.chunkWorkQueue)
-		}
-	} else if n < prevN {
-		if n == 0 {
-			close(ing.chunkWorkQueue)
-			ing.chunkWorkQueue = nil
-		} else {
-			n = prevN - n
-			for g := 0; g < n; g++ {
-				ing.chunkWorkQueue <- nil
-			}
-		}
-	} else {
-		return
-	}
-
-	ing.chunkConcurrency = n
+func (ing *Ingester) syncWriteEntries() bool {
+	return atomic.LoadUint32(&ing.syncWriteEnts) != 0
 }
 
 func (ing *Ingester) Close() error {
 	// Tell workers to stop ingestion in progress.
 	ing.cancelWorkers()
-	ing.SetEntriesChunkConcurrency(-1)
 
 	// Close leg transport.
 	err := ing.sub.Close()

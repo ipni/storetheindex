@@ -44,8 +44,7 @@ import (
 )
 
 const (
-	testCorePutConcurrency      = 4
-	testEntriesChunkConcurrency = 2
+	testCorePutConcurrency = 4
 
 	testRetryInterval = 2 * time.Second
 	testRetryTimeout  = 15 * time.Second
@@ -57,7 +56,6 @@ const (
 var (
 	defaultTestIngestConfig = config.Ingest{
 		AdvertisementDepthLimit: 100,
-		EntriesChunkConcurrency: testEntriesChunkConcurrency,
 		EntriesDepthLimit:       100,
 		IngestWorkerCount:       1,
 		PubSubTopic:             "test/ingest",

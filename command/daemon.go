@@ -619,7 +619,7 @@ func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Regis
 		}
 		ingester.SetBatchSize(cfg.Ingest.StoreBatchSize)
 		ingester.RunWorkers(cfg.Ingest.IngestWorkerCount)
-		ingester.SetEntriesChunkConcurrency(cfg.Ingest.EntriesChunkConcurrency)
+		ingester.SetSyncWriteEntries(cfg.Ingest.SyncWriteEntries)
 	}
 
 	err = setLoggingConfig(cfg.Logging)

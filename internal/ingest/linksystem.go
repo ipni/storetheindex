@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
@@ -337,17 +336,20 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	} else {
 		log = log.With("entriesKind", "EntryChunk")
 
+		var chunkFuncs chan func()
+		var asyncDone chan struct{}
 		var asyncEntries bool
-		var asyncWG sync.WaitGroup
 
-		// Take read-lock to prevent entries chunk concurrency from being
-		// disabled while in use here.
-		ing.chunkConcurrencyRWMutex.RLock()
-		defer ing.chunkConcurrencyRWMutex.RUnlock()
-
-		chunkFuncs := ing.chunkWorkQueue
-		if chunkFuncs != nil {
+		if !ing.syncWriteEntries() {
 			asyncEntries = true
+			asyncDone = make(chan struct{})
+			chunkFuncs = make(chan func(), 1)
+			go func(fch <-chan func()) {
+				for f := range fch {
+					f()
+				}
+				close(asyncDone)
+			}(chunkFuncs)
 		}
 
 		// We have already peeked at the first EntryChunk as part of probing
@@ -357,12 +359,10 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 		} else {
 			if asyncEntries {
-				asyncWG.Add(1)
 				chunkFuncs <- func() {
 					if err := ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log); err != nil {
 						errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 					}
-					asyncWG.Done()
 				}
 			} else {
 				err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
@@ -398,7 +398,6 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 						actions.FailSync(err)
 						return
 					}
-					asyncWG.Add(1)
 					chnk := *chunk
 					chunkFuncs <- func() {
 						if err := ing.ingestEntryChunk(ctx, ad, c, chnk, log); err != nil {
@@ -409,7 +408,6 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 							default:
 							}
 						}
-						asyncWG.Done()
 					}
 				} else {
 					err = ing.ingestEntryChunk(ctx, ad, c, *chunk, log)
@@ -428,7 +426,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			}))
 			if err != nil {
 				if asyncEntries {
-					asyncWG.Wait()
+					close(chunkFuncs)
+					<-asyncDone
 				}
 				if strings.Contains(err.Error(), "datatransfer failed: content not found") {
 					return adIngestError{adIngestContentNotFound, fmt.Errorf("failed to sync entries: %w", err)}
@@ -437,7 +436,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			}
 		}
 		if asyncEntries {
-			asyncWG.Wait()
+			close(chunkFuncs)
+			<-asyncDone
 		}
 	}
 	elapsed := time.Since(startTime)
