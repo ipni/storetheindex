@@ -54,7 +54,7 @@
     "Timeout": "2m0s"
   },
   "Indexer": {
-    "CacheSize": 300000,
+    "CacheSize": 0,
     "ConfigCheckInterval": "30s",
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
