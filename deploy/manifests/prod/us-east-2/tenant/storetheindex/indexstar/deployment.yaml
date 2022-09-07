@@ -21,3 +21,10 @@ spec:
             - '--backends=http://xabi-indexer:3000/'
             - '--backends=http://vega-indexer:3000/'
             - '--backends=http://dido-indexer:3000/'
+          resources:
+            limits:
+              cpu: "0.5"
+              memory: 2Gi
+            requests:
+              cpu: "0.5"
+              memory: 2Gi
