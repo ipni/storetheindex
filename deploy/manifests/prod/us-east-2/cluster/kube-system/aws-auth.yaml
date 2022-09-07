@@ -8,7 +8,7 @@ data:
     - groups:
       - system:bootstrappers
       - system:nodes
-      rolearn: arn:aws:iam::407967248065:role/prod-ue2-r5b-xl-eks-node-group
+      rolearn: arn:aws:iam::407967248065:role/prod-ue2-r5b-xl-2-eks-node-group
       username: system:node:{{EC2PrivateDNSName}}
     - groups:
       - system:bootstrappers

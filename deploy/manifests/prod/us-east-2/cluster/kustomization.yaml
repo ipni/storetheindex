@@ -12,3 +12,7 @@ resources:
   - monitoring
   - aws-ebs-csi-driver
   - promtail
+
+replicas:
+  - name: ingress-nginx-controller
+    count: 2

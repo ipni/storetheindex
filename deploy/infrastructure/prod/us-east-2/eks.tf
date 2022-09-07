@@ -11,7 +11,7 @@ module "eks" {
   iam_role_path = local.iam_path
 
   vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnets
+  subnet_ids = local.initial_private_subnet_ids
 
   eks_managed_node_group_defaults = {
     # Enforce explicit naming of nodegrups and roles to avoid generated names
@@ -27,10 +27,11 @@ module "eks" {
 
   eks_managed_node_groups = {
     # General purpose node-group.
-    prod-ue2-m4-xl = {
-      min_size       = 1
+    prod-ue2-m4-xl-2 = {
+      min_size       = 3
       max_size       = 7
-      desired_size   = 1
+      desired_size   = 3
+      subnet_ids     = local.secondary_private_subnet_ids
       instance_types = ["m4.xlarge"]
     }
 
@@ -43,7 +44,7 @@ module "eks" {
       max_size       = 4
       desired_size   = 1
       instance_types = ["r5b.4xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2a.id]
+      subnet_ids     = [data.aws_subnet.ue2a1.id]
       taints = {
         dedicated = {
           key    = "dedicated"
@@ -57,7 +58,7 @@ module "eks" {
       max_size       = 4
       desired_size   = 1
       instance_types = ["r5b.4xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2b.id]
+      subnet_ids     = [data.aws_subnet.ue2b1.id]
       taints = {
         dedicated = {
           key    = "dedicated"
@@ -66,32 +67,6 @@ module "eks" {
         }
       }
     }
-  }
-}
-
-data "aws_subnet" "ue2a" {
-  vpc_id = module.vpc.vpc_id
-
-  filter {
-    name   = "availability-zone"
-    values = ["us-east-2a"]
-  }
-  filter {
-    name   = "subnet-id"
-    values = module.vpc.private_subnets
-  }
-}
-
-data "aws_subnet" "ue2b" {
-  vpc_id = module.vpc.vpc_id
-
-  filter {
-    name   = "availability-zone"
-    values = ["us-east-2b"]
-  }
-  filter {
-    name   = "subnet-id"
-    values = module.vpc.private_subnets
   }
 }
 

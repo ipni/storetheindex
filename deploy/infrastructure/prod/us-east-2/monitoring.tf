@@ -60,7 +60,7 @@ module "endpoints" {
 
   vpc_id             = module.vpc.vpc_id
   security_group_ids = [aws_security_group.vpc_tls.id]
-  subnet_ids         = module.vpc.private_subnets
+  subnet_ids         = local.initial_private_subnet_ids
 
   endpoints = {
     aps-workspaces = {
