@@ -6,6 +6,7 @@ namespace: storetheindex
 resources:
   - ../../../../../base/indexstar
   - ingress.yaml
+  - pod-monitor.yaml
 
 patchesStrategicMerge:
   - deployment.yaml
@@ -17,4 +18,4 @@ replicas:
 images:
   - name: indexstar
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/indexstar/indexstar
-    newTag: 20220906194244-770d6481bbcba89eae4f1463b93c957369b5222a
+    newTag: 20220907163434-deb7cbfc8d83a565418626d5cc64eb122c9b6d68
