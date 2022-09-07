@@ -7,7 +7,7 @@ require (
 	github.com/cockroachdb/pebble v0.0.0-20220726144858-a78491c0086f
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
-	github.com/filecoin-project/go-indexer-core v0.6.1-0.20220907012008-8f21f523fd6f
+	github.com/filecoin-project/go-indexer-core v0.6.1-0.20220907013935-fa15bb7a6901
 	github.com/filecoin-project/go-legs v0.4.11
 	github.com/frankban/quicktest v1.14.3
 	github.com/gammazero/deque v0.2.0
@@ -23,7 +23,7 @@ require (
 	github.com/ipfs/kubo v0.14.0
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
 	github.com/ipld/go-ipld-prime v0.17.0
-	github.com/ipld/go-storethehash v0.2.7-0.20220907011855-273d1de85662
+	github.com/ipld/go-storethehash v0.2.7-0.20220907013838-23bbe8d26468
 	github.com/libp2p/go-libp2p v0.21.0
 	github.com/libp2p/go-libp2p-core v0.19.1
 	github.com/libp2p/go-msgio v0.2.0
