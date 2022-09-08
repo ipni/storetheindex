@@ -94,6 +94,9 @@
     }
   },
   "Peering": {
-    "Peers": null
+    "Peers": [
+      "/dns4/indexer-0.indexer/tcp/3003/p2p/12D3KooWDBjcDRQ7CKJeF9Yy3UKbriHfyETDrXKzTDB6biH3ibBd",
+      "/dns4/indexer-1.indexer/tcp/3003/p2p/12D3KooWSQpUgBZwbNuMN3ctZjMesnoH9UDhwEXroxParXQCgurN"
+    ]
   }
 }
