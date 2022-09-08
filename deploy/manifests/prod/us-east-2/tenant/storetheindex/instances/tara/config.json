@@ -64,7 +64,7 @@
     "STHBits": 30,
     "STHBurstRate": 41943040,
     "STHSyncInterval": "3s",
-    "STHFileCacheSize": 256
+    "STHFileCacheSize": 512
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
