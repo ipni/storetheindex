@@ -27,8 +27,9 @@ type Indexer struct {
 	// A timeout of zero disables the shutdown timeout completely.
 	// if unset, defaults to no shutdown timeout.
 	ShutdownTimeout Duration
-	// ValueStoreDir is the directory where value store is kept. If this is not an absolute path
-	// then the location is relative to the indexer repo directory.
+	// ValueStoreDir is the directory where value store is kept. If this is not
+	// an absolute path then the location is relative to the indexer repo
+	// directory.
 	ValueStoreDir string
 	// ValueStoreType specifies type of valuestore to use, such as "sth" or "pogreb".
 	ValueStoreType string
@@ -38,6 +39,10 @@ type Indexer struct {
 	// STHBurstRate specifies how much unwritten data can accumulate before
 	// causing data to be flushed to disk.
 	STHBurstRate uint64
+	// STHFileCacheSize is the maximum number of open files that the STH file
+	// cache may have. A value of 0 uses the default, and a value of -1
+	// disables the file cache.
+	STHFileCacheSize int
 	// STHSyncInterval determines how frequently changes are flushed to disk.
 	STHSyncInterval Duration
 	// ValueStoreCodec configures the marshalling format of values stored by the valuestore.
@@ -67,6 +72,7 @@ func NewIndexer() Indexer {
 		ValueStoreType:      "sth",
 		STHBits:             24,
 		STHBurstRate:        4 * 1024 * 1024,
+		STHFileCacheSize:    512,
 		STHSyncInterval:     Duration(time.Second),
 		ValueStoreCodec:     "json",
 	}
@@ -102,6 +108,9 @@ func (c *Indexer) populateUnset() {
 	}
 	if c.STHBurstRate == 0 {
 		c.STHBurstRate = def.STHBurstRate
+	}
+	if c.STHFileCacheSize == 0 {
+		c.STHFileCacheSize = def.STHFileCacheSize
 	}
 	if c.STHSyncInterval == 0 {
 		c.STHSyncInterval = def.STHSyncInterval
