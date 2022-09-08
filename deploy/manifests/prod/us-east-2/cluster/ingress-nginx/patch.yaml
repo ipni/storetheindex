@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+spec:
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+      containers:
+        - name: controller
+          resources:
+            limits:
+              cpu: 500m
+              memory: 3Gi
+            requests:
+              cpu: 500m
+              memory: 3Gi
