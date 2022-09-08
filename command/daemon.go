@@ -514,6 +514,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 			sth.BurstRate(cfgIndexer.STHBurstRate),
 			sth.SyncInterval(time.Duration(cfgIndexer.STHSyncInterval)),
 			sth.IndexBitSize(cfgIndexer.STHBits),
+			sth.FileCacheSize(cfgIndexer.STHFileCacheSize),
 		)
 		minKeyLen = sthMinKeyLen
 	case vstorePogreb:
@@ -630,6 +631,7 @@ func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Regis
 	sthStore, ok := valueStore.(*storethehash.SthStorage)
 	if ok {
 		sthStore.SetPutConcurrency(cfg.Indexer.CorePutConcurrency)
+		sthStore.SetFileCacheSize(cfg.Indexer.STHFileCacheSize)
 	}
 
 	log.Info("Reloaded reloadable values from configuration")
