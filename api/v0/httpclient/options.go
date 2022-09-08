@@ -2,11 +2,13 @@ package httpclient
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 )
 
 type clientConfig struct {
 	timeout time.Duration
+	client  *http.Client
 }
 
 // Option is the option type for httpclient
@@ -38,6 +40,14 @@ func (c *clientConfig) apply(opts ...Option) error {
 func Timeout(timeout time.Duration) Option {
 	return func(cfg *clientConfig) error {
 		cfg.timeout = timeout
+		return nil
+	}
+}
+
+// WithClient allows creation of the http client using an underlying network round tripper / client
+func WithClient(c *http.Client) Option {
+	return func(cfg *clientConfig) error {
+		cfg.client = c
 		return nil
 	}
 }
