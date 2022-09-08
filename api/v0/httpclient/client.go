@@ -31,6 +31,9 @@ func New(baseURL, resource string, options ...Option) (*url.URL, *http.Client, e
 		return nil, nil, err
 	}
 
+	if cfg.client != nil {
+		return u, cfg.client, nil
+	}
 	cl := &http.Client{
 		Timeout: cfg.timeout,
 	}
