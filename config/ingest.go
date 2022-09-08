@@ -70,11 +70,11 @@ type Ingest struct {
 	// or a chain of advertisement entries. The value is an integer string
 	// ending in "s", "m", "h" for seconds. minutes, hours.
 	SyncTimeout Duration
-	// SyncWriteEntries, when true, tells the indexer to process entry chunks
+	// Synchronously, when true, tells the indexer to process entry chunks
 	// synchronously, waiting for each to complete before fetching the next.
 	// Otherwise, the indexer processes entry chunks asynchronously. This value
 	// is updated when the configuration is reloaded.
-	SyncWriteEntries bool
+	WriteEntriesSynchronously bool
 }
 
 // NewIngest returns Ingest with values set to their defaults.

@@ -340,7 +340,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		var asyncDone chan struct{}
 		var asyncEntries bool
 
-		if !ing.syncWriteEntries() {
+		if !ing.writeEntriesSynchronously() {
 			asyncEntries = true
 			asyncDone = make(chan struct{})
 			chunkFuncs = make(chan func(), 1)

@@ -137,10 +137,10 @@ type Ingester struct {
 	// Multihash minimum length
 	minKeyLen int
 
-	// syncWriteEnts is accessed through SetSyncWriteEntries() and
-	// syncWriteEntries(). It tells the Ingester to handle writing entry chunks
+	// writeEntsSync is accessed through SetWriteEntriesSynchronously() and
+	// writeEntriesSynchronously(). It tells the Ingester to handle writing entry chunks
 	// synchronously, waiting for each to complete before fetching the next.
-	syncWriteEnts uint32
+	writeEntsSync uint32
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
@@ -215,7 +215,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 	ing.RunWorkers(cfg.IngestWorkerCount)
-	ing.SetSyncWriteEntries(cfg.SyncWriteEntries)
+	ing.SetWriteEntriesSynchronously(cfg.WriteEntriesSynchronously)
 
 	go ing.runIngesterLoop()
 
@@ -264,18 +264,18 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
 }
 
-// SetSyncWriteEntries, when set to true, tells the indexer to process chunks
+// SetWriteEntriesSynchronously, when set to true, tells the indexer to process chunks
 // of multihash entries synchronously.
-func (ing *Ingester) SetSyncWriteEntries(val bool) {
+func (ing *Ingester) SetWriteEntriesSynchronously(val bool) {
 	var b32 uint32
 	if val {
 		b32 = 1
 	}
-	atomic.StoreUint32(&ing.syncWriteEnts, b32)
+	atomic.StoreUint32(&ing.writeEntsSync, b32)
 }
 
-func (ing *Ingester) syncWriteEntries() bool {
-	return atomic.LoadUint32(&ing.syncWriteEnts) != 0
+func (ing *Ingester) writeEntriesSynchronously() bool {
+	return atomic.LoadUint32(&ing.writeEntsSync) != 0
 }
 
 func (ing *Ingester) Close() error {

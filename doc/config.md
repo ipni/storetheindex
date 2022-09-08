@@ -94,7 +94,7 @@ config file at runtime.
     "StoreBatchSize": 4096,
     "SyncSegmentDepthLimit": 2000,
     "SyncTimeout": "2h0m0s",
-    "SyncWriteEntries": false
+    "WriteEntriesSynchronously": false
   },
   "Logging": {
     "Level": "info",
@@ -233,7 +233,7 @@ Default:
   "StoreBatchSize": 4096,
   "SyncSegmentDepthLimit": 2000,
   "SyncTimeout": "2h0m0s",
-  "SyncWriteEntries": false
+  "WriteEntriesSynchronously": false
 }
 ```
 
@@ -286,6 +286,6 @@ The storetheindex daemon can reload some portions of its config without restarti
 - [`Ingest.IngestWorkerCount`](#ingest)
 - [`Ingest.RateLimit`](#ingestratelimit)
 - [`Ingest.StoreBatchSize`](#ingest)
-- [`Ingest.SyncWriteEntries`](#ingest)
+- [`Ingest.WriteEntriesSynchronously`](#ingest)
 - [`Logging`](#logging)
 - [`Peering`](#peering)
