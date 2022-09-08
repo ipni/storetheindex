@@ -17,12 +17,6 @@ type Ingest struct {
 	// size set by SyncSegmentDepthLimit. AdvertisementDepthLimit sets the
 	// limit on the total number of advertisements across all segments.
 	AdvertisementDepthLimit int
-	// EntriesChunkConcurrency tells the indexer to process chunks of
-	// multihash entries asynchronously using this number of goroutines, where
-	// this number is at least as large the worker pool size. If n is -1,
-	// asynchronous processing is disabled. If n < IngestWorkerCount, then n is
-	// set to IngestWorkerCount.
-	EntriesChunkConcurrency int
 	// EntriesDepthLimit is the total maximum recursion depth limit when
 	// syncing advertisement entries. The value -1 means no limit and zero
 	// means use the default value. The purpose is to prevent overload from
@@ -76,6 +70,11 @@ type Ingest struct {
 	// or a chain of advertisement entries. The value is an integer string
 	// ending in "s", "m", "h" for seconds. minutes, hours.
 	SyncTimeout Duration
+	// Synchronously, when true, tells the indexer to process entry chunks
+	// synchronously, waiting for each to complete before fetching the next.
+	// Otherwise, the indexer processes entry chunks asynchronously. This value
+	// is updated when the configuration is reloaded.
+	WriteEntriesSynchronously bool
 }
 
 // NewIngest returns Ingest with values set to their defaults.
