@@ -32,4 +32,4 @@ images:
   - name: storetheindex
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
     # See: https://github.com/filecoin-project/storetheindex/pull/734
-    newTag: 20220901163442-cf5098acf49b51915b610f3929643489db95f6e7
+    newTag: 20220908191856-498f406a73629637654c936c5d34ab768f2e417d
