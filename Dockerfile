@@ -1,4 +1,4 @@
-FROM golang:1.19-stretch as builder
+FROM golang:1.19-bullseye as builder
 LABEL maintainer="Andrew Gillis <andrew.gillis@protocol.ai>"
 
 # Install deps
@@ -40,7 +40,7 @@ RUN set -eux; \
     && chmod +x tini
 
 # Create the target image
-FROM busybox:1.31-glibc
+FROM busybox:1.34-glibc
 LABEL maintainer="Andrew Gillis <andrew.gillis@protocol.ai>"
 
 # Get the storetheindex binary, entrypoint script, and TLS CAs from the build container.
