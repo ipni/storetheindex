@@ -57,11 +57,13 @@
     "CacheSize": 300000,
     "ConfigCheckInterval": "30s",
     "GCInterval": "30m0s",
-    "GCScanFree": true,
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
     "ValueStoreType": "sth",
-    "STHBits": 30
+    "STHBits": 30,
+    "STHBurstRate": 4194304,
+    "STHSyncInterval": "1s",
+    "STHFileCacheSize": 256
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
@@ -81,7 +83,8 @@
     "ResendDirectAnnounce": false,
     "StoreBatchSize": 8192,
     "SyncSegmentDepthLimit": 2000,
-    "SyncTimeout": "2h0m0s"
+    "SyncTimeout": "2h0m0s",
+    "WriteEntriesSynchronously": false
   },
   "Logging": {
     "Level": "info",

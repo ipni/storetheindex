@@ -2,7 +2,7 @@
 
 List of individually configurable instances:
 
-| Instance | sth bit-size | IOPS per GiB | Value Codec  | Whitelist           | `GCScanFree` | Running |
-|----------|--------------|--------------|--------------|---------------------|--------------|---------|
-| `arvo`   | 30           | 3            | `json`       | all                 | `false`      | [945940507682064093e846ecc8578a58a5f16535](https://github.com/filecoin-project/storetheindex/commit/945940507682064093e846ecc8578a58a5f16535)        |
-| `mya`    | 30           | 3            | `json`       | all                 | `true`       | [945940507682064093e846ecc8578a58a5f16535](https://github.com/filecoin-project/storetheindex/commit/945940507682064093e846ecc8578a58a5f16535)        |
+| Instance | sth bit-size | IOPS per GiB | Value Codec  | Whitelist           | `STHFileCacheSize` | Running |
+|----------|--------------|--------------|--------------|---------------------|--------------------|---------|
+| `arvo`   | 30           | 3            | `json`       | all                 | `-1`               | [778339d270108841997806c86203ddd3a7341fcb](https://github.com/filecoin-project/storetheindex/commit/778339d270108841997806c86203ddd3a7341fcb)        |
+| `mya`    | 30           | 3            | `json`       | all                 | `512`              | [778339d270108841997806c86203ddd3a7341fcb](https://github.com/filecoin-project/storetheindex/commit/778339d270108841997806c86203ddd3a7341fcb)        |
