@@ -57,20 +57,20 @@
   "Indexer": {
     "CacheSize": 300000,
     "ConfigCheckInterval": "30s",
+    "CorePutConcurrency": 64,
     "GCInterval": "30m0s",
     "GCTimeLimit": "5m", 
-    "GCScanFree": false,
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
     "ValueStoreType": "sth",
     "STHBits": 30,
-    "ValueStoreCodec": "binary",
+    "STHBurstRate": 4194304,
+    "STHFileCacheSize": 256,
     "STHSyncInterval": "3s",
-    "CorePutConcurrency": 64
+    "ValueStoreCodec": "binary"
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
-    "EntriesChunkConcurrency": 0,
     "EntriesDepthLimit": 65536,
     "HttpSyncRetryMax": 4,
     "HttpSyncRetryWaitMax": "30s",
