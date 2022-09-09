@@ -122,6 +122,7 @@ type Ingester struct {
 	toWorkers      *Queue
 	waitForWorkers sync.WaitGroup
 	workerPoolSize int
+	activeWorkers  atomic.Int32
 
 	// RateLimiting
 	rateApply peerutil.Policy
@@ -838,10 +839,12 @@ func (ing *Ingester) ingestWorker(ctx context.Context) {
 			ing.providersBeingProcessedMu.Lock()
 			pc := ing.providersBeingProcessed[pid]
 			ing.providersBeingProcessedMu.Unlock()
+			stats.Record(context.Background(), metrics.AdIngestActive.M(int64(ing.activeWorkers.Add(1))))
 			pc <- struct{}{}
 			ing.ingestWorkerLogic(ctx, pid)
 			ing.handlePendingAnnounce(ctx, pid)
 			<-pc
+			stats.Record(context.Background(), metrics.AdIngestActive.M(int64(ing.activeWorkers.Add(-1))))
 		}
 	}
 }
