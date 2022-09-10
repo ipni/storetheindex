@@ -175,8 +175,17 @@ func (b *blockList) rm(c cid.Cid) {
 	delete(b.list, c)
 }
 
+type errReader struct{}
+
+func (e *errReader) Read([]byte) (int, error) {
+	return 0, errors.New("blocked read")
+}
+
 func failBlockedRead() (io.Reader, error) {
-	return nil, errors.New("blocked read")
+	// Returning an error here will cause a "content not found" graphsync error
+	// and the ad will be skipped without failing the sync. So, return an
+	// io.Reader that will return an error on calling Read.
+	return &errReader{}, nil
 }
 
 func blockableLinkSys(afterBlock func() (io.Reader, error)) (opt func(teo *testEnvOpts), blockedReads *blockList, hitBlockedRead chan cid.Cid) {
