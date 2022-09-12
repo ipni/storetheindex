@@ -26,6 +26,7 @@ type Advertisement struct {
     ContextID Bytes
     Metadata Bytes
     IsRm Bool
+    ExtendedProvider optional ExtendedMetadata
 }
 ```
 
@@ -39,6 +40,7 @@ type Advertisement struct {
   * If a ContextID is used with different metadata, all previous CIDs advertised under that ContextID will have their metadata updated to the most recent.
   * If a ContextID is used with the `IsRm` flag set, all previous CIDs advertised under that ContextID will be removed.
 * Metadata represents additional opaque data that is returned in client query responses for any of the CIDs in this advertisement. It is expected to start with a `varint` indicating the remaining format of metadata. The opaque data is send to the provider when retrieving content for the provider to use to retrieve the content. Storetheindex operators may limit the length of this field, and it is recommended to keep it below 100 bytes.
+* If ExtendedProvider is specified, indexers which understand the `ExtendedMetadata` extension should ignore the `Provider`, `Addresses` and `Metadata` specified in the advertisement in factor of those specified in the extended metadata. The values in the direct advertisement should still be set to a compatible endpoint for content routers which do note understand full `ExtendedMetadata` semantics.
 
 #### Entries data structure
 
@@ -85,6 +87,29 @@ The network indexer nodes expect that metadata begins with a `uvarint` identifyi
 * http
   * the proposed `uvarint` protocol is `0x3D0000`.
   * the following bytes are not yet defined.
+
+#### ExtendedMetadata
+
+The `ExtendedMetadata` field allows for specification of provider families, in cases where a provider operates multiple PeerIDs, perhaps with different access methods between them, but over the same database of content.
+
+```
+type ExtendedMetadata struct {
+    Family [ExtendedProvider]
+}
+
+type ExtendedProvider struct {
+    Provider String
+    Addresses [String]
+    Metadata optional Bytes
+    Signature Bytes
+}
+```
+
+* If Metadata is not specified for an `ExtendedProvider`, the metadata for an individual `Advertisement` will be used instead.
+* If an `ExtendedProvider` listing is written with no `ContextID`, those peers will be returned forall published advertisements for the advertisement Publisher.
+* If an `ExtendedProvider` listing is written on an advertisement with a `ContextID`, it will over-ride any chain-globals, and that specific set of records will be returned for that context ID.
+* The `Signature` for an `ExtendedProvider` is made using the key of that `Provider` over the serialized `Advertisement` containing the following subset of fields:
+    * `PreviousID`, `Provider`, `Addresses`, `Entries`, `ContextID`, `Metadata`.
 
 ### Advertisement transfer
 
