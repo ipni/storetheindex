@@ -237,7 +237,19 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	// entries selectors by one.
 	syncedFirstEntryCid, err := ing.sub.Sync(ctx, publisherID, entriesCid, Selectors.One, nil)
 	if err != nil {
-		return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to sync first entry while checking entries type: %w", err)}
+		// TODO: A "content not found" error from graphsync does not have a
+		// graphsync.RequestFailedContentNotFoundErr in the error chain. Need
+		// to apply an upstream fix so that the following can be done:
+		//
+		//   var cnfErr *graphsync.RequestFailedContentNotFoundErr
+		//   if errors.As(err, &cnfErr) {
+		//
+		// Use string search until then.
+		wrappedErr := fmt.Errorf("failed to sync first entry while checking entries type: %w", err)
+		if strings.Contains(err.Error(), "content not found") {
+			return adIngestError{adIngestContentNotFound, wrappedErr}
+		}
+		return adIngestError{adIngestSyncEntriesErr, wrappedErr}
 	}
 
 	node, err := ing.loadNode(syncedFirstEntryCid, basicnode.Prototype.Any)
@@ -284,7 +296,11 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 					// so modify block hook action above appropriately.
 					legs.ScopedSegmentDepthLimit(-1))
 				if err != nil {
-					return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to sync remaining HAMT: %w", err)}
+					wrappedErr := fmt.Errorf("failed to sync remaining HAMT: %w", err)
+					if strings.Contains(err.Error(), "content not found") {
+						return adIngestError{adIngestContentNotFound, wrappedErr}
+					}
+					return adIngestError{adIngestSyncEntriesErr, wrappedErr}
 				}
 			}
 		}
@@ -429,10 +445,11 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 					close(chunkFuncs)
 					<-asyncDone
 				}
-				if strings.Contains(err.Error(), "datatransfer failed: content not found") {
-					return adIngestError{adIngestContentNotFound, fmt.Errorf("failed to sync entries: %w", err)}
+				wrappedErr := fmt.Errorf("failed to sync entries: %w", err)
+				if strings.Contains(err.Error(), "content not found") {
+					return adIngestError{adIngestContentNotFound, wrappedErr}
 				}
-				return adIngestError{adIngestSyncEntriesErr, fmt.Errorf("failed to sync entries: %w", err)}
+				return adIngestError{adIngestSyncEntriesErr, wrappedErr}
 			}
 		}
 		if asyncEntries {
