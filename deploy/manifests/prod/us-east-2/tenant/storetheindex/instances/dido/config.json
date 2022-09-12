@@ -58,7 +58,8 @@
     "ConfigCheckInterval": "30s",
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
-    "ValueStoreType": "pebble"
+    "ValueStoreType": "pebble",
+    "DisableWAL": true
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,

@@ -537,6 +537,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 			LBaseMaxBytes:               64 << 20, // 64 MiB
 			L0CompactionThreshold:       2,
 			L0StopWritesThreshold:       1000,
+			DisableWAL:                  cfgIndexer.PebbleDisableWAL,
 			WALMinSyncInterval:          func() time.Duration { return 30 * time.Second },
 		}
 

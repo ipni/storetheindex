@@ -52,8 +52,12 @@ type Indexer struct {
 	// the format for a pre-existing valuestore will result in failure and potentially data
 	// corruption.
 	ValueStoreCodec string
+	// PebbleDisableWAL sets whether to disable write-ahead-log in Pebble which can offer better
+	// performance in specific cases. Enabled by default.
+	// Note, this option is only considered when ValueStoreType type is set to "pebble".
+	PebbleDisableWAL bool
 
-	//TODO: If left unspecified, could the functionality instead be to use whatever the existing
+	// TODO: If left unspecified, could the functionality instead be to use whatever the existing
 	//      value store uses? If there is no existing value store, then use binary by default.
 	//      For this we need probing mechanisms in go-indexer-core.
 	//      While at it, do the same for STHBits.
