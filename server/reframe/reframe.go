@@ -71,11 +71,15 @@ func (x *ReframeService) FindProviders(ctx context.Context, key cid.Cid) (<-chan
 	return ch, nil
 }
 
-func (x *ReframeService) GetIPNS(ctx context.Context, id []byte) (<-chan client.GetIPNSAsyncResult, error) {
+func (x *ReframeService) GetIPNS(context.Context, []byte) (<-chan client.GetIPNSAsyncResult, error) {
 	return nil, routing.ErrNotSupported
 }
 
-func (x *ReframeService) PutIPNS(ctx context.Context, id []byte, record []byte) (<-chan client.PutIPNSAsyncResult, error) {
+func (x *ReframeService) PutIPNS(context.Context, []byte, []byte) (<-chan client.PutIPNSAsyncResult, error) {
+	return nil, routing.ErrNotSupported
+}
+
+func (x *ReframeService) Provide(context.Context, *client.ProvideRequest) (<-chan client.ProvideAsyncResult, error) {
 	return nil, routing.ErrNotSupported
 }
 
