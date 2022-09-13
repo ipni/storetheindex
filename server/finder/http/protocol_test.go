@@ -83,7 +83,10 @@ func TestReframeFindIndexData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reframeClient := client.NewClient(q)
+	reframeClient, err := client.NewClient(q, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Start server
 	errChan := make(chan error, 1)
