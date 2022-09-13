@@ -95,6 +95,7 @@ The `ExtendedMetadata` field allows for specification of provider families, in c
 ```
 type ExtendedMetadata struct {
     Family [ExtendedProvider]
+    Override bool
 }
 
 type ExtendedProvider struct {
@@ -106,10 +107,12 @@ type ExtendedProvider struct {
 ```
 
 * If Metadata is not specified for an `ExtendedProvider`, the metadata for an individual `Advertisement` will be used instead.
-* If an `ExtendedProvider` listing is written with no `ContextID`, those peers will be returned forall published advertisements for the advertisement Publisher.
-* If an `ExtendedProvider` listing is written on an advertisement with a `ContextID`, it will over-ride any chain-globals, and that specific set of records will be returned for that context ID.
-* The `Signature` for an `ExtendedProvider` is made using the key of that `Provider` over the serialized `Advertisement` containing the following subset of fields:
-    * `PreviousID`, `Provider`, `Addresses`, `Entries`, `ContextID`, `Metadata`.
+* If an `ExtendedProvider` listing is written with no `ContextID`, those peers will be returned for all published advertisements for the advertisement Publisher.
+  * If `Override` is set on an `ExtendedProvider` entry on an advertisement with a `ContextID`, that indicates that any set chain-level set of providers should not be returned for that context ID.
+  * If `Override` is not set on an entry for an advertisement with a `ContextID`, it will extended any set chain-level `ExtndedProviders`.
+* The `Signature` for an `ExtendedProvider` is made using the key of that extended `Provider`.
+  * The full advertisement object is serialized, with all instances of `Signature` replaces with an empty array of bytes.
+  * This serialization is then hashed, and the hash is then signed.
 
 ### Advertisement transfer
 
