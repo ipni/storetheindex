@@ -40,7 +40,7 @@ type Advertisement struct {
   * If a ContextID is used with different metadata, all previous CIDs advertised under that ContextID will have their metadata updated to the most recent.
   * If a ContextID is used with the `IsRm` flag set, all previous CIDs advertised under that ContextID will be removed.
 * Metadata represents additional opaque data that is returned in client query responses for any of the CIDs in this advertisement. It is expected to start with a `varint` indicating the remaining format of metadata. The opaque data is send to the provider when retrieving content for the provider to use to retrieve the content. Storetheindex operators may limit the length of this field, and it is recommended to keep it below 100 bytes.
-* If ExtendedProvider is specified, indexers which understand the `ExtendedMetadata` extension should ignore the `Provider`, `Addresses` and `Metadata` specified in the advertisement in factor of those specified in the extended metadata. The values in the direct advertisement should still be set to a compatible endpoint for content routers which do note understand full `ExtendedMetadata` semantics.
+* If ExtendedProvider is specified, indexers which understand the `ExtendedMetadata` extension should ignore the `Provider`, `Addresses` and `Metadata` specified in the advertisement in factor of those specified in the extended metadata. The values in the direct advertisement should still be set to a compatible endpoint for content routers which do not understand full `ExtendedMetadata` semantics.
 
 #### Entries data structure
 
