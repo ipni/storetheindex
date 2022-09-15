@@ -106,11 +106,11 @@ type ExtendedProvider struct {
 }
 ```
 
-* If Metadata is not specified for an `ExtendedProvider`, the metadata for an individual `Advertisement` will be used instead.
+* If `Metadata` is not specified for an `ExtendedProvider`, the metadata from the encapsulating  `Advertisement` will be used instead.
 * If an `ExtendedProvider` listing is written with no `ContextID`, those peers will be returned for all published advertisements for the advertisement Publisher.
-  * If `Override` is set on an `ExtendedProvider` entry on an advertisement with a `ContextID`, that indicates that any set chain-level set of providers should not be returned for that context ID.
+  * If `Override` is set on an `ExtendedProvider` entry on an advertisement with a `ContextID`, it indicates that any specified chain-level set of providers should not be returned for that context ID.
   * If `Override` is not set on an entry for an advertisement with a `ContextID`, it will extended any set chain-level `ExtndedProviders`.
-* The `Signature` for an `ExtendedProvider` is made using the key of that extended `Provider`.
+* The `Signature` for an `ExtendedProvider` is signed by the key of that extended `Provider`.
   * The full advertisement object is serialized, with all instances of `Signature` replaces with an empty array of bytes.
   * This serialization is then hashed, and the hash is then signed.
 
