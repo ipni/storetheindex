@@ -14,6 +14,7 @@ on:
       - 'doc/**'
     branches:
       - main
+      - primary-gc # FIXME: remove prior to PR merge; added to build containers for testing on dev.
 
 jobs:
   publisher:
