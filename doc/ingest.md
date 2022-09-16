@@ -26,7 +26,7 @@ type Advertisement struct {
     ContextID Bytes
     Metadata Bytes
     IsRm Bool
-    ExtendedProvider optional ExtendedMetadata
+    ExtendedProvider optional ExtendedProvider
 }
 ```
 
@@ -40,7 +40,7 @@ type Advertisement struct {
   * If a ContextID is used with different metadata, all previous CIDs advertised under that ContextID will have their metadata updated to the most recent.
   * If a ContextID is used with the `IsRm` flag set, all previous CIDs advertised under that ContextID will be removed.
 * Metadata represents additional opaque data that is returned in client query responses for any of the CIDs in this advertisement. It is expected to start with a `varint` indicating the remaining format of metadata. The opaque data is send to the provider when retrieving content for the provider to use to retrieve the content. Storetheindex operators may limit the length of this field, and it is recommended to keep it below 100 bytes.
-* If ExtendedProvider is specified, indexers which understand the `ExtendedMetadata` extension should ignore the `Provider`, `Addresses` and `Metadata` specified in the advertisement in factor of those specified in the extended metadata. The values in the direct advertisement should still be set to a compatible endpoint for content routers which do not understand full `ExtendedMetadata` semantics.
+* If ExtendedProvider is specified, indexers which understand the `ExtendedProvider` extension should ignore the `Provider`, `Addresses` and `Metadata` specified in the advertisement in factor of those specified in the extended metadata. The values in the direct advertisement should still be set to a compatible endpoint for content routers which do not understand full `ExtendedProvider` semantics.
 
 #### Entries data structure
 
@@ -88,17 +88,17 @@ The network indexer nodes expect that metadata begins with a `uvarint` identifyi
   * the proposed `uvarint` protocol is `0x3D0000`.
   * the following bytes are not yet defined.
 
-#### ExtendedMetadata
+#### ExtendedProvider
 
-The `ExtendedMetadata` field allows for specification of provider families, in cases where a provider operates multiple PeerIDs, perhaps with different access methods between them, but over the same database of content.
+The `ExtendedProvider` field allows for specification of provider families, in cases where a provider operates multiple PeerIDs, perhaps with different access methods between them, but over the same database of content.
 
 ```
-type ExtendedMetadata struct {
-    Family [ExtendedProvider]
+type ExtendedProvider struct {
+    Providers [Provider]
     Override bool
 }
 
-type ExtendedProvider struct {
+type Provider struct {
     Provider String
     Addresses [String]
     Metadata optional Bytes
@@ -106,13 +106,15 @@ type ExtendedProvider struct {
 }
 ```
 
-* If `Metadata` is not specified for an `ExtendedProvider`, the metadata from the encapsulating  `Advertisement` will be used instead.
-* If an `ExtendedProvider` listing is written with no `ContextID`, those peers will be returned for all published advertisements for the advertisement Publisher.
+* If `Metadata` is not specified for a `Provider`, the metadata from the encapsulating  `Advertisement` will be used instead.
+* If a `Provider` listing is written with no `ContextID`, those peers will be returned for all published advertisements for the advertisement Publisher.
   * If `Override` is set on an `ExtendedProvider` entry on an advertisement with a `ContextID`, it indicates that any specified chain-level set of providers should not be returned for that context ID.
-  * If `Override` is not set on an entry for an advertisement with a `ContextID`, it will extended any set chain-level `ExtndedProviders`.
+  * If `Override` is not set on an entry for an advertisement with a `ContextID`, it will be combined as a union with any set chain-level `ExtndedProviders`.
+  * If `Override` is set on `ExtendedProvider` for an advertisement without a `ContextID`, the entry can be considered invalid and should be ignored.
 * The `Signature` for an `ExtendedProvider` is signed by the key of that extended `Provider`.
   * The full advertisement object is serialized, with all instances of `Signature` replaces with an empty array of bytes.
   * This serialization is then hashed, and the hash is then signed.
+  * The provider from the surrounding advertisement must be present as a `Provider` in the `ExtendedProvider` object, and must sign in this way as well. It does not need to provide multiaddrs or transports, but must be present.
 
 ### Advertisement transfer
 
