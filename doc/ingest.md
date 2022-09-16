@@ -115,6 +115,7 @@ type Provider struct {
   * The full advertisement object is serialized, with all instances of `Signature` replaced with an empty array of bytes.
   * This serialization is then hashed, and the hash is then signed.
   * The `Provider` from the encapsulating advertisement must be present in the `Providers` of the `ExtendedProvider` object, and must sign in this way as well. It may omit `Metadata` and `Addresses` if they match the values already set at the encapsulating advertisement. However, `Signature` must be present.
+* Note: the `Signature` of the top level `Advertisement` is calculated as before - it should not include the `ExtendedProvider` field for backwards compatibility. The Additional secondary signature from the same `Provider` in `ExtendedProvider` ensures integrity over the full message.
 
 ### Advertisement transfer
 
