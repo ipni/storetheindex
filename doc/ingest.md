@@ -99,7 +99,7 @@ type ExtendedProvider struct {
 }
 
 type Provider struct {
-    Provider String
+    ID String
     Addresses [String]
     Metadata optional Bytes
     Signature Bytes
