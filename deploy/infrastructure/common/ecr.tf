@@ -7,6 +7,7 @@ module "ecr_ue2" {
     "autoretrieve/autoretrieve",
     "index-provider/index-provider",
     "indexstar/indexstar",
+    "ipfs-shipyard/ipfs-index-provider",
   ]
   tags = local.tags
 }
