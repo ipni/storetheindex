@@ -1177,14 +1177,16 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 	// 1. cause the ad chain C->B->A to be downloaded.
 	// 2. work to be assigned to the ingest worker which should not be processed until the
 	//    blocked background sync started by the explicit announce is unblocked.
-	<-hitBlockedRead
+	dCid := <-hitBlockedRead
+	require.Equal(t, ads[3].(cidlink.Link).Cid, dCid)
 
 	// Assert that no multihashes are indexed since entries processing should be blocked.
 	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), mhs)
 
 	// Now unblock the background sync started by the explicit announce, which casues the head
 	// ad (D) to also be downloaded, and should eventually get indexed
-	<-hitBlockedRead
+	cCid := <-hitBlockedRead
+	require.Equal(t, ads[2].(cidlink.Link).Cid, cCid)
 
 	// Now that there is nothing blocked anymore, and the ingest has learn about all the ads,
 	// i,e, C->B->A through publisher.UpdateRoot, and D through explicit announce, all the entries
