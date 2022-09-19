@@ -47,7 +47,7 @@ const (
 	testCorePutConcurrency = 4
 
 	testRetryInterval = 2 * time.Second
-	testRetryTimeout  = 25 * time.Second
+	testRetryTimeout  = 15 * time.Second
 
 	testEntriesChunkCount = 3
 	testEntriesChunkSize  = 15
@@ -1131,7 +1131,6 @@ func TestAnnounceIsNotDeferredOnNoInProgressIngest(t *testing.T) {
 }
 
 func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *testing.T) {
-	t.Skip()
 	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
 	te := setupTestEnv(t, true, blockableLsysOpt)
 	defer te.Close(t)
