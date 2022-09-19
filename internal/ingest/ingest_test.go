@@ -47,7 +47,7 @@ const (
 	testCorePutConcurrency = 4
 
 	testRetryInterval = 2 * time.Second
-	testRetryTimeout  = 15 * time.Second
+	testRetryTimeout  = 25 * time.Second
 
 	testEntriesChunkCount = 3
 	testEntriesChunkSize  = 15
