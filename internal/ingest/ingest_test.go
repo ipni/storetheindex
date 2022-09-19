@@ -1161,6 +1161,8 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 	_, found := te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
 	require.False(t, found)
 
+	time.Sleep(time.Second)
+
 	// Block head ad which should block explicit Announce call made to the ingester.
 	blockedReads.add(headCid)
 
