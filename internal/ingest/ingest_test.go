@@ -1130,7 +1130,7 @@ func TestAnnounceIsNotDeferredOnNoInProgressIngest(t *testing.T) {
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
 }
 
-func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *testing.T) {
+func AnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *testing.T) {
 	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
 	te := setupTestEnv(t, true, blockableLsysOpt)
 	defer te.Close(t)
