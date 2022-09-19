@@ -1131,67 +1131,75 @@ func TestAnnounceIsNotDeferredOnNoInProgressIngest(t *testing.T) {
 }
 
 func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *testing.T) {
-	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
-	te := setupTestEnv(t, true, blockableLsysOpt)
-	defer te.Close(t)
-	headLink := typehelpers.RandomAdBuilder{
-		EntryBuilders: []typehelpers.EntryBuilder{
-			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1}, // 0: A <- tail
-			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 2},                  // 1: B
-			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 3}, // 2: C
-			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 4}, // 3: D <- head
-		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
-	headCid := headLink.(cidlink.Link).Cid
-	ads := typehelpers.AllAdLinks(t, headLink, te.publisherLinkSys)
-	mhs := typehelpers.AllMultihashesFromAdLink(t, headLink, te.publisherLinkSys)
-	pubAddrInfo := te.pubHost.Peerstore().PeerInfo(te.pubHost.ID())
+	for i := 1; i < 100; i++ {
 
-	// Block Ad C which should block the sync triggered by publisher.UpdateRoot.
-	adCCid := ads[2].(cidlink.Link).Cid
-	blockedReads.add(adCCid)
+		blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
+		te := setupTestEnv(t, true, blockableLsysOpt)
+		defer te.Close(t)
+		headLink := typehelpers.RandomAdBuilder{
+			EntryBuilders: []typehelpers.EntryBuilder{
+				typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1}, // 0: A <- tail
+				typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 2},                  // 1: B
+				typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 3}, // 2: C
+				typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 4}, // 3: D <- head
+			}}.Build(t, te.publisherLinkSys, te.publisherPriv)
+		headCid := headLink.(cidlink.Link).Cid
+		ads := typehelpers.AllAdLinks(t, headLink, te.publisherLinkSys)
+		mhs := typehelpers.AllMultihashesFromAdLink(t, headLink, te.publisherLinkSys)
+		pubAddrInfo := te.pubHost.Peerstore().PeerInfo(te.pubHost.ID())
 
-	// Publish announce message on publisher side, which should trigger a background sync that
-	// gets blocked when attempting to sync ad C.
-	err := te.publisher.UpdateRoot(context.Background(), adCCid)
-	require.NoError(t, err)
+		// Block Ad C which should block the sync triggered by publisher.UpdateRoot.
+		adCCid := ads[2].(cidlink.Link).Cid
+		blockedReads.add(adCCid)
 
-	// Assert that there is no announce pending processing since no explicit announce was made to
-	// storetheindex ingester.
-	_, found := te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
-	require.False(t, found)
+		// Publish announce message on publisher side, which should trigger a background sync that
+		// gets blocked when attempting to sync ad C.
+		err := te.publisher.UpdateRoot(context.Background(), adCCid)
+		require.NoError(t, err)
 
-	// Block head ad which should block explicit Announce call made to the ingester.
-	blockedReads.add(headCid)
+		// Assert that there is no announce pending processing since no explicit announce was made to
+		// storetheindex ingester.
+		_, found := te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
+		require.False(t, found)
 
-	// Make an explicit announcement of head ad and assert that it was handled immediately since
-	// there is no in-progress entries processing yet; remember ad sync triggered by
-	// publisher.UpdateRoot is still blocked.
-	// Note that the background handling of the announce should get blocked since headCid is also
-	// in the block list.
-	err = te.ingester.Announce(context.Background(), headCid, pubAddrInfo)
-	require.NoError(t, err)
-	_, found = te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
-	require.False(t, found)
+		time.Sleep(1000)
 
-	// Unblock the sync triggered by publisher.UpdateRoot which should:
-	// 1. cause the ad chain C->B->A to be downloaded.
-	// 2. work to be assigned to the ingest worker which should not be processed until the
-	//    blocked background sync started by the explicit announce is unblocked.
-	dCid := <-hitBlockedRead
-	require.Equal(t, ads[3].(cidlink.Link).Cid, dCid)
+		// Block head ad which should block explicit Announce call made to the ingester.
+		blockedReads.add(headCid)
 
-	// Assert that no multihashes are indexed since entries processing should be blocked.
-	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+		// Make an explicit announcement of head ad and assert that it was handled immediately since
+		// there is no in-progress entries processing yet; remember ad sync triggered by
+		// publisher.UpdateRoot is still blocked.
+		// Note that the background handling of the announce should get blocked since headCid is also
+		// in the block list.
+		err = te.ingester.Announce(context.Background(), headCid, pubAddrInfo)
+		require.NoError(t, err)
+		_, found = te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
+		require.False(t, found)
 
-	// Now unblock the background sync started by the explicit announce, which casues the head
-	// ad (D) to also be downloaded, and should eventually get indexed
-	cCid := <-hitBlockedRead
-	require.Equal(t, ads[2].(cidlink.Link).Cid, cCid)
+		// Unblock the sync triggered by publisher.UpdateRoot which should:
+		// 1. cause the ad chain C->B->A to be downloaded.
+		// 2. work to be assigned to the ingest worker which should not be processed until the
+		//    blocked background sync started by the explicit announce is unblocked.
+		dCid := <-hitBlockedRead
+		require.Equal(t, ads[3].(cidlink.Link).Cid, dCid)
 
-	// Now that there is nothing blocked anymore, and the ingest has learn about all the ads,
-	// i,e, C->B->A through publisher.UpdateRoot, and D through explicit announce, all the entries
-	// should get indexed eventually.
-	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+		// Assert that no multihashes are indexed since entries processing should be blocked.
+		requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+
+		// Now unblock the background sync started by the explicit announce, which casues the head
+		// ad (D) to also be downloaded, and should eventually get indexed
+		cCid := <-hitBlockedRead
+		require.Equal(t, ads[2].(cidlink.Link).Cid, cCid)
+
+		// Now that there is nothing blocked anymore, and the ingest has learn about all the ads,
+		// i,e, C->B->A through publisher.UpdateRoot, and D through explicit announce, all the entries
+		// should get indexed eventually.
+		requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+
+		fmt.Println("Passed attempt %i", i)
+	}
+
 }
 
 // Make new indexer engine
