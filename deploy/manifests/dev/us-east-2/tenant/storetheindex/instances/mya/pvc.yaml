@@ -5,5 +5,5 @@ metadata:
 spec:
   resources:
     requests:
-      storage: 10Ti
+      storage: 20Ti
   storageClassName: io2-iops3
