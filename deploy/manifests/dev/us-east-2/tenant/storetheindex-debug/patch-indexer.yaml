@@ -57,4 +57,4 @@ spec:
         storageClassName: io2
         resources:
           requests:
-            storage: 10Ti
+            storage: 20Ti
