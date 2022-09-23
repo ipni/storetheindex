@@ -65,6 +65,7 @@ data:
         "ConfigCheckInterval": "30s",
         "GCInterval": "30m0s",
         "ShutdownTimeout": "15m",
+        "STHBurstRate": 8388608,
         "ValueStoreDir": "/data/valuestore",
         "ValueStoreType": "sth"
       },
