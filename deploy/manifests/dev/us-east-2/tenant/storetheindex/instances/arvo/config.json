@@ -57,13 +57,14 @@
     "CacheSize": 300000,
     "ConfigCheckInterval": "30s",
     "GCInterval": "30m0s",
+    "GCTimeout": "5m",  
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
     "ValueStoreType": "sth",
     "STHBits": 30,
-    "STHBurstRate": 4194304,
+    "STHBurstRate": 10000000,
     "STHSyncInterval": "1s",
-    "STHFileCacheSize": -1
+    "STHFileCacheSize": 512
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
