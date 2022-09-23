@@ -50,12 +50,7 @@
     "PollInterval": "24h0m0s",
     "PollRetryAfter": "5h0m0s",
     "PollStopAfter": "168h0m0s",
-    "PollOverrides": [{
-      "ProviderID": "QmQzqxhK82kAmKvARFZSkUVS6fo9sySaiogAnx5EnZ6ZmC",
-      "Interval": "5m0s",
-      "RetryAfter": "3m0s",
-      "StopAfter": "168h0m0s"
-    }],
+    "PollOverrides": null,
     "RediscoverWait": "5m0s",
     "Timeout": "2m0s"
   },
@@ -98,6 +93,9 @@
     }
   },
   "Peering": {
-    "Peers": null
+    "Peers": [
+      "/dns4/indexer-0.indexer/tcp/3003/p2p/12D3KooWQAymjDKMivbkUNiJP7ChRsvsDuazerHW4wERRvQMWNor",
+      "/dns4/indexer-1.indexer/tcp/3003/p2p/12D3KooWJMn6BzkMixb2w8hR83Jpvugbqw3pBXwHqmbiFxh7nHz3"
+    ]
   }
 }
