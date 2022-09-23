@@ -674,6 +674,9 @@ func (ing *Ingester) autoSync() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	var autoSyncMutex sync.Mutex
+	autoSyncInProgress := map[peer.ID]struct{}{}
+
 	for provInfo := range ing.reg.SyncChan() {
 		if provInfo.Deleted() {
 			if err := ing.removePublisher(ctx, provInfo.Publisher); err != nil {
@@ -686,12 +689,25 @@ func (ing *Ingester) autoSync() {
 			continue
 		}
 
-		// If a separate goroutine, attempt to sync the provider at its last
-		// know publisher.
+		autoSyncMutex.Lock()
+		_, already := autoSyncInProgress[provInfo.AddrInfo.ID]
+		autoSyncMutex.Unlock()
+		if already {
+			log.Infow("Auto-sync already in progress", "provider", provInfo.AddrInfo.ID)
+			continue
+		}
+		autoSyncInProgress[provInfo.AddrInfo.ID] = struct{}{}
+
+		// Attempt to sync the provider at its last know publisher, in a
+		// separate goroutine.
 		ing.waitForPendingSyncs.Add(1)
 		go func(pubID peer.ID, pubAddr multiaddr.Multiaddr, provID peer.ID) {
-			defer ing.waitForPendingSyncs.Done()
-
+			defer func() {
+				autoSyncMutex.Lock()
+				delete(autoSyncInProgress, provID)
+				autoSyncMutex.Unlock()
+				ing.waitForPendingSyncs.Done()
+			}()
 			log := log.With("provider", provID, "publisher", pubID, "addr", pubAddr)
 			log.Info("Auto-syncing the latest advertisement with publisher")
 
