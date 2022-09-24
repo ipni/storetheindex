@@ -247,8 +247,8 @@ github.com/filecoin-project/go-data-transfer v1.15.2 h1:PzqsFr2Q/onMGKrGh7TtRT0d
 github.com/filecoin-project/go-data-transfer v1.15.2/go.mod h1:qXOJ3IF5dEJQHykXXTwcaRxu17bXAxr+LglXzkL6bZQ=
 github.com/filecoin-project/go-ds-versioning v0.1.1 h1:JiyBqaQlwC+UM0WhcBtVEeT3XrX59mQhT8U3p7nu86o=
 github.com/filecoin-project/go-ds-versioning v0.1.1/go.mod h1:C9/l9PnB1+mwPa26BBVpCjG/XQCB0yj/q5CK2J8X1I4=
-github.com/filecoin-project/go-indexer-core v0.6.5 h1:WmBirC4fEGfB36y0dXUg2Cpg7s9io0Dok1kOqznVUvY=
-github.com/filecoin-project/go-indexer-core v0.6.5/go.mod h1:0JiWnqNyf3ANAiAI83DTKYt67ZiJHz6x8QFjAF3mZ6E=
+github.com/filecoin-project/go-indexer-core v0.6.6 h1:1OErw/0Rvw+ut1KQUP/yF+Pa/5+ZCQvXiqlSz7VnKP8=
+github.com/filecoin-project/go-indexer-core v0.6.6/go.mod h1:1C2siKDHfUIIiQRDyRx1AzKFVcDyo0o+vk/YZVs7krk=
 github.com/filecoin-project/go-legs v0.4.14 h1:3VDRUcepSZJNy7UPtmZx3v7D3kf1XUhcQ3iyJBLpCHY=
 github.com/filecoin-project/go-legs v0.4.14/go.mod h1:Oz504ZeONX1Z1092uleqwTuTNY8nlVfBlsJSOkZFxtE=
 github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe/go.mod h1:FGwQgZAt2Gh5mjlwJUlVB62JeYdo+if0xWxSEfBD9ig=
@@ -670,8 +670,8 @@ github.com/ipld/go-ipld-prime v0.17.0/go.mod h1:aYcKm5TIvGfY8P3QBKz/2gKcLxzJ1zDa
 github.com/ipld/go-ipld-prime v0.18.0 h1:xUk7NUBSWHEXdjiOu2sLXouFJOMs0yoYzeI5RAqhYQo=
 github.com/ipld/go-ipld-prime v0.18.0/go.mod h1:735yXW548CKrLwVCYXzqx90p5deRJMVVxM9eJ4Qe+qE=
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20211210234204-ce2a1c70cd73/go.mod h1:2PJ0JgxyB08t0b2WKrcuqI3di0V+5n6RS/LTUJhkoxY=
-github.com/ipld/go-storethehash v0.3.3 h1:cgSA4Wa2CGJeGsSZBgXsZB1U9tT3lx6YmGKAUrYYSSQ=
-github.com/ipld/go-storethehash v0.3.3/go.mod h1:WDeK24//CTUrs4kKxB52qNUf65zCCYHGm3r6fPFKV94=
+github.com/ipld/go-storethehash v0.3.4 h1:bLIJEChSmNdItZ22ZV+ENTYEj/4jBx8jxUxsoVGj0ak=
+github.com/ipld/go-storethehash v0.3.4/go.mod h1:WDeK24//CTUrs4kKxB52qNUf65zCCYHGm3r6fPFKV94=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52 h1:QG4CGBqCeuBo6aZlGAamSkxWdgWfZGeE49eUOWJPA4c=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52/go.mod h1:fdg+/X9Gg4AsAIzWpEHwnqd+QY3b7lajxyjE1m4hkq4=
 github.com/iris-contrib/blackfriday v2.0.0+incompatible/go.mod h1:UzZ2bDEoaSGPbkg6SAB4att1aAwTmVIx/5gCVqeyUdI=
