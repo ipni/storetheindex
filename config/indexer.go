@@ -75,7 +75,7 @@ func NewIndexer() Indexer {
 		ValueStoreDir:       "valuestore",
 		ValueStoreType:      "sth",
 		STHBits:             24,
-		STHBurstRate:        4 * 1024 * 1024,
+		STHBurstRate:        8 * 1024 * 1024,
 		STHFileCacheSize:    512,
 		STHSyncInterval:     Duration(time.Second),
 		ValueStoreCodec:     "json",
