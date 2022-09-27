@@ -73,7 +73,7 @@
     "RateLimit": {
       "Apply": false,
       "Except": null,
-      "BlocksPerSecond": 100,
+      "BlocksPerSecond": 0,
       "BurstSize": 500
     },
     "ResendDirectAnnounce": false,
