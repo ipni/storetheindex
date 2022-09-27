@@ -68,12 +68,12 @@
     "HttpSyncRetryWaitMax": "30s",
     "HttpSyncRetryWaitMin": "1s",
     "HttpSyncTimeout": "10s",
-    "IngestWorkerCount": 20,
+    "IngestWorkerCount": 200,
     "PubSubTopic": "/indexer/ingest/mainnet",
     "RateLimit": {
       "Apply": false,
       "Except": null,
-      "BlocksPerSecond": 100,
+      "BlocksPerSecond": 0,
       "BurstSize": 500
     },
     "ResendDirectAnnounce": false,
