@@ -11,7 +11,6 @@ import (
 	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
-	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
@@ -135,12 +134,34 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // indexer.
 func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement) error {
 	stats.Record(context.Background(), metrics.IngestChange.M(1))
+	var mhCount int
+	var entsSyncStart time.Time
+	var entsStoreElapsed time.Duration
 	ingestStart := time.Now()
-	defer func() {
-		stats.Record(context.Background(), metrics.AdIngestLatency.M(coremetrics.MsecSince(ingestStart)))
-	}()
 
 	log := log.With("publisher", publisherID, "adCid", adCid)
+
+	defer func() {
+		now := time.Now()
+
+		// Record how long ad sync took.
+		elapsed := now.Sub(ingestStart)
+		elapsedMsec := float64(elapsed.Nanoseconds()) / 1e6
+		stats.Record(context.Background(), metrics.AdIngestLatency.M(elapsedMsec))
+		log.Infow("Finished syncing advertisement", "elapsed", elapsed.String(), "multihashes", mhCount)
+
+		if mhCount == 0 {
+			return
+		}
+		// Record how long entries sync took.
+		elapsed = now.Sub(entsSyncStart)
+		elapsedMsec = float64(elapsed.Nanoseconds()) / 1e6
+		stats.Record(context.Background(), metrics.EntriesSyncLatency.M(elapsedMsec))
+
+		// Record average time to store 10000 multihashes.
+		elapsedPer10KMh := float64(entsStoreElapsed.Nanoseconds()/int64(mhCount)) / 100
+		stats.Record(context.Background(), metrics.MhStore10KLatency.M(elapsedPer10KMh))
+	}()
 
 	// Get provider ID from advertisement.
 	providerID, err := peer.Decode(ad.Provider)
@@ -217,7 +238,6 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	if entriesCid == cid.Undef {
 		return adIngestError{adIngestMalformedErr, fmt.Errorf("advertisement entries link is undefined")}
 	}
-	log = log.With("entriesCid", entriesCid)
 
 	ctx := context.Background()
 	if ing.syncTimeout != 0 {
@@ -226,7 +246,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		defer cancel()
 	}
 
-	startTime := time.Now()
+	entsSyncStart = time.Now()
 
 	// The ad.Entries link can point to either a chain of EntryChunks or a
 	// HAMT. Sync the very first entry so that we can check which type it is.
@@ -305,6 +325,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			}
 		}
 
+		entsStoreStart := time.Now()
+
 		// Start processing now that the entire HAMT is synced. HAMT is a map,
 		// and we are using the keys in the map to represent multihashes.
 		// Therefore, we only care about the keys.
@@ -339,6 +361,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 				if err != nil {
 					return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 				}
+				mhCount += len(mhs)
 				mhs = mhs[:0]
 			}
 		}
@@ -348,7 +371,9 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			if err != nil {
 				return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 			}
+			mhCount += len(mhs)
 		}
+		entsStoreElapsed = time.Since(entsStoreStart)
 	} else {
 		log = log.With("entriesKind", "EntryChunk")
 
@@ -369,11 +394,12 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		}
 
 		// We have already peeked at the first EntryChunk as part of probing
-		// the entries type, sSo process that first.
+		// the entries type, so process that first.
 		chunk, err := ing.loadEntryChunk(syncedFirstEntryCid)
 		if err != nil {
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 		} else {
+			chunkStart := time.Now()
 			if asyncEntries {
 				chunkFuncs <- func() {
 					if err := ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log); err != nil {
@@ -386,6 +412,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 				}
 			}
+			mhCount += len(chunk.Entries)
+			entsStoreElapsed += time.Since(chunkStart)
 		}
 
 		if chunk != nil && chunk.Next != nil {
@@ -397,6 +425,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			// Traverse remaining entry chunks based on the entries selector
 			// that limits recursion depth.
 			_, err = ing.sub.Sync(ctx, publisherID, nextChunkCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
+				chunkStart := time.Now()
+
 				// Load CID as entry chunk since the selector should only
 				// select entry chunk nodes.
 				chunk, err := ing.loadEntryChunk(c)
@@ -433,6 +463,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 						return
 					}
 				}
+				mhCount += len(chunk.Entries)
+				entsStoreElapsed += time.Since(chunkStart)
 
 				if chunk.Next != nil {
 					actions.SetNextSyncCid(chunk.Next.(cidlink.Link).Cid)
@@ -457,11 +489,6 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			<-asyncDone
 		}
 	}
-	elapsed := time.Since(startTime)
-	// Record how long sync took.
-	stats.Record(context.Background(), metrics.EntriesSyncLatency.M(coremetrics.MsecSince(startTime)))
-	log.Infow("Finished syncing entries", "elapsed", elapsed)
-
 	ing.signalMetricsUpdate()
 
 	if len(errsIngestingEntryChunks) > 0 {
