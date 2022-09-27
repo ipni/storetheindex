@@ -34,7 +34,7 @@ var (
 	AdLoadError          = stats.Int64("ingest/adLoadError", "Number of times an ad failed to load", stats.UnitDimensionless)
 	ProviderCount        = stats.Int64("provider/count", "Number of known (registered) providers", stats.UnitDimensionless)
 	EntriesSyncLatency   = stats.Float64("ingest/entriessynclatency", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
-	MhStore10KLatency    = stats.Float64("ingest/mhStoreLatency", "Time to store 10000 multihashes", stats.UnitMilliseconds)
+	MhStore10KLatency    = stats.Float64("ingest/mhStore10KLatency", "Time to store 10000 multihashes", stats.UnitMilliseconds)
 )
 
 // Views
