@@ -159,7 +159,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		elapsedMsec = float64(elapsed.Nanoseconds()) / 1e6
 		stats.Record(context.Background(), metrics.EntriesSyncLatency.M(elapsedMsec))
 
-		// Record average time to store 10000 multihashes.
+		// Record average time to store one multihash, for all multihahses in
+		// this ad's entries.
 		elapsedPerMh := int64(math.Round(float64(entsStoreElapsed.Nanoseconds()) / float64(mhCount)))
 		stats.Record(context.Background(), metrics.MhStoreNanoseconds.M(elapsedPerMh))
 	}()
