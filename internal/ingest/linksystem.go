@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"time"
 
@@ -159,8 +160,8 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		stats.Record(context.Background(), metrics.EntriesSyncLatency.M(elapsedMsec))
 
 		// Record average time to store 10000 multihashes.
-		elapsedPer10KMh := float64(entsStoreElapsed.Nanoseconds()/int64(mhCount)) / (1e6 / 1e4)
-		stats.Record(context.Background(), metrics.MhStore10KLatency.M(elapsedPer10KMh))
+		elapsedPerMh := int64(math.Round(float64(entsStoreElapsed.Nanoseconds()) / float64(mhCount)))
+		stats.Record(context.Background(), metrics.MhStoreNanoseconds.M(elapsedPerMh))
 	}()
 
 	// Get provider ID from advertisement.
