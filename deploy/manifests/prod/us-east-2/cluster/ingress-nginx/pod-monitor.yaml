@@ -2,6 +2,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: nginx
+  namespace: ingress-nginx
 spec:
   selector:
     matchLabels:
