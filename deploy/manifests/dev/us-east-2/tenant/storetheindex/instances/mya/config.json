@@ -54,7 +54,7 @@
     "Timeout": "2m0s"
   },
   "Indexer": {
-    "CacheSize": 300000,
+    "CacheSize": -1,
     "ConfigCheckInterval": "30s",
     "GCInterval": "30m0s",
     "GCTimeout": "5m",  
