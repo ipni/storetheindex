@@ -671,7 +671,7 @@ func TestSync(t *testing.T) {
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	c1, mhs, providerID := publishRandomIndexAndAdv(t, pub, lsys, false)
+	c1, mhs, providerID := publishRandomIndexAndAdv(t, pub, lsys, false, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -712,6 +712,46 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 	_, ok = <-end
 	require.True(t, ok)
+}
+
+func TestSyncTooLargeMetadata(t *testing.T) {
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := mkTestHost()
+	pubHost := mkTestHost()
+	i, core, _ := mkIngest(t, h)
+	defer core.Close()
+	defer i.Close()
+	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	defer pub.Close()
+	connectHosts(t, h, pubHost)
+
+	metadata := make([]byte, schema.MaxMetadataLen*2)
+	copy(metadata, []byte("too-long"))
+
+	publishRandomIndexAndAdv(t, pub, lsys, false, metadata)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// The explicit sync will happen concurrently with the sycn triggered by
+	// the published advertisement.  These will be serialized in the go-legs
+	// handler for the provider.
+	end, err := i.Sync(ctx, pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+	select {
+	case endCid := <-end:
+		// We receive the CID that we synced.
+		require.Equal(t, cid.Undef, endCid)
+		lcid := cid.Undef
+
+		// Check that subscriber recorded latest sync.
+		lnk := i.sub.GetLatestSync(pubHost.ID())
+		if lnk != nil {
+			lcid = lnk.(cidlink.Link).Cid
+		}
+		require.Equal(t, lcid, cid.Undef)
+	case <-ctx.Done():
+		t.Fatal("sync timeout")
+	}
 }
 
 func TestReSyncWithDepth(t *testing.T) {
@@ -800,7 +840,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	// for testing.
 	ing.entriesSel = Selectors.EntriesWithLimit(selector.RecursionLimitDepth(entriesDepth))
 
-	adCid, _, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount)
+	adCid, _, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -1290,11 +1330,11 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 	return nextLnk, out
 }
 
-func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool) (cid.Cid, []multihash.Multihash, peer.ID) {
-	return publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, fakeSig, testEntriesChunkCount)
+func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID) {
+	return publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, fakeSig, testEntriesChunkCount, metadata)
 }
 
-func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int) (cid.Cid, []multihash.Multihash, peer.ID) {
+func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID) {
 
 	priv, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
@@ -1303,7 +1343,9 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publis
 	require.NoError(t, err)
 
 	ctxID := []byte("test-context-id")
-	metadata := []byte("test-metadata")
+	if metadata == nil {
+		metadata = []byte("test-metadata")
+	}
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 	mhsLnk, mhs := newRandomLinkedList(t, lsys, eChunkCount)
 

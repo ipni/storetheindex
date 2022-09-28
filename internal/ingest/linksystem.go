@@ -95,6 +95,12 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 		log.Errorw("Cannot decode advertisement", "err", err)
 		return "", errBadAdvert
 	}
+
+	if err = ad.Validate(); err != nil {
+		log.Errorw("Advertisement validation failed", "err", err)
+		return "", errBadAdvert
+	}
+
 	// Verify advertisement signature.
 	signerID, err := ad.VerifySignature()
 	if err != nil {
