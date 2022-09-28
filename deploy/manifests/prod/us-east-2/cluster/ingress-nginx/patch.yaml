@@ -12,6 +12,9 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
       containers:
         - name: controller
+          ports:
+            - name: prometheus
+              containerPort: 10254
           resources:
             limits:
               cpu: 500m
