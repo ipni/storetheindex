@@ -966,8 +966,16 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			continue
 		}
 
+		var entsCid string
+		if ai.ad.Entries == schema.NoEntries {
+			entsCid = "NoEntries"
+		} else {
+			entsCid = ai.ad.Entries.(cidlink.Link).Cid.String()
+		}
+
 		log.Infow("Processing advertisement",
 			"adCid", ai.cid,
+			"entriesCid", entsCid,
 			"publisher", assignment.publisher,
 			"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
 
