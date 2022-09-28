@@ -17,8 +17,8 @@ spec:
               containerPort: 10254
           resources:
             limits:
-              cpu: 500m
+              cpu: "2"
               memory: 3Gi
             requests:
-              cpu: 500m
+              cpu: "2"
               memory: 3Gi
