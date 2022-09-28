@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - ../../../../base/ingress-nginx
+  - pod-monitor.yaml
 
 patchesStrategicMerge:
   - patch.yaml
