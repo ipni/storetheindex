@@ -73,7 +73,7 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   ordered_cache_behavior {
-    path_pattern = "reframe"
+    path_pattern           = "reframe"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
     allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
@@ -87,7 +87,7 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   ordered_cache_behavior {
-    path_pattern = "multihash/*"
+    path_pattern     = "multihash/*"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
@@ -172,6 +172,9 @@ resource "aws_cloudfront_cache_policy" "reframe" {
     query_strings_config {
       query_string_behavior = "all"
     }
+
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
   }
 }
 
@@ -204,8 +207,8 @@ module "records" {
 
   records = [
     {
-      name = local.cdn_subdomain
-      type = "A"
+      name  = local.cdn_subdomain
+      type  = "A"
       alias = {
         name    = aws_cloudfront_distribution.cdn.domain_name
         zone_id = aws_cloudfront_distribution.cdn.hosted_zone_id

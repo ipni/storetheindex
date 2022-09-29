@@ -13,7 +13,7 @@ patchesStrategicMerge:
 
 replicas:
   - name: indexstar
-    count: 10
+    count: 3
 
 images:
   - name: indexstar
