@@ -3,6 +3,7 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -191,29 +192,78 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		}
 	}
 
-	var maddrs []multiaddr.Multiaddr
-	if len(ad.Addresses) != 0 {
-		maddrs = make([]multiaddr.Multiaddr, 0, len(ad.Addresses))
-		for _, addr := range ad.Addresses {
-			maddr, err := multiaddr.NewMultiaddr(addr)
-			if err != nil {
-				log.Warnw("Bad address in advertisement", "address", addr)
-				continue
-			}
-			maddrs = append(maddrs, maddr)
-		}
-	}
+	maddrs := stringsToMultiaddrs(ad.Addresses)
 
 	provider := peer.AddrInfo{
 		ID:    providerID,
 		Addrs: maddrs,
 	}
-	err = ing.reg.RegisterOrUpdate(context.Background(), provider, adCid, publisher)
+
+	ctx := context.Background()
+
+	var extendedProviders *registry.ExtendedProviders
+	if ad.ExtendedProvider != nil {
+
+		if ad.IsRm {
+			return adIngestError{adIngestIndexerErr, fmt.Errorf("rm ads can not have extended providers")}
+		}
+
+		if len(ad.ContextID) == 0 && ad.ExtendedProvider.Override {
+			return adIngestError{adIngestIndexerErr, fmt.Errorf("override can not be set on extended provider without context id")}
+		}
+
+		// Fetching the existing ExtendedProvider record or creating a new one
+		existingPInfo, _ := ing.reg.ProviderInfo(providerID)
+		if existingPInfo != nil {
+			extendedProviders = existingPInfo.ExtendedProviders
+		}
+
+		if extendedProviders == nil {
+			extendedProviders = &registry.ExtendedProviders{
+				ContextualProviders: make(map[string]registry.ContextualExtendedProviders),
+			}
+		}
+
+		// Creating ExtendedProviderInfo record for each of the providers.
+		// Keeping in mind that the provider from the outer ad doesn't need to be included into the extended providers list
+		eProvs := make([]registry.ExtendedProviderInfo, 0, len(ad.ExtendedProvider.Providers)-1)
+		seenEProvs := map[peer.ID]struct{}{}
+		for _, ep := range ad.ExtendedProvider.Providers {
+			epID, err := peer.Decode(ep.ID)
+			if err != nil {
+				return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update extended provider info: %w", err)}
+			}
+
+			// Skipping the record that is for provider form the main ad or if the provider has already been seen
+			if _, ok := seenEProvs[epID]; ok || ep.ID == ad.Provider {
+				continue
+			}
+
+			eProvs = append(eProvs, registry.ExtendedProviderInfo{
+				PeerID:   epID,
+				Metadata: ep.Metadata,
+				Addrs:    stringsToMultiaddrs(ep.Addresses),
+			})
+		}
+
+		// If context ID is empty then it's a chain level record, otherwise it's specific to the context ID
+		if len(ad.ContextID) == 0 {
+			extendedProviders.Providers = eProvs
+		} else {
+			extendedProviders.ContextualProviders[string(ad.ContextID)] = registry.ContextualExtendedProviders{
+				ContextID: ad.ContextID,
+				Override:  ad.ExtendedProvider.Override,
+				Providers: eProvs,
+			}
+		}
+	}
+
+	err = ing.reg.RegisterOrUpdate(ctx, provider, adCid, publisher, extendedProviders)
 	if err != nil {
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
 
-	log = log.With("provider", providerID)
+	log = log.With("contextID", base64.StdEncoding.EncodeToString(ad.ContextID), "provider", providerID)
 
 	if ad.IsRm {
 		log.Infow("Advertisement is for removal by context id")
@@ -255,7 +305,6 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		return adIngestError{adIngestMalformedErr, fmt.Errorf("advertisement entries link is undefined")}
 	}
 
-	ctx := context.Background()
 	if ing.syncTimeout != 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, ing.syncTimeout)
@@ -630,4 +679,20 @@ func isAdvertisement(n ipld.Node) bool {
 func isHAMT(n ipld.Node) bool {
 	h, _ := n.LookupByString("hamt")
 	return h != nil
+}
+
+func stringsToMultiaddrs(addrs []string) []multiaddr.Multiaddr {
+	var maddrs []multiaddr.Multiaddr
+	if len(addrs) != 0 {
+		maddrs = make([]multiaddr.Multiaddr, 0, len(addrs))
+		for _, addr := range addrs {
+			maddr, err := multiaddr.NewMultiaddr(addr)
+			if err != nil {
+				log.Warnw("Bad address in advertisement", "address", addr)
+				continue
+			}
+			maddrs = append(maddrs, maddr)
+		}
+	}
+	return maddrs
 }

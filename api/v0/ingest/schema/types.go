@@ -10,15 +10,28 @@ import (
 )
 
 type (
+	ExtendedProvider struct {
+		Providers []Provider
+		Override  bool
+	}
+
+	Provider struct {
+		ID        string
+		Addresses []string
+		Metadata  []byte
+		Signature []byte
+	}
+
 	Advertisement struct {
-		PreviousID ipld.Link
-		Provider   string
-		Addresses  []string
-		Signature  []byte
-		Entries    ipld.Link
-		ContextID  []byte
-		Metadata   []byte
-		IsRm       bool
+		PreviousID       ipld.Link
+		Provider         string
+		Addresses        []string
+		Signature        []byte
+		Entries          ipld.Link
+		ContextID        []byte
+		Metadata         []byte
+		IsRm             bool
+		ExtendedProvider *ExtendedProvider
 	}
 	EntryChunk struct {
 		Entries []multihash.Multihash

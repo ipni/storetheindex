@@ -73,6 +73,51 @@ func TestFindIndexData(t *testing.T) {
 	}
 }
 
+func TestFindIndexWithExtendedProviders(t *testing.T) {
+	// Initialize everything
+	ind := test.InitIndex(t, true)
+	// We don't want to have any restricitons around provider identities as they are generated in rkandom for extended providers
+	reg := test.InitRegistryWithRestrictivePolicy(t, false)
+	s := setupServer(ind, reg, nil, t)
+	c := setupClient(s.URL(), t)
+
+	// Start server
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	// Test must complete in 5 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	test.ProvidersShouldBeUnaffectedByExtendedProvidersOfEachOtherTest(ctx, t, c, ind, reg)
+	test.ExtendedProviderShouldHaveOwnMetadataTest(ctx, t, c, ind, reg)
+	test.ExtendedProviderShouldInheritMetadataOfMainProviderTest(ctx, t, c, ind, reg)
+	test.ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx, t, c, ind, reg)
+	test.ContextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx, t, c, ind, reg)
+
+	err := s.Close()
+	if err != nil {
+		t.Error("shutdown error:", err)
+	}
+	err = <-errChan
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = reg.Close(); err != nil {
+		t.Errorf("Error closing registry: %s", err)
+	}
+	if err = ind.Close(); err != nil {
+		t.Errorf("Error closing indexer core: %s", err)
+	}
+}
+
 func TestReframeFindIndexData(t *testing.T) {
 	// Initialize everything
 	ind := test.InitIndex(t, true)
