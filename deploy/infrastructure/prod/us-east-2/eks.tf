@@ -29,7 +29,7 @@ module "eks" {
     # General purpose node-group.
     prod-ue2-m4-xl-2 = {
       min_size       = 3
-      max_size       = 7
+      max_size       = 10
       desired_size   = 3
       subnet_ids     = local.secondary_private_subnet_ids
       instance_types = ["m4.xlarge"]
