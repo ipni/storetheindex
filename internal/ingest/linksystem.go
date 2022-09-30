@@ -274,10 +274,15 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		//
 		// Use string search until then.
 		wrappedErr := fmt.Errorf("failed to sync first entry while checking entries type: %w", err)
-		if strings.Contains(err.Error(), "content not found") {
+		msg := err.Error()
+		switch {
+		case
+			strings.Contains(msg, "content not found"),
+			strings.Contains(msg, "graphsync request failed to complete: skip"):
 			return adIngestError{adIngestContentNotFound, wrappedErr}
+		default:
+			return adIngestError{adIngestSyncEntriesErr, wrappedErr}
 		}
-		return adIngestError{adIngestSyncEntriesErr, wrappedErr}
 	}
 
 	node, err := ing.loadNode(syncedFirstEntryCid, basicnode.Prototype.Any)
