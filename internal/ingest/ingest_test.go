@@ -1235,6 +1235,38 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
 }
 
+func TestIngest_ExplicitSyncFromUnknownDTPublisher(t *testing.T) {
+	// Do not connect host to simulate a case where publisher is not known to the indexer, i.e.
+	// no previous announcements from the publisher have reached the indexer.
+	const shouldConnectHosts = false
+	ctx := context.Background()
+	te := setupTestEnv(t, shouldConnectHosts)
+
+	head := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 100, Seed: 1},
+		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	headCid := head.(cidlink.Link).Cid
+	err := te.publisher.UpdateRoot(ctx, headCid)
+	require.NoError(t, err)
+
+	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), te.pubHost.Addrs()[0], 0, false)
+
+	require.Eventually(t, func() bool {
+		// Note that Sync silently fails if an error occurs inside the sync background goroutine.
+		// Therefore, assert that the registry contains the publisher host if sync works the way it
+		// should: learns about previously unknown peers via explicit sync.
+		_, found := te.ingester.reg.ProviderInfo(te.pubHost.ID())
+		return found
+	}, 10*time.Second, time.Second)
+
+	require.Eventually(t, func() bool {
+		latestSync, err := te.ingester.GetLatestSync(te.pubHost.ID())
+		return err == nil && headCid.Equals(latestSync)
+	}, 10*time.Second, time.Second)
+}
+
 // Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
 	valueStore, err := storethehash.New(context.Background(), t.TempDir(), nil, testCorePutConcurrency, sth.IndexBitSize(8))
