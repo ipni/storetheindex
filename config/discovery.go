@@ -19,6 +19,8 @@ type Discovery struct {
 	Policy Policy
 	// PollInterval is the amount of time to wait without getting any updates
 	// for a provider, before sending a request for the latest advertisement.
+	// If there is no response after at least one poll attempt, then the
+	// provider is considered inactive and is not returned in find responses.
 	// Values are a number ending in "s", "m", "h" for seconds. minutes, hours.
 	PollInterval Duration
 	// PollRetryAfter is the amount of time from one poll attempt, without a
@@ -28,7 +30,9 @@ type Discovery struct {
 	PollRetryAfter Duration
 	// PollStopAfter is the amount of time, from the start of polling, to
 	// continuing polling for the latest advertisment without getting a
-	// response.
+	// response. After this time elapses with no updates from the provider, the
+	// provider's data is removed from the indexer and must be re-fetched if
+	// the provider returns.
 	PollStopAfter Duration
 	// PollOverrides configures polling for specific providers.
 	PollOverrides []Polling
