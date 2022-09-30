@@ -50,7 +50,14 @@
     "PollInterval": "24h0m0s",
     "PollRetryAfter": "5h0m0s",
     "PollStopAfter": "168h0m0s",
-    "PollOverrides": null,
+    "PollOverrides": [
+      {
+        "ProviderID": "QmQzqxhK82kAmKvARFZSkUVS6fo9sySaiogAnx5EnZ6ZmC",
+        "Interval": "30m0s",
+        "RetryAfter": "10m0s",
+        "StopAfter": "168h0m0s"
+      }
+    ],
     "RediscoverWait": "5m0s",
     "Timeout": "2m0s"
   },
