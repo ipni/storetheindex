@@ -39,6 +39,11 @@ To run storetheindex as a service, run the `daemon` command. The service watches
 
 The daemon is configured by the config file in the storetheindex repository. The config file and repo are created when storetheindex is initialized, using the `init` command. This repo is located in the local file system. By default, the repo is located at ~/.storetheindex. To change the repo location, set the `$STORETHEINDEX_PATH` environmental variable.
 
+## Provider Removal Policy
+After a configured amount of time without any updates from a provider (`PollInterval`), the indexer will poll the provider at its last know publisher address, for any index updates. If there is no response from the provider after at least one attempt to poll, then the provider is considered inactive and is not returned in any find results. The indexer will continue polling on an interval (`PollRetryAfter`) until a time limit (`PollStopAfter`) is reached. If there is still no response to the poll attempts after this time limit is reached, then the provider is removed from the indexer and its records are garbage-collected and will need to be refetched. 
+
+The configuration values that control this are documented [here](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Discovery), and their default values are specified [here](https://github.com/filecoin-project/storetheindex/blob/main/doc/config.md#discovery). A custom polling configuration may be applied for specific providers using the `PollOverrides` configuration value to specify per-provider [Polling configuration](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Polling).
+
 ## Indexer CLI Commands
 There are a number of client commands included with storetheindex. Their purpose is to perform simple indexing and lookup actions against a running daemon.  These can be helpful to test that an indexer is working. These include the following commands:
 
