@@ -69,7 +69,10 @@ data:
         "ShutdownTimeout": "15m",
         "ValueStoreDir": "/data/valuestore",
         "ValueStoreType": "sth",
-        "STHBits": 30
+        "STHBits": 30,
+        "STHBurstRate": 8388608,
+        "STHSyncInterval": "1s",
+        "STHFileCacheSize": 512
       },
       "Ingest": {
         "AdvertisementDepthLimit": 33554432,
