@@ -21,4 +21,4 @@ images:
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
     # Test changes in primary GC mechanism; see:
     #  - https://github.com/filecoin-project/storetheindex/pull/816
-    newTag: 20220924010831-cfda8052a41c306f411ff8b73213067e32fa1201
+    newTag: 20221003083215-842ef52a78fb9158a8797f8cd5ac3db026fbf6c7
