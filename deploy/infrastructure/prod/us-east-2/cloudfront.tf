@@ -56,7 +56,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     # Hence the complete method list.
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
     cached_methods   = ["GET", "HEAD"]
-    target_origin_id = local.cdn_origin_id
+    target_origin_id = local.indexstar_origin_id
 
     forwarded_values {
       query_string = false
