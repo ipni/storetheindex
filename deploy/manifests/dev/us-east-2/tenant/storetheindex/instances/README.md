@@ -4,5 +4,5 @@ List of individually configurable instances:
 
 | Instance | sth bit-size | IOPS per GiB | Value Codec  | Whitelist           | `CacheSize` | Running |
 |----------|--------------|--------------|--------------|---------------------|----------------|---------|
-| `arvo`   | 30           | 3            | `json`       | all                 | `-1`        | [8936ca9485fcf7895e70e73c61c0fb4170d6e02c](https://github.com/filecoin-project/storetheindex/commit/8936ca9485fcf7895e70e73c61c0fb4170d6e02c)        |
-| `mya`    | 30           | 3            | `json`       | all                 | `-1`        | [790cd153428e6d1207eb0b930b105a258e482c98](https://github.com/filecoin-project/storetheindex/commit/790cd153428e6d1207eb0b930b105a258e482c98)        |
+| `arvo`   | 30           | 3            | `json`       | all                 | `-1`        | [842ef52a78fb9158a8797f8cd5ac3db026fbf6c7](https://github.com/filecoin-project/storetheindex/commit/842ef52a78fb9158a8797f8cd5ac3db026fbf6c7)        |
+| `mya`    | 30           | 3            | `json`       | all                 | `-1`        | [842ef52a78fb9158a8797f8cd5ac3db026fbf6c7](https://github.com/filecoin-project/storetheindex/commit/842ef52a78fb9158a8797f8cd5ac3db026fbf6c7)        |
