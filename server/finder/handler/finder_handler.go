@@ -10,7 +10,7 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )

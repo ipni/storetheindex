@@ -3,7 +3,7 @@ package peerutil
 import (
 	"fmt"
 
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // Policy is a boolean value with a set of zero or more peer ID values.

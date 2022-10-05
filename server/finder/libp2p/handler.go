@@ -19,8 +19,8 @@ import (
 	"github.com/filecoin-project/storetheindex/server/finder/handler"
 	"github.com/gogo/protobuf/proto"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/protocol"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 )

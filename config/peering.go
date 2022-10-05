@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // Peering configures the peering service. Peering is similar to bootstrapping,

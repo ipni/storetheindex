@@ -1,6 +1,6 @@
 package v0
 
-import "github.com/libp2p/go-libp2p-core/protocol"
+import "github.com/libp2p/go-libp2p/core/protocol"
 
 const (
 	// FinderProtocolID is the libp2p protocol that finder API uses
