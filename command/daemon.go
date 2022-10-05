@@ -337,6 +337,8 @@ func daemonCommand(cctx *cli.Context) error {
 		timeChan = ticker.C
 	}
 
+	shutdownTimeout := cfg.Indexer.ShutdownTimeout
+
 	for endDaemon := false; !endDaemon; {
 		select {
 		case <-cctx.Done():
@@ -362,9 +364,10 @@ func daemonCommand(cctx *cli.Context) error {
 				log.Errorw("Error reloading conifg", "err", err)
 				if errChan != nil {
 					errChan <- errors.New("could not reload configuration")
-					continue
 				}
+				continue
 			}
+			shutdownTimeout = cfg.Indexer.ShutdownTimeout
 
 			if p2pHost != nil {
 				peeringService, err = reloadPeering(cfg.Peering, peeringService, p2pHost)
@@ -404,8 +407,8 @@ func daemonCommand(cctx *cli.Context) error {
 
 	// If a shutdown timeout is configured, then wait that amount of time for a
 	// gradeful shutdown to before exiting with error.
-	if cfg.Indexer.ShutdownTimeout > 0 {
-		shCtx, shCancel := context.WithTimeout(context.Background(), time.Duration(cfg.Indexer.ShutdownTimeout))
+	if shutdownTimeout > 0 {
+		shCtx, shCancel := context.WithTimeout(context.Background(), time.Duration(shutdownTimeout))
 		defer shCancel()
 
 		go func() {
