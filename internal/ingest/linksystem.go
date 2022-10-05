@@ -390,22 +390,6 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	} else {
 		log = log.With("entriesKind", "EntryChunk")
 
-		var chunkFuncs chan func()
-		var asyncDone chan struct{}
-		var asyncEntries bool
-
-		if !ing.writeEntriesSynchronously() {
-			asyncEntries = true
-			asyncDone = make(chan struct{})
-			chunkFuncs = make(chan func(), 1)
-			go func(fch <-chan func()) {
-				for f := range fch {
-					f()
-				}
-				close(asyncDone)
-			}(chunkFuncs)
-		}
-
 		// We have already peeked at the first EntryChunk as part of probing
 		// the entries type, so process that first.
 		chunk, err := ing.loadEntryChunk(syncedFirstEntryCid)
@@ -413,27 +397,15 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 		} else {
 			chunkStart := time.Now()
-			if asyncEntries {
-				chunkFuncs <- func() {
-					if err := ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log); err != nil {
-						errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
-					}
-				}
-			} else {
-				err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
-				if err != nil {
-					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
-				}
+			err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
+			if err != nil {
+				errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 			}
 			mhCount += len(chunk.Entries)
 			entsStoreElapsed += time.Since(chunkStart)
 		}
 
 		if chunk != nil && chunk.Next != nil {
-			var errCh chan error
-			if asyncEntries {
-				errCh = make(chan error, 1)
-			}
 			nextChunkCid := chunk.Next.(cidlink.Link).Cid
 			// Traverse remaining entry chunks based on the entries selector
 			// that limits recursion depth.
@@ -448,33 +420,11 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 					return
 				}
-				if asyncEntries {
-					// If an error occurred, cause the segment sync to fail
-					// with that error.
-					select {
-					default:
-					case err = <-errCh:
-						actions.FailSync(err)
-						return
-					}
-					chnk := *chunk
-					chunkFuncs <- func() {
-						if err := ing.ingestEntryChunk(ctx, ad, c, chnk, log); err != nil {
-							errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
-							// Tell segment sync to fail with the err.
-							select {
-							case errCh <- err:
-							default:
-							}
-						}
-					}
-				} else {
-					err = ing.ingestEntryChunk(ctx, ad, c, *chunk, log)
-					if err != nil {
-						actions.FailSync(err)
-						errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
-						return
-					}
+				err = ing.ingestEntryChunk(ctx, ad, c, *chunk, log)
+				if err != nil {
+					actions.FailSync(err)
+					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+					return
 				}
 				mhCount += len(chunk.Entries)
 				entsStoreElapsed += time.Since(chunkStart)
@@ -486,20 +436,12 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 				}
 			}))
 			if err != nil {
-				if asyncEntries {
-					close(chunkFuncs)
-					<-asyncDone
-				}
 				wrappedErr := fmt.Errorf("failed to sync entries: %w", err)
 				if strings.Contains(err.Error(), "content not found") {
 					return adIngestError{adIngestContentNotFound, wrappedErr}
 				}
 				return adIngestError{adIngestSyncEntriesErr, wrappedErr}
 			}
-		}
-		if asyncEntries {
-			close(chunkFuncs)
-			<-asyncDone
 		}
 	}
 	ing.signalMetricsUpdate()
