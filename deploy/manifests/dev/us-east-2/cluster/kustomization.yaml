@@ -15,4 +15,3 @@ resources:
   - index-observer
   - autoretrieve
   - index-provider
-  - storetheindex-debug
