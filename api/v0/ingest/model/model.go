@@ -3,8 +3,8 @@ package model
 import (
 	"fmt"
 
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/record"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/record"
 )
 
 func makeRequestEnvelop(rec record.Record, privateKey crypto.PrivKey) ([]byte, error) {

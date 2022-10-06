@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // Reads marshalled crypto.PrivKey from os.stdin and prints the peer.ID that corresponds to the key.

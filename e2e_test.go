@@ -122,7 +122,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	case "windows":
 		t.Skip("skipping test on", runtime.GOOS)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	e := &e2eTestRunner{
 		t:   t,

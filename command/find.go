@@ -8,7 +8,7 @@ import (
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
 	p2pclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/libp2p"
 	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
 	"github.com/urfave/cli/v2"
 )

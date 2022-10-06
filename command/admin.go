@@ -5,7 +5,7 @@ import (
 	"net/url"
 
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 )

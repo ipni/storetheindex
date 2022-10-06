@@ -22,7 +22,7 @@ import (
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-cid"
 	reframeclient "github.com/ipfs/go-delegated-routing/client"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )

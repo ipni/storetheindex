@@ -23,9 +23,8 @@ type Indexer struct {
 	// cycle may run.
 	GCTimeLimit Duration
 	// ShutdownTimeout is the duration that a graceful shutdown has to complete
-	// before the daemon process is terminated.
-	// A timeout of zero disables the shutdown timeout completely.
-	// if unset, defaults to no shutdown timeout.
+	// before the daemon process is terminated. If unset or zero, configures no
+	// shutdown timeout. This value is reloadable.
 	ShutdownTimeout Duration
 	// ValueStoreDir is the directory where value store is kept. If this is not
 	// an absolute path then the location is relative to the indexer repo

@@ -11,8 +11,8 @@ import (
 	p2pserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
 	"github.com/filecoin-project/storetheindex/server/finder/test"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 func setupServer(ctx context.Context, ind indexer.Interface, reg *registry.Registry, t *testing.T) (*libp2pserver.Server, host.Host) {

@@ -13,8 +13,8 @@ import (
 	p2pserver "github.com/filecoin-project/storetheindex/server/ingest/libp2p"
 	"github.com/filecoin-project/storetheindex/server/ingest/test"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 var providerIdent = config.Identity{
