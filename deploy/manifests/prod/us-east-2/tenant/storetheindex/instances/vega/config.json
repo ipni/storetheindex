@@ -70,7 +70,7 @@
     "ValueStoreDir": "/data/valuestore",
     "ValueStoreType": "sth",
     "STHBits": 30,
-    "STHBurstRate": 4194304,
+    "STHBurstRate": 8388608,
     "STHFileCacheSize": 256,
     "STHSyncInterval": "3s",
     "ValueStoreCodec": "binary"
