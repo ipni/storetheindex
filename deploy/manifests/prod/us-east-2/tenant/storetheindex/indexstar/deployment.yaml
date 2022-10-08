@@ -17,8 +17,8 @@ spec:
             # TLS handshake overhead.
             - '--backends=http://indexer-0.indexer:3000/'
             - '--backends=http://indexer-1.indexer:3000/'
-            - '--backends=http://tara-indexer:3000/'
             - '--backends=http://dido-indexer:3000/'
+            - '--backends=http://vega-indexer:3000/'
             - '--backends=http://xabi-indexer:3000/'
           resources:
             limits:
