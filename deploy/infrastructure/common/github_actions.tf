@@ -21,7 +21,13 @@ data "aws_iam_policy_document" "github_actions" {
       "ecr:InitiateLayerUpload",
       "ecr:PutImage",
       "ecr:UploadLayerPart",
-      "sts:GetServiceBearerToken"
+      "ecr-public:BatchCheckLayerAvailability",
+      "ecr-public:CompleteLayerUpload",
+      "ecr-public:InitiateLayerUpload",
+      "ecr-public:PutImage",
+      "ecr-public:UploadLayerPart",
+      "ecr-public:GetAuthorizationToken",
+      "sts:GetServiceBearerToken",
     ]
     resources = ["*"]
   }
