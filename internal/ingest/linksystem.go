@@ -213,7 +213,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
 
-	log = log.With("contextID", base64.StdEncoding.EncodeToString(ad.ContextID), "provider", ad.Provider)
+	log = log.With("contextID", base64.StdEncoding.EncodeToString(ad.ContextID), "provider", providerID)
 
 	if ad.IsRm {
 		log.Infow("Advertisement is for removal by context id")
