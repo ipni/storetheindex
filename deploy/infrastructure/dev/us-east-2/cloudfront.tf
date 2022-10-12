@@ -55,7 +55,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     # We need to allow GET and PUT. CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
-    cached_methods   = ["GET", "HEAD"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.indexstar_origin_id
 
     forwarded_values {
@@ -77,7 +77,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
     allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
-    cached_methods         = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD", "OPTIONS"]
     target_origin_id       = local.indexstar_origin_id
     cache_policy_id        = aws_cloudfront_cache_policy.reframe.id
     viewer_protocol_policy = "redirect-to-https"
