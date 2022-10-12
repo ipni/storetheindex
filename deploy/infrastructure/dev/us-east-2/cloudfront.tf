@@ -1,16 +1,21 @@
 locals {
-  cdn_origin_id = "${local.environment_name}_sti_cdn"
-  cdn_subdomain = "cdn"
+  indexstar_origin_id = "${local.environment_name}_${local.region}_indexstar"
+  cdn_origin_id       = "${local.environment_name}_sti_cdn"
+  cdn_subdomain       = "cdn"
 }
 
 resource "aws_cloudfront_distribution" "cdn" {
   enabled = true
 
-  aliases     = ["${local.cdn_subdomain}.${aws_route53_zone.dev_external.name}"]
+  aliases = [
+    aws_route53_zone.dev_external.name,
+    "${local.cdn_subdomain}.${aws_route53_zone.dev_external.name}",
+  ]
   price_class = "PriceClass_All"
 
+  # storetheindex/indexer ingress.
   origin {
-    domain_name = aws_route53_zone.dev_external.name
+    domain_name = "indexer.${aws_route53_zone.dev_external.name}"
     origin_id   = local.cdn_origin_id
     custom_origin_config {
       http_port              = 80
@@ -24,6 +29,23 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
   }
 
+  # storetheindex/indexstar ingress.
+  origin {
+    domain_name = "indexstar.${aws_route53_zone.dev_external.name}"
+    origin_id   = local.indexstar_origin_id
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+    }
+    origin_shield {
+      enabled              = true
+      origin_shield_region = local.region
+    }
+  }
+
+
   custom_error_response {
     error_code            = 404
     error_caching_min_ttl = 300
@@ -34,7 +56,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     # Hence the complete method list.
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
     cached_methods   = ["GET", "HEAD"]
-    target_origin_id = local.cdn_origin_id
+    target_origin_id = local.indexstar_origin_id
 
     forwarded_values {
       query_string = false
@@ -48,6 +70,20 @@ resource "aws_cloudfront_distribution" "cdn" {
     min_ttl                = 0
     default_ttl            = 3600
     max_ttl                = 86400
+  }
+
+  ordered_cache_behavior {
+    path_pattern = "reframe"
+    # CloudFront does not support configuring allowed methods selectively.
+    # Hence the complete method list.
+    allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = local.indexstar_origin_id
+    cache_policy_id        = aws_cloudfront_cache_policy.reframe.id
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 0
+    max_ttl                = 0
   }
 
   restrictions {
@@ -93,6 +129,16 @@ module "records" {
 
   records = [
     {
+      # Point `dev.cid.contact` to cloudfront distribution.
+      name = ""
+      type = "A"
+      alias = {
+        name    = aws_cloudfront_distribution.cdn.domain_name
+        zone_id = aws_cloudfront_distribution.cdn.hosted_zone_id
+      }
+    },
+    {
+      # Point `cdn.dev.cid.contact` to cloudfront distribution for backward compatibility.
       name = local.cdn_subdomain
       type = "A"
       alias = {
@@ -101,4 +147,29 @@ module "records" {
       }
     },
   ]
+}
+
+resource "aws_cloudfront_cache_policy" "reframe" {
+  name = "${local.environment_name}_reframe"
+
+  # We have to set non-zero TTL values because otherwise CloudFront won't let 
+  # the query strings settings to be configured.
+  min_ttl     = 0
+  default_ttl = 3600
+  max_ttl     = 86400
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "none"
+    }
+    query_strings_config {
+      query_string_behavior = "all"
+    }
+
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+  }
 }
