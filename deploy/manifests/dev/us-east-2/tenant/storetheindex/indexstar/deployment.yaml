@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexstar
+spec:
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+      containers:
+        - name: indexstar
+          args:
+            - '--translateReframe'
+            # Use service names local to the namespace over HTTP to avoid
+            # TLS handshake overhead.
+            - '--backends=http://indexer-0.indexer:3000/'
+            - '--backends=http://indexer-1.indexer:3000/'
+            - '--backends=http://arvo-indexer:3000/'
+            - '--backends=http://mya-indexer:3000/'
+          resources:
+            limits:
+              cpu: "3"
+              memory: 2Gi
+            requests:
+              cpu: "3"
+              memory: 2Gi
