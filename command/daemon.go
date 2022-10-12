@@ -47,9 +47,6 @@ const (
 	vstorePogreb       = "pogreb"
 	vstoreStorethehash = "sth"
 	vstorePebble       = "pebble"
-
-	vstoreJsonCodec   = "json"
-	vstoreBinaryCodec = "binary"
 )
 
 var log = logging.Logger("indexer")
@@ -492,25 +489,18 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		return nil, 0, err
 	}
 
-	var vcodec indexer.ValueCodec
-	switch cfgIndexer.ValueStoreCodec {
-	case vstoreJsonCodec:
-		vcodec = indexer.JsonValueCodec{}
-	case vstoreBinaryCodec:
-		vcodec = indexer.BinaryValueCodec{}
-	default:
-		return nil, 0, fmt.Errorf("unrecognized value store codec: %s", cfgIndexer.ValueStoreCodec)
-	}
-
 	var vs indexer.Interface
 	var minKeyLen int
 
 	switch cfgIndexer.ValueStoreType {
 	case vstoreStorethehash:
+		if cfgIndexer.GCInterval == -1 {
+			cfgIndexer.GCInterval = 0
+			cfgIndexer.GCTimeLimit = 0
+		}
 		vs, err = storethehash.New(
 			ctx,
 			dir,
-			vcodec,
 			cfgIndexer.CorePutConcurrency,
 			sth.GCInterval(time.Duration(cfgIndexer.GCInterval)),
 			sth.GCTimeLimit(time.Duration(cfgIndexer.GCTimeLimit)),
@@ -521,7 +511,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		)
 		minKeyLen = sthMinKeyLen
 	case vstorePogreb:
-		vs, err = pogreb.New(dir, vcodec)
+		vs, err = pogreb.New(dir)
 	case vstoreMemory:
 		vs, err = memory.New(), nil
 	case vstorePebble:
@@ -568,7 +558,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		err = fmt.Errorf("unrecognized store type: %s", cfgIndexer.ValueStoreType)
 	}
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("cannot create %s value store: %w", cfgIndexer.ValueStoreType, err)
 	}
 	return vs, minKeyLen, nil
 }

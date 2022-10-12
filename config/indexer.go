@@ -44,16 +44,9 @@ type Indexer struct {
 	STHFileCacheSize int
 	// STHSyncInterval determines how frequently changes are flushed to disk.
 	STHSyncInterval Duration
-	// ValueStoreCodec configures the marshalling format of values stored by the valuestore.
-	// It can be one of "json" or "binary". If unspecified, json format is used by default.
-	//
-	// Note that the format must not be changed after a valuestore is initialized. Changing
-	// the format for a pre-existing valuestore will result in failure and potentially data
-	// corruption.
-	ValueStoreCodec string
-	// PebbleDisableWAL sets whether to disable write-ahead-log in Pebble which can offer better
-	// performance in specific cases. Enabled by default.
-	// Note, this option is only considered when ValueStoreType type is set to "pebble".
+	// PebbleDisableWAL sets whether to disable write-ahead-log in Pebble which
+	// can offer better performance in specific cases. Enabled by default. This
+	// option only applies when ValueStoreType is set to "pebble".
 	PebbleDisableWAL bool
 
 	// TODO: If left unspecified, could the functionality instead be to use whatever the existing
@@ -77,7 +70,6 @@ func NewIndexer() Indexer {
 		STHBurstRate:        8 * 1024 * 1024,
 		STHFileCacheSize:    512,
 		STHSyncInterval:     Duration(time.Second),
-		ValueStoreCodec:     "json",
 	}
 }
 
@@ -117,8 +109,5 @@ func (c *Indexer) populateUnset() {
 	}
 	if c.STHSyncInterval == 0 {
 		c.STHSyncInterval = def.STHSyncInterval
-	}
-	if c.ValueStoreCodec == "" {
-		c.ValueStoreCodec = def.ValueStoreCodec
 	}
 }
