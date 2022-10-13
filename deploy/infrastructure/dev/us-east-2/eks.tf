@@ -29,10 +29,18 @@ module "eks" {
       subnet_ids     = module.vpc.private_subnets
     }
     dev-ue2-r5a-2xl = {
+      min_size       = 0
+      max_size       = 7
+      desired_size   = 1
+      instance_types = ["r5a.2xlarge"]
+    }
+    # Node group primarily used by autoretrieve with PVC in us-east2a availability zone.
+    dev-ue2a-r5a-2xl = {
       min_size       = 1
       max_size       = 7
       desired_size   = 1
       instance_types = ["r5a.2xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2a1.id]
     }
     dev-ue2-r5b-xl = {
       min_size       = 3
