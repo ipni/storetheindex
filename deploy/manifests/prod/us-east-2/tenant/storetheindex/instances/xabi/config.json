@@ -57,13 +57,12 @@
     "CacheSize": 300000,
     "ConfigCheckInterval": "30s",
     "GCInterval": "30m0s",
-    "GCTimeLimit": "5m",
+    "GCTimeLimit": "10m",
     "GCScanFree": true,
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
     "ValueStoreType": "sth",
-    "STHBits": 30,
-    "ValueStoreCodec": "binary"
+    "STHBits": 30
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
