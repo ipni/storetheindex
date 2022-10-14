@@ -75,3 +75,7 @@ data:
       username: ischasny
       groups:
         - system:masters
+    - userarn: arn:aws:iam::407967248065:user/rodvagg
+      username: rodvagg
+      groups:
+        - system:masters
