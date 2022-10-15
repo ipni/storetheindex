@@ -373,13 +373,23 @@ func batchIndexerEntries(batchSize int, putChan <-chan multihash.Multihash, valu
 // ----- admin handlers -----
 
 func (h *adminHandler) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	// TODO: Report on indexer core health?
-	_, err := w.Write([]byte("\"OK\""))
+	healthStatus := &HealthStatus{Server: "OK", ValueStore: "OK"}
+	var errVS error
+	if cause, errVS := healthCheckValueStore(h); errVS != nil {
+		healthStatus.ValueStore = fmt.Sprintf("FAILED:%s:%s", cause, errVS)
+	}
+	bytes, err := json.MarshalIndent(healthStatus, "", "\t")
 	if err != nil {
-		log.Errorw("Cannot write HealthCheck response:", err)
+		healthStatus.Server = fmt.Sprintf("FAILED:Marshal failed:%s", err)
+		http.Error(w, healthStatus.Server, http.StatusInternalServerError)
 		return
 	}
+	if errVS != nil {
+		http.Error(w, string(bytes), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(bytes)
 }
 
 // ----- utility functions -----
@@ -393,4 +403,51 @@ func decodePeerID(id string, w http.ResponseWriter) (peer.ID, bool) {
 		return peerID, false
 	}
 	return peerID, true
+}
+
+func healthCheckValueStore(h *adminHandler) (cause ValueStoreFailReason, err error) {
+	mhash, val, err := createValueStoreDatum()
+	if err != nil {
+		return VS_GEN_FAILURE, err
+	}
+
+	err = h.indexer.Put(*val, mhash)
+	if err != nil {
+		return VS_WRITE_FAILURE, err
+	}
+
+	defer func() {
+		if errorOnRemove := h.indexer.Remove(*val, mhash); errorOnRemove != nil {
+			cause = VS_REMOVE_FAILURE
+			err = errorOnRemove
+		}
+	}()
+
+	rval, present, err := h.indexer.Get(mhash)
+
+	if err != nil {
+		return VS_READ_FAILURE, err
+	}
+	if !present {
+		return VS_NO_DATA, err
+	}
+	if !val.Equal(rval[0]) {
+		return VS_READWRITE_MISMATCH, err
+	}
+
+	return "", nil
+}
+
+func createValueStoreDatum() (multihash.Multihash, *indexer.Value, error) {
+	mhash := multihash.Multihash("2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj")
+	provider, err := peer.Decode("12D3KooWBUNzpAz1Jfvnaag1nHBi6gbG5Q1BQm8kCfcpmt7bGKa6")
+	if err != nil {
+		return nil, nil, err
+	}
+	val := indexer.Value{
+		ProviderID:    provider,
+		ContextID:     []byte(mhash),
+		MetadataBytes: []byte("p-metadata"),
+	}
+	return mhash, &val, nil
 }
