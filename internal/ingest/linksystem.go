@@ -492,7 +492,7 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash
 		return err
 	}
 
-	// Iterate over all entries and ingest remove bad ones.
+	// Iterate over multihashes and remove bad ones.
 	var badMultihashCount int
 	for i := 0; i < len(mhs); {
 		var badMultihash bool
