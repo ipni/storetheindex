@@ -73,7 +73,7 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   ordered_cache_behavior {
-    path_pattern = "reframe"
+    path_pattern           = "reframe"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
     allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
@@ -84,6 +84,26 @@ resource "aws_cloudfront_distribution" "cdn" {
     min_ttl                = 0
     default_ttl            = 0
     max_ttl                = 0
+  }
+
+  ordered_cache_behavior {
+    path_pattern     = "ingest/*"
+    # CloudFront does not support configuring allowed methods selectively.
+    # Hence the complete method list.
+    allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = local.cdn_origin_id
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
   }
 
   restrictions {
@@ -130,8 +150,8 @@ module "records" {
   records = [
     {
       # Point `dev.cid.contact` to cloudfront distribution.
-      name = ""
-      type = "A"
+      name  = ""
+      type  = "A"
       alias = {
         name    = aws_cloudfront_distribution.cdn.domain_name
         zone_id = aws_cloudfront_distribution.cdn.hosted_zone_id
@@ -139,8 +159,8 @@ module "records" {
     },
     {
       # Point `cdn.dev.cid.contact` to cloudfront distribution for backward compatibility.
-      name = local.cdn_subdomain
-      type = "A"
+      name  = local.cdn_subdomain
+      type  = "A"
       alias = {
         name    = aws_cloudfront_distribution.cdn.domain_name
         zone_id = aws_cloudfront_distribution.cdn.hosted_zone_id
