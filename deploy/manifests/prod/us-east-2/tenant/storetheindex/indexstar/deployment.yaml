@@ -18,6 +18,8 @@ spec:
             - '--backends=http://tara-indexer:3000/'
             - '--backends=http://vega-indexer:3000/'
             - '--backends=http://xabi-indexer:3000/'
+            - '--backends=http://dido-indexer:3000/'
+            - '--backends=http://oden-indexer:3000/'
           resources:
             limits:
               cpu: "3"
