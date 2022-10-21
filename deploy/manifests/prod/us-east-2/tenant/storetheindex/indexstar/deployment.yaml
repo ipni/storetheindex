@@ -15,6 +15,8 @@ spec:
             - '--translateReframe'
             # Use service names local to the namespace over HTTP to avoid
             # TLS handshake overhead.
+            - '--backends=http://indexer-0.indexer:3000/'
+            - '--backends=http://indexer-1.indexer:3000/'
             - '--backends=http://tara-indexer:3000/'
             - '--backends=http://vega-indexer:3000/'
             - '--backends=http://xabi-indexer:3000/'
