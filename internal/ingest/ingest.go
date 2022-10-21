@@ -395,6 +395,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 			log.Errorw("Failed to sync with provider", "err", err)
 			return
 		}
+		ing.reg.Saw(peerID)
 		// Do not persist the latest sync here, because that is done after
 		// processing the ad.
 
@@ -696,6 +697,7 @@ func (ing *Ingester) autoSync() {
 				log.Errorw("Failed to auto-sync with publisher", "err", err)
 				return
 			}
+			ing.reg.Saw(provID)
 		}(provInfo.Publisher, provInfo.PublisherAddr, provInfo.AddrInfo.ID)
 	}
 }
