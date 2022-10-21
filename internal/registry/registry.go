@@ -315,12 +315,14 @@ func (r *Registry) Discover(peerID peer.ID, discoveryAddr string, sync bool) err
 	return nil
 }
 
-// Saw indicates that a provider was seen. just updates
+// Saw indicates that a provider was seen.
 func (r *Registry) Saw(provider peer.ID) {
 	done := make(chan struct{})
 	r.actions <- func() {
 		if _, ok := r.providers[provider]; ok {
-			r.providers[provider].lastContactTime = time.Now()
+			pinfo := r.providers[provider]
+			pinfo.lastContactTime = time.Now()
+			pinfo.inactive = false
 		}
 		close(done)
 	}

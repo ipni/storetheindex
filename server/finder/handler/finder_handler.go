@@ -44,7 +44,7 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 	for i := range mhashes {
 		values, found, err := h.indexer.Get(mhashes[i])
 		if err != nil {
-			err = fmt.Errorf("failed to query %q: %s", mhashes[i], err)
+			err = fmt.Errorf("failed to query multihash %s: %s", mhashes[i].B58String(), err)
 			return nil, v0.NewError(err, http.StatusInternalServerError)
 		}
 		if !found {
