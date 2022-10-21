@@ -18,6 +18,7 @@ type Config struct {
 	Bootstrap Bootstrap // Peers to connect to for gossip
 	Datastore Datastore // datastore config
 	Discovery Discovery // provider pubsub peers
+	Finder    Finder    // finder code configuration
 	Indexer   Indexer   // indexer code configuration
 	Ingest    Ingest    // ingestion related configuration.
 	Logging   Logging   // logging configuration.
@@ -105,6 +106,7 @@ func Load(filePath string) (*Config, error) {
 		Bootstrap: NewBootstrap(),
 		Datastore: NewDatastore(),
 		Discovery: NewDiscovery(),
+		Finder:    NewFinder(),
 		Indexer:   NewIndexer(),
 		Ingest:    NewIngest(),
 		Logging:   NewLogging(),
@@ -180,6 +182,7 @@ func (c *Config) populateUnset() {
 	c.Addresses.populateUnset()
 	c.Datastore.populateUnset()
 	c.Discovery.populateUnset()
+	c.Finder.populateUnset()
 	c.Indexer.populateUnset()
 	c.Ingest.populateUnset()
 	c.Logging.populateUnset()
