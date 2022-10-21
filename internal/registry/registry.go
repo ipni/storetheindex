@@ -87,9 +87,10 @@ type ProviderInfo struct {
 }
 
 type polling struct {
-	interval   time.Duration
-	retryAfter time.Duration
-	stopAfter  time.Duration
+	interval        time.Duration
+	retryAfter      time.Duration
+	stopAfter       time.Duration
+	deactivateAfter time.Duration
 }
 
 func (p *ProviderInfo) Deleted() bool {
@@ -187,9 +188,10 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 		return nil, err
 	}
 	poll := polling{
-		interval:   time.Duration(cfg.PollInterval),
-		retryAfter: time.Duration(cfg.PollRetryAfter),
-		stopAfter:  time.Duration(cfg.PollStopAfter),
+		interval:        time.Duration(cfg.PollInterval),
+		retryAfter:      time.Duration(cfg.PollRetryAfter),
+		stopAfter:       time.Duration(cfg.PollStopAfter),
+		deactivateAfter: time.Duration(cfg.DeactivateAfter),
 	}
 
 	go r.run()
@@ -210,9 +212,10 @@ func makePollOverrideMap(cfgPollOverrides []config.Polling) (map[peer.ID]polling
 			return nil, fmt.Errorf("cannot decode provider ID %q in PollOverrides: %s", poll.ProviderID, err)
 		}
 		pollOverrides[peerID] = polling{
-			interval:   time.Duration(poll.Interval),
-			retryAfter: time.Duration(poll.RetryAfter),
-			stopAfter:  time.Duration(poll.StopAfter),
+			interval:        time.Duration(poll.Interval),
+			retryAfter:      time.Duration(poll.RetryAfter),
+			stopAfter:       time.Duration(poll.StopAfter),
+			deactivateAfter: time.Duration(poll.DeactivateAfter),
 		}
 	}
 	return pollOverrides, nil
@@ -615,7 +618,7 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 	}
 	log.Infow("Imported new providers from other indexer", "from", fromURL.String(), "count", len(newProvs))
 
-	// Start gorouting to sync with all the new providers.
+	// Start goroutine to sync with all the new providers.
 	go func() {
 		for _, pinfo := range newProvs {
 			select {
@@ -881,8 +884,8 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 				}
 				// Tell the ingester to remove data for the provider.
 				info.deleted = true
-			} else if sincePollingStarted >= 2*poll.retryAfter {
-				// Still polling after at least one retry, so mark inactive.
+			} else if sincePollingStarted >= poll.deactivateAfter {
+				// Still polling after deactivateAfter, so mark inactive.
 				// This will exclude the provider from find responses.
 				info.inactive = true
 			}

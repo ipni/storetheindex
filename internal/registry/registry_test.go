@@ -400,8 +400,9 @@ func TestPollProvider(t *testing.T) {
 	require.NoError(t, err)
 
 	poll := polling{
-		retryAfter: time.Minute,
-		stopAfter:  time.Hour,
+		retryAfter:      time.Minute,
+		stopAfter:       time.Hour,
+		deactivateAfter: time.Hour,
 	}
 
 	// Check for auto-sync after pollInterval 0.
@@ -418,6 +419,7 @@ func TestPollProvider(t *testing.T) {
 
 	// Check that actions chan is not blocked by unread auto-sync channel.
 	poll.retryAfter = 0
+	poll.deactivateAfter = 0
 	r.pollProviders(poll, nil)
 	r.pollProviders(poll, nil)
 	r.pollProviders(poll, nil)

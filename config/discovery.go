@@ -29,11 +29,18 @@ type Discovery struct {
 	// there to be more than one poll attempt for a provider.
 	PollRetryAfter Duration
 	// PollStopAfter is the amount of time, from the start of polling, to
-	// continuing polling for the latest advertisment without getting a
+	// continuing polling for the latest advertisement without getting a
 	// response. After this time elapses with no updates from the provider, the
 	// provider's data is removed from the indexer and must be re-fetched if
 	// the provider returns.
 	PollStopAfter Duration
+	// DeactivateAfter is the duration after which an unseen provider will be
+	// excluded from find queries as well as providers list. Note, an inactive
+	// provider will not be deleted until PollStopAfter has elapses since last
+	// it was seen. If unspecified, providers will be removed once PollStopAfter
+	// has elapsed without entering inactive state grace period. If set to less
+	// than PollStopAfter this parameter will have no effect.
+	DeactivateAfter Duration
 	// PollOverrides configures polling for specific providers.
 	PollOverrides []Polling
 	// RediscoverWait is the amount of time that must pass before a provider
@@ -57,18 +64,22 @@ type Polling struct {
 	RetryAfter Duration
 	// StopAfter overrides Discovery.PollStopAfter.
 	StopAfter Duration
+	// DeactivateAfter overrides Discovery.DeactivateAfter.
+	DeactivateAfter Duration
 }
 
 // NewDiscovery returns Discovery with values set to their defaults.
 func NewDiscovery() Discovery {
+	const defaultStopAfter = Duration(7 * 24 * time.Hour)
 	return Discovery{
-		LotusGateway:   "https://api.chain.love",
-		Policy:         NewPolicy(),
-		PollInterval:   Duration(24 * time.Hour),
-		PollRetryAfter: Duration(5 * time.Hour),
-		PollStopAfter:  Duration(7 * 24 * time.Hour),
-		RediscoverWait: Duration(5 * time.Minute),
-		Timeout:        Duration(2 * time.Minute),
+		LotusGateway:    "https://api.chain.love",
+		Policy:          NewPolicy(),
+		PollInterval:    Duration(24 * time.Hour),
+		PollRetryAfter:  Duration(5 * time.Hour),
+		PollStopAfter:   defaultStopAfter,
+		DeactivateAfter: defaultStopAfter,
+		RediscoverWait:  Duration(5 * time.Minute),
+		Timeout:         Duration(2 * time.Minute),
 	}
 }
 
@@ -84,6 +95,11 @@ func (c *Discovery) populateUnset() {
 	}
 	if c.PollStopAfter == 0 {
 		c.PollStopAfter = def.PollStopAfter
+	}
+	if c.DeactivateAfter == 0 {
+		// Set deactivation to the same value as PollStopAfter.
+		// This means no inactive grace period for providers by default.
+		c.DeactivateAfter = def.PollStopAfter
 	}
 	if c.Timeout == 0 {
 		c.Timeout = def.Timeout
