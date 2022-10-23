@@ -23,6 +23,7 @@ var (
 // Measures
 var (
 	FindLatency          = stats.Float64("find/latency", "Time to respond to a find request", stats.UnitMilliseconds)
+	FindBatchLatency     = stats.Float64("find/batchlatency", "Time to respond to a find batch request", stats.UnitMilliseconds)
 	IngestChange         = stats.Int64("ingest/change", "Number of syncAdEntries started", stats.UnitDimensionless)
 	AdIngestLatency      = stats.Float64("ingest/adsynclatency", "latency of syncAdEntries completed successfully", stats.UnitDimensionless)
 	AdIngestErrorCount   = stats.Int64("ingest/adingestError", "Number of errors encountered while processing an ad", stats.UnitDimensionless)
@@ -41,6 +42,11 @@ var (
 var (
 	findLatencyView = &view.View{
 		Measure:     FindLatency,
+		Aggregation: view.Distribution(0, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 1000, 2000, 5000),
+		TagKeys:     []tag.Key{Method, Found},
+	}
+	findBatchLatencyView = &view.View{
+		Measure:     FindBatchLatency,
 		Aggregation: view.Distribution(0, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 1000, 2000, 5000),
 		TagKeys:     []tag.Key{Method, Found},
 	}
@@ -103,6 +109,7 @@ func Start(views []*view.View) http.Handler {
 	// Register default views
 	err := view.Register(
 		findLatencyView,
+		findBatchLatencyView,
 		ingestChangeView,
 		providerView,
 		entriesSyncLatencyView,

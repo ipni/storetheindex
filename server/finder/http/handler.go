@@ -80,9 +80,15 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 	var found bool
 	defer func() {
 		msecPerMh := coremetrics.MsecSince(startTime) / float64(len(mhs))
+		var measure *stats.Float64Measure
+		if len(mhs) == 1 {
+			measure = metrics.FindLatency
+		} else {
+			measure = metrics.FindBatchLatency
+		}
 		_ = stats.RecordWithOptions(context.Background(),
 			stats.WithTags(tag.Insert(metrics.Method, "http"), tag.Insert(metrics.Found, fmt.Sprintf("%v", found))),
-			stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
+			stats.WithMeasurements(measure.M(msecPerMh)))
 	}()
 
 	response, err := h.finderHandler.Find(mhs)
