@@ -31,4 +31,4 @@ patchesStrategicMerge:
 images:
   - name: storetheindex
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
-    newTag: 20221025034222-7e755bb321eb318b37c82c732c7e71cddd56b6e3
+    newTag: 20221025081725-a51f131e986b9ac3cbfd893e9ebc7669345a25d1
