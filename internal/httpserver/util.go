@@ -4,7 +4,9 @@ package httpserver
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	logging "github.com/ipfs/go-log/v2"
@@ -26,12 +28,14 @@ func HandleError(w http.ResponseWriter, err error, reqType string) {
 	var apierr *v0.Error
 	if errors.As(err, &apierr) {
 		if apierr.Status() >= 500 {
-			log.Errorw("Cannot handle request", "regType", reqType, "err", apierr.Error(), "status", apierr.Status())
+			msg := fmt.Sprintf("Cannot handle %s request", strings.ToUpper(reqType))
+			log.Errorw(msg, "err", apierr.Error(), "status", apierr.Status())
 			http.Error(w, "", apierr.Status())
 			return
 		}
 		status = apierr.Status()
 	}
-	log.Infow("Bad request", "reqType", reqType, "err", err, "status", status)
+	msg := fmt.Sprintf("Bad %s request", strings.ToUpper(reqType))
+	log.Infow(msg, "err", err, "status", status)
 	http.Error(w, err.Error(), status)
 }
