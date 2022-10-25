@@ -7,7 +7,7 @@ require (
 	github.com/cockroachdb/pebble v0.0.0-20220726144858-a78491c0086f
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
-	github.com/filecoin-project/go-indexer-core v0.6.15
+	github.com/filecoin-project/go-indexer-core v0.6.16
 	github.com/filecoin-project/go-legs v0.4.16
 	github.com/frankban/quicktest v1.14.3
 	github.com/gammazero/deque v0.2.0
