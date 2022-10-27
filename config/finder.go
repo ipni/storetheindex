@@ -14,7 +14,8 @@ type Finder struct {
 	// negative value means there will be no timeout.
 	ApiWriteTimeout Duration
 	// MaxConnections is maximum number of simultaneous connections that the
-	// HTTP server will accept. A value of zero sets the default.
+	// HTTP server will accept. A value of zero sets the default and a negative
+	// value means there is no limit.
 	MaxConnections int
 	// Webpage is a domain to display when the homepage of the finder is
 	// accessed over HTTP.

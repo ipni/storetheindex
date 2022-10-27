@@ -45,8 +45,10 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 		return nil, err
 	}
 
-	// Limit the number of open connections to the listener.
-	l = xnet.LimitListener(l, cfg.maxConns)
+	if cfg.maxConns > 0 {
+		// Limit the number of open connections to the listener.
+		l = xnet.LimitListener(l, cfg.maxConns)
+	}
 
 	// Resource handler
 	h := newHandler(indexer, registry)
