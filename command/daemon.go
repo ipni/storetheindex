@@ -158,10 +158,10 @@ func daemonCommand(cctx *cli.Context) error {
 			return err
 		}
 		finderSvr, err = httpfinderserver.New(finderAddr.String(), indexerCore, reg,
-			httpfinderserver.WithHomepage(cfg.Addresses.FinderWebpage),
-			httpfinderserver.MaxConnections(cfg.Finder.MaxConnections),
 			httpfinderserver.ReadTimeout(time.Duration(cfg.Finder.ApiReadTimeout)),
 			httpfinderserver.WriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
+			httpfinderserver.MaxConnections(cfg.Finder.MaxConnections),
+			httpfinderserver.WithHomepage(cfg.Finder.Webpage),
 		)
 		if err != nil {
 			return err

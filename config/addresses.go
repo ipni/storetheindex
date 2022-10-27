@@ -8,9 +8,6 @@ type Addresses struct {
 	// Finder is the finder http isten address. Set to "none" to disable this
 	// server for both http and libp2p.
 	Finder string
-	// FinderWebpage is a domain to display when the homepage of the finder
-	// is accessed over http.
-	FinderWebpage string
 	// Ingest is the index data ingestion http listen address. Set to "none"
 	// to disable this server for both http and libp2p.
 	Ingest string
@@ -24,11 +21,10 @@ type Addresses struct {
 // NewAddresses returns Addresses with values set to their defaults.
 func NewAddresses() Addresses {
 	return Addresses{
-		Admin:         "/ip4/127.0.0.1/tcp/3002",
-		Finder:        "/ip4/0.0.0.0/tcp/3000",
-		FinderWebpage: "https://web.cid.contact/",
-		Ingest:        "/ip4/0.0.0.0/tcp/3001",
-		P2PAddr:       "/ip4/0.0.0.0/tcp/3003",
+		Admin:   "/ip4/127.0.0.1/tcp/3002",
+		Finder:  "/ip4/0.0.0.0/tcp/3000",
+		Ingest:  "/ip4/0.0.0.0/tcp/3001",
+		P2PAddr: "/ip4/0.0.0.0/tcp/3003",
 	}
 }
 
@@ -41,9 +37,6 @@ func (c *Addresses) populateUnset() {
 	}
 	if c.Finder == "" {
 		c.Finder = def.Finder
-	}
-	if c.FinderWebpage == "" {
-		c.FinderWebpage = def.FinderWebpage
 	}
 	if c.Ingest == "" {
 		c.Ingest = def.Ingest
