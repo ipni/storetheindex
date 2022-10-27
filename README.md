@@ -21,7 +21,7 @@ This assumes go is already installed.
 
 Install storetheindex:
 ```sh
-go get github.com/filecoin-project/storetheindex
+go install github.com/filecoin-project/storetheindex@latest
 ```
 
 Initialize the storetheindex repository and configuration:
