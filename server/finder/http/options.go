@@ -64,6 +64,14 @@ func ReadTimeout(t time.Duration) ServerOption {
 	}
 }
 
+// MaxConnections config for API
+func MaxConnections(maxConnections int) ServerOption {
+	return func(c *serverConfig) error {
+		c.maxConns = maxConnections
+		return nil
+	}
+}
+
 // WithHomepage config for API
 func WithHomepage(URL string) ServerOption {
 	return func(c *serverConfig) error {

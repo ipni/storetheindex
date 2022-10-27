@@ -26,6 +26,7 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 		Bootstrap: NewBootstrap(),
 		Datastore: NewDatastore(),
 		Discovery: NewDiscovery(),
+		Finder:    NewFinder(),
 		Identity:  identity,
 		Indexer:   NewIndexer(),
 		Ingest:    NewIngest(),
