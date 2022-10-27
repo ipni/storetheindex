@@ -66,6 +66,12 @@ config file at runtime.
     "RediscoverWait": "5m0s",
     "Timeout": "2m0s"
   },
+  "Finder": {
+    "ApiReadTimeout": "30s",
+    "ApiWriteTimeout": "30s",
+    "MaxConnections": 8000,
+    "Webpage": "https://web.cid.contact/"
+  },
   "Indexer": {
     "CacheSize": 300000,
     "ConfigCheckInterval": "30s",
@@ -73,7 +79,12 @@ config file at runtime.
     "GCTimeLimit": "5m0s",
     "ShutdownTimeout": "10s",
     "ValueStoreDir": "valuestore",
-    "ValueStoreType": "sth"
+    "ValueStoreType": "sth",
+    "STHBits": 24,
+    "STHBurstRate": 8388608,
+    "STHFileCacheSize": 512,
+    "STHSyncInterval": "1s",
+    "PebbleDisableWAL": false
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
@@ -196,6 +207,19 @@ Description: [Polling](https://pkg.go.dev/github.com/filecoin-project/storethein
 Default: There are no default `Discovery.PollOverrides` elements. These are created manually.
 
 See Example Config for example.
+
+## `Finder`
+Description: [Indexer](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Finder)
+
+Default:
+```json
+"Finder": {
+  "ApiReadTimeout": "30s",
+  "ApiWriteTimeout": "30s",
+  "MaxConnections": 8000,
+  "Webpage": "https://web.cid.contact/"
+}
+```
 
 ## `Indexer`
 Description: [Indexer](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Indexer)
