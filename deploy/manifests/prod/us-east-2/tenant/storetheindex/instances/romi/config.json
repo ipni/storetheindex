@@ -92,7 +92,8 @@
       "bootstrap": "warn",
       "dt-impl": "warn",
       "dt_graphsync": "warn",
-      "graphsync": "warn"
+      "graphsync": "warn",
+      "storethehash/mhprimary": "debug"
     }
   },
   "Peering": {
