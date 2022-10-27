@@ -56,8 +56,8 @@
   "Indexer": {
     "CacheSize": 300000,
     "ConfigCheckInterval": "30s",
-    "GCInterval": "25m",
-    "GCTimeLimit": "10m",
+    "GCInterval": "5m",
+    "GCTimeLimit": "25m",
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
     "ValueStoreType": "sth",
