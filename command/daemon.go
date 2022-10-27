@@ -157,11 +157,12 @@ func daemonCommand(cctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		finderOpts := []httpfinderserver.ServerOption{
+		finderSvr, err = httpfinderserver.New(finderAddr.String(), indexerCore, reg,
 			httpfinderserver.WithHomepage(cfg.Addresses.FinderWebpage),
 			httpfinderserver.MaxConnections(cfg.Finder.MaxConnections),
-		}
-		finderSvr, err = httpfinderserver.New(finderAddr.String(), indexerCore, reg, finderOpts...)
+			httpfinderserver.ReadTimeout(time.Duration(cfg.Finder.ApiReadTimeout)),
+			httpfinderserver.WriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
+		)
 		if err != nil {
 			return err
 		}
