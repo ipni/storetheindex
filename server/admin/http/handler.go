@@ -373,12 +373,13 @@ func batchIndexerEntries(batchSize int, putChan <-chan multihash.Multihash, valu
 // ----- admin handlers -----
 
 func (h *adminHandler) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	// TODO: Report on indexer core health?
-	_, err := w.Write([]byte("\"OK\""))
-	if err != nil {
-		log.Errorw("Cannot write HealthCheck response:", err)
+	if err := healthCheckValueStore(h); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte("\"OK\"")); err != nil {
+		log.Errorw("Cannot write HealthCheck response:", "err", err)
 	}
 }
 
@@ -393,4 +394,43 @@ func decodePeerID(id string, w http.ResponseWriter) (peer.ID, bool) {
 		return peerID, false
 	}
 	return peerID, true
+}
+
+var healthCheckMH multihash.Multihash
+var healthCheckValue indexer.Value
+
+func init() {
+	provider, err := peer.Decode("12D3KooWBUNzpAz1Jfvnaag1nHBi6gbG5Q1BQm8kCfcpmt7bGKa6")
+	if err != nil {
+		panic(err.Error())
+	}
+	healthCheckMH = multihash.Multihash("2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj")
+	healthCheckValue = indexer.Value{
+		ProviderID:    provider,
+		ContextID:     []byte(healthCheckMH),
+		MetadataBytes: []byte("healthcheck-metadata"),
+	}
+}
+
+func healthCheckValueStore(h *adminHandler) error {
+
+	if err := h.indexer.Put(healthCheckValue, healthCheckMH); err != nil {
+		return fmt.Errorf("cannot write to valuestore: %s", err)
+	}
+
+	rval, present, err := h.indexer.Get(healthCheckMH)
+
+	if err != nil {
+		return fmt.Errorf("cannot get value from valuestore: %s", err)
+	}
+	if !present {
+		return errors.New("health-check value not found in valuestore")
+	}
+	if !healthCheckValue.Equal(rval[0]) {
+		return errors.New("value stored does not match value retrieved from valuestore")
+	}
+	if err = h.indexer.Remove(healthCheckValue, healthCheckMH); err != nil {
+		return fmt.Errorf("unable to remove value from valuestore: %s", err)
+	}
+	return nil
 }
