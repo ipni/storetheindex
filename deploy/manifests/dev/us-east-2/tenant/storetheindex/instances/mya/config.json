@@ -7,7 +7,6 @@
   "Addresses": {
     "Admin": "/ip4/0.0.0.0/tcp/3002",
     "Finder": "/ip4/0.0.0.0/tcp/3000",
-    "FinderWebpage": "https://web.cid.contact/dev/",
     "Ingest": "/ip4/0.0.0.0/tcp/3001",
     "P2PAddr": "/ip4/0.0.0.0/tcp/3003",
     "NoResourceManager": true
