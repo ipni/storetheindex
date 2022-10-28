@@ -60,10 +60,16 @@ data:
         "RediscoverWait": "5m0s",
         "Timeout": "2m0s"
       },
+      "Finder": {
+        "ApiReadTimeout": "30s",
+        "ApiWriteTimeout": "30s",
+        "MaxConnections": 8000,
+        "Webpage": "https://web.cid.contact/dev/"
+      },
       "Indexer": {
         "CacheSize": 300000,
         "ConfigCheckInterval": "30s",
-        "GCInterval": "30m0s",
+        "GCInterval": "20m0s",
         "ShutdownTimeout": "15m",
         "STHBurstRate": 8388608,
         "ValueStoreDir": "/data/valuestore",
