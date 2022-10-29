@@ -3,6 +3,7 @@ package test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -18,7 +19,6 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry"
-	"github.com/filecoin-project/storetheindex/server/reframe"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-cid"
 	reframeclient "github.com/ipfs/go-delegated-routing/client"
@@ -91,7 +91,10 @@ func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Finder, rc
 		t.Fatal(err)
 	}
 	ctxID := []byte("test-context-id")
-	metadata := reframe.BitswapMetadataBytes
+
+	// Use a sample metadata with multiple protocols that includes BitSwap
+	// among others to make a stronger test.
+	metadata, err := base64.StdEncoding.DecodeString("gBKQEqNoUGllY2VDSUTYKlgoAAGB4gOSICAYVAKmPqL1mpkiiDhd9iBaXoU/3rXorXxzjiyESP4hB2xWZXJpZmllZERlYWz0bUZhc3RSZXRyaWV2YWz1")
 	if err != nil {
 		t.Fatal(err)
 	}

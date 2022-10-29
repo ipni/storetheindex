@@ -58,7 +58,7 @@ func (x *ReframeService) FindProviders(ctx context.Context, key cid.Cid) (<-chan
 			continue
 		}
 		for _, pr := range mhr.ProviderResults {
-			if !isBitswapMetadata(pr.Metadata) {
+			if !containsTransportBitswap(pr.Metadata) {
 				continue
 			}
 			peerAddrs = append(peerAddrs, pr.Provider)
@@ -85,6 +85,10 @@ func (x *ReframeService) Provide(context.Context, *client.ProvideRequest) (<-cha
 
 var BitswapMetadataBytes = varint.ToUvarint(uint64(multicodec.TransportBitswap))
 
-func isBitswapMetadata(meta []byte) bool {
-	return bytes.Equal(meta, BitswapMetadataBytes)
+func containsTransportBitswap(meta []byte) bool {
+	// Metadata must be sorted according to the specification; see:
+	// - https://github.com/filecoin-project/index-provider/blob/main/metadata/metadata.go#L143
+	// This implies that if it includes Bitswap, its codec must appear at the beginning
+	// of the metadata value. Hence, bytes.HasPrefix.
+	return bytes.HasPrefix(meta, BitswapMetadataBytes)
 }
