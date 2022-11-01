@@ -7,6 +7,10 @@ resources:
   - ../../../../../../base/storetheindex-single
   - ingress.yaml
 
+replicas:
+  - name: indexer
+    count: 0
+
 namePrefix: tara-
 
 commonLabels:
