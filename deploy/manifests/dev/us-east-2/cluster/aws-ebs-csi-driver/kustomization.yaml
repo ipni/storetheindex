@@ -2,7 +2,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ../../../../base/aws-ebs-csi-driver
+  # Deploy upgrade to dev for testing before changing the base which will impact both dev and prod.
+  #  - ../../../../base/aws-ebs-csi-driver
+  - github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernetes/overlays/stable?ref=v1.12.1
+
 
 patchesStrategicMerge:
   - patch.yaml
