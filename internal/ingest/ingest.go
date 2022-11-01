@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -28,6 +30,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-varint"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"golang.org/x/time/rate"
@@ -41,6 +44,8 @@ const (
 	syncPrefix = "/sync/"
 	// adProcessedPrefix identifies all processed advertisements.
 	adProcessedPrefix = "/adProcessed/"
+	// indexCountPrefix identifies all provider index counts.
+	indexCountPrefix = "/indexCount/"
 )
 
 type adProcessedEvent struct {
@@ -137,12 +142,18 @@ type Ingester struct {
 
 	// Multihash minimum length
 	minKeyLen int
+
+	// indexCountMutex protexts indexCounts and indexCountTotal.
+	indexCountMutex sync.Mutex
+	// indexCounts is in-mem total index counts for each provider.
+	indexCounts map[peer.ID]uint64
+	// indexCountTotal is in-mem total index count for all providers.
+	indexCountTotal uint64
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
 // communication with providers.
 func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
-
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
@@ -163,6 +174,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		closeWorkers:            make(chan struct{}),
 
 		minKeyLen: cfg.MinimumKeyLength,
+
+		indexCounts: make(map[peer.ID]uint64),
 	}
 
 	var err error
@@ -522,9 +535,157 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 	err = ing.ds.Delete(context.Background(), datastore.NewKey(adCid.String()))
 	if err != nil {
 		// Log the error, but do not return. Continue on to save the procesed ad.
-		log.Errorw("Cound not remove advertisement from datastore", "err", err)
+		log.Errorw("Cannot remove advertisement from datastore", "err", err)
 	}
+
 	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
+}
+
+// TotalIndexCount returns the total of all index counts for all providers.
+func (ing *Ingester) TotalIndexCount() (uint64, error) {
+	// Return in-mem value if available.
+	ing.indexCountMutex.Lock()
+	count := ing.indexCountTotal
+	ing.indexCountMutex.Unlock()
+	if count != 0 {
+		return count, nil
+	}
+
+	q := query.Query{
+		Prefix: indexCountPrefix,
+	}
+	results, err := ing.ds.Query(context.Background(), q)
+	if err != nil {
+		return 0, fmt.Errorf("cannot query index counts: %v", err)
+	}
+	defer results.Close()
+
+	var total uint64
+	for r := range results.Next() {
+		if r.Error != nil {
+			return 0, fmt.Errorf("cannot read index: %v", r.Error)
+		}
+		mhCount, _, err := varint.FromUvarint(r.Entry.Value)
+		if err != nil {
+			log.Errorw("Cannot decode index count", "err", err)
+			continue
+		}
+
+		total += mhCount
+	}
+
+	// Track value in memory.
+	ing.indexCountMutex.Lock()
+	ing.indexCountTotal = total
+	ing.indexCountMutex.Unlock()
+
+	return total, nil
+}
+
+// ProviderIndexCount reads all multihash counts for a provider.
+func (ing *Ingester) ProviderIndexCount(providerID peer.ID) (uint64, error) {
+	// Return in-mem value if available.
+	ing.indexCountMutex.Lock()
+	count, ok := ing.indexCounts[providerID]
+	ing.indexCountMutex.Unlock()
+	if ok {
+		return count, nil
+	}
+
+	q := query.Query{
+		Prefix: indexCountPrefix + providerID.String(),
+	}
+	results, err := ing.ds.Query(context.Background(), q)
+	if err != nil {
+		return 0, fmt.Errorf("cannot query all index counts: %v", err)
+	}
+	defer results.Close()
+
+	var total uint64
+	for r := range results.Next() {
+		if r.Error != nil {
+			return 0, fmt.Errorf("cannot read index: %v", r.Error)
+		}
+		mhCount, _, err := varint.FromUvarint(r.Entry.Value)
+		if err != nil {
+			log.Errorw("Cannot decode index count", "err", err)
+			continue
+		}
+
+		total += mhCount
+	}
+
+	// Track value in memory.
+	ing.indexCountMutex.Lock()
+	ing.indexCounts[providerID] = total
+	ing.indexCountMutex.Unlock()
+
+	return total, nil
+}
+
+func makeIndexCountKey(provider peer.ID, b64ContextID string) datastore.Key {
+	var keyBuf strings.Builder
+	keyBuf.WriteString(indexCountPrefix)
+	keyBuf.WriteString(provider.String())
+	keyBuf.WriteString("/")
+	keyBuf.WriteString(b64ContextID)
+	return datastore.NewKey(keyBuf.String())
+}
+
+func (ing *Ingester) removeIndexCount(providerID peer.ID, b64ContextID string) {
+	key := makeIndexCountKey(providerID, b64ContextID)
+
+	data, err := ing.ds.Get(context.Background(), key)
+	if err != nil {
+		if !errors.Is(err, datastore.ErrNotFound) {
+			log.Errorw("Cannot get index count for update", "err", err)
+		}
+		return
+	}
+	if err = ing.ds.Delete(context.Background(), key); err != nil {
+		log.Errorw("Cannot delete index count", "err", err)
+	}
+	mhCount, _, err := varint.FromUvarint(data)
+	if err != nil {
+		log.Errorw("Cannot decode index count", "err", err)
+		return
+	}
+
+	// Update in-mem values if they are present.
+	ing.indexCountMutex.Lock()
+	total, ok := ing.indexCounts[providerID]
+	if ok {
+		total -= mhCount
+		ing.indexCounts[providerID] = total
+	}
+	if ing.indexCountTotal != 0 {
+		ing.indexCountTotal -= mhCount
+	}
+	ing.indexCountMutex.Unlock()
+}
+
+func (ing *Ingester) addIndexCount(providerID peer.ID, b64ContextID string, mhCount uint64) {
+	if mhCount == 0 {
+		return
+	}
+
+	// Update in-mem values if they are present.
+	ing.indexCountMutex.Lock()
+	total, ok := ing.indexCounts[providerID]
+	if ok {
+		total += mhCount
+		ing.indexCounts[providerID] = total
+	}
+	if ing.indexCountTotal != 0 {
+		ing.indexCountTotal += mhCount
+	}
+	ing.indexCountMutex.Unlock()
+
+	key := makeIndexCountKey(providerID, b64ContextID)
+	err := ing.ds.Put(context.Background(), key, varint.ToUvarint(mhCount))
+	if err != nil {
+		log.Errorw("Cannot update index count", "err", err)
+	}
 }
 
 // distributeEvents reads a adProcessedEvent, sent by a peer handler, and
@@ -628,7 +789,11 @@ func (ing *Ingester) metricsUpdater() {
 					log.Errorw("Error getting indexer value store size", "err", err)
 					return
 				}
-				stats.Record(context.Background(), coremetrics.StoreSize.M(size))
+				indexCount, err := ing.TotalIndexCount()
+				if err != nil {
+					log.Errorw("Error getting index counts", "err", err)
+				}
+				stats.Record(context.Background(), coremetrics.StoreSize.M(size), metrics.IndexCount.M(int64(indexCount)))
 				hasUpdate = false
 			}
 			t.Reset(time.Minute)
@@ -988,7 +1153,6 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 
 		if err != nil {
 			log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "publisher", assignment.provider, "err", err, "adsLeftToProcess", i+1)
-
 			// Tell anyone waiting that the sync finished for this head because
 			// of error.  TODO(mm) would be better to propagate the error.
 			ing.inEvents <- adProcessedEvent{

@@ -671,7 +671,7 @@ func TestSync(t *testing.T) {
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	c1, mhs, providerID := publishRandomIndexAndAdv(t, pub, lsys, false, nil)
+	c1, mhs, providerID, privKey := publishRandomIndexAndAdv(t, pub, lsys, false, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -712,6 +712,35 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 	_, ok = <-end
 	require.True(t, ok)
+
+	// Check that the total number of indexes is correct.
+	expectCount := uint64(testEntriesChunkCount * testEntriesChunkSize)
+	count, err := i.TotalIndexCount()
+	require.NoError(t, err)
+	require.Equal(t, expectCount, count)
+	count, err = i.ProviderIndexCount(providerID)
+	require.NoError(t, err)
+	require.Equal(t, expectCount, count)
+	// Check again to check for correct value from memory.
+	count, err = i.TotalIndexCount()
+	require.NoError(t, err)
+	require.Equal(t, expectCount, count)
+	count, err = i.ProviderIndexCount(providerID)
+	require.NoError(t, err)
+	require.Equal(t, expectCount, count)
+
+	publishRemovalAd(t, pub, lsys, false, providerID, privKey)
+	end, err = i.Sync(ctx, pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+	_, ok = <-end
+	require.True(t, ok)
+
+	count, err = i.ProviderIndexCount(providerID)
+	require.NoError(t, err)
+	require.Zero(t, count)
+	count, err = i.ProviderIndexCount(providerID)
+	require.NoError(t, err)
+	require.Zero(t, count)
 }
 
 func TestSyncTooLargeMetadata(t *testing.T) {
@@ -840,7 +869,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	// for testing.
 	ing.entriesSel = Selectors.EntriesWithLimit(selector.RecursionLimitDepth(entriesDepth))
 
-	adCid, _, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount, nil)
+	adCid, _, providerID, _ := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -1330,11 +1359,11 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 	return nextLnk, out
 }
 
-func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID) {
+func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID, crypto.PrivKey) {
 	return publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, fakeSig, testEntriesChunkCount, metadata)
 }
 
-func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID) {
+func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID, crypto.PrivKey) {
 
 	priv, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
@@ -1367,7 +1396,33 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publis
 	require.NoError(t, err)
 	err = pub.UpdateRoot(context.Background(), advLnk.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	return advLnk.(cidlink.Link).Cid, mhs, p
+	return advLnk.(cidlink.Link).Cid, mhs, p, priv
+}
+
+func publishRemovalAd(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, providerID peer.ID, priv crypto.PrivKey) cid.Cid {
+	ctxID := []byte("test-context-id")
+	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
+
+	adv := &schema.Advertisement{
+		Provider:  providerID.String(),
+		Addresses: addrs,
+		Entries:   schema.NoEntries,
+		ContextID: ctxID,
+		Metadata:  nil,
+		IsRm:      true,
+	}
+	if !fakeSig {
+		err := adv.Sign(priv)
+		require.NoError(t, err)
+	}
+
+	node, err := adv.ToNode()
+	require.NoError(t, err)
+	advLnk, err := lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
+	require.NoError(t, err)
+	err = pub.UpdateRoot(context.Background(), advLnk.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	return advLnk.(cidlink.Link).Cid
 }
 
 func checkAllIndexed(ix indexer.Interface, p peer.ID, mhs []multihash.Multihash) error {
