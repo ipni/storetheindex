@@ -15,3 +15,4 @@ resources:
   - index-observer
   - autoretrieve
   - index-provider
+  - external-snapshotter
