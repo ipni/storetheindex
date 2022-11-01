@@ -4,6 +4,4 @@ kind: Kustomization
 namespace: kube-system
 
 resources:
-  - aws-auth.yaml
-  - io2-storage-class.yaml
-  - volume-snapshot-class.yaml
+  - github.com/kubernetes-csi/external-snapshotter/deploy/kubernetes/snapshot-controller?ref=v6.1.0
