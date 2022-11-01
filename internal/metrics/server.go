@@ -120,6 +120,7 @@ func Start(views []*view.View) http.Handler {
 		adIngestSuccess,
 		adLoadError,
 		mhStoreNanosecondsView,
+		indexCountView,
 	)
 	if err != nil {
 		log.Errorf("cannot register metrics default views: %s", err)
