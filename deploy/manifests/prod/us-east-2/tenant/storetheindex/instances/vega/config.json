@@ -64,7 +64,7 @@
     "CacheSize": 300000,
     "ConfigCheckInterval": "30s",
     "CorePutConcurrency": 64,
-    "GCInterval": "30m0s",
+    "GCInterval": "15m",
     "GCTimeLimit": "10m",
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
