@@ -270,6 +270,9 @@ func GetProviderTest(t *testing.T, c client.Finder, providerID peer.ID) {
 	if provInfo.AddrInfo.ID != providerID {
 		t.Fatal("wrong peer id")
 	}
+	if provInfo.IndexCount != 939 {
+		t.Fatal("expected IndexCount to be 939, got", provInfo.IndexCount)
+	}
 }
 
 func ListProvidersTest(t *testing.T, c client.Finder, providerID peer.ID) {

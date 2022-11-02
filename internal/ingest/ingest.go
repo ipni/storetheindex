@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,13 +14,13 @@ import (
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/peerutil"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -30,7 +29,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/multiformats/go-varint"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"golang.org/x/time/rate"
@@ -44,8 +42,6 @@ const (
 	syncPrefix = "/sync/"
 	// adProcessedPrefix identifies all processed advertisements.
 	adProcessedPrefix = "/adProcessed/"
-	// indexCountPrefix identifies all provider index counts.
-	indexCountPrefix = "/indexCount/"
 )
 
 type adProcessedEvent struct {
@@ -67,8 +63,9 @@ type pendingAnnounce struct {
 }
 
 type adInfo struct {
-	cid cid.Cid
-	ad  schema.Advertisement
+	cid    cid.Cid
+	ad     schema.Advertisement
+	resync bool
 }
 
 type workerAssignment struct {
@@ -143,17 +140,12 @@ type Ingester struct {
 	// Multihash minimum length
 	minKeyLen int
 
-	// indexCountMutex protexts indexCounts and indexCountTotal.
-	indexCountMutex sync.Mutex
-	// indexCounts is in-mem total index counts for each provider.
-	indexCounts map[peer.ID]uint64
-	// indexCountTotal is in-mem total index count for all providers.
-	indexCountTotal uint64
+	indexCounts *counter.IndexCounts
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
 // communication with providers.
-func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
+func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching, idxCounts *counter.IndexCounts) (*Ingester, error) {
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
@@ -175,7 +167,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		minKeyLen: cfg.MinimumKeyLength,
 
-		indexCounts: make(map[peer.ID]uint64),
+		indexCounts: idxCounts,
 	}
 
 	var err error
@@ -394,7 +386,8 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 			// unprocessed so that everything can be reingested from the start
 			// of this sync. Create a scoped block-hook to do this.
 			opts = append(opts, legs.ScopedBlockHook(func(i peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
-				err := ing.markAdUnprocessed(c)
+				//err := ing.markAdUnprocessed(c)
+				err := ing.markAdResync(c)
 				if err != nil {
 					log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
 				}
@@ -514,15 +507,21 @@ func (ing *Ingester) markAdUnprocessed(adCid cid.Cid) error {
 	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{0})
 }
 
-func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) bool {
+func (ing *Ingester) markAdResync(adCid cid.Cid) error {
+	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{2})
+}
+
+func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool) {
 	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
 	if err != nil {
 		if err != datastore.ErrNotFound {
 			log.Errorw("Failed to read advertisement processed state from datastore", "err", err)
 		}
-		return false
+		return false, false
 	}
-	return v[0] == byte(1)
+	processed := v[0] == byte(1)
+	resync := v[0] == byte(2)
+	return processed, resync
 }
 
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
@@ -539,153 +538,6 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 	}
 
 	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
-}
-
-// TotalIndexCount returns the total of all index counts for all providers.
-func (ing *Ingester) TotalIndexCount() (uint64, error) {
-	// Return in-mem value if available.
-	ing.indexCountMutex.Lock()
-	count := ing.indexCountTotal
-	ing.indexCountMutex.Unlock()
-	if count != 0 {
-		return count, nil
-	}
-
-	q := query.Query{
-		Prefix: indexCountPrefix,
-	}
-	results, err := ing.ds.Query(context.Background(), q)
-	if err != nil {
-		return 0, fmt.Errorf("cannot query index counts: %v", err)
-	}
-	defer results.Close()
-
-	var total uint64
-	for r := range results.Next() {
-		if r.Error != nil {
-			return 0, fmt.Errorf("cannot read index: %v", r.Error)
-		}
-		mhCount, _, err := varint.FromUvarint(r.Entry.Value)
-		if err != nil {
-			log.Errorw("Cannot decode index count", "err", err)
-			continue
-		}
-
-		total += mhCount
-	}
-
-	// Track value in memory.
-	ing.indexCountMutex.Lock()
-	ing.indexCountTotal = total
-	ing.indexCountMutex.Unlock()
-
-	return total, nil
-}
-
-// ProviderIndexCount reads all multihash counts for a provider.
-func (ing *Ingester) ProviderIndexCount(providerID peer.ID) (uint64, error) {
-	// Return in-mem value if available.
-	ing.indexCountMutex.Lock()
-	count, ok := ing.indexCounts[providerID]
-	ing.indexCountMutex.Unlock()
-	if ok {
-		return count, nil
-	}
-
-	q := query.Query{
-		Prefix: indexCountPrefix + providerID.String(),
-	}
-	results, err := ing.ds.Query(context.Background(), q)
-	if err != nil {
-		return 0, fmt.Errorf("cannot query all index counts: %v", err)
-	}
-	defer results.Close()
-
-	var total uint64
-	for r := range results.Next() {
-		if r.Error != nil {
-			return 0, fmt.Errorf("cannot read index: %v", r.Error)
-		}
-		mhCount, _, err := varint.FromUvarint(r.Entry.Value)
-		if err != nil {
-			log.Errorw("Cannot decode index count", "err", err)
-			continue
-		}
-
-		total += mhCount
-	}
-
-	// Track value in memory.
-	ing.indexCountMutex.Lock()
-	ing.indexCounts[providerID] = total
-	ing.indexCountMutex.Unlock()
-
-	return total, nil
-}
-
-func makeIndexCountKey(provider peer.ID, b64ContextID string) datastore.Key {
-	var keyBuf strings.Builder
-	keyBuf.WriteString(indexCountPrefix)
-	keyBuf.WriteString(provider.String())
-	keyBuf.WriteString("/")
-	keyBuf.WriteString(b64ContextID)
-	return datastore.NewKey(keyBuf.String())
-}
-
-func (ing *Ingester) removeIndexCount(providerID peer.ID, b64ContextID string) {
-	key := makeIndexCountKey(providerID, b64ContextID)
-
-	data, err := ing.ds.Get(context.Background(), key)
-	if err != nil {
-		if !errors.Is(err, datastore.ErrNotFound) {
-			log.Errorw("Cannot get index count for update", "err", err)
-		}
-		return
-	}
-	if err = ing.ds.Delete(context.Background(), key); err != nil {
-		log.Errorw("Cannot delete index count", "err", err)
-	}
-	mhCount, _, err := varint.FromUvarint(data)
-	if err != nil {
-		log.Errorw("Cannot decode index count", "err", err)
-		return
-	}
-
-	// Update in-mem values if they are present.
-	ing.indexCountMutex.Lock()
-	total, ok := ing.indexCounts[providerID]
-	if ok {
-		total -= mhCount
-		ing.indexCounts[providerID] = total
-	}
-	if ing.indexCountTotal != 0 {
-		ing.indexCountTotal -= mhCount
-	}
-	ing.indexCountMutex.Unlock()
-}
-
-func (ing *Ingester) addIndexCount(providerID peer.ID, b64ContextID string, mhCount uint64) {
-	if mhCount == 0 {
-		return
-	}
-
-	// Update in-mem values if they are present.
-	ing.indexCountMutex.Lock()
-	total, ok := ing.indexCounts[providerID]
-	if ok {
-		total += mhCount
-		ing.indexCounts[providerID] = total
-	}
-	if ing.indexCountTotal != 0 {
-		ing.indexCountTotal += mhCount
-	}
-	ing.indexCountMutex.Unlock()
-
-	key := makeIndexCountKey(providerID, b64ContextID)
-	err := ing.ds.Put(context.Background(), key, varint.ToUvarint(mhCount))
-	if err != nil {
-		log.Errorw("Cannot update index count", "err", err)
-	}
 }
 
 // distributeEvents reads a adProcessedEvent, sent by a peer handler, and
@@ -789,7 +641,7 @@ func (ing *Ingester) metricsUpdater() {
 					log.Errorw("Error getting indexer value store size", "err", err)
 					return
 				}
-				indexCount, err := ing.TotalIndexCount()
+				indexCount, err := ing.indexCounts.Total()
 				if err != nil {
 					log.Errorw("Error getting index counts", "err", err)
 				}
@@ -827,6 +679,9 @@ func (ing *Ingester) autoSync() {
 		if provInfo.Deleted() {
 			if err := ing.removePublisher(ctx, provInfo.Publisher); err != nil {
 				log.Errorw("Error removing provider", "err", err, "provider", provInfo.AddrInfo.ID)
+			}
+			if ing.indexCounts != nil {
+				ing.indexCounts.RemoveProvider(provInfo.AddrInfo.ID)
 			}
 			// Do not remove provider info from core, because that requires
 			// scanning the entire core valuestore. Instead, let the finder
@@ -933,7 +788,8 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
 
-		if ing.adAlreadyProcessed(c) {
+		processed, resync := ing.adAlreadyProcessed(c)
+		if processed {
 			// This ad has been processed so all earlier ads already have been
 			// processed.
 			break
@@ -952,8 +808,9 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		}
 
 		adsGroupedByProvider[providerID] = append(adsGroupedByProvider[providerID], adInfo{
-			cid: c,
-			ad:  ad,
+			cid:    c,
+			ad:     ad,
+			resync: resync,
 		})
 	}
 
@@ -1048,7 +905,8 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			return
 		}
 		// Iterate latest to earliest.
-		if ing.adAlreadyProcessed(ai.cid) {
+		processed, resync := ing.adAlreadyProcessed(ai.cid)
+		if processed {
 			// This ad is already processed, which means that all earlier ads
 			// are also processed. Break here and split at this index
 			// later. The cids before this index are newer and have not been
@@ -1056,6 +914,9 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			// processed.
 			splitAtIndex = i
 			break
+		}
+		if resync {
+			ai.resync = true
 		}
 		ctxIdStr := string(ai.ad.ContextID)
 		// This ad was deleted by a later remove. Push previous onto skips
@@ -1126,7 +987,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			"publisher", assignment.publisher,
 			"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
 
-		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad)
+		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad, ai.resync)
 		if err == nil {
 			// No error at all, this ad was processed successfully.
 			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))

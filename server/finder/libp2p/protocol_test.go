@@ -6,21 +6,23 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	p2pclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/libp2p"
+	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	p2pserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
 	"github.com/filecoin-project/storetheindex/server/finder/test"
+	"github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-func setupServer(ctx context.Context, ind indexer.Interface, reg *registry.Registry, t *testing.T) (*libp2pserver.Server, host.Host) {
+func setupServer(ctx context.Context, ind indexer.Interface, reg *registry.Registry, idxCts *counter.IndexCounts, t *testing.T) (*libp2pserver.Server, host.Host) {
 	h, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := p2pserver.New(ctx, h, ind, reg)
+	s := p2pserver.New(ctx, h, ind, reg, idxCts)
 	return s, h
 }
 
@@ -39,7 +41,7 @@ func TestFindIndexData(t *testing.T) {
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t)
-	s, sh := setupServer(ctx, ind, reg, t)
+	s, sh := setupServer(ctx, ind, reg, nil, t)
 	c := setupClient(s.ID(), t)
 	err := c.ConnectAddrs(ctx, sh.Addrs()...)
 	if err != nil {
@@ -62,7 +64,9 @@ func TestProviderInfo(t *testing.T) {
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t)
-	s, sh := setupServer(ctx, ind, reg, t)
+	idxCts := counter.NewIndexCounts(datastore.NewMapDatastore())
+
+	s, sh := setupServer(ctx, ind, reg, idxCts, t)
 	p2pClient := setupClient(s.ID(), t)
 	err := p2pClient.ConnectAddrs(ctx, sh.Addrs()...)
 	if err != nil {
@@ -70,6 +74,8 @@ func TestProviderInfo(t *testing.T) {
 	}
 
 	peerID := test.Register(ctx, t, reg)
+
+	idxCts.AddCount(peerID, []byte("context-id"), 939)
 
 	test.GetProviderTest(t, p2pClient, peerID)
 
@@ -92,7 +98,7 @@ func TestGetStats(t *testing.T) {
 	defer ind.Close()
 	reg := test.InitRegistry(t)
 	defer reg.Close()
-	s, sh := setupServer(ctx, ind, reg, t)
+	s, sh := setupServer(ctx, ind, reg, nil, t)
 	c := setupClient(s.ID(), t)
 	err := c.ConnectAddrs(ctx, sh.Addrs()...)
 	if err != nil {
@@ -108,7 +114,7 @@ func TestRemoveProvider(t *testing.T) {
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t)
-	s, sh := setupServer(ctx, ind, reg, t)
+	s, sh := setupServer(ctx, ind, reg, nil, t)
 	c := setupClient(s.ID(), t)
 	err := c.ConnectAddrs(ctx, sh.Addrs()...)
 	if err != nil {

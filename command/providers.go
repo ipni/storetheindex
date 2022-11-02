@@ -78,6 +78,11 @@ func listProvidersCmd(cctx *cli.Context) error {
 func showProviderInfo(pinfo *model.ProviderInfo) {
 	fmt.Println("Provider", pinfo.AddrInfo.ID)
 	fmt.Println("    Addresses:", pinfo.AddrInfo.Addrs)
-	fmt.Println("    LastAdvertisement:", pinfo.LastAdvertisement)
+	var adCidStr string
+	if pinfo.LastAdvertisement.Defined() {
+		adCidStr = pinfo.LastAdvertisement.String()
+	}
+	fmt.Println("    LastAdvertisement:", adCidStr)
 	fmt.Println("    LastAdvertisementTime:", pinfo.LastAdvertisementTime)
+	fmt.Println("    IndexCount:", pinfo.IndexCount)
 }

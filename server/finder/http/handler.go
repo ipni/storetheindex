@@ -11,6 +11,7 @@ import (
 	indexer "github.com/filecoin-project/go-indexer-core"
 	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
+	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/filecoin-project/storetheindex/internal/httpserver"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -29,9 +30,9 @@ type httpHandler struct {
 	finderHandler *handler.FinderHandler
 }
 
-func newHandler(indexer indexer.Interface, registry *registry.Registry) *httpHandler {
+func newHandler(indexer indexer.Interface, registry *registry.Registry, indexCounts *counter.IndexCounts) *httpHandler {
 	return &httpHandler{
-		finderHandler: handler.NewFinderHandler(indexer, registry),
+		finderHandler: handler.NewFinderHandler(indexer, registry, indexCounts),
 	}
 }
 

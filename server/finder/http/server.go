@@ -51,7 +51,7 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	}
 
 	// Resource handler
-	h := newHandler(indexer, registry)
+	h := newHandler(indexer, registry, cfg.indexCounts)
 
 	// Compile index template.
 	t, err := template.ParseFS(webUI, "index.html")

@@ -20,6 +20,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/lotus"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -130,6 +131,9 @@ func daemonCommand(cctx *cli.Context) error {
 		return err
 	}
 
+	indexCounts := counter.NewIndexCounts(dstore)
+	indexCounts.SetTotalAddend(cfg.Indexer.IndexCountTotalAddend)
+
 	var lotusDiscoverer *lotus.Discoverer
 	if cfg.Discovery.LotusGateway != "none" {
 		log.Infow("discovery using lotus", "gateway", cfg.Discovery.LotusGateway)
@@ -162,6 +166,7 @@ func daemonCommand(cctx *cli.Context) error {
 			httpfinderserver.WriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
 			httpfinderserver.MaxConnections(cfg.Finder.MaxConnections),
 			httpfinderserver.WithHomepage(cfg.Finder.Webpage),
+			httpfinderserver.WithIndexCounts(indexCounts),
 		)
 		if err != nil {
 			return err
@@ -206,11 +211,11 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 
 		if finderSvr != nil {
-			p2pfinderserver.New(ctx, p2pHost, indexerCore, reg)
+			p2pfinderserver.New(ctx, p2pHost, indexerCore, reg, indexCounts)
 		}
 
 		// Initialize ingester.
-		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore)
+		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, indexCounts)
 		if err != nil {
 			return err
 		}
@@ -379,6 +384,10 @@ func daemonCommand(cctx *cli.Context) error {
 						continue
 					}
 				}
+			}
+
+			if indexCounts != nil {
+				indexCounts.SetTotalAddend(cfg.Indexer.IndexCountTotalAddend)
 			}
 
 			if errChan != nil {

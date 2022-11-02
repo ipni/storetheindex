@@ -3,7 +3,6 @@ package ingest
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -139,7 +138,7 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // source of the indexed content, the provider is where content can be
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement) error {
+func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement, resync bool) error {
 	stats.Record(context.Background(), metrics.IngestChange.M(1))
 	var mhCount int
 	var entsSyncStart time.Time
@@ -214,15 +213,22 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
 
-	b64ContextID := base64.StdEncoding.EncodeToString(ad.ContextID)
-	log = log.With("contextID", b64ContextID, "provider", providerID)
+	log = log.With("provider", providerID)
 
 	if ad.IsRm {
 		log.Infow("Advertisement is for removal by context id")
-		ing.removeIndexCount(providerID, b64ContextID)
+
 		err = ing.indexer.RemoveProviderContext(providerID, ad.ContextID)
 		if err != nil {
 			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to remove provider context: %w", err)}
+		}
+		if ing.indexCounts != nil {
+			rmCount, err := ing.indexCounts.RemoveCtx(providerID, ad.ContextID)
+			if err != nil {
+				log.Errorw("Error removing index count", "err", err)
+			} else {
+				log.Debugf("Removal ad reduced index count by %d", rmCount)
+			}
 		}
 		return nil
 	}
@@ -444,7 +450,14 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			}
 		}
 	}
-	ing.addIndexCount(providerID, b64ContextID, uint64(mhCount))
+	if ing.indexCounts != nil {
+		if resync {
+			// If resyncing, only add missing values so that counts are not duplicated.
+			ing.indexCounts.AddMissingCount(providerID, ad.ContextID, uint64(mhCount))
+		} else {
+			ing.indexCounts.AddCount(providerID, ad.ContextID, uint64(mhCount))
+		}
+	}
 	ing.signalMetricsUpdate()
 
 	if len(errsIngestingEntryChunks) > 0 {
