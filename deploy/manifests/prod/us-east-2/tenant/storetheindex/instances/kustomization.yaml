@@ -11,4 +11,5 @@ resources:
   - xabi # 30-bit bucket size, binary value codec, 5 IOPS per GiB 
   - vega # 30-bit bucket size, binary value codec, 5 IOPS per GiB, nft.storage only
   - oden # pebble, 5 IOPS per GiB, nft.storage only
-  - dido # pebble, 5 IOPS per GiB
+  - dido # pebble, 5 IOPS per GiB, on us-east2a
+  - kepa # pebble, 3 IOPS per GiB, mirror of dido but on us-east2b, replacement of indexer-1
