@@ -115,8 +115,16 @@ func (h *FinderHandler) ListProviders() ([]byte, error) {
 
 	responses := make([]model.ProviderInfo, len(infos))
 	for i := range infos {
+		var indexCount uint64
+		if h.indexCounts != nil {
+			var err error
+			indexCount, err = h.indexCounts.Provider(infos[i].AddrInfo.ID)
+			if err != nil {
+				log.Errorw("Could not get provider index count", "err", err)
+			}
+		}
 		responses[i] = model.MakeProviderInfo(infos[i].AddrInfo, infos[i].LastAdvertisement,
-			infos[i].LastAdvertisementTime, infos[i].Publisher, infos[i].PublisherAddr, 0)
+			infos[i].LastAdvertisementTime, infos[i].Publisher, infos[i].PublisherAddr, indexCount)
 	}
 
 	return json.Marshal(responses)
