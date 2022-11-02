@@ -386,8 +386,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 			// unprocessed so that everything can be reingested from the start
 			// of this sync. Create a scoped block-hook to do this.
 			opts = append(opts, legs.ScopedBlockHook(func(i peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
-				//err := ing.markAdUnprocessed(c)
-				err := ing.markAdResync(c)
+				err := ing.markAdUnprocessed(c, true)
 				if err != nil {
 					log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
 				}
@@ -503,12 +502,12 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int, resync 
 // ad. This is so that if an something fails to get marked as unprocessed the
 // constraint is maintained that if an ad is processed, all older ads are also
 // processed.
-func (ing *Ingester) markAdUnprocessed(adCid cid.Cid) error {
-	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{0})
-}
-
-func (ing *Ingester) markAdResync(adCid cid.Cid) error {
-	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{2})
+func (ing *Ingester) markAdUnprocessed(adCid cid.Cid, forResync bool) error {
+	data := []byte{0}
+	if forResync {
+		data = []byte{2}
+	}
+	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), data)
 }
 
 func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool) {
