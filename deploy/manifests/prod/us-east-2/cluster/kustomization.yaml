@@ -12,3 +12,4 @@ resources:
   - monitoring
   - aws-ebs-csi-driver
   - promtail
+  - external-snapshotter
