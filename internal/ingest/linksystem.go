@@ -3,7 +3,6 @@ package ingest
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -139,7 +138,7 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // source of the indexed content, the provider is where content can be
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement) error {
+func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement, resync bool) error {
 	stats.Record(context.Background(), metrics.IngestChange.M(1))
 	var mhCount int
 	var entsSyncStart time.Time
@@ -160,6 +159,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		if mhCount == 0 {
 			return
 		}
+
 		// Record how long entries sync took.
 		elapsed = now.Sub(entsSyncStart)
 		elapsedMsec = float64(elapsed.Nanoseconds()) / 1e6
@@ -213,7 +213,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
 
-	log = log.With("contextID", base64.StdEncoding.EncodeToString(ad.ContextID), "provider", providerID)
+	log = log.With("provider", providerID)
 
 	if ad.IsRm {
 		log.Infow("Advertisement is for removal by context id")
@@ -221,6 +221,14 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		err = ing.indexer.RemoveProviderContext(providerID, ad.ContextID)
 		if err != nil {
 			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to remove provider context: %w", err)}
+		}
+		if ing.indexCounts != nil {
+			rmCount, err := ing.indexCounts.RemoveCtx(providerID, ad.ContextID)
+			if err != nil {
+				log.Errorw("Error removing index count", "err", err)
+			} else {
+				log.Debugf("Removal ad reduced index count by %d", rmCount)
+			}
 		}
 		return nil
 	}
@@ -370,8 +378,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			// TODO: See how we can refactor code to make batching logic more
 			// flexible in indexContentBlock.
 			if len(mhs) >= int(ing.batchSize) {
-				err := ing.indexAdMultihashes(ad, mhs, log)
-				if err != nil {
+				if err = ing.indexAdMultihashes(ad, mhs, log); err != nil {
 					return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 				}
 				mhCount += len(mhs)
@@ -380,8 +387,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		}
 		// Process any remaining multihashes from the batch cut-off.
 		if len(mhs) > 0 {
-			err := ing.indexAdMultihashes(ad, mhs, log)
-			if err != nil {
+			if err = ing.indexAdMultihashes(ad, mhs, log); err != nil {
 				return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 			}
 			mhCount += len(mhs)
@@ -444,6 +450,14 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			}
 		}
 	}
+	if ing.indexCounts != nil {
+		if resync {
+			// If resyncing, only add missing values so that counts are not duplicated.
+			ing.indexCounts.AddMissingCount(providerID, ad.ContextID, uint64(mhCount))
+		} else {
+			ing.indexCounts.AddCount(providerID, ad.ContextID, uint64(mhCount))
+		}
+	}
 	ing.signalMetricsUpdate()
 
 	if len(errsIngestingEntryChunks) > 0 {
@@ -480,16 +494,18 @@ func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertiseme
 	return nil
 }
 
-// indexAdMultihashes indexes the content multihashes in a block of data. First
-// the advertisement is loaded to get the context ID and metadata. Then the
-// metadata and multihashes in the content block are indexed by the
-// indexer-core.
+// indexAdMultihashes indexes filters out invalid multihashed and indexes those
+// remaining in the indexer core.
 func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash.Multihash, log *zap.SugaredLogger) error {
-	// Load the advertisement data for this chunk. If there are more chunks to
-	// follow, then cache the ad data.
-	value, isRm, err := getAdData(ad)
+	// Build indexer.Value from ad data.
+	providerID, err := peer.Decode(ad.Provider)
 	if err != nil {
 		return err
+	}
+	value := indexer.Value{
+		ProviderID:    providerID,
+		ContextID:     ad.ContextID,
+		MetadataBytes: ad.Metadata,
 	}
 
 	// Iterate over multihashes and remove bad ones.
@@ -524,17 +540,17 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash
 		return nil
 	}
 
-	if isRm {
-		if err := ing.indexer.Remove(value, mhs...); err != nil {
-			return fmt.Errorf("cannot remove multihashes from indexer: %w", err)
-		}
-		log.Infow("Removed multihashes in entry chunk", "count", len(mhs))
-	} else {
-		if err := ing.indexer.Put(value, mhs...); err != nil {
-			return fmt.Errorf("cannot put multihashes into indexer: %w", err)
-		}
-		log.Infow("Put multihashes in entry chunk", "count", len(mhs))
+	// No code path should ever allow this, so it is a programming error if
+	// this ever happens.
+	if ad.IsRm {
+		panic("removing individual multihashes no allowed")
 	}
+
+	if err = ing.indexer.Put(value, mhs...); err != nil {
+		return fmt.Errorf("cannot put multihashes into indexer: %w", err)
+	}
+	log.Infow("Put multihashes in entry chunk", "count", len(mhs))
+
 	return nil
 }
 
@@ -581,21 +597,6 @@ func (ing *Ingester) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Nod
 		return nil, fmt.Errorf("cannot fetch the node from datastore: %w", err)
 	}
 	return decodeIPLDNode(c.Prefix().Codec, bytes.NewBuffer(val), prototype)
-}
-
-func getAdData(ad schema.Advertisement) (value indexer.Value, isRm bool, err error) {
-	providerID, err := peer.Decode(ad.Provider)
-	if err != nil {
-		return indexer.Value{}, false, err
-	}
-
-	value = indexer.Value{
-		ProviderID:    providerID,
-		ContextID:     ad.ContextID,
-		MetadataBytes: ad.Metadata,
-	}
-
-	return value, ad.IsRm, nil
 }
 
 // decodeIPLDNode decodes an ipld.Node from bytes read from an io.Reader.

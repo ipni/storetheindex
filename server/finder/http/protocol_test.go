@@ -8,15 +8,17 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
+	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	httpserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	"github.com/filecoin-project/storetheindex/server/finder/test"
+	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-delegated-routing/client"
 	"github.com/ipfs/go-delegated-routing/gen/proto"
 )
 
-func setupServer(ind indexer.Interface, reg *registry.Registry, t *testing.T) *httpserver.Server {
-	s, err := httpserver.New("127.0.0.1:0", ind, reg)
+func setupServer(ind indexer.Interface, reg *registry.Registry, idxCts *counter.IndexCounts, t *testing.T) *httpserver.Server {
+	s, err := httpserver.New("127.0.0.1:0", ind, reg, httpserver.WithIndexCounts(idxCts))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +37,7 @@ func TestFindIndexData(t *testing.T) {
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t)
-	s := setupServer(ind, reg, t)
+	s := setupServer(ind, reg, nil, t)
 	c := setupClient(s.URL(), t)
 
 	// Start server
@@ -75,7 +77,7 @@ func TestReframeFindIndexData(t *testing.T) {
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t)
-	s := setupServer(ind, reg, t)
+	s := setupServer(ind, reg, nil, t)
 	c := setupClient(s.URL(), t)
 
 	// create delegated routing client
@@ -125,7 +127,9 @@ func TestProviderInfo(t *testing.T) {
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t)
-	s := setupServer(ind, reg, t)
+	idxCts := counter.NewIndexCounts(datastore.NewMapDatastore())
+
+	s := setupServer(ind, reg, idxCts, t)
 	httpClient := setupClient(s.URL(), t)
 
 	// Start server
@@ -142,6 +146,8 @@ func TestProviderInfo(t *testing.T) {
 	defer cancel()
 
 	peerID := test.Register(ctx, t, reg)
+
+	idxCts.AddCount(peerID, []byte("context-id"), 939)
 
 	test.GetProviderTest(t, httpClient, peerID)
 
@@ -170,7 +176,7 @@ func TestGetStats(t *testing.T) {
 	reg := test.InitRegistry(t)
 	defer reg.Close()
 
-	s := setupServer(ind, reg, t)
+	s := setupServer(ind, reg, nil, t)
 	httpClient := setupClient(s.URL(), t)
 
 	// Start server
@@ -202,7 +208,7 @@ func TestRemoveProvider(t *testing.T) {
 	// Initialize everything
 	ind := test.InitIndex(t, true)
 	reg := test.InitRegistry(t)
-	s := setupServer(ind, reg, t)
+	s := setupServer(ind, reg, nil, t)
 	c := setupClient(s.URL(), t)
 
 	// Start server

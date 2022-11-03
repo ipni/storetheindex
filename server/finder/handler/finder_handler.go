@@ -8,6 +8,7 @@ import (
 	"github.com/filecoin-project/go-indexer-core"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
+	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -24,14 +25,16 @@ const avg_mh_size = 40
 // FinderHandler provides request handling functionality for the finder server
 // that is common to all protocols.
 type FinderHandler struct {
-	indexer  indexer.Interface
-	registry *registry.Registry
+	indexer     indexer.Interface
+	registry    *registry.Registry
+	indexCounts *counter.IndexCounts
 }
 
-func NewFinderHandler(indexer indexer.Interface, registry *registry.Registry) *FinderHandler {
+func NewFinderHandler(indexer indexer.Interface, registry *registry.Registry, indexCounts *counter.IndexCounts) *FinderHandler {
 	return &FinderHandler{
-		indexer:  indexer,
-		registry: registry,
+		indexer:     indexer,
+		registry:    registry,
+		indexCounts: indexCounts,
 	}
 }
 
@@ -112,8 +115,16 @@ func (h *FinderHandler) ListProviders() ([]byte, error) {
 
 	responses := make([]model.ProviderInfo, len(infos))
 	for i := range infos {
+		var indexCount uint64
+		if h.indexCounts != nil {
+			var err error
+			indexCount, err = h.indexCounts.Provider(infos[i].AddrInfo.ID)
+			if err != nil {
+				log.Errorw("Could not get provider index count", "err", err)
+			}
+		}
 		responses[i] = model.MakeProviderInfo(infos[i].AddrInfo, infos[i].LastAdvertisement,
-			infos[i].LastAdvertisementTime, infos[i].Publisher, infos[i].PublisherAddr)
+			infos[i].LastAdvertisementTime, infos[i].Publisher, infos[i].PublisherAddr, indexCount)
 	}
 
 	return json.Marshal(responses)
@@ -125,7 +136,15 @@ func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 		return nil, nil
 	}
 
-	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastAdvertisement, info.LastAdvertisementTime, info.Publisher, info.PublisherAddr)
+	var indexCount uint64
+	if h.indexCounts != nil {
+		var err error
+		indexCount, err = h.indexCounts.Provider(providerID)
+		if err != nil {
+			log.Errorw("Could not get provider index count", "err", err)
+		}
+	}
+	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastAdvertisement, info.LastAdvertisementTime, info.Publisher, info.PublisherAddr, indexCount)
 
 	return json.Marshal(&rsp)
 }

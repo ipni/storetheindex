@@ -71,7 +71,7 @@ func InitIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *i
 		t.Fatal(err)
 	}
 
-	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds)
+	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,7 +25,7 @@ import (
 )
 
 func NewReframeHTTPHandler(indexer indexer.Interface, registry *registry.Registry) http.HandlerFunc {
-	return server.DelegatedRoutingAsyncHandler(NewReframeService(handler.NewFinderHandler(indexer, registry)))
+	return server.DelegatedRoutingAsyncHandler(NewReframeService(handler.NewFinderHandler(indexer, registry, nil)))
 }
 
 func NewReframeService(fh *handler.FinderHandler) *ReframeService {

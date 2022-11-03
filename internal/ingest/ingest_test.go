@@ -20,6 +20,7 @@ import (
 	"github.com/filecoin-project/go-legs/dtsync"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/test/typehelpers"
 	"github.com/filecoin-project/storetheindex/test/util"
@@ -328,7 +329,7 @@ func TestRestartDuringSync(t *testing.T) {
 	// Now we bring up the ingester again.
 	ingesterHost := mkTestHost(libp2p.Identity(te.ingesterPriv))
 	connectHosts(t, te.pubHost, ingesterHost)
-	ingester, err := NewIngester(defaultTestIngestConfig, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds)
+	ingester, err := NewIngester(defaultTestIngestConfig, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ingester.Close()
@@ -664,14 +665,14 @@ func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	i, core, _ := mkIngest(t, h)
+	i, core, _, indexCounts := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	c1, mhs, providerID := publishRandomIndexAndAdv(t, pub, lsys, false, nil)
+	c1, mhs, providerID, privKey := publishRandomIndexAndAdv(t, pub, lsys, false, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -712,13 +713,42 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 	_, ok = <-end
 	require.True(t, ok)
+
+	// Check that the total number of indexes is correct.
+	expectCount := uint64(testEntriesChunkCount * testEntriesChunkSize)
+	count, err := indexCounts.Total()
+	require.NoError(t, err)
+	require.Equal(t, int(expectCount), int(count))
+	count, err = indexCounts.Provider(providerID)
+	require.NoError(t, err)
+	require.Equal(t, expectCount, count)
+	// Check again to check for correct value from memory.
+	count, err = indexCounts.Total()
+	require.NoError(t, err)
+	require.Equal(t, expectCount, count)
+	count, err = indexCounts.Provider(providerID)
+	require.NoError(t, err)
+	require.Equal(t, expectCount, count)
+
+	publishRemovalAd(t, pub, lsys, false, providerID, privKey)
+	end, err = i.Sync(ctx, pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+	_, ok = <-end
+	require.True(t, ok)
+
+	count, err = indexCounts.Provider(providerID)
+	require.NoError(t, err)
+	require.Zero(t, count)
+	count, err = indexCounts.Provider(providerID)
+	require.NoError(t, err)
+	require.Zero(t, count)
 }
 
 func TestSyncTooLargeMetadata(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	i, core, _ := mkIngest(t, h)
+	i, core, _, _ := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
@@ -825,7 +855,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	ing, core, _ := mkIngest(t, h)
+	ing, core, _, _ := mkIngest(t, h)
 	defer core.Close()
 	defer ing.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
@@ -840,7 +870,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	// for testing.
 	ing.entriesSel = Selectors.EntriesWithLimit(selector.RecursionLimitDepth(entriesDepth))
 
-	adCid, _, providerID := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount, nil)
+	adCid, _, providerID, _ := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -951,7 +981,7 @@ func TestMultiplePublishers(t *testing.T) {
 	pubHost2 := mkTestHost()
 	pubHost2Priv := pubHost2.Peerstore().PrivKey(pubHost2.ID())
 
-	i, core, _ := mkIngest(t, h)
+	i, core, _, _ := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
 	pub1, lsys1 := mkMockPublisher(t, pubHost1, srcStore1)
@@ -1033,7 +1063,7 @@ func TestRateLimitConfig(t *testing.T) {
 	h := mkTestHost()
 
 	cfg := defaultTestIngestConfig
-	ingester, err := NewIngester(cfg, h, core, reg, store)
+	ingester, err := NewIngester(cfg, h, core, reg, store, nil)
 	require.NoError(t, err)
 	limiter := ingester.getRateLimiter(pubHost.ID())
 	require.NotNil(t, limiter)
@@ -1041,7 +1071,7 @@ func TestRateLimitConfig(t *testing.T) {
 	ingester.Close()
 
 	cfg.RateLimit.Apply = false
-	ingester, err = NewIngester(cfg, h, core, reg, store)
+	ingester, err = NewIngester(cfg, h, core, reg, store, nil)
 	require.NoError(t, err)
 	limiter = ingester.getRateLimiter(pubHost.ID())
 	require.NotNil(t, limiter)
@@ -1050,7 +1080,7 @@ func TestRateLimitConfig(t *testing.T) {
 
 	cfg.RateLimit.Apply = true
 	cfg.RateLimit.BlocksPerSecond = 0
-	ingester, err = NewIngester(cfg, h, core, reg, store)
+	ingester, err = NewIngester(cfg, h, core, reg, store, nil)
 	require.NoError(t, err)
 	limiter = ingester.getRateLimiter(pubHost.ID())
 	require.NotNil(t, limiter)
@@ -1290,17 +1320,18 @@ func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.
 	return ls, lsys
 }
 
-func mkIngest(t *testing.T, h host.Host) (*Ingester, *engine.Engine, *registry.Registry) {
+func mkIngest(t *testing.T, h host.Host) (*Ingester, *engine.Engine, *registry.Registry, *counter.IndexCounts) {
 	return mkIngestWithConfig(t, h, defaultTestIngestConfig)
 }
 
-func mkIngestWithConfig(t *testing.T, h host.Host, cfg config.Ingest) (*Ingester, *engine.Engine, *registry.Registry) {
+func mkIngestWithConfig(t *testing.T, h host.Host, cfg config.Ingest) (*Ingester, *engine.Engine, *registry.Registry, *counter.IndexCounts) {
 	store := dssync.MutexWrap(datastore.NewMapDatastore())
 	reg := mkRegistry(t)
 	core := mkIndexer(t, true)
-	ing, err := NewIngester(cfg, h, core, reg, store)
+	indexCounts := counter.NewIndexCounts(store)
+	ing, err := NewIngester(cfg, h, core, reg, store, indexCounts)
 	require.NoError(t, err)
-	return ing, core, reg
+	return ing, core, reg, indexCounts
 }
 
 func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
@@ -1330,11 +1361,11 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 	return nextLnk, out
 }
 
-func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID) {
+func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID, crypto.PrivKey) {
 	return publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, fakeSig, testEntriesChunkCount, metadata)
 }
 
-func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID) {
+func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID, crypto.PrivKey) {
 
 	priv, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
@@ -1367,7 +1398,33 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publis
 	require.NoError(t, err)
 	err = pub.UpdateRoot(context.Background(), advLnk.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	return advLnk.(cidlink.Link).Cid, mhs, p
+	return advLnk.(cidlink.Link).Cid, mhs, p, priv
+}
+
+func publishRemovalAd(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, providerID peer.ID, priv crypto.PrivKey) cid.Cid {
+	ctxID := []byte("test-context-id")
+	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
+
+	adv := &schema.Advertisement{
+		Provider:  providerID.String(),
+		Addresses: addrs,
+		Entries:   schema.NoEntries,
+		ContextID: ctxID,
+		Metadata:  nil,
+		IsRm:      true,
+	}
+	if !fakeSig {
+		err := adv.Sign(priv)
+		require.NoError(t, err)
+	}
+
+	node, err := adv.ToNode()
+	require.NoError(t, err)
+	advLnk, err := lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
+	require.NoError(t, err)
+	err = pub.UpdateRoot(context.Background(), advLnk.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	return advLnk.(cidlink.Link).Cid
 }
 
 func checkAllIndexed(ix indexer.Interface, p peer.ID, mhs []multihash.Multihash) error {
@@ -1424,6 +1481,7 @@ type testEnv struct {
 	publisherPriv    crypto.PrivKey
 	ingesterPriv     crypto.PrivKey
 	publisherLinkSys ipld.LinkSystem
+	indexCounts      *counter.IndexCounts
 	ingester         *Ingester
 	ingesterHost     host.Host
 	core             indexer.Interface
@@ -1495,7 +1553,7 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 	require.NoError(t, err)
 	pubHost := mkTestHost(libp2p.Identity(priv))
 
-	i, core, reg := mkIngestWithConfig(t, ingesterHost, *testOpt.ingestConfig)
+	i, core, reg, indexCounts := mkIngestWithConfig(t, ingesterHost, *testOpt.ingestConfig)
 
 	var lsys ipld.LinkSystem
 	if testOpt.publisherLinkSysFn != nil {
@@ -1525,6 +1583,7 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 		core:             core,
 		reg:              reg,
 		skipIngCleanup:   testOpt.skipIngesterCleanup,
+		indexCounts:      indexCounts,
 	}
 
 	t.Cleanup(func() {

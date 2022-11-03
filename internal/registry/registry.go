@@ -544,6 +544,7 @@ func (r *Registry) ProviderInfo(providerID peer.ID) (*ProviderInfo, bool) {
 	if pinfo == nil {
 		return nil, false
 	}
+
 	return pinfo, r.policy.Allowed(providerID)
 }
 

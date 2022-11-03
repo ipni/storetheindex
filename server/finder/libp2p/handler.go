@@ -13,6 +13,7 @@ import (
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	pb "github.com/filecoin-project/storetheindex/api/v0/finder/pb"
+	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -35,9 +36,9 @@ type libp2pHandler struct {
 // handlerFunc is the function signature required by handlers in this package
 type handlerFunc func(context.Context, peer.ID, *pb.FinderMessage) ([]byte, error)
 
-func newHandler(indexer indexer.Interface, registry *registry.Registry) *libp2pHandler {
+func newHandler(indexer indexer.Interface, registry *registry.Registry, indexCounts *counter.IndexCounts) *libp2pHandler {
 	return &libp2pHandler{
-		finderHandler: handler.NewFinderHandler(indexer, registry),
+		finderHandler: handler.NewFinderHandler(indexer, registry, indexCounts),
 	}
 }
 

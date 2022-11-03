@@ -14,12 +14,14 @@ type ProviderInfo struct {
 	LastAdvertisement     cid.Cid        `json:",omitempty"`
 	LastAdvertisementTime string         `json:",omitempty"`
 	Publisher             *peer.AddrInfo `json:",omitempty"`
+	IndexCount            uint64         `json:",omitempty"`
 }
 
-func MakeProviderInfo(addrInfo peer.AddrInfo, lastAd cid.Cid, lastAdTime time.Time, publisherID peer.ID, publisherAddr multiaddr.Multiaddr) ProviderInfo {
+func MakeProviderInfo(addrInfo peer.AddrInfo, lastAd cid.Cid, lastAdTime time.Time, publisherID peer.ID, publisherAddr multiaddr.Multiaddr, indexCount uint64) ProviderInfo {
 	pinfo := ProviderInfo{
 		AddrInfo:          addrInfo,
 		LastAdvertisement: lastAd,
+		IndexCount:        indexCount,
 	}
 
 	if publisherID.Validate() == nil && publisherAddr != nil {

@@ -22,6 +22,10 @@ type Indexer struct {
 	// GCTimeLimit configures the maximum amount of time a garbage collection
 	// cycle may run.
 	GCTimeLimit Duration
+	// IndexCountTotalAddend is a value that is added to the index count total,
+	// to account for uncounted indexes that have existed in the value store
+	// before provider index counts were tracked. This value is reloadable.
+	IndexCountTotalAddend uint64
 	// ShutdownTimeout is the duration that a graceful shutdown has to complete
 	// before the daemon process is terminated. If unset or zero, configures no
 	// shutdown timeout. This value is reloadable.

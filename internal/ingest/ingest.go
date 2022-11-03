@@ -14,6 +14,7 @@ import (
 	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/peerutil"
@@ -62,8 +63,9 @@ type pendingAnnounce struct {
 }
 
 type adInfo struct {
-	cid cid.Cid
-	ad  schema.Advertisement
+	cid    cid.Cid
+	ad     schema.Advertisement
+	resync bool
 }
 
 type workerAssignment struct {
@@ -137,12 +139,13 @@ type Ingester struct {
 
 	// Multihash minimum length
 	minKeyLen int
+
+	indexCounts *counter.IndexCounts
 }
 
 // NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
 // communication with providers.
-func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching) (*Ingester, error) {
-
+func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching, idxCounts *counter.IndexCounts) (*Ingester, error) {
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
@@ -163,6 +166,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		closeWorkers:            make(chan struct{}),
 
 		minKeyLen: cfg.MinimumKeyLength,
+
+		indexCounts: idxCounts,
 	}
 
 	var err error
@@ -381,7 +386,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 			// unprocessed so that everything can be reingested from the start
 			// of this sync. Create a scoped block-hook to do this.
 			opts = append(opts, legs.ScopedBlockHook(func(i peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
-				err := ing.markAdUnprocessed(c)
+				err := ing.markAdUnprocessed(c, true)
 				if err != nil {
 					log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
 				}
@@ -497,19 +502,25 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int, resync 
 // ad. This is so that if an something fails to get marked as unprocessed the
 // constraint is maintained that if an ad is processed, all older ads are also
 // processed.
-func (ing *Ingester) markAdUnprocessed(adCid cid.Cid) error {
-	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{0})
+func (ing *Ingester) markAdUnprocessed(adCid cid.Cid, forResync bool) error {
+	data := []byte{0}
+	if forResync {
+		data = []byte{2}
+	}
+	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), data)
 }
 
-func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) bool {
+func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool) {
 	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
 	if err != nil {
 		if err != datastore.ErrNotFound {
 			log.Errorw("Failed to read advertisement processed state from datastore", "err", err)
 		}
-		return false
+		return false, false
 	}
-	return v[0] == byte(1)
+	processed := v[0] == byte(1)
+	resync := v[0] == byte(2)
+	return processed, resync
 }
 
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
@@ -522,8 +533,9 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 	err = ing.ds.Delete(context.Background(), datastore.NewKey(adCid.String()))
 	if err != nil {
 		// Log the error, but do not return. Continue on to save the procesed ad.
-		log.Errorw("Cound not remove advertisement from datastore", "err", err)
+		log.Errorw("Cannot remove advertisement from datastore", "err", err)
 	}
+
 	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
 }
 
@@ -628,7 +640,11 @@ func (ing *Ingester) metricsUpdater() {
 					log.Errorw("Error getting indexer value store size", "err", err)
 					return
 				}
-				stats.Record(context.Background(), coremetrics.StoreSize.M(size))
+				indexCount, err := ing.indexCounts.Total()
+				if err != nil {
+					log.Errorw("Error getting index counts", "err", err)
+				}
+				stats.Record(context.Background(), coremetrics.StoreSize.M(size), metrics.IndexCount.M(int64(indexCount)))
 				hasUpdate = false
 			}
 			t.Reset(time.Minute)
@@ -662,6 +678,9 @@ func (ing *Ingester) autoSync() {
 		if provInfo.Deleted() {
 			if err := ing.removePublisher(ctx, provInfo.Publisher); err != nil {
 				log.Errorw("Error removing provider", "err", err, "provider", provInfo.AddrInfo.ID)
+			}
+			if ing.indexCounts != nil {
+				ing.indexCounts.RemoveProvider(provInfo.AddrInfo.ID)
 			}
 			// Do not remove provider info from core, because that requires
 			// scanning the entire core valuestore. Instead, let the finder
@@ -768,7 +787,8 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
 
-		if ing.adAlreadyProcessed(c) {
+		processed, resync := ing.adAlreadyProcessed(c)
+		if processed {
 			// This ad has been processed so all earlier ads already have been
 			// processed.
 			break
@@ -787,8 +807,9 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
 		}
 
 		adsGroupedByProvider[providerID] = append(adsGroupedByProvider[providerID], adInfo{
-			cid: c,
-			ad:  ad,
+			cid:    c,
+			ad:     ad,
+			resync: resync,
 		})
 	}
 
@@ -883,7 +904,8 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			return
 		}
 		// Iterate latest to earliest.
-		if ing.adAlreadyProcessed(ai.cid) {
+		processed, resync := ing.adAlreadyProcessed(ai.cid)
+		if processed {
 			// This ad is already processed, which means that all earlier ads
 			// are also processed. Break here and split at this index
 			// later. The cids before this index are newer and have not been
@@ -891,6 +913,9 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			// processed.
 			splitAtIndex = i
 			break
+		}
+		if resync {
+			ai.resync = true
 		}
 		ctxIdStr := string(ai.ad.ContextID)
 		// This ad was deleted by a later remove. Push previous onto skips
@@ -961,7 +986,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			"publisher", assignment.publisher,
 			"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
 
-		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad)
+		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad, ai.resync)
 		if err == nil {
 			// No error at all, this ad was processed successfully.
 			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))
@@ -988,7 +1013,6 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 
 		if err != nil {
 			log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "publisher", assignment.provider, "err", err, "adsLeftToProcess", i+1)
-
 			// Tell anyone waiting that the sync finished for this head because
 			// of error.  TODO(mm) would be better to propagate the error.
 			ing.inEvents <- adProcessedEvent{

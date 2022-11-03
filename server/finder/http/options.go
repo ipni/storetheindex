@@ -3,6 +3,8 @@ package httpfinderserver
 import (
 	"fmt"
 	"time"
+
+	"github.com/filecoin-project/storetheindex/internal/counter"
 )
 
 const (
@@ -18,6 +20,7 @@ type serverConfig struct {
 	apiReadTimeout  time.Duration
 	maxConns        int
 	homepageURL     string
+	indexCounts     *counter.IndexCounts
 }
 
 // ServerOption for httpserver
@@ -76,6 +79,13 @@ func MaxConnections(maxConnections int) ServerOption {
 func WithHomepage(URL string) ServerOption {
 	return func(c *serverConfig) error {
 		c.homepageURL = URL
+		return nil
+	}
+}
+
+func WithIndexCounts(indexCounts *counter.IndexCounts) ServerOption {
+	return func(c *serverConfig) error {
+		c.indexCounts = indexCounts
 		return nil
 	}
 }

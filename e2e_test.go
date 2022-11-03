@@ -256,6 +256,13 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		return nil
 	})
 
+	outProvider := e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
+	// Check that IndexCount with correct value appears in providers output.
+	expect := "IndexCount: 1043"
+	if !strings.Contains(string(outProvider), expect) {
+		t.Errorf("expected provider to contains %q, got %q", expect, string(outProvider))
+	}
+
 	// Remove a car file from the provider.  This will cause the provider to
 	// publish an advertisement that tells the indexer to remove the car file
 	// content by contextID.  The indexer will then import the advertisement
@@ -283,6 +290,13 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		return nil
 	})
 
+	outProvider = e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
+	// Check that IndexCount is back to zero after removing car.
+	expect = "IndexCount: 0"
+	if !strings.Contains(string(outProvider), expect) {
+		t.Errorf("expected provider to contains %q, got %q", expect, string(outProvider))
+	}
+
 	root2 := filepath.Join(e.dir, ".storetheindex2")
 	e.env = append(e.env, fmt.Sprintf("%s=%s", config.EnvDir, root2))
 	e.run(indexer, "init", "--store", "memory", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap",
@@ -309,6 +323,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	if !strings.Contains(string(outProviders), providerID) {
 		t.Errorf("expected provider id in providers output after import-providers, got %q", string(outProviders))
 	}
+
 	e.stop(cmdIndexer2, time.Second)
 
 	e.stop(cmdIndexer, time.Second)
