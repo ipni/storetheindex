@@ -55,7 +55,7 @@ module "eks" {
     }
     prod-ue2b-r5b-4xl = {
       min_size       = 1
-      max_size       = 4
+      max_size       = 5
       desired_size   = 1
       instance_types = ["r5b.4xlarge"]
       subnet_ids     = [data.aws_subnet.ue2b1.id]

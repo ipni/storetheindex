@@ -1,5 +1,6 @@
 locals {
   indexstar_origin_id = "${local.environment_name}_${local.region}_indexstar"
+  kepa_origin_id      = "${local.environment_name}_${local.region}_kepa"
   cdn_origin_id       = "${local.environment_name}_${local.region}_sti_cdn"
   cdn_subdomain       = "cdn"
 }
@@ -46,6 +47,24 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
   }
 
+  # storetheindex/kepa node ingress with the identity whitelisted on lotus bootstrap nodes.
+  # This origin is also used to route HTTP PUT /ingest/announce requests for further propagation
+  # over gossipsub across other indexer nodes.
+  origin {
+    domain_name = "kepa.${aws_route53_zone.prod_external.name}"
+    origin_id   = local.kepa_origin_id
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+    }
+    origin_shield {
+      enabled              = true
+      origin_shield_region = local.region
+    }
+  }
+
   custom_error_response {
     error_code            = 404
     error_caching_min_ttl = 300
@@ -73,7 +92,7 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   ordered_cache_behavior {
-    path_pattern           = "reframe"
+    path_pattern = "reframe"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
     allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
@@ -87,7 +106,7 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   ordered_cache_behavior {
-    path_pattern     = "multihash/*"
+    path_pattern = "multihash/*"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
@@ -141,14 +160,14 @@ resource "aws_cloudfront_distribution" "cdn" {
     default_ttl            = 3600
     max_ttl                = 86400
   }
-  
+
   ordered_cache_behavior {
-    path_pattern           = "ingest/*"
+    path_pattern = "ingest/*"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
-    allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
-    cached_methods         = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id       = local.cdn_origin_id
+    allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = local.kepa_origin_id
     forwarded_values {
       query_string = false
       cookies {
@@ -227,8 +246,8 @@ module "records" {
 
   records = [
     {
-      name  = local.cdn_subdomain
-      type  = "A"
+      name = local.cdn_subdomain
+      type = "A"
       alias = {
         name    = aws_cloudfront_distribution.cdn.domain_name
         zone_id = aws_cloudfront_distribution.cdn.hosted_zone_id
@@ -253,10 +272,9 @@ module "cid_contact_cert" {
   validate_certificate = false
 
   subject_alternative_names = [
-    "cid.contact",
-    "*.cid.contact",
     "*.prod.cid.contact",
     "*.infra.cid.contact",
+    "*.cid.contact",
   ]
 
   tags = local.tags
