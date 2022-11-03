@@ -28,3 +28,8 @@ spec:
                     operator: In
                     values:
                       - us-east-2b
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: r5b-4xl
+          effect: NoSchedule

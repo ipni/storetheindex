@@ -106,8 +106,7 @@
   },
   "Peering": {
     "Peers": [
-      "/dns4/indexer-0.indexer/tcp/3003/p2p/12D3KooWQAymjDKMivbkUNiJP7ChRsvsDuazerHW4wERRvQMWNor",
-      "/dns4/indexer-1.indexer/tcp/3003/p2p/12D3KooWJMn6BzkMixb2w8hR83Jpvugbqw3pBXwHqmbiFxh7nHz3"
+      "/dns4/kepa-indexer/tcp/3003/p2p/12D3KooWJMn6BzkMixb2w8hR83Jpvugbqw3pBXwHqmbiFxh7nHz3"
     ]
   }
 }
