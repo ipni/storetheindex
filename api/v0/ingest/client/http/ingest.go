@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/filecoin-project/go-legs/dtsync"
+	"github.com/filecoin-project/storetheindex/announce/gossiptopic"
 	httpclient "github.com/filecoin-project/storetheindex/api/v0/httpclient"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	"github.com/ipfs/go-cid"
@@ -79,7 +79,7 @@ func (c *Client) Announce(ctx context.Context, provider *peer.AddrInfo, root cid
 	if err != nil {
 		return err
 	}
-	msg := dtsync.Message{
+	msg := gossiptopic.Message{
 		Cid: root,
 	}
 
