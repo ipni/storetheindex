@@ -25,6 +25,7 @@ require (
 	github.com/ipld/go-ipld-prime v0.18.0
 	github.com/ipld/go-storethehash v0.3.13
 	github.com/libp2p/go-libp2p v0.23.2
+	github.com/libp2p/go-libp2p-pubsub v0.8.1
 	github.com/libp2p/go-msgio v0.2.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-multiaddr v0.7.0
@@ -34,9 +35,11 @@ require (
 	github.com/prometheus/client_golang v1.13.0
 	github.com/stretchr/testify v1.8.0
 	github.com/urfave/cli/v2 v2.16.3
+	github.com/whyrusleeping/cbor-gen v0.0.0-20220514204315-f29c37e9c44c
 	github.com/ybbus/jsonrpc/v2 v2.1.6
 	go.opencensus.io v0.23.0
 	go.uber.org/zap v1.23.0
+	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
 	golang.org/x/net v0.0.0-20220920183852-bf014ff85ad5
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9
 )
@@ -133,7 +136,6 @@ require (
 	github.com/libp2p/go-libp2p-asn-util v0.2.0 // indirect
 	github.com/libp2p/go-libp2p-core v0.20.1 // indirect
 	github.com/libp2p/go-libp2p-gostream v0.5.0 // indirect
-	github.com/libp2p/go-libp2p-pubsub v0.8.1 // indirect
 	github.com/libp2p/go-libp2p-record v0.2.0 // indirect
 	github.com/libp2p/go-nat v0.1.0 // indirect
 	github.com/libp2p/go-netroute v0.2.0 // indirect
@@ -179,7 +181,6 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/syndtr/goleveldb v1.0.0 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
-	github.com/whyrusleeping/cbor-gen v0.0.0-20220514204315-f29c37e9c44c // indirect
 	github.com/whyrusleeping/chunker v0.0.0-20181014151217-fe64bd25879f // indirect
 	github.com/whyrusleeping/timecache v0.0.0-20160911033111-cfcb2f1abfee // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
@@ -187,7 +188,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.10.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
-	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90 // indirect
 	golang.org/x/exp v0.0.0-20220916125017-b168a2c6b86b // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/sync v0.0.0-20220907140024-f12130a52804 // indirect
