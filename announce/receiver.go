@@ -17,7 +17,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-var log = logging.Logger("assigntheindexer")
+var log = logging.Logger("announce")
 
 const announceCacheSize = 64
 
@@ -34,7 +34,7 @@ var (
 	// messages is not allowed to be processed. This is only used internally, and
 	// pre-allocated here as it may occur frequently.
 	errSourceNotAllowed = errors.New("message source not allowed")
-	// errAlreadySeenCid is teh error returned when an announce message is for a
+	// errAlreadySeenCid is the error returned when an announce message is for a
 	// CID has already been announced by a previous announce message.
 	errAlreadySeenCid = errors.New("announcement for already seen CID")
 )
@@ -79,6 +79,8 @@ type Announce struct {
 	Addrs []multiaddr.Multiaddr
 }
 
+// NewReceiver creates a new Receiver that subscribes to the named pubsub topic
+// and is listening for announce messages.
 func NewReceiver(host host.Host, topicName string, options ...Option) (*Receiver, error) {
 	cfg := config{}
 	for i, opt := range options {
@@ -134,16 +136,15 @@ func NewReceiver(host host.Host, topicName string, options ...Option) (*Receiver
 	return r, nil
 }
 
+// Next waits for and returns the next announce message that has passed
+// filtering checks. Next also returns ErrClosed if the receiver is closed, or
+// the context error if the given context is canceled.
 func (r *Receiver) Next(ctx context.Context) (Announce, error) {
-again:
 	select {
 	case <-ctx.Done():
 		return Announce{}, ctx.Err()
-	case a := <-r.outChan:
-		if a.Cid == cid.Undef {
-			goto again
-		}
-		return a, nil
+	case amsg := <-r.outChan:
+		return amsg, nil
 	case <-r.done:
 		return Announce{}, ErrClosed
 	}
@@ -194,20 +195,16 @@ func (r *Receiver) SetAllowPeer(allowPeer AllowPeerFunc) {
 	r.announceMutex.Unlock()
 }
 
+// UncacheCid removes a CID from the announce cache.
 func (r *Receiver) UncacheCid(adCid cid.Cid) {
 	r.announceMutex.Lock()
 	r.announceCache.remove(adCid.String())
 	r.announceMutex.Unlock()
 }
 
+// TopicName returns the name of the topic the Receiver is listening on.
 func (r *Receiver) TopicName() string {
 	return r.topic.String()
-}
-
-func (r *Receiver) SyncNext() {
-	for i := 0; i < cap(r.outChan)+1; i++ {
-		r.outChan <- Announce{}
-	}
 }
 
 // watch reads messages from a pubsub topic subscription and passes the message
@@ -315,9 +312,9 @@ func (r *Receiver) handleAnnounce(ctx context.Context, amsg Announce, direct boo
 
 	if r.filterIPs {
 		amsg.Addrs = mautil.FilterPrivateIPs(amsg.Addrs)
-		// Even if there are no addresses left filterint, continue because the
-		// others receiving the announce may be able to look up the address in
-		// their peer store.
+		// Even if there are no addresses left after filtering, continue
+		// because the others receiving the announce may be able to look up the
+		// address in their peer store.
 	}
 
 	if direct && r.resend {
