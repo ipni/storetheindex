@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/go-legs/dtsync"
+	"github.com/filecoin-project/storetheindex/announce/gossiptopic"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/model"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
@@ -126,7 +126,7 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 
 func (h *IngestHandler) Announce(r io.Reader) error {
 	// Decode CID and originator addresses from message.
-	an := dtsync.Message{}
+	an := gossiptopic.Message{}
 	if err := an.UnmarshalCBOR(r); err != nil {
 		return err
 	}
