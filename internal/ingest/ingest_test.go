@@ -673,7 +673,7 @@ func TestSync(t *testing.T) {
 	connectHosts(t, h, pubHost)
 
 	c1, mhs, providerID, privKey := publishRandomIndexAndAdv(t, pub, lsys, false, nil)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// The explicit sync will happen concurrently with the sycn triggered by
