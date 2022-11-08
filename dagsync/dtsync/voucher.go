@@ -31,7 +31,7 @@ type Voucher struct {
 
 // Type provides an identifier for the voucher to go-data-transfer
 func (v *Voucher) Type() datatransfer.TypeIdentifier {
-	return "DagsyncVoucher"
+	return "LegsVoucher"
 }
 
 // A VoucherResult responds to a voucher
@@ -41,7 +41,7 @@ type VoucherResult struct {
 
 // Type provides an identifier for the voucher result to go-data-transfer
 func (v *VoucherResult) Type() datatransfer.TypeIdentifier {
-	return "DagsyncVoucherResult"
+	return "LegsVoucherResult"
 }
 
 type dagsyncValidator struct {
