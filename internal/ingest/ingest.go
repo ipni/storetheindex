@@ -11,9 +11,9 @@ import (
 
 	indexer "github.com/filecoin-project/go-indexer-core"
 	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
-	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/dagsync"
 	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -77,7 +77,7 @@ type workerAssignment struct {
 	provider  peer.ID
 }
 
-// Ingester is a type that uses go-legs for the ingestion protocol.
+// Ingester is a type that uses dagsync for the ingestion protocol.
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
@@ -88,7 +88,7 @@ type Ingester struct {
 	closeOnce sync.Once
 	sigUpdate chan struct{}
 
-	sub         *legs.Subscriber
+	sub         *dagsync.Subscriber
 	syncTimeout time.Duration
 
 	entriesSel datamodel.Node
@@ -118,7 +118,7 @@ type Ingester struct {
 
 	closeWorkers chan struct{}
 	// toStaging receives sync finished events used to call to runIngestStep.
-	toStaging <-chan legs.SyncFinished
+	toStaging <-chan dagsync.SyncFinished
 	// toWorkers is used to ask the worker pool to start processing the ad
 	// chain for a given provider.
 	toWorkers      *Queue
@@ -143,7 +143,7 @@ type Ingester struct {
 	indexCounts *counter.IndexCounts
 }
 
-// NewIngester creates a new Ingester that uses a go-legs Subscriber to handle
+// NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
 // communication with providers.
 func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching, idxCounts *counter.IndexCounts) (*Ingester, error) {
 	ing := &Ingester{
@@ -176,7 +176,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		log.Error(err.Error())
 	}
 
-	// Instantiate retryable HTTP client used by legs httpsync.
+	// Instantiate retryable HTTP client used by dagsync httpsync.
 	rclient := &retryablehttp.Client{
 		HTTPClient: &http.Client{
 			Timeout: time.Duration(cfg.HttpSyncTimeout),
@@ -190,16 +190,16 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	// Create and start pubsub subscriber. This also registers the storage hook
 	// to index data as it is received.
-	sub, err := legs.NewSubscriber(h, ds, ing.lsys, cfg.PubSubTopic, Selectors.AdSequence,
-		legs.AllowPeer(reg.Allowed),
-		legs.FilterIPs(reg.FilterIPsEnabled()),
-		legs.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)),
-		legs.UseLatestSyncHandler(&syncHandler{ing}),
-		legs.RateLimiter(ing.getRateLimiter),
-		legs.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
-		legs.HttpClient(rclient.StandardClient()),
-		legs.BlockHook(ing.generalLegsBlockHook),
-		legs.ResendAnnounce(cfg.ResendDirectAnnounce),
+	sub, err := dagsync.NewSubscriber(h, ds, ing.lsys, cfg.PubSubTopic, Selectors.AdSequence,
+		dagsync.AllowPeer(reg.Allowed),
+		dagsync.FilterIPs(reg.FilterIPsEnabled()),
+		dagsync.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)),
+		dagsync.UseLatestSyncHandler(&syncHandler{ing}),
+		dagsync.RateLimiter(ing.getRateLimiter),
+		dagsync.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
+		dagsync.HttpClient(rclient.StandardClient()),
+		dagsync.BlockHook(ing.generalDagsyncBlockHook),
+		dagsync.ResendAnnounce(cfg.ResendDirectAnnounce),
 	)
 
 	if err != nil {
@@ -231,13 +231,13 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	return ing, nil
 }
 
-func (ing *Ingester) generalLegsBlockHook(_ peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
+func (ing *Ingester) generalDagsyncBlockHook(_ peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
 	// The only kind of block we should get by loading CIDs here should be Advertisement.
 	// Because:
 	//  - the default subscription selector only selects advertisements.
 	//  - explicit Ingester.Sync only selects advertisement.
 	//  - entries are synced with an explicit selector separate from advertisement syncs and
-	//    should use legs.ScopedBlockHook to override this hook and decode chunks
+	//    should use dagsync.ScopedBlockHook to override this hook and decode chunks
 	//    instead.
 	//
 	// Therefore, we only attempt to load advertisements here and signal failure if the
@@ -268,9 +268,9 @@ func (ing *Ingester) Close() error {
 	// Tell workers to stop ingestion in progress.
 	ing.cancelWorkers()
 
-	// Close leg transport.
+	// Close dagsync transport.
 	err := ing.sub.Close()
-	log.Info("legs subscriber stopped")
+	log.Info("dagsync subscriber stopped")
 
 	// Dismiss any event readers.
 	ing.outEventsMutex.Lock()
@@ -329,7 +329,7 @@ func (ing *Ingester) Close() error {
 // The reference to the latest synced advertisement returned by GetLatestSync
 // is only updated if the given depth is zero and resync is set to
 // false. Otherwise, a custom selector with the given depth limit and stop link
-// is constructed and used for traversal. See legs.Subscriber.Sync.
+// is constructed and used for traversal. See dagsync.Subscriber.Sync.
 //
 // The Context argument controls the lifetime of the sync. Canceling it cancels
 // the sync and causes the multihash channel to close without any data.
@@ -371,28 +371,28 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 
 		// Start syncing. Notifications for the finished sync are sent
 		// asynchronously. Sync with cid.Undef so that the latest head is
-		// queried by go-legs via head-publisher.
+		// queried by dagsync via head-publisher.
 		//
 		// Note that if the selector is nil the default selector is used where
 		// traversal stops at the latest known head.
 		//
 		// Reference to the latest synced CID is only updated if the given
 		// selector is nil.
-		opts := []legs.SyncOption{
-			legs.AlwaysUpdateLatest(),
+		opts := []dagsync.SyncOption{
+			dagsync.AlwaysUpdateLatest(),
 		}
 		if resync {
 			// If this is a resync, then it is necessary to mark the ad as
 			// unprocessed so that everything can be reingested from the start
 			// of this sync. Create a scoped block-hook to do this.
-			opts = append(opts, legs.ScopedBlockHook(func(i peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
+			opts = append(opts, dagsync.ScopedBlockHook(func(i peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
 				err := ing.markAdUnprocessed(c, true)
 				if err != nil {
 					log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
 				}
 				// Call the general hook because scoped block hook overrides the subscriber's
 				// general block hook.
-				ing.generalLegsBlockHook(i, c, actions)
+				ing.generalDagsyncBlockHook(i, c, actions)
 			}))
 		}
 		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
@@ -438,7 +438,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 	return out, nil
 }
 
-// Announce send an announce message to directly to go-legs, instead of through
+// Announce send an announce message to directly to dagsync, instead of through
 // pubsub.
 func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, addrInfo peer.AddrInfo) error {
 	provider := addrInfo.ID
@@ -489,7 +489,7 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int, resync 
 	// The stop link may be nil, in which case it is treated as no stop link.
 	// Log it regardless for debugging purposes.
 	log.Debugw("Custom selector constructed for explicit sync", "stopAt", stopAt)
-	return legs.ExploreRecursiveWithStopNode(rLimit, Selectors.AdSequence, stopAt), nil
+	return dagsync.ExploreRecursiveWithStopNode(rLimit, Selectors.AdSequence, stopAt), nil
 }
 
 // markAdUnprocessed takes an advertisement CID and marks it as
@@ -778,7 +778,7 @@ func (ing *Ingester) runIngesterLoop() {
 	}
 }
 
-func (ing *Ingester) runIngestStep(syncFinishedEvent legs.SyncFinished) {
+func (ing *Ingester) runIngestStep(syncFinishedEvent dagsync.SyncFinished) {
 	log := log.With("publisher", syncFinishedEvent.PeerID)
 	// 1. Group the incoming CIDs by provider.
 	adsGroupedByProvider := map[peer.ID][]adInfo{}

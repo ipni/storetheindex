@@ -10,9 +10,8 @@ type syncHandler struct {
 }
 
 func (h *syncHandler) SetLatestSync(peer.ID, cid.Cid) {
-	// NOOP
-	// We don't care what go-legs tells us about it's latest sync, we are using
-	// the latestSync mechanism to traverse to the last processed Ad.
+	// NOOP We don't care what dagsync tells us about it's latest sync, we are
+	// using the latestSync mechanism to traverse to the last processed Ad.
 	// This means that the only thing that sets our notion of latest sync is
 	// marking an ad as processed.
 }

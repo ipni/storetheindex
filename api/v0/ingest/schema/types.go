@@ -48,7 +48,7 @@ func (a Advertisement) ToNode() (n ipld.Node, err error) {
 func UnwrapAdvertisement(node ipld.Node) (*Advertisement, error) {
 	// When an IPLD node is loaded using `Prototype.Any` unwrap with bindnode will not work.
 	// Here we defensively check the prototype and wrap if needed, since:
-	//   - linksystem in sti is passed into other libraries, like go-legs, and
+	//   - linksystem in sti is passed into other libraries, and
 	//   - for whatever reason clients of this package may load nodes using Prototype.Any.
 	//
 	// The code in this repo, however should load nodes with appropriate prototype and never trigger
@@ -89,7 +89,7 @@ func (a Advertisement) Validate() error {
 func UnwrapEntryChunk(node ipld.Node) (*EntryChunk, error) {
 	// When an IPLD node is loaded using `Prototype.Any` unwrap with bindnode will not work.
 	// Here we defensively check the prototype and wrap if needed, since:
-	//   - linksystem in sti is passed into other libraries, like go-legs, and
+	//   - linksystem in sti is passed into other libraries, and
 	//   - for whatever reason clients of this package may load nodes using Prototype.Any.
 	//
 	// The code in this repo, however should load nodes with appropriate prototype and never trigger

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	indexer "github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/go-legs"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
+	"github.com/filecoin-project/storetheindex/dagsync"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/ipfs/go-cid"
@@ -305,7 +305,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		// processing is done. This is equivalent behaviour to ingestEntryChunk
 		// which removes an entry chunk right afrer it is processed.
 		hamtCids := []cid.Cid{syncedFirstEntryCid}
-		gatherCids := func(_ peer.ID, c cid.Cid, _ legs.SegmentSyncActions) {
+		gatherCids := func(_ peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 			hamtCids = append(hamtCids, c)
 		}
 		defer func() {
@@ -330,12 +330,12 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 				_, err = ing.sub.Sync(ctx, publisherID, nodeCid, Selectors.All, nil,
 					// Gather all the HAMT Cids so that we can remove them from
 					// datastore once finished processing.
-					legs.ScopedBlockHook(gatherCids),
+					dagsync.ScopedBlockHook(gatherCids),
 					// Disable segmented sync.
 					//
 					// TODO: see if segmented sync for HAMT makes sense and if
 					// so modify block hook action above appropriately.
-					legs.ScopedSegmentDepthLimit(-1))
+					dagsync.ScopedSegmentDepthLimit(-1))
 				if err != nil {
 					wrappedErr := fmt.Errorf("failed to sync remaining HAMT: %w", err)
 					if strings.Contains(err.Error(), "content not found") {
@@ -415,7 +415,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			nextChunkCid := chunk.Next.(cidlink.Link).Cid
 			// Traverse remaining entry chunks based on the entries selector
 			// that limits recursion depth.
-			_, err = ing.sub.Sync(ctx, publisherID, nextChunkCid, ing.entriesSel, nil, legs.ScopedBlockHook(func(p peer.ID, c cid.Cid, actions legs.SegmentSyncActions) {
+			_, err = ing.sub.Sync(ctx, publisherID, nextChunkCid, ing.entriesSel, nil, dagsync.ScopedBlockHook(func(p peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
 				chunkStart := time.Now()
 
 				// Load CID as entry chunk since the selector should only
@@ -470,7 +470,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 // through graphsync.
 //
 // When each advertisement on a chain is processed by ingestAd, that
-// advertisement's entries are synced in a separate legs.Subscriber.Sync
+// advertisement's entries are synced in a separate dagsync.Subscriber.Sync
 // operation. This function is used as a scoped block hook, and is called for
 // each block that is received.
 func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertisement, entryChunkCid cid.Cid, chunk schema.EntryChunk, log *zap.SugaredLogger) error {

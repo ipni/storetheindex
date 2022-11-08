@@ -16,10 +16,10 @@ import (
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
-	"github.com/filecoin-project/go-legs"
-	"github.com/filecoin-project/go-legs/dtsync"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/dagsync"
+	"github.com/filecoin-project/storetheindex/dagsync/dtsync"
 	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/test/typehelpers"
@@ -677,7 +677,7 @@ func TestSync(t *testing.T) {
 	defer cancel()
 
 	// The explicit sync will happen concurrently with the sycn triggered by
-	// the published advertisement.  These will be serialized in the go-legs
+	// the published advertisement. These will be serialized in the dagsync
 	// handler for the provider.
 	end, err := i.Sync(ctx, pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
@@ -763,7 +763,7 @@ func TestSyncTooLargeMetadata(t *testing.T) {
 	defer cancel()
 
 	// The explicit sync will happen concurrently with the sycn triggered by
-	// the published advertisement.  These will be serialized in the go-legs
+	// the published advertisement. These will be serialized in the dagsync
 	// handler for the provider.
 	end, err := i.Sync(ctx, pubHost.ID(), nil, 0, false)
 	require.NoError(t, err)
@@ -1045,7 +1045,8 @@ func TestMultiplePublishers(t *testing.T) {
 		return headAd2Cid.Equals(gotLatestSync)
 	}, testRetryInterval, testRetryTimeout, "Expected latest processed ad cid to be headAd2 for publisher 2.")
 
-	// Assert that getting the latest synced from legs publisher matches the latest processed.
+	// Assert that getting the latest synced from dagsync publisher matches the
+	// latest processed.
 	gotLink1 := i.sub.GetLatestSync(pubHost1.ID())
 	require.Equal(t, gotLink1, headAd1)
 	gotLink2 := i.sub.GetLatestSync(pubHost2.ID())
@@ -1313,7 +1314,7 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	}
 	return lsys
 }
-func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (legs.Publisher, ipld.LinkSystem) {
+func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (dagsync.Publisher, ipld.LinkSystem) {
 	lsys := mkProvLinkSystem(store)
 	ls, err := dtsync.NewPublisher(h, store, lsys, defaultTestIngestConfig.PubSubTopic)
 	require.NoError(t, err)
@@ -1361,11 +1362,11 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 	return nextLnk, out
 }
 
-func publishRandomIndexAndAdv(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID, crypto.PrivKey) {
+func publishRandomIndexAndAdv(t *testing.T, pub dagsync.Publisher, lsys ipld.LinkSystem, fakeSig bool, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID, crypto.PrivKey) {
 	return publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, fakeSig, testEntriesChunkCount, metadata)
 }
 
-func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID, crypto.PrivKey) {
+func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub dagsync.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID, crypto.PrivKey) {
 
 	priv, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
@@ -1401,7 +1402,7 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub legs.Publis
 	return advLnk.(cidlink.Link).Cid, mhs, p, priv
 }
 
-func publishRemovalAd(t *testing.T, pub legs.Publisher, lsys ipld.LinkSystem, fakeSig bool, providerID peer.ID, priv crypto.PrivKey) cid.Cid {
+func publishRemovalAd(t *testing.T, pub dagsync.Publisher, lsys ipld.LinkSystem, fakeSig bool, providerID peer.ID, priv crypto.PrivKey) cid.Cid {
 	ctxID := []byte("test-context-id")
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 
@@ -1475,7 +1476,7 @@ func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Dura
 }
 
 type testEnv struct {
-	publisher        legs.Publisher
+	publisher        dagsync.Publisher
 	pubHost          host.Host
 	pubStore         datastore.Batching
 	publisherPriv    crypto.PrivKey
