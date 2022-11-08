@@ -20,6 +20,7 @@ import (
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/dagsync"
 	"github.com/filecoin-project/storetheindex/dagsync/dtsync"
+	"github.com/filecoin-project/storetheindex/dagsync/p2p/protocol/head"
 	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/test/typehelpers"
@@ -1568,9 +1569,10 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 
 	if shouldConnectHosts {
 		connectHosts(t, ingesterHost, pubHost)
-	}
 
-	require.NoError(t, err)
+		err = waitForPublisher(ingesterHost, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
+		require.NoError(t, err)
+	}
 
 	te := &testEnv{
 		publisher:        pub,
@@ -1592,4 +1594,19 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 	})
 
 	return te
+}
+
+func waitForPublisher(host host.Host, topic string, peerID peer.ID) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for ctx.Err() == nil {
+		_, err := head.QueryRootCid(ctx, host, topic, peerID)
+		if err == nil {
+			// Publisher ready
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return errors.New("timeout waiting for publilsher")
 }
