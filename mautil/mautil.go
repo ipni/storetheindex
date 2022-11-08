@@ -2,6 +2,8 @@
 package mautil
 
 import (
+	"net"
+
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 )
@@ -49,4 +51,12 @@ func FilterPrivateIPs(maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
 		newAddrs = append(newAddrs, maddr)
 	}
 	return newAddrs
+}
+
+func MultiaddrStringToNetAddr(maddrStr string) (net.Addr, error) {
+	maddr, err := multiaddr.NewMultiaddr(maddrStr)
+	if err != nil {
+		return nil, err
+	}
+	return manet.ToNetAddr(maddr)
 }
