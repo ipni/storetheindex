@@ -14,15 +14,14 @@ import (
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
-	"github.com/libp2p/go-libp2p"
 	"github.com/multiformats/go-multiaddr"
 )
 
 func TestFetchLatestHead(t *testing.T) {
 	const ipPrefix = "/ip4/127.0.0.1/tcp/"
 
-	publisher, _ := libp2p.New()
-	client, _ := libp2p.New()
+	publisher := test.MkTestHost()
+	client := test.MkTestHost()
 
 	var addrs []multiaddr.Multiaddr
 	for _, a := range publisher.Addrs() {

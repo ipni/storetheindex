@@ -14,7 +14,6 @@ import (
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
-	"github.com/libp2p/go-libp2p"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
@@ -172,8 +171,7 @@ func TestAnnounceReplace(t *testing.T) {
 
 func TestAnnounce_LearnsHttpPublisherAddr(t *testing.T) {
 	// Instantiate a HTTP publisher
-	pubh, err := libp2p.New()
-	require.NoError(t, err)
+	pubh := test.MkTestHost()
 	defer pubh.Close()
 	pubds := dssync.MutexWrap(datastore.NewMapDatastore())
 	publs := test.MkLinkSystem(pubds)
@@ -194,8 +192,7 @@ func TestAnnounce_LearnsHttpPublisherAddr(t *testing.T) {
 	anotherC := anotherLink.(cidlink.Link).Cid
 
 	// Instantiate a subscriber
-	subh, err := libp2p.New()
-	require.NoError(t, err)
+	subh := test.MkTestHost()
 	defer pubh.Close()
 	subds := dssync.MutexWrap(datastore.NewMapDatastore())
 	subls := test.MkLinkSystem(subds)

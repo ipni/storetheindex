@@ -238,6 +238,7 @@ func Store(srcStore datastore.Batching, n ipld.Node) (ipld.Link, error) {
 }
 
 func MkTestHost(options ...libp2p.Option) host.Host {
+	options = append(options, libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
 	h, _ := libp2p.New(options...)
 	return h
 }

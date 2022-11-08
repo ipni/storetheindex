@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/filecoin-project/storetheindex/dagsync/dtsync"
+	"github.com/filecoin-project/storetheindex/dagsync/test"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
@@ -14,7 +15,6 @@ import (
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
-	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -60,15 +60,13 @@ func TestDTSync_CallsBlockHookWhenCIDsAreFullyFoundLocally(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start a publisher to sync from.
-	pubh, err := libp2p.New()
-	require.NoError(t, err)
+	pubh := test.MkTestHost()
 	pub, err := dtsync.NewPublisher(pubh, dssync.MutexWrap(datastore.NewMapDatastore()), ls, topic)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, pub.Close()) })
 
 	// Set up a syncer.
-	subh, err := libp2p.New()
-	require.NoError(t, err)
+	subh := test.MkTestHost()
 	subh.Peerstore().AddAddrs(pubh.ID(), pubh.Addrs(), peerstore.PermanentAddrTTL)
 	var gotCids []cid.Cid
 	testHook := func(id peer.ID, cid cid.Cid) {
@@ -142,8 +140,7 @@ func TestDTSync_CallsBlockHookWhenCIDsArePartiallyFoundLocally(t *testing.T) {
 		}
 
 		// Start a publisher to sync from.
-		pubh, err = libp2p.New()
-		require.NoError(t, err)
+		pubh = test.MkTestHost()
 		pub, err := dtsync.NewPublisher(pubh, dssync.MutexWrap(datastore.NewMapDatastore()), publs, topic)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, pub.Close()) })
@@ -153,8 +150,7 @@ func TestDTSync_CallsBlockHookWhenCIDsArePartiallyFoundLocally(t *testing.T) {
 	}
 
 	// Set up a syncer.
-	subh, err := libp2p.New()
-	require.NoError(t, err)
+	subh := test.MkTestHost()
 	subh.Peerstore().AddAddrs(pubh.ID(), pubh.Addrs(), peerstore.PermanentAddrTTL)
 	var gotCids []cid.Cid
 	testHook := func(id peer.ID, cid cid.Cid) {
@@ -166,7 +162,7 @@ func TestDTSync_CallsBlockHookWhenCIDsArePartiallyFoundLocally(t *testing.T) {
 	subls.SetWriteStorage(substore)
 
 	// Sanity check that syncer linksystem has l1 and l3 but not l2.
-	_, err = subls.Load(ipld.LinkContext{Ctx: ctx}, l1, basicnode.Prototype.Any)
+	_, err := subls.Load(ipld.LinkContext{Ctx: ctx}, l1, basicnode.Prototype.Any)
 	require.NoError(t, err)
 	_, err = subls.Load(ipld.LinkContext{Ctx: ctx}, l3, basicnode.Prototype.Any)
 	require.NoError(t, err)

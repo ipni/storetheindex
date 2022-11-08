@@ -3,15 +3,14 @@ package dtsync
 import (
 	"testing"
 
+	"github.com/filecoin-project/storetheindex/dagsync/test"
 	"github.com/ipfs/go-datastore"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
-	"github.com/libp2p/go-libp2p"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_registerVoucherHandlesAlreadyRegisteredGracefully(t *testing.T) {
-	h, err := libp2p.New()
-	require.NoError(t, err)
+	h := test.MkTestHost()
 
 	dt, _, close, err := makeDataTransfer(h, datastore.NewMapDatastore(), cidlink.DefaultLinkSystem(), nil)
 	require.NoError(t, err)
