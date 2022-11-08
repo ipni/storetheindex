@@ -29,19 +29,24 @@ const (
 )
 
 func WaitForMeshWithMessage(t *testing.T, topic string, hosts ...host.Host) []*pubsub.Topic {
-	retries := 2
+	retries := 5
 	for {
-		topics := waitForMeshWithMessage(t, retries, topic, hosts...)
+		topics := waitForMeshWithMessage(t, topic, hosts...)
 		if topics != nil {
 			return topics
 		}
 		retries--
+		msg := "Mesh failed to startup"
+		if retries == 0 {
+			t.Fatalf(msg)
+		}
+		t.Log(msg + " retrying")
 	}
 }
 
 // WaitForMeshWithMessage sets up a gossipsub network and sends a test message.
 // Blocks until all other hosts see the first host's message.
-func waitForMeshWithMessage(t *testing.T, retries int, topic string, hosts ...host.Host) []*pubsub.Topic {
+func waitForMeshWithMessage(t *testing.T, topic string, hosts ...host.Host) []*pubsub.Topic {
 	now := time.Now()
 	meshFormed := false
 	defer func() {
@@ -150,13 +155,7 @@ func waitForMeshWithMessage(t *testing.T, retries int, topic string, hosts ...ho
 			meshFormed = true
 			return topics
 		case <-timeout.C:
-			msg := "Mesh failed to startup"
-			if retries != 0 {
-				t.Log(msg + " retrying")
-				return nil
-			} else {
-				t.Fatalf(msg)
-			}
+			return nil
 		case <-pubTimeout.C:
 			err := tpc.Publish(context.Background(), []byte("hi"))
 			if err != nil {
