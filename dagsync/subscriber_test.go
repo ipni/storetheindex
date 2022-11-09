@@ -50,9 +50,7 @@ func TestScopedBlockHook(t *testing.T) {
 			pubHost := test.MkTestHost()
 			lsys := test.MkLinkSystem(ds)
 			pub, err := dtsync.NewPublisher(pubHost, ds, lsys, testTopic)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			head := ll.Build(t, lsys)
 			if head == nil {
@@ -61,29 +59,23 @@ func TestScopedBlockHook(t *testing.T) {
 			}
 
 			err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
+			subHost := test.MkTestHost()
 			subDS := dssync.MutexWrap(datastore.NewMapDatastore())
 			subLsys := test.MkLinkSystem(subDS)
-			subHost := test.MkTestHost()
 
 			var calledGeneralBlockHookTimes int64
 			sub, err := dagsync.NewSubscriber(subHost, subDS, subLsys, testTopic, nil, dagsync.BlockHook(func(i peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 				atomic.AddInt64(&calledGeneralBlockHookTimes, 1)
 			}))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			var calledScopedBlockHookTimes int64
 			_, err = sub.Sync(context.Background(), pubHost.ID(), cid.Undef, nil, pubHost.Addrs()[0], dagsync.ScopedBlockHook(func(i peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 				atomic.AddInt64(&calledScopedBlockHookTimes, 1)
 			}))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			if atomic.LoadInt64(&calledGeneralBlockHookTimes) != 0 {
 				t.Fatalf("General block hook should not have been called when scoped block hook is set")
@@ -98,13 +90,10 @@ func TestScopedBlockHook(t *testing.T) {
 			}.Build(t, lsys)
 
 			err = pub.UpdateRoot(context.Background(), anotherLL.(cidlink.Link).Cid)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
+
 			_, err = sub.Sync(context.Background(), pubHost.ID(), cid.Undef, nil, pubHost.Addrs()[0])
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			if atomic.LoadInt64(&calledGeneralBlockHookTimes) != int64(ll.Length) {
 				t.Fatalf("General hook should have been called only in secod sync")
@@ -114,9 +103,7 @@ func TestScopedBlockHook(t *testing.T) {
 	}, &quick.Config{
 		MaxCount: 3,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 }
 
 func TestSyncedCidsReturned(t *testing.T) {
@@ -126,9 +113,7 @@ func TestSyncedCidsReturned(t *testing.T) {
 			pubHost := test.MkTestHost()
 			lsys := test.MkLinkSystem(ds)
 			pub, err := dtsync.NewPublisher(pubHost, ds, lsys, testTopic)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			head := ll.Build(t, lsys)
 			if head == nil {
@@ -137,25 +122,19 @@ func TestSyncedCidsReturned(t *testing.T) {
 			}
 
 			err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
+			subHost := test.MkTestHost()
 			subDS := dssync.MutexWrap(datastore.NewMapDatastore())
 			subLsys := test.MkLinkSystem(subDS)
-			subHost := test.MkTestHost()
 
 			sub, err := dagsync.NewSubscriber(subHost, subDS, subLsys, testTopic, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			onFinished, cancel := sub.OnSyncFinished()
 			defer cancel()
 			_, err = sub.Sync(context.Background(), pubHost.ID(), cid.Undef, nil, pubHost.Addrs()[0])
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			finishedVal := <-onFinished
 			if len(finishedVal.SyncedCids) != int(ll.Length) {
@@ -169,9 +148,7 @@ func TestSyncedCidsReturned(t *testing.T) {
 	}, &quick.Config{
 		MaxCount: 3,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 }
 
 func TestConcurrentSync(t *testing.T) {
@@ -187,14 +164,14 @@ func TestConcurrentSync(t *testing.T) {
 			// limit to at most 10 concurrent publishers
 			publisherCount := int(publisherCount)%10 + 1
 
+			subHost := test.MkTestHost()
+
 			for i := 0; i < publisherCount; i++ {
 				ds := dssync.MutexWrap(datastore.NewMapDatastore())
 				pubHost := test.MkTestHost()
 				lsys := test.MkLinkSystem(ds)
 				pub, err := dtsync.NewPublisher(pubHost, ds, lsys, testTopic)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
 				publishers = append(publishers, pubMeta{pub, pubHost})
 
 				head := ll.Build(t, lsys)
@@ -204,22 +181,17 @@ func TestConcurrentSync(t *testing.T) {
 				}
 
 				err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
 			}
 
 			subDS := dssync.MutexWrap(datastore.NewMapDatastore())
 			subLsys := test.MkLinkSystem(subDS)
-			subHost := test.MkTestHost()
 
 			var calledTimes int64
 			sub, err := dagsync.NewSubscriber(subHost, subDS, subLsys, testTopic, nil, dagsync.BlockHook(func(i peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 				atomic.AddInt64(&calledTimes, 1)
 			}))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			wg := sync.WaitGroup{}
 			// Now sync again. We shouldn't call the hook because we persisted our latestSync
@@ -256,9 +228,7 @@ func TestConcurrentSync(t *testing.T) {
 	}, &quick.Config{
 		MaxCount: 3,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 }
 
 func TestSync(t *testing.T) {
@@ -441,15 +411,11 @@ func TestRoundTrip(t *testing.T) {
 	topics := test.WaitForMeshWithMessage(t, "testTopic", srcHost1, srcHost2, dstHost)
 
 	pub1, err := dtsync.NewPublisher(srcHost1, srcStore1, srcLnkS1, "", dtsync.Topic(topics[0]))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer pub1.Close()
 
 	pub2, err := dtsync.NewPublisher(srcHost2, srcStore2, srcLnkS2, "", dtsync.Topic(topics[1]))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer pub2.Close()
 
 	blocksSeenByHook := make(map[cid.Cid]struct{})
@@ -459,9 +425,7 @@ func TestRoundTrip(t *testing.T) {
 	}
 
 	sub, err := dagsync.NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil, dagsync.Topic(topics[2]), dagsync.BlockHook(blockHook))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer sub.Close()
 
 	watcher1, cncl1 := sub.OnSyncFinished()
@@ -472,26 +436,20 @@ func TestRoundTrip(t *testing.T) {
 	// Update root on publisher one with item
 	itm1 := basicnode.NewString("hello world")
 	lnk1, err := test.Store(srcStore1, itm1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// Update root on publisher one with item
 	itm2 := basicnode.NewString("hello world 2")
 	lnk2, err := test.Store(srcStore2, itm2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if err = pub1.UpdateRoot(context.Background(), lnk1.(cidlink.Link).Cid); err != nil {
-		t.Fatal(err)
-	}
+	err = pub1.UpdateRoot(context.Background(), lnk1.(cidlink.Link).Cid)
+	require.NoError(t, err)
 	t.Log("Publish 1:", lnk1.(cidlink.Link).Cid)
 	waitForSync(t, "Watcher 1", dstStore, lnk1.(cidlink.Link), watcher1)
 	waitForSync(t, "Watcher 2", dstStore, lnk1.(cidlink.Link), watcher2)
 
-	if err = pub2.UpdateRoot(context.Background(), lnk2.(cidlink.Link).Cid); err != nil {
-		t.Fatal(err)
-	}
+	err = pub2.UpdateRoot(context.Background(), lnk2.(cidlink.Link).Cid)
+	require.NoError(t, err)
 	t.Log("Publish 2:", lnk2.(cidlink.Link).Cid)
 	waitForSync(t, "Watcher 1", dstStore, lnk2.(cidlink.Link), watcher1)
 	waitForSync(t, "Watcher 2", dstStore, lnk2.(cidlink.Link), watcher2)
@@ -500,13 +458,10 @@ func TestRoundTrip(t *testing.T) {
 		t.Fatal("expected 2 blocks seen by hook, got", len(blocksSeenByHook))
 	}
 	_, ok := blocksSeenByHook[lnk1.(cidlink.Link).Cid]
-	if !ok {
-		t.Fatal("hook did not see link1")
-	}
+	require.True(t, ok, "hook did not see link1")
+
 	_, ok = blocksSeenByHook[lnk2.(cidlink.Link).Cid]
-	if !ok {
-		t.Fatal("hook did not see link2")
-	}
+	require.True(t, ok, "hook did not see link2")
 }
 
 func TestHttpPeerAddrPeerstore(t *testing.T) {
@@ -554,7 +509,6 @@ func TestHttpPeerAddrPeerstore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 }
 
 func TestRateLimiter(t *testing.T) {
@@ -815,9 +769,7 @@ func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostS
 	if b.IsHttp {
 		var id peer.ID
 		id, err = peer.IDFromPrivateKey(pubSys.privKey)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		httpPub, err := httpsync.NewPublisher("127.0.0.1:0", pubSys.lsys, id, pubSys.privKey)
 		require.NoError(t, err)
 		pubAddr = httpPub.Address()
@@ -826,13 +778,9 @@ func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostS
 		pub, err = dtsync.NewPublisher(pubSys.host, pubSys.ds, pubSys.lsys, topicName)
 		pubAddr = pubSys.host.Addrs()[0]
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	sub, err := dagsync.NewSubscriber(subSys.host, subSys.ds, subSys.lsys, topicName, nil, subOpts...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return pubAddr, pub, sub
 

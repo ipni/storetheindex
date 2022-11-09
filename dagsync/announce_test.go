@@ -36,16 +36,15 @@ func TestAnnounceReplace(t *testing.T) {
 	dstLnkS := test.MkLinkSystem(dstStore)
 
 	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer pub.Close()
 
 	sub, err := NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer sub.Close()
+
+	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
+	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
@@ -54,17 +53,14 @@ func TestAnnounceReplace(t *testing.T) {
 	chainLnks := test.MkChain(srcLnkS, true)
 
 	hnd, err := sub.getOrCreateHandler(srcHost.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	// Lock mutex inside sync handler to simulate publisher blocked in graphsync.
 	hnd.syncMutex.Lock()
 
 	firstCid := chainLnks[2].(cidlink.Link).Cid
 	err = pub.SetRoot(context.Background(), firstCid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Have the subscriber receive an announce.  This is the same as if it was
 	// published by the publisher without having to wait for it to arrive.
@@ -94,23 +90,18 @@ func TestAnnounceReplace(t *testing.T) {
 	// Announce two more times.
 	c := chainLnks[1].(cidlink.Link).Cid
 	err = pub.SetRoot(context.Background(), c)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	err = sub.Announce(context.Background(), c, srcHost.ID(), srcHost.Addrs())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	t.Log("Sent announce for second CID", c)
 	lastCid := chainLnks[0].(cidlink.Link).Cid
 	err = pub.SetRoot(context.Background(), lastCid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	err = sub.Announce(context.Background(), lastCid, srcHost.ID(), srcHost.Addrs())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Log("Sent announce for last CID", lastCid)
 
 	// Check that the pending CID gets set to the last one announced.
@@ -258,6 +249,9 @@ func TestAnnounceRepublish(t *testing.T) {
 	sub2, err := NewSubscriber(dstHost2, dstStore2, dstLnkS2, testTopic, nil, Topic(topics[1]))
 	require.NoError(t, err)
 	defer sub2.Close()
+
+	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
+	require.NoError(t, err)
 
 	watcher2, cncl := sub2.OnSyncFinished()
 	defer cncl()

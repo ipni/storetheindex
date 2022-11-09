@@ -20,6 +20,7 @@ import (
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -55,6 +56,11 @@ func initPubSub(t *testing.T, srcStore, dstStore datastore.Batching) (host.Host,
 	}
 
 	if err := srcHost.Connect(context.Background(), dstHost.Peerstore().PeerInfo(dstHost.ID())); err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
+	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 
@@ -156,9 +162,7 @@ func TestPublisherRejectsPeer(t *testing.T) {
 	}
 
 	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic, dtsync.Topic(topics[0]), dtsync.AllowPeer(allowPeer))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer pub.Close()
 
 	srcHost.Peerstore().AddAddrs(dstHost.ID(), dstHost.Addrs(), time.Hour)
@@ -166,14 +170,14 @@ func TestPublisherRejectsPeer(t *testing.T) {
 	dstLnkS := test.MkLinkSystem(dstStore)
 
 	sub, err := dagsync.NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil, dagsync.Topic(topics[1]))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer sub.Close()
 
-	if err := srcHost.Connect(context.Background(), dstHost.Peerstore().PeerInfo(dstHost.ID())); err != nil {
-		t.Fatal(err)
-	}
+	err = srcHost.Connect(context.Background(), dstHost.Peerstore().PeerInfo(dstHost.ID()))
+	require.NoError(t, err)
+
+	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
+	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
@@ -182,9 +186,7 @@ func TestPublisherRejectsPeer(t *testing.T) {
 
 	// Update root with item
 	err = pub.UpdateRoot(context.Background(), c)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	select {
 	case <-time.After(updateTimeout):
@@ -199,9 +201,7 @@ func TestPublisherRejectsPeer(t *testing.T) {
 
 	// Update root with item
 	err = pub.UpdateRoot(context.Background(), c)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	select {
 	case <-time.After(updateTimeout):

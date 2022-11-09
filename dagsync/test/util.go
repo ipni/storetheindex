@@ -3,6 +3,7 @@ package test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/filecoin-project/storetheindex/dagsync/p2p/protocol/head"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipld/go-ipld-prime"
@@ -284,4 +286,20 @@ func MkChain(lsys ipld.LinkSystem, full bool) []ipld.Link {
 		out[0] = headLnk
 	}
 	return out
+}
+
+func WaitForPublisher(host host.Host, topic string, peerID peer.ID) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for ctx.Err() == nil {
+		_, err := head.QueryRootCid(ctx, host, topic, peerID)
+		if err == nil {
+			// Publisher ready
+			return nil
+		}
+		fmt.Println("---> err:", err)
+		time.Sleep(100 * time.Millisecond)
+	}
+	return errors.New("timeout waiting for publilsher")
 }

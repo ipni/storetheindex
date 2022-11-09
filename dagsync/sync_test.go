@@ -46,6 +46,11 @@ func TestLatestSyncSuccess(t *testing.T) {
 	}
 	defer sub.Close()
 
+	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
 
@@ -106,6 +111,11 @@ func TestSyncFn(t *testing.T) {
 
 	// Store the whole chain in source node
 	chainLnks := test.MkChain(srcLnkS, true)
+
+	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	watcher, cancelWatcher := sub.OnSyncFinished()
 	defer cancelWatcher()
@@ -239,6 +249,11 @@ func TestPartialSync(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
 
@@ -301,6 +316,11 @@ func TestStepByStepSync(t *testing.T) {
 	}
 	defer sub.Close()
 
+	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
 
@@ -359,6 +379,12 @@ func TestLatestSyncFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
 
@@ -415,6 +441,11 @@ func TestAnnounce(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sub.Close()
+
+	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
