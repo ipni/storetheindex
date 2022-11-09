@@ -4,9 +4,8 @@ import (
 	"time"
 )
 
-// Discovery holds addresses of peers to from which to receive index
-// advertisements, which peers to allow and block, and time related settings
-// for provider discovery
+// Discovery configures policy and polling settings that determines how
+// information about available index data is discovered.
 type Discovery struct {
 	// FilterIPs, when true, removes any private, loopback, or unspecified IP
 	// addresses from provider and publisher addresses.

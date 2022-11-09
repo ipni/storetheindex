@@ -36,32 +36,37 @@ var providerFlag = &cli.StringFlag{
 	Required: true,
 }
 
+var listenAdminFlag = &cli.StringFlag{
+	Name:     "listen-admin",
+	Usage:    "Admin HTTP API listen address or 'none' to disable, overrides config",
+	EnvVars:  []string{"STORETHEINDEX_LISTEN_ADMIN"},
+	Required: false,
+}
+var listenFinderFlag = &cli.StringFlag{
+	Name:     "listen-finder",
+	Usage:    "Finder HTTP API listen address or 'none' to disable, overrides config",
+	EnvVars:  []string{"STORETHEINDEX_LISTEN_FINDER"},
+	Required: false,
+}
+var listenIngestFlag = &cli.StringFlag{
+	Name:     "listen-ingest",
+	Usage:    "Ingestion HTTP API listen address or 'none' to disable, overrides config",
+	EnvVars:  []string{"STORETHEINDEX_LISTEN_INGEST"},
+	Required: false,
+}
+var listenP2PFlag = &cli.StringFlag{
+	Name:     "listen-p2p",
+	Usage:    "P2P listen address or 'none' to disable, overrides config",
+	EnvVars:  []string{"STORETHEINDEX_LISTEN_P2P"},
+	Required: false,
+}
+
 var daemonFlags = []cli.Flag{
 	cacheSizeFlag,
-	&cli.BoolFlag{
-		Name:     "noadmin",
-		Usage:    "Disable admin server",
-		Value:    false,
-		Required: false,
-	},
-	&cli.BoolFlag{
-		Name:     "noingest",
-		Usage:    "Disable ingest server (register, discover, single item ingest)",
-		Value:    false,
-		Required: false,
-	},
-	&cli.BoolFlag{
-		Name:     "nofinder",
-		Usage:    "Disable finder server",
-		Value:    false,
-		Required: false,
-	},
-	&cli.BoolFlag{
-		Name:     "nop2p",
-		Usage:    "Disable libp2p hosting indexer",
-		Value:    false,
-		Required: false,
-	},
+	listenAdminFlag,
+	listenFinderFlag,
+	listenIngestFlag,
+	listenP2PFlag,
 	&cli.BoolFlag{
 		Name:     "watch-config",
 		Usage:    "Watch for changes to config file and automatically reload",
@@ -155,35 +160,15 @@ var adminSyncFlags = []cli.Flag{
 
 var initFlags = []cli.Flag{
 	cacheSizeFlag,
+	listenAdminFlag,
+	listenFinderFlag,
+	listenIngestFlag,
+	listenP2PFlag,
 	&cli.StringFlag{
 		Name:     "store",
-		Usage:    "Type of value store (sth, pogreb). Default is \"sth\"",
+		Usage:    "Type of value store (pebble, sth). Default is \"pebble\"",
 		Aliases:  []string{"s"},
 		EnvVars:  []string{"STORETHEINDEX_VALUE_STORE"},
-		Required: false,
-	},
-	&cli.StringFlag{
-		Name:     "listen-admin",
-		Usage:    "Admin HTTP API listen address",
-		EnvVars:  []string{"STORETHEINDEX_LISTEN_ADMIN"},
-		Required: false,
-	},
-	&cli.StringFlag{
-		Name:     "listen-finder",
-		Usage:    "Finder HTTP API listen address",
-		EnvVars:  []string{"STORETHEINDEX_LISTEN_FINDER"},
-		Required: false,
-	},
-	&cli.StringFlag{
-		Name:     "listen-ingest",
-		Usage:    "Ingestion and discovery HTTP API listen address",
-		EnvVars:  []string{"STORETHEINDEX_LISTEN_INGEST"},
-		Required: false,
-	},
-	&cli.StringFlag{
-		Name:     "lotus-gateway",
-		Usage:    "Address for a lotus gateway to collect chain information",
-		EnvVars:  []string{"STORETHEINDEX_LOTUS_GATEWAY"},
 		Required: false,
 	},
 	&cli.BoolFlag{

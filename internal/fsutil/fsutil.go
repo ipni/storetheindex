@@ -1,4 +1,4 @@
-package command
+package fsutil
 
 import (
 	"errors"
@@ -9,9 +9,9 @@ import (
 	"github.com/mitchellh/go-homedir"
 )
 
-// checkWritable checks the the directory is writable.  If the directory does
+// DirWritable checks the the directory is writable.  If the directory does
 // not exist it is created with writable permission.
-func checkWritable(dir string) error {
+func DirWritable(dir string) error {
 	if dir == "" {
 		return errors.New("cannot check empty directory")
 	}
@@ -31,7 +31,7 @@ func checkWritable(dir string) error {
 			if os.IsPermission(err) {
 				return fmt.Errorf("%s is not writeable by the current user", dir)
 			}
-			return fmt.Errorf("unexpected error while checking writeablility of repo root: %s", err)
+			return fmt.Errorf("unexpected error while checking directory writeablility: %w", err)
 		}
 		fi.Close()
 		return os.Remove(testfile)
@@ -49,8 +49,8 @@ func checkWritable(dir string) error {
 	return err
 }
 
-// fileExists return true if the file exists
-func fileExists(filename string) bool {
+// FileExists return true if the file exists
+func FileExists(filename string) bool {
 	fi, err := os.Lstat(filename)
 	if fi != nil || (err != nil && !os.IsNotExist(err)) {
 		return true

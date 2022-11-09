@@ -21,9 +21,11 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/counter"
+	"github.com/filecoin-project/storetheindex/internal/fsutil"
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/lotus"
 	"github.com/filecoin-project/storetheindex/internal/registry"
+	"github.com/filecoin-project/storetheindex/mautil"
 	httpadminserver "github.com/filecoin-project/storetheindex/server/admin/http"
 	httpfinderserver "github.com/filecoin-project/storetheindex/server/finder/http"
 	p2pfinderserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
@@ -38,16 +40,15 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/multiformats/go-multiaddr"
-	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/urfave/cli/v2"
 )
 
 // Recognized valuestore type names.
 const (
 	vstoreMemory       = "memory"
+	vstorePebble       = "pebble"
 	vstorePogreb       = "pogreb"
 	vstoreStorethehash = "sth"
-	vstorePebble       = "pebble"
 )
 
 var log = logging.Logger("indexer")
@@ -122,7 +123,7 @@ func daemonCommand(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	err = checkWritable(dataStorePath)
+	err = fsutil.DirWritable(dataStorePath)
 	if err != nil {
 		return err
 	}
@@ -152,16 +153,16 @@ func daemonCommand(cctx *cli.Context) error {
 
 	// Create finder HTTP server
 	var finderSvr *httpfinderserver.Server
-	if cfg.Addresses.Finder != "none" && !cctx.Bool("nofinder") {
-		maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Finder)
+	finderAddr := cfg.Addresses.Finder
+	if cctx.String("listen-finder") != "" {
+		finderAddr = cctx.String("listen-finder")
+	}
+	if finderAddr != "" && finderAddr != "none" {
+		finderNetAddr, err := mautil.MultiaddrStringToNetAddr(finderAddr)
 		if err != nil {
-			return fmt.Errorf("bad finder address in config %s: %s", cfg.Addresses.Finder, err)
+			return fmt.Errorf("bad finder address %s: %s", finderAddr, err)
 		}
-		finderAddr, err := manet.ToNetAddr(maddr)
-		if err != nil {
-			return err
-		}
-		finderSvr, err = httpfinderserver.New(finderAddr.String(), indexerCore, reg,
+		finderSvr, err = httpfinderserver.New(finderNetAddr.String(), indexerCore, reg,
 			httpfinderserver.ReadTimeout(time.Duration(cfg.Finder.ApiReadTimeout)),
 			httpfinderserver.WriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
 			httpfinderserver.MaxConnections(cfg.Finder.MaxConnections),
@@ -183,16 +184,21 @@ func daemonCommand(cctx *cli.Context) error {
 	// Create libp2p host and servers
 	ctx, cancel := context.WithCancel(cctx.Context)
 	defer cancel()
-	if cfg.Addresses.P2PAddr != "none" && !cctx.Bool("nop2p") {
+
+	p2pAddr := cfg.Addresses.P2PAddr
+	if cctx.String("listen-p2p") != "" {
+		p2pAddr = cctx.String("listen-p2p")
+	}
+	if p2pAddr != "" && p2pAddr != "none" {
 		cancelP2pServers = cancel
 
 		peerID, privKey, err := cfg.Identity.Decode()
 		if err != nil {
 			return err
 		}
-		p2pmaddr, err := multiaddr.NewMultiaddr(cfg.Addresses.P2PAddr)
+		p2pmaddr, err := multiaddr.NewMultiaddr(p2pAddr)
 		if err != nil {
-			return fmt.Errorf("bad p2p address in config %s: %s", cfg.Addresses.P2PAddr, err)
+			return fmt.Errorf("bad p2p address %s: %s", p2pAddr, err)
 		}
 		p2pOpts := []libp2p.Option{
 			// Use the keypair generated during init
@@ -250,20 +256,20 @@ func daemonCommand(cctx *cli.Context) error {
 
 	// Create ingest HTTP server
 	var ingestSvr *httpingestserver.Server
-	if cfg.Addresses.Ingest != "none" && !cctx.Bool("noingest") {
-		maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Ingest)
+	ingestAddr := cfg.Addresses.Ingest
+	if cctx.String("listen-ingest") != "" {
+		ingestAddr = cctx.String("listen-ingest")
+	}
+	if ingestAddr != "" && ingestAddr != "none" {
+		ingestNetAddr, err := mautil.MultiaddrStringToNetAddr(ingestAddr)
 		if err != nil {
-			return fmt.Errorf("bad ingest address in config %s: %s", cfg.Addresses.Ingest, err)
+			return fmt.Errorf("bad ingest address %s: %s", ingestAddr, err)
 		}
-		ingestAddr, err := manet.ToNetAddr(maddr)
+		ingestSvr, err = httpingestserver.New(ingestNetAddr.String(), indexerCore, ingester, reg)
 		if err != nil {
 			return err
 		}
-		ingestSvr, err = httpingestserver.New(ingestAddr.String(), indexerCore, ingester, reg)
-		if err != nil {
-			return err
-		}
-		if cfg.Addresses.P2PAddr != "none" && !cctx.Bool("nop2p") {
+		if p2pHost != nil {
 			p2pingestserver.New(ctx, p2pHost, indexerCore, ingester, reg)
 		}
 	}
@@ -272,16 +278,16 @@ func daemonCommand(cctx *cli.Context) error {
 
 	// Create admin HTTP server
 	var adminSvr *httpadminserver.Server
-	if cfg.Addresses.Admin != "" && !cctx.Bool("noadmin") {
-		maddr, err := multiaddr.NewMultiaddr(cfg.Addresses.Admin)
+	adminAddr := cfg.Addresses.Admin
+	if cctx.String("listen-admin") != "" {
+		adminAddr = cctx.String("listen-admin")
+	}
+	if adminAddr != "" && adminAddr != "none" {
+		adminNetAddr, err := mautil.MultiaddrStringToNetAddr(adminAddr)
 		if err != nil {
-			return fmt.Errorf("bad admin address in config %s: %s", cfg.Addresses.Admin, err)
+			return fmt.Errorf("bad admin address %s: %s", adminAddr, err)
 		}
-		adminAddr, err := manet.ToNetAddr(maddr)
-		if err != nil {
-			return err
-		}
-		adminSvr, err = httpadminserver.New(adminAddr.String(), indexerCore, ingester, reg, reloadErrsChan)
+		adminSvr, err = httpadminserver.New(adminNetAddr.String(), indexerCore, ingester, reg, reloadErrsChan)
 		if err != nil {
 			return err
 		}
@@ -498,7 +504,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 	}
 	log.Infow("Valuestore initializing/opening", "type", cfgIndexer.ValueStoreType, "path", dir)
 
-	if err = checkWritable(dir); err != nil {
+	if err = fsutil.DirWritable(dir); err != nil {
 		return nil, 0, err
 	}
 

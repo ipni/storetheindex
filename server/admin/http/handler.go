@@ -70,6 +70,11 @@ func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
+	if h.ingester == nil {
+		log.Warn("sync not available, ingester disabled")
+		http.Error(w, "ingester disabled", http.StatusServiceUnavailable)
+		return
+	}
 	vars := mux.Vars(r)
 	peerID, ok := decodePeerID(vars["peer"], w)
 	if !ok {

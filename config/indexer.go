@@ -69,7 +69,7 @@ func NewIndexer() Indexer {
 		GCTimeLimit:         Duration(5 * time.Minute),
 		ShutdownTimeout:     0,
 		ValueStoreDir:       "valuestore",
-		ValueStoreType:      "sth",
+		ValueStoreType:      "pebble",
 		STHBits:             24,
 		STHBurstRate:        8 * 1024 * 1024,
 		STHFileCacheSize:    512,
