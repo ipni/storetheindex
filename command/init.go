@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/fsutil"
+	"github.com/filecoin-project/storetheindex/fsutil"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 )

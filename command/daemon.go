@@ -20,8 +20,8 @@ import (
 	"github.com/filecoin-project/go-indexer-core/store/pogreb"
 	"github.com/filecoin-project/go-indexer-core/store/storethehash"
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/fsutil"
 	"github.com/filecoin-project/storetheindex/internal/counter"
-	"github.com/filecoin-project/storetheindex/internal/fsutil"
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/lotus"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -341,7 +341,7 @@ func daemonCommand(cctx *cli.Context) error {
 	var timeChan <-chan time.Time
 
 	if cfgPath != "" {
-		modTime, _, statErr = fileChanged(cfgPath, modTime)
+		modTime, _, statErr = fsutil.FileChanged(cfgPath, modTime)
 		if statErr != nil {
 			log.Error(err)
 		}
@@ -401,7 +401,7 @@ func daemonCommand(cctx *cli.Context) error {
 			}
 		case <-timeChan:
 			var changed bool
-			modTime, changed, err = fileChanged(cfgPath, modTime)
+			modTime, changed, err = fsutil.FileChanged(cfgPath, modTime)
 			if err != nil {
 				if statErr == nil {
 					log.Errorw("Cannot stat config file", "err", err, "path", cfgPath)
@@ -482,17 +482,6 @@ func daemonCommand(cctx *cli.Context) error {
 
 	log.Info("Indexer stopped")
 	return finalErr
-}
-
-func fileChanged(filePath string, modTime time.Time) (time.Time, bool, error) {
-	fi, err := os.Stat(filePath)
-	if err != nil {
-		return modTime, false, fmt.Errorf("cannot stat config file: %w", err)
-	}
-	if fi.ModTime() != modTime {
-		return fi.ModTime(), true, nil
-	}
-	return modTime, false, nil
 }
 
 func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.Interface, int, error) {
