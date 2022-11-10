@@ -73,6 +73,8 @@ type ProviderInfo struct {
 	Publisher peer.ID `json:",omitempty"`
 	// PublisherAddr contains the last seen publisher multiaddr.
 	PublisherAddr multiaddr.Multiaddr `json:",omitempty"`
+	// ExtendedProviders registered for that provider
+	ExtendedProviders *ExtendedProviders `json:",omitempty"`
 
 	// lastContactTime is the last time the publisher contacted the
 	// indexer. This is not persisted, so that the time since last contact is
@@ -84,6 +86,40 @@ type ProviderInfo struct {
 	deleted bool
 	// inactive means polling the publisher with no response yet.
 	inactive bool
+}
+
+// ExtendedProviderInfo is an immutable data structure that holds infromation about
+// an extended provider.
+type ExtendedProviderInfo struct {
+	// PeerID contains a peer.ID of the extended provider
+	PeerID peer.ID
+	// Metadata contains a metadata override for this provider within the extended provider context.
+	// If extended provider's metadata hasn't been specified - the main provider's
+	// metadata is going to be used instead.
+	Metadata []byte `json:",omitempty"`
+	// Addrs contains advertised multiaddresses for this extended provider
+	Addrs []multiaddr.Multiaddr
+}
+
+// ContextualExtendedProviders holds infromation about a context-level extended providers.
+// These can either replace or compliment (union) the chain-level extended providers, which is driven
+// by the Override flag.
+type ContextualExtendedProviders struct {
+	// Providers contains a list of context-level extended providers
+	Providers []ExtendedProviderInfo
+	// Override defines whether chain-level extended providers should be used for
+	// this ContextID. If true, then the chain-level extended providers are going to be ignored.
+	Override bool
+	// ContextID deifnes the context ID that the extended providers have been published for
+	ContextID []byte `json:",omitempty"`
+}
+
+// ExtendedProviders contains chain-level and context-level extended provider sets
+type ExtendedProviders struct {
+	// Providers contains a chain-level set of extended providers
+	Providers []ExtendedProviderInfo `json:",omitempty"`
+	// ContextualProviders contains a context-level sets of extended providers
+	ContextualProviders map[string]ContextualExtendedProviders `json:",omitempty"`
 }
 
 type polling struct {
@@ -142,6 +178,45 @@ func (p *ProviderInfo) UnmarshalJSON(data []byte) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (p *ExtendedProviderInfo) MarshalJSON() ([]byte, error) {
+	addrs := make([]string, len(p.Addrs))
+	for i, addr := range p.Addrs {
+		addrs[i] = addr.String()
+	}
+	type Alias ExtendedProviderInfo
+	return json.Marshal(&struct {
+		Addrs []string `json:",omitempty"`
+		*Alias
+	}{
+		Addrs: addrs,
+		Alias: (*Alias)(p),
+	})
+}
+
+func (p *ExtendedProviderInfo) UnmarshalJSON(data []byte) error {
+	type Alias ExtendedProviderInfo
+	aux := &struct {
+		Addrs []string `json:",omitempty"`
+		*Alias
+	}{
+		Alias: (*Alias)(p),
+	}
+	err := json.Unmarshal(data, &aux)
+	if err != nil {
+		return err
+	}
+	maddrs := make([]multiaddr.Multiaddr, len(aux.Addrs))
+	for i, addr := range aux.Addrs {
+		maddr, err := multiaddr.NewMultiaddr(addr)
+		if err != nil {
+			return err
+		}
+		maddrs[i] = maddr
+	}
+	p.Addrs = maddrs
 	return nil
 }
 
@@ -294,7 +369,7 @@ running:
 }
 
 // Discover begins the process of discovering and verifying a provider.  The
-// discovery address us used to lookup the provider's information.
+// discovery address is used to lookup the provider's information.
 //
 // TODO: To support multiple discoverer methods (lotus, IPFS, etc.) there need
 // to be information that is part of, or in addition to, the discoveryAddr to
@@ -426,7 +501,7 @@ func (r *Registry) FilterIPsEnabled() bool {
 // the addresses and latest advertisement of an already registered provider.
 // If publisher has a valid ID, then the data in publisher replaces the
 // provider's previous publisher information.
-func (r *Registry) RegisterOrUpdate(ctx context.Context, provider peer.AddrInfo, adID cid.Cid, publisher peer.AddrInfo) error {
+func (r *Registry) RegisterOrUpdate(ctx context.Context, provider peer.AddrInfo, adID cid.Cid, publisher peer.AddrInfo, extendedProviders *ExtendedProviders) error {
 	if r.filterIPs {
 		provider.Addrs = mautil.FilterPrivateIPs(provider.Addrs)
 		publisher.Addrs = mautil.FilterPrivateIPs(publisher.Addrs)
@@ -443,11 +518,16 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, provider peer.AddrInfo,
 			LastAdvertisementTime: info.LastAdvertisementTime,
 			Publisher:             info.Publisher,
 			PublisherAddr:         info.PublisherAddr,
+			ExtendedProviders:     info.ExtendedProviders,
 		}
 
 		// If new addrs provided, update to use these.
 		if len(provider.Addrs) != 0 {
 			info.AddrInfo.Addrs = provider.Addrs
+		}
+
+		if extendedProviders != nil {
+			info.ExtendedProviders = extendedProviders
 		}
 
 		if publisher.ID.Validate() == nil {
@@ -469,7 +549,8 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, provider peer.AddrInfo,
 	} else {
 		fullRegister = true
 		info = &ProviderInfo{
-			AddrInfo: provider,
+			AddrInfo:          provider,
+			ExtendedProviders: extendedProviders,
 		}
 		if publisher.ID.Validate() == nil {
 			info.Publisher = publisher.ID

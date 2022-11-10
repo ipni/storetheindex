@@ -745,6 +745,222 @@ func TestSync(t *testing.T) {
 	require.Zero(t, count)
 }
 
+func testSyncWithExtendedProviders(t *testing.T,
+	testFunc func(crypto.PrivKey, crypto.PubKey, peer.ID, *registry.Registry, linking.LinkSystem, host.Host, *Ingester, dagsync.Publisher)) {
+	privKey, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	require.NoError(t, err)
+
+	providerID, err := peer.IDFromPublicKey(pubKey)
+	require.NoError(t, err)
+
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := mkTestHost()
+	pubHost := mkTestHost()
+	ingester, core, reg, _ := mkIngest(t, h)
+	defer core.Close()
+	defer ingester.Close()
+	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	defer pub.Close()
+	connectHosts(t, h, pubHost)
+
+	testFunc(privKey, pubKey, providerID, reg, lsys, pubHost, ingester, pub)
+}
+
+func TestSyncWithExtendedProviders(t *testing.T) {
+	testSyncWithExtendedProviders(t, func(privKey crypto.PrivKey,
+		pubKey crypto.PubKey,
+		providerID peer.ID,
+		reg *registry.Registry,
+		lsys linking.LinkSystem,
+		pubHost host.Host,
+		ingester *Ingester, pub dagsync.Publisher) {
+
+		adv1, adv1Cid, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id", nil, false)
+		adv2, _, mhs2 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv1Cid, "", nil, false)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1, mhs2)
+
+		// Verifying that EPs from the first advertisement have been registered as contextual while EPs from the second advertisement as chain-level
+		pInfo, _ := reg.ProviderInfo(providerID)
+		extendedProviders := pInfo.ExtendedProviders
+		require.NotNil(t, extendedProviders)
+		require.Equal(t, len(adv2.ExtendedProvider.Providers)-1, len(extendedProviders.Providers))
+		require.Equal(t, 1, len(extendedProviders.ContextualProviders))
+
+		verifyContextualProviders(t, extendedProviders, adv1, reg)
+		verifyChainLevelProviders(t, extendedProviders, adv2, reg)
+	})
+}
+
+func TestSyncWithExtendedProvidersContextualUpdate(t *testing.T) {
+	testSyncWithExtendedProviders(t, func(privKey crypto.PrivKey,
+		pubKey crypto.PubKey,
+		providerID peer.ID,
+		reg *registry.Registry,
+		lsys linking.LinkSystem,
+		pubHost host.Host,
+		ingester *Ingester,
+		pub dagsync.Publisher) {
+
+		adv1, adv1Cid, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id", nil, false)
+		adv2, adv2Cid, mhs2 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv1Cid, "", nil, false)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1, mhs2)
+
+		// Publishing an update to contextual extended providers with changed providers and override flag
+		adv3, _, mhs3 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv2Cid, string(adv1.ContextID), nil, true)
+		syncIngester(t, ctx, ingester, providerID, pubHost, mhs3)
+
+		// Verifying that EPs from the first advertisement have been overwritten by third advertisement. EPs from second advertisement should still be chain-level.
+		pInfo, _ := reg.ProviderInfo(providerID)
+		extendedProviders := pInfo.ExtendedProviders
+		require.NotNil(t, extendedProviders)
+		require.Equal(t, len(adv2.ExtendedProvider.Providers)-1, len(extendedProviders.Providers))
+		require.Equal(t, 1, len(extendedProviders.ContextualProviders))
+
+		verifyContextualProviders(t, extendedProviders, adv3, reg)
+		verifyChainLevelProviders(t, extendedProviders, adv2, reg)
+	})
+}
+
+func TestSyncWithExtendedProvidersChainLevelUpdate(t *testing.T) {
+	testSyncWithExtendedProviders(t, func(privKey crypto.PrivKey,
+		pubKey crypto.PubKey,
+		providerID peer.ID,
+		reg *registry.Registry,
+		lsys linking.LinkSystem,
+		pubHost host.Host,
+		ingester *Ingester,
+		pub dagsync.Publisher) {
+
+		adv1, adv1Cid, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id", nil, false)
+		_, adv2Cid, mhs2 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv1Cid, "", nil, false)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1, mhs2)
+
+		// Publishing an update to chain-levek extended providers with changed providers
+		adv3, _, mhs3 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv2Cid, "", nil, false)
+		syncIngester(t, ctx, ingester, providerID, pubHost, mhs3)
+
+		// Verifying that EPs from the first advertisement have been registered as contextual while chain-level EPs from the second advertisement have been overwritten by the one from the third
+		pInfo, _ := reg.ProviderInfo(providerID)
+		extendedProviders := pInfo.ExtendedProviders
+		require.NotNil(t, extendedProviders)
+		require.Equal(t, len(adv3.ExtendedProvider.Providers)-1, len(extendedProviders.Providers))
+		require.Equal(t, 1, len(extendedProviders.ContextualProviders))
+
+		verifyContextualProviders(t, extendedProviders, adv1, reg)
+		verifyChainLevelProviders(t, extendedProviders, adv3, reg)
+	})
+}
+
+func TestSyncWithExtendedProvidersContextualInsert(t *testing.T) {
+	testSyncWithExtendedProviders(t, func(privKey crypto.PrivKey,
+		pubKey crypto.PubKey,
+		providerID peer.ID,
+		reg *registry.Registry,
+		lsys linking.LinkSystem,
+		pubHost host.Host,
+		ingester *Ingester,
+		pub dagsync.Publisher) {
+
+		adv1, adv1Cid, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id-1", nil, false)
+		adv2, adv2Cid, mhs2 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv1Cid, "", nil, false)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1, mhs2)
+
+		// Publishing a new set of context-level providers for a different context
+		adv3, _, mhs3 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv2Cid, "test-context-id-2", nil, true)
+		syncIngester(t, ctx, ingester, providerID, pubHost, mhs3)
+
+		// Verifying that EPs from the first and third advertisements have been registered as contextual for different contexts, while EPs from the second advertisement as chain-level
+		pInfo, _ := reg.ProviderInfo(providerID)
+		extendedProviders := pInfo.ExtendedProviders
+		require.NotNil(t, extendedProviders)
+		require.Equal(t, len(adv2.ExtendedProvider.Providers)-1, len(extendedProviders.Providers))
+		require.Equal(t, 2, len(extendedProviders.ContextualProviders))
+
+		verifyContextualProviders(t, extendedProviders, adv1, reg)
+		verifyContextualProviders(t, extendedProviders, adv3, reg)
+		verifyChainLevelProviders(t, extendedProviders, adv2, reg)
+	})
+}
+
+func syncIngester(t *testing.T, ctx context.Context, ingester *Ingester, providerID peer.ID, pubHost host.Host, mhs ...[]multihash.Multihash) {
+	end, err := ingester.Sync(ctx, pubHost.ID(), nil, -1, false)
+	require.NoError(t, err)
+	select {
+	case <-end:
+	case <-ctx.Done():
+		t.Fatal("sync timeout")
+	}
+	for _, mms := range mhs {
+		requireIndexedEventually(t, ingester.indexer, providerID, mms)
+	}
+}
+
+func verifyContextualProviders(t *testing.T, extendedProviders *registry.ExtendedProviders, adv *schema.Advertisement, reg *registry.Registry) {
+	contextualProviders := extendedProviders.ContextualProviders[string(adv.ContextID)]
+	require.NotNil(t, contextualProviders)
+	require.Equal(t, adv.ContextID, contextualProviders.ContextID)
+	require.Equal(t, adv.ExtendedProvider.Override, contextualProviders.Override)
+	require.Equal(t, len(adv.ExtendedProvider.Providers)-1, len(contextualProviders.Providers))
+
+	contextualProviderByID := map[peer.ID]registry.ExtendedProviderInfo{}
+	for _, p := range contextualProviders.Providers {
+		contextualProviderByID[p.PeerID] = p
+	}
+
+	providerID, err := peer.Decode(adv.Provider)
+	require.NoError(t, err)
+
+	verifyExtendedProviders(t, providerID, contextualProviderByID, adv.ExtendedProvider.Providers, reg)
+}
+
+func verifyChainLevelProviders(t *testing.T, extendedProviders *registry.ExtendedProviders, adv *schema.Advertisement, reg *registry.Registry) {
+	providerID, err := peer.Decode(adv.Provider)
+	require.NoError(t, err)
+
+	chainLevelProviderByID := map[peer.ID]registry.ExtendedProviderInfo{}
+	for _, p := range extendedProviders.Providers {
+		chainLevelProviderByID[p.PeerID] = p
+	}
+	verifyExtendedProviders(t, providerID, chainLevelProviderByID, adv.ExtendedProvider.Providers, reg)
+}
+
+func verifyExtendedProviders(t *testing.T,
+	adProviderID peer.ID,
+	providerInfosMap map[peer.ID]registry.ExtendedProviderInfo,
+	adExtendedProviders []schema.Provider,
+	reg *registry.Registry) {
+	for _, ep := range adExtendedProviders {
+		peerID, err := peer.Decode(ep.ID)
+		require.NoError(t, err)
+		// Skipping the main provider
+		if peerID == adProviderID {
+			continue
+		}
+
+		epInfo := providerInfosMap[peerID]
+		require.NotNil(t, epInfo)
+
+		require.Equal(t, peerID, epInfo.PeerID)
+		addr := epInfo.Addrs[0].String()
+		fmt.Println(addr)
+		require.Equal(t, util.StringToMultiaddrs(t, ep.Addresses), epInfo.Addrs)
+		require.Equal(t, ep.Metadata, epInfo.Metadata)
+	}
+}
+
 func TestSyncTooLargeMetadata(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
@@ -1401,6 +1617,84 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub dagsync.Pub
 	err = pub.UpdateRoot(context.Background(), advLnk.(cidlink.Link).Cid)
 	require.NoError(t, err)
 	return advLnk.(cidlink.Link).Cid, mhs, p, priv
+}
+
+// publishAdvWithExtendedProviders generates an advertisement similarly to other helper functions howveer with extended providers added on top
+func publishAdvWithExtendedProviders(t *testing.T,
+	provider peer.ID,
+	privKey crypto.PrivKey,
+	pubKey crypto.PubKey,
+	pub dagsync.Publisher,
+	lsys ipld.LinkSystem,
+	prevAdId cid.Cid,
+	contextId string,
+	metadata []byte,
+	extProvOverride bool) (*schema.Advertisement, cid.Cid, []multihash.Multihash) {
+
+	eChunkCount := rng.Int()%15 + 1
+	extProvsNum := rng.Int()%5 + 1
+
+	if metadata == nil {
+		metadata = []byte("test-metadata")
+	}
+	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
+	mhsLnk, mhs := newRandomLinkedList(t, lsys, eChunkCount)
+
+	adv := &schema.Advertisement{
+		Provider:  provider.String(),
+		Addresses: addrs,
+		Entries:   mhsLnk,
+		ContextID: []byte(contextId),
+		Metadata:  metadata,
+		ExtendedProvider: &schema.ExtendedProvider{
+			Providers: []schema.Provider{},
+			Override:  extProvOverride,
+		},
+	}
+
+	if prevAdId != cid.Undef {
+		adv.PreviousID = cidlink.Link{Cid: prevAdId}
+	}
+
+	// Generating extended providers
+	epKeys := map[string]crypto.PrivKey{}
+	for i := 0; i < extProvsNum; i++ {
+		epPriv, epPub, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+		require.NoError(t, err)
+		epID, err := peer.IDFromPublicKey(epPub)
+		require.NoError(t, err)
+
+		epKeys[epID.String()] = epPriv
+		adv.ExtendedProvider.Providers = append(adv.ExtendedProvider.Providers, schema.Provider{
+			ID:        epID.String(),
+			Addresses: []string{fmt.Sprintf("/ip4/%d.%d.%d.%d/tcp/%d", rng.Int()%255, rng.Int()%255, rng.Int()%255, rng.Int()%255, rng.Int()%10000)},
+			Metadata:  []byte(fmt.Sprintf("test-metadata-%d", i)),
+		})
+	}
+
+	// Appending the top level provider
+	adv.ExtendedProvider.Providers = append(adv.ExtendedProvider.Providers, schema.Provider{
+		ID:        provider.String(),
+		Addresses: addrs,
+		Metadata:  nil,
+	})
+	epKeys[provider.String()] = privKey
+
+	err := adv.SignWithExtendedProviders(privKey, func(s string) (crypto.PrivKey, error) {
+		if key, ok := epKeys[s]; ok {
+			return key, nil
+		}
+		return nil, fmt.Errorf("pk not found")
+	})
+	require.NoError(t, err)
+
+	node, err := adv.ToNode()
+	require.NoError(t, err)
+	advLnk, err := lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
+	require.NoError(t, err)
+	err = pub.UpdateRoot(context.Background(), advLnk.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	return adv, advLnk.(cidlink.Link).Cid, mhs
 }
 
 func publishRemovalAd(t *testing.T, pub dagsync.Publisher, lsys ipld.LinkSystem, fakeSig bool, providerID peer.ID, priv crypto.PrivKey) cid.Cid {

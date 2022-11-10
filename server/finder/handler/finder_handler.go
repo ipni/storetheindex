@@ -42,7 +42,7 @@ func NewFinderHandler(indexer indexer.Interface, registry *registry.Registry, in
 // multihashes.
 func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse, error) {
 	results := make([]model.MultihashResult, 0, len(mhashes))
-	provAddrs := map[peer.ID][]multiaddr.Multiaddr{}
+	provInfos := map[peer.ID]*registry.ProviderInfo{}
 
 	for i := range mhashes {
 		values, found, err := h.indexer.Get(mhashes[i])
@@ -56,40 +56,46 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 
 		provResults := make([]model.ProviderResult, 0, len(values))
 		for j := range values {
-			provID := values[j].ProviderID
-			// Lookup provider info for each unique provider, look in local map
-			// before going to registry.
-			addrs, ok := provAddrs[provID]
-			if !ok {
-				pinfo, allowed := h.registry.ProviderInfo(provID)
-				if pinfo == nil {
-					// If provider not in registry, then provider was deleted.
-					// Tell the indexed core to delete the contextID for the
-					// deleted provider. Delete the contextID from the core,
-					// because there is no way to delete all records for the
-					// provider without a scan of the entire core valuestore.
-					go func(value indexer.Value) {
-						err := h.indexer.RemoveProviderContext(value.ProviderID, value.ContextID)
-						if err != nil {
-							log.Errorw("Error removing provider context", "err", err)
-						}
-					}(values[j])
-					// If provider not in registry, do not return in result.
-					continue
-				}
-				// Omit provider info if not allowed or marked as inactive.
-				if !allowed || pinfo.Inactive() {
-					continue
-				}
-				addrs = pinfo.AddrInfo.Addrs
-				provAddrs[provID] = addrs
+			iVal := values[j]
+			provID := iVal.ProviderID
+			pinfo := h.fetchProviderInfo(provID, iVal.ContextID, provInfos, true)
+
+			if pinfo == nil {
+				continue
 			}
 
-			provResult, err := providerResultFromValue(values[j], addrs)
-			if err != nil {
-				return nil, err
-			}
+			// Adding the main provider
+			provResult := providerResultFromValue(provID, iVal.ContextID, iVal.MetadataBytes, pinfo.AddrInfo.Addrs)
 			provResults = append(provResults, provResult)
+
+			if pinfo.ExtendedProviders == nil {
+				continue
+			}
+
+			epRecord := pinfo.ExtendedProviders
+
+			// If override is set to true at the context level then the chain level EPs should be ignored for this context ID
+			override := false
+
+			// Adding context-level EPs if they exist
+			if contextualEpRecord, ok := epRecord.ContextualProviders[string(iVal.ContextID)]; ok {
+				override = contextualEpRecord.Override
+				for _, epInfo := range contextualEpRecord.Providers {
+					provResult := createExtendedProviderResult(epInfo, iVal)
+					provResults = append(provResults, *provResult)
+				}
+			}
+
+			if override {
+				continue
+			}
+
+			// Adding chain-level EPs if such exist
+			for _, epInfo := range epRecord.Providers {
+				provResult := createExtendedProviderResult(epInfo, iVal)
+				provResults = append(provResults, *provResult)
+			}
+
 		}
 
 		// If there are no providers for this multihash, then do not return a
@@ -108,6 +114,40 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 	return &model.FindResponse{
 		MultihashResults: results,
 	}, nil
+}
+
+func (h *FinderHandler) fetchProviderInfo(provID peer.ID,
+	contextID []byte,
+	provAddrs map[peer.ID]*registry.ProviderInfo,
+	removeProviderContext bool) *registry.ProviderInfo {
+	// Lookup provider info for each unique provider, look in local map
+	// before going to registry.
+	pinfo, ok := provAddrs[provID]
+	if ok {
+		return pinfo
+	}
+	pinfo, allowed := h.registry.ProviderInfo(provID)
+	if pinfo == nil && removeProviderContext {
+		// If provider not in registry, then provider was deleted.
+		// Tell the indexed core to delete the contextID for the
+		// deleted provider. Delete the contextID from the core,
+		// because there is no way to delete all records for the
+		// provider without a scan of the entire core valuestore.
+		go func(provID peer.ID, contextID []byte) {
+			err := h.indexer.RemoveProviderContext(provID, contextID)
+			if err != nil {
+				log.Errorw("Error removing provider context", "err", err)
+			}
+		}(provID, contextID)
+		// If provider not in registry, do not return in result.
+		return nil
+	}
+	// Omit provider info if not allowed or marked as inactive.
+	if !allowed || pinfo.Inactive() {
+		return nil
+	}
+	provAddrs[provID] = pinfo
+	return pinfo
 }
 
 func (h *FinderHandler) ListProviders() ([]byte, error) {
@@ -162,13 +202,23 @@ func (h *FinderHandler) GetStats() ([]byte, error) {
 	return model.MarshalStats(&s)
 }
 
-func providerResultFromValue(value indexer.Value, addrs []multiaddr.Multiaddr) (model.ProviderResult, error) {
+func providerResultFromValue(provID peer.ID, contextID []byte, metadata []byte, addrs []multiaddr.Multiaddr) model.ProviderResult {
 	return model.ProviderResult{
-		ContextID: value.ContextID,
-		Metadata:  value.MetadataBytes,
+		ContextID: contextID,
+		Metadata:  metadata,
 		Provider: peer.AddrInfo{
-			ID:    value.ProviderID,
+			ID:    provID,
 			Addrs: addrs,
 		},
-	}, nil
+	}
+}
+
+func createExtendedProviderResult(epInfo registry.ExtendedProviderInfo, iVal indexer.Value) *model.ProviderResult {
+	metadata := epInfo.Metadata
+	if metadata == nil {
+		metadata = iVal.MetadataBytes
+	}
+
+	provResult := providerResultFromValue(epInfo.PeerID, iVal.ContextID, metadata, epInfo.Addrs)
+	return &provResult
 }

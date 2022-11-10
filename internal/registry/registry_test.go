@@ -8,6 +8,7 @@ import (
 
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/internal/registry/discovery"
+	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
@@ -214,6 +215,14 @@ func TestDatastore(t *testing.T) {
 	require.NoError(t, err)
 	pubAddr, err := multiaddr.NewMultiaddr(publisherAddr)
 	require.NoError(t, err)
+
+	epContextId := []byte("ep-context-id")
+	ep1, _, _ := util.RandomIdentity(t)
+	ep1Addrs := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9999"})
+	ep1Metadata := []byte("ep1-metadata")
+	ep2, _, _ := util.RandomIdentity(t)
+	ep2Addrs := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9998"})
+	ep2Metadata := []byte("ep2-metadata")
 	info2 := &ProviderInfo{
 		AddrInfo: peer.AddrInfo{
 			ID:    provID2,
@@ -221,6 +230,28 @@ func TestDatastore(t *testing.T) {
 		},
 		Publisher:     pubID,
 		PublisherAddr: pubAddr,
+		ExtendedProviders: &ExtendedProviders{
+			Providers: []ExtendedProviderInfo{
+				{
+					PeerID:   ep1,
+					Addrs:    ep1Addrs,
+					Metadata: ep1Metadata,
+				},
+			},
+			ContextualProviders: map[string]ContextualExtendedProviders{
+				string(epContextId): {
+					ContextID: epContextId,
+					Override:  false,
+					Providers: []ExtendedProviderInfo{
+						{
+							PeerID:   ep2,
+							Addrs:    ep2Addrs,
+							Metadata: ep2Metadata,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	// Create datastore
@@ -238,16 +269,18 @@ func TestDatastore(t *testing.T) {
 		ID:    info2.Publisher,
 		Addrs: []multiaddr.Multiaddr{pubAddr},
 	}
-	err = r.RegisterOrUpdate(ctx, info2.AddrInfo, cid.Undef, publisher)
+	err = r.RegisterOrUpdate(ctx, info2.AddrInfo, cid.Undef, publisher, info2.ExtendedProviders)
 	require.NoError(t, err)
 
 	pinfo, allowed := r.ProviderInfo(provID1)
 	require.NotNil(t, pinfo, "did not find registered provider")
 	require.True(t, allowed)
+	require.Nil(t, pinfo.ExtendedProviders)
 
 	pinfo, allowed = r.ProviderInfo(provID2)
 	require.NotNil(t, pinfo, "did not find registered provider")
 	require.True(t, allowed)
+	require.NotNil(t, pinfo.ExtendedProviders, "did not find registered extended provider")
 
 	require.NoError(t, r.Close())
 
@@ -272,6 +305,7 @@ func TestDatastore(t *testing.T) {
 			require.Equal(t, provInfo.Publisher, info2.Publisher, "info2 has wrong publisher ID")
 			require.NotNil(t, provInfo.PublisherAddr, "info2 missing publisher address")
 			require.True(t, provInfo.PublisherAddr.Equal(info2.PublisherAddr), "info2 has wrong publisher ID %q, expected %q", provInfo.PublisherAddr, info2.PublisherAddr)
+			require.Equal(t, provInfo.ExtendedProviders, info2.ExtendedProviders)
 		default:
 			t.Fatalf("loaded invalid provider ID: %q", provInfo.AddrInfo.ID)
 		}
@@ -313,7 +347,7 @@ func TestAllowed(t *testing.T) {
 		Addrs: []multiaddr.Multiaddr{pubAddr},
 	}
 
-	err = r.RegisterOrUpdate(ctx, provider, cid.Undef, publisher)
+	err = r.RegisterOrUpdate(ctx, provider, cid.Undef, publisher, nil)
 	require.NoError(t, err)
 
 	// Check that provider is allowed.
@@ -396,7 +430,7 @@ func TestPollProvider(t *testing.T) {
 	pub := peer.AddrInfo{
 		ID: pubID,
 	}
-	err = r.RegisterOrUpdate(ctx, prov, cid.Undef, pub)
+	err = r.RegisterOrUpdate(ctx, prov, cid.Undef, pub, nil)
 	require.NoError(t, err)
 
 	poll := polling{
@@ -504,7 +538,7 @@ func TestPollProviderOverrides(t *testing.T) {
 	pub := peer.AddrInfo{
 		ID: pubID,
 	}
-	err = r.RegisterOrUpdate(ctx, prov, cid.Undef, pub)
+	err = r.RegisterOrUpdate(ctx, prov, cid.Undef, pub, nil)
 	if err != nil {
 		t.Fatal("failed to register directly:", err)
 	}
@@ -593,7 +627,7 @@ func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 	mh, err := multihash.Sum([]byte("fish"), multihash.SHA2_256, -1)
 	require.NoError(t, err)
 	c := cid.NewCidV1(cid.Raw, mh)
-	err = subject.RegisterOrUpdate(ctx, provider, c, peer.AddrInfo{ID: publisherID})
+	err = subject.RegisterOrUpdate(ctx, provider, c, peer.AddrInfo{ID: publisherID}, nil)
 	require.NoError(t, err)
 
 	info, _ := subject.ProviderInfo(provId)
@@ -602,7 +636,7 @@ func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 
 	// Register a publisher that has no addresses, but publisherID is same as
 	// provider. Registry should use provider's address as publisher.
-	err = subject.RegisterOrUpdate(ctx, provider, c, peer.AddrInfo{ID: provId})
+	err = subject.RegisterOrUpdate(ctx, provider, c, peer.AddrInfo{ID: provId}, nil)
 	info, _ = subject.ProviderInfo(provId)
 	require.NoError(t, err)
 	require.NotNil(t, info)
@@ -643,7 +677,7 @@ func TestFilterIPs(t *testing.T) {
 		ID:    pubID,
 		Addrs: []multiaddr.Multiaddr{maddrPvt, pubAddr, maddrLocal},
 	}
-	err = reg.RegisterOrUpdate(ctx, provider, cid.Undef, publisher)
+	err = reg.RegisterOrUpdate(ctx, provider, cid.Undef, publisher, nil)
 	require.NoError(t, err)
 	require.NoError(t, reg.Close())
 
@@ -664,7 +698,7 @@ func TestFilterIPs(t *testing.T) {
 	require.Nil(t, pinfo.PublisherAddr)
 
 	// Check the RegisterOrUpdate filters IPs.
-	err = reg.RegisterOrUpdate(ctx, provider, cid.Undef, publisher)
+	err = reg.RegisterOrUpdate(ctx, provider, cid.Undef, publisher, nil)
 	require.NoError(t, err)
 	pinfo, _ = reg.ProviderInfo(provID)
 	require.NotNil(t, pinfo)

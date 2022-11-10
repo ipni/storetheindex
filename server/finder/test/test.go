@@ -44,16 +44,27 @@ func InitIndex(t *testing.T, withCache bool) indexer.Interface {
 	return engine.New(resultCache, valueStore)
 }
 
-// InitRegistry initializes a new registry
 func InitRegistry(t *testing.T) *registry.Registry {
+	return InitRegistryWithRestrictivePolicy(t, true)
+}
+
+// InitRegistry initializes a new registry
+func InitRegistryWithRestrictivePolicy(t *testing.T, restrictive bool) *registry.Registry {
 	var discoveryCfg = config.Discovery{
-		Policy: config.Policy{
+		PollInterval:   config.Duration(time.Minute),
+		RediscoverWait: config.Duration(time.Minute),
+	}
+	if restrictive {
+		discoveryCfg.Policy = config.Policy{
 			Allow:   false,
 			Except:  []string{providerID},
 			Publish: false,
-		},
-		PollInterval:   config.Duration(time.Minute),
-		RediscoverWait: config.Duration(time.Minute),
+		}
+	} else {
+		discoveryCfg.Policy = config.Policy{
+			Allow:   true,
+			Publish: false,
+		}
 	}
 	reg, err := registry.NewRegistry(context.Background(), discoveryCfg, nil, nil)
 	if err != nil {

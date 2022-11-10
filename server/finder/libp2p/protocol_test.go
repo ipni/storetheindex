@@ -57,6 +57,33 @@ func TestFindIndexData(t *testing.T) {
 	}
 }
 
+func TestFindIndexWithExtendedProviders(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Initialize everything
+	ind := test.InitIndex(t, true)
+	reg := test.InitRegistryWithRestrictivePolicy(t, false)
+	s, sh := setupServer(ctx, ind, reg, nil, t)
+	c := setupClient(s.ID(), t)
+	err := c.ConnectAddrs(ctx, sh.Addrs()...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	test.ProvidersShouldBeUnaffectedByExtendedProvidersOfEachOtherTest(ctx, t, c, ind, reg)
+	test.ExtendedProviderShouldHaveOwnMetadataTest(ctx, t, c, ind, reg)
+	test.ExtendedProviderShouldInheritMetadataOfMainProviderTest(ctx, t, c, ind, reg)
+	test.ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx, t, c, ind, reg)
+	test.ContextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx, t, c, ind, reg)
+
+	if err = reg.Close(); err != nil {
+		t.Errorf("Error closing registry: %s", err)
+	}
+	if err = ind.Close(); err != nil {
+		t.Errorf("Error closing indexer core: %s", err)
+	}
+}
+
 func TestProviderInfo(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
