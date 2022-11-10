@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -32,9 +33,13 @@ func TestDirWritable(t *testing.T) {
 	err = fsutil.DirWritable(wrDir)
 	require.NoError(t, err)
 
+	// If running on Windows, skip read-only directory tests.
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
+
 	roDir := filepath.Join(tmpDir, "readonly")
 	require.NoError(t, os.Mkdir(roDir, 0500))
-
 	err = fsutil.DirWritable(roDir)
 	require.ErrorIs(t, err, fs.ErrPermission)
 
