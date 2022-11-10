@@ -22,30 +22,30 @@ func DirWritable(dir string) error {
 		return err
 	}
 
-	_, err = os.Stat(dir)
-	if err == nil {
-		// dir exists, make sure we can write to it
-		file, err := os.CreateTemp(dir, "test")
-		if err != nil {
-			if os.IsPermission(err) {
-				return fmt.Errorf("%s is not writeable by the current user", dir)
+	if _, err = os.Stat(dir); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// dir doesn't exist, check that we can create it
+			err = os.Mkdir(dir, 0o775)
+			if err == nil {
+				return nil
 			}
-			return fmt.Errorf("error while checking directory writeablility: %w", err)
 		}
-		file.Close()
-		return os.Remove(file.Name())
+		if errors.Is(err, os.ErrPermission) {
+			err = os.ErrPermission
+		}
+		return fmt.Errorf("cannot write to %s: %w", dir, err)
 	}
 
-	if os.IsNotExist(err) {
-		// dir doesn't exist, check that we can create it
-		return os.Mkdir(dir, 0775)
+	// dir exists, make sure we can write to it
+	file, err := os.CreateTemp(dir, "test")
+	if err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			err = os.ErrPermission
+		}
+		return fmt.Errorf("cannot write to %s: %w", dir, err)
 	}
-
-	if os.IsPermission(err) {
-		return fmt.Errorf("cannot write to %s, incorrect permissions", dir)
-	}
-
-	return err
+	file.Close()
+	return os.Remove(file.Name())
 }
 
 // FileChanged returns the modification time of a file and true if different
@@ -63,9 +63,6 @@ func FileChanged(filePath string, modTime time.Time) (time.Time, bool, error) {
 
 // FileExists return true if the file exists
 func FileExists(filename string) bool {
-	fi, err := os.Lstat(filename)
-	if fi != nil || (err != nil && !os.IsNotExist(err)) {
-		return true
-	}
-	return false
+	_, err := os.Lstat(filename)
+	return !errors.Is(err, os.ErrNotExist)
 }
