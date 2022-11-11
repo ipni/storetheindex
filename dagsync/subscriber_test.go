@@ -216,7 +216,7 @@ func TestConcurrentSync(t *testing.T) {
 			}()
 
 			select {
-			case <-time.After(10 * time.Second):
+			case <-time.After(20 * time.Second):
 				t.Fatal("Failed to sync")
 			case <-doneChan:
 			}

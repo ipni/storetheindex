@@ -972,6 +972,9 @@ func TestSyncTooLargeMetadata(t *testing.T) {
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
+	err := dstest.WaitForPublisher(h, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
+	require.NoError(t, err)
+
 	metadata := make([]byte, schema.MaxMetadataLen*2)
 	copy(metadata, []byte("too-long"))
 

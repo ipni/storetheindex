@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/filecoin-project/storetheindex/config"
+	"github.com/filecoin-project/storetheindex/fsutil"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 )
@@ -23,7 +24,7 @@ func initCommand(cctx *cli.Context) error {
 		return err
 	}
 
-	if err = checkWritable(configRoot); err != nil {
+	if err = fsutil.DirWritable(configRoot); err != nil {
 		return err
 	}
 
@@ -48,7 +49,7 @@ func initCommand(cctx *cli.Context) error {
 
 	fmt.Println("Initializing indexer node at", configRoot)
 
-	if fileExists(configFile) {
+	if fsutil.FileExists(configFile) {
 		return config.ErrInitialized
 	}
 
@@ -67,7 +68,7 @@ func initCommand(cctx *cli.Context) error {
 	switch storeType {
 	case "":
 		// Use config default
-	case vstoreMemory, vstorePogreb, vstoreStorethehash:
+	case vstoreMemory, vstorePebble, vstorePogreb, vstoreStorethehash:
 		// These are good
 		cfg.Indexer.ValueStoreType = storeType
 	default:

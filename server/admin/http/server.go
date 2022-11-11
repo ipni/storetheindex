@@ -2,7 +2,6 @@ package adminserver
 
 import (
 	"context"
-	"errors"
 	"net"
 	"net/http"
 
@@ -26,10 +25,6 @@ type Server struct {
 }
 
 func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error, options ...ServerOption) (*Server, error) {
-	if ingester == nil {
-		return nil, errors.New("ingester cannot be nil")
-	}
-
 	var cfg serverConfig
 	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
 		return nil, err

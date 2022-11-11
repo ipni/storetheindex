@@ -298,7 +298,6 @@ func WaitForPublisher(host host.Host, topic string, peerID peer.ID) error {
 			// Publisher ready
 			return nil
 		}
-		fmt.Println("---> err:", err)
 		time.Sleep(100 * time.Millisecond)
 	}
 	return errors.New("timeout waiting for publilsher")

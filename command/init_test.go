@@ -25,7 +25,15 @@ func TestInit(t *testing.T) {
 		},
 	}
 
-	badAddr := "ip3/127.0.0.1/tcp/9999"
+	const (
+		badAddr   = "ip3/127.0.0.1/tcp/9999"
+		cacheSize = 2701
+		goodAddr  = "/ip4/127.0.0.1/tcp/7777"
+		goodAddr2 = "/ip4/127.0.0.1/tcp/17171"
+		storeType = "pogreb"
+		topicName = "index/mytopic"
+	)
+
 	err := app.RunContext(ctx, []string{"storetheindex", "init", "-listen-admin", badAddr})
 	if err == nil {
 		t.Fatal("expected error")
@@ -41,15 +49,12 @@ func TestInit(t *testing.T) {
 		t.Fatal("expected error")
 	}
 
-	goodAddr := "/ip4/127.0.0.1/tcp/7777"
-	goodAddr2 := "/ip4/127.0.0.1/tcp/17171"
-	storeType := "pogreb"
-	cacheSize := 2701
 	args := []string{
 		"storetheindex", "init",
 		"-listen-finder", goodAddr,
 		"-listen-ingest", goodAddr2,
 		"-cachesize", fmt.Sprint(cacheSize),
+		"--pubsub-topic", topicName,
 		"-store", storeType,
 	}
 	err = app.RunContext(ctx, args)
@@ -73,6 +78,9 @@ func TestInit(t *testing.T) {
 	}
 	if cfg.Indexer.ValueStoreType != storeType {
 		t.Error("value store type was not configured")
+	}
+	if cfg.Ingest.PubSubTopic != topicName {
+		t.Errorf("expected %s for pubsub topic, got %s", topicName, cfg.Ingest.PubSubTopic)
 	}
 	if cfg.Version != config.Version {
 		t.Error("did not init config with correct version")

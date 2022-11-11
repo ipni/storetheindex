@@ -69,23 +69,16 @@ func TestAnnounceReplace(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log("Sent announce for first CID", firstCid)
+
 	// This first announce should start the handler goroutine and clear the
 	// pending cid.
-	var i int
 	var pendingCid cid.Cid
-	for {
-		time.Sleep(time.Millisecond)
+	require.Eventually(t, func() bool {
 		hnd.qlock.Lock()
 		pendingCid = hnd.pendingCid
 		hnd.qlock.Unlock()
-		if pendingCid == cid.Undef {
-			break
-		}
-		i++
-		if i > 100 {
-			t.Fatal("timed out waiting for handler to clear pending cid")
-		}
-	}
+		return pendingCid == cid.Undef
+	}, 2*time.Second, 10*time.Millisecond)
 
 	// Announce two more times.
 	c := chainLnks[1].(cidlink.Link).Cid
@@ -110,7 +103,7 @@ func TestAnnounceReplace(t *testing.T) {
 		pendingCid = hnd.pendingCid
 		hnd.qlock.Unlock()
 		return pendingCid == lastCid
-	}, time.Second, 10*time.Millisecond)
+	}, 2*time.Second, 10*time.Millisecond)
 
 	// Unblock the first handler goroutine
 	hnd.syncMutex.Unlock()
