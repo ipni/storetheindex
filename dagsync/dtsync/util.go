@@ -21,6 +21,9 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
+// Time to wait for datatransfer to gracefully stop before canceling.
+const datatransferStopTimeout = time.Minute
+
 type dtCloseFunc func() error
 
 // configureDataTransferForDagsync configures an existing data transfer
@@ -135,11 +138,13 @@ func makeDataTransfer(host host.Host, ds datastore.Batching, lsys ipld.LinkSyste
 
 	closeFunc := func() error {
 		var err, errs error
-		err = dtManager.Stop(context.Background())
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), datatransferStopTimeout)
+		err = dtManager.Stop(stopCtx)
 		if err != nil {
 			log.Errorw("Failed to stop datatransfer manager", "err", err)
 			errs = multierror.Append(errs, err)
 		}
+		stopCancel()
 		cancel()
 		return errs
 	}
