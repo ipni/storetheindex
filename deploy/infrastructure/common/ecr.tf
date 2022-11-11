@@ -7,6 +7,7 @@ module "ecr_ue2" {
     "autoretrieve/autoretrieve",
     "index-provider/index-provider",
     "indexstar/indexstar",
+    "ipni/heyfil",
   ]
   tags = local.tags
 }

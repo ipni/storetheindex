@@ -58,6 +58,7 @@ module "github_actions_role" {
     "repo:filecoin-project/index-provider:*",
     "repo:filecoin-shipyard/index-observer:*",
     "repo:application-research/autoretrieve:*",
-    "repo:filecoin-shipyard/indexstar:*"
+    "repo:filecoin-shipyard/indexstar:*",
+    "repo:ipni/*:*"
   ]
 }
