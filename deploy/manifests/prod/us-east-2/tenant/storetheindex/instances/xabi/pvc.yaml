@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: data
-spec:
-  resources:
-    requests:
-      storage: 60Ti
-  storageClassName: io2-iops5
