@@ -763,6 +763,9 @@ func testSyncWithExtendedProviders(t *testing.T,
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
+	err = dstest.WaitForPublisher(h, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
+	require.NoError(t, err)
+
 	testFunc(privKey, pubKey, providerID, reg, lsys, pubHost, ingester, pub)
 }
 
