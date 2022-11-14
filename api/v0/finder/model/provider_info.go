@@ -11,10 +11,22 @@ import (
 // ProviderData describes a provider.
 type ProviderInfo struct {
 	AddrInfo              peer.AddrInfo
-	LastAdvertisement     cid.Cid        `json:",omitempty"`
-	LastAdvertisementTime string         `json:",omitempty"`
-	Publisher             *peer.AddrInfo `json:",omitempty"`
-	IndexCount            uint64         `json:",omitempty"`
+	LastAdvertisement     cid.Cid            `json:",omitempty"`
+	LastAdvertisementTime string             `json:",omitempty"`
+	Publisher             *peer.AddrInfo     `json:",omitempty"`
+	IndexCount            uint64             `json:",omitempty"`
+	ExtendedProviders     *ExtendedProviders `json:",omitempty"`
+}
+
+type ExtendedProviders struct {
+	Providers  []peer.AddrInfo               `json:",omitempty"`
+	Contextual []ContextualExtendedProviders `json:",omitempty"`
+}
+
+type ContextualExtendedProviders struct {
+	Override  bool
+	ContextID string
+	Providers []peer.AddrInfo
 }
 
 func MakeProviderInfo(addrInfo peer.AddrInfo, lastAd cid.Cid, lastAdTime time.Time, publisherID peer.ID, publisherAddr multiaddr.Multiaddr, indexCount uint64) ProviderInfo {
@@ -34,5 +46,6 @@ func MakeProviderInfo(addrInfo peer.AddrInfo, lastAd cid.Cid, lastAdTime time.Ti
 	if lastAd != cid.Undef && !lastAdTime.IsZero() {
 		pinfo.LastAdvertisementTime = iso8601(lastAdTime)
 	}
+
 	return pinfo
 }

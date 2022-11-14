@@ -25,6 +25,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
+	"github.com/stretchr/testify/require"
 )
 
 const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
@@ -271,19 +272,9 @@ func GetProviderTest(t *testing.T, c client.Finder, providerID peer.ID) {
 	defer cancel()
 
 	provInfo, err := c.GetProvider(ctx, providerID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if provInfo == nil {
-		t.Fatal("nil provider info")
-	}
-	if provInfo.AddrInfo.ID != providerID {
-		t.Fatal("wrong peer id")
-	}
-	if provInfo.IndexCount != 939 {
-		t.Fatal("expected IndexCount to be 939, got", provInfo.IndexCount)
-	}
+	verifyProviderInfo(t, provInfo)
 }
 
 func ListProvidersTest(t *testing.T, c client.Finder, providerID peer.ID) {
@@ -297,9 +288,38 @@ func ListProvidersTest(t *testing.T, c client.Finder, providerID peer.ID) {
 	if len(providers) != 1 {
 		t.Fatalf("should have 1 provider, has %d", len(providers))
 	}
-	if providers[0].AddrInfo.ID != providerID {
-		t.Fatal("wrong peer id")
-	}
+
+	verifyProviderInfo(t, providers[0])
+}
+
+func verifyProviderInfo(t *testing.T, provInfo *model.ProviderInfo) {
+	require.NotNil(t, provInfo, "nil provider info")
+	require.Equal(t, providerID, provInfo.AddrInfo.ID.String(), "wrong peer id")
+	require.Equal(t, uint64(939), provInfo.IndexCount, "expected IndexCount to be 939")
+	require.NotNil(t, provInfo.ExtendedProviders, "expected to have extended providers")
+	require.Equal(t, 1, len(provInfo.ExtendedProviders.Providers))
+	require.Equal(t, 1, len(provInfo.ExtendedProviders.Contextual))
+	require.Equal(t, 1, len(provInfo.ExtendedProviders.Contextual[0].Providers))
+	require.Equal(t, *provInfo.ExtendedProviders, model.ExtendedProviders{
+		Providers: []peer.AddrInfo{
+			{
+				ID:    provInfo.ExtendedProviders.Providers[0].ID,
+				Addrs: provInfo.ExtendedProviders.Providers[0].Addrs,
+			},
+		},
+		Contextual: []model.ContextualExtendedProviders{
+			{
+				Override:  true,
+				ContextID: "testContext",
+				Providers: []peer.AddrInfo{
+					{
+						ID:    provInfo.ExtendedProviders.Contextual[0].Providers[0].ID,
+						Addrs: provInfo.ExtendedProviders.Contextual[0].Providers[0].Addrs,
+					},
+				},
+			},
+		},
+	})
 }
 
 func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
@@ -399,10 +419,34 @@ func Register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	ep1, _, _ := util.RandomIdentity(t)
+	ep2, _, _ := util.RandomIdentity(t)
+
 	info := &registry.ProviderInfo{
 		AddrInfo: peer.AddrInfo{
 			ID:    peerID,
 			Addrs: []multiaddr.Multiaddr{maddr},
+		},
+		ExtendedProviders: &registry.ExtendedProviders{
+			Providers: []registry.ExtendedProviderInfo{
+				{
+					PeerID: ep1,
+					Addrs:  util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9998"}),
+				},
+			},
+			ContextualProviders: map[string]registry.ContextualExtendedProviders{
+				"testContext": {
+					Override:  true,
+					ContextID: []byte("testContext"),
+					Providers: []registry.ExtendedProviderInfo{
+						{
+							PeerID: ep2,
+							Addrs:  util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9997"}),
+						},
+					},
+				},
+			},
 		},
 	}
 
