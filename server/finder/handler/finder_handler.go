@@ -163,11 +163,53 @@ func (h *FinderHandler) ListProviders() ([]byte, error) {
 				log.Errorw("Could not get provider index count", "err", err)
 			}
 		}
-		responses[i] = model.MakeProviderInfo(infos[i].AddrInfo, infos[i].LastAdvertisement,
-			infos[i].LastAdvertisementTime, infos[i].Publisher, infos[i].PublisherAddr, indexCount)
+		pInfo := infos[i]
+		responses[i] = model.MakeProviderInfo(pInfo.AddrInfo, pInfo.LastAdvertisement,
+			pInfo.LastAdvertisementTime, pInfo.Publisher, pInfo.PublisherAddr, indexCount)
+
+		responses[i].ExtendedProviders = makeExtendedProviders(pInfo)
 	}
 
 	return json.Marshal(responses)
+}
+
+func makeExtendedProviders(pInfo *registry.ProviderInfo) *model.ExtendedProviders {
+	if pInfo.ExtendedProviders == nil {
+		return nil
+	}
+
+	xProvs := &model.ExtendedProviders{}
+	if len(pInfo.ExtendedProviders.Providers) > 0 {
+		xProvs.Providers = make([]peer.AddrInfo, 0, len(pInfo.ExtendedProviders.Providers))
+		for _, xp := range pInfo.ExtendedProviders.Providers {
+			xProvs.Providers = append(xProvs.Providers, peer.AddrInfo{
+				ID:    xp.PeerID,
+				Addrs: xp.Addrs,
+			})
+		}
+	}
+
+	if len(pInfo.ExtendedProviders.ContextualProviders) == 0 {
+		return xProvs
+	}
+
+	xProvs.Contextual = make([]model.ContextualExtendedProviders, 0, len(pInfo.ExtendedProviders.ContextualProviders))
+	for _, registerXp := range pInfo.ExtendedProviders.ContextualProviders {
+		modelXp := model.ContextualExtendedProviders{
+			Override:  registerXp.Override,
+			ContextID: string(registerXp.ContextID),
+			Providers: make([]peer.AddrInfo, 0, len(registerXp.Providers)),
+		}
+		for _, p := range registerXp.Providers {
+			modelXp.Providers = append(modelXp.Providers, peer.AddrInfo{
+				ID:    p.PeerID,
+				Addrs: p.Addrs,
+			})
+		}
+		xProvs.Contextual = append(xProvs.Contextual, modelXp)
+	}
+
+	return xProvs
 }
 
 func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
@@ -185,6 +227,7 @@ func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 		}
 	}
 	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastAdvertisement, info.LastAdvertisementTime, info.Publisher, info.PublisherAddr, indexCount)
+	rsp.ExtendedProviders = makeExtendedProviders(info)
 
 	return json.Marshal(&rsp)
 }
