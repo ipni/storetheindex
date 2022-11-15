@@ -187,7 +187,7 @@ func initAssigner(t *testing.T, trustedID string) (*core.Assigner, config.Assign
 	const indexerIP = "127.0.0.1"
 	var cfg = config.Assignment{
 		IndexerPool: []config.Indexer{
-			config.Indexer{
+			{
 				AdminURL:  fmt.Sprintf("http://%s:3002", indexerIP),
 				FindURL:   fmt.Sprintf("http://%s:3000", indexerIP),
 				IngestURL: fmt.Sprintf("http://%s:3001", indexerIP),
