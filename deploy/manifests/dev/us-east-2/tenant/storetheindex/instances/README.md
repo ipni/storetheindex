@@ -2,6 +2,6 @@
 
 List of individually configurable instances:
 
-| Instance | sth bit-size | IOPS per GiB | Value Codec  | Whitelist           | `CacheSize` | Running |
-|----------|--------------|--------------|--------------|---------------------|----------------|---------|
-| `mya`    | 30           | 3            | `json`       | all                 | `-1`        | [1deb5ed222c428f2f64eeea43f970b05ea844225](https://github.com/filecoin-project/storetheindex/commit/1deb5ed222c428f2f64eeea43f970b05ea844225) |
+| Instance | IOPS per GiB | Backing store | Running |
+|----------|--------------|---------------|-----------------------|
+| `ber`    | 1            | Pebble        | [db83b7c9fab3615621063378fdda568c6e8ba209](https://github.com/filecoin-project/storetheindex/commit/db83b7c9fab3615621063378fdda568c6e8ba209) |
