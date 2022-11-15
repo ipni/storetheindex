@@ -6,7 +6,7 @@ namespace: storetheindex
 resources:
   - ../../../../../../base/storetheindex-single
   - ingress.yaml
-  - dido-snapshot-content.yaml
+  - dido-snapshot.yaml
 
 namePrefix: ber-
 
