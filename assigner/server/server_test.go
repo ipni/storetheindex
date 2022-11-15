@@ -119,7 +119,11 @@ func TestAnnounce(t *testing.T) {
 	require.NoError(t, err)
 
 	indexer := filepath.Join(e.dir, "storetheindex")
-	e.run(indexer, "init", "--pubsub-topic", pubsubTopic, "--no-bootstrap")
+	e.run(indexer, "init", "--pubsub-topic", pubsubTopic, "--no-bootstrap",
+		"--listen-admin=/ip4/127.0.0.1/tcp/3602",
+		"--listen-finder=/ip4/127.0.0.1/tcp/3600",
+		"--listen-ingest=/ip4/127.0.0.1/tcp/3601",
+	)
 	stiCfg, err := sticfg.Load(filepath.Join(e.dir, ".storetheindex", "config"))
 	require.NoError(t, err)
 	indexerID := stiCfg.Identity.PeerID
@@ -179,7 +183,7 @@ func TestAnnounce(t *testing.T) {
 	// Check assignment
 	//outProvider := e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
 
-	e.stop(cmdIndexer, time.Second)
+	e.stop(cmdIndexer, 5*time.Second)
 }
 
 // initAssigner initializes a new registry
@@ -188,9 +192,9 @@ func initAssigner(t *testing.T, trustedID string) (*core.Assigner, config.Assign
 	var cfg = config.Assignment{
 		IndexerPool: []config.Indexer{
 			{
-				AdminURL:  fmt.Sprintf("http://%s:3002", indexerIP),
-				FindURL:   fmt.Sprintf("http://%s:3000", indexerIP),
-				IngestURL: fmt.Sprintf("http://%s:3001", indexerIP),
+				AdminURL:  fmt.Sprintf("http://%s:3602", indexerIP),
+				FindURL:   fmt.Sprintf("http://%s:3600", indexerIP),
+				IngestURL: fmt.Sprintf("http://%s:3601", indexerIP),
 			},
 		},
 		Policy: config.Policy{
