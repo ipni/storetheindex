@@ -17,7 +17,6 @@ spec:
             # TLS handshake overhead.
             - '--backends=http://indexer-0.indexer:3000/'
             - '--backends=http://ber-indexer:3000/'
-            - '--backends=http://mya-indexer:3000/'
           resources:
             limits:
               cpu: "3"
