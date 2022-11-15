@@ -17,7 +17,6 @@ spec:
             # TLS handshake overhead.
             - '--backends=http://indexer-0.indexer:3000/'
             - '--backends=http://indexer-1.indexer:3000/'
-            - '--backends=http://arvo-indexer:3000/'
             - '--backends=http://mya-indexer:3000/'
           resources:
             limits:
