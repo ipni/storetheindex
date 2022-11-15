@@ -16,3 +16,4 @@ resources:
   - autoretrieve
   - index-provider
   - external-snapshotter
+  - snapshots

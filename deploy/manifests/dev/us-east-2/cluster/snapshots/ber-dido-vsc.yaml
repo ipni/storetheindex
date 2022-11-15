@@ -1,16 +1,7 @@
 apiVersion: snapshot.storage.k8s.io/v1
-kind: VolumeSnapshot
-metadata:
-  name: dido-021122
-spec:
-  volumeSnapshotClassName: csi-aws-vsc
-  source:
-    volumeSnapshotContentName: ber-dido-021122
----
-apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotContent
 metadata:
-  name: dido-021122
+  name: ber-dido-021122
 spec:
   deletionPolicy: Retain
   driver: ebs.csi.aws.com
