@@ -8,4 +8,4 @@ spec:
     # Note: Because the snapshot itself is taken on the prod cluster,
     # the VolumeSnapshotContent is created manually and Managed
     # at cluster level.
-    volumeSnapshotContentName: ber-dido-021122
+    volumeSnapshotContentName: cali-dido-021122

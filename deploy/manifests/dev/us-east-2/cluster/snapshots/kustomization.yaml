@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
   - ber-dido-vsc.yaml
+  - cali-dido-vsc.yaml
