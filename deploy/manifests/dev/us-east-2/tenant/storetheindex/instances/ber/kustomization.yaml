@@ -1,0 +1,35 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - ../../../../../../base/storetheindex-single
+  - ingress.yaml
+  - dido-snapshot-content.yaml
+
+namePrefix: ber-
+
+commonLabels:
+  name: ber
+
+secretGenerator:
+  - name: identity
+    behavior: replace
+    files:
+      - identity.key=identity.key.encrypted # 12D3KooWSQpUgBZwbNuMN3ctZjMesnoH9UDhwEXroxParXQCgurN
+
+configMapGenerator:
+  - name: config
+    behavior: replace
+    files:
+      - config=config.json
+
+patchesStrategicMerge:
+  - pvc.yaml
+  - deployment.yaml
+
+images:
+  - name: storetheindex
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+    newTag: 20221029095953-db83b7c9fab3615621063378fdda568c6e8ba209
