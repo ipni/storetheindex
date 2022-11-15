@@ -324,7 +324,6 @@ func (a *Assigner) checkAssignment(pubID peer.ID) (*assignment, int) {
 
 func (a *Assigner) orderCandidates(indexers []int) {
 	// TODO: order candidates by available storage and number of providers.
-	return
 }
 
 func (a *Assigner) assignIndexer(ctx context.Context, adminURL string, amsg announce.Announce) error {

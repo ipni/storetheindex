@@ -95,9 +95,6 @@ func TestReceiverCloseWaitingDirect(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test close while Direct is waiting.
-	rcvr, err = announce.NewReceiver(srcHost, testTopic)
-	require.NoError(t, err)
-
 	errChan := make(chan error)
 	go func() {
 		directErr := rcvr.Direct(context.Background(), testCid, testPeerID, testAddrs)
