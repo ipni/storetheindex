@@ -432,8 +432,7 @@ func (r *Registry) SetPolicy(policyCfg config.Policy) error {
 }
 
 // AllowPeer configures the policy to allow messages published by the
-// identified peer, or allow the peer to register as a provider. Returns true
-// if policy changed.
+// identified peer. Returns true if policy changed.
 func (r *Registry) AllowPeer(peerID peer.ID) bool {
 	filePath := "" // TODO: get this from daemon
 	if r.policy.Allow(peerID) {
@@ -458,8 +457,8 @@ func (r *Registry) BlockPeer(peerID peer.ID) bool {
 	return r.policy.Block(peerID)
 }
 
-// AllowList returns list of explicitly allowed peer IDs. or false if policy
-// allows by default and does not have allow list.
+// AllowList returns list of explicitly allowed peer IDs, or false if policy
+// does not have allow list because it allows by default.
 func (r *Registry) AllowList() ([]peer.ID, bool) {
 	return r.policy.AllowList()
 }
