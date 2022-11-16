@@ -1,6 +1,6 @@
 locals {
   indexstar_origin_id = "${local.environment_name}_${local.region}_indexstar"
-  cdn_origin_id       = "${local.environment_name}_sti_cdn"
+  http_announce_origin_id = "${local.environment_name}_${local.region}_http_announce"
   cdn_subdomain       = "cdn"
 }
 
@@ -13,10 +13,15 @@ resource "aws_cloudfront_distribution" "cdn" {
   ]
   price_class = "PriceClass_All"
 
-  # storetheindex/indexer ingress.
+  # The node named `ber` in dev environment uses a an identity that is whitelisted by Lotus 
+  # bootstrap nodes in order to relay gossipsub. That node is also configured to re-propagate 
+  # HTTP announces over gossipsub.
+  # Therefore, all HTTP announce requests are routed to it. 
+  # 
+  # See: storetheindex/ber-indexer ingress object.
   origin {
-    domain_name = "indexer.${aws_route53_zone.dev_external.name}"
-    origin_id   = local.cdn_origin_id
+    domain_name = "ber.${aws_route53_zone.dev_external.name}"
+    origin_id   = local.http_announce_origin_id
     custom_origin_config {
       http_port              = 80
       https_port             = 443
@@ -92,7 +97,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     # Hence the complete method list.
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
     cached_methods   = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = local.cdn_origin_id
+    target_origin_id = local.http_announce_origin_id
     forwarded_values {
       query_string = false
       cookies {
