@@ -25,7 +25,7 @@ const progName = "assigner"
 
 var DaemonCmd = &cli.Command{
 	Name:   "daemon",
-	Usage:  "Start daemon",
+	Usage:  "Start assigner service daemon",
 	Flags:  daemonFlags,
 	Action: daemonCommand,
 }

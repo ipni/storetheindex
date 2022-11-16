@@ -44,11 +44,4 @@ var daemonFlags = []cli.Flag{
 		EnvVars:  []string{"ASSIGNER_LISTEN_P2P"},
 		Required: false,
 	},
-	&cli.BoolFlag{
-		Name:     "watch-config",
-		Usage:    "Watch for changes to config file and automatically reload",
-		EnvVars:  []string{"ASSIGNER_WATCH_CONFIG"},
-		Value:    true,
-		Required: false,
-	},
 }

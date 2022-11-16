@@ -38,14 +38,15 @@ func main() {
 		Version: version.String(),
 		Commands: []*cli.Command{
 			command.AdminCmd,
+			command.AssignerCmd,
+			command.ConfigCmd,
 			command.DaemonCmd,
 			command.FindCmd,
 			command.ImportCmd,
 			command.InitCmd,
+			command.ProvidersCmd,
 			command.RegisterCmd,
 			command.SyntheticCmd,
-			command.ConfigCmd,
-			command.ProvidersCmd,
 		},
 	}
 
