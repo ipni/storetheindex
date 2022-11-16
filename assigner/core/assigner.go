@@ -20,7 +20,7 @@ import (
 
 var log = logging.Logger("assigner/core")
 
-// Core contains the core data and logic for the assigner.
+// Assigner is responsible for assigning publishers to indexers.
 type Assigner struct {
 	// assigned maps a publisher to a set of indexers.
 	assigned map[peer.ID]*assignment
@@ -208,7 +208,7 @@ func (a *Assigner) notifyAssignment(pubID peer.ID, indexerNum int) {
 	}
 }
 
-// watch fetches announce messages from the Reciever.
+// watch fetches announce messages from the Receiver.
 func (a *Assigner) watch() {
 	defer close(a.watchDone)
 
@@ -325,8 +325,8 @@ func (a *Assigner) assignIndexer(ctx context.Context, indexer indexerInfo, amsg 
 		return err
 	}
 
-	// Semd announce instead of sync request in case indexer is already syncing
-	// due to receiving announce after immediately allowing the publlisher,
+	// Send announce instead of sync request in case indexer is already syncing
+	// due to receiving announce after immediately allowing the publisher.
 	log.Infow("Sending direct announce to", indexer.ingestURL)
 	icl, err := ingestclient.New(indexer.ingestURL)
 	if err != nil {
@@ -341,16 +341,6 @@ func (a *Assigner) assignIndexer(ctx context.Context, indexer indexerInfo, amsg 
 		return err
 	}
 
-	/*
-		log.Infow("Starting sync on indexer", indexer.adminURL)
-		err = cl.Sync(ctx, amsg.PeerID, amsg.Addrs[0], 0, false)
-		if err != nil {
-			// Do not consider this a failure to assign since allowing the
-			// publisher effectively assigns it.
-			log.Errorw("Error starting sync to new assigned publisher", "err", err, "publisher", amsg.PeerID)
-		}
-	*/
-
 	log.Infow("Assigned publisher to indexer", "publisher", amsg.PeerID, "adminURL", indexer.adminURL)
 	return nil
 }
@@ -360,5 +350,5 @@ func getAssignments(ctx context.Context, adminURL string) ([]peer.ID, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cl.AllowList(ctx)
+	return cl.ListAllowedPeers(ctx)
 }

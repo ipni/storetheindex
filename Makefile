@@ -1,8 +1,13 @@
 BIN := storetheindex
 
-.PHONY: all build clean test
+.PHONY: all assigner build clean test
 
 all: vet test build
+
+assigner: assigner/assigner
+
+assigner/assigner:
+	@make -C assigner
 
 build:
 	go build -ldflags "-X 'github.com/filecoin-project/storetheindex/internal/version.GitVersion=$(git rev-list -1 HEAD)'"
@@ -24,3 +29,4 @@ vet:
 
 clean:
 	go clean
+	@make -C assigner clean

@@ -24,13 +24,6 @@ var allow = &cli.Command{
 	Action: allowCmd,
 }
 
-var allowList = &cli.Command{
-	Name:   "allow-list",
-	Usage:  "List explicitly asllowed peers",
-	Flags:  adminAllowListFlags,
-	Action: allowListCmd,
-}
-
 var block = &cli.Command{
 	Name:   "block",
 	Usage:  "Block advertisements and content from peer",
@@ -43,6 +36,13 @@ var importProviders = &cli.Command{
 	Usage:  "Import provider information from another indexer",
 	Flags:  importProvidersFlags,
 	Action: importProvidersCmd,
+}
+
+var listAllowed = &cli.Command{
+	Name:   "list-allowed",
+	Usage:  "List explicitly allowed peers",
+	Flags:  adminListAllowedFlags,
+	Action: listAllowedCmd,
 }
 
 var reload = &cli.Command{
@@ -66,9 +66,9 @@ var AdminCmd = &cli.Command{
 	Usage: "Perform admin activities with an indexer",
 	Subcommands: []*cli.Command{
 		allow,
-		allowList,
 		block,
 		importProviders,
+		listAllowed,
 		reload,
 		sync,
 	},
@@ -116,12 +116,12 @@ func allowCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func allowListCmd(cctx *cli.Context) error {
+func listAllowedCmd(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
-	allowed, err := cl.AllowList(cctx.Context)
+	allowed, err := cl.ListAllowedPeers(cctx.Context)
 	if err != nil {
 		return err
 	}

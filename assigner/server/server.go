@@ -2,18 +2,26 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 
 	"github.com/filecoin-project/storetheindex/announce/gossiptopic"
 	"github.com/filecoin-project/storetheindex/assigner/core"
+	"github.com/filecoin-project/storetheindex/version"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 var log = logging.Logger("assigner/server")
+
+var versionData []byte
+
+func init() {
+	versionData, _ = json.Marshal(version.String())
+}
 
 type Server struct {
 	assigner *core.Assigner
@@ -47,6 +55,8 @@ func New(listen string, assigner *core.Assigner, options ...ServerOption) (*Serv
 
 	// Direct announce.
 	r.HandleFunc("/ingest/announce", s.announce).Methods(http.MethodPut)
+	// Health check.
+	r.HandleFunc("/health", s.health).Methods(http.MethodGet)
 
 	return s, nil
 }
@@ -110,4 +120,18 @@ func (s *Server) announce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) health(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache")
+	writeJsonResponse(w, http.StatusOK, versionData)
+}
+
+func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	if _, err := w.Write(body); err != nil {
+		log.Errorw("cannot write response", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+	}
 }

@@ -189,9 +189,9 @@ func (c *Client) Allow(ctx context.Context, peerID peer.ID) error {
 	return c.ingestRequest(ctx, peerID, "allow", http.MethodPut, nil)
 }
 
-// AllowList gets a list of explicitly allowed peers, if policy is configured
-// to have allow list.
-func (c *Client) AllowList(ctx context.Context) ([]peer.ID, error) {
+// ListAllowedPeers gets a list of explicitly allowed peers, if policy is
+// configured to have allow list.
+func (c *Client) ListAllowedPeers(ctx context.Context) ([]peer.ID, error) {
 	u := c.baseURL + path.Join(ingestResource, "allowlist")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
