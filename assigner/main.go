@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/filecoin-project/storetheindex/assigner/command"
-	"github.com/filecoin-project/storetheindex/internal/version"
+	"github.com/filecoin-project/storetheindex/version"
 	"github.com/urfave/cli/v2"
 )
 
