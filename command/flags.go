@@ -135,6 +135,10 @@ var adminReloadConfigFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
+var adminAllowListFlags = []cli.Flag{
+	indexerHostFlag,
+}
+
 var adminSyncFlags = []cli.Flag{
 	indexerHostFlag,
 	&cli.StringFlag{
@@ -187,6 +191,11 @@ var initFlags = []cli.Flag{
 		Name:     "upgrade",
 		Usage:    "Upgrade the config file to the current version, saving the old config as config.prev, and ignoring other flags ",
 		Aliases:  []string{"u"},
+		Required: false,
+	},
+	&cli.BoolFlag{
+		Name:     "block-policy",
+		Usage:    "Set the discovery policy to block peers by default",
 		Required: false,
 	},
 }

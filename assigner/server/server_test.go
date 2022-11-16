@@ -106,6 +106,7 @@ func TestAnnounce(t *testing.T) {
 	err = os.Chdir(filepath.Dir(filepath.Dir(cwd)))
 	require.NoError(t, err)
 	e.run("go", "install", ".")
+	// The following section should be used if assigner is moved to separate repo.
 	/*
 		err = os.Chdir(e.dir)
 		require.NoError(t, err)
@@ -119,10 +120,11 @@ func TestAnnounce(t *testing.T) {
 	require.NoError(t, err)
 
 	indexer := filepath.Join(e.dir, "storetheindex")
-	e.run(indexer, "init", "--pubsub-topic", pubsubTopic, "--no-bootstrap",
+	e.run(indexer, "init", "--pubsub-topic", pubsubTopic, "--no-bootstrap", "--block-policy",
 		"--listen-admin=/ip4/127.0.0.1/tcp/3602",
 		"--listen-finder=/ip4/127.0.0.1/tcp/3600",
 		"--listen-ingest=/ip4/127.0.0.1/tcp/3601",
+		"--listen-p2p=/ip4/127.0.0.1/tcp/3603",
 	)
 	stiCfg, err := sticfg.Load(filepath.Join(e.dir, ".storetheindex", "config"))
 	require.NoError(t, err)
@@ -181,7 +183,11 @@ func TestAnnounce(t *testing.T) {
 	}
 
 	// Check assignment
-	//outProvider := e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
+	outProvider := e.run(indexer, "admin", "allow-list", "--indexer", cfg.IndexerPool[0].AdminURL)
+	expect := peerID.String()
+	if !strings.Contains(string(outProvider), expect) {
+		t.Errorf("expected provider to contains %q, got %q", expect, string(outProvider))
+	}
 
 	e.stop(cmdIndexer, 5*time.Second)
 }
@@ -193,7 +199,6 @@ func initAssigner(t *testing.T, trustedID string) (*core.Assigner, config.Assign
 		IndexerPool: []config.Indexer{
 			{
 				AdminURL:  fmt.Sprintf("http://%s:3602", indexerIP),
-				FindURL:   fmt.Sprintf("http://%s:3600", indexerIP),
 				IngestURL: fmt.Sprintf("http://%s:3601", indexerIP),
 			},
 		},

@@ -99,6 +99,20 @@ func (p *Policy) Default() bool {
 	return p.value
 }
 
+// Except returns the except list as a slice of peer.ID.
+func (p *Policy) Except() []peer.ID {
+	if len(p.except) == 0 {
+		return nil
+	}
+	except := make([]peer.ID, len(p.except))
+	var i int
+	for peerID := range p.except {
+		except[i] = peerID
+		i++
+	}
+	return except
+}
+
 // ExceptStrings returns the except list as a slice of peer.ID strings.
 func (p *Policy) ExceptStrings() []string {
 	if len(p.except) == 0 {

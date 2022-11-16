@@ -258,7 +258,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		}
 	}
 
-	err = ing.reg.RegisterOrUpdate(ctx, provider, adCid, publisher, extendedProviders)
+	err = ing.reg.Update(ctx, provider, publisher, adCid, extendedProviders)
 	if err != nil {
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}

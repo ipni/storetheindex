@@ -21,7 +21,6 @@ type Assignment struct {
 
 type Indexer struct {
 	AdminURL  string
-	FindURL   string
 	IngestURL string
 }
 

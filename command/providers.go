@@ -84,5 +84,7 @@ func showProviderInfo(pinfo *model.ProviderInfo) {
 	}
 	fmt.Println("    LastAdvertisement:", adCidStr)
 	fmt.Println("    LastAdvertisementTime:", pinfo.LastAdvertisementTime)
+	fmt.Println("    Publisher:", pinfo.Publisher.ID)
+	fmt.Println("        Publisher Addrs:", pinfo.Publisher.Addrs)
 	fmt.Println("    IndexCount:", pinfo.IndexCount)
 }

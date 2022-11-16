@@ -9,7 +9,7 @@ import (
 
 	"github.com/filecoin-project/storetheindex/announce"
 	adminclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
-	findclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
+	ingestclient "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
 	"github.com/filecoin-project/storetheindex/assigner/config"
 	"github.com/filecoin-project/storetheindex/peerutil"
 	"github.com/ipfs/go-cid"
@@ -49,7 +49,6 @@ type assignment struct {
 
 type indexerInfo struct {
 	adminURL  string
-	findURL   string
 	ingestURL string
 }
 
@@ -69,9 +68,9 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 
 	// Get the publishers currently assigned to each indexer in the pool.
 	for i := range indexerPool {
-		pubs, err := getAssignments(ctx, indexerPool[i].findURL)
+		pubs, err := getAssignments(ctx, indexerPool[i].adminURL)
 		if err != nil {
-			log.Errorw("could not get assignments from indexer", "err", err, "indexer", i, "findURL", indexerPool[i].findURL)
+			log.Errorw("could not get assignments from indexer", "err", err, "indexer", i, "adminURL", indexerPool[i].adminURL)
 			continue
 		}
 		// Add this indexer to each publishers assignments.
@@ -131,15 +130,6 @@ func indexersFromConfig(cfgIndexerPool []config.Indexer) ([]indexerInfo, error) 
 			return nil, fmt.Errorf("indexer %d has non-unique admin url %s", i, iInfo.adminURL)
 		}
 
-		u, err = url.Parse(cfgIndexerPool[i].FindURL)
-		if err != nil {
-			return nil, fmt.Errorf("indexer %d has bad find url: %s: %w", i, cfgIndexerPool[i].FindURL, err)
-		}
-		iInfo.findURL = u.String()
-		if _, found := seen[iInfo.findURL]; found {
-			return nil, fmt.Errorf("indexer %d has non-unique find url %s", i, iInfo.findURL)
-		}
-
 		u, err = url.Parse(cfgIndexerPool[i].IngestURL)
 		if err != nil {
 			return nil, fmt.Errorf("indexer %d has bad ingest url: %s: %w", i, cfgIndexerPool[i].IngestURL, err)
@@ -152,7 +142,6 @@ func indexersFromConfig(cfgIndexerPool []config.Indexer) ([]indexerInfo, error) 
 		indexers = append(indexers, iInfo)
 
 		seen[iInfo.adminURL] = struct{}{}
-		seen[iInfo.findURL] = struct{}{}
 		seen[iInfo.ingestURL] = struct{}{}
 	}
 
@@ -269,7 +258,7 @@ func (a *Assigner) makeAssignments(ctx context.Context, amsg announce.Announce, 
 	a.orderCandidates(candidates)
 
 	for _, indexerNum := range candidates {
-		err := a.assignIndexer(ctx, a.indexerPool[indexerNum].adminURL, amsg)
+		err := a.assignIndexer(ctx, a.indexerPool[indexerNum], amsg)
 		if err != nil {
 			log.Errorw("Could not assign publisher to indexer", "indexer", indexerNum, "adminURL", a.indexerPool[indexerNum].adminURL)
 			continue
@@ -326,8 +315,8 @@ func (a *Assigner) orderCandidates(indexers []int) {
 	// TODO: order candidates by available storage and number of providers.
 }
 
-func (a *Assigner) assignIndexer(ctx context.Context, adminURL string, amsg announce.Announce) error {
-	cl, err := adminclient.New(adminURL)
+func (a *Assigner) assignIndexer(ctx context.Context, indexer indexerInfo, amsg announce.Announce) error {
+	cl, err := adminclient.New(indexer.adminURL)
 	if err != nil {
 		return err
 	}
@@ -336,46 +325,40 @@ func (a *Assigner) assignIndexer(ctx context.Context, adminURL string, amsg anno
 		return err
 	}
 
-	err = cl.Sync(ctx, amsg.PeerID, amsg.Addrs[0], 0, false)
+	// Semd announce instead of sync request in case indexer is already syncing
+	// due to receiving announce after immediately allowing the publlisher,
+	log.Infow("Sending direct announce to", indexer.ingestURL)
+	icl, err := ingestclient.New(indexer.ingestURL)
 	if err != nil {
-		// Do not consider this a failure to assign since allowing the
-		// publisher effectively assigns it.
-		log.Errorw("Error starting sync to new assigned publisher", "err", err, "publisher", amsg.PeerID)
+		return err
+	}
+	pubInfo := peer.AddrInfo{
+		ID:    amsg.PeerID,
+		Addrs: amsg.Addrs,
+	}
+	err = icl.Announce(ctx, &pubInfo, amsg.Cid)
+	if err != nil {
+		return err
 	}
 
-	log.Infow("Assigned publisher to indexer", "publisher", amsg.PeerID, "adminURL", adminURL)
+	/*
+		log.Infow("Starting sync on indexer", indexer.adminURL)
+		err = cl.Sync(ctx, amsg.PeerID, amsg.Addrs[0], 0, false)
+		if err != nil {
+			// Do not consider this a failure to assign since allowing the
+			// publisher effectively assigns it.
+			log.Errorw("Error starting sync to new assigned publisher", "err", err, "publisher", amsg.PeerID)
+		}
+	*/
+
+	log.Infow("Assigned publisher to indexer", "publisher", amsg.PeerID, "adminURL", indexer.adminURL)
 	return nil
 }
 
-func getAssignments(ctx context.Context, findURL string) ([]peer.ID, error) {
-	cl, err := findclient.New(findURL)
+func getAssignments(ctx context.Context, adminURL string) ([]peer.ID, error) {
+	cl, err := adminclient.New(adminURL)
 	if err != nil {
 		return nil, err
 	}
-	provs, err := cl.ListProviders(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if len(provs) == 0 {
-		return nil, nil
-	}
-
-	// Get set of unique publishers, since multiple providers may have the same
-	// publisher.
-	pubSet := make(map[peer.ID]struct{})
-	for _, pinfo := range provs {
-		if pinfo.Publisher == nil {
-			continue
-		}
-		pubSet[pinfo.Publisher.ID] = struct{}{}
-	}
-
-	pubs := make([]peer.ID, len(pubSet))
-	var i int
-	for p := range pubSet {
-		pubs[i] = p
-		i++
-	}
-
-	return pubs, nil
+	return cl.AllowList(ctx)
 }

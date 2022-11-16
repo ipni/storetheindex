@@ -94,16 +94,17 @@ func TestNewRegistryDiscovery(t *testing.T) {
 	pubAddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	require.NoError(t, err)
 
-	info := &ProviderInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    peerID,
-			Addrs: []multiaddr.Multiaddr{maddr},
-		},
-		Publisher:     pubID,
-		PublisherAddr: pubAddr,
+	provider := peer.AddrInfo{
+		ID:    peerID,
+		Addrs: []multiaddr.Multiaddr{maddr},
 	}
 
-	err = r.Register(ctx, info)
+	publisher := peer.AddrInfo{
+		ID:    pubID,
+		Addrs: []multiaddr.Multiaddr{pubAddr},
+	}
+
+	err = r.Update(ctx, provider, publisher, cid.Undef, nil)
 	require.NoError(t, err)
 
 	err = r.Close()
@@ -142,14 +143,13 @@ func TestDiscoveryAllowed(t *testing.T) {
 	require.NoError(t, err)
 	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/3002")
 	require.NoError(t, err)
-	info = &ProviderInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    peerID,
-			Addrs: []multiaddr.Multiaddr{maddr},
-		},
+	provider := peer.AddrInfo{
+		ID:    peerID,
+		Addrs: []multiaddr.Multiaddr{maddr},
 	}
+	publisher := peer.AddrInfo{}
 
-	err = r.Register(ctx, info)
+	err = r.Update(ctx, provider, publisher, cid.Undef, nil)
 	require.NoError(t, err)
 
 	require.True(t, r.IsRegistered(peerID), "peer is not registered")
@@ -200,11 +200,9 @@ func TestDatastore(t *testing.T) {
 	require.NoError(t, err)
 	maddr1, err := multiaddr.NewMultiaddr(minerAddr)
 	require.NoError(t, err)
-	info1 := &ProviderInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    provID1,
-			Addrs: []multiaddr.Multiaddr{maddr1},
-		},
+	provider1 := peer.AddrInfo{
+		ID:    provID1,
+		Addrs: []multiaddr.Multiaddr{maddr1},
 	}
 
 	provID2, err := peer.Decode(limitedID2)
@@ -223,31 +221,31 @@ func TestDatastore(t *testing.T) {
 	ep2, _, _ := util.RandomIdentity(t)
 	ep2Addrs := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9998"})
 	ep2Metadata := []byte("ep2-metadata")
-	info2 := &ProviderInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    provID2,
-			Addrs: []multiaddr.Multiaddr{maddr2},
-		},
-		Publisher:     pubID,
-		PublisherAddr: pubAddr,
-		ExtendedProviders: &ExtendedProviders{
-			Providers: []ExtendedProviderInfo{
-				{
-					PeerID:   ep1,
-					Addrs:    ep1Addrs,
-					Metadata: ep1Metadata,
-				},
+	provider2 := peer.AddrInfo{
+		ID:    provID2,
+		Addrs: []multiaddr.Multiaddr{maddr2},
+	}
+	publisher := peer.AddrInfo{
+		ID:    pubID,
+		Addrs: []multiaddr.Multiaddr{pubAddr},
+	}
+	extProviders := &ExtendedProviders{
+		Providers: []ExtendedProviderInfo{
+			{
+				PeerID:   ep1,
+				Addrs:    ep1Addrs,
+				Metadata: ep1Metadata,
 			},
-			ContextualProviders: map[string]ContextualExtendedProviders{
-				string(epContextId): {
-					ContextID: epContextId,
-					Override:  false,
-					Providers: []ExtendedProviderInfo{
-						{
-							PeerID:   ep2,
-							Addrs:    ep2Addrs,
-							Metadata: ep2Metadata,
-						},
+		},
+		ContextualProviders: map[string]ContextualExtendedProviders{
+			string(epContextId): {
+				ContextID: epContextId,
+				Override:  false,
+				Providers: []ExtendedProviderInfo{
+					{
+						PeerID:   ep2,
+						Addrs:    ep2Addrs,
+						Metadata: ep2Metadata,
 					},
 				},
 			},
@@ -262,14 +260,10 @@ func TestDatastore(t *testing.T) {
 	require.NoError(t, err)
 	t.Log("created new registry with datastore")
 
-	err = r.Register(ctx, info1)
+	err = r.Update(ctx, provider1, peer.AddrInfo{}, cid.Undef, nil)
 	require.NoError(t, err)
 
-	publisher := peer.AddrInfo{
-		ID:    info2.Publisher,
-		Addrs: []multiaddr.Multiaddr{pubAddr},
-	}
-	err = r.RegisterOrUpdate(ctx, info2.AddrInfo, cid.Undef, publisher, info2.ExtendedProviders)
+	err = r.Update(ctx, provider2, publisher, cid.Undef, extProviders)
 	require.NoError(t, err)
 
 	pinfo, allowed := r.ProviderInfo(provID1)
@@ -297,15 +291,15 @@ func TestDatastore(t *testing.T) {
 
 	for _, provInfo := range infos {
 		switch provInfo.AddrInfo.ID {
-		case info1.AddrInfo.ID:
+		case provider1.ID:
 			if provInfo.Publisher.Validate() == nil {
-				t.Fatal("info1 should not have valid publisher")
+				t.Fatal("provider1 should not have valid publisher")
 			}
-		case info2.AddrInfo.ID:
-			require.Equal(t, provInfo.Publisher, info2.Publisher, "info2 has wrong publisher ID")
+		case provider2.ID:
+			require.Equal(t, provInfo.Publisher, publisher.ID, "info2 has wrong publisher ID")
 			require.NotNil(t, provInfo.PublisherAddr, "info2 missing publisher address")
-			require.True(t, provInfo.PublisherAddr.Equal(info2.PublisherAddr), "info2 has wrong publisher ID %q, expected %q", provInfo.PublisherAddr, info2.PublisherAddr)
-			require.Equal(t, provInfo.ExtendedProviders, info2.ExtendedProviders)
+			require.True(t, provInfo.PublisherAddr.Equal(publisher.Addrs[0]), "provider2 has wrong publisher ID %q, expected %q", provInfo.PublisherAddr, publisher.Addrs[0])
+			require.Equal(t, provInfo.ExtendedProviders, extProviders)
 		default:
 			t.Fatalf("loaded invalid provider ID: %q", provInfo.AddrInfo.ID)
 		}
@@ -347,7 +341,7 @@ func TestAllowed(t *testing.T) {
 		Addrs: []multiaddr.Multiaddr{pubAddr},
 	}
 
-	err = r.RegisterOrUpdate(ctx, provider, cid.Undef, publisher, nil)
+	err = r.Update(ctx, provider, publisher, cid.Undef, nil)
 	require.NoError(t, err)
 
 	// Check that provider is allowed.
@@ -430,7 +424,7 @@ func TestPollProvider(t *testing.T) {
 	pub := peer.AddrInfo{
 		ID: pubID,
 	}
-	err = r.RegisterOrUpdate(ctx, prov, cid.Undef, pub, nil)
+	err = r.Update(ctx, prov, pub, cid.Undef, nil)
 	require.NoError(t, err)
 
 	poll := polling{
@@ -538,7 +532,7 @@ func TestPollProviderOverrides(t *testing.T) {
 	pub := peer.AddrInfo{
 		ID: pubID,
 	}
-	err = r.RegisterOrUpdate(ctx, prov, cid.Undef, pub, nil)
+	err = r.Update(ctx, prov, pub, cid.Undef, nil)
 	if err != nil {
 		t.Fatal("failed to register directly:", err)
 	}
@@ -618,16 +612,14 @@ func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 		ID:    provId,
 		Addrs: []multiaddr.Multiaddr{ma},
 	}
-	err = subject.Register(ctx, &ProviderInfo{
-		AddrInfo: provider,
-	})
+	err = subject.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil)
 	require.NoError(t, err)
 
 	// Assert that updating publisher for the registered provider with empty addrs does not panic.
 	mh, err := multihash.Sum([]byte("fish"), multihash.SHA2_256, -1)
 	require.NoError(t, err)
 	c := cid.NewCidV1(cid.Raw, mh)
-	err = subject.RegisterOrUpdate(ctx, provider, c, peer.AddrInfo{ID: publisherID}, nil)
+	err = subject.Update(ctx, provider, peer.AddrInfo{ID: publisherID}, c, nil)
 	require.NoError(t, err)
 
 	info, _ := subject.ProviderInfo(provId)
@@ -636,7 +628,7 @@ func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 
 	// Register a publisher that has no addresses, but publisherID is same as
 	// provider. Registry should use provider's address as publisher.
-	err = subject.RegisterOrUpdate(ctx, provider, c, peer.AddrInfo{ID: provId}, nil)
+	err = subject.Update(ctx, provider, peer.AddrInfo{ID: provId}, c, nil)
 	info, _ = subject.ProviderInfo(provId)
 	require.NoError(t, err)
 	require.NotNil(t, info)
@@ -677,7 +669,7 @@ func TestFilterIPs(t *testing.T) {
 		ID:    pubID,
 		Addrs: []multiaddr.Multiaddr{maddrPvt, pubAddr, maddrLocal},
 	}
-	err = reg.RegisterOrUpdate(ctx, provider, cid.Undef, publisher, nil)
+	err = reg.Update(ctx, provider, publisher, cid.Undef, nil)
 	require.NoError(t, err)
 	require.NoError(t, reg.Close())
 
@@ -697,8 +689,8 @@ func TestFilterIPs(t *testing.T) {
 	// was persisted.
 	require.Nil(t, pinfo.PublisherAddr)
 
-	// Check the RegisterOrUpdate filters IPs.
-	err = reg.RegisterOrUpdate(ctx, provider, cid.Undef, publisher, nil)
+	// Check the Update filters IPs.
+	err = reg.Update(ctx, provider, publisher, cid.Undef, nil)
 	require.NoError(t, err)
 	pinfo, _ = reg.ProviderInfo(provID)
 	require.NotNil(t, pinfo)
@@ -706,13 +698,12 @@ func TestFilterIPs(t *testing.T) {
 	require.Equal(t, provAddr, pinfo.AddrInfo.Addrs[0])
 	require.Equal(t, pubAddr.String(), pinfo.PublisherAddr.String())
 
+	provider2 := peer.AddrInfo{
+		ID:    pubID,
+		Addrs: []multiaddr.Multiaddr{maddrPvt, pubAddr, maddrLocal},
+	}
 	// Check the Register filters IPs.
-	err = reg.Register(ctx, &ProviderInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    pubID,
-			Addrs: []multiaddr.Multiaddr{maddrPvt, pubAddr, maddrLocal},
-		},
-	})
+	err = reg.Update(ctx, provider2, peer.AddrInfo{}, cid.Undef, nil)
 	require.NoError(t, err)
 	pinfo, _ = reg.ProviderInfo(pubID)
 	require.NotNil(t, pinfo)

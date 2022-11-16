@@ -9,6 +9,7 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/test/util"
+	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -336,15 +337,12 @@ func createProviderAndPopulateIndexer(t *testing.T, ctx context.Context, ind ind
 	}
 	populateIndex(ind, mhs, v, t)
 
-	info := &registry.ProviderInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    providerID,
-			Addrs: addrs,
-		},
-		ExtendedProviders: extendedProviders,
+	provider := peer.AddrInfo{
+		ID:    providerID,
+		Addrs: addrs,
 	}
 
-	err := reg.Register(ctx, info)
+	err := reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, extendedProviders)
 	require.NoError(t, err, "could not register provider info: %v", err)
 
 	return providerID, mhs

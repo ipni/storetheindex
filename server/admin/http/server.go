@@ -18,10 +18,9 @@ import (
 var log = logging.Logger("indexer/admin")
 
 type Server struct {
-	cancel  context.CancelFunc
-	l       net.Listener
-	server  *http.Server
-	handler *adminHandler
+	cancel   context.CancelFunc
+	listener net.Listener
+	server   *http.Server
 }
 
 func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error, options ...ServerOption) (*Server, error) {
@@ -46,26 +45,28 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &Server{
-		cancel:  cancel,
-		l:       l,
-		server:  server,
-		handler: newHandler(ctx, indexer, ingester, reg, reloadErrChan),
+		cancel:   cancel,
+		listener: l,
+		server:   server,
 	}
+
+	h := newHandler(ctx, indexer, ingester, reg, reloadErrChan)
 
 	// Set protocol handlers
 	// Import routes
-	r.HandleFunc("/import/manifest/{provider}", s.importManifest).Methods(http.MethodPost)
-	r.HandleFunc("/import/cidlist/{provider}", s.importCidList).Methods(http.MethodPost)
+	r.HandleFunc("/import/manifest/{provider}", h.importManifest).Methods(http.MethodPost)
+	r.HandleFunc("/import/cidlist/{provider}", h.importCidList).Methods(http.MethodPost)
 
 	// Admin routes
-	r.HandleFunc("/healthcheck", s.healthCheckHandler).Methods(http.MethodGet)
-	r.HandleFunc("/importproviders", s.importProviders).Methods(http.MethodPost)
-	r.HandleFunc("/reloadconfig", s.reloadConfig).Methods(http.MethodPost)
+	r.HandleFunc("/healthcheck", h.healthCheckHandler).Methods(http.MethodGet)
+	r.HandleFunc("/importproviders", h.importProviders).Methods(http.MethodPost)
+	r.HandleFunc("/reloadconfig", h.reloadConfig).Methods(http.MethodPost)
 
 	// Ingester routes
-	r.HandleFunc("/ingest/allow/{peer}", s.allowPeer).Methods(http.MethodPut)
-	r.HandleFunc("/ingest/block/{peer}", s.blockPeer).Methods(http.MethodPut)
-	r.HandleFunc("/ingest/sync/{peer}", s.sync).Methods(http.MethodPost)
+	r.HandleFunc("/ingest/allow/{peer}", h.allowPeer).Methods(http.MethodPut)
+	r.HandleFunc("/ingest/allowlist", h.allowList).Methods(http.MethodGet)
+	r.HandleFunc("/ingest/block/{peer}", h.blockPeer).Methods(http.MethodPut)
+	r.HandleFunc("/ingest/sync/{peer}", h.sync).Methods(http.MethodPost)
 
 	// Metrics routes
 	r.Handle("/metrics", metrics.Start(coremetrics.DefaultViews))
@@ -79,76 +80,12 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 }
 
 func (s *Server) Start() error {
-	log.Infow("admin http server listening", "listen_addr", s.l.Addr())
-	return s.server.Serve(s.l)
+	log.Infow("admin http server listening", "listen_addr", s.listener.Addr())
+	return s.server.Serve(s.listener)
 }
 
 func (s *Server) Close() error {
 	log.Info("admin http server shutdown")
 	s.cancel() // stop any sync in progress
 	return s.server.Shutdown(context.Background())
-}
-
-func (s *Server) importManifest(w http.ResponseWriter, r *http.Request) {
-	if s.handler == nil {
-		http.Error(w, "handler not set", http.StatusInternalServerError)
-		return
-	}
-	s.handler.importManifest(w, r)
-}
-
-func (s *Server) importCidList(w http.ResponseWriter, r *http.Request) {
-	if s.handler == nil {
-		http.Error(w, "handler not set", http.StatusInternalServerError)
-		return
-	}
-	s.handler.importCidList(w, r)
-}
-
-func (s *Server) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	if s.handler == nil {
-		http.Error(w, "handler not set. not ready yet.", http.StatusInternalServerError)
-		return
-	}
-	s.handler.healthCheckHandler(w, r)
-}
-
-func (s *Server) importProviders(w http.ResponseWriter, r *http.Request) {
-	if s.handler == nil {
-		http.Error(w, "handler not set. not ready yet.", http.StatusInternalServerError)
-		return
-	}
-	s.handler.importProviders(w, r)
-}
-
-func (s *Server) reloadConfig(w http.ResponseWriter, r *http.Request) {
-	if s.handler == nil {
-		http.Error(w, "handler not set. not ready yet.", http.StatusInternalServerError)
-		return
-	}
-	s.handler.reloadConfig(w, r)
-}
-
-func (s *Server) allowPeer(w http.ResponseWriter, r *http.Request) {
-	if s.handler == nil {
-		http.Error(w, "handler not set. not ready yet.", http.StatusInternalServerError)
-		return
-	}
-	s.handler.allowPeer(w, r)
-}
-
-func (s *Server) blockPeer(w http.ResponseWriter, r *http.Request) {
-	if s.handler == nil {
-		http.Error(w, "handler not set. not ready yet.", http.StatusInternalServerError)
-		return
-	}
-	s.handler.blockPeer(w, r)
-}
-
-func (s *Server) sync(w http.ResponseWriter, r *http.Request) {
-	if s.handler == nil {
-		http.Error(w, "handler not set. not ready yet.", http.StatusInternalServerError)
-		return
-	}
-	s.handler.sync(w, r)
 }

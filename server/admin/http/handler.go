@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/filecoin-project/go-indexer-core"
+	"github.com/filecoin-project/storetheindex/internal/httpserver"
 	"github.com/filecoin-project/storetheindex/internal/importer"
 	"github.com/filecoin-project/storetheindex/internal/ingest"
 	"github.com/filecoin-project/storetheindex/internal/registry"
@@ -54,6 +55,23 @@ func (h *adminHandler) allowPeer(w http.ResponseWriter, r *http.Request) {
 		log.Infow("Update config to persist allowing peer", "peerr", peerID)
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *adminHandler) allowList(w http.ResponseWriter, r *http.Request) {
+	allowed, ok := h.reg.AllowList()
+	if !ok {
+		http.Error(w, "policy not configured to have allow list", http.StatusServiceUnavailable)
+		return
+	}
+
+	data, err := json.Marshal(allowed)
+	if err != nil {
+		log.Errorw("Error marshaling allow list", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
 func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
