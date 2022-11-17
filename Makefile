@@ -4,9 +4,7 @@ BIN := storetheindex
 
 all: vet test build
 
-assigner: assigner/assigner
-
-assigner/assigner:
+assigner:
 	@make -C assigner
 
 build:
