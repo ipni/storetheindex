@@ -77,7 +77,9 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 		for _, pubID := range pubs {
 			asmt, found := assigned[pubID]
 			if !found {
-				asmt = &assignment{}
+				asmt = &assignment{
+					indexers: make(map[int]struct{}),
+				}
 				assigned[pubID] = asmt
 			}
 			asmt.indexers[i] = struct{}{}

@@ -31,6 +31,11 @@ var pubIdent = sticfg.Identity{
 	PrivKey: "CAESQLypOCKYR7HGwVl4ngNhEqMZ7opchNOUA4Qc1QDpxsARGr2pWUgkXFXKU27TgzIHXqw0tXaUVx2GIbUuLitq22c=",
 }
 
+var pubIdent2 = sticfg.Identity{
+	PeerID:  "12D3KooWQ9j3Ur5V9U63Vi6ved72TcA3sv34k74W3wpW5rwNvDc3",
+	PrivKey: "CAESQLtIPpQ0cFqLyK9Wnkd0J8lkslrd/g3KJSZOog7MLLt31PlBaXUpIIU5WaTuEJPioGK3+jEbDzFxDNrkQX5xKTg=",
+}
+
 const pubsubTopic = "/indexer/ingest/mainnet"
 
 func setupServer(t *testing.T, assigner *core.Assigner) *server.Server {
@@ -138,13 +143,12 @@ func TestAnnounce(t *testing.T) {
 		t.Fatal("timed out waiting for indexer to start")
 	}
 
-	rng := rand.New(rand.NewSource(1413))
+	// Allow a peer to test that assigner reads this at startup.
+	e.run(indexer, "admin", "allow", "-i", "localhost:3602", "--peer", pubIdent2.PeerID)
 
 	// Initialize everything
 	peerID, _, err := pubIdent.Decode()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	assigner, cfg := initAssigner(t, pubIdent.PeerID)
 	s := setupServer(t, assigner)
 	cl := setupClient(t, s.URL())
@@ -159,11 +163,10 @@ func TestAnnounce(t *testing.T) {
 	}()
 
 	ai, err := peer.AddrInfoFromString(fmt.Sprintf("/ip4/127.0.0.1/tcp/9999/p2p/%s", peerID))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ai.ID = peerID
 
+	rng := rand.New(rand.NewSource(1413))
 	mhs := util.RandomMultihashes(1, rng)
 
 	assignChan := assigner.OnAssignment(peerID)
