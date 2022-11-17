@@ -13,7 +13,6 @@ import (
 
 	"github.com/filecoin-project/go-indexer-core"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
-	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/filecoin-project/storetheindex/server/finder/test"
 	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-cid"
@@ -53,13 +52,12 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 	require.NotEmpty(t, v)
 
 	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
-	info := &registry.ProviderInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    p,
-			Addrs: []multiaddr.Multiaddr{a},
-		},
+	provider := peer.AddrInfo{
+		ID:    p,
+		Addrs: []multiaddr.Multiaddr{a},
 	}
-	err = reg.Register(context.TODO(), info)
+
+	err = reg.Update(context.Background(), provider, peer.AddrInfo{}, cid.Undef, nil)
 	require.NoError(t, err)
 
 	tests := []struct {

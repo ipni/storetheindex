@@ -59,12 +59,6 @@ func TestRegisterProvider(t *testing.T) {
 
 	test.RegisterProviderTest(t, httpClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
 
-	//test.IndexContent(t, httpClient, peerID, privKey, ind)
-
-	//test.IndexContentNewAddr(t, httpClient, peerID, privKey, ind, "/ip4/127.0.0.1/tcp/7777", reg)
-
-	//test.IndexContentFail(t, httpClient, peerID, privKey, ind)
-
 	if err = reg.Close(); err != nil {
 		t.Errorf("Error closing registry: %s", err)
 	}
@@ -80,7 +74,7 @@ func TestAnnounce(t *testing.T) {
 	ing := test.InitIngest(t, ind, reg)
 	s := setupServer(ind, ing, reg, t)
 	httpClient := setupClient(s.URL(), t)
-	peerID, privKey, err := providerIdent.Decode()
+	peerID, _, err := providerIdent.Decode()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,8 +86,6 @@ func TestAnnounce(t *testing.T) {
 		}
 		close(errChan)
 	}()
-
-	test.RegisterProviderTest(t, httpClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
 
 	test.AnnounceTest(t, peerID, httpClient)
 

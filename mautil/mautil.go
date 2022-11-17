@@ -4,6 +4,7 @@ package mautil
 import (
 	"net"
 
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 )
@@ -59,4 +60,20 @@ func MultiaddrStringToNetAddr(maddrStr string) (net.Addr, error) {
 		return nil, err
 	}
 	return manet.ToNetAddr(maddr)
+}
+
+// ParsePeers parses a list of multiaddr strings into a list of AddrInfo.
+func ParsePeers(addrs []string) ([]peer.AddrInfo, error) {
+	if len(addrs) == 0 {
+		return nil, nil
+	}
+	maddrs := make([]multiaddr.Multiaddr, len(addrs))
+	for i, addr := range addrs {
+		var err error
+		maddrs[i], err = multiaddr.NewMultiaddr(addr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return peer.AddrInfosFromP2pAddrs(maddrs...)
 }

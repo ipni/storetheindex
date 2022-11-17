@@ -77,29 +77,46 @@ func initCommand(cctx *cli.Context) error {
 
 	adminAddr := cctx.String("listen-admin")
 	if adminAddr != "" {
-		_, err := multiaddr.NewMultiaddr(adminAddr)
-		if err != nil {
-			return fmt.Errorf("bad listen-admin: %s", err)
+		if adminAddr != "none" {
+			_, err := multiaddr.NewMultiaddr(adminAddr)
+			if err != nil {
+				return fmt.Errorf("bad listen-admin: %s", err)
+			}
 		}
 		cfg.Addresses.Admin = adminAddr
 	}
 
 	finderAddr := cctx.String("listen-finder")
 	if finderAddr != "" {
-		_, err := multiaddr.NewMultiaddr(finderAddr)
-		if err != nil {
-			return fmt.Errorf("bad listen-finder: %s", err)
+		if finderAddr != "none" {
+			_, err := multiaddr.NewMultiaddr(finderAddr)
+			if err != nil {
+				return fmt.Errorf("bad listen-finder: %s", err)
+			}
 		}
 		cfg.Addresses.Finder = finderAddr
 	}
 
 	ingestAddr := cctx.String("listen-ingest")
 	if ingestAddr != "" {
-		_, err := multiaddr.NewMultiaddr(ingestAddr)
-		if err != nil {
-			return fmt.Errorf("bad listen-ingest: %s", err)
+		if ingestAddr != "none" {
+			_, err := multiaddr.NewMultiaddr(ingestAddr)
+			if err != nil {
+				return fmt.Errorf("bad listen-ingest: %s", err)
+			}
 		}
 		cfg.Addresses.Ingest = ingestAddr
+	}
+
+	p2pAddr := cctx.String("listen-p2p")
+	if p2pAddr != "" {
+		if p2pAddr != "none" {
+			_, err := multiaddr.NewMultiaddr(p2pAddr)
+			if err != nil {
+				return fmt.Errorf("bad listen-p2p: %s", err)
+			}
+		}
+		cfg.Addresses.P2PAddr = p2pAddr
 	}
 
 	lotusGateway := cctx.String("lotus-gateway")
@@ -116,6 +133,10 @@ func initCommand(cctx *cli.Context) error {
 	topic := cctx.String("pubsub-topic")
 	if topic != "" {
 		cfg.Ingest.PubSubTopic = topic
+	}
+
+	if cctx.Bool("block-policy") {
+		cfg.Discovery.Policy.Allow = false
 	}
 
 	return cfg.Save(configFile)

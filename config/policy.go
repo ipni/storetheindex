@@ -1,8 +1,10 @@
 package config
 
-// Policy configures which peers are allowed and which may publish on behalf of
-// others. Currently, the allow policy is applied to both providers and
-// publishers. The Publish policie applies only to publishers.
+// Policy configures which peers are allowed to publish advertisements and
+// which may publish on behalf of other providers. The Allow policy determines
+// which peers the indexer will request advertisements from. The Publish policy
+// determines is a publisher may supply an advertisement that has a provider
+// that is not the same as the publisher.
 //
 // Publishers and providers are not the same. Publishers are peers that supply
 // data to the indexer. Providers are the peers that appear in advertisements

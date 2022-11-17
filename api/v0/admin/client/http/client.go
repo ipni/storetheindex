@@ -189,6 +189,39 @@ func (c *Client) Allow(ctx context.Context, peerID peer.ID) error {
 	return c.ingestRequest(ctx, peerID, "allow", http.MethodPut, nil)
 }
 
+// ListAllowedPeers gets a list of explicitly allowed peers, if policy is
+// configured to have allow list.
+func (c *Client) ListAllowedPeers(ctx context.Context) ([]peer.ID, error) {
+	u := c.baseURL + path.Join(ingestResource, "allowlist")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var allowed []peer.ID
+	err = json.Unmarshal(body, &allowed)
+	if err != nil {
+		return nil, err
+	}
+
+	return allowed, nil
+}
+
 // Block configures indexer to block the peer from publishing messages and
 // providing content.
 func (c *Client) Block(ctx context.Context, peerID peer.ID) error {

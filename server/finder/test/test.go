@@ -118,13 +118,11 @@ func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Finder, rc
 	populateIndex(ind, mhs[:10], v, t)
 
 	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
-	info := &registry.ProviderInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    p,
-			Addrs: []multiaddr.Multiaddr{a},
-		},
+	provider := peer.AddrInfo{
+		ID:    p,
+		Addrs: []multiaddr.Multiaddr{a},
 	}
-	err = reg.Register(ctx, info)
+	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil)
 	if err != nil {
 		t.Fatal("could not register provider info:", err)
 	}
@@ -163,13 +161,11 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	populateIndex(ind, mhs[:10], v, t)
 
 	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
-	info := &registry.ProviderInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    p,
-			Addrs: []multiaddr.Multiaddr{a},
-		},
+	provider := peer.AddrInfo{
+		ID:    p,
+		Addrs: []multiaddr.Multiaddr{a},
 	}
-	err = reg.Register(ctx, info)
+	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil)
 	if err != nil {
 		t.Fatal("could not register provider info:", err)
 	}
@@ -185,7 +181,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 		ContextID: v.ContextID,
 		Provider: peer.AddrInfo{
 			ID:    v.ProviderID,
-			Addrs: info.AddrInfo.Addrs,
+			Addrs: provider.Addrs,
 		},
 		Metadata: v.MetadataBytes,
 	}
@@ -342,13 +338,11 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 	populateIndex(ind, mhs[:10], v, t)
 
 	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
-	info := &registry.ProviderInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    p,
-			Addrs: []multiaddr.Multiaddr{a},
-		},
+	provider := peer.AddrInfo{
+		ID:    p,
+		Addrs: []multiaddr.Multiaddr{a},
 	}
-	err = reg.Register(ctx, info)
+	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil)
 	if err != nil {
 		t.Fatal("could not register provider info:", err)
 	}
@@ -366,7 +360,7 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 		ContextID: v.ContextID,
 		Provider: peer.AddrInfo{
 			ID:    v.ProviderID,
-			Addrs: info.AddrInfo.Addrs,
+			Addrs: provider.Addrs,
 		},
 		Metadata: v.MetadataBytes,
 	}
@@ -423,34 +417,33 @@ func Register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID
 	ep1, _, _ := util.RandomIdentity(t)
 	ep2, _, _ := util.RandomIdentity(t)
 
-	info := &registry.ProviderInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    peerID,
-			Addrs: []multiaddr.Multiaddr{maddr},
-		},
-		ExtendedProviders: &registry.ExtendedProviders{
-			Providers: []registry.ExtendedProviderInfo{
-				{
-					PeerID: ep1,
-					Addrs:  util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9998"}),
-				},
+	provider := peer.AddrInfo{
+		ID:    peerID,
+		Addrs: []multiaddr.Multiaddr{maddr},
+	}
+
+	extProviders := &registry.ExtendedProviders{
+		Providers: []registry.ExtendedProviderInfo{
+			{
+				PeerID: ep1,
+				Addrs:  util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9998"}),
 			},
-			ContextualProviders: map[string]registry.ContextualExtendedProviders{
-				"testContext": {
-					Override:  true,
-					ContextID: []byte("testContext"),
-					Providers: []registry.ExtendedProviderInfo{
-						{
-							PeerID: ep2,
-							Addrs:  util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9997"}),
-						},
+		},
+		ContextualProviders: map[string]registry.ContextualExtendedProviders{
+			"testContext": {
+				Override:  true,
+				ContextID: []byte("testContext"),
+				Providers: []registry.ExtendedProviderInfo{
+					{
+						PeerID: ep2,
+						Addrs:  util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9997"}),
 					},
 				},
 			},
 		},
 	}
 
-	err = reg.Register(ctx, info)
+	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, extProviders)
 	if err != nil {
 		t.Fatal(err)
 	}

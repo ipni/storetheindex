@@ -97,7 +97,7 @@ func init() {
 	}
 }
 
-func TestRegisterProvider(t *testing.T) {
+func TestHandleRegisterProvider(t *testing.T) {
 	peerID, privKey, err := ident.Decode()
 	if err != nil {
 		t.Fatal(err)

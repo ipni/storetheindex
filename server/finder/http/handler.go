@@ -15,8 +15,8 @@ import (
 	"github.com/filecoin-project/storetheindex/internal/httpserver"
 	"github.com/filecoin-project/storetheindex/internal/metrics"
 	"github.com/filecoin-project/storetheindex/internal/registry"
-	"github.com/filecoin-project/storetheindex/internal/version"
 	"github.com/filecoin-project/storetheindex/server/finder/handler"
+	"github.com/filecoin-project/storetheindex/version"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -24,6 +24,12 @@ import (
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 )
+
+var versionData []byte
+
+func init() {
+	versionData, _ = json.Marshal(version.String())
+}
 
 // handler handles requests for the finder resource
 type httpHandler struct {
@@ -170,7 +176,5 @@ func getProviderID(r *http.Request) (peer.ID, error) {
 
 func (h *httpHandler) health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
-	v := version.String()
-	b, _ := json.Marshal(v)
-	httpserver.WriteJsonResponse(w, http.StatusOK, b)
+	httpserver.WriteJsonResponse(w, http.StatusOK, versionData)
 }

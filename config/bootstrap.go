@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/filecoin-project/storetheindex/mautil"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
 )
 
 // defaultBootstrapAddresses are the hardcoded bootstrap addresses.
@@ -53,7 +53,7 @@ var ErrInvalidPeerAddr = errors.New("invalid peer address")
 
 // PeerAddrs returns the bootstrap peers as a list of AddrInfo.
 func (b Bootstrap) PeerAddrs() ([]peer.AddrInfo, error) {
-	return parsePeers(b.Peers)
+	return mautil.ParsePeers(b.Peers)
 }
 
 // SetPeers sets the bootstrap peers from a list of AddrInfo.
@@ -64,27 +64,11 @@ func (b *Bootstrap) SetPeers(addrs []peer.AddrInfo) {
 // defaultBootstrapPeers returns the (parsed) set of default bootstrap peers.
 // Panics on failure as that is a problem with the hardcoded addresses.
 func defaultBootstrapPeers() []string {
-	addrs, err := parsePeers(defaultBootstrapAddresses)
+	addrs, err := mautil.ParsePeers(defaultBootstrapAddresses)
 	if err != nil {
 		panic(fmt.Sprintf("failed to parse hardcoded bootstrap peers: %s", err))
 	}
 	return addrsToPeers(addrs)
-}
-
-// parsePeers parses a peer list into a list of AddrInfo.
-func parsePeers(addrs []string) ([]peer.AddrInfo, error) {
-	if len(addrs) == 0 {
-		return nil, nil
-	}
-	maddrs := make([]multiaddr.Multiaddr, len(addrs))
-	for i, addr := range addrs {
-		var err error
-		maddrs[i], err = multiaddr.NewMultiaddr(addr)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return peer.AddrInfosFromP2pAddrs(maddrs...)
 }
 
 // addrsToPeers formats a list of AddrInfos as a peer list suitable for

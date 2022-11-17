@@ -13,8 +13,8 @@ type Discovery struct {
 	// LotusGateway is the host or host:port for a lotus gateway used to
 	// verify providers on the blockchain.
 	LotusGateway string
-	// Policy configures which providers are allowed and blocked, rate-limited,
-	// and allow to publish on behalf of others.
+	// Policy configures which publishers are allowed and blocked, rate-limited,
+	// and allowed to publish on behalf of others providers.
 	Policy Policy
 	// PollInterval is the amount of time to wait without getting any updates
 	// for a provider, before sending a request for the latest advertisement.

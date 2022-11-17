@@ -7,13 +7,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/filecoin-project/storetheindex/command"
+	"github.com/filecoin-project/storetheindex/assigner/command"
 	"github.com/filecoin-project/storetheindex/version"
 	"github.com/urfave/cli/v2"
 )
 
 func main() {
-	// Set up a context that is canceled when the command is interrupted
+	// Set up a context that is canceled when the command is interrupted.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -28,25 +28,17 @@ func main() {
 			fmt.Println("(Hit ctrl-c again to force-shutdown the daemon.)")
 		case <-ctx.Done():
 		}
-		// Allow any further SIGTERM or SIGINT to kill process
+		// Allow any further SIGTERM or SIGINT to kill process.
 		signal.Stop(interrupt)
 	}()
 
 	app := &cli.App{
-		Name:    "indexer",
-		Usage:   "Indexer Node: Filecoin's data indexer",
+		Name:    "assigner",
+		Usage:   "Assigner Service: assign publishers to indexers",
 		Version: version.String(),
 		Commands: []*cli.Command{
-			command.AdminCmd,
-			command.AssignerCmd,
-			command.ConfigCmd,
 			command.DaemonCmd,
-			command.FindCmd,
-			command.ImportCmd,
 			command.InitCmd,
-			command.ProvidersCmd,
-			command.RegisterCmd,
-			command.SyntheticCmd,
 		},
 	}
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"github.com/filecoin-project/storetheindex/mautil"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -19,5 +20,5 @@ func NewPeering() Peering {
 
 // PeerAddrs returns the peering peers as a list of AddrInfo.
 func (p Peering) PeerAddrs() ([]peer.AddrInfo, error) {
-	return parsePeers(p.Peers)
+	return mautil.ParsePeers(p.Peers)
 }

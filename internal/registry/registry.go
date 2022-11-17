@@ -407,55 +407,6 @@ func (r *Registry) Saw(provider peer.ID) {
 	<-done
 }
 
-// Register is used to directly register a provider, bypassing discovery and
-// adding discovered data directly to the registry.
-func (r *Registry) Register(ctx context.Context, info *ProviderInfo) error {
-	if r.filterIPs {
-		info.AddrInfo.Addrs = mautil.FilterPrivateIPs(info.AddrInfo.Addrs)
-	}
-
-	if len(info.AddrInfo.Addrs) == 0 {
-		return errors.New("missing provider address")
-	}
-
-	err := info.AddrInfo.ID.Validate()
-	if err != nil {
-		return err
-	}
-
-	// If provider is not allowed, then ignore request.
-	if !r.policy.Allowed(info.AddrInfo.ID) {
-		return v0.NewError(ErrNotAllowed, http.StatusForbidden)
-	}
-
-	// If publisher is valid and different than the provider, check if the
-	// publisher is allowed, and is also allowed to publish on behalf of the
-	// provider.
-	if info.Publisher.Validate() == nil && info.Publisher != info.AddrInfo.ID {
-		if !r.policy.Allowed(info.Publisher) {
-			return v0.NewError(ErrPublisherNotAllowed, http.StatusForbidden)
-		}
-		if !r.policy.PublishAllowed(info.Publisher, info.AddrInfo.ID) {
-			return v0.NewError(ErrCannotPublish, http.StatusForbidden)
-		}
-	}
-
-	// If provider is allowed and publisher is allowed to publish for the
-	// provider, then register.
-	errCh := make(chan error, 1)
-	r.actions <- func() {
-		errCh <- r.syncRegister(ctx, info)
-	}
-
-	err = <-errCh
-	if err != nil {
-		return err
-	}
-
-	log.Infow("Registered provider", "id", info.AddrInfo.ID, "addrs", info.AddrInfo.Addrs)
-	return nil
-}
-
 // Allowed checks if the peer is allowed by policy.
 func (r *Registry) Allowed(peerID peer.ID) bool {
 	return r.policy.Allowed(peerID)
@@ -481,9 +432,23 @@ func (r *Registry) SetPolicy(policyCfg config.Policy) error {
 }
 
 // AllowPeer configures the policy to allow messages published by the
-// identified peer, or allow the peer to register as a provider.
+// identified peer. Returns true if policy changed.
 func (r *Registry) AllowPeer(peerID peer.ID) bool {
-	return r.policy.Allow(peerID)
+	filePath := "" // TODO: get this from daemon
+	if r.policy.Allow(peerID) {
+		cfg, err := config.Load(filePath)
+		if err != nil {
+			log.Errorw("Cannot load config file", "err", err)
+			return true
+		}
+		cfg.Discovery.Policy = r.policy.ToConfig()
+		err = cfg.Save(filePath)
+		if err != nil {
+			log.Errorw("Cannot save config file", "err", err)
+		}
+		return true
+	}
+	return false
 }
 
 // BlockPeer configures the policy to block messages published by the
@@ -492,22 +457,28 @@ func (r *Registry) BlockPeer(peerID peer.ID) bool {
 	return r.policy.Block(peerID)
 }
 
+// AllowList returns list of explicitly allowed peer IDs, or false if policy
+// does not have allow list because it allows by default.
+func (r *Registry) AllowList() ([]peer.ID, bool) {
+	return r.policy.AllowList()
+}
+
 // FilterIPsEnabled returns true if IP address filtering is enabled.
 func (r *Registry) FilterIPsEnabled() bool {
 	return r.filterIPs
 }
 
-// RegisterOrUpdate attempts to register an unregistered provider, or updates
-// the addresses and latest advertisement of an already registered provider.
-// If publisher has a valid ID, then the data in publisher replaces the
-// provider's previous publisher information.
-func (r *Registry) RegisterOrUpdate(ctx context.Context, provider peer.AddrInfo, adID cid.Cid, publisher peer.AddrInfo, extendedProviders *ExtendedProviders) error {
+// Update attempts to update the registry's provider information. If publisher
+// has a valid ID, then the supplied publisher data replaces the provider's
+// previous publisher information.
+func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo, adCid cid.Cid, extendedProviders *ExtendedProviders) error {
 	if r.filterIPs {
 		provider.Addrs = mautil.FilterPrivateIPs(provider.Addrs)
 		publisher.Addrs = mautil.FilterPrivateIPs(publisher.Addrs)
 	}
 
-	var fullRegister bool
+	var newPublisher bool
+
 	// Check that the provider has been discovered and validated
 	info, _ := r.ProviderInfo(provider.ID)
 	if info != nil {
@@ -530,73 +501,75 @@ func (r *Registry) RegisterOrUpdate(ctx context.Context, provider peer.AddrInfo,
 			info.ExtendedProviders = extendedProviders
 		}
 
-		if publisher.ID.Validate() == nil {
-			if publisher.ID != info.Publisher {
-				// Publisher ID changed.
-				info.Publisher = publisher.ID
-				fullRegister = true
-				// There is a new publisher, but no new publisher addresses.
-				if len(publisher.Addrs) != 0 {
-					log.Warnw("Publisher has no addresses", "publisher", publisher.ID, "provider", provider.ID)
-					// Use provider addr if publisher and provider are same.
-					info.PublisherAddr = nil
-				}
-			} else if len(publisher.Addrs) != 0 {
-				// Use new publisher addrs if any given.
-				info.PublisherAddr = publisher.Addrs[0]
-			}
+		// If publisher ID changed.
+		if publisher.ID.Validate() == nil && publisher.ID != info.Publisher {
+			newPublisher = true
 		}
 	} else {
-		fullRegister = true
+		err := provider.ID.Validate()
+		if err != nil {
+			return err
+		}
+		if len(provider.Addrs) == 0 {
+			return errors.New("missing provider address")
+		}
 		info = &ProviderInfo{
 			AddrInfo:          provider,
 			ExtendedProviders: extendedProviders,
 		}
+		// It is possible to have a provider with no publisher, in the case of
+		// a provider that is only manually synced.
 		if publisher.ID.Validate() == nil {
-			info.Publisher = publisher.ID
+			newPublisher = true
 		}
-		if len(publisher.Addrs) != 0 {
-			info.PublisherAddr = publisher.Addrs[0]
-		}
+
+		// Policy does not pertain to provider, only to publisher. So no need
+		// to check if provider is allowed.
 	}
 
-	// If there is no publisher addr and the publisher is the same as the
-	// provider, then use the provider address if there is one.
-	if info.Publisher.Validate() == nil && info.PublisherAddr == nil && info.Publisher == info.AddrInfo.ID {
-		if len(info.AddrInfo.Addrs) == 0 {
-			log.Warnw("Register provider with no provider or publisher addresses",
-				"provider", info.AddrInfo.ID, "publisher", info.Publisher)
-		} else {
+	if newPublisher {
+		// Check if new publisher is allowed.
+		if !r.policy.Allowed(publisher.ID) {
+			return v0.NewError(ErrPublisherNotAllowed, http.StatusForbidden)
+		}
+		if !r.policy.PublishAllowed(publisher.ID, info.AddrInfo.ID) {
+			return v0.NewError(ErrCannotPublish, http.StatusForbidden)
+		}
+		info.Publisher = publisher.ID
+	}
+
+	if info.Publisher.Validate() == nil {
+		// Use new publisher addrs if any given. Otherwise, keep existing.
+		// If no existing publisher addrs, and publisher ID is same as
+		// provider ID, then use provider addresses if any.
+		if len(publisher.Addrs) != 0 {
+			info.PublisherAddr = publisher.Addrs[0]
+		} else if info.PublisherAddr == nil && publisher.ID == info.AddrInfo.ID {
 			info.PublisherAddr = info.AddrInfo.Addrs[0]
 		}
 	}
 
 	now := time.Now()
-
-	if adID != info.LastAdvertisement && adID != cid.Undef {
-		info.LastAdvertisement = adID
+	if adCid != info.LastAdvertisement && adCid != cid.Undef {
+		info.LastAdvertisement = adCid
 		info.LastAdvertisementTime = now
 	}
 	info.lastContactTime = now
 
-	// If there is a new providerID or publisherID then do a full Register that
-	// checks the allow policy.
-	if fullRegister {
-		return r.Register(ctx, info)
+	err := r.register(ctx, info)
+	if err != nil {
+		return err
 	}
+	log.Debugw("Updated registered provider info", "id", info.AddrInfo.ID, "addrs", info.AddrInfo.Addrs)
+	return nil
+}
 
-	// If aready registered and no new IDs, register without verification.
+func (r *Registry) register(ctx context.Context, info *ProviderInfo) error {
 	errCh := make(chan error, 1)
 	r.actions <- func() {
 		errCh <- r.syncRegister(ctx, info)
 	}
-	err := <-errCh
-	if err != nil {
-		return err
-	}
-
-	log.Debugw("Updated registered provider info", "id", info.AddrInfo.ID, "addrs", info.AddrInfo.Addrs)
-	return nil
+	return <-errCh
 }
 
 // IsRegistered checks if the provider is in the registry
@@ -678,10 +651,19 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 			pubErr = errors.New("bad publisher id")
 		} else if len(pInfo.Publisher.Addrs) == 0 {
 			pubErr = errors.New("publisher missing addresses")
+		} else if !r.policy.Allowed(pInfo.Publisher.ID) {
+			log.Infow("Cannot register provider", "err", ErrPublisherNotAllowed,
+				"provider", pInfo.AddrInfo.ID, "publisher", pInfo.Publisher.ID)
+			continue
+		} else if !r.policy.PublishAllowed(pInfo.Publisher.ID, pInfo.AddrInfo.ID) {
+			log.Infow("Cannot register provider", "err", ErrCannotPublish,
+				"provider", pInfo.AddrInfo.ID, "publisher", pInfo.Publisher.ID)
+			continue
 		}
+
 		if pubErr != nil {
 			// If publisher does not have a valid ID and addresses, then use
-			// provider ad publisher.
+			// provider as publisher.
 			log.Infow("Provider does not have valid publisher, assuming same as provider", "reason", pubErr, "provider", regInfo.AddrInfo.ID)
 			regInfo.Publisher = regInfo.AddrInfo.ID
 			regInfo.PublisherAddr = regInfo.AddrInfo.Addrs[0]
@@ -690,7 +672,7 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 			regInfo.PublisherAddr = pInfo.Publisher.Addrs[0]
 		}
 
-		err = r.Register(ctx, regInfo)
+		err = r.register(ctx, regInfo)
 		if err != nil {
 			log.Infow("Cannot register provider", "provider", pInfo.AddrInfo.ID, "err", err)
 			continue

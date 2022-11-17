@@ -81,7 +81,7 @@ type Announce struct {
 
 // NewReceiver creates a new Receiver that subscribes to the named pubsub topic
 // and is listening for announce messages.
-func NewReceiver(host host.Host, topicName string, options ...Option) (*Receiver, error) {
+func NewReceiver(p2pHost host.Host, topicName string, options ...Option) (*Receiver, error) {
 	cfg := config{}
 	for i, opt := range options {
 		if err := opt(&cfg); err != nil {
@@ -93,35 +93,36 @@ func NewReceiver(host host.Host, topicName string, options ...Option) (*Receiver
 	var err error
 
 	pubsubTopic := cfg.topic
-	if pubsubTopic == nil {
-		pubsubTopic, cancelPubsub, err = gossiptopic.MakeTopic(host, topicName)
+	if pubsubTopic == nil && p2pHost != nil {
+		pubsubTopic, cancelPubsub, err = gossiptopic.MakeTopic(p2pHost, topicName)
 		if err != nil {
 			return nil, err
 		}
-		log.Infow("Created gossip pubsub and joined topic", "topic", topicName, "hostID", host.ID())
+		log.Infow("Created gossip pubsub and joined topic", "topic", topicName, "hostID", p2pHost.ID())
 	}
 
-	topicSub, err := pubsubTopic.Subscribe()
-	if err != nil {
-		if cancelPubsub != nil {
-			cancelPubsub()
+	var topicSub *pubsub.Subscription
+	if pubsubTopic != nil {
+		topicSub, err = pubsubTopic.Subscribe()
+		if err != nil {
+			if cancelPubsub != nil {
+				cancelPubsub()
+			}
+			return nil, err
 		}
-		return nil, err
+	} else {
+		// Cannot republish if pubsub not available.
+		cfg.resend = false
 	}
-
-	watchCtx, cancelWatch := context.WithCancel(context.Background())
 
 	r := &Receiver{
 		allowPeer: cfg.allowPeer,
 		filterIPs: cfg.filterIPs,
 		resend:    cfg.resend,
-		hostID:    host.ID(),
 
 		announceCache: newStringLRU(announceCacheSize),
 
-		cancelWatch: cancelWatch,
-		done:        make(chan struct{}),
-		watchDone:   make(chan struct{}),
+		done: make(chan struct{}),
 
 		cancelPubsub: cancelPubsub,
 		topic:        pubsubTopic,
@@ -130,8 +131,15 @@ func NewReceiver(host host.Host, topicName string, options ...Option) (*Receiver
 		outChan: make(chan Announce, 1),
 	}
 
-	// Start watcher to read pubsub messages.
-	go r.watch(watchCtx)
+	if p2pHost != nil {
+		r.hostID = p2pHost.ID()
+		watchCtx, cancelWatch := context.WithCancel(context.Background())
+		r.cancelWatch = cancelWatch
+		r.watchDone = make(chan struct{})
+
+		// Start watcher to read pubsub messages.
+		go r.watch(watchCtx)
+	}
 
 	return r, nil
 }
@@ -168,8 +176,10 @@ func (r *Receiver) Close() error {
 	close(r.done)
 
 	// Cancel watch and wait for pubsub watch to exit.
-	r.cancelWatch()
-	<-r.watchDone
+	if r.cancelWatch != nil {
+		r.cancelWatch()
+		<-r.watchDone
+	}
 
 	var err error
 	// If Receiver owns the pubsub topic, then close it.

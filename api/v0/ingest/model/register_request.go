@@ -36,7 +36,7 @@ func MakeRegisterRequest(providerID peer.ID, privateKey crypto.PrivKey, addrs []
 // ReadRegisterRequest unmarshals a peer.PeerRequest from bytes, verifies the
 // signature, and returns a peer.PeerRecord
 func ReadRegisterRequest(data []byte) (*peer.PeerRecord, error) {
-	_, untypedRecord, err := record.ConsumeEnvelope(data, peer.PeerRecordEnvelopeDomain)
+	envelope, untypedRecord, err := record.ConsumeEnvelope(data, peer.PeerRecordEnvelopeDomain)
 	if err != nil {
 		return nil, fmt.Errorf("cannot consume register request envelope: %s", err)
 	}
@@ -44,5 +44,13 @@ func ReadRegisterRequest(data []byte) (*peer.PeerRecord, error) {
 	if !ok {
 		return nil, fmt.Errorf("unmarshaled register request record is not a *PeerRecord")
 	}
+	signerID, err := peer.IDFromPublicKey(envelope.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("cannot convert public key to peer ID: %w", err)
+	}
+	if signerID != rec.PeerID {
+		return nil, errors.New("request not signed by provider")
+	}
+
 	return rec, nil
 }

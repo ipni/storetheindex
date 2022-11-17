@@ -38,6 +38,13 @@ var importProviders = &cli.Command{
 	Action: importProvidersCmd,
 }
 
+var listAllowed = &cli.Command{
+	Name:   "list-allowed",
+	Usage:  "List explicitly allowed peers",
+	Flags:  adminListAllowedFlags,
+	Action: listAllowedCmd,
+}
+
 var reload = &cli.Command{
 	Name:  "reload-config",
 	Usage: "Reload various settings from the configuration file",
@@ -61,6 +68,7 @@ var AdminCmd = &cli.Command{
 		allow,
 		block,
 		importProviders,
+		listAllowed,
 		reload,
 		sync,
 	},
@@ -105,6 +113,21 @@ func allowCmd(cctx *cli.Context) error {
 		return err
 	}
 	fmt.Println("Allowing advertisements and content from peer", peerID)
+	return nil
+}
+
+func listAllowedCmd(cctx *cli.Context) error {
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	allowed, err := cl.ListAllowedPeers(cctx.Context)
+	if err != nil {
+		return err
+	}
+	for _, peerID := range allowed {
+		fmt.Println(peerID)
+	}
 	return nil
 }
 
