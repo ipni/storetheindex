@@ -13,7 +13,7 @@ resource "aws_cloudfront_distribution" "cdn" {
   ]
   price_class = "PriceClass_All"
 
-  # The node named `ber` in dev environment uses a an identity that is whitelisted by Lotus 
+  # The node named `ber` in dev environment uses an identity that is whitelisted by Lotus 
   # bootstrap nodes in order to relay gossipsub. That node is also configured to re-propagate 
   # HTTP announces over gossipsub.
   # Therefore, all HTTP announce requests are routed to it. 
