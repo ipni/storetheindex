@@ -1,8 +1,7 @@
 locals {
-  indexstar_origin_id = "${local.environment_name}_${local.region}_indexstar"
-  kepa_origin_id      = "${local.environment_name}_${local.region}_kepa"
-  cdn_origin_id       = "${local.environment_name}_${local.region}_sti_cdn"
-  cdn_subdomain       = "cdn"
+  indexstar_origin_id     = "${local.environment_name}_${local.region}_indexstar"
+  http_announce_origin_id = "${local.environment_name}_${local.region}_kepa"
+  cdn_subdomain           = "cdn"
 }
 
 resource "aws_cloudfront_distribution" "cdn" {
@@ -14,22 +13,6 @@ resource "aws_cloudfront_distribution" "cdn" {
     "cid.contact",
   ]
   price_class = "PriceClass_All"
-
-  # storetheindex/indexer ingress.
-  origin {
-    domain_name = aws_route53_zone.prod_external.name
-    origin_id   = local.cdn_origin_id
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
-    }
-    origin_shield {
-      enabled              = true
-      origin_shield_region = local.region
-    }
-  }
 
   # storetheindex/indexstar ingress.
   origin {
@@ -47,12 +30,15 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
   }
 
-  # storetheindex/kepa node ingress with the identity whitelisted on lotus bootstrap nodes.
-  # This origin is also used to route HTTP PUT /ingest/announce requests for further propagation
-  # over gossipsub across other indexer nodes.
+  # The node named `kepa` in prod environment uses an identity that is whitelisted by Lotus 
+  # bootstrap nodes in order to relay gossipsub. That node is also configured to re-propagate 
+  # HTTP announces over gossipsub.
+  # Therefore, all HTTP announce requests are routed to it. 
+  # 
+  # See: storetheindex/kepa-indexer ingress object.
   origin {
     domain_name = "kepa.${aws_route53_zone.prod_external.name}"
-    origin_id   = local.kepa_origin_id
+    origin_id   = local.http_announce_origin_id
     custom_origin_config {
       http_port              = 80
       https_port             = 443
@@ -167,7 +153,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     # Hence the complete method list.
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
     cached_methods   = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = local.kepa_origin_id
+    target_origin_id = local.http_announce_origin_id
     forwarded_values {
       query_string = false
       cookies {
