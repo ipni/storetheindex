@@ -324,10 +324,10 @@ func (a *Assigner) assignIndexer(ctx context.Context, indexer indexerInfo, amsg 
 	if err != nil {
 		return err
 	}
+	log.Infow("Assigned publisher to indexer, sending direct announce", "adminURL", indexer.adminURL, "ingestURL", indexer.ingestURL, "publisher", amsg.PeerID)
 
 	// Send announce instead of sync request in case indexer is already syncing
 	// due to receiving announce after immediately allowing the publisher.
-	log.Infow("Sending direct announce to", indexer.ingestURL)
 	icl, err := ingestclient.New(indexer.ingestURL)
 	if err != nil {
 		return err
@@ -336,13 +336,7 @@ func (a *Assigner) assignIndexer(ctx context.Context, indexer indexerInfo, amsg 
 		ID:    amsg.PeerID,
 		Addrs: amsg.Addrs,
 	}
-	err = icl.Announce(ctx, &pubInfo, amsg.Cid)
-	if err != nil {
-		return err
-	}
-
-	log.Infow("Assigned publisher to indexer", "publisher", amsg.PeerID, "adminURL", indexer.adminURL)
-	return nil
+	return icl.Announce(ctx, &pubInfo, amsg.Cid)
 }
 
 func getAssignments(ctx context.Context, adminURL string) ([]peer.ID, error) {
