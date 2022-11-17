@@ -18,6 +18,7 @@ type Config struct {
 	Bootstrap  sticfg.Bootstrap // Peers to connect to for gossip,
 	Daemon     Daemon           // daemon settings.
 	Logging    Logging          // logging configuration.,
+	Peering    sticfg.Peering   // peering service configuration.
 }
 
 const (
@@ -96,6 +97,7 @@ func Load(filePath string) (*Config, error) {
 		Bootstrap:  sticfg.NewBootstrap(),
 		Daemon:     NewDaemon(),
 		Logging:    NewLogging(),
+		Peering:    sticfg.NewPeering(),
 	}
 
 	if err = json.NewDecoder(f).Decode(&cfg); err != nil {
