@@ -57,14 +57,14 @@ func (h *adminHandler) allowPeer(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *adminHandler) allowList(w http.ResponseWriter, r *http.Request) {
-	allowed, ok := h.reg.AllowList()
-	if !ok {
-		http.Error(w, "policy not configured to have allow list", http.StatusServiceUnavailable)
+func (h *adminHandler) listAssignedPeers(w http.ResponseWriter, r *http.Request) {
+	assigned, err := h.reg.ListAssignedPeers()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 
-	data, err := json.Marshal(allowed)
+	data, err := json.Marshal(assigned)
 	if err != nil {
 		log.Errorw("Error marshaling allow list", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)

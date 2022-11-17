@@ -29,7 +29,8 @@ import (
 
 const (
 	// providerKeyPath is where provider info is stored in to indexer repo.
-	providerKeyPath = "/registry/pinfo"
+	providerKeyPath    = "/registry/pinfo"
+	assignmentsKeyPath = "/assignments"
 )
 
 var log = logging.Logger("indexer/registry")
@@ -49,6 +50,7 @@ type Registry struct {
 	discoverWait  sync.WaitGroup
 	discoverTimes map[string]time.Time
 	policy        *policy.Policy
+	useAssigner   bool
 
 	discoveryTimeout time.Duration
 	rediscoverWait   time.Duration
@@ -138,11 +140,11 @@ func (p *ProviderInfo) Inactive() bool {
 }
 
 func (p *ProviderInfo) dsKey() datastore.Key {
-	return peerIDToDsKey(p.AddrInfo.ID)
+	return peerIDToDsKey(providerKeyPath, p.AddrInfo.ID)
 }
 
-func peerIDToDsKey(peerID peer.ID) datastore.Key {
-	return datastore.NewKey(path.Join(providerKeyPath, peerID.String()))
+func peerIDToDsKey(keyPath string, peerID peer.ID) datastore.Key {
+	return datastore.NewKey(path.Join(keyPath, peerID.String()))
 }
 
 func (p *ProviderInfo) MarshalJSON() ([]byte, error) {
@@ -224,6 +226,10 @@ func (p *ExtendedProviderInfo) UnmarshalJSON(data []byte) error {
 // configuration, a datastore to persist provider data, and a Discoverer
 // interface.  The context is only used for cancellation of this function.
 func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, discoverer discovery.Discoverer) (*Registry, error) {
+	if cfg.UseAssigner && cfg.Policy.Allow {
+		return nil, errors.New("assigner cannot be used with default allow policy")
+	}
+
 	// Create policy from config
 	regPolicy, err := policy.New(cfg.Policy)
 	if err != nil {
@@ -250,13 +256,17 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 
 		dstore:   dstore,
 		syncChan: make(chan *ProviderInfo, 1),
+
+		useAssigner: cfg.UseAssigner,
 	}
 
-	count, err := r.loadPersistedProviders(ctx)
-	if err != nil {
+	if err = r.loadPersistedProviders(ctx); err != nil {
 		return nil, fmt.Errorf("cannot load provider data from datastore: %w", err)
 	}
-	log.Infow("loaded providers into registry", "count", count)
+
+	if err = r.loadPersistedAssignments(ctx); err != nil {
+		return nil, err
+	}
 
 	pollOverrides, err := makePollOverrideMap(cfg.PollOverrides)
 	if err != nil {
@@ -432,19 +442,19 @@ func (r *Registry) SetPolicy(policyCfg config.Policy) error {
 }
 
 // AllowPeer configures the policy to allow messages published by the
-// identified peer. Returns true if policy changed.
+// identified peer. Returns true if policy changed. This configuration is not
+// persisted across indexer restarts. Update the indexer config file to persist
+// the change.
+//
+// If using an assigner service, the allowed peer is persisted in the
+// datastore, as this is the basis of assingment of a publisher to an indexer.
 func (r *Registry) AllowPeer(peerID peer.ID) bool {
-	filePath := "" // TODO: get this from daemon
 	if r.policy.Allow(peerID) {
-		cfg, err := config.Load(filePath)
-		if err != nil {
-			log.Errorw("Cannot load config file", "err", err)
-			return true
-		}
-		cfg.Discovery.Policy = r.policy.ToConfig()
-		err = cfg.Save(filePath)
-		if err != nil {
-			log.Errorw("Cannot save config file", "err", err)
+		if r.useAssigner {
+			err := r.saveAssignedPeer(peerID)
+			if err != nil {
+				log.Errorw("Cannot save assignment", "err", err)
+			}
 		}
 		return true
 	}
@@ -452,15 +462,36 @@ func (r *Registry) AllowPeer(peerID peer.ID) bool {
 }
 
 // BlockPeer configures the policy to block messages published by the
-// identified peer, and block the peer from registering as a provider.
+// identified peer.  Returns true if policy changed. This configuration is not
+// persisted across indexer restarts. Update the indexer config file to persist
+// the change.
+//
+// If using an assigner service, the blocked peer is removed from the persisted
+// set of allowed peers in datastore. This allows unassigning the peer to the
+// indexer.
 func (r *Registry) BlockPeer(peerID peer.ID) bool {
-	return r.policy.Block(peerID)
+	if r.policy.Block(peerID) {
+		if r.useAssigner {
+			err := r.deleteAssignedPeer(peerID)
+			if err != nil {
+				log.Errorw("Cannot delete assignment", "err", err)
+			}
+		}
+		return true
+	}
+	return false
 }
 
-// AllowList returns list of explicitly allowed peer IDs, or false if policy
-// does not have allow list because it allows by default.
-func (r *Registry) AllowList() ([]peer.ID, bool) {
-	return r.policy.AllowList()
+// ListAssignedPeers returns list of allowed peer IDs, when the indexer is
+// configured to work with an assigner service. Otherwise returns error.
+func (r *Registry) ListAssignedPeers() ([]peer.ID, error) {
+	if r.useAssigner {
+		peers, ok := r.policy.ListAllowedPeers()
+		if ok {
+			return peers, nil
+		}
+	}
+	return nil, errors.New("indexer not configured to use assigner service")
 }
 
 // FilterIPsEnabled returns true if IP address filtering is enabled.
@@ -806,15 +837,12 @@ func (r *Registry) syncPersistProvider(ctx context.Context, info *ProviderInfo) 
 	if err = r.dstore.Put(ctx, dsKey, value); err != nil {
 		return err
 	}
-	if err = r.dstore.Sync(ctx, dsKey); err != nil {
-		return err
-	}
-	return nil
+	return r.dstore.Sync(ctx, dsKey)
 }
 
-func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
+func (r *Registry) loadPersistedProviders(ctx context.Context) error {
 	if r.dstore == nil {
-		return 0, nil
+		return nil
 	}
 
 	// Load all providers from the datastore.
@@ -823,20 +851,20 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 	}
 	results, err := r.dstore.Query(ctx, q)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	defer results.Close()
 
 	var count int
 	for result := range results.Next() {
 		if result.Error != nil {
-			return 0, fmt.Errorf("cannot read provider data: %v", result.Error)
+			return fmt.Errorf("cannot read provider data: %v", result.Error)
 		}
 		ent := result.Entry
 
 		peerID, err := peer.Decode(path.Base(ent.Key))
 		if err != nil {
-			return 0, fmt.Errorf("cannot decode provider ID: %s", err)
+			return fmt.Errorf("cannot decode provider ID: %s", err)
 		}
 
 		pinfo := new(ProviderInfo)
@@ -868,7 +896,9 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) (int, error) {
 		r.providers[peerID] = pinfo
 		count++
 	}
-	return count, nil
+
+	log.Infow("loaded providers into registry", "count", count)
+	return nil
 }
 
 func (r *Registry) discover(ctx context.Context, peerID peer.ID, spID string) (*discovery.Discovered, error) {
@@ -970,7 +1000,7 @@ func (r *Registry) syncRemoveProvider(ctx context.Context, providerID peer.ID) e
 		return nil
 	}
 
-	dsKey := peerIDToDsKey(providerID)
+	dsKey := peerIDToDsKey(providerKeyPath, providerID)
 	err := r.dstore.Delete(ctx, dsKey)
 	if err != nil {
 		return err
@@ -978,5 +1008,63 @@ func (r *Registry) syncRemoveProvider(ctx context.Context, providerID peer.ID) e
 	if err = r.dstore.Sync(ctx, dsKey); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (r *Registry) saveAssignedPeer(peerID peer.ID) error {
+	if r.dstore == nil {
+		return nil
+	}
+	ctx := context.Background()
+	dsKey := peerIDToDsKey(assignmentsKeyPath, peerID)
+	err := r.dstore.Put(ctx, dsKey, []byte{})
+	if err != nil {
+		return err
+	}
+	return r.dstore.Sync(ctx, dsKey)
+}
+
+func (r *Registry) deleteAssignedPeer(peerID peer.ID) error {
+	if r.dstore == nil {
+		return nil
+	}
+	dsKey := peerIDToDsKey(assignmentsKeyPath, peerID)
+	return r.dstore.Delete(context.Background(), dsKey)
+}
+
+func (r *Registry) loadPersistedAssignments(ctx context.Context) error {
+	if r.dstore == nil {
+		return nil
+	}
+
+	// Load all assigned publishers from datastore.
+	q := query.Query{
+		Prefix:   assignmentsKeyPath,
+		KeysOnly: true,
+	}
+	results, err := r.dstore.Query(ctx, q)
+	if err != nil {
+		return err
+	}
+	defer results.Close()
+
+	var assigned []peer.ID
+	for result := range results.Next() {
+		if result.Error != nil {
+			return fmt.Errorf("cannot read assignment data: %w", result.Error)
+		}
+		ent := result.Entry
+
+		peerID, err := peer.Decode(path.Base(ent.Key))
+		if err != nil {
+			return fmt.Errorf("cannot decode assigned peer ID: %w", err)
+		}
+
+		assigned = append(assigned, peerID)
+	}
+
+	r.policy.Allow(assigned...)
+	log.Infow("loaded assignments into registry", "count", len(assigned))
+
 	return nil
 }

@@ -64,7 +64,7 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 
 	// Ingester routes
 	r.HandleFunc("/ingest/allow/{peer}", h.allowPeer).Methods(http.MethodPut)
-	r.HandleFunc("/ingest/allowlist", h.allowList).Methods(http.MethodGet)
+	r.HandleFunc("/ingest/assigned", h.listAssignedPeers).Methods(http.MethodGet)
 	r.HandleFunc("/ingest/block/{peer}", h.blockPeer).Methods(http.MethodPut)
 	r.HandleFunc("/ingest/sync/{peer}", h.sync).Methods(http.MethodPost)
 

@@ -57,20 +57,34 @@ func (p *Policy) PublishAllowed(publisherID, providerID peer.ID) bool {
 	return p.publish.Eval(publisherID)
 }
 
-// Allow alters the policy to allow the specified peer.  Returns true if the
+// Allow alters the policy to allow the specified peer. Returns true if the
 // policy needed to be updated.
-func (p *Policy) Allow(peerID peer.ID) bool {
+func (p *Policy) Allow(peerIDs ...peer.ID) bool {
 	p.rwmutex.Lock()
 	defer p.rwmutex.Unlock()
-	return p.allow.SetPeer(peerID, true)
+
+	var updated bool
+	for _, peerID := range peerIDs {
+		if p.allow.SetPeer(peerID, true) {
+			updated = true
+		}
+	}
+	return updated
 }
 
 // Block alters the policy to not allow the specified peer.  Returns true if
 // the policy needed to be updated.
-func (p *Policy) Block(peerID peer.ID) bool {
+func (p *Policy) Block(peerIDs ...peer.ID) bool {
 	p.rwmutex.Lock()
 	defer p.rwmutex.Unlock()
-	return p.allow.SetPeer(peerID, false)
+
+	var updated bool
+	for _, peerID := range peerIDs {
+		if p.allow.SetPeer(peerID, false) {
+			updated = true
+		}
+	}
+	return updated
 }
 
 // Copy copies another policy.
@@ -102,9 +116,9 @@ func (p *Policy) NoneAllowed() bool {
 	return !p.allow.Any(true)
 }
 
-// AllowList returns list of explicitly allowed peer IDs. or false if policy
-// allows by default and does not have allow list.
-func (p *Policy) AllowList() ([]peer.ID, bool) {
+// ListAllowedPeers returns list of explicitly allowed peer IDs. or false if policy
+// allows by default and does not have list of allowed peers.
+func (p *Policy) ListAllowedPeers() ([]peer.ID, bool) {
 	p.rwmutex.RLock()
 	defer p.rwmutex.RUnlock()
 
