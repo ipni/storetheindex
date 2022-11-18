@@ -3,6 +3,7 @@ package command
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/filecoin-project/storetheindex/assigner/config"
@@ -12,6 +13,7 @@ import (
 	"github.com/filecoin-project/storetheindex/mautil"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipfs/kubo/core/bootstrap"
+	"github.com/ipfs/kubo/peering"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -56,7 +58,7 @@ func daemonCommand(cctx *cli.Context) error {
 		p2pAddr = cctx.String("listen-p2p")
 	}
 	if p2pAddr != "none" {
-		peerID, privKey, err := cfg.Identity.Decode()
+		_, privKey, err := cfg.Identity.Decode()
 		if err != nil {
 			return err
 		}
@@ -80,24 +82,20 @@ func daemonCommand(cctx *cli.Context) error {
 			return err
 		}
 
-		// If there are bootstrap peers and bootstrapping is enabled, then try to
-		// connect to the minimum set of peers.  This connects the indexer to other
-		// nodes in the gossip mesh, allowing it to receive advertisements from
-		// providers.
-		if len(cfg.Bootstrap.Peers) != 0 && cfg.Bootstrap.MinimumPeers != 0 {
-			addrs, err := cfg.Bootstrap.PeerAddrs()
-			if err != nil {
-				return fmt.Errorf("bad bootstrap peer: %s", err)
-			}
-
-			bootCfg := bootstrap.BootstrapConfigWithPeers(addrs)
-			bootCfg.MinPeerThreshold = cfg.Bootstrap.MinimumPeers
-
-			bootstrapper, err := bootstrap.Bootstrap(peerID, p2pHost, nil, bootCfg)
-			if err != nil {
-				return fmt.Errorf("bootstrap failed: %s", err)
-			}
+		bootstrapper, err := startBootstrapper(cfg.Bootstrap, p2pHost)
+		if err != nil {
+			return fmt.Errorf("cannot start bootstrapper: %s", err)
+		}
+		if bootstrapper != nil {
 			defer bootstrapper.Close()
+		}
+
+		peeringService, err := startPeering(cfg.Peering, p2pHost)
+		if err != nil {
+			return fmt.Errorf("cannot start peering service: %s", err)
+		}
+		if peeringService != nil {
+			defer peeringService.Stop()
 		}
 
 		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)
@@ -196,4 +194,43 @@ func loadConfig(filePath string) (*config.Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func startBootstrapper(cfg sticfg.Bootstrap, p2pHost host.Host) (io.Closer, error) {
+	// If there are bootstrap peers and bootstrapping is enabled, then try to
+	// connect to the minimum set of peers.  This connects the indexer to other
+	// nodes in the gossip mesh, allowing it to receive advertisements from
+	// providers.
+	if len(cfg.Peers) == 0 || cfg.MinimumPeers == 0 {
+		return nil, nil
+	}
+	addrs, err := cfg.PeerAddrs()
+	if err != nil {
+		return nil, fmt.Errorf("bad bootstrap peer: %s", err)
+	}
+
+	bootCfg := bootstrap.BootstrapConfigWithPeers(addrs)
+	bootCfg.MinPeerThreshold = cfg.MinimumPeers
+
+	return bootstrap.Bootstrap(p2pHost.ID(), p2pHost, nil, bootCfg)
+}
+
+func startPeering(cfg sticfg.Peering, p2pHost host.Host) (*peering.PeeringService, error) {
+	if len(cfg.Peers) == 0 {
+		return nil, nil
+	}
+
+	curPeers, err := cfg.PeerAddrs()
+	if err != nil {
+		return nil, fmt.Errorf("bad peering peer: %s", err)
+	}
+
+	peeringService := peering.NewPeeringService(p2pHost)
+	for i := range curPeers {
+		peeringService.AddPeer(curPeers[i])
+	}
+	if err = peeringService.Start(); err != nil {
+		return nil, err
+	}
+	return peeringService, nil
 }
