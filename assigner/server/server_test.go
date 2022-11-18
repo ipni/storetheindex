@@ -125,7 +125,7 @@ func TestAnnounce(t *testing.T) {
 	require.NoError(t, err)
 
 	indexer := filepath.Join(e.dir, "storetheindex")
-	e.run(indexer, "init", "--pubsub-topic", pubsubTopic, "--no-bootstrap", "--block-policy",
+	e.run(indexer, "init", "--pubsub-topic", pubsubTopic, "--no-bootstrap", "--use-assigner",
 		"--listen-admin=/ip4/127.0.0.1/tcp/3602",
 		"--listen-finder=/ip4/127.0.0.1/tcp/3600",
 		"--listen-ingest=/ip4/127.0.0.1/tcp/3601",
@@ -186,8 +186,22 @@ func TestAnnounce(t *testing.T) {
 	}
 
 	// Check assignment
-	outProvider := e.run(indexer, "admin", "list-allowed", "--indexer", cfg.IndexerPool[0].AdminURL)
+	outProvider := e.run(indexer, "admin", "list-assigned", "--indexer", cfg.IndexerPool[0].AdminURL)
 	expect := peerID.String()
+	if !strings.Contains(string(outProvider), expect) {
+		t.Errorf("expected provider to contains %q, got %q", expect, string(outProvider))
+	}
+
+	e.stop(cmdIndexer, 5*time.Second)
+
+	// Start index again to check that assignment was persisted.
+	cmdIndexer = e.start(indexer, "daemon")
+	select {
+	case <-e.indexerReady:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for indexer to start")
+	}
+	outProvider = e.run(indexer, "admin", "list-assigned", "--indexer", cfg.IndexerPool[0].AdminURL)
 	if !strings.Contains(string(outProvider), expect) {
 		t.Errorf("expected provider to contains %q, got %q", expect, string(outProvider))
 	}

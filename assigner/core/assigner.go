@@ -346,5 +346,5 @@ func getAssignments(ctx context.Context, adminURL string) ([]peer.ID, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cl.ListAllowedPeers(ctx)
+	return cl.ListAssignedPeers(ctx)
 }

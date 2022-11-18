@@ -135,7 +135,7 @@ var adminReloadConfigFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
-var adminListAllowedFlags = []cli.Flag{
+var adminListAssignedFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
@@ -194,8 +194,8 @@ var initFlags = []cli.Flag{
 		Required: false,
 	},
 	&cli.BoolFlag{
-		Name:     "block-policy",
-		Usage:    "Set the discovery policy to block peers by default",
+		Name:     "use-assigner",
+		Usage:    "Configure the indexer to work with an assigner service",
 		Required: false,
 	},
 }

@@ -135,8 +135,9 @@ func initCommand(cctx *cli.Context) error {
 		cfg.Ingest.PubSubTopic = topic
 	}
 
-	if cctx.Bool("block-policy") {
+	if cctx.Bool("use-assigner") {
 		cfg.Discovery.Policy.Allow = false
+		cfg.Discovery.UseAssigner = true
 	}
 
 	return cfg.Save(configFile)

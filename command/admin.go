@@ -38,11 +38,11 @@ var importProviders = &cli.Command{
 	Action: importProvidersCmd,
 }
 
-var listAllowed = &cli.Command{
-	Name:   "list-allowed",
-	Usage:  "List explicitly allowed peers",
-	Flags:  adminListAllowedFlags,
-	Action: listAllowedCmd,
+var listAssigned = &cli.Command{
+	Name:   "list-assigned",
+	Usage:  "List allowed peers when configured to work with assigner service",
+	Flags:  adminListAssignedFlags,
+	Action: listAssignedCmd,
 }
 
 var reload = &cli.Command{
@@ -68,7 +68,7 @@ var AdminCmd = &cli.Command{
 		allow,
 		block,
 		importProviders,
-		listAllowed,
+		listAssigned,
 		reload,
 		sync,
 	},
@@ -116,16 +116,16 @@ func allowCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func listAllowedCmd(cctx *cli.Context) error {
+func listAssignedCmd(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
-	allowed, err := cl.ListAllowedPeers(cctx.Context)
+	assigned, err := cl.ListAssignedPeers(cctx.Context)
 	if err != nil {
 		return err
 	}
-	for _, peerID := range allowed {
+	for _, peerID := range assigned {
 		fmt.Println(peerID)
 	}
 	return nil

@@ -49,6 +49,12 @@ type Discovery struct {
 	// Timeout is the maximum amount of time that the indexer will spend trying
 	// to discover and verify a new provider.
 	Timeout Duration
+	// UseAssigner configures the indexer to work with an assigner service.
+	// This also requires that Policy.Allow is false, making Policy.Except into
+	// a list of allowed peers. Peers listed in Policy.Except in the
+	// configuration file are included in the set of assigned peers. This
+	// allows an indexer to be pre-configured with assigned peers.
+	UseAssigner bool
 }
 
 // Polling is a set of polling parameters that is applied to a specific
