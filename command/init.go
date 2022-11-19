@@ -136,7 +136,6 @@ func initCommand(cctx *cli.Context) error {
 	}
 
 	if cctx.Bool("use-assigner") {
-		cfg.Discovery.Policy.Allow = false
 		cfg.Discovery.UseAssigner = true
 	}
 

@@ -307,6 +307,21 @@ func TestDatastore(t *testing.T) {
 
 	err = r.Close()
 	require.NoError(t, err)
+
+	// Test that configuring existing registry to use assigner service
+	// self-assigns existing publishers.
+	t.Log("Converted registry to work with assigner service")
+	discoveryCfg.UseAssigner = true
+	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
+	require.NoError(t, err)
+	r, err = NewRegistry(ctx, discoveryCfg, dstore, mockDiscoverer)
+	require.NoError(t, err)
+
+	assigned, err := r.ListAssignedPeers()
+	require.NoError(t, err)
+	// There should be 1 publisher allowed.
+	require.Equal(t, 1, len(assigned))
+	require.NoError(t, r.Close())
 }
 
 func TestAllowed(t *testing.T) {

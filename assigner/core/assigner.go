@@ -462,7 +462,7 @@ func assignIndexer(ctx context.Context, indexer indexerInfo, amsg announce.Annou
 	if err != nil {
 		return err
 	}
-	err = cl.Allow(ctx, amsg.PeerID)
+	err = cl.Assign(ctx, amsg.PeerID)
 	if err != nil {
 		return err
 	}

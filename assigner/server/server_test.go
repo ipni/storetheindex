@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	adminclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
 	client "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
 	"github.com/filecoin-project/storetheindex/assigner/config"
 	"github.com/filecoin-project/storetheindex/assigner/core"
@@ -144,7 +145,7 @@ func TestAnnounce(t *testing.T) {
 	}
 
 	// Allow a peer to test that assigner reads this at startup.
-	e.run(indexer, "admin", "allow", "-i", "localhost:3602", "--peer", pubIdent2.PeerID)
+	assign(ctx, "localhost:3602", pubIdent2.PeerID)
 
 	// Initialize everything
 	peerID, _, err := pubIdent.Decode()
@@ -306,4 +307,20 @@ func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
 	case err := <-waitErr:
 		require.NoError(e.t, err)
 	}
+}
+
+func assign(ctx context.Context, indexer, peerIDStr string) error {
+	cl, err := adminclient.New(indexer)
+	if err != nil {
+		return err
+	}
+	peerID, err := peer.Decode(peerIDStr)
+	if err != nil {
+		return err
+	}
+	err = cl.Assign(ctx, peerID)
+	if err != nil {
+		return err
+	}
+	return nil
 }

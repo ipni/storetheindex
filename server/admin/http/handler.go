@@ -42,21 +42,7 @@ func newHandler(ctx context.Context, indexer indexer.Interface, ingester *ingest
 
 const importBatchSize = 256
 
-// ----- ingest handlers -----
-
-func (h *adminHandler) allowPeer(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	peerID, ok := decodePeerID(vars["peer"], w)
-	if !ok {
-		return
-	}
-	log.Infow("Allowing peer to publish and provide content", "peer", peerID)
-	if h.reg.AllowPeer(peerID) {
-		log.Infow("Update config to persist allowing peer", "peerr", peerID)
-	}
-	w.WriteHeader(http.StatusOK)
-}
-
+// ----- assignment handlers -----
 func (h *adminHandler) listAssignedPeers(w http.ResponseWriter, r *http.Request) {
 	assigned, err := h.reg.ListAssignedPeers()
 	if err != nil {
@@ -72,6 +58,65 @@ func (h *adminHandler) listAssignedPeers(w http.ResponseWriter, r *http.Request)
 	}
 
 	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
+func (h *adminHandler) assignPeer(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	peerID, ok := decodePeerID(vars["peer"], w)
+	if !ok {
+		return
+	}
+	err := h.reg.AssignPeer(peerID)
+	if err != nil {
+		log.Errorw("Cannot assign publisher to indexer", "err", err, "publisher", peerID)
+		if errors.Is(err, registry.ErrNotAllowed) {
+			http.Error(w, err.Error(), http.StatusForbidden)
+		} else if errors.Is(err, registry.ErrNoAssigner) {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		} else {
+			http.Error(w, "", http.StatusInternalServerError)
+		}
+		return
+	}
+	log.Infow("Assigned publisher to indexer", "publisher", peerID)
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *adminHandler) unassignPeer(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	peerID, ok := decodePeerID(vars["peer"], w)
+	if !ok {
+		return
+	}
+	err := h.reg.UnassignPeer(peerID)
+	if err != nil {
+		log.Infow("Cannot unassign peer from indexer", "peer", peerID.String())
+		if errors.Is(err, registry.ErrNoAssigner) {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		} else {
+			http.Error(w, "", http.StatusInternalServerError)
+		}
+		return
+	}
+	log.Infow("Unassigned publisher from indexer", "publisher", peerID)
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// ----- ingest handlers -----
+
+func (h *adminHandler) allowPeer(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	peerID, ok := decodePeerID(vars["peer"], w)
+	if !ok {
+		return
+	}
+	log.Infow("Allowing peer to publish and provide content", "peer", peerID)
+	if h.reg.AllowPeer(peerID) {
+		log.Infow("Update config to persist allowing peer", "peerr", peerID)
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {

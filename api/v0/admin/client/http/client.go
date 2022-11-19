@@ -183,12 +183,6 @@ func (c *Client) ReloadConfig(ctx context.Context) error {
 	return nil
 }
 
-// Allow configures the indexer to allow the peer to publish messages and
-// provide content.
-func (c *Client) Allow(ctx context.Context, peerID peer.ID) error {
-	return c.ingestRequest(ctx, peerID, "allow", http.MethodPut, nil)
-}
-
 // ListAssignedPeers gets a list of explicitly allowed peers, if indexer is
 // configured to work with an assigner service.
 func (c *Client) ListAssignedPeers(ctx context.Context) ([]peer.ID, error) {
@@ -220,6 +214,24 @@ func (c *Client) ListAssignedPeers(ctx context.Context) ([]peer.ID, error) {
 	}
 
 	return allowed, nil
+}
+
+// Assign assigns a publish to an indexer, when the indexer is configured to
+// work with an assigner service.
+func (c *Client) Assign(ctx context.Context, peerID peer.ID) error {
+	return c.ingestRequest(ctx, peerID, "assign", http.MethodPut, nil)
+}
+
+// Unassign unassigns a publish from an indexer, when the indexer is configured
+// to work with an assigner service.
+func (c *Client) Unassign(ctx context.Context, peerID peer.ID) error {
+	return c.ingestRequest(ctx, peerID, "unassign", http.MethodPut, nil)
+}
+
+// Allow configures the indexer to allow the peer to publish messages and
+// provide content.
+func (c *Client) Allow(ctx context.Context, peerID peer.ID) error {
+	return c.ingestRequest(ctx, peerID, "allow", http.MethodPut, nil)
 }
 
 // Block configures indexer to block the peer from publishing messages and
@@ -283,7 +295,6 @@ func (c *Client) SetLogLevels(ctx context.Context, sysLvl map[string]string) err
 
 func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, method string, data []byte, queryPairs ...string) error {
 	u := c.baseURL + path.Join(ingestResource, action, peerID.String())
-
 	var body io.Reader
 	if data != nil {
 		body = bytes.NewBuffer(data)

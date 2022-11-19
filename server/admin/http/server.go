@@ -64,9 +64,12 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 
 	// Ingester routes
 	r.HandleFunc("/ingest/allow/{peer}", h.allowPeer).Methods(http.MethodPut)
-	r.HandleFunc("/ingest/assigned", h.listAssignedPeers).Methods(http.MethodGet)
 	r.HandleFunc("/ingest/block/{peer}", h.blockPeer).Methods(http.MethodPut)
 	r.HandleFunc("/ingest/sync/{peer}", h.sync).Methods(http.MethodPost)
+
+	r.HandleFunc("/ingest/assigned", h.listAssignedPeers).Methods(http.MethodGet)
+	r.HandleFunc("/ingest/assign/{peer}", h.assignPeer).Methods(http.MethodPut)
+	r.HandleFunc("/ingest/unassign/{peer}", h.unassignPeer).Methods(http.MethodPut)
 
 	// Metrics routes
 	r.Handle("/metrics", metrics.Start(coremetrics.DefaultViews))

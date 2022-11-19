@@ -50,7 +50,11 @@ type Registry struct {
 	discoverWait  sync.WaitGroup
 	discoverTimes map[string]time.Time
 	policy        *policy.Policy
-	useAssigner   bool
+
+	// assigned tracks peers assigned by assigner service.
+	assigned map[peer.ID]struct{}
+	// assignMutex protects assigner.
+	assignMutex sync.Mutex
 
 	discoveryTimeout time.Duration
 	rediscoverWait   time.Duration
@@ -226,11 +230,7 @@ func (p *ExtendedProviderInfo) UnmarshalJSON(data []byte) error {
 // configuration, a datastore to persist provider data, and a Discoverer
 // interface.  The context is only used for cancellation of this function.
 func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, discoverer discovery.Discoverer) (*Registry, error) {
-	if cfg.UseAssigner && cfg.Policy.Allow {
-		return nil, errors.New("assigner cannot be used with default allow policy")
-	}
-
-	// Create policy from config
+	// Create policy from config.
 	regPolicy, err := policy.New(cfg.Policy)
 	if err != nil {
 		return nil, err
@@ -256,16 +256,17 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 
 		dstore:   dstore,
 		syncChan: make(chan *ProviderInfo, 1),
-
-		useAssigner: cfg.UseAssigner,
 	}
 
 	if err = r.loadPersistedProviders(ctx); err != nil {
 		return nil, fmt.Errorf("cannot load provider data from datastore: %w", err)
 	}
 
-	if err = r.loadPersistedAssignments(ctx); err != nil {
-		return nil, err
+	if cfg.UseAssigner {
+		r.assigned = make(map[peer.ID]struct{})
+		if err = r.loadPersistedAssignments(ctx); err != nil {
+			return nil, err
+		}
 	}
 
 	pollOverrides, err := makePollOverrideMap(cfg.PollOverrides)
@@ -417,8 +418,16 @@ func (r *Registry) Saw(provider peer.ID) {
 	<-done
 }
 
-// Allowed checks if the peer is allowed by policy.
+// Allowed checks if the peer is allowed by policy. If configured to work with
+// an assigner service, then the peer must also be assigned to the indexer to
+// be allowed.
 func (r *Registry) Allowed(peerID peer.ID) bool {
+	if r.assigned != nil {
+		_, ok := r.assigned[peerID]
+		if !ok {
+			return false
+		}
+	}
 	return r.policy.Allowed(peerID)
 }
 
@@ -441,57 +450,80 @@ func (r *Registry) SetPolicy(policyCfg config.Policy) error {
 	return nil
 }
 
+// ListAssignedPeers returns list of assigned peer IDs, when the indexer is
+// configured to work with an assigner service. Otherwise returns error.
+func (r *Registry) ListAssignedPeers() ([]peer.ID, error) {
+	if r.assigned == nil {
+		return nil, ErrNoAssigner
+	}
+
+	r.assignMutex.Lock()
+	defer r.assignMutex.Unlock()
+
+	peers := make([]peer.ID, len(r.assigned))
+	var i int
+	for peerID := range r.assigned {
+		peers[i] = peerID
+		i++
+	}
+	return peers, nil
+}
+
+// AssignPeer assigns the peer to this indexer if using an assigner service.
+// This allows the indexer to accept announce messages having this peer as a
+// publisher. The assignment is persisted in the datastore.
+func (r *Registry) AssignPeer(peerID peer.ID) error {
+	if r.assigned == nil {
+		return ErrNoAssigner
+	}
+	if !r.policy.Allowed(peerID) {
+		return ErrNotAllowed
+	}
+
+	r.assignMutex.Lock()
+	defer r.assignMutex.Unlock()
+
+	err := r.saveAssignedPeer(peerID)
+	if err != nil {
+		return fmt.Errorf("cannot save assignment: %w", err)
+	}
+	r.assigned[peerID] = struct{}{}
+	return nil
+}
+
+// UnassignPeer assigns the peer to this indexer if using an assigner service.
+// This allows the indexer to accept announce messages having this peer as a
+// publisher. The assignment is persisted in the datastore.
+func (r *Registry) UnassignPeer(peerID peer.ID) error {
+	if r.assigned == nil {
+		return ErrNoAssigner
+	}
+
+	r.assignMutex.Lock()
+	defer r.assignMutex.Unlock()
+
+	err := r.deleteAssignedPeer(peerID)
+	if err != nil {
+		return fmt.Errorf("cannot save assignment: %w", err)
+	}
+	delete(r.assigned, peerID)
+	return nil
+}
+
 // AllowPeer configures the policy to allow messages published by the
 // identified peer. Returns true if policy changed. This configuration is not
 // persisted across indexer restarts. Update the indexer config file to persist
 // the change.
-//
-// If using an assigner service, the allowed peer is persisted in the
-// datastore, as this is the basis of assingment of a publisher to an indexer.
 func (r *Registry) AllowPeer(peerID peer.ID) bool {
-	if r.policy.Allow(peerID) {
-		if r.useAssigner {
-			err := r.saveAssignedPeer(peerID)
-			if err != nil {
-				log.Errorw("Cannot save assignment", "err", err)
-			}
-		}
-		return true
-	}
-	return false
+	return r.policy.Allow(peerID)
 }
 
 // BlockPeer configures the policy to block messages published by the
-// identified peer.  Returns true if policy changed. This configuration is not
+// identified peer. Returns true if policy changed. This configuration is not
 // persisted across indexer restarts. Update the indexer config file to persist
 // the change.
-//
-// If using an assigner service, the blocked peer is removed from the persisted
-// set of allowed peers in datastore. This allows unassigning the peer to the
-// indexer.
 func (r *Registry) BlockPeer(peerID peer.ID) bool {
-	if r.policy.Block(peerID) {
-		if r.useAssigner {
-			err := r.deleteAssignedPeer(peerID)
-			if err != nil {
-				log.Errorw("Cannot delete assignment", "err", err)
-			}
-		}
-		return true
-	}
-	return false
-}
-
-// ListAssignedPeers returns list of allowed peer IDs, when the indexer is
-// configured to work with an assigner service. Otherwise returns error.
-func (r *Registry) ListAssignedPeers() ([]peer.ID, error) {
-	if r.useAssigner {
-		peers, ok := r.policy.ListAllowedPeers()
-		if ok {
-			return peers, nil
-		}
-	}
-	return nil, errors.New("indexer not configured to use assigner service")
+	return r.policy.Block(peerID)
 }
 
 // FilterIPsEnabled returns true if IP address filtering is enabled.
@@ -503,6 +535,11 @@ func (r *Registry) FilterIPsEnabled() bool {
 // has a valid ID, then the supplied publisher data replaces the provider's
 // previous publisher information.
 func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo, adCid cid.Cid, extendedProviders *ExtendedProviders) error {
+	// Do not accept update if provider is not allowed.
+	if !r.policy.Allowed(provider.ID) {
+		return ErrNotAllowed
+	}
+
 	if r.filterIPs {
 		provider.Addrs = mautil.FilterPrivateIPs(provider.Addrs)
 		publisher.Addrs = mautil.FilterPrivateIPs(publisher.Addrs)
@@ -553,9 +590,6 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 		if publisher.ID.Validate() == nil {
 			newPublisher = true
 		}
-
-		// Policy does not pertain to provider, only to publisher. So no need
-		// to check if provider is allowed.
 	}
 
 	if newPublisher {
@@ -1048,7 +1082,6 @@ func (r *Registry) loadPersistedAssignments(ctx context.Context) error {
 	}
 	defer results.Close()
 
-	var assigned []peer.ID
 	for result := range results.Next() {
 		if result.Error != nil {
 			return fmt.Errorf("cannot read assignment data: %w", result.Error)
@@ -1060,11 +1093,37 @@ func (r *Registry) loadPersistedAssignments(ctx context.Context) error {
 			return fmt.Errorf("cannot decode assigned peer ID: %w", err)
 		}
 
-		assigned = append(assigned, peerID)
+		r.assigned[peerID] = struct{}{}
 	}
 
-	r.policy.Allow(assigned...)
-	log.Infow("loaded assignments into registry", "count", len(assigned))
+	log.Infow("loaded assignments into registry", "count", len(r.assigned))
+
+	// If there were no assigned publishers, and there are registered
+	// providers, then assign all publishers for the registered providers.
+	//
+	// This is used when an existing indexer is configured to work with an
+	// assigner service. It self-assigns all the publishers of the registered
+	// providers, so that the indexer will continue indexing with the
+	// publishers it is already getting content from.
+	if len(r.assigned) == 0 && len(r.providers) != 0 {
+		for _, pinfo := range r.providers {
+			if pinfo.Publisher.Validate() == nil && r.policy.Allowed(pinfo.Publisher) {
+				r.assigned[pinfo.Publisher] = struct{}{}
+			}
+		}
+
+		// Save assignment in datastore.
+		for peerID := range r.assigned {
+			dsKey := peerIDToDsKey(assignmentsKeyPath, peerID)
+			err := r.dstore.Put(context.Background(), dsKey, []byte{})
+			if err != nil {
+				return err
+			}
+		}
+		r.dstore.Sync(ctx, datastore.NewKey(assignmentsKeyPath))
+
+		log.Info("Self-assigned all providers and publishers from registered providers")
+	}
 
 	return nil
 }
