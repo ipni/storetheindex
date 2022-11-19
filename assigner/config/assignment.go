@@ -20,8 +20,12 @@ type Assignment struct {
 }
 
 type Indexer struct {
-	AdminURL  string
+	// AdminURL is the base URL for the indexer's admin interface.
+	AdminURL string
+	// IngestURL is the base URL for the indexer's ingest interface.
 	IngestURL string
+	// PresetPeers is a list of the peer IDs of pre-assigned publishers.
+	PresetPeers []string
 }
 
 func NewIndexer() Indexer {

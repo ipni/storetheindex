@@ -169,18 +169,17 @@ func TestAnnounce(t *testing.T) {
 	rng := rand.New(rand.NewSource(1413))
 	mhs := util.RandomMultihashes(1, rng)
 
-	assignChan := assigner.OnAssignment(peerID)
+	assignChan, cancel := assigner.OnAssignment(peerID)
+	defer cancel()
 
 	if err := cl.Announce(context.Background(), ai, cid.NewCidV1(22, mhs[0])); err != nil {
 		t.Fatalf("Failed to announce to %s: %s", s.URL(), err)
 	}
 
 	select {
-	case adminURL := <-assignChan:
-		if adminURL != cfg.IndexerPool[0].AdminURL {
-			t.Fatalf("assigned to wrong admin url, expected %s got %s", cfg.IndexerPool[0].AdminURL, adminURL)
-		}
-		t.Log("Assigned publisher to indexer at", adminURL)
+	case indexerNum := <-assignChan:
+		require.Equal(t, 0, indexerNum, "assigned to wrong indexer, expected 0 got %d", indexerNum)
+		t.Log("Assigned publisher to indexer", indexerNum)
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for assignment")
 	}
