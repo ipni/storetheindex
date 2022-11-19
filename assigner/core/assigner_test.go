@@ -1,4 +1,4 @@
-package core
+package core_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/storetheindex/assigner/config"
+	"github.com/filecoin-project/storetheindex/assigner/core"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -90,20 +91,19 @@ func TestNewAssigner(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	assigner, err := NewAssigner(ctx, cfgAssignment, nil)
+	assigner, err := core.NewAssigner(ctx, cfgAssignment, nil)
 	require.NoError(t, err)
 
-	t.Log("Presets for", peer1IDStr, "=", assigner.presets[peer1ID])
-	require.Equal(t, []int{0, 1}, assigner.presets[peer1ID])
-	t.Log("Presets for", peer2IDStr, "=", assigner.presets[peer2ID])
-	require.Equal(t, []int{0}, assigner.presets[peer2ID])
+	t.Log("Presets for", peer1IDStr, "=", assigner.Presets(peer1ID))
+	require.Equal(t, []int{0, 1}, assigner.Presets(peer1ID))
+	t.Log("Presets for", peer2IDStr, "=", assigner.Presets(peer2ID))
+	require.Equal(t, []int{0}, assigner.Presets(peer2ID))
 
-	asmt, ok := assigner.assigned[peer1ID]
-	require.True(t, ok)
-	require.Equal(t, 2, len(asmt.indexers), "peer1 should be assigned to 2 indexers")
+	assigned := assigner.Assigned(peer1ID)
+	require.Equal(t, 2, len(assigned), "peer1 should be assigned to 2 indexers")
 
-	_, ok = assigner.assigned[peer2ID]
-	require.False(t, ok, "peer2 should not be assigned to any indexers")
+	assigned = assigner.Assigned(peer2ID)
+	require.Zero(t, len(assigned), "peer2 should not be assigned to any indexers")
 
 	asmtChan, cancel := assigner.OnAssignment(peer2ID)
 	defer cancel()
@@ -112,8 +112,11 @@ func TestNewAssigner(t *testing.T) {
 	// indexer1, so should only be assigned to that indexer.
 	adCid, _ := cid.Decode("bafybeigvgzoolc3drupxhlevdp2ugqcrbcsqfmcek2zxiw5wctk3xjpjwy")
 	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
-	addrs := []multiaddr.Multiaddr{a}
-	err = assigner.receiver.Direct(ctx, adCid, peer2ID, addrs)
+	addrInfo := peer.AddrInfo{
+		ID:    peer2ID,
+		Addrs: []multiaddr.Multiaddr{a},
+	}
+	err = assigner.Announce(ctx, adCid, addrInfo)
 	require.NoError(t, err)
 
 	var assignNum int
@@ -145,7 +148,8 @@ func TestNewAssigner(t *testing.T) {
 	// so should be assigned to all indexers. Use a different CID because
 	// already announced ads are ignored.
 	adCid, _ = cid.Decode("QmNiV8rwXeC92hufGNu5qJ6L9AygrvDyi63gEpCQaqsE9B")
-	err = assigner.receiver.Direct(ctx, adCid, peer3ID, addrs)
+	addrInfo.ID = peer3ID
+	err = assigner.Announce(ctx, adCid, addrInfo)
 	require.NoError(t, err)
 
 	assigns = assigns[:0]
@@ -174,7 +178,6 @@ func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	if _, err := w.Write(body); err != nil {
-		log.Errorw("cannot write response", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
 	}
 }

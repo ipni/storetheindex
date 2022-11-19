@@ -45,16 +45,20 @@ type Assigner struct {
 	noticeMutex   sync.Mutex
 }
 
+// assignment holds the indexers that a publisher is assigned to.
 type assignment struct {
 	indexers   []int
 	processing bool
 }
 
+// addIndexer adds an indexer, identified by its number in the pool, to this
+// assignment.
 func (asmt *assignment) addIndexer(x int) {
 	i := sort.SearchInts(asmt.indexers, x)
 	if i < len(asmt.indexers) && asmt.indexers[i] == x {
 		return
 	}
+	// Insert indexer number into correct index in sorted slice.
 	asmt.indexers = append(asmt.indexers, 0)
 	copy(asmt.indexers[i+1:], asmt.indexers[i:])
 	asmt.indexers[i] = x
@@ -65,11 +69,14 @@ func (asmt *assignment) hasIndexer(x int) bool {
 	return i < len(asmt.indexers) && asmt.indexers[i] == x
 }
 
+// indexerInfo describes an indexer in the indexer pool.
 type indexerInfo struct {
 	adminURL  string
 	ingestURL string
 }
 
+// NewAssigner created a new assigner core that handles announce messages and
+// assigns them to the indexers configured in the inderer pool.
 func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) (*Assigner, error) {
 	if cfg.Replication < 0 {
 		return nil, errors.New("bad replication value, must be 0 or positive")
@@ -188,12 +195,39 @@ func indexersFromConfig(cfgIndexerPool []config.Indexer) ([]indexerInfo, map[pee
 	return indexers, presets, nil
 }
 
+// Allowed determines whether or not the assigner is accepting announce
+// messages from the specified publisher.
 func (a *Assigner) Allowed(peerID peer.ID) bool {
 	return a.policy.Eval(peerID)
 }
 
+// Announce sends a direct announce message to the assigner. This publisher in
+// the message will be assigned to one or more indexers.
 func (a *Assigner) Announce(ctx context.Context, nextCid cid.Cid, addrInfo peer.AddrInfo) error {
 	return a.receiver.Direct(ctx, nextCid, addrInfo.ID, addrInfo.Addrs)
+}
+
+// Assigned returns the indexers that the given peer is assigned to.
+func (a *Assigner) Assigned(peerID peer.ID) []int {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
+	asmt, found := a.assigned[peerID]
+	if !found {
+		return nil
+	}
+	n := len(asmt.indexers)
+	if n == 0 {
+		return nil
+	}
+	cpy := make([]int, n)
+	copy(cpy, asmt.indexers)
+	return cpy
+}
+
+// Presets returns preset indexer assignments for the given peer.
+func (a *Assigner) Presets(peerID peer.ID) []int {
+	return a.presets[peerID]
 }
 
 // Close shuts down the Subscriber.
@@ -304,6 +338,56 @@ func (a *Assigner) watch() {
 	}
 }
 
+// checkAssignment checks if a publisher is assigned to sufficient indexers.
+func (a *Assigner) checkAssignment(pubID peer.ID) (*assignment, int, []int) {
+	repl := a.replication
+	if repl == 0 {
+		repl = len(a.indexerPool)
+	}
+
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
+	asmt, found := a.assigned[pubID]
+	if found {
+		if asmt.processing {
+			log.Debug("Publisher assignment already being processed")
+			return nil, 0, nil
+		}
+
+		preset, usesPreset := a.presets[pubID]
+		if usesPreset {
+			if len(preset) == 0 {
+				log.Debug("Publisher already assigned to all preset indexers, ignoring announce")
+				return nil, 0, nil
+			}
+			asmt.processing = true
+			return asmt, len(preset), preset
+		}
+
+		if len(asmt.indexers) >= repl {
+			log.Debug("Publisher already assigned, ignoring announce")
+			return nil, 0, nil
+		}
+		asmt.processing = true
+		return asmt, repl - len(asmt.indexers), nil
+	}
+
+	// Publisher not yet assigned to an indexer, so make assignment.
+	asmt = &assignment{
+		processing: true,
+		indexers:   []int{},
+	}
+	a.assigned[pubID] = asmt
+
+	preset, usesPreset := a.presets[pubID]
+	if usesPreset {
+		return asmt, len(preset), preset
+	}
+
+	return asmt, repl, nil
+}
+
 func (a *Assigner) makePresetAssignments(ctx context.Context, amsg announce.Announce, asmt *assignment, preset []int) {
 	var unassigned []int
 	for _, indexerNum := range preset {
@@ -367,56 +451,6 @@ func (a *Assigner) makeAssignments(ctx context.Context, amsg announce.Announce, 
 		}
 	}
 	log.Warnf("Publisher assigned to %d out of %d required indexers", len(asmt.indexers), a.replication)
-}
-
-// checkAssignment checks if a publisher is assigned to sufficient indexers.
-func (a *Assigner) checkAssignment(pubID peer.ID) (*assignment, int, []int) {
-	repl := a.replication
-	if repl == 0 {
-		repl = len(a.indexerPool)
-	}
-
-	a.mutex.Lock()
-	defer a.mutex.Unlock()
-
-	asmt, found := a.assigned[pubID]
-	if found {
-		if asmt.processing {
-			log.Debug("Publisher assignment already being processed")
-			return nil, 0, nil
-		}
-
-		preset, usesPreset := a.presets[pubID]
-		if usesPreset {
-			if len(preset) == 0 {
-				log.Debug("Publisher already assigned to all preset indexers, ignoring announce")
-				return nil, 0, nil
-			}
-			asmt.processing = true
-			return asmt, len(preset), preset
-		}
-
-		if len(asmt.indexers) >= repl {
-			log.Debug("Publisher already assigned, ignoring announce")
-			return nil, 0, nil
-		}
-		asmt.processing = true
-		return asmt, repl - len(asmt.indexers), nil
-	}
-
-	// Publisher not yet assigned to an indexer, so make assignment.
-	asmt = &assignment{
-		processing: true,
-		indexers:   []int{},
-	}
-	a.assigned[pubID] = asmt
-
-	preset, usesPreset := a.presets[pubID]
-	if usesPreset {
-		return asmt, len(preset), preset
-	}
-
-	return asmt, repl, nil
 }
 
 func (a *Assigner) orderCandidates(indexers []int) {
