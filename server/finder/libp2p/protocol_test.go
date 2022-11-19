@@ -75,6 +75,8 @@ func TestFindIndexWithExtendedProviders(t *testing.T) {
 	test.ExtendedProviderShouldInheritMetadataOfMainProviderTest(ctx, t, c, ind, reg)
 	test.ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx, t, c, ind, reg)
 	test.ContextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx, t, c, ind, reg)
+	test.MainProviderChainRecordIsIncludedIfItsMetadataIsDifferentTest(ctx, t, c, ind, reg)
+	test.MainProviderContextRecordIsIncludedIfItsMetadataIsDifferentTest(ctx, t, c, ind, reg)
 
 	if err = reg.Close(); err != nil {
 		t.Errorf("Error closing registry: %s", err)

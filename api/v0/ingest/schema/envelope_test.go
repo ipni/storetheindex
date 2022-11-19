@@ -117,7 +117,7 @@ func TestSignShouldFailIfAdHasExtendedProviders(t *testing.T) {
 			Providers: []stischema.Provider{
 				{
 					ID:        ep1PeerID.String(),
-					Addresses: randomAddrs(2),
+					Addresses: util.RandomAddrs(2),
 					Metadata:  []byte("ep1-metadata"),
 				},
 			},
@@ -146,7 +146,7 @@ func TestSignWithExtendedProviderAndVerify(t *testing.T) {
 	ep1Priv, ep1PeerID := generateIdentityAndKey(t)
 	ep2Priv, ep2PeerID := generateIdentityAndKey(t)
 	mpPriv, mpPeerID := generateIdentityAndKey(t)
-	mpAddrs := randomAddrs(2)
+	mpAddrs := util.RandomAddrs(2)
 
 	adv := stischema.Advertisement{
 		Provider:  mpPeerID.String(),
@@ -158,12 +158,12 @@ func TestSignWithExtendedProviderAndVerify(t *testing.T) {
 			Providers: []stischema.Provider{
 				{
 					ID:        ep1PeerID.String(),
-					Addresses: randomAddrs(2),
+					Addresses: util.RandomAddrs(2),
 					Metadata:  []byte("ep1-metadata"),
 				},
 				{
 					ID:        ep2PeerID.String(),
-					Addresses: randomAddrs(2),
+					Addresses: util.RandomAddrs(2),
 					Metadata:  []byte("ep2-metadata"),
 				},
 				{
@@ -226,7 +226,7 @@ func TestSigVerificationFailsIfTheExtendedProviderMetadataIsIncorrect(t *testing
 
 func TestSigVerificationFailsIfTheExtendedProviderAddrsAreIncorrect(t *testing.T) {
 	extendedSignatureTest(t, func(adv stischema.Advertisement) {
-		adv.ExtendedProvider.Providers[1].Addresses = randomAddrs(10)
+		adv.ExtendedProvider.Providers[1].Addresses = util.RandomAddrs(10)
 		_, err := adv.VerifySignature()
 		require.Error(t, err)
 	})
@@ -276,7 +276,7 @@ func TestSignFailsIfMainProviderIsNotInExtendedList(t *testing.T) {
 
 	ep1Priv, ep1PeerID := generateIdentityAndKey(t)
 	mpPriv, mpPeerID := generateIdentityAndKey(t)
-	mpAddrs := randomAddrs(2)
+	mpAddrs := util.RandomAddrs(2)
 
 	adv := stischema.Advertisement{
 		Provider:  mpPeerID.String(),
@@ -288,7 +288,7 @@ func TestSignFailsIfMainProviderIsNotInExtendedList(t *testing.T) {
 			Providers: []stischema.Provider{
 				{
 					ID:        ep1PeerID.String(),
-					Addresses: randomAddrs(2),
+					Addresses: util.RandomAddrs(2),
 					Metadata:  []byte("ep1-metadata"),
 				},
 			},
@@ -325,7 +325,7 @@ func extendedSignatureTest(t *testing.T, testFunc func(adv stischema.Advertiseme
 
 	ep1Priv, ep1PeerID := generateIdentityAndKey(t)
 	mpPriv, mpPeerID := generateIdentityAndKey(t)
-	mpAddrs := randomAddrs(2)
+	mpAddrs := util.RandomAddrs(2)
 
 	adv := stischema.Advertisement{
 		Provider:  mpPeerID.String(),
@@ -342,7 +342,7 @@ func extendedSignatureTest(t *testing.T, testFunc func(adv stischema.Advertiseme
 				},
 				{
 					ID:        ep1PeerID.String(),
-					Addresses: randomAddrs(2),
+					Addresses: util.RandomAddrs(2),
 					Metadata:  []byte("ep1-metadata"),
 				},
 			},
@@ -364,15 +364,6 @@ func extendedSignatureTest(t *testing.T, testFunc func(adv stischema.Advertiseme
 	require.NoError(t, err)
 
 	testFunc(adv)
-}
-
-func randomAddrs(n int) []string {
-	rng := rand.New(rand.NewSource(time.Now().Unix()))
-	addrs := make([]string, n)
-	for i := 0; i < n; i++ {
-		addrs[i] = fmt.Sprintf("/ip4/%d.%d.%d.%d/tcp/%d", rng.Int()%255, rng.Int()%255, rng.Int()%255, rng.Int()%255, rng.Int()%10751)
-	}
-	return addrs
 }
 
 func generateIdentityAndKey(t *testing.T) (crypto.PrivKey, peer.ID) {

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -81,8 +82,15 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 			if contextualEpRecord, ok := epRecord.ContextualProviders[string(iVal.ContextID)]; ok {
 				override = contextualEpRecord.Override
 				for _, epInfo := range contextualEpRecord.Providers {
+					// Skippng the main provider's record if its metadata is nil or the same to the one retrieved from the indexer,
+					// because such EP record doesn't advertise any new protocol.
+					if epInfo.PeerID == provID &&
+						(len(epInfo.Metadata) == 0 || bytes.Equal(epInfo.Metadata, iVal.MetadataBytes)) {
+						continue
+					}
 					provResult := createExtendedProviderResult(epInfo, iVal)
 					provResults = append(provResults, *provResult)
+
 				}
 			}
 
@@ -92,6 +100,12 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 
 			// Adding chain-level EPs if such exist
 			for _, epInfo := range epRecord.Providers {
+				// Skippng the main provider's record if its metadata is nil or the same to the one retrieved from the indexer,
+				// because such EP record doesn't advertise any new protocol.
+				if epInfo.PeerID == provID &&
+					(len(epInfo.Metadata) == 0 || bytes.Equal(epInfo.Metadata, iVal.MetadataBytes)) {
+					continue
+				}
 				provResult := createExtendedProviderResult(epInfo, iVal)
 				provResults = append(provResults, *provResult)
 			}

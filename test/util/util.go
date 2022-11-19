@@ -1,8 +1,10 @@
 package util
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -51,4 +53,13 @@ func StringToMultiaddrs(t *testing.T, addrs []string) []multiaddr.Multiaddr {
 		mAddrs[i] = ma
 	}
 	return mAddrs
+}
+
+func RandomAddrs(n int) []string {
+	rng := rand.New(rand.NewSource(time.Now().Unix()))
+	addrs := make([]string, n)
+	for i := 0; i < n; i++ {
+		addrs[i] = fmt.Sprintf("/ip4/%d.%d.%d.%d/tcp/%d", rng.Int()%255, rng.Int()%255, rng.Int()%255, rng.Int()%255, rng.Int()%10751)
+	}
+	return addrs
 }

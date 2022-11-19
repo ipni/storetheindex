@@ -17,12 +17,13 @@ import (
 )
 
 func ProvidersShouldBeUnaffectedByExtendedProvidersOfEachOtherTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
+	provider1Id, _, _ := util.RandomIdentity(t)
 	ctxId1 := []byte("test-context-id-1")
 	metadata1 := []byte("test-metadata-1")
 	addrs1 := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9999"})
 	ep1, _, _ := util.RandomIdentity(t)
 	ep1Addrs := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9997"})
-	createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId1, metadata1, addrs1, &registry.ExtendedProviders{
+	createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId1, metadata1, provider1Id, addrs1, &registry.ExtendedProviders{
 		Providers: []registry.ExtendedProviderInfo{
 			{
 				PeerID: ep1,
@@ -31,10 +32,11 @@ func ProvidersShouldBeUnaffectedByExtendedProvidersOfEachOtherTest(ctx context.C
 		},
 	})
 
+	provider2Id, _, _ := util.RandomIdentity(t)
 	ctxId2 := []byte("test-context-id-2")
 	metadata2 := []byte("test-metadata-2")
 	addrs2 := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9998"})
-	prov2, mhs2 := createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId2, metadata2, addrs2, nil)
+	prov2, mhs2 := createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId2, metadata2, provider2Id, addrs2, nil)
 
 	resp, err := c.FindBatch(ctx, mhs2[:10])
 	require.NoError(t, err)
@@ -52,6 +54,7 @@ func ProvidersShouldBeUnaffectedByExtendedProvidersOfEachOtherTest(ctx context.C
 }
 
 func ExtendedProviderShouldHaveOwnMetadataTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
+	provider1Id, _, _ := util.RandomIdentity(t)
 	ctxId1 := []byte("test-context-id-1")
 	metadata1 := []byte("test-metadata-1")
 	addrs1 := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9999"})
@@ -63,7 +66,7 @@ func ExtendedProviderShouldHaveOwnMetadataTest(ctx context.Context, t *testing.T
 	ep2, _, _ := util.RandomIdentity(t)
 	ep2Addrs := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9996"})
 	ep2Metadata := []byte("test-metadata-ep2")
-	prov1, mhs1 := createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId1, metadata1, addrs1, &registry.ExtendedProviders{
+	prov1, mhs1 := createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId1, metadata1, provider1Id, addrs1, &registry.ExtendedProviders{
 		Providers: []registry.ExtendedProviderInfo{
 			{
 				PeerID:   ep1,
@@ -117,6 +120,7 @@ func ExtendedProviderShouldHaveOwnMetadataTest(ctx context.Context, t *testing.T
 }
 
 func ExtendedProviderShouldInheritMetadataOfMainProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
+	provider1Id, _, _ := util.RandomIdentity(t)
 	ctxId1 := []byte("test-context-id-1")
 	metadata1 := []byte("test-metadata-1")
 	addrs1 := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9999"})
@@ -126,7 +130,7 @@ func ExtendedProviderShouldInheritMetadataOfMainProviderTest(ctx context.Context
 	ep2, _, _ := util.RandomIdentity(t)
 	ep2Addrs := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9996"})
 
-	prov1, mhs1 := createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId1, metadata1, addrs1, &registry.ExtendedProviders{
+	prov1, mhs1 := createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId1, metadata1, provider1Id, addrs1, &registry.ExtendedProviders{
 		Providers: []registry.ExtendedProviderInfo{
 			{
 				PeerID: ep1,
@@ -178,6 +182,7 @@ func ExtendedProviderShouldInheritMetadataOfMainProviderTest(ctx context.Context
 }
 
 func ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
+	provider1Id, _, _ := util.RandomIdentity(t)
 	ctxId1 := []byte("test-context-id-1")
 	metadata1 := []byte("test-metadata-1")
 	addrs1 := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9999"})
@@ -188,7 +193,7 @@ func ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx context.
 	ep2, _, _ := util.RandomIdentity(t)
 	ep2Addrs := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9996"})
 
-	prov1, mhs1 := createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId1, metadata1, addrs1, &registry.ExtendedProviders{
+	prov1, mhs1 := createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId1, metadata1, provider1Id, addrs1, &registry.ExtendedProviders{
 		Providers: []registry.ExtendedProviderInfo{
 			{
 				PeerID: ep1,
@@ -272,6 +277,7 @@ func ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx context.
 }
 
 func ContextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
+	provider1Id, _, _ := util.RandomIdentity(t)
 	ctxId1 := []byte("test-context-id-1")
 	metadata1 := []byte("test-metadata-1")
 	addrs1 := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9999"})
@@ -282,7 +288,7 @@ func ContextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx context.Con
 	ep2, _, _ := util.RandomIdentity(t)
 	ep2Addrs := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9996"})
 
-	prov1, mhs1 := createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId1, metadata1, addrs1, &registry.ExtendedProviders{
+	prov1, mhs1 := createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId1, metadata1, provider1Id, addrs1, &registry.ExtendedProviders{
 		Providers: []registry.ExtendedProviderInfo{
 			{
 				PeerID: ep1,
@@ -324,9 +330,109 @@ func ContextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx context.Con
 	require.NoError(t, err)
 }
 
-func createProviderAndPopulateIndexer(t *testing.T, ctx context.Context, ind indexer.Interface, reg *registry.Registry, contextID []byte, metadata []byte, addrs []multiaddr.Multiaddr, extendedProviders *registry.ExtendedProviders) (peer.ID, []multihash.Multihash) {
-	providerID, _, _ := util.RandomIdentity(t)
+func MainProviderChainRecordIsIncludedIfItsMetadataIsDifferentTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
+	providerId, _, _ := util.RandomIdentity(t)
+	ctxId1 := []byte("test-context-id-1")
+	providerMetadata := []byte("provider metadata")
+	chainMetadata := []byte("chain level metadata")
+	addrs := util.StringToMultiaddrs(t, util.RandomAddrs(2))
+	chainAddrs := util.StringToMultiaddrs(t, util.RandomAddrs(2))
 
+	_, mhs1 := createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId1, providerMetadata, providerId, addrs, &registry.ExtendedProviders{
+		Providers: []registry.ExtendedProviderInfo{
+			{
+				PeerID:   providerId,
+				Metadata: chainMetadata,
+				Addrs:    chainAddrs,
+			},
+		},
+		ContextualProviders: map[string]registry.ContextualExtendedProviders{string(ctxId1): {
+			ContextID: ctxId1,
+			Providers: []registry.ExtendedProviderInfo{
+				{
+					PeerID:   providerId,
+					Metadata: providerMetadata,
+					Addrs:    util.StringToMultiaddrs(t, util.RandomAddrs(2)),
+				},
+			},
+		}},
+	})
+
+	resp, err := c.FindBatch(ctx, mhs1)
+	require.NoError(t, err)
+	err = checkResponse(resp, mhs1, []model.ProviderResult{
+		{
+			ContextID: ctxId1,
+			Provider: peer.AddrInfo{
+				ID:    providerId,
+				Addrs: addrs,
+			},
+			Metadata: providerMetadata,
+		},
+		{
+			ContextID: ctxId1,
+			Provider: peer.AddrInfo{
+				ID:    providerId,
+				Addrs: chainAddrs,
+			},
+			Metadata: chainMetadata,
+		},
+	})
+	require.NoError(t, err)
+}
+
+func MainProviderContextRecordIsIncludedIfItsMetadataIsDifferentTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
+	providerId, _, _ := util.RandomIdentity(t)
+	ctxId1 := []byte("test-context-id-1")
+	providerMetadata := []byte("provider metadata")
+	contextMetadata := []byte("context level metadata")
+	addrs := util.StringToMultiaddrs(t, util.RandomAddrs(2))
+	contextAddrs := util.StringToMultiaddrs(t, util.RandomAddrs(2))
+
+	_, mhs1 := createProviderAndPopulateIndexer(t, ctx, ind, reg, ctxId1, providerMetadata, providerId, addrs, &registry.ExtendedProviders{
+		Providers: []registry.ExtendedProviderInfo{
+			{
+				PeerID:   providerId,
+				Metadata: providerMetadata,
+				Addrs:    util.StringToMultiaddrs(t, util.RandomAddrs(2)),
+			},
+		},
+		ContextualProviders: map[string]registry.ContextualExtendedProviders{string(ctxId1): {
+			ContextID: ctxId1,
+			Providers: []registry.ExtendedProviderInfo{
+				{
+					PeerID:   providerId,
+					Metadata: contextMetadata,
+					Addrs:    contextAddrs,
+				},
+			},
+		}},
+	})
+
+	resp, err := c.FindBatch(ctx, mhs1)
+	require.NoError(t, err)
+	err = checkResponse(resp, mhs1, []model.ProviderResult{
+		{
+			ContextID: ctxId1,
+			Provider: peer.AddrInfo{
+				ID:    providerId,
+				Addrs: addrs,
+			},
+			Metadata: providerMetadata,
+		},
+		{
+			ContextID: ctxId1,
+			Provider: peer.AddrInfo{
+				ID:    providerId,
+				Addrs: contextAddrs,
+			},
+			Metadata: contextMetadata,
+		},
+	})
+	require.NoError(t, err)
+}
+
+func createProviderAndPopulateIndexer(t *testing.T, ctx context.Context, ind indexer.Interface, reg *registry.Registry, contextID []byte, metadata []byte, providerID peer.ID, addrs []multiaddr.Multiaddr, extendedProviders *registry.ExtendedProviders) (peer.ID, []multihash.Multihash) {
 	// Generate some multihashes and populate indexer
 	mhs := util.RandomMultihashes(10, rng)
 

@@ -226,17 +226,11 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 
 		// Creating ExtendedProviderInfo record for each of the providers.
 		// Keeping in mind that the provider from the outer ad doesn't need to be included into the extended providers list
-		eProvs := make([]registry.ExtendedProviderInfo, 0, len(ad.ExtendedProvider.Providers)-1)
-		seenEProvs := map[peer.ID]struct{}{}
+		eProvs := make([]registry.ExtendedProviderInfo, 0, len(ad.ExtendedProvider.Providers))
 		for _, ep := range ad.ExtendedProvider.Providers {
 			epID, err := peer.Decode(ep.ID)
 			if err != nil {
 				return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update extended provider info: %w", err)}
-			}
-
-			// Skipping the record that is for provider form the main ad or if the provider has already been seen
-			if _, ok := seenEProvs[epID]; ok || ep.ID == ad.Provider {
-				continue
 			}
 
 			eProvs = append(eProvs, registry.ExtendedProviderInfo{
