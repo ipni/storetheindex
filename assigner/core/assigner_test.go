@@ -102,10 +102,8 @@ func TestNewAssigner(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, 2, len(asmt.indexers), "peer1 should be assigned to 2 indexers")
 
-	asmt, ok = assigner.assigned[peer2ID]
+	_, ok = assigner.assigned[peer2ID]
 	require.False(t, ok, "peer2 should not be assigned to any indexers")
-
-	//showAssignments(t, assigner)
 
 	asmtChan, cancel := assigner.OnAssignment(peer2ID)
 	defer cancel()
@@ -140,8 +138,6 @@ func TestNewAssigner(t *testing.T) {
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 0, assigns[0])
 
-	//showAssignments(t, assigner)
-
 	asmtChan, cancel = assigner.OnAssignment(peer3ID)
 	defer cancel()
 
@@ -172,18 +168,6 @@ func TestNewAssigner(t *testing.T) {
 	}
 	sort.Ints(assigns)
 	require.Equal(t, []int{0, 1}, assigns)
-
-	//showAssignments(t, assigner)
-}
-
-func mockGetAssignments(ctx context.Context, adminURL string) ([]peer.ID, error) {
-	return nil, nil
-}
-
-func showAssignments(t *testing.T, assigner *Assigner) {
-	for peerID, asmt := range assigner.assigned {
-		t.Log("Publisher", peerID, "assigned to indexers", asmt.indexers)
-	}
 }
 
 func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
