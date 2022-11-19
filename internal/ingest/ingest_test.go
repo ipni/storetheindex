@@ -790,7 +790,7 @@ func TestSyncWithExtendedProviders(t *testing.T) {
 		pInfo, _ := reg.ProviderInfo(providerID)
 		extendedProviders := pInfo.ExtendedProviders
 		require.NotNil(t, extendedProviders)
-		require.Equal(t, len(adv2.ExtendedProvider.Providers)-1, len(extendedProviders.Providers))
+		require.Equal(t, len(adv2.ExtendedProvider.Providers), len(extendedProviders.Providers))
 		require.Equal(t, 1, len(extendedProviders.ContextualProviders))
 
 		verifyContextualProviders(t, extendedProviders, adv1, reg)
@@ -823,7 +823,7 @@ func TestSyncWithExtendedProvidersContextualUpdate(t *testing.T) {
 		pInfo, _ := reg.ProviderInfo(providerID)
 		extendedProviders := pInfo.ExtendedProviders
 		require.NotNil(t, extendedProviders)
-		require.Equal(t, len(adv2.ExtendedProvider.Providers)-1, len(extendedProviders.Providers))
+		require.Equal(t, len(adv2.ExtendedProvider.Providers), len(extendedProviders.Providers))
 		require.Equal(t, 1, len(extendedProviders.ContextualProviders))
 
 		verifyContextualProviders(t, extendedProviders, adv3, reg)
@@ -856,7 +856,7 @@ func TestSyncWithExtendedProvidersChainLevelUpdate(t *testing.T) {
 		pInfo, _ := reg.ProviderInfo(providerID)
 		extendedProviders := pInfo.ExtendedProviders
 		require.NotNil(t, extendedProviders)
-		require.Equal(t, len(adv3.ExtendedProvider.Providers)-1, len(extendedProviders.Providers))
+		require.Equal(t, len(adv3.ExtendedProvider.Providers), len(extendedProviders.Providers))
 		require.Equal(t, 1, len(extendedProviders.ContextualProviders))
 
 		verifyContextualProviders(t, extendedProviders, adv1, reg)
@@ -889,7 +889,7 @@ func TestSyncWithExtendedProvidersContextualInsert(t *testing.T) {
 		pInfo, _ := reg.ProviderInfo(providerID)
 		extendedProviders := pInfo.ExtendedProviders
 		require.NotNil(t, extendedProviders)
-		require.Equal(t, len(adv2.ExtendedProvider.Providers)-1, len(extendedProviders.Providers))
+		require.Equal(t, len(adv2.ExtendedProvider.Providers), len(extendedProviders.Providers))
 		require.Equal(t, 2, len(extendedProviders.ContextualProviders))
 
 		verifyContextualProviders(t, extendedProviders, adv1, reg)
@@ -916,7 +916,7 @@ func verifyContextualProviders(t *testing.T, extendedProviders *registry.Extende
 	require.NotNil(t, contextualProviders)
 	require.Equal(t, adv.ContextID, contextualProviders.ContextID)
 	require.Equal(t, adv.ExtendedProvider.Override, contextualProviders.Override)
-	require.Equal(t, len(adv.ExtendedProvider.Providers)-1, len(contextualProviders.Providers))
+	require.Equal(t, len(adv.ExtendedProvider.Providers), len(contextualProviders.Providers))
 
 	contextualProviderByID := map[peer.ID]registry.ExtendedProviderInfo{}
 	for _, p := range contextualProviders.Providers {
@@ -948,10 +948,6 @@ func verifyExtendedProviders(t *testing.T,
 	for _, ep := range adExtendedProviders {
 		peerID, err := peer.Decode(ep.ID)
 		require.NoError(t, err)
-		// Skipping the main provider
-		if peerID == adProviderID {
-			continue
-		}
 
 		epInfo := providerInfosMap[peerID]
 		require.NotNil(t, epInfo)
@@ -1682,7 +1678,7 @@ func publishAdvWithExtendedProviders(t *testing.T,
 	adv.ExtendedProvider.Providers = append(adv.ExtendedProvider.Providers, schema.Provider{
 		ID:        provider.String(),
 		Addresses: addrs,
-		Metadata:  nil,
+		Metadata:  []byte{},
 	})
 	epKeys[provider.String()] = privKey
 
