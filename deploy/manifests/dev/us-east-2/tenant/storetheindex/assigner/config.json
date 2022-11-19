@@ -8,12 +8,12 @@
     "FilterIPs": false,
     "IndexerPool": [
       {
-        "AdminURL": "http://ber.dev.cid.contact:3002"
-        "IngestURL" "http://ber.dev.cid.contact:3001"
+        "AdminURL": "http://ber-indexer:3002",
+        "IngestURL" "http://ber-indexer:3001"
       },
       {
-        "AdminURL": "http://cali.dev.cid.contact:3002"
-        "IngestURL" "http://cali.dev.cid.contact:3001"
+        "AdminURL": "http://cali-indexer:3002",
+        "IngestURL" "http://cali-indexer:3001"
       }
     ],
     "Policy": {
@@ -57,8 +57,8 @@
   },
   "Peering": {
     "Peers": [
-      "/dns4/ber.dev.cid.contact/tcp/3003/12D3KooWSQpUgBZwbNuMN3ctZjMesnoH9UDhwEXroxParXQCgurN",
-      "/dns4/cali.dev.cid.contact/tcp/3003/12D3KooWHGHu3jVjya9sDSAYRmAVtUnQGTwnWeqan1smfJdjzscB"
+      "/dns4/ber-indexer/tcp/3003/12D3KooWSQpUgBZwbNuMN3ctZjMesnoH9UDhwEXroxParXQCgurN",
+      "/dns4/cali-indexer/tcp/3003/12D3KooWHGHu3jVjya9sDSAYRmAVtUnQGTwnWeqan1smfJdjzscB"
     ]
   }
 }

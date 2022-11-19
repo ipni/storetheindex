@@ -51,6 +51,3 @@ spec:
         - name: identity
           secret:
             secretName: identity
-        - name: config
-          configMap:
-            name: config

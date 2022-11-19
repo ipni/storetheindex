@@ -14,10 +14,4 @@ secretGenerator:
   - name: identity
     behavior: replace
     files:
-      - identity.key=indexer-0-identity.key.encrypted # 12D3KooWDBjcDRQ7CKJeF9Yy3UKbriHfyETDrXKzTDB6biH3ibBd
-
-configMapGenerator:
-  - name: config
-    behavior: replace
-    files:
-      - config=config.json
+      - identity.key=identity.key.encrypted # 12D3KooWDBjcDRQ7CKJeF9Yy3UKbriHfyETDrXKzTDB6biH3ibBd
