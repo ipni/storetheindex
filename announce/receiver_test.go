@@ -110,7 +110,7 @@ func TestReceiverCloseWaitingDirect(t *testing.T) {
 	select {
 	case err = <-errChan:
 		require.ErrorIs(t, err, announce.ErrClosed)
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for error return")
 	}
 }
