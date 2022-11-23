@@ -11,7 +11,7 @@ const (
 	apiWriteTimeout = 30 * time.Second
 	apiReadTimeout  = 30 * time.Second
 	maxConns        = 8_000
-	defaultHomepage = "https://web.cid.contact/"
+	defaultHomepage = "https://web-ipni.cid.contact/"
 )
 
 // serverConfig is a structure containing all the options that can be used when constructing an http server

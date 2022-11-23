@@ -70,7 +70,7 @@ config file at runtime.
     "ApiReadTimeout": "30s",
     "ApiWriteTimeout": "30s",
     "MaxConnections": 8000,
-    "Webpage": "https://web.cid.contact/"
+    "Webpage": "https://web-ipni.cid.contact/"
   },
   "Indexer": {
     "CacheSize": 300000,
@@ -217,7 +217,7 @@ Default:
   "ApiReadTimeout": "30s",
   "ApiWriteTimeout": "30s",
   "MaxConnections": 8000,
-  "Webpage": "https://web.cid.contact/"
+  "Webpage": "https://web-ipni.cid.contact/"
 }
 ```
 

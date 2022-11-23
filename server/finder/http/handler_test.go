@@ -156,5 +156,5 @@ func TestServer_Landing(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	gotBody := rr.Body.String()
 	require.NotEmpty(t, gotBody)
-	require.True(t, strings.Contains(gotBody, "https://web.cid.contact/"))
+	require.True(t, strings.Contains(gotBody, "https://web-ipni.cid.contact/"))
 }
