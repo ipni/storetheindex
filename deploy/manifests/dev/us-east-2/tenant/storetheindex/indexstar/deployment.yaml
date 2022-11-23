@@ -15,8 +15,8 @@ spec:
             - '--translateReframe'
             # Use service names local to the namespace over HTTP to avoid
             # TLS handshake overhead.
-            - '--backends=http://indexer-0.indexer:3000/'
             - '--backends=http://ber-indexer:3000/'
+            - '--backends=http://cali-indexer:3000/'
           resources:
             limits:
               cpu: "3"
