@@ -27,7 +27,7 @@ func NewFinder() Finder {
 		ApiReadTimeout:  Duration(30 * time.Second),
 		ApiWriteTimeout: Duration(30 * time.Second),
 		MaxConnections:  8_000,
-		Webpage:         "https://web.cid.contact/",
+		Webpage:         "https://web-ipni.cid.contact/",
 	}
 }
 
