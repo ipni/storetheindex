@@ -115,15 +115,3 @@ func (p *Policy) ToConfig() config.Policy {
 func (p *Policy) NoneAllowed() bool {
 	return !p.allow.Any(true)
 }
-
-// ListAllowedPeers returns list of explicitly allowed peer IDs. or false if policy
-// allows by default and does not have list of allowed peers.
-func (p *Policy) ListAllowedPeers() ([]peer.ID, bool) {
-	p.rwmutex.RLock()
-	defer p.rwmutex.RUnlock()
-
-	if p.allow.Default() {
-		return nil, false
-	}
-	return p.allow.Except(), true
-}

@@ -1,17 +1,19 @@
 package config
 
-// Policy configures which peers are allowed to publish advertisements and
-// which may publish on behalf of other providers. The Allow policy determines
-// which peers the indexer will request advertisements from. The Publish policy
-// determines is a publisher may supply an advertisement that has a provider
-// that is not the same as the publisher.
+// Policy configures which peers are allowed to be providers, publish
+// advertisements and publish on behalf of other providers. The Allow policy
+// determines which peers the indexer will request advertisements from and
+// index content for. The Publish policy determines if a publisher may supply
+// an advertisement that has a provider that is different from the publisher.
 //
 // Publishers and providers are not the same. Publishers are peers that supply
 // data to the indexer. Providers are the peers that appear in advertisements
-// and are where clients will retrieve content from.
+// and are where retrieval clients get content from.
 type Policy struct {
 	// Allow is either false or true, and determines whether a peer is allowed
-	// (true) or is blocked (false), by default.
+	// (true) or is blocked (false), by default. If a peer if blocked, then it
+	// cannot publish advertisements to this indexer or be listed as a provider
+	// by this indexer.
 	Allow bool
 	// Except is a list of peer IDs that are exceptions to the Allow policy.
 	// If Allow is true, then all peers are allowed except those listed in
