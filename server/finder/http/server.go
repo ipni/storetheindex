@@ -24,6 +24,7 @@ var log = logging.Logger("indexer/finder")
 type Server struct {
 	server *http.Server
 	l      net.Listener
+	h      *httpHandler
 }
 
 func (s *Server) URL() string {
@@ -90,7 +91,11 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 		WriteTimeout: cfg.apiWriteTimeout,
 		ReadTimeout:  cfg.apiReadTimeout,
 	}
-	s := &Server{server, l}
+	s := &Server{
+		server: server,
+		l:      l,
+		h:      h,
+	}
 
 	return s, nil
 }
@@ -102,5 +107,6 @@ func (s *Server) Start() error {
 
 func (s *Server) Close() error {
 	log.Info("finder http server shutdown")
+	s.h.finderHandler.Close()
 	return s.server.Shutdown(context.Background())
 }
