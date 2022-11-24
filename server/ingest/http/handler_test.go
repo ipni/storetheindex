@@ -59,6 +59,7 @@ func (m *mockIndexer) Size() (int64, error)                               { retu
 func (m *mockIndexer) Flush() error                                       { return nil }
 func (m *mockIndexer) Close() error                                       { return nil }
 func (m *mockIndexer) Iter() (indexer.Iterator, error)                    { return nil, nil }
+func (m *mockIndexer) Stats() (*indexer.Stats, error)                     { return nil, indexer.ErrStatsNotSupported }
 
 func init() {
 	var discoveryCfg = config.Discovery{

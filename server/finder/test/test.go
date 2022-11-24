@@ -394,13 +394,10 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 }
 
 func GetStatsTest(ctx context.Context, t *testing.T, c client.Finder) {
-	stats, err := c.GetStats(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if stats.EntriesEstimate <= 0 {
-		t.Fatalf("should have non-zero, index entries estimate")
-	}
+	require.Eventually(t, func() bool {
+		stats, err := c.GetStats(ctx)
+		return err == nil && stats.EntriesEstimate > 0
+	}, 5*time.Second, time.Second)
 }
 
 func Register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID {

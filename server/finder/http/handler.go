@@ -155,13 +155,16 @@ func (h *httpHandler) getProvider(w http.ResponseWriter, r *http.Request) {
 // GET /stats",
 func (h *httpHandler) getStats(w http.ResponseWriter, r *http.Request) {
 	data, err := h.finderHandler.GetStats()
-	if err != nil {
+	switch {
+	case err != nil:
 		log.Errorw("cannot get stats", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
-		return
+	case len(data) == 0:
+		log.Warn("processing stats")
+		http.Error(w, "processing", http.StatusTeapot)
+	default:
+		httpserver.WriteJsonResponse(w, http.StatusOK, data)
 	}
-
-	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
 func getProviderID(r *http.Request) (peer.ID, error) {

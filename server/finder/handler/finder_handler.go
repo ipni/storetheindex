@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/filecoin-project/go-indexer-core"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
@@ -29,6 +30,7 @@ type FinderHandler struct {
 	indexer     indexer.Interface
 	registry    *registry.Registry
 	indexCounts *counter.IndexCounts
+	stats       *cachedStats
 }
 
 func NewFinderHandler(indexer indexer.Interface, registry *registry.Registry, indexCounts *counter.IndexCounts) *FinderHandler {
@@ -36,6 +38,7 @@ func NewFinderHandler(indexer indexer.Interface, registry *registry.Registry, in
 		indexer:     indexer,
 		registry:    registry,
 		indexCounts: indexCounts,
+		stats:       newCachedStats(indexer, time.Hour),
 	}
 }
 
@@ -247,16 +250,19 @@ func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 }
 
 func (h *FinderHandler) GetStats() ([]byte, error) {
-	size, err := h.indexer.Size()
-	if err != nil {
+	stats, err := h.stats.get()
+	switch {
+	case err != nil:
 		return nil, err
+	case stats.EntriesEstimate == 0:
+		return nil, nil
+	default:
+		return model.MarshalStats(&stats)
 	}
+}
 
-	s := model.Stats{
-		EntriesEstimate: size / avg_mh_size,
-	}
-
-	return model.MarshalStats(&s)
+func (h *FinderHandler) Close() {
+	h.stats.close()
 }
 
 func providerResultFromValue(provID peer.ID, contextID []byte, metadata []byte, addrs []multiaddr.Multiaddr) model.ProviderResult {
