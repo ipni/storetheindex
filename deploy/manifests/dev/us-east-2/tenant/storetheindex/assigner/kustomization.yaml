@@ -12,6 +12,17 @@ patchesStrategicMerge:
 
 secretGenerator:
   - name: identity
-    behavior: replace
+    behavior: create
     files:
       - identity.key=identity.key.encrypted # 12D3KooWDBjcDRQ7CKJeF9Yy3UKbriHfyETDrXKzTDB6biH3ibBd
+
+configMapGenerator:
+  - name: config
+    behavior: create
+    files:
+      - config=config.json
+
+images:
+- name: storetheindex
+  newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+  newTag: 20221124011623-31b216c0badbb1f3907d558b46ef6a1d23864008

@@ -19,6 +19,7 @@ spec:
       containers:
         - name: assigner
           image: storetheindex
+          command: ["assigner"]
           env:
             - name: GOLOG_LOG_LEVEL
               value: INFO
@@ -36,8 +37,6 @@ spec:
           volumeMounts:
             - name: identity
               mountPath: /identity
-            - name: config
-              mountPath: /config
           readinessProbe:
             httpGet:
               port: http

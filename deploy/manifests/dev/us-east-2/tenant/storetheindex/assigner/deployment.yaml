@@ -14,6 +14,9 @@ spec:
             requests:
               cpu: "3"
               memory: 2Gi
+          volumeMounts:
+            - name: config
+              mountPath: /config
       volumes:
         - name: config
           configMap:
