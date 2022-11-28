@@ -20,8 +20,10 @@ type (
 		latest atomic.Value // Stores *latestStats
 	}
 	latestStats struct {
-		entriesEstimate int64
-		err             error
+		entriesEstimate    int64
+		entriesCount       int64
+		errEntriesEstimate error
+		errEntriesCount    error
 	}
 )
 
@@ -54,26 +56,32 @@ func (c *cachedStats) refresh() {
 	lastResult := c.latest.Load().(*latestStats)
 	var s *indexer.Stats
 	var newResult latestStats
-	if lastResult.err == nil {
-		s, newResult.err = c.indexer.Stats()
-	}
-	switch newResult.err {
-	case nil:
-		newResult.entriesEstimate = int64(s.MultihashCount)
-	case indexer.ErrStatsNotSupported:
-		var size int64
-		size, newResult.err = c.indexer.Size()
-		if newResult.err == nil {
-			newResult.entriesEstimate = size / avg_mh_size
+	// Only check the `stats` endpoint once; if the valuestore does not support it there is no
+	// point checking it at every cycle.
+	if lastResult.errEntriesCount != indexer.ErrStatsNotSupported {
+		s, newResult.errEntriesCount = c.indexer.Stats()
+		if newResult.errEntriesCount == nil {
+			newResult.entriesCount = int64(s.MultihashCount)
 		}
+	}
+	var size int64
+	size, newResult.errEntriesEstimate = c.indexer.Size()
+	if newResult.errEntriesEstimate == nil {
+		newResult.entriesEstimate = size / avg_mh_size
 	}
 	c.latest.Store(&newResult)
 }
 
 func (c *cachedStats) get() (s model.Stats, err error) {
 	r := c.latest.Load().(*latestStats)
-	err = r.err
 	s.EntriesEstimate = r.entriesEstimate
+	s.EntriesCount = r.entriesCount
+
+	if r.errEntriesCount != nil && r.errEntriesCount != indexer.ErrStatsNotSupported {
+		log.Warn("Failed to get EntriesCount", "err", r.errEntriesCount)
+	}
+
+	err = r.errEntriesEstimate
 	return
 }
 
