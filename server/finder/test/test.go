@@ -396,7 +396,7 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 func GetStatsTest(ctx context.Context, t *testing.T, c client.Finder) {
 	require.Eventually(t, func() bool {
 		stats, err := c.GetStats(ctx)
-		return err == nil && stats.EntriesEstimate > 0
+		return err == nil && (stats.EntriesEstimate > 0 || stats.EntriesCount > 0)
 	}, 5*time.Second, time.Second)
 }
 
