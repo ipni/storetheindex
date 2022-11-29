@@ -41,10 +41,15 @@ func TestMarshal(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	m2, err := multiaddr.NewMultiaddr("/dns4/ipni.io/tcp/443/https/httpath/http-cid-data")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Masrhal response and check e2e
 	t.Log("e2e marshalling response")
 	resp := &FindResponse{
-		MultihashResults: make([]MultihashResult, 0),
+		MultihashResults: []MultihashResult{},
 	}
 
 	providerResult := ProviderResult{
@@ -52,7 +57,7 @@ func TestMarshal(t *testing.T) {
 		Metadata:  metadata,
 		Provider: peer.AddrInfo{
 			ID:    p,
-			Addrs: []multiaddr.Multiaddr{m1},
+			Addrs: []multiaddr.Multiaddr{m1, m2},
 		},
 	}
 
