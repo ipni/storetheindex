@@ -72,7 +72,7 @@ func setupPublisherSubscriber(t *testing.T, subscriberOptions []dagsync.Option) 
 		srcStore:   srcStore,
 		srcLinkSys: srcLinkSys,
 		dstStore:   dstStore,
-		pubAddr:    httpPub.Address(),
+		pubAddr:    httpPub.Addrs()[0],
 	}
 }
 

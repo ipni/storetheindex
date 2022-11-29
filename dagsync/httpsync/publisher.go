@@ -69,10 +69,10 @@ func NewPublisher(address string, lsys ipld.LinkSystem, peerID peer.ID, privKey 
 	return pub, nil
 }
 
-// Address returns the address, as a multiaddress, that the publisher is
+// Addrs returns the addresses, as []multiaddress, that the publisher is
 // listening on.
-func (p *publisher) Address() multiaddr.Multiaddr {
-	return p.addr
+func (p *publisher) Addrs() []multiaddr.Multiaddr {
+	return []multiaddr.Multiaddr{p.addr}
 }
 
 func (p *publisher) SetRoot(ctx context.Context, c cid.Cid) error {

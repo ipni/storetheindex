@@ -772,7 +772,7 @@ func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostS
 		require.NoError(t, err)
 		httpPub, err := httpsync.NewPublisher("127.0.0.1:0", pubSys.lsys, id, pubSys.privKey)
 		require.NoError(t, err)
-		pubAddr = httpPub.Address()
+		pubAddr = httpPub.Addrs()[0]
 		pub = httpPub
 	} else {
 		pub, err = dtsync.NewPublisher(pubSys.host, pubSys.ds, pubSys.lsys, topicName)

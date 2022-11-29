@@ -14,7 +14,6 @@ import (
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -190,7 +189,7 @@ func TestAnnounce_LearnsHttpPublisherAddr(t *testing.T) {
 	// Announce one CID to the subscriber. Note that announce does a sync in the background.
 	// That's why we use one cid here and another for sync so that we can concretely assert that
 	// data was synced via the sync call and not via the earlier background sync via announce.
-	err = sub.Announce(ctx, oneC, pubh.ID(), []multiaddr.Multiaddr{pub.Address()})
+	err = sub.Announce(ctx, oneC, pubh.ID(), pub.Addrs())
 	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
