@@ -18,7 +18,7 @@ import (
 	"github.com/ipld/go-ipld-prime"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
-	ma "github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multiaddr"
 )
 
 type publisher struct {
@@ -129,6 +129,10 @@ func NewPublisherFromExisting(dtManager dt.Manager, host host.Host, topic string
 	return p, nil
 }
 
+func (p *publisher) Addrs() []multiaddr.Multiaddr {
+	return p.host.Addrs()
+}
+
 func (p *publisher) SetRoot(ctx context.Context, c cid.Cid) error {
 	if c == cid.Undef {
 		return errors.New("cannot update to an undefined cid")
@@ -141,7 +145,7 @@ func (p *publisher) UpdateRoot(ctx context.Context, c cid.Cid) error {
 	return p.UpdateRootWithAddrs(ctx, c, p.host.Addrs())
 }
 
-func (p *publisher) UpdateRootWithAddrs(ctx context.Context, c cid.Cid, addrs []ma.Multiaddr) error {
+func (p *publisher) UpdateRootWithAddrs(ctx context.Context, c cid.Cid, addrs []multiaddr.Multiaddr) error {
 	err := p.SetRoot(ctx, c)
 	if err != nil {
 		return err
