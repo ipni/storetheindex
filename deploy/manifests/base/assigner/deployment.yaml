@@ -19,7 +19,7 @@ spec:
       containers:
         - name: assigner
           image: storetheindex
-          command: ["assigner"]
+          command: ["start_assigner"]
           env:
             - name: GOLOG_LOG_LEVEL
               value: INFO
@@ -35,8 +35,6 @@ spec:
             - containerPort: 8081
               name: metrics
           volumeMounts:
-            - name: identity
-              mountPath: /identity
           readinessProbe:
             httpGet:
               port: http
@@ -46,7 +44,3 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
             periodSeconds: 10
-      volumes:
-        - name: identity
-          secret:
-            secretName: identity

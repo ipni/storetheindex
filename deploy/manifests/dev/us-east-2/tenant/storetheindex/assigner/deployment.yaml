@@ -17,7 +17,12 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
+            - name: identity
+              mountPath: /identity
       volumes:
         - name: config
           configMap:
             name: config
+        - name: identity
+          secret:
+            secretName: identity

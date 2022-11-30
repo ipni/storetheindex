@@ -19,6 +19,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: indexer
+                name: assigner
                 port:
                   number: 3001

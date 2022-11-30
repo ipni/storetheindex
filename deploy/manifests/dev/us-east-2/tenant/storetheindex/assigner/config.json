@@ -9,11 +9,11 @@
     "IndexerPool": [
       {
         "AdminURL": "http://ber-indexer:3002",
-        "IngestURL" "http://ber-indexer:3001"
+        "IngestURL": "http://ber-indexer:3001"
       },
       {
         "AdminURL": "http://cali-indexer:3002",
-        "IngestURL" "http://cali-indexer:3001"
+        "IngestURL": "http://cali-indexer:3001"
       }
     ],
     "Policy": {
@@ -57,8 +57,8 @@
   },
   "Peering": {
     "Peers": [
-      "/dns4/ber-indexer/tcp/3003/12D3KooWSQpUgBZwbNuMN3ctZjMesnoH9UDhwEXroxParXQCgurN",
-      "/dns4/cali-indexer/tcp/3003/12D3KooWHGHu3jVjya9sDSAYRmAVtUnQGTwnWeqan1smfJdjzscB"
+      "/dns4/ber-indexer/tcp/3003/p2p/12D3KooWSQpUgBZwbNuMN3ctZjMesnoH9UDhwEXroxParXQCgurN",
+      "/dns4/cali-indexer/tcp/3003/p2p/12D3KooWHGHu3jVjya9sDSAYRmAVtUnQGTwnWeqan1smfJdjzscB"
     ]
   }
 }
