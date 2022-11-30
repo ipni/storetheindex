@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: assigner
+spec:
+  # Do not run more than one replica; this overlay is designed to run a single instance only.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: assigner
+  template:
+    metadata:
+      labels:
+        app: assigner
+    spec:
+      securityContext:
+        runAsUser: 10001
+        fsGroup: 532
+      containers:
+        - name: assigner
+          image: storetheindex
+          command: ["start_assigner"]
+          env:
+            - name: GOLOG_LOG_LEVEL
+              value: INFO
+            - name: GOLOG_LOG_FMT
+              value: json
+            - name: ASSIGNER_PRIV_KEY_PATH
+              value: /identity/identity.key
+            - name: ASSIGNER_PATH
+              value: /config
+          ports:
+            - containerPort: 3001
+              name: http
+            - containerPort: 8081
+              name: metrics
+          volumeMounts:
+          readinessProbe:
+            httpGet:
+              port: http
+              path: /health
+            initialDelaySeconds: 10
+            failureThreshold: 3
+            successThreshold: 1
+            timeoutSeconds: 5
+            periodSeconds: 10
