@@ -27,7 +27,7 @@ spec:
               value: INFO
             - name: GOLOG_LOG_FMT
               value: json
-            - name: ASSIGNER_PRIV_KEY_PATH
+            - name: STORETHEINDEX_PRIV_KEY_PATH
               value: /identity/identity.key
             - name: ASSIGNER_PATH
               value: /config
