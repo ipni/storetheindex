@@ -51,7 +51,8 @@
     "PollStopAfter": "168h0m0s",
     "PollOverrides": null,
     "RediscoverWait": "5m0s",
-    "Timeout": "2m0s"
+    "Timeout": "2m0s",
+    "UseAssigner": true
   },
   "Indexer": {
     "CacheSize": -1,
