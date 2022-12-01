@@ -53,7 +53,8 @@ type Ingest struct {
 	// ResendDirectAnnounce determines whether or not to re-publish direct
 	// announce messages over gossip pubsub. When a single indexer receives an
 	// announce message via HTTP, enabling this lets the indexers re-publish
-	// the announce so that other indexers can also receive it.
+	// the announce so that other indexers can also receive it. This is always
+	// false if configured to use an assigner.
 	ResendDirectAnnounce bool
 	// StoreBatchSize is the number of entries in each write to the value
 	// store. Specifying a value less than 2 disables batching. This should be

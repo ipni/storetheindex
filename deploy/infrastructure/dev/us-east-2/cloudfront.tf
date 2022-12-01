@@ -13,14 +13,14 @@ resource "aws_cloudfront_distribution" "cdn" {
   ]
   price_class = "PriceClass_All"
 
-  # The node named `ber` in dev environment uses an identity that is whitelisted by Lotus 
+  # The node named `assigner` in dev environment uses an identity that is whitelisted by Lotus 
   # bootstrap nodes in order to relay gossipsub. That node is also configured to re-propagate 
   # HTTP announces over gossipsub.
   # Therefore, all HTTP announce requests are routed to it. 
   # 
-  # See: storetheindex/ber-indexer ingress object.
+  # See: storetheindex/assigner-indexer ingress object.
   origin {
-    domain_name = "ber.${aws_route53_zone.dev_external.name}"
+    domain_name = "assigner.${aws_route53_zone.dev_external.name}"
     origin_id   = local.http_announce_origin_id
     custom_origin_config {
       http_port              = 80

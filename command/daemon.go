@@ -220,6 +220,11 @@ func daemonCommand(cctx *cli.Context) error {
 			p2pfinderserver.New(ctx, p2pHost, indexerCore, reg, indexCounts)
 		}
 
+		// Do not resend direct announce messages if using an assigner service.
+		if cfg.Discovery.UseAssigner {
+			cfg.Ingest.ResendDirectAnnounce = false
+		}
+
 		// Initialize ingester.
 		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, indexCounts)
 		if err != nil {
