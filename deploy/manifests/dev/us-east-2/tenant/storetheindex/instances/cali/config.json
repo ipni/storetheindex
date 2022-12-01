@@ -77,7 +77,7 @@
       "BlocksPerSecond": 0,
       "BurstSize": 500
     },
-    "ResendDirectAnnounce": true,
+    "ResendDirectAnnounce": false,
     "StoreBatchSize": 8192,
     "SyncSegmentDepthLimit": 2000,
     "SyncTimeout": "2h0m0s"
