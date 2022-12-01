@@ -44,41 +44,23 @@ func init() {
 }
 
 func TestNewAssigner(t *testing.T) {
-	adminHandler := func(w http.ResponseWriter, req *http.Request) {
-		defer req.Body.Close()
-		peers := []string{peer1IDStr}
-		data, err := json.Marshal(peers)
-		if err != nil {
-			panic(err.Error())
-		}
-		writeJsonResponse(w, http.StatusOK, data)
+	fakeIndexer1 := newTestIndexer()
+	defer fakeIndexer1.close()
 
-	}
-	fakeIndexer1Admin := httptest.NewServer(http.HandlerFunc(adminHandler))
-	defer fakeIndexer1Admin.Close()
-	fakeIndexer2Admin := httptest.NewServer(http.HandlerFunc(adminHandler))
-	defer fakeIndexer2Admin.Close()
-
-	ingestHandler := func(w http.ResponseWriter, req *http.Request) {
-		defer req.Body.Close()
-		w.WriteHeader(http.StatusOK)
-	}
-	fakeIndexer1Ingest := httptest.NewServer(http.HandlerFunc(ingestHandler))
-	defer fakeIndexer1Ingest.Close()
-	fakeIndexer2Ingest := httptest.NewServer(http.HandlerFunc(ingestHandler))
-	defer fakeIndexer2Ingest.Close()
+	fakeIndexer2 := newTestIndexer()
+	defer fakeIndexer2.close()
 
 	cfgAssignment := config.Assignment{
 		// IndexerPool is the set of indexers the pool.
 		IndexerPool: []config.Indexer{
 			{
-				AdminURL:    fakeIndexer1Admin.URL,
-				IngestURL:   fakeIndexer1Ingest.URL,
+				AdminURL:    fakeIndexer1.adminServer.URL,
+				IngestURL:   fakeIndexer1.ingestServer.URL,
 				PresetPeers: []string{peer1IDStr, peer2IDStr},
 			},
 			{
-				AdminURL:    fakeIndexer2Admin.URL,
-				IngestURL:   fakeIndexer2Ingest.URL,
+				AdminURL:    fakeIndexer2.adminServer.URL,
+				IngestURL:   fakeIndexer2.ingestServer.URL,
 				PresetPeers: []string{peer1IDStr},
 			},
 		},
@@ -172,6 +154,52 @@ func TestNewAssigner(t *testing.T) {
 	}
 	sort.Ints(assigns)
 	require.Equal(t, []int{0, 1}, assigns)
+
+	_, lateCancel := assigner.OnAssignment(peer2ID)
+	require.NoError(t, assigner.Close())
+	// Test that second close is OK.
+	require.NoError(t, assigner.Close())
+	// Test that cancel after close is ok.
+	lateCancel()
+}
+
+type testIndexer struct {
+	adminServer  *httptest.Server
+	ingestServer *httptest.Server
+}
+
+func testAdminHandler(w http.ResponseWriter, req *http.Request) {
+	defer req.Body.Close()
+	if req.Method == "GET" {
+		peers := []string{peer1IDStr}
+		data, err := json.Marshal(peers)
+		if err != nil {
+			panic(err.Error())
+		}
+		writeJsonResponse(w, http.StatusOK, data)
+	} else {
+		writeJsonResponse(w, http.StatusOK, nil)
+	}
+}
+
+func testIngestHandler(w http.ResponseWriter, req *http.Request) {
+	defer req.Body.Close()
+	w.WriteHeader(http.StatusOK)
+}
+
+func newTestIndexer() *testIndexer {
+	adminServer := httptest.NewServer(http.HandlerFunc(testAdminHandler))
+	ingestServer := httptest.NewServer(http.HandlerFunc(testIngestHandler))
+
+	return &testIndexer{
+		adminServer:  adminServer,
+		ingestServer: ingestServer,
+	}
+}
+
+func (ti *testIndexer) close() {
+	ti.adminServer.Close()
+	ti.ingestServer.Close()
 }
 
 func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
