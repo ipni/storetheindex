@@ -64,16 +64,6 @@ func (asmt *assignment) addIndexer(x int) {
 	asmt.indexers[i] = x
 }
 
-// delIndexer removes an indexer, identified by its number in the pool, from
-// this assignment.
-func (asmt *assignment) delIndexer(x int) {
-	i := sort.SearchInts(asmt.indexers, x)
-	if i < len(asmt.indexers) && asmt.indexers[i] == x {
-		copy(asmt.indexers[i:], asmt.indexers[i+1:])
-		asmt.indexers = asmt.indexers[:len(asmt.indexers)-1]
-	}
-}
-
 func (asmt *assignment) hasIndexer(x int) bool {
 	i := sort.SearchInts(asmt.indexers, x)
 	return i < len(asmt.indexers) && asmt.indexers[i] == x
@@ -452,7 +442,6 @@ func (a *Assigner) makeAssignments(ctx context.Context, amsg announce.Announce, 
 
 func (a *Assigner) orderCandidates(indexers []int) {
 	// TODO: order candidates by available storage and number of providers.
-	return
 }
 
 func assignIndexer(ctx context.Context, indexer indexerInfo, amsg announce.Announce) error {
