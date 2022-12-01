@@ -302,6 +302,7 @@ func (r *Receiver) watch(ctx context.Context) {
 // The message is resent over pubsub with the original peerID encoded into the
 // message extra data.
 func (r *Receiver) Direct(ctx context.Context, nextCid cid.Cid, peerID peer.ID, addrs []multiaddr.Multiaddr) error {
+	log.Infow("Handling direct announce", "peer", peerID)
 	amsg := Announce{
 		Cid:    nextCid,
 		PeerID: peerID,
