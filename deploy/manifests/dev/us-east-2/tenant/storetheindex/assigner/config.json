@@ -21,7 +21,7 @@
       "Except": null
     },
     "PubSubTopic": "/indexer/ingest/mainnet",
-    "Replication": 0
+    "Replication": 1
   },
   "Bootstrap": {
     "Peers": [
