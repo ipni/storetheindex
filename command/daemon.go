@@ -330,6 +330,9 @@ func daemonCommand(cctx *cli.Context) error {
 	signal.Notify(reloadSig, syscall.SIGHUP)
 
 	// Output message to user (not to log).
+	if cfg.Discovery.UseAssigner {
+		fmt.Println("Indexer configured to use assigner service")
+	}
 	fmt.Println("Indexer is ready")
 
 	var cfgPath string

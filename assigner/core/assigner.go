@@ -196,6 +196,7 @@ func initAssignments(ctx context.Context, indexerPool []indexerInfo, presets map
 			asmt.addIndexer(i)
 			indexerPool[i].assigned++
 		}
+		log.Infof("Indexer %d has %d assignments", i, indexerPool[i].assigned)
 
 		// Add this indexer to each publisher's preferred assignments.
 		for _, pubID := range prefPubs {
@@ -208,6 +209,9 @@ func initAssignments(ctx context.Context, indexerPool []indexerInfo, presets map
 					indexers: []int{},
 				}
 				assigned[pubID] = asmt
+			} else if asmt.hasIndexer(i) {
+				log.Errorw("Publisher assigned to indexer cannot be listed as preferred", "indexer", i, "publisher", pubID)
+				continue
 			}
 			asmt.preferred = append(asmt.preferred, i)
 		}
@@ -548,7 +552,10 @@ func assignIndexer(ctx context.Context, indexer indexerInfo, amsg announce.Annou
 	if err != nil {
 		return err
 	}
-	log.Infow("Assigned publisher to indexer, sending direct announce", "adminURL", indexer.adminURL, "ingestURL", indexer.ingestURL, "publisher", amsg.PeerID)
+	log.Infow("Assigned publisher to indexer, sending direct announce",
+		"adminURL", indexer.adminURL,
+		"ingestURL", indexer.ingestURL,
+		"publisher", amsg.PeerID)
 
 	// Send announce instead of sync request in case indexer is already syncing
 	// due to receiving announce after immediately allowing the publisher.
