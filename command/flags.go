@@ -139,6 +139,10 @@ var adminListAssignedFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
+var adminListPreferredFlags = []cli.Flag{
+	indexerHostFlag,
+}
+
 var adminSyncFlags = []cli.Flag{
 	indexerHostFlag,
 	&cli.StringFlag{

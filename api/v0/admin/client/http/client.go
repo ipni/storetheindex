@@ -186,7 +186,17 @@ func (c *Client) ReloadConfig(ctx context.Context) error {
 // ListAssignedPeers gets a list of explicitly allowed peers, if indexer is
 // configured to work with an assigner service.
 func (c *Client) ListAssignedPeers(ctx context.Context) ([]peer.ID, error) {
-	u := c.baseURL + path.Join(ingestResource, "assigned")
+	return c.listPeers(ctx, "assigned")
+}
+
+// ListPreferredPeers gets a list of unassigned peers that the indexer has
+// previously retrieved advertisements from.
+func (c *Client) ListPreferredPeers(ctx context.Context) ([]peer.ID, error) {
+	return c.listPeers(ctx, "preferred")
+}
+
+func (c *Client) listPeers(ctx context.Context, resource string) ([]peer.ID, error) {
+	u := c.baseURL + path.Join(ingestResource, resource)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
@@ -197,6 +207,10 @@ func (c *Client) ListAssignedPeers(ctx context.Context) ([]peer.ID, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNoContent {
+		return nil, nil
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)

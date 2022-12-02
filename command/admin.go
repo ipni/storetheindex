@@ -40,9 +40,16 @@ var importProviders = &cli.Command{
 
 var listAssigned = &cli.Command{
 	Name:   "list-assigned",
-	Usage:  "List allowed peers when configured to work with assigner service",
+	Usage:  "List assigned peers when configured to work with assigner service",
 	Flags:  adminListAssignedFlags,
 	Action: listAssignedCmd,
+}
+
+var listPreferred = &cli.Command{
+	Name:   "list-preferred",
+	Usage:  "List unassigned peers that indexer has retrieved content from",
+	Flags:  adminListPreferredFlags,
+	Action: listPreferredCmd,
 }
 
 var reload = &cli.Command{
@@ -69,6 +76,7 @@ var AdminCmd = &cli.Command{
 		block,
 		importProviders,
 		listAssigned,
+		listPreferred,
 		reload,
 		sync,
 	},
@@ -122,6 +130,21 @@ func listAssignedCmd(cctx *cli.Context) error {
 		return err
 	}
 	assigned, err := cl.ListAssignedPeers(cctx.Context)
+	if err != nil {
+		return err
+	}
+	for _, peerID := range assigned {
+		fmt.Println(peerID)
+	}
+	return nil
+}
+
+func listPreferredCmd(cctx *cli.Context) error {
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	assigned, err := cl.ListPreferredPeers(cctx.Context)
 	if err != nil {
 		return err
 	}

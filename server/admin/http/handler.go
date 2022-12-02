@@ -50,9 +50,38 @@ func (h *adminHandler) listAssignedPeers(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if len(assigned) == 0 {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	data, err := json.Marshal(assigned)
 	if err != nil {
-		log.Errorw("Error marshaling allow list", "err", err)
+		log.Errorw("Error marshaling assigned list", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
+func (h *adminHandler) listPreferredPeers(w http.ResponseWriter, r *http.Request) {
+	preferred, err := h.reg.ListPreferredPeers()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	if len(preferred) == 0 {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	data, err := json.Marshal(preferred)
+	if err != nil {
+		log.Errorw("Error marshaling preferred list", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
