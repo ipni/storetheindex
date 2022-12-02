@@ -1173,6 +1173,9 @@ func (r *Registry) loadPreferredAssignments() {
 		if _, ok := r.assigned[pinfo.Publisher]; ok {
 			continue
 		}
+		if pinfo.LastAdvertisement == cid.Undef {
+			continue
+		}
 		r.preferred[pinfo.Publisher] = struct{}{}
 	}
 }

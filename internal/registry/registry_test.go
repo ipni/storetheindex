@@ -263,7 +263,10 @@ func TestDatastore(t *testing.T) {
 	err = r.Update(ctx, provider1, peer.AddrInfo{}, cid.Undef, nil)
 	require.NoError(t, err)
 
-	err = r.Update(ctx, provider2, publisher, cid.Undef, extProviders)
+	mh, err := multihash.Sum([]byte("somedata"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+	adCid := cid.NewCidV1(cid.Raw, mh)
+	err = r.Update(ctx, provider2, publisher, adCid, extProviders)
 	require.NoError(t, err)
 
 	pinfo, allowed := r.ProviderInfo(provID1)
