@@ -68,6 +68,7 @@ func TestAssignerAll(t *testing.T) {
 			Allow: true,
 		},
 		PubSubTopic: "testtopic",
+		Replication: 2,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -14,8 +14,9 @@ type Assignment struct {
 	// PubSubTopic sets the topic name to which to subscribe for ingestion
 	// announcements.
 	PubSubTopic string
-	// Replication is the number of indexers to assign each publisher to. If
-	// set to 0, the default, then assign to all indexers.
+	// Replication is the number of indexers to assign each publisher to, when
+	// the publisher does not have a preset assignment. A value <= 0 assigns
+	// each publisher to one indexer.
 	Replication int
 }
 
@@ -37,6 +38,7 @@ func NewAssignment() Assignment {
 	return Assignment{
 		Policy:      NewPolicy(),
 		PubSubTopic: "/indexer/ingest/mainnet",
+		Replication: 1,
 	}
 }
 
@@ -46,5 +48,8 @@ func (c *Assignment) populateUnset() {
 
 	if c.PubSubTopic == "" {
 		c.PubSubTopic = def.PubSubTopic
+	}
+	if c.Replication <= 0 {
+		c.Replication = def.Replication
 	}
 }
