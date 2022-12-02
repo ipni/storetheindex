@@ -308,6 +308,9 @@ func TestDatastore(t *testing.T) {
 		}
 	}
 
+	require.ErrorIs(t, r.AssignPeer(pubID), ErrNoAssigner)
+	require.ErrorIs(t, r.UnassignPeer(pubID), ErrNoAssigner)
+
 	err = r.Close()
 	require.NoError(t, err)
 
@@ -329,6 +332,24 @@ func TestDatastore(t *testing.T) {
 	preferred, err := r.ListPreferredPeers()
 	require.NoError(t, err)
 	require.Equal(t, 1, len(preferred))
+
+	// Assign peer and check that it is assigned.
+	err = r.AssignPeer(preferred[0])
+	require.NoError(t, err)
+	assigned, err = r.ListAssignedPeers()
+	require.NoError(t, err)
+	require.Equal(t, 1, len(assigned))
+
+	// Unassign peer and check that it is not assigned.
+	err = r.UnassignPeer(preferred[0])
+	require.NoError(t, err)
+	assigned, err = r.ListAssignedPeers()
+	require.NoError(t, err)
+	require.Zero(t, len(assigned))
+
+	// Should not be able to assigned blocked peer.
+	require.True(t, r.BlockPeer(preferred[0]))
+	require.ErrorIs(t, r.AssignPeer(preferred[0]), ErrNotAllowed)
 
 	require.NoError(t, r.Close())
 }
