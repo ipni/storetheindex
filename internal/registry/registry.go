@@ -29,8 +29,9 @@ import (
 
 const (
 	// providerKeyPath is where provider info is stored in to indexer repo.
-	providerKeyPath    = "/registry/pinfo"
-	assignmentsKeyPath = "/assignments"
+	providerKeyPath       = "/registry/pinfo"
+	assignmentsKeyPath    = "/assignments-v1"
+	oldAssignmentsKeyPath = "/assignments"
 )
 
 var log = logging.Logger("indexer/registry")
@@ -55,6 +56,9 @@ type Registry struct {
 	assigned map[peer.ID]struct{}
 	// assignMutex protects assigner.
 	assignMutex sync.Mutex
+	// preferred tracks unassigned peers that indexer has previously received
+	// index data from.
+	preferred map[peer.ID]struct{}
 
 	discoveryTimeout time.Duration
 	rediscoverWait   time.Duration
@@ -267,6 +271,7 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 		if err = r.loadPersistedAssignments(ctx); err != nil {
 			return nil, err
 		}
+		r.loadPreferredAssignments()
 	}
 
 	pollOverrides, err := makePollOverrideMap(cfg.PollOverrides)
@@ -469,6 +474,31 @@ func (r *Registry) ListAssignedPeers() ([]peer.ID, error) {
 	return peers, nil
 }
 
+// ListPreferredPeers returns list of unassigned peer IDs, that the indexer has
+// already retrieved advertisements from. Only available when the indexer is
+// configured to work with an assigner service. Otherwise returns error.
+func (r *Registry) ListPreferredPeers() ([]peer.ID, error) {
+	if r.assigned == nil {
+		return nil, ErrNoAssigner
+	}
+
+	r.assignMutex.Lock()
+	defer r.assignMutex.Unlock()
+
+	if len(r.preferred) == 0 {
+		return nil, nil
+	}
+
+	peers := make([]peer.ID, len(r.preferred))
+	var i int
+	for peerID := range r.preferred {
+		peers[i] = peerID
+		i++
+	}
+
+	return peers, nil
+}
+
 // AssignPeer assigns the peer to this indexer if using an assigner service.
 // This allows the indexer to accept announce messages having this peer as a
 // publisher. The assignment is persisted in the datastore.
@@ -488,12 +518,13 @@ func (r *Registry) AssignPeer(peerID peer.ID) error {
 		return fmt.Errorf("cannot save assignment: %w", err)
 	}
 	r.assigned[peerID] = struct{}{}
+
+	delete(r.preferred, peerID)
 	return nil
 }
 
-// UnassignPeer assigns the peer to this indexer if using an assigner service.
-// This allows the indexer to accept announce messages having this peer as a
-// publisher. The assignment is persisted in the datastore.
+// UnassignPeer removes a peer assignment from this indexer if using an
+// assigner service. The assignment removal is persisted in the datastore.
 func (r *Registry) UnassignPeer(peerID peer.ID) error {
 	if r.assigned == nil {
 		return ErrNoAssigner
@@ -1066,9 +1097,39 @@ func (r *Registry) deleteAssignedPeer(peerID peer.ID) error {
 	return r.dstore.Delete(context.Background(), dsKey)
 }
 
+func (r *Registry) deleteOldAssignments(ctx context.Context, prefix string) error {
+	q := query.Query{
+		Prefix:   prefix,
+		KeysOnly: true,
+	}
+	results, err := r.dstore.Query(ctx, q)
+	if err != nil {
+		return err
+	}
+
+	ents, err := results.Rest()
+	if err != nil {
+		return err
+	}
+
+	for i := range ents {
+		err = r.dstore.Delete(ctx, datastore.NewKey(ents[i].Key))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *Registry) loadPersistedAssignments(ctx context.Context) error {
 	if r.dstore == nil {
 		return nil
+	}
+
+	err := r.deleteOldAssignments(ctx, oldAssignmentsKeyPath)
+	if err != nil {
+		return err
 	}
 
 	// Load all assigned publishers from datastore.
@@ -1097,33 +1158,24 @@ func (r *Registry) loadPersistedAssignments(ctx context.Context) error {
 	}
 
 	log.Infow("loaded assignments into registry", "count", len(r.assigned))
-
-	// If there were no assigned publishers, and there are registered
-	// providers, then assign all publishers for the registered providers.
-	//
-	// This is used when an existing indexer is configured to work with an
-	// assigner service. It self-assigns all the publishers of the registered
-	// providers, so that the indexer will continue indexing with the
-	// publishers it is already getting content from.
-	if len(r.assigned) == 0 && len(r.providers) != 0 {
-		for _, pinfo := range r.providers {
-			if pinfo.Publisher.Validate() == nil && r.policy.Allowed(pinfo.Publisher) {
-				r.assigned[pinfo.Publisher] = struct{}{}
-			}
-		}
-
-		// Save assignment in datastore.
-		for peerID := range r.assigned {
-			dsKey := peerIDToDsKey(assignmentsKeyPath, peerID)
-			err := r.dstore.Put(context.Background(), dsKey, []byte{})
-			if err != nil {
-				return err
-			}
-		}
-		r.dstore.Sync(ctx, datastore.NewKey(assignmentsKeyPath))
-
-		log.Info("Self-assigned all providers and publishers from registered providers")
-	}
-
 	return nil
+}
+
+func (r *Registry) loadPreferredAssignments() {
+	r.preferred = make(map[peer.ID]struct{})
+	for _, pinfo := range r.providers {
+		if pinfo.Publisher.Validate() != nil {
+			continue
+		}
+		if !r.policy.Allowed(pinfo.Publisher) {
+			continue
+		}
+		if _, ok := r.assigned[pinfo.Publisher]; ok {
+			continue
+		}
+		if pinfo.LastAdvertisement == cid.Undef {
+			continue
+		}
+		r.preferred[pinfo.Publisher] = struct{}{}
+	}
 }

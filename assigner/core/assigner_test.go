@@ -43,11 +43,11 @@ func init() {
 	}
 }
 
-func TestNewAssigner(t *testing.T) {
-	fakeIndexer1 := newTestIndexer()
+func TestAssignerAll(t *testing.T) {
+	fakeIndexer1 := newTestIndexer(nil)
 	defer fakeIndexer1.close()
 
-	fakeIndexer2 := newTestIndexer()
+	fakeIndexer2 := newTestIndexer(nil)
 	defer fakeIndexer2.close()
 
 	cfgAssignment := config.Assignment{
@@ -68,6 +68,7 @@ func TestNewAssigner(t *testing.T) {
 			Allow: true,
 		},
 		PubSubTopic: "testtopic",
+		Replication: 2,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -87,11 +88,16 @@ func TestNewAssigner(t *testing.T) {
 	assigned = assigner.Assigned(peer2ID)
 	require.Zero(t, len(assigned), "peer2 should not be assigned to any indexers")
 
+	counts := assigner.IndexerAssignedCounts()
+	require.Equal(t, 2, len(counts))
+	require.Equal(t, 1, counts[0])
+	require.Equal(t, 1, counts[1])
+
 	asmtChan, cancel := assigner.OnAssignment(peer2ID)
 	defer cancel()
 
 	// Send announce message for publisher peer2. It has a preset assignment to
-	// indexer1, so should only be assigned to that indexer.
+	// indexer0, so should only be assigned to that indexer.
 	adCid, _ := cid.Decode("bafybeigvgzoolc3drupxhlevdp2ugqcrbcsqfmcek2zxiw5wctk3xjpjwy")
 	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	addrInfo := peer.AddrInfo{
@@ -122,6 +128,11 @@ func TestNewAssigner(t *testing.T) {
 	}
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 0, assigns[0])
+
+	counts = assigner.IndexerAssignedCounts()
+	require.Equal(t, 2, len(counts))
+	require.Equal(t, 2, counts[0])
+	require.Equal(t, 1, counts[1])
 
 	asmtChan, cancel = assigner.OnAssignment(peer3ID)
 	defer cancel()
@@ -155,6 +166,11 @@ func TestNewAssigner(t *testing.T) {
 	sort.Ints(assigns)
 	require.Equal(t, []int{0, 1}, assigns)
 
+	counts = assigner.IndexerAssignedCounts()
+	require.Equal(t, 2, len(counts))
+	require.Equal(t, 3, counts[0])
+	require.Equal(t, 2, counts[1])
+
 	_, lateCancel := assigner.OnAssignment(peer2ID)
 	require.NoError(t, assigner.Close())
 	// Test that second close is OK.
@@ -163,20 +179,299 @@ func TestNewAssigner(t *testing.T) {
 	lateCancel()
 }
 
+func TestAssignerOne(t *testing.T) {
+	fakeIndexer1 := newTestIndexer(nil)
+	defer fakeIndexer1.close()
+
+	fakeIndexer2 := newTestIndexer(nil)
+	defer fakeIndexer2.close()
+
+	cfgAssignment := config.Assignment{
+		// IndexerPool is the set of indexers the pool.
+		IndexerPool: []config.Indexer{
+			{
+				AdminURL:  fakeIndexer1.adminServer.URL,
+				IngestURL: fakeIndexer1.ingestServer.URL,
+			},
+			{
+				AdminURL:  fakeIndexer2.adminServer.URL,
+				IngestURL: fakeIndexer2.ingestServer.URL,
+			},
+		},
+		Policy: config.Policy{
+			Allow: true,
+		},
+		PubSubTopic: "testtopic",
+		Replication: 1,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	assigner, err := core.NewAssigner(ctx, cfgAssignment, nil)
+	require.NoError(t, err)
+
+	assigned := assigner.Assigned(peer1ID)
+	require.Equal(t, 2, len(assigned), "peer1 should be assigned to 2 indexers")
+
+	assigned = assigner.Assigned(peer2ID)
+	require.Zero(t, len(assigned), "peer2 should not be assigned to any indexers")
+
+	counts := assigner.IndexerAssignedCounts()
+	require.Equal(t, 2, len(counts))
+	require.Equal(t, 1, counts[0])
+	require.Equal(t, 1, counts[1])
+
+	asmtChan, cancel := assigner.OnAssignment(peer2ID)
+	defer cancel()
+
+	// Send announce for publisher peer2. It should be assigned to indexer 0.
+	adCid, _ := cid.Decode("bafybeigvgzoolc3drupxhlevdp2ugqcrbcsqfmcek2zxiw5wctk3xjpjwy")
+	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	addrInfo := peer.AddrInfo{
+		ID:    peer2ID,
+		Addrs: []multiaddr.Multiaddr{a},
+	}
+	err = assigner.Announce(ctx, adCid, addrInfo)
+	require.NoError(t, err)
+
+	var assignNum int
+	var assigns []int
+	timeout := time.NewTimer(3 * time.Second)
+	open := true
+	for open {
+		select {
+		case assignNum, open = <-asmtChan:
+			if !open {
+				break
+			}
+			t.Log("Publisher", peer2IDStr, "assigned to indexer", assignNum)
+			assigns = append(assigns, assignNum)
+		case <-timeout.C:
+			t.Fatal("timed out waiting for assignment")
+		}
+	}
+	if !timeout.Stop() {
+		<-timeout.C
+	}
+	require.Equal(t, 1, len(assigns))
+	require.Equal(t, 0, assigns[0])
+
+	counts = assigner.IndexerAssignedCounts()
+	require.Equal(t, 2, len(counts))
+	require.Equal(t, 2, counts[0])
+	require.Equal(t, 1, counts[1])
+
+	asmtChan, cancel = assigner.OnAssignment(peer3ID)
+	defer cancel()
+
+	// Send announce for publisher peer3. It should be assigned to indexer 1.
+	adCid, _ = cid.Decode("QmNiV8rwXeC92hufGNu5qJ6L9AygrvDyi63gEpCQaqsE9B")
+	addrInfo.ID = peer3ID
+	err = assigner.Announce(ctx, adCid, addrInfo)
+	require.NoError(t, err)
+
+	assigns = assigns[:0]
+	timeout.Reset(3 * time.Second)
+	open = true
+	for open {
+		select {
+		case assignNum, open = <-asmtChan:
+			if !open {
+				break
+			}
+			assigns = append(assigns, assignNum)
+			t.Log("Publisher", peer3IDStr, "assigned to indexer", assignNum)
+		case <-timeout.C:
+			t.Fatal("timed out waiting for assignment")
+		}
+	}
+	if !timeout.Stop() {
+		<-timeout.C
+	}
+	require.Equal(t, 1, len(assigns))
+	require.Equal(t, 1, assigns[0])
+
+	counts = assigner.IndexerAssignedCounts()
+	require.Equal(t, 2, len(counts))
+	require.Equal(t, 2, counts[0])
+	require.Equal(t, 2, counts[1])
+
+	require.NoError(t, assigner.Close())
+}
+
+func TestAssignerPreferred(t *testing.T) {
+	testAdminHandler0 := func(w http.ResponseWriter, req *http.Request) {
+		defer req.Body.Close()
+		if req.Method == "GET" {
+			writeJsonResponse(w, http.StatusNoContent, nil)
+		} else {
+			writeJsonResponse(w, http.StatusOK, nil)
+		}
+	}
+
+	testAdminHandler1 := func(w http.ResponseWriter, req *http.Request) {
+		defer req.Body.Close()
+		if req.Method == "GET" {
+			switch req.URL.String() {
+			case "/ingest/preferred":
+				peers := []string{peer1IDStr, peer2IDStr, peer3IDStr}
+				data, err := json.Marshal(peers)
+				if err != nil {
+					panic(err.Error())
+				}
+				writeJsonResponse(w, http.StatusOK, data)
+			case "/ingest/assigned":
+				writeJsonResponse(w, http.StatusNoContent, nil)
+			default:
+				http.Error(w, "", http.StatusNotFound)
+			}
+		} else {
+			writeJsonResponse(w, http.StatusOK, nil)
+		}
+	}
+
+	fakeIndexer1 := newTestIndexer(testAdminHandler0)
+	defer fakeIndexer1.close()
+
+	fakeIndexer2 := newTestIndexer(testAdminHandler1)
+	defer fakeIndexer2.close()
+
+	cfgAssignment := config.Assignment{
+		// IndexerPool is the set of indexers the pool.
+		IndexerPool: []config.Indexer{
+			{
+				AdminURL:  fakeIndexer1.adminServer.URL,
+				IngestURL: fakeIndexer1.ingestServer.URL,
+			},
+			{
+				AdminURL:  fakeIndexer2.adminServer.URL,
+				IngestURL: fakeIndexer2.ingestServer.URL,
+			},
+		},
+		Policy: config.Policy{
+			Allow: true,
+		},
+		PubSubTopic: "testtopic",
+		Replication: 1,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	assigner, err := core.NewAssigner(ctx, cfgAssignment, nil)
+	require.NoError(t, err)
+
+	assigned := assigner.Assigned(peer1ID)
+	require.Zero(t, len(assigned), "peer1 should be assigned to 0 indexers")
+
+	assigned = assigner.Assigned(peer2ID)
+	require.Zero(t, len(assigned), "peer2 should be assigned to 0 indexers")
+
+	counts := assigner.IndexerAssignedCounts()
+	require.Equal(t, 2, len(counts))
+	require.Equal(t, 0, counts[0])
+	require.Equal(t, 0, counts[1])
+
+	asmtChan, cancel := assigner.OnAssignment(peer2ID)
+	defer cancel()
+
+	// Send announce for publisher peer2. It should be assigned to indexer 0.
+	adCid, _ := cid.Decode("bafybeigvgzoolc3drupxhlevdp2ugqcrbcsqfmcek2zxiw5wctk3xjpjwy")
+	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	addrInfo := peer.AddrInfo{
+		ID:    peer2ID,
+		Addrs: []multiaddr.Multiaddr{a},
+	}
+	err = assigner.Announce(ctx, adCid, addrInfo)
+	require.NoError(t, err)
+
+	var assignNum int
+	var assigns []int
+	timeout := time.NewTimer(3 * time.Second)
+	open := true
+	for open {
+		select {
+		case assignNum, open = <-asmtChan:
+			if !open {
+				break
+			}
+			t.Log("Publisher", peer2IDStr, "assigned to indexer", assignNum)
+			assigns = append(assigns, assignNum)
+		case <-timeout.C:
+			t.Fatal("timed out waiting for assignment")
+		}
+	}
+	if !timeout.Stop() {
+		<-timeout.C
+	}
+	require.Equal(t, 1, len(assigns))
+	require.Equal(t, 1, assigns[0], "expected assignment to indexer 1")
+
+	counts = assigner.IndexerAssignedCounts()
+	require.Equal(t, 2, len(counts))
+	require.Equal(t, 0, counts[0])
+	require.Equal(t, 1, counts[1])
+
+	asmtChan, cancel = assigner.OnAssignment(peer3ID)
+	defer cancel()
+
+	// Send announce for publisher peer3. It should be assigned to indexer 1.
+	adCid, _ = cid.Decode("QmNiV8rwXeC92hufGNu5qJ6L9AygrvDyi63gEpCQaqsE9B")
+	addrInfo.ID = peer3ID
+	err = assigner.Announce(ctx, adCid, addrInfo)
+	require.NoError(t, err)
+
+	assigns = assigns[:0]
+	timeout.Reset(3 * time.Second)
+	open = true
+	for open {
+		select {
+		case assignNum, open = <-asmtChan:
+			if !open {
+				break
+			}
+			assigns = append(assigns, assignNum)
+			t.Log("Publisher", peer3IDStr, "assigned to indexer", assignNum)
+		case <-timeout.C:
+			t.Fatal("timed out waiting for assignment")
+		}
+	}
+	if !timeout.Stop() {
+		<-timeout.C
+	}
+	require.Equal(t, 1, len(assigns))
+	require.Equal(t, 1, assigns[0], "expected assignment to indexer 1")
+
+	counts = assigner.IndexerAssignedCounts()
+	require.Equal(t, 2, len(counts))
+	require.Equal(t, 0, counts[0])
+	require.Equal(t, 2, counts[1])
+
+	require.NoError(t, assigner.Close())
+}
+
 type testIndexer struct {
 	adminServer  *httptest.Server
 	ingestServer *httptest.Server
 }
 
-func testAdminHandler(w http.ResponseWriter, req *http.Request) {
+func defaultTestAdminHandler(w http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 	if req.Method == "GET" {
-		peers := []string{peer1IDStr}
-		data, err := json.Marshal(peers)
-		if err != nil {
-			panic(err.Error())
+		switch req.URL.String() {
+		case "/ingest/assigned":
+			peers := []string{peer1IDStr}
+			data, err := json.Marshal(peers)
+			if err != nil {
+				panic(err.Error())
+			}
+			writeJsonResponse(w, http.StatusOK, data)
+		case "/ingest/preferred":
+			writeJsonResponse(w, http.StatusNoContent, nil)
+		default:
+			http.Error(w, "", http.StatusNotFound)
 		}
-		writeJsonResponse(w, http.StatusOK, data)
 	} else {
 		writeJsonResponse(w, http.StatusOK, nil)
 	}
@@ -187,13 +482,15 @@ func testIngestHandler(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func newTestIndexer() *testIndexer {
-	adminServer := httptest.NewServer(http.HandlerFunc(testAdminHandler))
-	ingestServer := httptest.NewServer(http.HandlerFunc(testIngestHandler))
+func newTestIndexer(adminHandler func(http.ResponseWriter, *http.Request)) *testIndexer {
+	ah := defaultTestAdminHandler
+	if adminHandler != nil {
+		ah = adminHandler
+	}
 
 	return &testIndexer{
-		adminServer:  adminServer,
-		ingestServer: ingestServer,
+		adminServer:  httptest.NewServer(http.HandlerFunc(ah)),
+		ingestServer: httptest.NewServer(http.HandlerFunc(testIngestHandler)),
 	}
 }
 

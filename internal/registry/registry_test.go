@@ -263,7 +263,10 @@ func TestDatastore(t *testing.T) {
 	err = r.Update(ctx, provider1, peer.AddrInfo{}, cid.Undef, nil)
 	require.NoError(t, err)
 
-	err = r.Update(ctx, provider2, publisher, cid.Undef, extProviders)
+	mh, err := multihash.Sum([]byte("somedata"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+	adCid := cid.NewCidV1(cid.Raw, mh)
+	err = r.Update(ctx, provider2, publisher, adCid, extProviders)
 	require.NoError(t, err)
 
 	pinfo, allowed := r.ProviderInfo(provID1)
@@ -308,8 +311,8 @@ func TestDatastore(t *testing.T) {
 	err = r.Close()
 	require.NoError(t, err)
 
-	// Test that configuring existing registry to use assigner service
-	// self-assigns existing publishers.
+	// Test that configuring existing registry to use assigner service finds
+	// existing publishers.
 	t.Log("Converted registry to work with assigner service")
 	discoveryCfg.UseAssigner = true
 	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
@@ -317,10 +320,16 @@ func TestDatastore(t *testing.T) {
 	r, err = NewRegistry(ctx, discoveryCfg, dstore, mockDiscoverer)
 	require.NoError(t, err)
 
+	// There should not be any assigned yet.
 	assigned, err := r.ListAssignedPeers()
 	require.NoError(t, err)
-	// There should be 1 publisher allowed.
-	require.Equal(t, 1, len(assigned))
+	require.Zero(t, len(assigned))
+
+	// There should be 1 preferred publisher.
+	preferred, err := r.ListPreferredPeers()
+	require.NoError(t, err)
+	require.Equal(t, 1, len(preferred))
+
 	require.NoError(t, r.Close())
 }
 
