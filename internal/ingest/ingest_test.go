@@ -12,10 +12,8 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/go-indexer-core/cache"
-	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
-	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	"github.com/filecoin-project/go-indexer-core/store/memory"
 	schema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
 	"github.com/filecoin-project/storetheindex/config"
 	"github.com/filecoin-project/storetheindex/dagsync"
@@ -34,7 +32,6 @@ import (
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
-	sth "github.com/ipld/go-storethehash/store"
 	"github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -46,8 +43,6 @@ import (
 )
 
 const (
-	testCorePutConcurrency = 4
-
 	testRetryInterval = 2 * time.Second
 	testRetryTimeout  = 15 * time.Second
 
@@ -1487,15 +1482,7 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 
 // Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
-	valueStore, err := storethehash.New(context.Background(), t.TempDir(), testCorePutConcurrency, sth.IndexBitSize(8))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var resultCache cache.Interface
-	if withCache {
-		resultCache = radixcache.New(1000)
-	}
-	return engine.New(resultCache, valueStore)
+	return engine.New(nil, memory.New())
 }
 
 func mkRegistry(t *testing.T) *registry.Registry {

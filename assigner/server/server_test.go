@@ -144,8 +144,9 @@ func TestAnnounce(t *testing.T) {
 		t.Fatal("timed out waiting for indexer to start")
 	}
 
-	// Allow a peer to test that assigner reads this at startup.
-	assign(ctx, "localhost:3602", pubIdent2.PeerID)
+	// Assign a peer, to test that assigner reads this at startup.
+	err = assign(ctx, "localhost:3602", pubIdent2.PeerID)
+	require.NoError(t, err)
 
 	// Initialize everything
 	peerID, _, err := pubIdent.Decode()

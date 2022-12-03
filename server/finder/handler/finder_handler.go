@@ -249,16 +249,16 @@ func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 	return json.Marshal(&rsp)
 }
 
+func (h *FinderHandler) RefreshStats() {
+	h.stats.refresh()
+}
+
 func (h *FinderHandler) GetStats() ([]byte, error) {
 	stats, err := h.stats.get()
-	switch {
-	case err != nil:
+	if err != nil {
 		return nil, err
-	case stats.EntriesEstimate == 0:
-		return nil, nil
-	default:
-		return model.MarshalStats(&stats)
 	}
+	return model.MarshalStats(&stats)
 }
 
 func (h *FinderHandler) Close() {

@@ -7,7 +7,6 @@ import (
 	indexer "github.com/filecoin-project/go-indexer-core"
 	p2pclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/libp2p"
 	"github.com/filecoin-project/storetheindex/internal/counter"
-	"github.com/filecoin-project/storetheindex/internal/libp2pserver"
 	"github.com/filecoin-project/storetheindex/internal/registry"
 	p2pserver "github.com/filecoin-project/storetheindex/server/finder/libp2p"
 	"github.com/filecoin-project/storetheindex/server/finder/test"
@@ -17,7 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-func setupServer(ctx context.Context, ind indexer.Interface, reg *registry.Registry, idxCts *counter.IndexCounts, t *testing.T) (*libp2pserver.Server, host.Host) {
+func setupServer(ctx context.Context, ind indexer.Interface, reg *registry.Registry, idxCts *counter.IndexCounts, t *testing.T) (*p2pserver.FinderServer, host.Host) {
 	h, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +122,7 @@ func TestGetStats(t *testing.T) {
 	defer cancel()
 
 	// Initialize everything
-	ind := test.InitIndex(t, true)
+	ind := test.InitPebbleIndex(t, false)
 	defer ind.Close()
 	reg := test.InitRegistry(t)
 	defer reg.Close()
@@ -133,7 +132,7 @@ func TestGetStats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	test.GetStatsTest(ctx, t, c)
+	test.GetStatsTest(ctx, t, ind, s.RefreshStats, c)
 }
 
 func TestRemoveProvider(t *testing.T) {

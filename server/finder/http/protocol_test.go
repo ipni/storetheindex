@@ -218,7 +218,7 @@ func TestProviderInfo(t *testing.T) {
 }
 
 func TestGetStats(t *testing.T) {
-	ind := test.InitIndex(t, true)
+	ind := test.InitPebbleIndex(t, false)
 	defer ind.Close()
 	reg := test.InitRegistry(t)
 	defer reg.Close()
@@ -239,7 +239,7 @@ func TestGetStats(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	test.GetStatsTest(ctx, t, httpClient)
+	test.GetStatsTest(ctx, t, ind, s.RefreshStats, httpClient)
 
 	err := s.Close()
 	if err != nil {

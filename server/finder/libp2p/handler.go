@@ -85,6 +85,10 @@ func (h *libp2pHandler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgb
 	}, nil
 }
 
+func (h *libp2pHandler) RefreshStats() {
+	h.finderHandler.RefreshStats()
+}
+
 func (h *libp2pHandler) find(ctx context.Context, p peer.ID, msg *pb.FinderMessage) ([]byte, error) {
 	startTime := time.Now()
 

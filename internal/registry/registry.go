@@ -86,10 +86,10 @@ type ProviderInfo struct {
 	// ExtendedProviders registered for that provider
 	ExtendedProviders *ExtendedProviders `json:",omitempty"`
 
-	// lastContactTime is the last time the publisher contacted the
-	// indexer. This is not persisted, so that the time since last contact is
-	// reset when the indexer is started. If not reset, then it would appear
-	// the publisher was unreachable for the indexer downtime.
+	// lastContactTime is the last time the publisher contacted the indexer.
+	// This is not persisted, so that the time since last contact is reset when
+	// the indexer is started. If not reset, then it would appear the publisher
+	// was unreachable for the indexer downtime.
 	lastContactTime time.Time
 
 	// deleted is used as a signal to the ingester to delete the provider's data.
@@ -98,37 +98,40 @@ type ProviderInfo struct {
 	inactive bool
 }
 
-// ExtendedProviderInfo is an immutable data structure that holds infromation about
-// an extended provider.
+// ExtendedProviderInfo is an immutable data structure that holds information
+// about an extended provider.
 type ExtendedProviderInfo struct {
-	// PeerID contains a peer.ID of the extended provider
+	// PeerID contains a peer.ID of the extended provider.
 	PeerID peer.ID
-	// Metadata contains a metadata override for this provider within the extended provider context.
-	// If extended provider's metadata hasn't been specified - the main provider's
-	// metadata is going to be used instead.
+	// Metadata contains a metadata override for this provider within the
+	// extended provider context. If extended provider's metadata hasn't been
+	// specified - the main provider's metadata is going to be used instead.
 	Metadata []byte `json:",omitempty"`
-	// Addrs contains advertised multiaddresses for this extended provider
+	// Addrs contains advertised multiaddresses for this extended provider.
 	Addrs []multiaddr.Multiaddr
 }
 
-// ContextualExtendedProviders holds infromation about a context-level extended providers.
-// These can either replace or compliment (union) the chain-level extended providers, which is driven
-// by the Override flag.
+// ContextualExtendedProviders holds information about a context-level extended
+// providers. These can either replace or compliment (union) the chain-level
+// extended providers, which is driven by the Override flag.
 type ContextualExtendedProviders struct {
 	// Providers contains a list of context-level extended providers
 	Providers []ExtendedProviderInfo
-	// Override defines whether chain-level extended providers should be used for
-	// this ContextID. If true, then the chain-level extended providers are going to be ignored.
+	// Override defines whether chain-level extended providers should be used
+	// for this ContextID. If true, then the chain-level extended providers are
+	// going to be ignored.
 	Override bool
-	// ContextID deifnes the context ID that the extended providers have been published for
+	// ContextID defines the context ID that the extended providers have been
+	// published for
 	ContextID []byte `json:",omitempty"`
 }
 
-// ExtendedProviders contains chain-level and context-level extended provider sets
+// ExtendedProviders contains chain-level and context-level extended provider
+// sets.
 type ExtendedProviders struct {
-	// Providers contains a chain-level set of extended providers
+	// Providers contains a chain-level set of extended providers.
 	Providers []ExtendedProviderInfo `json:",omitempty"`
-	// ContextualProviders contains a context-level sets of extended providers
+	// ContextualProviders contains a context-level sets of extended providers.
 	ContextualProviders map[string]ContextualExtendedProviders `json:",omitempty"`
 }
 
@@ -823,14 +826,14 @@ func (r *Registry) syncStartDiscover(peerID peer.ID, spID string, errCh chan<- e
 		return
 	}
 
-	// Mark discovery as in progress
+	// Mark discovery as in progress.
 	if r.discoverTimes == nil {
 		r.discoverTimes = make(map[string]time.Time)
 	}
 	r.discoverTimes[spID] = time.Time{}
 	r.discoverWait.Add(1)
 
-	// Do discovery asynchronously; do not block other discovery requests
+	// Do discovery asynchronously; do not block other discovery requests.
 	go func() {
 		ctx := context.Background()
 		if r.discoveryTimeout != 0 {
@@ -876,12 +879,12 @@ func (r *Registry) syncRegister(ctx context.Context, info *ProviderInfo) error {
 func (r *Registry) syncNeedDiscover(spID string) error {
 	completed, ok := r.discoverTimes[spID]
 	if ok {
-		// Check if discovery already in progress
+		// Check if discovery already in progress.
 		if completed.IsZero() {
 			return ErrInProgress
 		}
 
-		// Check if last discovery completed too recently
+		// Check if last discovery completed too recently.
 		if r.rediscoverWait != 0 && time.Since(completed) < r.rediscoverWait {
 			return ErrTooSoon
 		}
@@ -903,67 +906,6 @@ func (r *Registry) syncPersistProvider(ctx context.Context, info *ProviderInfo) 
 		return err
 	}
 	return r.dstore.Sync(ctx, dsKey)
-}
-
-func (r *Registry) loadPersistedProviders(ctx context.Context) error {
-	if r.dstore == nil {
-		return nil
-	}
-
-	// Load all providers from the datastore.
-	q := query.Query{
-		Prefix: providerKeyPath,
-	}
-	results, err := r.dstore.Query(ctx, q)
-	if err != nil {
-		return err
-	}
-	defer results.Close()
-
-	var count int
-	for result := range results.Next() {
-		if result.Error != nil {
-			return fmt.Errorf("cannot read provider data: %v", result.Error)
-		}
-		ent := result.Entry
-
-		peerID, err := peer.Decode(path.Base(ent.Key))
-		if err != nil {
-			return fmt.Errorf("cannot decode provider ID: %s", err)
-		}
-
-		pinfo := new(ProviderInfo)
-		err = json.Unmarshal(ent.Value, pinfo)
-		if err != nil {
-			log.Errorw("Cannot load provider info", "err", err, "provider", peerID)
-			pinfo.AddrInfo.ID = peerID
-			// Add the provider to the set of registered providers so that it
-			// does not get delisted. The next update should fix the addresses.
-		}
-
-		if r.filterIPs {
-			pinfo.AddrInfo.Addrs = mautil.FilterPrivateIPs(pinfo.AddrInfo.Addrs)
-			if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr != nil {
-				pubAddrs := mautil.FilterPrivateIPs([]multiaddr.Multiaddr{pinfo.PublisherAddr})
-				if len(pubAddrs) == 0 {
-					pinfo.PublisherAddr = nil
-				} else {
-					pinfo.PublisherAddr = pubAddrs[0]
-				}
-			}
-		}
-
-		if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr == nil && pinfo.Publisher == pinfo.AddrInfo.ID &&
-			len(pinfo.AddrInfo.Addrs) != 0 {
-			pinfo.PublisherAddr = pinfo.AddrInfo.Addrs[0]
-		}
-
-		r.providers[peerID] = pinfo
-		count++
-	}
-
-	log.Infow("loaded providers into registry", "count", count)
-	return nil
 }
 
 func (r *Registry) discover(ctx context.Context, peerID peer.ID, spID string) (*discovery.Discovered, error) {
@@ -1007,13 +949,20 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 	r.actions <- func() {
 		now := time.Now()
 		for peerID, info := range r.providers {
-			// If the provider is not allowed, then do not poll or delist.
+			// If the provider is not allowed, then do not poll or de-list.
 			if !r.policy.Allowed(peerID) {
 				continue
 			}
 			if info.Publisher.Validate() != nil || !r.policy.Allowed(info.Publisher) {
 				// No publisher.
 				continue
+			}
+			// If using assigner service, and the provider's publisher is not
+			// assigned, then do not poll.
+			if r.assigned != nil {
+				if _, ok := r.assigned[info.Publisher]; !ok {
+					continue
+				}
 			}
 			override, ok := pollOverrides[peerID]
 			if ok {
@@ -1036,7 +985,10 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 			// remove it.
 			if sincePollingStarted >= poll.stopAfter {
 				// Too much time since last contact.
-				log.Warnw("Lost contact with provider, too long with no updates", "publisher", info.Publisher, "provider", info.AddrInfo.ID, "since", info.lastContactTime)
+				log.Warnw("Lost contact with provider, too long with no updates",
+					"publisher", info.Publisher,
+					"provider", info.AddrInfo.ID,
+					"since", info.lastContactTime)
 				// Remove the dead provider from the registry.
 				if err := r.syncRemoveProvider(context.Background(), peerID); err != nil {
 					log.Errorw("Failed to update deleted provider info", "err", err)
@@ -1119,6 +1071,67 @@ func (r *Registry) deleteOldAssignments(ctx context.Context, prefix string) erro
 		}
 	}
 
+	return nil
+}
+
+func (r *Registry) loadPersistedProviders(ctx context.Context) error {
+	if r.dstore == nil {
+		return nil
+	}
+
+	// Load all providers from the datastore.
+	q := query.Query{
+		Prefix: providerKeyPath,
+	}
+	results, err := r.dstore.Query(ctx, q)
+	if err != nil {
+		return err
+	}
+	defer results.Close()
+
+	var count int
+	for result := range results.Next() {
+		if result.Error != nil {
+			return fmt.Errorf("cannot read provider data: %v", result.Error)
+		}
+		ent := result.Entry
+
+		peerID, err := peer.Decode(path.Base(ent.Key))
+		if err != nil {
+			return fmt.Errorf("cannot decode provider ID: %s", err)
+		}
+
+		pinfo := new(ProviderInfo)
+		err = json.Unmarshal(ent.Value, pinfo)
+		if err != nil {
+			log.Errorw("Cannot load provider info", "err", err, "provider", peerID)
+			pinfo.AddrInfo.ID = peerID
+			// Add the provider to the set of registered providers so that it
+			// does not get delisted. The next update should fix the addresses.
+		}
+
+		if r.filterIPs {
+			pinfo.AddrInfo.Addrs = mautil.FilterPrivateIPs(pinfo.AddrInfo.Addrs)
+			if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr != nil {
+				pubAddrs := mautil.FilterPrivateIPs([]multiaddr.Multiaddr{pinfo.PublisherAddr})
+				if len(pubAddrs) == 0 {
+					pinfo.PublisherAddr = nil
+				} else {
+					pinfo.PublisherAddr = pubAddrs[0]
+				}
+			}
+		}
+
+		if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr == nil && pinfo.Publisher == pinfo.AddrInfo.ID &&
+			len(pinfo.AddrInfo.Addrs) != 0 {
+			pinfo.PublisherAddr = pinfo.AddrInfo.Addrs[0]
+		}
+
+		r.providers[peerID] = pinfo
+		count++
+	}
+
+	log.Infow("loaded providers into registry", "count", count)
 	return nil
 }
 

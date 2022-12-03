@@ -105,6 +105,10 @@ func (s *Server) Start() error {
 	return s.server.Serve(s.l)
 }
 
+func (s *Server) RefreshStats() {
+	s.h.finderHandler.RefreshStats()
+}
+
 func (s *Server) Close() error {
 	log.Info("finder http server shutdown")
 	s.h.finderHandler.Close()
