@@ -640,11 +640,13 @@ func (ing *Ingester) metricsUpdater() {
 					log.Errorw("Error getting indexer value store size", "err", err)
 					return
 				}
-				indexCount, err := ing.indexCounts.Total()
-				if err != nil {
-					log.Errorw("Error getting index counts", "err", err)
+				if ing.indexCounts != nil {
+					indexCount, err := ing.indexCounts.Total()
+					if err != nil {
+						log.Errorw("Error getting index counts", "err", err)
+					}
+					stats.Record(context.Background(), coremetrics.StoreSize.M(size), metrics.IndexCount.M(int64(indexCount)))
 				}
-				stats.Record(context.Background(), coremetrics.StoreSize.M(size), metrics.IndexCount.M(int64(indexCount)))
 				hasUpdate = false
 			}
 			t.Reset(time.Minute)

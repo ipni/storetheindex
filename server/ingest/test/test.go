@@ -9,10 +9,8 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/go-indexer-core/cache"
-	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
-	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	"github.com/filecoin-project/go-indexer-core/store/memory"
 	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/client"
 	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
@@ -33,15 +31,7 @@ var rng = rand.New(rand.NewSource(1413))
 
 // InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
-	valueStore, err := storethehash.New(context.Background(), t.TempDir(), 4)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var resultCache cache.Interface
-	if withCache {
-		resultCache = radixcache.New(100000)
-	}
-	return engine.New(resultCache, valueStore)
+	return engine.New(nil, memory.New())
 }
 
 // InitRegistry initializes a new registry

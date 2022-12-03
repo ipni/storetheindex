@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/go-indexer-core/cache"
 	"github.com/filecoin-project/go-indexer-core/cache/radixcache"
 	"github.com/filecoin-project/go-indexer-core/engine"
-	"github.com/filecoin-project/go-indexer-core/store/storethehash"
+	"github.com/filecoin-project/go-indexer-core/store/memory"
+	"github.com/filecoin-project/go-indexer-core/store/pebble"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/client"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/filecoin-project/storetheindex/config"
@@ -34,15 +34,19 @@ var rng = rand.New(rand.NewSource(1413))
 
 // InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
-	valueStore, err := storethehash.New(context.Background(), t.TempDir(), 4)
+	return engine.New(nil, memory.New())
+}
+
+// InitPebbleIndex initialize a new indexer engine using pebbel with cache.
+func InitPebbleIndex(t *testing.T, withCache bool) indexer.Interface {
+	valueStore, err := pebble.New(t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var resultCache cache.Interface
 	if withCache {
-		resultCache = radixcache.New(100000)
+		return engine.New(radixcache.New(1000), valueStore)
 	}
-	return engine.New(resultCache, valueStore)
+	return engine.New(nil, valueStore)
 }
 
 func InitRegistry(t *testing.T) *registry.Registry {
@@ -150,9 +154,6 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 	}
 	ctxID := []byte("test-context-id")
 	metadata := []byte("test-metadata")
-	if err != nil {
-		t.Fatal(err)
-	}
 	v := indexer.Value{
 		ProviderID:    p,
 		ContextID:     ctxID,
@@ -393,7 +394,24 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 	}
 }
 
-func GetStatsTest(ctx context.Context, t *testing.T, c client.Finder) {
+func GetStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refreshStats func(), c client.Finder) {
+	mhs := util.RandomMultihashes(15, rng)
+	p, err := peer.Decode(providerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctxID := []byte("test-context-id")
+	metadata := []byte("test-metadata")
+	v := indexer.Value{
+		ProviderID:    p,
+		ContextID:     ctxID,
+		MetadataBytes: metadata,
+	}
+	populateIndex(ind, mhs[:10], v, t)
+	ind.Flush()
+	// Tell stats to pick up new stats data from indexer.
+	refreshStats()
+
 	require.Eventually(t, func() bool {
 		stats, err := c.GetStats(ctx)
 		return err == nil && (stats.EntriesEstimate > 0 || stats.EntriesCount > 0)
