@@ -5,8 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
+	"github.com/ipni/go-indexer-core"
+	"github.com/ipni/storetheindex/api/v0/finder/model"
 )
 
 type (

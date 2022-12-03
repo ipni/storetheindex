@@ -3,7 +3,7 @@ package command
 import (
 	"fmt"
 
-	"github.com/filecoin-project/storetheindex/config"
+	"github.com/ipni/storetheindex/config"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 )

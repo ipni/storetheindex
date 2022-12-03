@@ -3,7 +3,7 @@ package mautil_test
 import (
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/mautil"
+	"github.com/ipni/storetheindex/mautil"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )

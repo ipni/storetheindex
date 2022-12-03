@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/assigner/config"
-	"github.com/filecoin-project/storetheindex/assigner/core"
 	"github.com/ipfs/go-cid"
+	"github.com/ipni/storetheindex/assigner/config"
+	"github.com/ipni/storetheindex/assigner/core"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"

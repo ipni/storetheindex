@@ -5,9 +5,9 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/test/typehelpers"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/test/typehelpers"
 	"github.com/stretchr/testify/require"
 )
 

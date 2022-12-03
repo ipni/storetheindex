@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/config"
+	"github.com/ipni/storetheindex/config"
 	"github.com/urfave/cli/v2"
 )
 

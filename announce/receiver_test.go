@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/announce"
 	"github.com/ipfs/go-cid"
+	"github.com/ipni/storetheindex/announce"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"

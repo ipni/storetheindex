@@ -5,14 +5,14 @@ import (
 	"net"
 	"net/http"
 
-	indexer "github.com/filecoin-project/go-indexer-core"
-	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
-	"github.com/filecoin-project/storetheindex/internal/ingest"
-	"github.com/filecoin-project/storetheindex/internal/metrics"
-	"github.com/filecoin-project/storetheindex/internal/metrics/pprof"
-	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
+	indexer "github.com/ipni/go-indexer-core"
+	coremetrics "github.com/ipni/go-indexer-core/metrics"
+	"github.com/ipni/storetheindex/internal/ingest"
+	"github.com/ipni/storetheindex/internal/metrics"
+	"github.com/ipni/storetheindex/internal/metrics/pprof"
+	"github.com/ipni/storetheindex/internal/registry"
 )
 
 var log = logging.Logger("indexer/admin")

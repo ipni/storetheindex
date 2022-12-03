@@ -65,6 +65,6 @@ type Advertisement struct {
     # IsRm specifies whether this advertisement represents the content are no longer retrievalbe fom the provider.
     IsRm Bool
     # ExtendedProvider might optionally specify a set of providers where the ad entries are available from. 
-    # See: https://github.com/filecoin-project/storetheindex/blob/main/doc/ingest.md#extendedprovider
+    # See: https://github.com/ipni/storetheindex/blob/main/doc/ingest.md#extendedprovider
     ExtendedProvider optional ExtendedProvider
 }

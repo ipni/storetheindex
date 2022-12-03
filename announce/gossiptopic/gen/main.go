@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/filecoin-project/storetheindex/announce/gossiptopic"
+	"github.com/ipni/storetheindex/announce/gossiptopic"
 	cbg "github.com/whyrusleeping/cbor-gen"
 )
 

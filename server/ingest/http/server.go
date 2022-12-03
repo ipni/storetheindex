@@ -6,11 +6,11 @@ import (
 	"net"
 	"net/http"
 
-	indexer "github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/internal/ingest"
-	"github.com/filecoin-project/storetheindex/internal/registry"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
+	indexer "github.com/ipni/go-indexer-core"
+	"github.com/ipni/storetheindex/internal/ingest"
+	"github.com/ipni/storetheindex/internal/registry"
 )
 
 var log = logging.Logger("indexer/ingest")

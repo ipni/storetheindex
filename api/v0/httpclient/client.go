@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	v0 "github.com/filecoin-project/storetheindex/api/v0"
+	v0 "github.com/ipni/storetheindex/api/v0"
 )
 
 // New creates a base URL and a new http.Client.  The default port is only used

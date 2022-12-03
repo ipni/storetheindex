@@ -7,7 +7,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/filecoin-project/storetheindex/dagsync/dtsync"
+	"github.com/ipni/storetheindex/dagsync/dtsync"
 	cborgen "github.com/whyrusleeping/cbor-gen"
 )
 

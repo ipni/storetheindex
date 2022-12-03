@@ -1,15 +1,15 @@
 # StoreTheIndex 🗂️
 [![](https://img.shields.io/badge/made%20by-Protocol%20Labs-blue.svg?style=flat-square)](https://protocol.ai)
-[![Go Reference](https://pkg.go.dev/badge/github.com/filecoin-project/storetheindex.svg)](https://pkg.go.dev/github.com/filecoin-project/storetheindex)
-[![Coverage Status](https://codecov.io/gh/filecoin-project/storetheindex/branch/main/graph/badge.svg)](https://codecov.io/gh/filecoin-project/storetheindex/branch/main)
+[![Go Reference](https://pkg.go.dev/badge/github.com/ipni/storetheindex.svg)](https://pkg.go.dev/github.com/ipni/storetheindex)
+[![Coverage Status](https://codecov.io/gh/ipni/storetheindex/branch/main/graph/badge.svg)](https://codecov.io/gh/ipni/storetheindex/branch/main)
 > The first place to go in order to find a CID stored in Filecoin
 
 This repo provides an indexer implementation that can be used to index data stored by a range of participating storage providers.
 
 ## Design
-- [About the Indexer](https://github.com/filecoin-project/storetheindex/blob/main/doc/indexer_about.md#about-the-indexer)
-- [Ingestion Process](https://github.com/filecoin-project/storetheindex/blob/main/doc/ingest.md#providing-data-to-a-network-indexer)
-- [Creating an Index Provider](https://github.com/filecoin-project/storetheindex/blob/main/doc/creating-an-index-provider.md#creating-an-index-provider)
+- [About the Indexer](https://github.com/ipni/storetheindex/blob/main/doc/indexer_about.md#about-the-indexer)
+- [Ingestion Process](https://github.com/ipni/storetheindex/blob/main/doc/ingest.md#providing-data-to-a-network-indexer)
+- [Creating an Index Provider](https://github.com/ipni/storetheindex/blob/main/doc/creating-an-index-provider.md#creating-an-index-provider)
 
 ## Current Status
 Released for production: The current production release is running at https://cid.contact 
@@ -21,7 +21,7 @@ This assumes go is already installed.
 
 Install storetheindex:
 ```sh
-go install github.com/filecoin-project/storetheindex@latest
+go install github.com/ipni/storetheindex@latest
 ```
 
 Initialize the storetheindex repository and configuration:
@@ -42,7 +42,7 @@ The daemon is configured by the config file in the storetheindex repository. The
 ## Provider Removal Policy
 After a configured amount of time without any updates from a provider (`PollInterval`), the indexer will poll the provider at its last know publisher address, for any index updates. If there is no response from the provider after at least one attempt to poll, then the provider is considered inactive and is not returned in any find results. The indexer will continue polling on an interval (`PollRetryAfter`) until a time limit (`PollStopAfter`) is reached. If there is still no response to the poll attempts after this time limit is reached, then the provider is removed from the indexer and its records are garbage-collected and will need to be refetched. 
 
-The configuration values that control this are documented [here](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Discovery), and their default values are specified [here](https://github.com/filecoin-project/storetheindex/blob/main/doc/config.md#discovery). A custom polling configuration may be applied for specific providers using the `PollOverrides` configuration value to specify per-provider [Polling configuration](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Polling).
+The configuration values that control this are documented [here](https://pkg.go.dev/github.com/ipni/storetheindex/config#Discovery), and their default values are specified [here](https://github.com/ipni/storetheindex/blob/main/doc/config.md#discovery). A custom polling configuration may be applied for specific providers using the `PollOverrides` configuration value to specify per-provider [Polling configuration](https://pkg.go.dev/github.com/ipni/storetheindex/config#Polling).
 
 ## Indexer CLI Commands
 There are a number of client commands included with storetheindex. Their purpose is to perform simple indexing and lookup actions against a running daemon.  These can be helpful to test that an indexer is working. These include the following commands:
@@ -75,7 +75,7 @@ To see a list of available commands, see `storetheindex --help`. For help with c
 
 
 ## Configuration
-The storetheindex config file [documentation](https://github.com/filecoin-project/storetheindex/blob/main/doc/config.md#the-storetheindex-config-file)
+The storetheindex config file [documentation](https://github.com/ipni/storetheindex/blob/main/doc/config.md#the-storetheindex-config-file)
 
 ## License
 [SPDX-License-Identifier: Apache-2.0 OR MIT](LICENSE.md)

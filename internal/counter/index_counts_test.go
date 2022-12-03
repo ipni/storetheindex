@@ -3,8 +3,8 @@ package counter_test
 import (
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/internal/counter"
 	"github.com/ipfs/go-datastore"
+	"github.com/ipni/storetheindex/internal/counter"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/test"

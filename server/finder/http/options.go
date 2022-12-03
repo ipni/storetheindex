@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/internal/counter"
+	"github.com/ipni/storetheindex/internal/counter"
 )
 
 const (

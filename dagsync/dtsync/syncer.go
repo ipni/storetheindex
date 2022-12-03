@@ -6,7 +6,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/dagsync/p2p/protocol/head"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -14,6 +13,7 @@ import (
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/traversal"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
+	"github.com/ipni/storetheindex/dagsync/p2p/protocol/head"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/time/rate"
 )

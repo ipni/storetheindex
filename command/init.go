@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/fsutil"
+	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/fsutil"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 )

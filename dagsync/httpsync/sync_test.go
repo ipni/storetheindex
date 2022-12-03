@@ -9,8 +9,6 @@ import (
 	"path"
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/dagsync/httpsync"
-	"github.com/filecoin-project/storetheindex/dagsync/httpsync/maconv"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime"
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
@@ -20,6 +18,8 @@ import (
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
+	"github.com/ipni/storetheindex/dagsync/httpsync"
+	"github.com/ipni/storetheindex/dagsync/httpsync/maconv"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"

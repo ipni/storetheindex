@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	stischema "github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
-	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime"
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
@@ -16,6 +14,8 @@ import (
 	"github.com/ipld/go-ipld-prime/node/bindnode"
 	ipldSchema "github.com/ipld/go-ipld-prime/schema"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
+	stischema "github.com/ipni/storetheindex/api/v0/ingest/schema"
+	"github.com/ipni/storetheindex/test/util"
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"

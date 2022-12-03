@@ -4,13 +4,13 @@ import (
 	"net/http"
 	"testing"
 
-	indexer "github.com/filecoin-project/go-indexer-core"
-	httpclient "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
-	"github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/internal/ingest"
-	"github.com/filecoin-project/storetheindex/internal/registry"
-	httpserver "github.com/filecoin-project/storetheindex/server/ingest/http"
-	"github.com/filecoin-project/storetheindex/server/ingest/test"
+	indexer "github.com/ipni/go-indexer-core"
+	httpclient "github.com/ipni/storetheindex/api/v0/ingest/client/http"
+	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/internal/ingest"
+	"github.com/ipni/storetheindex/internal/registry"
+	httpserver "github.com/ipni/storetheindex/server/ingest/http"
+	"github.com/ipni/storetheindex/server/ingest/test"
 )
 
 var providerIdent = config.Identity{

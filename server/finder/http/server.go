@@ -10,12 +10,12 @@ import (
 	"text/template"
 	"time"
 
-	indexer "github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/internal/registry"
-	"github.com/filecoin-project/storetheindex/server/reframe"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
+	indexer "github.com/ipni/go-indexer-core"
+	"github.com/ipni/storetheindex/internal/registry"
+	"github.com/ipni/storetheindex/server/reframe"
 	xnet "golang.org/x/net/netutil"
 )
 

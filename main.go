@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/filecoin-project/storetheindex/command"
-	"github.com/filecoin-project/storetheindex/version"
+	"github.com/ipni/storetheindex/command"
+	"github.com/ipni/storetheindex/version"
 	"github.com/urfave/cli/v2"
 )
 

@@ -7,14 +7,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/filecoin-project/go-indexer-core"
-	coremetrics "github.com/filecoin-project/go-indexer-core/metrics"
-	"github.com/filecoin-project/storetheindex/internal/metrics"
-	"github.com/filecoin-project/storetheindex/internal/registry"
-	"github.com/filecoin-project/storetheindex/server/finder/handler"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-delegated-routing/client"
 	"github.com/ipfs/go-delegated-routing/server"
+	"github.com/ipni/go-indexer-core"
+	coremetrics "github.com/ipni/go-indexer-core/metrics"
+	"github.com/ipni/storetheindex/internal/metrics"
+	"github.com/ipni/storetheindex/internal/registry"
+	"github.com/ipni/storetheindex/server/finder/handler"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/multiformats/go-multicodec"
@@ -87,7 +87,7 @@ var BitswapMetadataBytes = varint.ToUvarint(uint64(multicodec.TransportBitswap))
 
 func containsTransportBitswap(meta []byte) bool {
 	// Metadata must be sorted according to the specification; see:
-	// - https://github.com/filecoin-project/index-provider/blob/main/metadata/metadata.go#L143
+	// - https://github.com/ipni/index-provider/blob/main/metadata/metadata.go#L143
 	// This implies that if it includes Bitswap, its codec must appear at the beginning
 	// of the metadata value. Hence, bytes.HasPrefix.
 	return bytes.HasPrefix(meta, BitswapMetadataBytes)

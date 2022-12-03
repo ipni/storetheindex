@@ -15,14 +15,14 @@ import (
 	"testing"
 	"time"
 
-	adminclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
-	client "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
-	"github.com/filecoin-project/storetheindex/assigner/config"
-	"github.com/filecoin-project/storetheindex/assigner/core"
-	server "github.com/filecoin-project/storetheindex/assigner/server"
-	sticfg "github.com/filecoin-project/storetheindex/config"
-	"github.com/filecoin-project/storetheindex/test/util"
 	"github.com/ipfs/go-cid"
+	adminclient "github.com/ipni/storetheindex/api/v0/admin/client/http"
+	client "github.com/ipni/storetheindex/api/v0/ingest/client/http"
+	"github.com/ipni/storetheindex/assigner/config"
+	"github.com/ipni/storetheindex/assigner/core"
+	server "github.com/ipni/storetheindex/assigner/server"
+	sticfg "github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -116,7 +116,7 @@ func TestAnnounce(t *testing.T) {
 	/*
 		err = os.Chdir(e.dir)
 		require.NoError(t, err)
-		e.run("git", "clone", "https://github.com/filecoin-project/storetheindex.git")
+		e.run("git", "clone", "https://github.com/ipni/storetheindex.git")
 		err = os.Chdir("storetheindex")
 		require.NoError(t, err)
 		e.run("go", "install")
