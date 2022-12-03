@@ -43,8 +43,6 @@ import (
 )
 
 const (
-	testCorePutConcurrency = 4
-
 	testRetryInterval = 2 * time.Second
 	testRetryTimeout  = 15 * time.Second
 
