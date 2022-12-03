@@ -4,6 +4,6 @@ List of individually configurable instances:
 
 | Instance | Storage Class | IOPS per GiB | Backing store | Running                                                                         |
 |----------|---------------|--------------|---------------|---------------------------------------------------------------------------------|
-| `oden`   | io2           | 5            | Pebble        | [v0.5.0](https://github.com/ipni/storetheindex/releases/tag/v0.5.0) |
-| `dido`   | io2           | 5            | Pebble        | [v0.5.0](https://github.com/ipni/storetheindex/releases/tag/v0.5.0) |
-| `kepa`   | io2           | 3            | Pebble        | [v0.5.0](https://github.com/ipni/storetheindex/releases/tag/v0.5.0) |
+| `oden`   | io2           | 5            | Pebble        | [v0.5.0](https://github.com/filecoin-project/storetheindex/releases/tag/v0.5.0) |
+| `dido`   | io2           | 5            | Pebble        | [v0.5.0](https://github.com/filecoin-project/storetheindex/releases/tag/v0.5.0) |
+| `kepa`   | io2           | 3            | Pebble        | [v0.5.0](https://github.com/filecoin-project/storetheindex/releases/tag/v0.5.0) |

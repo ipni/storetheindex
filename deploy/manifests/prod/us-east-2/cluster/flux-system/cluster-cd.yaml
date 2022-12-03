@@ -4,7 +4,7 @@ metadata:
   name: storetheindex
 spec:
   interval: 5m
-  url: https://github.com/ipni/storetheindex.git
+  url: https://github.com/filecoin-project/storetheindex.git
   ref:
     branch: main
 ---
