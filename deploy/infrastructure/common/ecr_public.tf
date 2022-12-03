@@ -5,7 +5,7 @@ locals {
     index-provider : {
       about_text        = "Index Provider to Network Indexer Protocol"
       architectures     = ["amd64"]
-      description       = "https://github.com/filecoin-project/index-provider"
+      description       = "https://github.com/ipni/index-provider"
       operating_systems = ["Linux"]
     }
   }

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/filecoin-project/storetheindex/mautil"
+	"github.com/ipni/storetheindex/mautil"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 

@@ -6,8 +6,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
-	"github.com/filecoin-project/storetheindex/test/util"
 	hamt "github.com/ipld/go-ipld-adl-hamt"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -17,6 +15,8 @@ import (
 	"github.com/ipld/go-ipld-prime/traversal"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
+	"github.com/ipni/storetheindex/api/v0/ingest/schema"
+	"github.com/ipni/storetheindex/test/util"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"

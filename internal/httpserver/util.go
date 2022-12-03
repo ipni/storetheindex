@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	v0 "github.com/filecoin-project/storetheindex/api/v0"
 	logging "github.com/ipfs/go-log/v2"
+	v0 "github.com/ipni/storetheindex/api/v0"
 )
 
 var log = logging.Logger("indexer/http")

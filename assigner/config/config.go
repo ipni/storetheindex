@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	sticfg "github.com/filecoin-project/storetheindex/config"
+	sticfg "github.com/ipni/storetheindex/config"
 	"github.com/mitchellh/go-homedir"
 )
 

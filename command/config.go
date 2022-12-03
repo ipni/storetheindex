@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	httpclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
+	httpclient "github.com/ipni/storetheindex/api/v0/admin/client/http"
 	"github.com/urfave/cli/v2"
 )
 

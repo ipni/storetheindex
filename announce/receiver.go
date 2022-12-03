@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/filecoin-project/storetheindex/announce/gossiptopic"
-	"github.com/filecoin-project/storetheindex/mautil"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/ipni/storetheindex/announce/gossiptopic"
+	"github.com/ipni/storetheindex/mautil"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"

@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
-	indexer "github.com/filecoin-project/go-indexer-core"
-	httpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
-	"github.com/filecoin-project/storetheindex/internal/counter"
-	"github.com/filecoin-project/storetheindex/internal/registry"
-	httpserver "github.com/filecoin-project/storetheindex/server/finder/http"
-	"github.com/filecoin-project/storetheindex/server/finder/test"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-delegated-routing/client"
 	"github.com/ipfs/go-delegated-routing/gen/proto"
+	indexer "github.com/ipni/go-indexer-core"
+	httpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
+	"github.com/ipni/storetheindex/internal/counter"
+	"github.com/ipni/storetheindex/internal/registry"
+	httpserver "github.com/ipni/storetheindex/server/finder/http"
+	"github.com/ipni/storetheindex/server/finder/test"
 )
 
 func setupServer(ind indexer.Interface, reg *registry.Registry, idxCts *counter.IndexCounts, t *testing.T) *httpserver.Server {

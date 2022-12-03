@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	v0client "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
-	"github.com/filecoin-project/storetheindex/config"
+	v0client "github.com/ipni/storetheindex/api/v0/ingest/client/http"
+	"github.com/ipni/storetheindex/config"
 	"github.com/urfave/cli/v2"
 )
 

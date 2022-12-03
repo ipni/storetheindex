@@ -15,7 +15,7 @@ Index content is an IPLD graph. The indexer reads the advertisement chain starti
 
 Multihash data is “paginated” by downloading blocks (chunks) of multihashes. These chunks are linked together using IPLD links.
 
-An individual advertisement is an [IPLD](https://ipld.io/docs/data-model/) object with the following [schema](https://github.com/filecoin-project/storetheindex/blob/main/api/v0/ingest/schema/schema.ipldsch):
+An individual advertisement is an [IPLD](https://ipld.io/docs/data-model/) object with the following [schema](https://github.com/ipni/storetheindex/blob/main/api/v0/ingest/schema/schema.ipldsch):
 ```
 type Advertisement struct {
     PreviousID optional Link
@@ -72,7 +72,7 @@ This is where the keys in the HAMT represent the multihashes being advertised, a
 
 #### Metadata
 
-The reference provider currently supports Bitswap and Filecoin protocols. The structure of the metadata format for these protocols is defined in [the library](https://github.com/filecoin-project/index-provider/tree/main/metadata).
+The reference provider currently supports Bitswap and Filecoin protocols. The structure of the metadata format for these protocols is defined in [the library](https://github.com/ipni/index-provider/tree/main/metadata).
 
 The network indexer nodes expect that metadata begins with a `uvarint` identifying the protocol, followed by protocol-specific metadata. This may be repeated for additional supported protocols. Specified protocols are expected to be ordered in increasing order.
 
@@ -133,21 +133,21 @@ On libp2p hosts, graphsync is used for providing the advertisement chain.
 
 * Graphsync is configured on the common graphsync multiprotocol of the libp2p host.
 * Requests for index advertisements can be identified by
-    * The use of a ['dagsync'](https://github.com/filecoin-project/storetheindex/blob/main/dagsync/dtsync/voucher.go#L17-L24) voucher in the request.
+    * The use of a ['dagsync'](https://github.com/ipni/storetheindex/blob/main/dagsync/dtsync/voucher.go#L17-L24) voucher in the request.
     * A CID of either the most recent advertisement, or a a specific Entries pointer.
     * A selector either for the advertisement chain, or for an entries list.
 
-A reference implementation of the core graphsync provider is available in the [dagsync](https://github.com/filecoin-project/storetheindex/blob/main/dagsync) package, and it's integration into a full provider is available in [index-provider](https://github.com/filecoin-project/index-provider).
+A reference implementation of the core graphsync provider is available in the [dagsync](https://github.com/ipni/storetheindex/blob/main/dagsync) package, and it's integration into a full provider is available in [index-provider](https://github.com/ipni/index-provider).
 
 On these hosts, a custom `head` multiprotocol is exposed on the libp2p host as a way of learning the most recent current advertisement.
-The multiprotocol is named [`/legs/head/<network-identifier>/<version>`](https://github.com/filecoin-project/storetheindex/blob/main/dagsync/p2p/protocol/head/head.go#L40). The protocol itself is implemented as an HTTP TCP stream, where a request is made for the `/head` resource, and the response body contains the string representation of the root CID.
+The multiprotocol is named [`/legs/head/<network-identifier>/<version>`](https://github.com/ipni/storetheindex/blob/main/dagsync/p2p/protocol/head/head.go#L40). The protocol itself is implemented as an HTTP TCP stream, where a request is made for the `/head` resource, and the response body contains the string representation of the root CID.
 
 #### HTTP
 
 The IPLD objects of advertisements and entries are represented as files named as their CIDs in an HTTP directory. These files are immutable, so can be safely cached or stored on CDNs.
 
 The head protocol is the same as above, but not wrapped in a libp2p multiprotocol.
-A client wanting to know the latest advertisement CID will ask for the file named `head` in the same directory as the advertisements/entries, and will expect back a [signed response](https://github.com/filecoin-project/storetheindex/blob/main/dagsync/httpsync/message.go#L60-L64) for the current head.
+A client wanting to know the latest advertisement CID will ask for the file named `head` in the same directory as the advertisements/entries, and will expect back a [signed response](https://github.com/ipni/storetheindex/blob/main/dagsync/httpsync/message.go#L60-L64) for the current head.
 
 ## Announcements
 
@@ -167,7 +167,7 @@ There are two ways that a provider may pro-actively alert indexer(s) of new cont
 
 ### Gossipsub
 
-The announcement contains the CID of the head and the multiaddr (either the libp2p host or the HTTP host) where it should be fetched from. The format is [here](https://pkg.go.dev/github.com/filecoin-project/storetheindex/dagsync/dtsync#Message).
+The announcement contains the CID of the head and the multiaddr (either the libp2p host or the HTTP host) where it should be fetched from. The format is [here](https://pkg.go.dev/github.com/ipni/storetheindex/dagsync/dtsync#Message).
 
 It is sent over a gossip sub topic, that defaults to `/indexer/ingest/<network>`. For our production network, this is `/indexer/ingest/mainnet`.
 
@@ -178,7 +178,7 @@ The dagsync provider will generate gossip announcements automatically on it's ho
 Alternatively, an announcement can be sent to a specific known network indexer.
 The network indexer may then relay that announcement over gossip sub to other indexers to allow broader discover of a provider choosing to selectively announce in this way.
 
-Announcements are sent as HTTP PUT requests to [`/ingest/announce`](https://github.com/filecoin-project/storetheindex/blob/main/server/ingest/http/server.go#L50) on the index node's 'ingest' server.
+Announcements are sent as HTTP PUT requests to [`/ingest/announce`](https://github.com/ipni/storetheindex/blob/main/server/ingest/http/server.go#L50) on the index node's 'ingest' server.
 Note that the ingest server is not the same http server as the primary publicly exposed query server. This is because the index node operator may choose not to expose it, or may protect it so that only selected providers are given access to this endpoint due to potential denial of service concerns.
 
-The body of the request put to this endpoint should be the json serialization of the announcement [message](https://github.com/filecoin-project/storetheindex/blob/main/dagsync/dtsync/message.go#L15) that would be provided over gossip sub: a representation of the head CID, and the multiaddr of where to fetch the advertisement chain.
+The body of the request put to this endpoint should be the json serialization of the announcement [message](https://github.com/ipni/storetheindex/blob/main/dagsync/dtsync/message.go#L15) that would be provided over gossip sub: a representation of the head CID, and the multiaddr of where to fetch the advertisement chain.

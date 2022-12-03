@@ -17,7 +17,7 @@ COPY . .
 
 # Build the executable
 RUN cd assigner && \
-    go build -ldflags "-X 'github.com/filecoin-project/storetheindex/internal/version.GitVersion=$(git rev-list -1 HEAD)'"
+    go build -ldflags "-X 'github.com/ipni/storetheindex/internal/version.GitVersion=$(git rev-list -1 HEAD)'"
 
 # Get su-exec, a very minimal tool for dropping privileges,
 # and tini, a very minimal init daemon for containers

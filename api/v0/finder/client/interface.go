@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
+	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
 )

@@ -1,6 +1,6 @@
 resource "aws_iam_openid_connect_provider" "github" {
   client_id_list = [
-    "https://github.com/filecoin-project",
+    "https://github.com/ipni",
     "https://github.com/filecoin-shipyard",
     "sts.amazonaws.com"
   ]
@@ -54,8 +54,6 @@ module "github_actions_role" {
   ]
 
   oidc_subjects_with_wildcards = [
-    "repo:filecoin-project/storetheindex:*",
-    "repo:filecoin-project/index-provider:*",
     "repo:filecoin-shipyard/index-observer:*",
     "repo:application-research/autoretrieve:*",
     "repo:filecoin-shipyard/indexstar:*",

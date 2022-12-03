@@ -4,11 +4,11 @@ import (
 	"io"
 	"net/http"
 
-	indexer "github.com/filecoin-project/go-indexer-core"
-	"github.com/filecoin-project/storetheindex/internal/httpserver"
-	"github.com/filecoin-project/storetheindex/internal/ingest"
-	"github.com/filecoin-project/storetheindex/internal/registry"
-	"github.com/filecoin-project/storetheindex/server/ingest/handler"
+	indexer "github.com/ipni/go-indexer-core"
+	"github.com/ipni/storetheindex/internal/httpserver"
+	"github.com/ipni/storetheindex/internal/ingest"
+	"github.com/ipni/storetheindex/internal/registry"
+	"github.com/ipni/storetheindex/server/ingest/handler"
 )
 
 type httpHandler struct {

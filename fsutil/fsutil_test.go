@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/fsutil"
+	"github.com/ipni/storetheindex/fsutil"
 	"github.com/stretchr/testify/require"
 )
 

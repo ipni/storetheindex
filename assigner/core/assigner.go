@@ -9,13 +9,13 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/filecoin-project/storetheindex/announce"
-	adminclient "github.com/filecoin-project/storetheindex/api/v0/admin/client/http"
-	ingestclient "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
-	"github.com/filecoin-project/storetheindex/assigner/config"
-	"github.com/filecoin-project/storetheindex/peerutil"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/ipni/storetheindex/announce"
+	adminclient "github.com/ipni/storetheindex/api/v0/admin/client/http"
+	ingestclient "github.com/ipni/storetheindex/api/v0/ingest/client/http"
+	"github.com/ipni/storetheindex/assigner/config"
+	"github.com/ipni/storetheindex/peerutil"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 )

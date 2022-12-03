@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/dagsync/dtsync"
-	"github.com/filecoin-project/storetheindex/dagsync/test"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
@@ -15,6 +13,8 @@ import (
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
+	"github.com/ipni/storetheindex/dagsync/dtsync"
+	"github.com/ipni/storetheindex/dagsync/test"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"

@@ -130,12 +130,12 @@ Description: Current version of configuration file. This is used to defermine if
 Default: No default. This is written during initialization.
 
 ## `Identity`
-Description: [Identity](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Identity)
+Description: [Identity](https://pkg.go.dev/github.com/ipni/storetheindex/config#Identity)
 
 Default: There is no default value. This is generated during initialization.
 
 ## `Addresses`
-Description: [Addresses](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Addresses)
+Description: [Addresses](https://pkg.go.dev/github.com/ipni/storetheindex/config#Addresses)
 
 Default:
 ```json
@@ -149,7 +149,7 @@ Default:
 ```
 
 ## `Bootstrap`
-Description: [Bootstrap](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Bootstrap)
+Description: [Bootstrap](https://pkg.go.dev/github.com/ipni/storetheindex/config#Bootstrap)
 
 Default:
 ```json
@@ -161,7 +161,7 @@ Default:
 `Bootstrap.Peers` is an array of multiaddr strings. It defaults to the multiaddrs of the filecoin mainnet bootstrap nodes.
 
 ## `Datastore`
-Description: [Datastore](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Datastore)
+Description: [Datastore](https://pkg.go.dev/github.com/ipni/storetheindex/config#Datastore)
 
 Default:
 ```json
@@ -172,7 +172,7 @@ Default:
 ```
 
 ## `Discovery`
-Description: [Discovery](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Discovery)
+Description: [Discovery](https://pkg.go.dev/github.com/ipni/storetheindex/config#Discovery)
 
 Default:
 ```json
@@ -189,7 +189,7 @@ Default:
 ```
 
 ### `Discovery.Policy`
-Description: [Policy](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Policy)
+Description: [Policy](https://pkg.go.dev/github.com/ipni/storetheindex/config#Policy)
 
 Default:
 ```json
@@ -202,14 +202,14 @@ Default:
 ```
 
 ### `Discovery.PollOverrides` Element
-Description: [Polling](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Polling)
+Description: [Polling](https://pkg.go.dev/github.com/ipni/storetheindex/config#Polling)
 
 Default: There are no default `Discovery.PollOverrides` elements. These are created manually.
 
 See Example Config for example.
 
 ## `Finder`
-Description: [Indexer](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Finder)
+Description: [Indexer](https://pkg.go.dev/github.com/ipni/storetheindex/config#Finder)
 
 Default:
 ```json
@@ -222,7 +222,7 @@ Default:
 ```
 
 ## `Indexer`
-Description: [Indexer](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Indexer)
+Description: [Indexer](https://pkg.go.dev/github.com/ipni/storetheindex/config#Indexer)
 
 Default:
 ```json
@@ -238,7 +238,7 @@ Default:
 ```
 
 ## `Ingest`
-Description: [Ingest](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Ingest)
+Description: [Ingest](https://pkg.go.dev/github.com/ipni/storetheindex/config#Ingest)
 
 Default:
 ```json
@@ -260,7 +260,7 @@ Default:
 ```
 
 ### `Ingest.RateLimit`
-Description: [RateLimit](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#RateLimit)
+Description: [RateLimit](https://pkg.go.dev/github.com/ipni/storetheindex/config#RateLimit)
 
 Default:
 ```json
@@ -273,7 +273,7 @@ Default:
 ```
 
 ## `Logging`
-Description: [Logging](https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Logging)
+Description: [Logging](https://pkg.go.dev/github.com/ipni/storetheindex/config#Logging)
 
 Default:
 ```json
@@ -290,7 +290,7 @@ Default:
 ```
 
 ## `Peering`
-Description: [Peering]((https://pkg.go.dev/github.com/filecoin-project/storetheindex/config#Peering)
+Description: [Peering]((https://pkg.go.dev/github.com/ipni/storetheindex/config#Peering)
 
 Default:
 ```json

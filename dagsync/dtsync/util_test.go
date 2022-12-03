@@ -3,9 +3,9 @@ package dtsync
 import (
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/dagsync/test"
 	"github.com/ipfs/go-datastore"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipni/storetheindex/dagsync/test"
 	"github.com/stretchr/testify/require"
 )
 

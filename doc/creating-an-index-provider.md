@@ -7,7 +7,7 @@ but note that some of these can be generalized.
 
 1. Filecoin Storage Provider – Hosts data for folks and proves it via the
 Filecoin Network Chain. Aka Storage Provider.
-2. Indexer (aka [storetheindex](https://github.com/filecoin-project/storetheindex)) – A service that can answer the question:
+2. Indexer (aka [storetheindex](https://github.com/ipni/storetheindex)) – A service that can answer the question:
 "Given this CID, who has a copy?". This is little more than a lookup table.
 3. Index Provider – A service that runs alongside a Storage Provider and tells
 the Indexer what content this storage provider has.
@@ -16,7 +16,7 @@ The Index Provider serves as the interface between the storage provider and the
 indexer. It can be used from within `Lotus` so that the publishing of new data
 happens automatically. But it can also happen separately.
 
-The Index Provider sends updates to the Indexer via a series of [Advertisement](https://github.com/filecoin-project/storetheindex/blob/main/api/v0/ingest/schema/schema.ipldsch)
+The Index Provider sends updates to the Indexer via a series of [Advertisement](https://github.com/ipni/storetheindex/blob/main/api/v0/ingest/schema/schema.ipldsch)
 messages. Each message references a previous advertisement so that as a whole it
 forms an advertisement chain. The state of the indexer is basically a function
 of consuming this chain from the initial Advertisement to the latest one.
@@ -40,7 +40,7 @@ If an indexer has registered an index provider it will occasionally poll the pro
 
 While this should be possible in any language, Go has the best support here. If you’re trying to target another language I’d recommend building an HTTP Index provider.
 
-In Go, it’s simplest to use [dagsync](https://github.com/filecoin-project/storetheindex/blob/main/dagsync). dagsync provides a simpler interface to go-data-transfer and graphsync. 
+In Go, it’s simplest to use [dagsync](https://github.com/ipni/storetheindex/blob/main/dagsync). dagsync provides a simpler interface to go-data-transfer and graphsync. 
 
 For an index-provider you’ll want to setup a `dagsync` Publisher:
 
@@ -62,7 +62,7 @@ The dagsync publisher will also handle the datatransfer requests from the indexe
 
 After you finish building your index provider, you probably want to test it. You can run the indexer locally and tell it about your index provider. That should cause the indexer to sync from your index provider. Then you can query the indexer to see if it has some content that your index provider provided.
 
-1. Make sure your index provider has actual content it is providing. You can do this by checking the `/head` endpoint if implementing an HTTP provider or by using [https://pkg.go.dev/github.com/filecoin-project/storetheindex/dagsync/dtsync#Syncer.GetHead](https://pkg.go.dev/github.com/filecoin-project/storetheindex/dagsync/dtsync#Syncer.GetHead) with dagsync.
+1. Make sure your index provider has actual content it is providing. You can do this by checking the `/head` endpoint if implementing an HTTP provider or by using [https://pkg.go.dev/github.com/ipni/storetheindex/dagsync/dtsync#Syncer.GetHead](https://pkg.go.dev/github.com/ipni/storetheindex/dagsync/dtsync#Syncer.GetHead) with dagsync.
     - HTTP:
         
         ```bash
@@ -70,7 +70,7 @@ After you finish building your index provider, you probably want to test it. You
         {"head":{"/":"bafy2bzaceaceibjf5pottpm4ghfnu7jo7sjcqjom4vhzm5jmq7domxun5vor4"},"sig":{"/":{"bytes":"nPm4HNlVZxOuNZ0ujKbP7YT7eGpenOHfSzrhRid0dTyz1HHKalLZwIHWL+sArsEVuMvKrL0hVqKkBwz/9aMvAA=="}},"pubkey":{"/":{"bytes":"CAESIGNJlqCl/NPKn3FCWNtWmWCjzJ7qb7ClJZQJg3tHDDk2"}}}
         ```
         
-2. Make sure you can also fetch that block. For an HTTP provider you should get the block back when hitting `/<cid>`. For a libp2p provider you should be able to call [https://pkg.go.dev/github.com/filecoin-project/storetheindex/dagsync/dtsync#Syncer.Sync](https://pkg.go.dev/github.com/filecoin-project/storetheindex/dagsync/dtsync#Syncer.Sync). 
+2. Make sure you can also fetch that block. For an HTTP provider you should get the block back when hitting `/<cid>`. For a libp2p provider you should be able to call [https://pkg.go.dev/github.com/ipni/storetheindex/dagsync/dtsync#Syncer.Sync](https://pkg.go.dev/github.com/ipni/storetheindex/dagsync/dtsync#Syncer.Sync). 
     - HTTP: (using [dagconv](https://github.com/marcopolo/dagconv) to convert the dagcbor into readable dagjson)
         
         ```bash
@@ -103,7 +103,7 @@ After you finish building your index provider, you probably want to test it. You
         {"MultihashResults":[{"Multihash":"EiA8L8pq463M/L6z3ZcMIggzqtXcJSB3RoZn9W9qT+cEvg==","ProviderResults":[{"ContextID":"Li90ZXN0ZGF0YS9zYW1wbGUtdjEtMi5jYXI=","Metadata":{"ProtocolID":3145744,"Data":""},"Provider":{"ID":"12D3KooWFtqYPKGKPJqtTAnNLR84SphEChUfRud3bbfskK6561r5","Addrs":["/ip4/1.1.1.1/tcp/1234"]}},{"ContextID":"Li90ZXN0ZGF0YS9zYW1wbGUtdjEtMi5jYXI=","Metadata":{"ProtocolID":3145744,"Data":""},"Provider":{"ID":"12D3KooWGVwcVphAgpXjJWHoWyKZUrZsXyc34jeuUmG5nSRZyuQq","Addrs":["/ip4/1.1.1.1/tcp/1234"]}}]}]}
         ```
         
-        1. If you aren’t sure which multihash to use, you can use the [index-provider cli](https://github.com/filecoin-project/index-provider/tree/main/cmd/provider) to list some multihashes that your provider is advertising.
+        1. If you aren’t sure which multihash to use, you can use the [index-provider cli](https://github.com/ipni/index-provider/tree/main/cmd/provider) to list some multihashes that your provider is advertising.
             
             ```bash
             ❯ provider list -e -p "/ip4/127.0.0.1/tcp/8070/http/p2p/12D3KooWGVwcVphAgpXjJWHoWyKZUrZsXyc34jeuUmG5nSRZyuQq"

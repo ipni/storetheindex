@@ -133,7 +133,7 @@ func extendedProviderSignaturePayload(ad *Advertisement, p *Provider) ([]byte, e
 	ent := ad.Entries.(cidlink.Link).Cid.Bytes()
 
 	// Extended signature is an authrorisation for the publisher of the main Ad to publish on behalf of the signee.
-	// For more details see https://github.com/filecoin-project/storetheindex/pull/804/files
+	// For more details see https://github.com/ipni/storetheindex/pull/804/files
 	// The signature must contain the following fields:
 	// - the main provider's identity
 	// - the signee's identity addrs and metadata so that they can't be misrepresented

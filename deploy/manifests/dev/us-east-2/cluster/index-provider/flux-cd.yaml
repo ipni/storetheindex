@@ -4,7 +4,7 @@ metadata:
   name: index-provider
 spec:
   interval: 5m
-  url: https://github.com/filecoin-project/index-provider.git
+  url: https://github.com/ipni/index-provider.git
   ref:
     branch: main
   secretRef:

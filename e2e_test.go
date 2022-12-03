@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/config"
 	qt "github.com/frankban/quicktest"
+	"github.com/ipni/storetheindex/config"
 )
 
 // This is a full end-to-end test with storetheindex as the indexer daemon,
@@ -135,7 +135,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	}
 
 	carPath := filepath.Join(e.dir, "sample-wrapped-v2.car")
-	err := downloadFile("https://github.com/filecoin-project/index-provider/raw/main/testdata/sample-wrapped-v2.car", carPath)
+	err := downloadFile("https://github.com/ipni/index-provider/raw/main/testdata/sample-wrapped-v2.car", carPath)
 	qt.Assert(t, err, qt.IsNil)
 
 	// Use a clean environment, with the host's PATH, and a temporary HOME.
@@ -183,7 +183,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	qt.Assert(t, err, qt.IsNil)
 	err = os.Chdir(e.dir)
 	qt.Assert(t, err, qt.IsNil)
-	e.run("git", "clone", "https://github.com/filecoin-project/index-provider.git")
+	e.run("git", "clone", "https://github.com/ipni/index-provider.git")
 	err = os.Chdir("index-provider/cmd/provider")
 	qt.Assert(t, err, qt.IsNil)
 	e.run("go", "install")

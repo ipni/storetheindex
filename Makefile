@@ -5,7 +5,7 @@ BIN := storetheindex
 all: vet test build
 
 build:
-	go build -ldflags "-X 'github.com/filecoin-project/storetheindex/internal/version.GitVersion=$(git rev-list -1 HEAD)'"
+	go build -ldflags "-X 'github.com/ipni/storetheindex/internal/version.GitVersion=$(git rev-list -1 HEAD)'"
 
 docker: Dockerfile clean
 	docker build . --force-rm -f Dockerfile -t storetheindex:$(shell git rev-parse --short HEAD)

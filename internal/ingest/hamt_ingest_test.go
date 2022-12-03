@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/test/typehelpers"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipni/storetheindex/test/typehelpers"
 	"github.com/stretchr/testify/require"
 )
 

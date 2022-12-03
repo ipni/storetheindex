@@ -1,4 +1,4 @@
-module github.com/filecoin-project/storetheindex
+module github.com/ipni/storetheindex
 
 go 1.18
 
@@ -8,7 +8,6 @@ require (
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.2.0
 	github.com/filecoin-project/go-data-transfer v1.15.2
-	github.com/filecoin-project/go-indexer-core v0.6.20-0.20221203094717-421546fb9fb6
 	github.com/frankban/quicktest v1.14.3
 	github.com/gammazero/deque v0.2.0
 	github.com/gogo/protobuf v1.3.2
@@ -26,6 +25,7 @@ require (
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
 	github.com/ipld/go-ipld-prime v0.18.0
 	github.com/ipld/go-storethehash v0.3.13
+	github.com/ipni/go-indexer-core v0.6.20-0.20221203100250-64457cb18752
 	github.com/libp2p/go-libp2p v0.23.2
 	github.com/libp2p/go-libp2p-gostream v0.5.0
 	github.com/libp2p/go-libp2p-pubsub v0.8.1

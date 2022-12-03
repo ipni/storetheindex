@@ -3,8 +3,8 @@ package model
 import (
 	"time"
 
-	_ "github.com/filecoin-project/storetheindex/dagsync/httpsync/maconv"
 	"github.com/ipfs/go-cid"
+	_ "github.com/ipni/storetheindex/dagsync/httpsync/maconv"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 )

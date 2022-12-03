@@ -3,7 +3,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/config"
+	"github.com/ipni/storetheindex/config"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 

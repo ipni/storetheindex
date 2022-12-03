@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/dagsync/p2p/protocol/head"
-	"github.com/filecoin-project/storetheindex/dagsync/test"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
+	"github.com/ipni/storetheindex/dagsync/p2p/protocol/head"
+	"github.com/ipni/storetheindex/dagsync/test"
 	"github.com/multiformats/go-multiaddr"
 )
 

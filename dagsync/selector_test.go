@@ -3,7 +3,6 @@ package dagsync
 import (
 	"testing"
 
-	"github.com/filecoin-project/storetheindex/dagsync/test"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -11,6 +10,7 @@ import (
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	selectorbuilder "github.com/ipld/go-ipld-prime/traversal/selector/builder"
+	"github.com/ipni/storetheindex/dagsync/test"
 	"github.com/stretchr/testify/require"
 )
 
