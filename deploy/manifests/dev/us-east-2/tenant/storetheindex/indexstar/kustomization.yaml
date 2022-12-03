@@ -18,4 +18,4 @@ replicas:
 images:
   - name: indexstar
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/indexstar/indexstar
-    newTag:  20221203114316-f76da437a6d701ddd414c0322d6547976c4ce0a1
+    newTag:  20221203163907-ae7e6434760b4a451e3906e6197b29ab32f89ca0
