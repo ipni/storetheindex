@@ -25,7 +25,7 @@ require (
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
 	github.com/ipld/go-ipld-prime v0.18.0
 	github.com/ipld/go-storethehash v0.3.13
-	github.com/ipni/go-indexer-core v0.6.20-0.20221203100250-64457cb18752
+	github.com/ipni/go-indexer-core v0.6.20-0.20221203120225-301a542115f8
 	github.com/libp2p/go-libp2p v0.23.2
 	github.com/libp2p/go-libp2p-gostream v0.5.0
 	github.com/libp2p/go-libp2p-pubsub v0.8.1
