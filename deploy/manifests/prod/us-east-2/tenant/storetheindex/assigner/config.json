@@ -61,7 +61,7 @@
   },
   "Peering": {
     "Peers": [
-      "/dns4/dido-indexer/tcp/3003/p2p/12D3KooWBHY2dGH8ngC6LjCiMC7JuRQf3DEb3Nk8neuntAGirb89"
+      "/dns4/dido-indexer/tcp/3003/p2p/12D3KooWBHY2dGH8ngC6LjCiMC7JuRQf3DEb3Nk8neuntAGirb89",
       "/dns4/keppa-indexer/tcp/3003/p2p/12D3KooWJMn6BzkMixb2w8hR83Jpvugbqw3pBXwHqmbiFxh7nHz3",
       "/dns4/oden-indexer/tcp/3003/p2p/12D3KooWGxW4Bqhc3aVjkDiUU7B3FmNC72v2D9eq1LB6aVHRHNTH"
     ]
