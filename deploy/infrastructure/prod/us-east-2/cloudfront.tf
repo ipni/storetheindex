@@ -1,6 +1,6 @@
 locals {
   indexstar_origin_id     = "${local.environment_name}_${local.region}_indexstar"
-  http_announce_origin_id = "${local.environment_name}_${local.region}_kepa"
+  http_announce_origin_id = "${local.environment_name}_${local.region}_assigner"
   cdn_subdomain           = "cdn"
 }
 
@@ -30,14 +30,14 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
   }
 
-  # The node named `kepa` in prod environment uses an identity that is whitelisted by Lotus 
+  # The node named `assigner` in prod environment uses an identity that is whitelisted by Lotus 
   # bootstrap nodes in order to relay gossipsub. That node is also configured to re-propagate 
   # HTTP announces over gossipsub.
   # Therefore, all HTTP announce requests are routed to it. 
   # 
-  # See: storetheindex/kepa-indexer ingress object.
+  # See: storetheindex/assigner ingress object.
   origin {
-    domain_name = "kepa.${aws_route53_zone.prod_external.name}"
+    domain_name = "assigner.${aws_route53_zone.prod_external.name}"
     origin_id   = local.http_announce_origin_id
     custom_origin_config {
       http_port              = 80
