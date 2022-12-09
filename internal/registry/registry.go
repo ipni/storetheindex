@@ -30,8 +30,8 @@ import (
 const (
 	// providerKeyPath is where provider info is stored in to indexer repo.
 	providerKeyPath       = "/registry/pinfo"
-	assignmentsKeyPath    = "/assignments-v1"
-	oldAssignmentsKeyPath = "/assignments"
+	assignmentsKeyPath    = "/assignments-v2"
+	oldAssignmentsKeyPath = "/assignments-v1"
 )
 
 var log = logging.Logger("indexer/registry")
@@ -271,7 +271,7 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 
 	if cfg.UseAssigner {
 		r.assigned = make(map[peer.ID]struct{})
-		if err = r.loadPersistedAssignments(ctx); err != nil {
+		if err = r.loadPersistedAssignments(ctx, cfg.RemoveOldAssignments); err != nil {
 			return nil, err
 		}
 		r.loadPreferredAssignments()
@@ -1049,7 +1049,7 @@ func (r *Registry) deleteAssignedPeer(peerID peer.ID) error {
 	return r.dstore.Delete(context.Background(), dsKey)
 }
 
-func (r *Registry) deleteOldAssignments(ctx context.Context, prefix string) error {
+func (r *Registry) migrateOldAssignments(ctx context.Context, prefix string, deleteOld bool) error {
 	q := query.Query{
 		Prefix:   prefix,
 		KeysOnly: true,
@@ -1065,7 +1065,21 @@ func (r *Registry) deleteOldAssignments(ctx context.Context, prefix string) erro
 	}
 
 	for i := range ents {
-		err = r.dstore.Delete(ctx, datastore.NewKey(ents[i].Key))
+		key := ents[i].Key
+		if !deleteOld {
+			peerID, err := peer.Decode(path.Base(key))
+			if err != nil {
+				log.Errorw("cannot decode assigned peer ID, removing")
+			} else {
+				dsKey := peerIDToDsKey(assignmentsKeyPath, peerID)
+				log.Debugw("Renamed assignment", "from", key, "to", dsKey)
+				err := r.dstore.Put(ctx, dsKey, []byte{})
+				if err != nil {
+					return err
+				}
+			}
+		}
+		err = r.dstore.Delete(ctx, datastore.NewKey(key))
 		if err != nil {
 			return err
 		}
@@ -1135,12 +1149,12 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) error {
 	return nil
 }
 
-func (r *Registry) loadPersistedAssignments(ctx context.Context) error {
+func (r *Registry) loadPersistedAssignments(ctx context.Context, deleteOld bool) error {
 	if r.dstore == nil {
 		return nil
 	}
 
-	err := r.deleteOldAssignments(ctx, oldAssignmentsKeyPath)
+	err := r.migrateOldAssignments(ctx, oldAssignmentsKeyPath, deleteOld)
 	if err != nil {
 		return err
 	}
