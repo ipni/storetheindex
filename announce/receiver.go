@@ -10,6 +10,8 @@ import (
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/storetheindex/announce/gossiptopic"
+	"github.com/ipni/storetheindex/announce/message"
+	"github.com/ipni/storetheindex/announce/p2psender"
 	"github.com/ipni/storetheindex/mautil"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -62,6 +64,7 @@ type Receiver struct {
 	done chan struct{}
 
 	cancelPubsub context.CancelFunc
+	sender       *p2psender.Sender
 	topic        *pubsub.Topic
 	topicSub     *pubsub.Subscription
 
@@ -93,7 +96,7 @@ func NewReceiver(p2pHost host.Host, topicName string, options ...Option) (*Recei
 	var err error
 
 	pubsubTopic := cfg.topic
-	if pubsubTopic == nil && p2pHost != nil {
+	if pubsubTopic == nil && p2pHost != nil && topicName != "" {
 		pubsubTopic, cancelPubsub, err = gossiptopic.MakeTopic(p2pHost, topicName)
 		if err != nil {
 			return nil, err
@@ -101,6 +104,7 @@ func NewReceiver(p2pHost host.Host, topicName string, options ...Option) (*Recei
 		log.Infow("Created gossip pubsub and joined topic", "topic", topicName, "hostID", p2pHost.ID())
 	}
 
+	var sender *p2psender.Sender
 	var topicSub *pubsub.Subscription
 	if pubsubTopic != nil {
 		topicSub, err = pubsubTopic.Subscribe()
@@ -108,6 +112,11 @@ func NewReceiver(p2pHost host.Host, topicName string, options ...Option) (*Recei
 			if cancelPubsub != nil {
 				cancelPubsub()
 			}
+			return nil, err
+		}
+
+		sender, err = p2psender.New(nil, "", p2psender.WithTopic(pubsubTopic))
+		if err != nil {
 			return nil, err
 		}
 	} else {
@@ -125,6 +134,7 @@ func NewReceiver(p2pHost host.Host, topicName string, options ...Option) (*Recei
 		done: make(chan struct{}),
 
 		cancelPubsub: cancelPubsub,
+		sender:       sender,
 		topic:        pubsubTopic,
 		topicSub:     topicSub,
 
@@ -190,6 +200,8 @@ func (r *Receiver) Close() error {
 		}
 		// Shutdown pubsub.
 		r.cancelPubsub()
+	} else if r.sender != nil {
+		err = r.sender.Close()
 	}
 
 	return err
@@ -247,7 +259,7 @@ func (r *Receiver) watch(ctx context.Context) {
 		}
 
 		// Decode CID and originator addresses from message.
-		m := gossiptopic.Message{}
+		m := message.Message{}
 		if err = m.UnmarshalCBOR(bytes.NewBuffer(msg.Data)); err != nil {
 			log.Errorw("Could not decode pubsub message", "err", err)
 			continue
@@ -368,14 +380,10 @@ func (r *Receiver) announceCheck(amsg Announce) error {
 }
 
 func (r *Receiver) republish(ctx context.Context, amsg Announce) error {
-	msg := gossiptopic.Message{
+	msg := message.Message{
 		Cid:      amsg.Cid,
 		OrigPeer: amsg.PeerID.String(),
 	}
 	msg.SetAddrs(amsg.Addrs)
-	msgBuf := bytes.NewBuffer(nil)
-	if err := msg.MarshalCBOR(msgBuf); err != nil {
-		return err
-	}
-	return r.topic.Publish(ctx, msgBuf.Bytes())
+	return r.sender.Send(ctx, msg)
 }

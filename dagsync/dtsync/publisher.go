@@ -1,22 +1,20 @@
 package dtsync
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"sync"
-	"time"
 
 	dt "github.com/filecoin-project/go-data-transfer"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipld/go-ipld-prime"
-	"github.com/ipni/storetheindex/announce/gossiptopic"
+	"github.com/ipni/storetheindex/announce"
+	"github.com/ipni/storetheindex/announce/message"
 	"github.com/ipni/storetheindex/dagsync/p2p/protocol/head"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/multiformats/go-multiaddr"
 )
@@ -26,107 +24,72 @@ type publisher struct {
 	closeOnce     sync.Once
 	dtManager     dt.Manager
 	dtClose       dtCloseFunc
+	extraData     []byte
 	headPublisher *head.Publisher
 	host          host.Host
-	extraData     []byte
-	topic         *pubsub.Topic
+	senders       []announce.Sender
 }
 
-const shutdownTime = 5 * time.Second
-
 // NewPublisher creates a new dagsync publisher.
-func NewPublisher(host host.Host, ds datastore.Batching, lsys ipld.LinkSystem, topic string, options ...Option) (*publisher, error) {
+func NewPublisher(host host.Host, ds datastore.Batching, lsys ipld.LinkSystem, topicName string, options ...Option) (*publisher, error) {
 	cfg := config{}
 	err := cfg.apply(options)
 	if err != nil {
 		return nil, err
 	}
 
-	var cancelPubsub context.CancelFunc
-	t := cfg.topic
-	if t == nil {
-		t, cancelPubsub, err = gossiptopic.MakeTopic(host, topic)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	dtManager, _, dtClose, err := makeDataTransfer(host, ds, lsys, cfg.allowPeer)
 	if err != nil {
-		if cancelPubsub != nil {
-			cancelPubsub()
-		}
 		return nil, err
 	}
 
 	headPublisher := head.NewPublisher()
-	startHeadPublisher(host, topic, headPublisher)
+	startHeadPublisher(host, topicName, headPublisher)
 
-	p := &publisher{
-		cancelPubSub:  cancelPubsub,
+	return &publisher{
 		dtManager:     dtManager,
 		dtClose:       dtClose,
+		extraData:     cfg.extraData,
 		headPublisher: headPublisher,
 		host:          host,
-		topic:         t,
-	}
-
-	if len(cfg.extraData) != 0 {
-		p.extraData = cfg.extraData
-	}
-	return p, nil
+		senders:       cfg.senders,
+	}, nil
 }
 
-func startHeadPublisher(host host.Host, topic string, headPublisher *head.Publisher) {
+func startHeadPublisher(host host.Host, topicName string, headPublisher *head.Publisher) {
 	go func() {
-		log.Infow("Starting head publisher for topic", "topic", topic, "host", host.ID())
-		err := headPublisher.Serve(host, topic)
+		log := log.With("topic", topicName, "host", host.ID())
+		log.Infow("Starting head publisher for topic")
+		err := headPublisher.Serve(host, topicName)
 		if err != http.ErrServerClosed {
-			log.Errorw("Head publisher stopped serving on topic on host", "topic", topic, "host", host.ID(), "err", err)
+			log.Errorw("Head publisher stopped serving on topic on host", "err", err)
 		}
-		log.Infow("Stopped head publisher", "host", host.ID(), "topic", topic)
+		log.Infow("Stopped head publisher")
 	}()
 }
 
 // NewPublisherFromExisting instantiates publishing on an existing
 // data transfer instance.
-func NewPublisherFromExisting(dtManager dt.Manager, host host.Host, topic string, lsys ipld.LinkSystem, options ...Option) (*publisher, error) {
+func NewPublisherFromExisting(dtManager dt.Manager, host host.Host, topicName string, lsys ipld.LinkSystem, options ...Option) (*publisher, error) {
 	cfg := config{}
 	err := cfg.apply(options)
 	if err != nil {
 		return nil, err
 	}
 
-	var cancelPubsub context.CancelFunc
-	t := cfg.topic
-	if t == nil {
-		t, cancelPubsub, err = gossiptopic.MakeTopic(host, topic)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	err = configureDataTransferForDagsync(context.Background(), dtManager, lsys, cfg.allowPeer)
 	if err != nil {
-		if cancelPubsub != nil {
-			cancelPubsub()
-		}
 		return nil, fmt.Errorf("cannot configure datatransfer: %w", err)
 	}
 	headPublisher := head.NewPublisher()
-	startHeadPublisher(host, topic, headPublisher)
+	startHeadPublisher(host, topicName, headPublisher)
 
-	p := &publisher{
-		cancelPubSub:  cancelPubsub,
+	return &publisher{
+		extraData:     cfg.extraData,
 		headPublisher: headPublisher,
 		host:          host,
-		topic:         t,
-	}
-
-	if len(cfg.extraData) != 0 {
-		p.extraData = cfg.extraData
-	}
-	return p, nil
+		senders:       cfg.senders,
+	}, nil
 }
 
 func (p *publisher) Addrs() []multiaddr.Multiaddr {
@@ -150,17 +113,24 @@ func (p *publisher) UpdateRootWithAddrs(ctx context.Context, c cid.Cid, addrs []
 	if err != nil {
 		return err
 	}
+	if len(p.senders) == 0 {
+		return nil
+	}
+
 	log.Debugf("Publishing CID and addresses in pubsub channel: %s", c)
-	msg := gossiptopic.Message{
+	msg := message.Message{
 		Cid:       c,
 		ExtraData: p.extraData,
 	}
 	msg.SetAddrs(addrs)
-	buf := bytes.NewBuffer(nil)
-	if err := msg.MarshalCBOR(buf); err != nil {
-		return err
+
+	var errs error
+	for _, sender := range p.senders {
+		if err = sender.Send(ctx, msg); err != nil {
+			errs = multierror.Append(errs, err)
+		}
 	}
-	return p.topic.Publish(ctx, buf.Bytes())
+	return errs
 }
 
 func (p *publisher) Close() error {
@@ -171,6 +141,12 @@ func (p *publisher) Close() error {
 			errs = multierror.Append(errs, err)
 		}
 
+		for _, sender := range p.senders {
+			if err = sender.Close(); err != nil {
+				errs = multierror.Append(errs, err)
+			}
+		}
+
 		if p.dtClose != nil {
 			err = p.dtClose()
 			if err != nil {
@@ -178,15 +154,9 @@ func (p *publisher) Close() error {
 			}
 		}
 
-		// If publisher owns the pubsub Topic, then leave topic and shutdown Pubsub.
-		if p.cancelPubSub != nil {
-			t := time.AfterFunc(shutdownTime, p.cancelPubSub)
-			if err = p.topic.Close(); err != nil {
-				log.Errorw("Failed to close pubsub topic", "err", err)
+		for _, sender := range p.senders {
+			if err = sender.Close(); err != nil {
 				errs = multierror.Append(errs, err)
-			}
-			if t.Stop() {
-				p.cancelPubSub()
 			}
 		}
 	})

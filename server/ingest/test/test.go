@@ -14,6 +14,8 @@ import (
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
+	"github.com/ipni/storetheindex/announce"
+	"github.com/ipni/storetheindex/announce/message"
 	v0 "github.com/ipni/storetheindex/api/v0"
 	"github.com/ipni/storetheindex/api/v0/ingest/client"
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
@@ -210,17 +212,26 @@ func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privat
 	}
 }
 
-func AnnounceTest(t *testing.T, peerID peer.ID, cl client.Ingest) {
+func AnnounceTest(t *testing.T, peerID peer.ID, sender announce.Sender) {
 	ai, err := peer.AddrInfoFromString(fmt.Sprintf("/ip4/127.0.0.1/tcp/9999/p2p/%s", peerID))
 	if err != nil {
 		t.Fatal(err)
 	}
 	ai.ID = peerID
 
-	mhs := util.RandomMultihashes(1, rng)
-
-	if err := cl.Announce(context.Background(), ai, cid.NewCidV1(22, mhs[0])); err != nil {
-		t.Fatalf("Failed to announce: %s", err)
+	p2pAddrs, err := peer.AddrInfoToP2pAddrs(ai)
+	if err != nil {
+		t.Fatal(err)
 	}
 
+	mhs := util.RandomMultihashes(1, rng)
+
+	msg := message.Message{
+		Cid: cid.NewCidV1(22, mhs[0]),
+	}
+	msg.SetAddrs(p2pAddrs)
+
+	if err = sender.Send(context.Background(), msg); err != nil {
+		t.Fatalf("Failed to announce: %s", err)
+	}
 }

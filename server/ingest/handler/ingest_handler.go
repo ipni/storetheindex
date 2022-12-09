@@ -9,7 +9,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-indexer-core"
-	"github.com/ipni/storetheindex/announce/gossiptopic"
+	"github.com/ipni/storetheindex/announce/message"
 	v0 "github.com/ipni/storetheindex/api/v0"
 	"github.com/ipni/storetheindex/api/v0/ingest/model"
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
@@ -126,7 +126,7 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 
 func (h *IngestHandler) Announce(r io.Reader) error {
 	// Decode CID and originator addresses from message.
-	an := gossiptopic.Message{}
+	an := message.Message{}
 	if err := an.UnmarshalCBOR(r); err != nil {
 		return err
 	}

@@ -15,6 +15,7 @@ import (
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
+	"github.com/ipni/storetheindex/announce/p2psender"
 	"github.com/ipni/storetheindex/dagsync"
 	"github.com/ipni/storetheindex/dagsync/dtsync"
 	"github.com/ipni/storetheindex/dagsync/test"
@@ -41,7 +42,10 @@ func initPubSub(t *testing.T, srcStore, dstStore datastore.Batching) (host.Host,
 
 	srcLnkS := test.MkLinkSystem(srcStore)
 
-	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic, dtsync.Topic(topics[0]), dtsync.WithExtraData([]byte("t01000")))
+	p2pSender, err := p2psender.New(nil, "", p2psender.WithTopic(topics[0]))
+	require.NoError(t, err)
+
+	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic, dtsync.WithExtraData([]byte("t01000")), dtsync.WithAnnounceSenders(p2pSender))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -161,7 +165,10 @@ func TestPublisherRejectsPeer(t *testing.T) {
 		return peerID != blockID
 	}
 
-	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic, dtsync.Topic(topics[0]), dtsync.AllowPeer(allowPeer))
+	p2pSender, err := p2psender.New(nil, "", p2psender.WithTopic(topics[0]))
+	require.NoError(t, err)
+
+	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic, dtsync.WithAllowPeer(allowPeer), dtsync.WithAnnounceSenders(p2pSender))
 	require.NoError(t, err)
 	defer pub.Close()
 

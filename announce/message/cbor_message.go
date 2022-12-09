@@ -3,7 +3,7 @@
 //
 // TODO: Convert Message into IPLD schema and use bindnode for serialization.
 
-package gossiptopic
+package message
 
 import (
 	"fmt"
