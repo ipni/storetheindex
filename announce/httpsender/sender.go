@@ -14,6 +14,8 @@ import (
 	"github.com/ipni/storetheindex/announce/message"
 )
 
+const DefaultAnnouncePath = "/ingest/announce"
+
 type Sender struct {
 	announceURLs []string
 	client       *http.Client
@@ -39,9 +41,16 @@ func New(announceURLs []*url.URL, options ...Option) (*Sender, error) {
 		}
 	}
 
-	urls := make([]string, len(announceURLs))
-	for i, u := range announceURLs {
-		urls[i] = u.String()
+	urls := make([]string, 0, len(announceURLs))
+	seen := make(map[string]struct{}, len(announceURLs))
+	for _, u := range announceURLs {
+		ustr := u.String()
+		if _, ok := seen[ustr]; ok {
+			// Skip duplicate.
+			continue
+		}
+		seen[ustr] = struct{}{}
+		urls = append(urls, ustr)
 	}
 
 	return &Sender{
@@ -73,11 +82,12 @@ func (s *Sender) Send(ctx context.Context, msg message.Message) error {
 	}
 
 	errChan := make(chan error)
+	data := buf.Bytes()
 	for _, u := range s.announceURLs {
 		// Send HTTP announce to indexers concurrently. If context is canceled,
 		// then requests will be canceled.
 		go func(announceURL string) {
-			err := s.sendAnnounce(ctx, announceURL, buf)
+			err := s.sendAnnounce(ctx, announceURL, bytes.NewBuffer(data))
 			if err != nil {
 				errChan <- fmt.Errorf("failed to send http announce to %s: %w", announceURL, err)
 				return

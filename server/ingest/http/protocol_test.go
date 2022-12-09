@@ -37,9 +37,7 @@ func setupClient(host string, t *testing.T) *httpclient.Client {
 }
 
 func setupSender(t *testing.T, baseURL string) *httpsender.Sender {
-	const announcePath = "/ingest/announce"
-
-	announceURL, err := url.Parse(baseURL + announcePath)
+	announceURL, err := url.Parse(baseURL + httpsender.DefaultAnnouncePath)
 	if err != nil {
 		t.Fatal(err)
 	}
