@@ -51,7 +51,8 @@
     "PollStopAfter": "168h0m0s",
     "PollOverrides": null,
     "RediscoverWait": "5m0s",
-    "Timeout": "2m0s"
+    "Timeout": "2m0s",
+    "UseAssigner": true
   },
   "Indexer": {
     "CacheSize": -1,
@@ -93,7 +94,7 @@
   },
   "Peering": {
     "Peers": [
-      "/dns4/kepa-indexer/tcp/3003/p2p/12D3KooWJMn6BzkMixb2w8hR83Jpvugbqw3pBXwHqmbiFxh7nHz3"
+      "/dns4/assigner/tcp/3003/p2p/12D3KooWQAymjDKMivbkUNiJP7ChRsvsDuazerHW4wERRvQMWNor"
     ]
   }
 }

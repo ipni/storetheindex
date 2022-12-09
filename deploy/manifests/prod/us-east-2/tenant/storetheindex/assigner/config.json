@@ -17,7 +17,11 @@
       },
       {
         "AdminURL": "http://oden-indexer:3002",
-        "IngestURL": "http://oden-indexer:3001"
+        "IngestURL": "http://oden-indexer:3001",
+        "PresetPeers": [
+          "QmQzqxhK82kAmKvARFZSkUVS6fo9sySaiogAnx5EnZ6ZmC",
+          "12D3KooW9yi2xLhXds9HC4x9vRN99mphq6ds8qN2YRf8zks1F32G"
+        ]
       }
     ],
     "Policy": {
@@ -25,7 +29,7 @@
       "Except": null
     },
     "PubSubTopic": "/indexer/ingest/mainnet",
-    "Replication": 1
+    "Replication": 2
   },
   "Bootstrap": {
     "Peers": [
@@ -49,7 +53,7 @@
   },
   "Daemon": {
     "HTTPAddr": "/ip4/0.0.0.0/tcp/3001",
-    "P2PAddr": "/ip4/0.0.0.0/tcp/3000",
+    "P2PAddr": "/ip4/0.0.0.0/tcp/3003",
     "NoResourceManager": false
   },
   "Logging": {
