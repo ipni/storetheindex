@@ -94,7 +94,7 @@
   },
   "Peering": {
     "Peers": [
-      "/dns4/ber-indexer/tcp/3003/p2p/12D3KooWSQpUgBZwbNuMN3ctZjMesnoH9UDhwEXroxParXQCgurN"
+      "/dns4/assigner/tcp/3003/p2p/12D3KooWDBjcDRQ7CKJeF9Yy3UKbriHfyETDrXKzTDB6biH3ibBd"
     ]
   }
 }

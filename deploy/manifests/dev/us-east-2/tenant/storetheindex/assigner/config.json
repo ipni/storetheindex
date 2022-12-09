@@ -45,7 +45,7 @@
   },
   "Daemon": {
     "HTTPAddr": "/ip4/0.0.0.0/tcp/3001",
-    "P2PAddr": "/ip4/0.0.0.0/tcp/3000",
+    "P2PAddr": "/ip4/0.0.0.0/tcp/3003",
     "NoResourceManager": false
   },
   "Logging": {
