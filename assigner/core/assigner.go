@@ -126,6 +126,13 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 
 	log.Infof("Assigner operating with %d indexers", len(indexerPool))
 
+	replication := cfg.Replication
+	if replication <= 0 {
+		replication = 1
+	} else if replication > len(indexerPool) {
+		replication = len(indexerPool)
+	}
+
 	a := &Assigner{
 		assigned:    make(map[peer.ID]*assignment),
 		indexerPool: indexerPool,
@@ -133,7 +140,7 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 		policy:      policy,
 		presets:     presets,
 		receiver:    rcvr,
-		replication: cfg.Replication,
+		replication: replication,
 		watchDone:   make(chan struct{}),
 	}
 
@@ -451,9 +458,6 @@ func (a *Assigner) checkAssignment(pubID peer.ID) (*assignment, int) {
 		required = len(preset)
 	} else {
 		required = a.replication
-		if required == 0 {
-			required = len(a.indexerPool)
-		}
 	}
 
 	a.mutex.Lock()

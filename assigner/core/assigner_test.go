@@ -505,7 +505,7 @@ func TestPoolIndexerOffline(t *testing.T) {
 		PubSubTopic: "testtopic",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Should not get all initial assignments.
@@ -513,9 +513,7 @@ func TestPoolIndexerOffline(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, assigner.InitDone())
 
-	// Allow second indexer to work so that initialization can complete, and
-	// check that it is done after processing another announce.
-	close(ready)
+	// ----- Announce an unassigned publisher and check that it does not get assigned. -----
 
 	asmtChan, cancel := assigner.OnAssignment(peer2ID)
 	defer cancel()
@@ -526,11 +524,25 @@ func TestPoolIndexerOffline(t *testing.T) {
 		ID:    peer2ID,
 		Addrs: []multiaddr.Multiaddr{a},
 	}
-
 	err = assigner.Announce(ctx, adCid, addrInfo)
 	require.NoError(t, err)
 
-	timeout := time.NewTimer(3 * time.Second)
+	timeout := time.NewTimer(2 * time.Second)
+	select {
+	case <-asmtChan:
+		t.Fatal("shouold not see assignment with offline indexer")
+	case <-timeout.C:
+	}
+	require.False(t, assigner.InitDone())
+
+	// ----- Allow second indexer to work so that initialization can complete. ---
+	close(ready)
+
+	adCid, _ = cid.Decode("QmNiV8rwXeC92hufGNu5qJ6L9AygrvDyi63gEpCQaqsE9B")
+	err = assigner.Announce(ctx, adCid, addrInfo)
+	require.NoError(t, err)
+
+	timeout.Reset(2 * time.Second)
 	select {
 	case <-asmtChan:
 	case <-timeout.C:
