@@ -463,7 +463,7 @@ func TestPoolIndexerOffline(t *testing.T) {
 		select {
 		case <-ready:
 		default:
-			http.Error(w, "not ready", 503)
+			http.Error(w, "not ready", http.StatusServiceUnavailable)
 			return
 		}
 
