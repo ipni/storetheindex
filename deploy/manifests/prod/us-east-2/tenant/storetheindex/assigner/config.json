@@ -12,8 +12,8 @@
         "IngestURL": "http://dido-indexer:3001"
       },
       {
-        "AdminURL": "http://keppa-indexer:3002",
-        "IngestURL": "http://keppa-indexer:3001"
+        "AdminURL": "http://kepa-indexer:3002",
+        "IngestURL": "http://kepa-indexer:3001"
       },
       {
         "AdminURL": "http://oden-indexer:3002",
