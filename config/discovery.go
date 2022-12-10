@@ -49,6 +49,10 @@ type Discovery struct {
 	// Timeout is the maximum amount of time that the indexer will spend trying
 	// to discover and verify a new provider.
 	Timeout Duration
+	// RemoveOldAssignments, if true, removes persisted assignments of previous
+	// versions. When false, previous versions of persisted assignments are
+	// migrated. Only applies if UseAssigner is true.
+	RemoveOldAssignments bool
 	// UseAssigner configures the indexer to work with an assigner service.
 	// This also requires that Policy.Allow is false, making Policy.Except into
 	// a list of allowed peers. Peers listed in Policy.Except in the

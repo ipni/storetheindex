@@ -58,6 +58,7 @@
     ],
     "RediscoverWait": "5m0s",
     "Timeout": "2m0s",
+    "RemoveOldAssignments": true,
     "UseAssigner": true
   },
   "Indexer": {
