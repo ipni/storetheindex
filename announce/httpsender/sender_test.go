@@ -2,9 +2,11 @@ package httpsender_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -157,7 +159,7 @@ func TestSendTimeout(t *testing.T) {
 	sendCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	err = sender.Send(sendCtx, msg)
-	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Truef(t, errors.Is(err, context.DeadlineExceeded) || strings.Contains(err.Error(), "i/o timeout"), "error is %q", err)
 
 	// Test client timeout.
 	sender.Close()
@@ -165,5 +167,5 @@ func TestSendTimeout(t *testing.T) {
 	require.NoError(t, err)
 	defer sender.Close()
 	err = sender.Send(context.Background(), msg)
-	require.ErrorContains(t, err, "Client.Timeout exceeded")
+	require.Truef(t, strings.Contains(err.Error(), "Client.Timeout exceeded") || strings.Contains(err.Error(), "i/o timeout"), "error is %q", err)
 }
