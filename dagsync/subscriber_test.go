@@ -785,6 +785,7 @@ func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostS
 		p2pSender, err := p2psender.New(pubSys.host, topicName)
 		require.NoError(t, err)
 		pub, err = dtsync.NewPublisher(pubSys.host, pubSys.ds, pubSys.lsys, topicName, dtsync.WithAnnounceSenders(p2pSender))
+		require.NoError(t, err)
 		pubAddr = pubSys.host.Addrs()[0]
 	}
 	require.NoError(t, err)

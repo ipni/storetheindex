@@ -20,7 +20,6 @@ import (
 )
 
 type publisher struct {
-	cancelPubSub  context.CancelFunc
 	closeOnce     sync.Once
 	dtManager     dt.Manager
 	dtClose       dtCloseFunc
