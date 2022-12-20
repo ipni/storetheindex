@@ -12,16 +12,18 @@ type config struct {
 	senders   []announce.Sender
 }
 
+// Option is a function that sets a value in a config.
 type Option func(*config) error
 
-// apply applies the given options to this config.
-func (c *config) apply(opts []Option) error {
+// getOpts creates a config and applies Options to it.
+func getOpts(opts []Option) (config, error) {
+	var cfg config
 	for i, opt := range opts {
-		if err := opt(c); err != nil {
-			return fmt.Errorf("option %d failed: %s", i, err)
+		if err := opt(&cfg); err != nil {
+			return config{}, fmt.Errorf("option %d failed: %s", i, err)
 		}
 	}
-	return nil
+	return cfg, nil
 }
 
 // WithAnnounceSenders sets announce.Senders to use for sending announcements.

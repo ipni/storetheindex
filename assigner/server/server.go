@@ -29,12 +29,11 @@ type Server struct {
 	listener net.Listener
 }
 
-func New(listen string, assigner *core.Assigner, options ...ServerOption) (*Server, error) {
-	var cfg serverConfig
-	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
+func New(listen string, assigner *core.Assigner, options ...Option) (*Server, error) {
+	opts, err := getOpts(options...)
+	if err != nil {
 		return nil, err
 	}
-	var err error
 
 	l, err := net.Listen("tcp", listen)
 	if err != nil {
@@ -44,8 +43,8 @@ func New(listen string, assigner *core.Assigner, options ...ServerOption) (*Serv
 	r := mux.NewRouter().StrictSlash(true)
 	server := &http.Server{
 		Handler:      r,
-		WriteTimeout: cfg.apiWriteTimeout,
-		ReadTimeout:  cfg.apiReadTimeout,
+		WriteTimeout: opts.writeTimeout,
+		ReadTimeout:  opts.readTimeout,
 	}
 	s := &Server{
 		assigner: assigner,

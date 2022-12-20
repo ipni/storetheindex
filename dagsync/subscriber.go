@@ -27,17 +27,8 @@ import (
 
 var log = logging.Logger("dagsync")
 
-// defaultAddrTTL is the default amount of time that addresses discovered from
-// pubsub messages will remain in the peerstore. This is twice the default
-// provider poll interval.
 const (
-	defaultAddrTTL       = 48 * time.Hour
-	tempAddrTTL          = 24 * time.Hour // must be long enough for ad chain to sync
-	defaultSegDepthLimit = -1             // Segmented sync disabled.
-
-	// defaultIdleHandlerTTL is the default time after which idle publisher
-	// handlers are removed.
-	defaultIdleHandlerTTL = time.Hour
+	tempAddrTTL = 24 * time.Hour // must be long enough for ad chain to sync
 )
 
 // BlockHookFunc is the signature of a function that is called when a received.
@@ -164,12 +155,7 @@ func wrapBlockHook() (*sync.RWMutex, map[peer.ID]func(peer.ID, cid.Cid), func(pe
 
 // NewSubscriber creates a new Subscriber that process pubsub messages.
 func NewSubscriber(host host.Host, ds datastore.Batching, lsys ipld.LinkSystem, topic string, dss ipld.Node, options ...Option) (*Subscriber, error) {
-	cfg := config{
-		addrTTL:        defaultAddrTTL,
-		idleHandlerTTL: defaultIdleHandlerTTL,
-		segDepthLimit:  defaultSegDepthLimit,
-	}
-	err := cfg.apply(options)
+	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
 	}
@@ -177,11 +163,11 @@ func NewSubscriber(host host.Host, ds datastore.Batching, lsys ipld.LinkSystem, 
 	scopedBlockHookMutex, scopedBlockHook, blockHook := wrapBlockHook()
 
 	var dtSync *dtsync.Sync
-	if cfg.dtManager != nil {
+	if opts.dtManager != nil {
 		if ds != nil {
 			return nil, fmt.Errorf("datastore cannot be used with DtManager option")
 		}
-		dtSync, err = dtsync.NewSyncWithDT(host, cfg.dtManager, cfg.graphExchange, &lsys, blockHook)
+		dtSync, err = dtsync.NewSyncWithDT(host, opts.dtManager, opts.graphExchange, &lsys, blockHook)
 	} else {
 		dtSync, err = dtsync.NewSync(host, ds, lsys, blockHook)
 	}
@@ -194,16 +180,16 @@ func NewSubscriber(host host.Host, ds datastore.Batching, lsys ipld.LinkSystem, 
 		return nil, err
 	}
 
-	latestSyncHandler := cfg.latestSyncHandler
+	latestSyncHandler := opts.latestSyncHandler
 	if latestSyncHandler == nil {
 		latestSyncHandler = &DefaultLatestSyncHandler{}
 	}
 
 	rcvr, err := announce.NewReceiver(host, topic,
-		announce.WithAllowPeer(cfg.allowPeer),
-		announce.WithFilterIPs(cfg.filterIPs),
-		announce.WithResend(cfg.resendAnnounce),
-		announce.WithTopic(cfg.topic))
+		announce.WithAllowPeer(opts.allowPeer),
+		announce.WithFilterIPs(opts.filterIPs),
+		announce.WithResend(opts.resendAnnounce),
+		announce.WithTopic(opts.topic))
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +198,7 @@ func NewSubscriber(host host.Host, ds datastore.Batching, lsys ipld.LinkSystem, 
 		dss:  dss,
 		host: host,
 
-		addrTTL:   cfg.addrTTL,
+		addrTTL:   opts.addrTTL,
 		closing:   make(chan struct{}),
 		watchDone: make(chan struct{}),
 
@@ -220,20 +206,20 @@ func NewSubscriber(host host.Host, ds datastore.Batching, lsys ipld.LinkSystem, 
 		inEvents: make(chan SyncFinished, 1),
 
 		dtSync:       dtSync,
-		httpSync:     httpsync.NewSync(lsys, cfg.httpClient, blockHook),
-		syncRecLimit: cfg.syncRecLimit,
+		httpSync:     httpsync.NewSync(lsys, opts.httpClient, blockHook),
+		syncRecLimit: opts.syncRecLimit,
 
 		httpPeerstore: httpPeerstore,
 
 		scopedBlockHookMutex: scopedBlockHookMutex,
 		scopedBlockHook:      scopedBlockHook,
-		generalBlockHook:     cfg.blockHook,
+		generalBlockHook:     opts.blockHook,
 
-		idleHandlerTTL:   cfg.idleHandlerTTL,
+		idleHandlerTTL:   opts.idleHandlerTTL,
 		latestSyncHander: latestSyncHandler,
 
-		segDepthLimit:  cfg.segDepthLimit,
-		rateLimiterFor: cfg.rateLimiterFor,
+		segDepthLimit:  opts.segDepthLimit,
+		rateLimiterFor: opts.rateLimiterFor,
 
 		receiver: rcvr,
 	}
@@ -406,15 +392,11 @@ func (s *Subscriber) RemoveHandler(peerID peer.ID) bool {
 // only specify the selection sequence itself.
 //
 // See: ExploreRecursiveWithStopNode.
-func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, sel ipld.Node, peerAddr multiaddr.Multiaddr, opts ...SyncOption) (cid.Cid, error) {
-	cfg := &syncCfg{
-		// Fall back on general block hook if scoped block hook is not specified.
-		scopedBlockHook: s.generalBlockHook,
-		segDepthLimit:   s.segDepthLimit,
-	}
-	for _, opt := range opts {
-		opt(cfg)
-	}
+func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, sel ipld.Node, peerAddr multiaddr.Multiaddr, options ...SyncOption) (cid.Cid, error) {
+	defaultOptions := []SyncOption{
+		ScopedBlockHook(s.generalBlockHook),
+		ScopedSegmentDepthLimit(s.segDepthLimit)}
+	opts := getSyncOpts(append(defaultOptions, options...))
 
 	if peerID == "" {
 		return cid.Undef, errors.New("empty peer id")
@@ -426,12 +408,12 @@ func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, 
 	if peerAddr != nil {
 		peerAddrs = []multiaddr.Multiaddr{peerAddr}
 	}
-	syncer, isHttp, err := s.makeSyncer(peerID, peerAddrs, tempAddrTTL, cfg.rateLimiter)
+	syncer, isHttp, err := s.makeSyncer(peerID, peerAddrs, tempAddrTTL, opts.rateLimiter)
 	if err != nil {
 		return cid.Undef, err
 	}
 
-	updateLatest := cfg.alwaysUpdateLatest
+	updateLatest := opts.alwaysUpdateLatest
 	if nextCid == cid.Undef {
 		// Query the peer for the latest CID
 		nextCid, err = syncer.GetHead(ctx)
@@ -483,7 +465,7 @@ func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, 
 		defer hnd.latestSyncMu.Unlock()
 	}
 
-	syncedCids, err := hnd.handle(ctx, nextCid, sel, wrapSel, syncer, cfg.scopedBlockHook, cfg.segDepthLimit)
+	syncedCids, err := hnd.handle(ctx, nextCid, sel, wrapSel, syncer, opts.scopedBlockHook, opts.segDepthLimit)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("sync handler failed: %w", err)
 	}

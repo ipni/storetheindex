@@ -85,17 +85,14 @@ type Announce struct {
 // NewReceiver creates a new Receiver that subscribes to the named pubsub topic
 // and is listening for announce messages.
 func NewReceiver(p2pHost host.Host, topicName string, options ...Option) (*Receiver, error) {
-	cfg := config{}
-	for i, opt := range options {
-		if err := opt(&cfg); err != nil {
-			return nil, fmt.Errorf("option %d failed: %s", i, err)
-		}
+	opts, err := getOpts(options)
+	if err != nil {
+		return nil, err
 	}
 
 	var cancelPubsub context.CancelFunc
-	var err error
 
-	pubsubTopic := cfg.topic
+	pubsubTopic := opts.topic
 	if pubsubTopic == nil && p2pHost != nil && topicName != "" {
 		pubsubTopic, cancelPubsub, err = gossiptopic.MakeTopic(p2pHost, topicName)
 		if err != nil {
@@ -121,13 +118,13 @@ func NewReceiver(p2pHost host.Host, topicName string, options ...Option) (*Recei
 		}
 	} else {
 		// Cannot republish if pubsub not available.
-		cfg.resend = false
+		opts.resend = false
 	}
 
 	r := &Receiver{
-		allowPeer: cfg.allowPeer,
-		filterIPs: cfg.filterIPs,
-		resend:    cfg.resend,
+		allowPeer: opts.allowPeer,
+		filterIPs: opts.filterIPs,
+		resend:    opts.resend,
 
 		announceCache: newStringLRU(announceCacheSize),
 

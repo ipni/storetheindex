@@ -21,14 +21,13 @@ type Sender struct {
 
 // New creates a new Sender that sends announce messages over pubsub.
 func New(p2pHost host.Host, topicName string, options ...Option) (*Sender, error) {
-	cfg := config{}
-	err := cfg.apply(options)
+	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
 	}
 
 	var cancelPubsub context.CancelFunc
-	topic := cfg.topic
+	topic := opts.topic
 	if topic == nil {
 		if topicName != "" {
 			topic, cancelPubsub, err = gossiptopic.MakeTopic(p2pHost, topicName)

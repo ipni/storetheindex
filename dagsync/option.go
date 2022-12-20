@@ -16,6 +16,18 @@ import (
 	"golang.org/x/time/rate"
 )
 
+const (
+	// defaultAddrTTL is the default amount of time that addresses discovered
+	// from pubsub messages will remain in the peerstore. This is twice the
+	// default provider poll interval.
+	defaultAddrTTL = 48 * time.Hour
+	// defaultIdleHandlerTTL is the default time after which idle publisher
+	// handlers are removed.
+	defaultIdleHandlerTTL = time.Hour
+	// defaultSegDepthLimit disables (-1) segmented sync by default.
+	defaultSegDepthLimit = -1
+)
+
 // config contains all options for configuring Subscriber.
 type config struct {
 	addrTTL   time.Duration
@@ -41,16 +53,23 @@ type config struct {
 	segDepthLimit int64
 }
 
+// Option is a function that sets a value in a config.
 type Option func(*config) error
 
-// apply applies the given options to this config.
-func (c *config) apply(opts []Option) error {
+// getOpts creates a config and applies Options to it.
+func getOpts(opts []Option) (config, error) {
+	cfg := config{
+		addrTTL:        defaultAddrTTL,
+		idleHandlerTTL: defaultIdleHandlerTTL,
+		segDepthLimit:  defaultSegDepthLimit,
+	}
+
 	for i, opt := range opts {
-		if err := opt(c); err != nil {
-			return fmt.Errorf("option %d failed: %s", i, err)
+		if err := opt(&cfg); err != nil {
+			return config{}, fmt.Errorf("option %d failed: %s", i, err)
 		}
 	}
-	return nil
+	return cfg, nil
 }
 
 // AllowPeer sets the function that determines whether to allow or reject
@@ -207,6 +226,15 @@ type syncCfg struct {
 }
 
 type SyncOption func(*syncCfg)
+
+// getSyncOpts creates a syncCfg and applies SyncOptions to it.
+func getSyncOpts(opts []SyncOption) syncCfg {
+	var cfg syncCfg
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return cfg
+}
 
 func AlwaysUpdateLatest() SyncOption {
 	return func(sc *syncCfg) {

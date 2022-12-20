@@ -26,18 +26,15 @@ func New(announceURLs []*url.URL, options ...Option) (*Sender, error) {
 		return nil, errors.New("no announce urls")
 	}
 
-	cfg := config{
-		timeout: defaultTimeout,
-	}
-	err := cfg.apply(options)
+	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
 	}
 
-	client := cfg.client
+	client := opts.client
 	if client == nil {
 		client = &http.Client{
-			Timeout: cfg.timeout,
+			Timeout: opts.timeout,
 		}
 	}
 

@@ -40,8 +40,7 @@ var _ http.Handler = (*publisher)(nil)
 // NewPublisher creates a new http publisher, listening on the specified
 // address.
 func NewPublisher(address string, lsys ipld.LinkSystem, peerID peer.ID, privKey ic.PrivKey, options ...Option) (*publisher, error) {
-	cfg := config{}
-	err := cfg.apply(options)
+	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
 	}
@@ -63,12 +62,13 @@ func NewPublisher(address string, lsys ipld.LinkSystem, peerID peer.ID, privKey 
 	proto, _ := multiaddr.NewMultiaddr("/http")
 
 	pub := &publisher{
-		addr:    multiaddr.Join(maddr, proto),
-		closer:  l,
-		lsys:    lsys,
-		peerID:  peerID,
-		privKey: privKey,
-		senders: cfg.senders,
+		addr:      multiaddr.Join(maddr, proto),
+		closer:    l,
+		lsys:      lsys,
+		peerID:    peerID,
+		privKey:   privKey,
+		senders:   opts.senders,
+		extraData: opts.extraData,
 	}
 
 	// Run service on configured port.
