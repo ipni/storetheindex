@@ -376,7 +376,7 @@ func (a *Assigner) OnAssignment(pubID peer.ID) (<-chan int, context.CancelFunc) 
 	}
 
 	if !ok {
-		noticeChan = make(chan int, 1)
+		noticeChan = make(chan int, len(a.indexerPool))
 		a.waitingNotice[pubID] = noticeChan
 	}
 
@@ -393,11 +393,8 @@ func (a *Assigner) notifyAssignment(pubID peer.ID, indexerNum int) {
 	if !ok {
 		return
 	}
-	select {
-	case noticeChan <- indexerNum:
-	default:
-		// Do not stall because there is no reader.
-	}
+	// Will never block because channel size is same as pool size.
+	noticeChan <- indexerNum
 }
 
 func (a *Assigner) closeNotifyAssignment(pubID peer.ID) {
