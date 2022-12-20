@@ -19,6 +19,7 @@ import (
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
+	"github.com/ipni/storetheindex/announce/p2psender"
 	"github.com/ipni/storetheindex/dagsync"
 	"github.com/ipni/storetheindex/dagsync/dtsync"
 	"github.com/ipni/storetheindex/dagsync/httpsync"
@@ -410,11 +411,17 @@ func TestRoundTrip(t *testing.T) {
 
 	topics := test.WaitForMeshWithMessage(t, "testTopic", srcHost1, srcHost2, dstHost)
 
-	pub1, err := dtsync.NewPublisher(srcHost1, srcStore1, srcLnkS1, "", dtsync.Topic(topics[0]))
+	p2pSender, err := p2psender.New(nil, "", p2psender.WithTopic(topics[0]))
+	require.NoError(t, err)
+
+	pub1, err := dtsync.NewPublisher(srcHost1, srcStore1, srcLnkS1, "", dtsync.WithAnnounceSenders(p2pSender))
 	require.NoError(t, err)
 	defer pub1.Close()
 
-	pub2, err := dtsync.NewPublisher(srcHost2, srcStore2, srcLnkS2, "", dtsync.Topic(topics[1]))
+	p2pSender, err = p2psender.New(nil, "", p2psender.WithTopic(topics[1]))
+	require.NoError(t, err)
+
+	pub2, err := dtsync.NewPublisher(srcHost2, srcStore2, srcLnkS2, "", dtsync.WithAnnounceSenders(p2pSender))
 	require.NoError(t, err)
 	defer pub2.Close()
 
@@ -775,7 +782,10 @@ func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostS
 		pubAddr = httpPub.Addrs()[0]
 		pub = httpPub
 	} else {
-		pub, err = dtsync.NewPublisher(pubSys.host, pubSys.ds, pubSys.lsys, topicName)
+		p2pSender, err := p2psender.New(pubSys.host, topicName)
+		require.NoError(t, err)
+		pub, err = dtsync.NewPublisher(pubSys.host, pubSys.ds, pubSys.lsys, topicName, dtsync.WithAnnounceSenders(p2pSender))
+		require.NoError(t, err)
 		pubAddr = pubSys.host.Addrs()[0]
 	}
 	require.NoError(t, err)

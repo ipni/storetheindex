@@ -3,15 +3,15 @@ package dtsync
 import (
 	"fmt"
 
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/ipni/storetheindex/announce"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // config contains all options for configuring dtsync.publisher.
 type config struct {
 	extraData []byte
-	topic     *pubsub.Topic
 	allowPeer func(peer.ID) bool
+	senders   []announce.Sender
 }
 
 type Option func(*config) error
@@ -36,19 +36,21 @@ func WithExtraData(data []byte) Option {
 	}
 }
 
-// Topic provides an existing pubsub topic.
-func Topic(topic *pubsub.Topic) Option {
+// WithAllowPeer sets the function that determines whether to allow or reject
+// graphsync sessions from a peer.
+func WithAllowPeer(allowPeer func(peer.ID) bool) Option {
 	return func(c *config) error {
-		c.topic = topic
+		c.allowPeer = allowPeer
 		return nil
 	}
 }
 
-// AllowPeer sets the function that determines whether to allow or reject
-// graphsync sessions from a peer.
-func AllowPeer(allowPeer func(peer.ID) bool) Option {
+// WithAnnounceSenders sets announce.Senders to use for sending announcements.
+func WithAnnounceSenders(senders ...announce.Sender) Option {
 	return func(c *config) error {
-		c.allowPeer = allowPeer
+		if len(senders) != 0 {
+			c.senders = senders
+		}
 		return nil
 	}
 }

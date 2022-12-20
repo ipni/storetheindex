@@ -2,9 +2,11 @@ package httpingestserver_test
 
 import (
 	"net/http"
+	"net/url"
 	"testing"
 
 	indexer "github.com/ipni/go-indexer-core"
+	"github.com/ipni/storetheindex/announce/httpsender"
 	httpclient "github.com/ipni/storetheindex/api/v0/ingest/client/http"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/ingest"
@@ -32,6 +34,20 @@ func setupClient(host string, t *testing.T) *httpclient.Client {
 		t.Fatal(err)
 	}
 	return c
+}
+
+func setupSender(t *testing.T, baseURL string) *httpsender.Sender {
+	announceURL, err := url.Parse(baseURL + httpsender.DefaultAnnouncePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	httpSender, err := httpsender.New([]*url.URL{announceURL})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return httpSender
 }
 
 func TestRegisterProvider(t *testing.T) {
@@ -73,7 +89,7 @@ func TestAnnounce(t *testing.T) {
 	reg := test.InitRegistry(t, providerIdent.PeerID)
 	ing := test.InitIngest(t, ind, reg)
 	s := setupServer(ind, ing, reg, t)
-	httpClient := setupClient(s.URL(), t)
+	httpSender := setupSender(t, s.URL())
 	peerID, _, err := providerIdent.Decode()
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +103,7 @@ func TestAnnounce(t *testing.T) {
 		close(errChan)
 	}()
 
-	test.AnnounceTest(t, peerID, httpClient)
+	test.AnnounceTest(t, peerID, httpSender)
 
 	if err = reg.Close(); err != nil {
 		t.Errorf("Error closing registry: %s", err)

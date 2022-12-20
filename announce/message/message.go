@@ -1,4 +1,4 @@
-package gossiptopic
+package message
 
 import (
 	"errors"
@@ -9,10 +9,16 @@ import (
 
 var ErrBadEncoding = errors.New("invalid message encoding")
 
-// Message is the payload of a gossip pubsub message.
+// Message announces the availability of an IPNI advertisement..
 type Message struct {
-	Cid       cid.Cid
-	Addrs     [][]byte
+	// Cid identifies the advertisement being announced.
+	Cid cid.Cid
+	// Addrs contains a set of multiaddrs that specify where the announced
+	// advertisement is available. See SetAddrs and GetAddrs.
+	Addrs [][]byte
+	// ExtraData is optional data indended for a certain recipients. For
+	// example, a publisher may include its storage provider ID for validation
+	// by a gateway.
 	ExtraData []byte
 	// The OrigPeer field may or may not be present in the serialized data, and
 	// the CBOR serializer/deserializer is able to detect that. Only messages

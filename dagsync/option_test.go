@@ -8,8 +8,11 @@ import (
 )
 
 func TestSyncRecursionLimit_DefaultsToNone(t *testing.T) {
-	cfg := config{}
-	if !reflect.DeepEqual(selector.RecursionLimitNone(), cfg.syncRecLimit) {
+	opts, err := getOpts(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(selector.RecursionLimitNone(), opts.syncRecLimit) {
 		t.Fail()
 	}
 }

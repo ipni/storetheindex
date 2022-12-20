@@ -9,11 +9,14 @@ import (
 	"path"
 	"sync"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
+	"github.com/ipni/storetheindex/announce"
+	"github.com/ipni/storetheindex/announce/message"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -21,20 +24,27 @@ import (
 )
 
 type publisher struct {
-	addr    multiaddr.Multiaddr
-	closer  io.Closer
-	lsys    ipld.LinkSystem
-	peerID  peer.ID
-	privKey ic.PrivKey
-	rl      sync.RWMutex
-	root    cid.Cid
+	addr      multiaddr.Multiaddr
+	closer    io.Closer
+	lsys      ipld.LinkSystem
+	peerID    peer.ID
+	privKey   ic.PrivKey
+	rl        sync.RWMutex
+	root      cid.Cid
+	senders   []announce.Sender
+	extraData []byte
 }
 
 var _ http.Handler = (*publisher)(nil)
 
 // NewPublisher creates a new http publisher, listening on the specified
 // address.
-func NewPublisher(address string, lsys ipld.LinkSystem, peerID peer.ID, privKey ic.PrivKey) (*publisher, error) {
+func NewPublisher(address string, lsys ipld.LinkSystem, peerID peer.ID, privKey ic.PrivKey, options ...Option) (*publisher, error) {
+	opts, err := getOpts(options)
+	if err != nil {
+		return nil, err
+	}
+
 	if privKey == nil {
 		return nil, errors.New("private key required to sign head requests")
 	}
@@ -52,11 +62,13 @@ func NewPublisher(address string, lsys ipld.LinkSystem, peerID peer.ID, privKey 
 	proto, _ := multiaddr.NewMultiaddr("/http")
 
 	pub := &publisher{
-		addr:    multiaddr.Join(maddr, proto),
-		closer:  l,
-		lsys:    lsys,
-		peerID:  peerID,
-		privKey: privKey,
+		addr:      multiaddr.Join(maddr, proto),
+		closer:    l,
+		lsys:      lsys,
+		peerID:    peerID,
+		privKey:   privKey,
+		senders:   opts.senders,
+		extraData: opts.extraData,
 	}
 
 	// Run service on configured port.
@@ -83,21 +95,52 @@ func (p *publisher) SetRoot(ctx context.Context, c cid.Cid) error {
 }
 
 func (p *publisher) UpdateRoot(ctx context.Context, c cid.Cid) error {
-	return p.SetRoot(ctx, c)
+	return p.UpdateRootWithAddrs(ctx, c, p.Addrs())
 }
 
-func (p *publisher) UpdateRootWithAddrs(ctx context.Context, c cid.Cid, _ []multiaddr.Multiaddr) error {
-	return p.UpdateRoot(ctx, c)
+func (p *publisher) UpdateRootWithAddrs(ctx context.Context, c cid.Cid, addrs []multiaddr.Multiaddr) error {
+	err := p.SetRoot(ctx, c)
+	if err != nil {
+		return err
+	}
+	if len(p.senders) == 0 {
+		return nil
+	}
+
+	log.Debugf("Publishing CID and addresses over HTTP: %s", c)
+	msg := message.Message{
+		Cid:       c,
+		ExtraData: p.extraData,
+	}
+	msg.SetAddrs(addrs)
+
+	var errs error
+	for _, sender := range p.senders {
+		if err = sender.Send(ctx, msg); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+	return errs
 }
 
 func (p *publisher) Close() error {
-	return p.closer.Close()
+	var errs error
+	err := p.closer.Close()
+	if err != nil {
+		errs = multierror.Append(errs, err)
+	}
+	for _, sender := range p.senders {
+		if err = sender.Close(); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+	return errs
 }
 
 func (p *publisher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ask := path.Base(r.URL.Path)
 	if ask == "head" {
-		// serve the
+		// serve the head
 		p.rl.RLock()
 		defer p.rl.RUnlock()
 

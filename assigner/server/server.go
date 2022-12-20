@@ -9,7 +9,7 @@ import (
 
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/ipni/storetheindex/announce/gossiptopic"
+	"github.com/ipni/storetheindex/announce/message"
 	"github.com/ipni/storetheindex/assigner/core"
 	"github.com/ipni/storetheindex/version"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -29,12 +29,11 @@ type Server struct {
 	listener net.Listener
 }
 
-func New(listen string, assigner *core.Assigner, options ...ServerOption) (*Server, error) {
-	var cfg serverConfig
-	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
+func New(listen string, assigner *core.Assigner, options ...Option) (*Server, error) {
+	opts, err := getOpts(options...)
+	if err != nil {
 		return nil, err
 	}
-	var err error
 
 	l, err := net.Listen("tcp", listen)
 	if err != nil {
@@ -44,8 +43,8 @@ func New(listen string, assigner *core.Assigner, options ...ServerOption) (*Serv
 	r := mux.NewRouter().StrictSlash(true)
 	server := &http.Server{
 		Handler:      r,
-		WriteTimeout: cfg.apiWriteTimeout,
-		ReadTimeout:  cfg.apiReadTimeout,
+		WriteTimeout: opts.writeTimeout,
+		ReadTimeout:  opts.readTimeout,
 	}
 	s := &Server{
 		assigner: assigner,
@@ -80,7 +79,7 @@ func (s *Server) announce(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	defer r.Body.Close()
 
-	an := gossiptopic.Message{}
+	an := message.Message{}
 	if err := an.UnmarshalCBOR(r.Body); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipni/storetheindex/announce/gossiptopic"
+	"github.com/ipni/storetheindex/announce/message"
 	httpclient "github.com/ipni/storetheindex/api/v0/httpclient"
 	"github.com/ipni/storetheindex/api/v0/ingest/model"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -79,7 +79,7 @@ func (c *Client) Announce(ctx context.Context, provider *peer.AddrInfo, root cid
 	if err != nil {
 		return err
 	}
-	msg := gossiptopic.Message{
+	msg := message.Message{
 		Cid: root,
 	}
 

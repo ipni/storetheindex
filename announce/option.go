@@ -1,10 +1,10 @@
 package announce
 
 import (
+	"fmt"
+
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
-
-type Option func(*config) error
 
 // config contains all options for configuring Subscriber.
 type config struct {
@@ -12,6 +12,20 @@ type config struct {
 	filterIPs bool
 	resend    bool
 	topic     *pubsub.Topic
+}
+
+// Option is a function that sets a value in a config.
+type Option func(*config) error
+
+// getOpts creates a config and applies Options to it.
+func getOpts(opts []Option) (config, error) {
+	var cfg config
+	for i, opt := range opts {
+		if err := opt(&cfg); err != nil {
+			return config{}, fmt.Errorf("option %d failed: %s", i, err)
+		}
+	}
+	return cfg, nil
 }
 
 // WithAllowPeer sets the function that determines whether to allow or reject
