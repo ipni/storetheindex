@@ -72,7 +72,7 @@ func init() {
 	}
 
 	var err error
-	reg, err = registry.NewRegistry(context.Background(), discoveryCfg, nil, nil)
+	reg, err = registry.New(context.Background(), discoveryCfg, nil)
 	if err != nil {
 		panic(err)
 	}

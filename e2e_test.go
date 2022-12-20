@@ -324,6 +324,14 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		t.Errorf("expected provider id in providers output after import-providers, got %q", string(outProviders))
 	}
 
+	e.run(indexer, "admin", "freeze", "--indexer", "localhost:3202")
+	outProviders = e.run(indexer, "providers", "list", "--indexer", "localhost:3200")
+
+	// Check that provider ID now appears in providers output.
+	if !strings.Contains(string(outProviders), "FrozenAtTime") {
+		t.Errorf("expected provider id in providers output after import-providers, got %q", string(outProviders))
+	}
+
 	e.stop(cmdIndexer2, time.Second)
 
 	e.stop(cmdIndexer, time.Second)

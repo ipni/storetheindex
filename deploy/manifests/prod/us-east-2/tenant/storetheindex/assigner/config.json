@@ -9,14 +9,17 @@
     "IndexerPool": [
       {
         "AdminURL": "http://dido-indexer:3002",
+        "FindURL": "http://dido-indexer:3000",
         "IngestURL": "http://dido-indexer:3001"
       },
       {
         "AdminURL": "http://kepa-indexer:3002",
+        "FindURL": "http://kepa-indexer:3000",
         "IngestURL": "http://kepa-indexer:3001"
       },
       {
         "AdminURL": "http://oden-indexer:3002",
+        "FindURL": "http://oden-indexer:3000",
         "IngestURL": "http://oden-indexer:3001",
         "PresetPeers": [
           "QmQzqxhK82kAmKvARFZSkUVS6fo9sySaiogAnx5EnZ6ZmC",

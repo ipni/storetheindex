@@ -103,6 +103,10 @@ var findFlags = []cli.Flag{
 	},
 }
 
+var adminFreezeFlags = []cli.Flag{
+	indexerHostFlag,
+}
+
 var importFlags = []cli.Flag{
 	providerFlag,
 	&cli.StringFlag{

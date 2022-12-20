@@ -67,9 +67,7 @@ func TestRegisterProvider(t *testing.T) {
 
 	test.IndexContentFail(t, p2pClient, peerID, privKey, ind)
 
-	if err = reg.Close(); err != nil {
-		t.Errorf("Error closing registry: %s", err)
-	}
+	reg.Close()
 	if err = ind.Close(); err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
 	}

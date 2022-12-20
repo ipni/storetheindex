@@ -86,5 +86,11 @@ func showProviderInfo(pinfo *model.ProviderInfo) {
 	fmt.Println("    LastAdvertisementTime:", pinfo.LastAdvertisementTime)
 	fmt.Println("    Publisher:", pinfo.Publisher.ID)
 	fmt.Println("        Publisher Addrs:", pinfo.Publisher.Addrs)
+	if pinfo.FrozenAt.Defined() {
+		fmt.Println("    FrozenAt:", pinfo.FrozenAt.String())
+	}
+	if pinfo.FrozenAtTime != "" {
+		fmt.Println("    FrozenAtTime:", pinfo.FrozenAtTime)
+	}
 	fmt.Println("    IndexCount:", pinfo.IndexCount)
 }

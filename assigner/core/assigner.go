@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +16,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/storetheindex/announce"
 	adminclient "github.com/ipni/storetheindex/api/v0/admin/client/http"
+	httpclient "github.com/ipni/storetheindex/api/v0/httpclient"
 	ingestclient "github.com/ipni/storetheindex/api/v0/ingest/client/http"
 	"github.com/ipni/storetheindex/assigner/config"
 	"github.com/ipni/storetheindex/peerutil"
@@ -23,10 +26,14 @@ import (
 
 var log = logging.Logger("assigner/core")
 
+const pollFrozenTimeout = 2 * time.Minute
+
 // Assigner is responsible for assigning publishers to indexers.
 type Assigner struct {
 	// assigned maps a publisher to a set of indexers.
 	assigned map[peer.ID]*assignment
+	// httpClient is the client used to talk to indexers in the pool.
+	httpClient *http.Client
 	// indexerPool is the set of indexers to assign publishers to.
 	indexerPool []indexerInfo
 	// initDone is true when assignments have been read from all indexers.
@@ -36,8 +43,16 @@ type Assigner struct {
 	p2pHost host.Host
 	// policy decides what publisher to accept announce messages from.
 	policy peerutil.Policy
+	// pollCancel cancels the poll goroutine and any polling in progress.
+	pollCancel context.CancelFunc
+	// pollDone signals that the poll goroutine has exited.
+	pollDone chan struct{}
+	// pollNow signals the poll goroutine to poll immediately.
+	pollNow chan struct{}
 	// presets maps publisher ID to pre-assigned indexers.
 	presets map[peer.ID][]int
+	// presetRepl is number of the preset indexers to assign a publisher to.
+	presetRepl int
 	// receiver receives announce messages.
 	receiver *announce.Receiver
 	// replication is the number of indexers to assign a publisher to.
@@ -52,9 +67,8 @@ type Assigner struct {
 // assignment holds the indexers that a publisher is assigned to. The indexer
 // values are positions in the Assigner's indexerPool.
 type assignment struct {
-	indexers   []int
-	preferred  []int
-	processing bool
+	indexers  []int
+	preferred []int
 }
 
 // addIndexer adds an indexer, identified by its number in the pool, to this
@@ -70,6 +84,17 @@ func (asmt *assignment) addIndexer(x int) {
 	asmt.indexers[i] = x
 }
 
+// removeIndexer removes an indexer, identified by its number in the pool, from
+// this assignment.
+func (asmt *assignment) removeIndexer(x int) bool {
+	i := sort.SearchInts(asmt.indexers, x)
+	if i < len(asmt.indexers) && asmt.indexers[i] == x {
+		asmt.indexers = append(asmt.indexers[:i], asmt.indexers[i+1:]...)
+		return true
+	}
+	return false
+}
+
 // hasIndexer returns true if indexer is in this assignment.
 func (asmt *assignment) hasIndexer(x int) bool {
 	i := sort.SearchInts(asmt.indexers, x)
@@ -79,9 +104,14 @@ func (asmt *assignment) hasIndexer(x int) bool {
 // indexerInfo describes an indexer in the indexer pool.
 type indexerInfo struct {
 	adminURL  string
+	findURL   string
 	ingestURL string
-	assigned  int32
-	initDone  bool
+
+	assigned    int32
+	frozen      bool
+	id          peer.ID
+	initDone    bool
+	needHandoff map[peer.ID]struct{}
 }
 
 // assignedCount returns the number of publishers assigned to this indexer.
@@ -96,7 +126,7 @@ func (ii *indexerInfo) addAssignedCount(delta int) int {
 }
 
 // NewAssigner created a new assigner core that handles announce messages and
-// assigns them to the indexers configured in the inderer pool.
+// assigns them to the indexers configured in the indexer pool.
 func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) (*Assigner, error) {
 	if cfg.Replication < 0 {
 		return nil, errors.New("bad replication value, must be 0 or positive")
@@ -126,6 +156,11 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 
 	log.Infof("Assigner operating with %d indexers", len(indexerPool))
 
+	presetRepl := cfg.PresetReplication
+	if presetRepl <= 0 {
+		presetRepl = 1
+	}
+
 	replication := cfg.Replication
 	if replication <= 0 {
 		replication = 1
@@ -133,12 +168,18 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 		replication = len(indexerPool)
 	}
 
+	httpClient := &http.Client{}
+
 	a := &Assigner{
 		assigned:    make(map[peer.ID]*assignment),
 		indexerPool: indexerPool,
+		httpClient:  httpClient,
 		p2pHost:     p2pHost,
 		policy:      policy,
+		pollDone:    make(chan struct{}),
+		pollNow:     make(chan struct{}),
 		presets:     presets,
+		presetRepl:  presetRepl,
 		receiver:    rcvr,
 		replication: replication,
 		watchDone:   make(chan struct{}),
@@ -147,7 +188,7 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 	// Get the publishers currently assigned to each indexer in the pool. If
 	// assignments cannot be read from all, then retry later when an unassigned
 	// publisher is seen. Reduce the needed assignments for the publisher by
-	// the number of offline indexers to prevent ofer-assigning indexers in the
+	// the number of offline indexers to prevent over-assigning indexers in the
 	// pool.
 	downCount := a.initAssignments(ctx)
 	if downCount != 0 {
@@ -156,7 +197,11 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 		log.Infow("Read assignments from all indexers")
 	}
 
+	pollCtx, pollCancel := context.WithCancel(context.Background())
+	a.pollCancel = pollCancel
+
 	go a.watch()
+	go a.poll(pollCtx, time.Duration(cfg.PollInterval))
 
 	return a, nil
 }
@@ -179,6 +224,10 @@ func (a *Assigner) InitDone() bool {
 	return a.initDone
 }
 
+func (a *Assigner) PollNow() {
+	a.pollNow <- struct{}{}
+}
+
 func (a *Assigner) initAssignments(ctx context.Context) int {
 	// If a publisher is pre-assigned to specific indexers, then ignore
 	// any indexer that is not one of those pre-assigned.
@@ -198,21 +247,25 @@ func (a *Assigner) initAssignments(ctx context.Context) int {
 		return false
 	}
 
+	var frozenIndexers []int
+	indexerAssigned := make(map[int]map[peer.ID]peer.ID)
+
 	var needInit int
 	for i := range a.indexerPool {
 		if a.indexerPool[i].initDone {
 			continue
 		}
 
-		pubs, prefPubs, err := getAssignments(ctx, a.indexerPool[i].adminURL)
+		id, frozen, assigned, prefPubs, err := a.getAssignments(ctx, i)
 		if err != nil {
 			needInit++
-			log.Errorw("Could not get assignments from indexer", "err", err, "indexer", i, "adminURL", a.indexerPool[i].adminURL)
+			log.Errorw("Could not get assignments from indexer", "err", err, "indexer", i)
 			continue
 		}
+		a.indexerPool[i].id = id
 
 		// Add this indexer to each publisher's assignments.
-		for _, pubID := range pubs {
+		for pubID := range assigned {
 			if wrongPreset(pubID, i) {
 				continue
 			}
@@ -226,7 +279,17 @@ func (a *Assigner) initAssignments(ctx context.Context) int {
 			asmt.addIndexer(i)
 			a.indexerPool[i].assigned++
 		}
+		indexerAssigned[i] = assigned
 		log.Infof("Indexer %d has %d assignments", i, a.indexerPool[i].assigned)
+
+		if frozen {
+			needHandoff := make(map[peer.ID]struct{})
+			for pubID := range assigned {
+				needHandoff[pubID] = struct{}{}
+			}
+			a.indexerPool[i].needHandoff = needHandoff
+			frozenIndexers = append(frozenIndexers, i)
+		}
 
 		// Add this indexer to each publisher's preferred assignments.
 		for _, pubID := range prefPubs {
@@ -247,6 +310,44 @@ func (a *Assigner) initAssignments(ctx context.Context) int {
 		}
 
 		a.indexerPool[i].initDone = true
+		log.Infow("Initialized indexer", "number", i, "id", id)
+	}
+
+	// Check that handoff is complete for each frozen indexer.
+	for _, frozenIndexer := range frozenIndexers {
+		needHandoff := a.indexerPool[frozenIndexer].needHandoff
+		frozenID := a.indexerPool[frozenIndexer].id
+
+		// Check if each publisher from the frozen indexer has been handed off
+		// to another indexer.
+		for handoffPub := range needHandoff {
+			// Look at each indexer's assignments.
+			for indexer, assigned := range indexerAssigned {
+				if indexer == frozenIndexer {
+					continue // skip self
+				}
+				// If an indexer has this publisher assigned to it, and it was
+				// a handoff from the frozen indexer, then handoff of this
+				// publisher is done.
+				fromID, ok := assigned[handoffPub]
+				if ok && fromID == frozenID {
+					delete(needHandoff, handoffPub)
+					// Remove frozen indexer from assignments for this
+					// publisher. An assignment will only have frozen indexer
+					// is handoff was incomplete for that frozen indexer.
+					asmt, found := a.assigned[handoffPub]
+					if found {
+						asmt.removeIndexer(indexer)
+						a.indexerPool[indexer].assigned--
+					}
+					break
+				}
+			}
+		}
+		if len(needHandoff) == 0 {
+			a.indexerPool[frozenIndexer].needHandoff = nil
+			a.indexerPool[frozenIndexer].frozen = true
+		}
 	}
 
 	if needInit == 0 {
@@ -254,6 +355,18 @@ func (a *Assigner) initAssignments(ctx context.Context) int {
 	}
 
 	return needInit
+}
+
+func (a *Assigner) handoffPublisher(ctx context.Context, publisher peer.ID, fromIndexer, toIndexer int) error {
+	toURL := a.indexerPool[toIndexer].adminURL
+	cl, err := adminclient.New(toURL, httpclient.WithClient(a.httpClient))
+	if err != nil {
+		return err
+	}
+
+	fromID := a.indexerPool[fromIndexer].id
+	fromURL := a.indexerPool[fromIndexer].findURL
+	return cl.Handoff(ctx, publisher, fromID, fromURL)
 }
 
 // indexersFromConfig reads the indexer pool config to create the indexer pool.
@@ -264,29 +377,22 @@ func indexersFromConfig(cfgIndexerPool []config.Indexer) ([]indexerInfo, map[pee
 
 	for i := range cfgIndexerPool {
 		var iInfo indexerInfo
+		var err error
 
-		u, err := url.Parse(cfgIndexerPool[i].AdminURL)
+		iInfo.adminURL, err = configURL(cfgIndexerPool[i].AdminURL, "admin", i, seen)
 		if err != nil {
-			return nil, nil, fmt.Errorf("indexer %d has bad admin url: %s: %w", i, cfgIndexerPool[i].AdminURL, err)
+			return nil, nil, err
 		}
-		iInfo.adminURL = u.String()
-		if _, found := seen[iInfo.adminURL]; found {
-			return nil, nil, fmt.Errorf("indexer %d has non-unique admin url %s", i, iInfo.adminURL)
-		}
-
-		u, err = url.Parse(cfgIndexerPool[i].IngestURL)
+		iInfo.findURL, err = configURL(cfgIndexerPool[i].FindURL, "find", i, seen)
 		if err != nil {
-			return nil, nil, fmt.Errorf("indexer %d has bad ingest url: %s: %w", i, cfgIndexerPool[i].IngestURL, err)
+			return nil, nil, err
 		}
-		iInfo.ingestURL = u.String()
-		if _, found := seen[iInfo.ingestURL]; found {
-			return nil, nil, fmt.Errorf("indexer %d has non-unique ingest url %s", i, iInfo.ingestURL)
+		iInfo.ingestURL, err = configURL(cfgIndexerPool[i].IngestURL, "ingest", i, seen)
+		if err != nil {
+			return nil, nil, err
 		}
 
 		indexers = append(indexers, iInfo)
-
-		seen[iInfo.adminURL] = struct{}{}
-		seen[iInfo.ingestURL] = struct{}{}
 
 		// Add indexer to each publisher's preset list.
 		preset := cfgIndexerPool[i].PresetPeers
@@ -305,6 +411,22 @@ func indexersFromConfig(cfgIndexerPool []config.Indexer) ([]indexerInfo, map[pee
 	}
 
 	return indexers, presets, nil
+}
+
+func configURL(urlStr, name string, indexerNum int, seen map[string]struct{}) (string, error) {
+	if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
+		urlStr = "http://" + urlStr
+	}
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return "", fmt.Errorf("indexer %d has bad %s url: %s: %w", indexerNum, name, urlStr, err)
+	}
+	urlStr = u.String()
+	if _, found := seen[urlStr]; found {
+		return "", fmt.Errorf("indexer %d has non-unique %s url %s", indexerNum, name, urlStr)
+	}
+	seen[urlStr] = struct{}{}
+	return urlStr, nil
 }
 
 // Allowed determines whether or not the assigner is accepting announce
@@ -351,6 +473,15 @@ func (a *Assigner) Close() error {
 	a.waitingNotice = nil
 	a.noticeMutex.Unlock()
 
+	a.mutex.Lock()
+	if a.pollCancel != nil {
+		a.pollCancel()
+		a.pollCancel = nil
+	}
+	a.mutex.Unlock()
+
+	<-a.pollDone
+
 	// Close receiver and wait for watch to exit.
 	err := a.receiver.Close()
 	<-a.watchDone
@@ -363,6 +494,10 @@ func (a *Assigner) Close() error {
 // indexer. The channel is closed when there are no more indexers required to
 // assign the peer to. Multiple calls using the same pubID return the same
 // channel.
+//
+// The notification channel is closed when assignment is complete. A new
+// channel will need to be created to receive notification of future
+// assignments/handoff.
 func (a *Assigner) OnAssignment(pubID peer.ID) (<-chan int, context.CancelFunc) {
 	a.noticeMutex.Lock()
 	defer a.noticeMutex.Unlock()
@@ -414,6 +549,31 @@ func (a *Assigner) closeNotifyAssignment(pubID peer.ID) {
 	}
 }
 
+func (a *Assigner) poll(ctx context.Context, interval time.Duration) {
+	defer close(a.pollDone)
+
+	var timerCh <-chan time.Time
+	var timer *time.Timer
+
+	if interval != 0 {
+		timer = time.NewTimer(interval)
+		defer timer.Stop()
+		timerCh = timer.C
+	}
+
+	for {
+		select {
+		case <-timerCh:
+			a.pollFrozen(ctx)
+			timer.Reset(interval)
+		case <-ctx.Done():
+			return
+		case <-a.pollNow:
+			a.pollFrozen(ctx)
+		}
+	}
+}
+
 // watch fetches announce messages from the Receiver.
 func (a *Assigner) watch() {
 	defer close(a.watchDone)
@@ -432,16 +592,14 @@ func (a *Assigner) watch() {
 		}
 		log.Debugw("Received announce", "publisher", amsg.PeerID)
 
+		a.mutex.Lock()
+
 		asmt, need := a.checkAssignment(amsg.PeerID)
-		if need == 0 {
-			continue
+		if need != 0 {
+			a.makeAssignments(ctx, amsg, asmt, need)
 		}
 
-		pending.Add(1)
-		go func() {
-			a.makeAssignments(ctx, amsg, asmt, need)
-			pending.Done()
-		}()
+		a.mutex.Unlock()
 	}
 	// Wait for pending assignments in to complete.
 	pending.Wait()
@@ -449,24 +607,13 @@ func (a *Assigner) watch() {
 
 // checkAssignment checks if a publisher is assigned to sufficient indexers.
 func (a *Assigner) checkAssignment(pubID peer.ID) (*assignment, int) {
-	var required int
-	preset, usesPreset := a.presets[pubID]
-	if usesPreset {
-		required = len(preset)
-	} else {
-		required = a.replication
+	required := a.replication
+	if _, usesPreset := a.presets[pubID]; usesPreset {
+		required = a.presetRepl
 	}
-
-	a.mutex.Lock()
-	defer a.mutex.Unlock()
 
 	asmt, found := a.assigned[pubID]
 	if found {
-		if asmt.processing {
-			log.Debug("Publisher assignment already being processed")
-			return nil, 0
-		}
-
 		if len(asmt.indexers) >= required {
 			log.Debug("Publisher already assigned to all required indexers")
 			return nil, 0
@@ -485,7 +632,6 @@ func (a *Assigner) checkAssignment(pubID peer.ID) (*assignment, int) {
 			}
 		}
 
-		asmt.processing = true
 		return asmt, need
 	}
 
@@ -503,8 +649,7 @@ func (a *Assigner) checkAssignment(pubID peer.ID) (*assignment, int) {
 
 	// Publisher not yet assigned to an indexer, so make assignment.
 	asmt = &assignment{
-		processing: true,
-		indexers:   []int{},
+		indexers: []int{},
 	}
 	a.assigned[pubID] = asmt
 
@@ -514,33 +659,26 @@ func (a *Assigner) checkAssignment(pubID peer.ID) (*assignment, int) {
 func (a *Assigner) makeAssignments(ctx context.Context, amsg announce.Announce, asmt *assignment, need int) {
 	log := log.With("publisher", amsg.PeerID)
 
-	defer func() {
-		a.mutex.Lock()
-		asmt.processing = false
-		a.mutex.Unlock()
-	}()
-
 	var candidates []int
 	var required int
 
 	preset, usesPresets := a.presets[amsg.PeerID]
 	if usesPresets {
-		candidates = make([]int, 0, need)
+		candidates = make([]int, 0, len(preset)-len(asmt.indexers))
 		for _, indexerNum := range preset {
-			if !asmt.hasIndexer(indexerNum) {
+			if !a.indexerPool[indexerNum].frozen && !asmt.hasIndexer(indexerNum) {
 				candidates = append(candidates, indexerNum)
 			}
 		}
-		required = len(preset)
+		required = a.presetRepl
 	} else {
 		candidates = make([]int, 0, len(a.indexerPool)-len(asmt.indexers))
 		for i := range a.indexerPool {
-			if !asmt.hasIndexer(i) {
+			if !a.indexerPool[i].frozen && !asmt.hasIndexer(i) {
 				candidates = append(candidates, i)
 			}
 		}
 		required = a.replication
-		a.orderCandidates(candidates, asmt.preferred)
 	}
 
 	// There are no remaining indexers to assign publisher to.
@@ -549,8 +687,10 @@ func (a *Assigner) makeAssignments(ctx context.Context, amsg announce.Announce, 
 		return
 	}
 
+	a.orderCandidates(candidates, asmt.preferred)
+
 	for _, indexerNum := range candidates {
-		err := assignIndexer(ctx, a.indexerPool[indexerNum], amsg)
+		err := a.assignIndexer(ctx, indexerNum, amsg)
 		if err != nil {
 			log.Errorw("Could not assign publisher to indexer", "err", err,
 				"indexer", indexerNum, "adminURL", a.indexerPool[indexerNum].adminURL)
@@ -561,12 +701,181 @@ func (a *Assigner) makeAssignments(ctx context.Context, amsg announce.Announce, 
 		a.notifyAssignment(amsg.PeerID, indexerNum)
 		need--
 		if need == 0 {
+			// Close the notification channel to signal to reader that
+			// assignment is complete. A new channel will need to be created to
+			// receive notification of future assignments/handoff.
 			a.closeNotifyAssignment(amsg.PeerID)
 			log.Infow("Publisher assigned to required number of indexers", "required", required)
 			return
 		}
 	}
 	log.Warnf("Publisher assigned to %d out of %d required indexers", len(asmt.indexers), required)
+}
+
+func (a *Assigner) pollFrozen(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, pollFrozenTimeout)
+	defer cancel()
+
+	newFrozen := make(chan int, len(a.indexerPool))
+
+	for i := range a.indexerPool {
+		if !a.indexerPool[i].initDone {
+			continue // ignore offline
+		}
+		if a.indexerPool[i].frozen {
+			continue // ignore already frozen
+		}
+
+		// If incomplete handoff, indexer must be frozen so do not get status.
+		if len(a.indexerPool[i].needHandoff) != 0 {
+			newFrozen <- i
+			continue
+		}
+
+		// Send status requests concurrently.
+		go func(indexerNum int) {
+			frozen, err := a.checkFrozen(ctx, indexerNum)
+			if err != nil {
+				log.Errorw("Cannot get indexer status", "err", err, "indexer", indexerNum)
+				newFrozen <- -1
+				return
+			}
+			if !frozen {
+				newFrozen <- -1
+				return
+			}
+			// Indexer has become frozen since last check.
+			newFrozen <- indexerNum
+		}(i)
+	}
+
+	for reqCount := len(a.indexerPool); reqCount > 0; reqCount-- {
+		i := <-newFrozen
+		if i != -1 {
+			err := a.handoffFrozen(ctx, i)
+			if err != nil {
+				log.Errorw("Handoff incomplete", "err", err, "frozenIndexer", i)
+			}
+		}
+	}
+}
+
+func (a *Assigner) checkFrozen(ctx context.Context, indexerNum int) (bool, error) {
+	adminURL := a.indexerPool[indexerNum].adminURL
+	cl, err := adminclient.New(adminURL, httpclient.WithClient(a.httpClient))
+	if err != nil {
+		return false, fmt.Errorf("cannot create admin client: %w", err)
+	}
+
+	status, err := cl.Status(ctx)
+	if err != nil {
+		return false, fmt.Errorf("error requesting status: %w", err)
+	}
+
+	return status.Frozen, nil
+}
+
+// handoffFrozen does a handoff of all the publishers assigned to an indexer.
+func (a *Assigner) handoffFrozen(ctx context.Context, indexerNum int) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	// Get assignments from previous incomplete handoff, or if none, from frozen indexer.
+	needHandoff := a.indexerPool[indexerNum].needHandoff
+	a.indexerPool[indexerNum].needHandoff = nil
+
+	candidates := make([]int, 0, len(a.indexerPool))
+
+	log := log.With("frozenIndexer", indexerNum)
+
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
+	if needHandoff == nil {
+		needHandoff = make(map[peer.ID]struct{})
+		// Get the publishers that are assigned to the frozen indexer.
+		for pubID, asmt := range a.assigned {
+			if asmt.hasIndexer(indexerNum) {
+				needHandoff[pubID] = struct{}{}
+			}
+		}
+	}
+
+	// Try to assign each publisher to a non-frozen indexer.
+	for pubID := range needHandoff {
+		asmt, found := a.assigned[pubID]
+		if !found {
+			// At a minimum, the publisher should be assigned to the frozen indexer.
+			log.Warnw("Frozen indexer has publisher that is unknown to assigner", "publisher", pubID)
+			asmt = &assignment{
+				indexers: []int{indexerNum},
+			}
+			a.assigned[pubID] = asmt
+		}
+
+		candidates = candidates[:0]
+
+		preset, usesPresets := a.presets[pubID]
+		if usesPresets {
+			// Find an indexer, that has this publisher as a preset, that the
+			// publisher is not already assigned to.
+			for _, i := range preset {
+				if i != indexerNum && !a.indexerPool[i].frozen && !asmt.hasIndexer(i) {
+					candidates = append(candidates, i)
+				}
+			}
+		} else {
+			// Find an indexer that the publisher is not already assigned to.
+			for i := range a.indexerPool {
+				if i != indexerNum && !a.indexerPool[i].frozen && !asmt.hasIndexer(i) {
+					candidates = append(candidates, i)
+				}
+			}
+		}
+		// There are no remaining indexers to handoff publisher to.
+		if len(candidates) == 0 {
+			a.indexerPool[indexerNum].needHandoff = needHandoff
+			return errors.New("insufficient indexers to handoff publishers")
+		}
+
+		a.orderCandidates(candidates, nil)
+
+		handoffTo := -1
+		for _, candNum := range candidates {
+			err := a.handoffPublisher(ctx, pubID, indexerNum, candNum)
+			if err != nil {
+				log.Errorw("Could not handoff publisher to indexer", "err", err, "indexer", candNum)
+				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+					a.indexerPool[indexerNum].needHandoff = needHandoff
+					return err
+				}
+				continue // try another candidate
+			}
+			handoffTo = candNum
+			break
+		}
+
+		// Handoff incomplete, save the publishers that need handoff for later.
+		if handoffTo == -1 {
+			a.indexerPool[indexerNum].needHandoff = needHandoff
+			return errors.New("could not handoff publisher to any indexer")
+		}
+
+		delete(needHandoff, pubID)
+
+		asmt.removeIndexer(indexerNum)
+		asmt.addIndexer(handoffTo)
+		a.notifyAssignment(pubID, handoffTo)
+
+		log.Infow("Publisher handoff done", "publisher", pubID, "indexer", handoffTo)
+	}
+
+	// Now that handoff is complete, mark indexer as frozen.
+	a.indexerPool[indexerNum].frozen = true
+
+	log.Info("Handoff complete for frozen indexer")
+	return nil
 }
 
 type indexerSlice struct {
@@ -608,8 +917,10 @@ func (a *Assigner) orderCandidates(indexers []int, preferred []int) {
 	sort.Sort(&iSlice)
 }
 
-func assignIndexer(ctx context.Context, indexer indexerInfo, amsg announce.Announce) error {
-	cl, err := adminclient.New(indexer.adminURL)
+func (a *Assigner) assignIndexer(ctx context.Context, indexerNum int, amsg announce.Announce) error {
+	indexer := a.indexerPool[indexerNum]
+
+	cl, err := adminclient.New(indexer.adminURL, httpclient.WithClient(a.httpClient))
 	if err != nil {
 		return err
 	}
@@ -639,18 +950,30 @@ func assignIndexer(ctx context.Context, indexer indexerInfo, amsg announce.Annou
 	return nil
 }
 
-func getAssignments(ctx context.Context, adminURL string) ([]peer.ID, []peer.ID, error) {
-	cl, err := adminclient.New(adminURL)
+func (a *Assigner) getAssignments(ctx context.Context, indexerNum int) (peer.ID, bool, map[peer.ID]peer.ID, []peer.ID, error) {
+	adminURL := a.indexerPool[indexerNum].adminURL
+
+	cl, err := adminclient.New(adminURL, httpclient.WithClient(a.httpClient))
 	if err != nil {
-		return nil, nil, err
+		return peer.ID(""), false, nil, nil, fmt.Errorf("cannot create admin client: %w", err)
 	}
+
 	assigned, err := cl.ListAssignedPeers(ctx)
 	if err != nil {
-		return nil, nil, err
+		return peer.ID(""), false, nil, nil, fmt.Errorf("cannot get assignments: %w", err)
 	}
+
+	status, err := cl.Status(ctx)
+	if err != nil {
+		return peer.ID(""), false, nil, nil, fmt.Errorf("cannot get indexer status: %w", err)
+	}
+	if status.Frozen {
+		return status.ID, true, assigned, nil, nil
+	}
+
 	preferred, err := cl.ListPreferredPeers(ctx)
 	if err != nil {
-		log.Errorw("Cannot get preferred assignments from indexer", "err", err, "adminURL", adminURL)
+		log.Errorw("Cannot get preferred assignments from indexer", "err", err, "indexer", indexerNum)
 	}
-	return assigned, preferred, nil
+	return status.ID, false, assigned, preferred, nil
 }

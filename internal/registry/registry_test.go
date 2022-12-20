@@ -81,7 +81,7 @@ func TestNewRegistryDiscovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDiscoverer)
+	r, err := New(ctx, discoveryCfg, nil, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 	t.Log("created new registry")
 
@@ -107,12 +107,10 @@ func TestNewRegistryDiscovery(t *testing.T) {
 	err = r.Update(ctx, provider, publisher, cid.Undef, nil)
 	require.NoError(t, err)
 
-	err = r.Close()
-	require.NoError(t, err)
+	r.Close()
 
 	// Check that 2nd call to Close is ok
-	err = r.Close()
-	require.NoError(t, err)
+	r.Close()
 }
 
 func TestDiscoveryAllowed(t *testing.T) {
@@ -120,9 +118,9 @@ func TestDiscoveryAllowed(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDiscoverer)
+	r, err := New(ctx, discoveryCfg, nil, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, r.Close()) })
+	t.Cleanup(func() { r.Close() })
 	t.Log("created new registry")
 
 	peerID, err := peer.Decode(exceptID)
@@ -174,7 +172,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 	peerID, err := peer.Decode(exceptID)
 	require.NoError(t, err)
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDiscoverer)
+	r, err := New(ctx, discoveryCfg, nil, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 	defer r.Close()
 	t.Log("created new registry")
@@ -256,7 +254,7 @@ func TestDatastore(t *testing.T) {
 	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
 
-	r, err := NewRegistry(ctx, discoveryCfg, dstore, mockDiscoverer)
+	r, err := New(ctx, discoveryCfg, dstore, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 	t.Log("created new registry with datastore")
 
@@ -279,13 +277,14 @@ func TestDatastore(t *testing.T) {
 	require.True(t, allowed)
 	require.NotNil(t, pinfo.ExtendedProviders, "did not find registered extended provider")
 
-	require.NoError(t, r.Close())
+	r.Close()
+	require.NoError(t, dstore.Close())
 
 	// Create datastore
 	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
 
-	r, err = NewRegistry(ctx, discoveryCfg, dstore, mockDiscoverer)
+	r, err = New(ctx, discoveryCfg, dstore, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 	t.Log("re-created new registry with datastore")
 
@@ -311,8 +310,8 @@ func TestDatastore(t *testing.T) {
 	require.ErrorIs(t, r.AssignPeer(pubID), ErrNoAssigner)
 	require.ErrorIs(t, r.UnassignPeer(pubID), ErrNoAssigner)
 
-	err = r.Close()
-	require.NoError(t, err)
+	r.Close()
+	require.NoError(t, dstore.Close())
 
 	// Test that configuring existing registry to use assigner service finds
 	// existing publishers.
@@ -320,11 +319,11 @@ func TestDatastore(t *testing.T) {
 	discoveryCfg.UseAssigner = true
 	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
-	r, err = NewRegistry(ctx, discoveryCfg, dstore, mockDiscoverer)
+	r, err = New(ctx, discoveryCfg, dstore, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 
 	// There should not be any assigned yet.
-	assigned, err := r.ListAssignedPeers()
+	assigned, _, err := r.ListAssignedPeers()
 	require.NoError(t, err)
 	require.Zero(t, len(assigned))
 
@@ -336,14 +335,14 @@ func TestDatastore(t *testing.T) {
 	// Assign peer and check that it is assigned.
 	err = r.AssignPeer(preferred[0])
 	require.NoError(t, err)
-	assigned, err = r.ListAssignedPeers()
+	assigned, _, err = r.ListAssignedPeers()
 	require.NoError(t, err)
 	require.Equal(t, 1, len(assigned))
 
 	// Unassign peer and check that it is not assigned.
 	err = r.UnassignPeer(preferred[0])
 	require.NoError(t, err)
-	assigned, err = r.ListAssignedPeers()
+	assigned, _, err = r.ListAssignedPeers()
 	require.NoError(t, err)
 	require.Zero(t, len(assigned))
 
@@ -351,7 +350,8 @@ func TestDatastore(t *testing.T) {
 	require.True(t, r.BlockPeer(preferred[0]))
 	require.ErrorIs(t, r.AssignPeer(preferred[0]), ErrNotAllowed)
 
-	require.NoError(t, r.Close())
+	r.Close()
+	require.NoError(t, dstore.Close())
 }
 
 func TestAllowed(t *testing.T) {
@@ -365,7 +365,7 @@ func TestAllowed(t *testing.T) {
 
 	ctx := context.Background()
 
-	r, err := NewRegistry(ctx, cfg, nil, nil)
+	r, err := New(ctx, cfg, nil)
 	require.NoError(t, err)
 
 	provID, err := peer.Decode(limitedID)
@@ -449,9 +449,9 @@ func TestPollProvider(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	r, err := NewRegistry(ctx, cfg, datastore.NewMapDatastore(), nil)
+	r, err := New(ctx, cfg, datastore.NewMapDatastore())
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, r.Close()) })
+	t.Cleanup(func() { r.Close() })
 
 	peerID, err := peer.Decode(limitedID)
 	require.NoError(t, err)
@@ -557,8 +557,8 @@ func TestPollProviderOverrides(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	r, err := NewRegistry(ctx, cfg, datastore.NewMapDatastore(), nil)
-	t.Cleanup(func() { require.NoError(t, r.Close()) })
+	r, err := New(ctx, cfg, datastore.NewMapDatastore())
+	t.Cleanup(func() { r.Close() })
 	require.NoError(t, err)
 	defer r.Close()
 
@@ -644,9 +644,9 @@ func TestPollProviderOverrides(t *testing.T) {
 
 func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 	ctx := context.Background()
-	subject, err := NewRegistry(ctx, config.NewDiscovery(), datastore.NewMapDatastore(), nil)
+	subject, err := New(ctx, config.NewDiscovery(), datastore.NewMapDatastore())
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, subject.Close()) })
+	t.Cleanup(func() { subject.Close() })
 
 	// Register a provider first
 	provId, err := peer.Decode(exceptID)
@@ -702,9 +702,9 @@ func TestFilterIPs(t *testing.T) {
 	require.NoError(t, err)
 
 	dstore := datastore.NewMapDatastore()
-	reg, err := NewRegistry(ctx, cfg, dstore, nil)
+	reg, err := New(ctx, cfg, dstore)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, reg.Close()) })
+	t.Cleanup(func() { reg.Close() })
 
 	provider := peer.AddrInfo{
 		ID:    provID,
@@ -716,12 +716,12 @@ func TestFilterIPs(t *testing.T) {
 	}
 	err = reg.Update(ctx, provider, publisher, cid.Undef, nil)
 	require.NoError(t, err)
-	require.NoError(t, reg.Close())
+	reg.Close()
 
 	cfg.FilterIPs = true
-	reg, err = NewRegistry(ctx, cfg, dstore, nil)
+	reg, err = New(ctx, cfg, dstore)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, reg.Close()) })
+	t.Cleanup(func() { reg.Close() })
 
 	require.True(t, reg.FilterIPsEnabled())
 
@@ -766,6 +766,61 @@ func TestRegistry_loadPersistedProvidersFiltersNilAddrGracefully(t *testing.T) {
 	require.NoError(t, err)
 	cfg := config.NewDiscovery()
 	cfg.FilterIPs = true
-	_, err = NewRegistry(ctx, cfg, ds, nil)
+	_, err = New(ctx, cfg, ds)
 	require.NoError(t, err)
+}
+
+func TestFreeze(t *testing.T) {
+	cfg := config.Discovery{
+		Policy: config.Policy{
+			Allow:   true,
+			Publish: true,
+		},
+	}
+
+	ctx := context.Background()
+	tempDir := t.TempDir()
+	r, err := New(ctx, cfg, datastore.NewMapDatastore(), WithFreezer(tempDir, 90.0))
+	require.NoError(t, err)
+	t.Cleanup(func() { r.Close() })
+
+	peerID, err := peer.Decode(limitedID)
+	require.NoError(t, err)
+
+	pubID, err := peer.Decode(publisherID)
+	require.NoError(t, err)
+
+	maddr, err := multiaddr.NewMultiaddr(minerAddr)
+	require.NoError(t, err)
+
+	prov := peer.AddrInfo{
+		ID:    peerID,
+		Addrs: []multiaddr.Multiaddr{maddr},
+	}
+	pub := peer.AddrInfo{
+		ID: pubID,
+	}
+
+	mh, err := multihash.Sum([]byte("somedata"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+	adCid := cid.NewCidV1(cid.Raw, mh)
+
+	err = r.Update(ctx, prov, pub, adCid, nil)
+	require.NoError(t, err)
+
+	require.False(t, r.Frozen())
+	infos := r.AllProviderInfo()
+	for i := range infos {
+		require.False(t, infos[i].FrozenAt.Defined())
+		require.True(t, infos[i].FrozenAtTime.IsZero())
+	}
+
+	require.NoError(t, r.Freeze())
+
+	require.True(t, r.Frozen())
+	infos = r.AllProviderInfo()
+	for i := range infos {
+		require.True(t, infos[i].FrozenAt.Defined())
+		require.False(t, infos[i].FrozenAtTime.IsZero())
+	}
 }

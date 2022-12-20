@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipni/storetheindex/api/v0/admin/model"
 	"github.com/ipni/storetheindex/assigner/config"
 	"github.com/ipni/storetheindex/assigner/core"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -18,13 +19,14 @@ import (
 )
 
 const (
-	peer1IDStr = "12D3KooWQ9j3Ur5V9U63Vi6ved72TcA3sv34k74W3wpW5rwNvDc3"
-	peer2IDStr = "12D3KooWFhsKZsxo8sfs7zDcPRSwNnqo4vjBNn9fN25H3S1ZXGDq"
-	peer3IDStr = "12D3KooWCAn6URUM34Z3APKrMFmd1mRkLWuPHvdJa3WwjAXbn58M"
+	peer1IDStr  = "12D3KooWQ9j3Ur5V9U63Vi6ved72TcA3sv34k74W3wpW5rwNvDc3"
+	peer2IDStr  = "12D3KooWFhsKZsxo8sfs7zDcPRSwNnqo4vjBNn9fN25H3S1ZXGDq"
+	peer3IDStr  = "12D3KooWCAn6URUM34Z3APKrMFmd1mRkLWuPHvdJa3WwjAXbn58M"
+	serverIDStr = "12D3KooWCAn6URUM34Z3APKrMFmd1mRkLWuPHvdJa3WwjAXbn58M"
 )
 
 var (
-	peer1ID, peer2ID, peer3ID peer.ID
+	peer1ID, peer2ID, peer3ID, serverID peer.ID
 )
 
 func init() {
@@ -38,6 +40,10 @@ func init() {
 		panic(err)
 	}
 	peer3ID, err = peer.Decode(peer3IDStr)
+	if err != nil {
+		panic(err)
+	}
+	serverID, err = peer.Decode(serverIDStr)
 	if err != nil {
 		panic(err)
 	}
@@ -55,11 +61,13 @@ func TestAssignerAll(t *testing.T) {
 		IndexerPool: []config.Indexer{
 			{
 				AdminURL:    fakeIndexer1.adminServer.URL,
+				FindURL:     fakeIndexer1.findServer.URL,
 				IngestURL:   fakeIndexer1.ingestServer.URL,
 				PresetPeers: []string{peer1IDStr, peer2IDStr},
 			},
 			{
 				AdminURL:    fakeIndexer2.adminServer.URL,
+				FindURL:     fakeIndexer2.findServer.URL,
 				IngestURL:   fakeIndexer2.ingestServer.URL,
 				PresetPeers: []string{peer1IDStr},
 			},
@@ -192,10 +200,12 @@ func TestAssignerOne(t *testing.T) {
 		IndexerPool: []config.Indexer{
 			{
 				AdminURL:  fakeIndexer1.adminServer.URL,
+				FindURL:   fakeIndexer1.findServer.URL,
 				IngestURL: fakeIndexer1.ingestServer.URL,
 			},
 			{
 				AdminURL:  fakeIndexer2.adminServer.URL,
+				FindURL:   fakeIndexer2.findServer.URL,
 				IngestURL: fakeIndexer2.ingestServer.URL,
 			},
 		},
@@ -305,7 +315,12 @@ func TestAssignerPreferred(t *testing.T) {
 	testAdminHandler0 := func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
 		if req.Method == "GET" {
-			writeJsonResponse(w, http.StatusNoContent, nil)
+			switch req.URL.String() {
+			case "/status":
+				testStatusHandler(w, req)
+			default:
+				writeJsonResponse(w, http.StatusNoContent, nil)
+			}
 		} else {
 			writeJsonResponse(w, http.StatusOK, nil)
 		}
@@ -324,6 +339,8 @@ func TestAssignerPreferred(t *testing.T) {
 				writeJsonResponse(w, http.StatusOK, data)
 			case "/ingest/assigned":
 				writeJsonResponse(w, http.StatusNoContent, nil)
+			case "/status":
+				testStatusHandler(w, req)
 			default:
 				http.Error(w, "", http.StatusNotFound)
 			}
@@ -343,10 +360,12 @@ func TestAssignerPreferred(t *testing.T) {
 		IndexerPool: []config.Indexer{
 			{
 				AdminURL:  fakeIndexer1.adminServer.URL,
+				FindURL:   fakeIndexer1.findServer.URL,
 				IngestURL: fakeIndexer1.ingestServer.URL,
 			},
 			{
 				AdminURL:  fakeIndexer2.adminServer.URL,
+				FindURL:   fakeIndexer2.findServer.URL,
 				IngestURL: fakeIndexer2.ingestServer.URL,
 			},
 		},
@@ -470,14 +489,19 @@ func TestPoolIndexerOffline(t *testing.T) {
 		if req.Method == "GET" {
 			switch req.URL.String() {
 			case "/ingest/assigned":
-				peers := []string{peer1IDStr}
-				data, err := json.Marshal(peers)
+				assignedInfo := model.Assigned{
+					Publisher: peer1ID,
+				}
+				assignedInfos := []model.Assigned{assignedInfo}
+				data, err := json.Marshal(assignedInfos)
 				if err != nil {
 					panic(err.Error())
 				}
 				writeJsonResponse(w, http.StatusOK, data)
 			case "/ingest/preferred":
 				writeJsonResponse(w, http.StatusNoContent, nil)
+			case "/status":
+				testStatusHandler(w, req)
 			default:
 				http.Error(w, "", http.StatusNotFound)
 			}
@@ -492,10 +516,12 @@ func TestPoolIndexerOffline(t *testing.T) {
 		IndexerPool: []config.Indexer{
 			{
 				AdminURL:  fakeIndexer1.adminServer.URL,
+				FindURL:   fakeIndexer1.findServer.URL,
 				IngestURL: fakeIndexer1.ingestServer.URL,
 			},
 			{
 				AdminURL:  fakeIndexer2.adminServer.URL,
+				FindURL:   fakeIndexer2.findServer.URL,
 				IngestURL: fakeIndexer2.ingestServer.URL,
 			},
 		},
@@ -557,7 +583,19 @@ func TestPoolIndexerOffline(t *testing.T) {
 
 type testIndexer struct {
 	adminServer  *httptest.Server
+	findServer   *httptest.Server
 	ingestServer *httptest.Server
+}
+
+func testStatusHandler(w http.ResponseWriter, req *http.Request) {
+	status := model.Status{
+		ID: serverID,
+	}
+	data, err := json.Marshal(&status)
+	if err != nil {
+		panic(err.Error())
+	}
+	writeJsonResponse(w, http.StatusOK, data)
 }
 
 func defaultTestAdminHandler(w http.ResponseWriter, req *http.Request) {
@@ -565,14 +603,19 @@ func defaultTestAdminHandler(w http.ResponseWriter, req *http.Request) {
 	if req.Method == "GET" {
 		switch req.URL.String() {
 		case "/ingest/assigned":
-			peers := []string{peer1IDStr}
-			data, err := json.Marshal(peers)
+			assignedInfo := model.Assigned{
+				Publisher: peer1ID,
+			}
+			assignedInfos := []model.Assigned{assignedInfo}
+			data, err := json.Marshal(assignedInfos)
 			if err != nil {
 				panic(err.Error())
 			}
 			writeJsonResponse(w, http.StatusOK, data)
 		case "/ingest/preferred":
 			writeJsonResponse(w, http.StatusNoContent, nil)
+		case "/status":
+			testStatusHandler(w, req)
 		default:
 			http.Error(w, "", http.StatusNotFound)
 		}
@@ -586,6 +629,11 @@ func testIngestHandler(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func testFindHandler(w http.ResponseWriter, req *http.Request) {
+	defer req.Body.Close()
+	w.WriteHeader(http.StatusOK)
+}
+
 func newTestIndexer(adminHandler func(http.ResponseWriter, *http.Request)) *testIndexer {
 	ah := defaultTestAdminHandler
 	if adminHandler != nil {
@@ -594,12 +642,14 @@ func newTestIndexer(adminHandler func(http.ResponseWriter, *http.Request)) *test
 
 	return &testIndexer{
 		adminServer:  httptest.NewServer(http.HandlerFunc(ah)),
+		findServer:   httptest.NewServer(http.HandlerFunc(testFindHandler)),
 		ingestServer: httptest.NewServer(http.HandlerFunc(testIngestHandler)),
 	}
 }
 
 func (ti *testIndexer) close() {
 	ti.adminServer.Close()
+	ti.findServer.Close()
 	ti.ingestServer.Close()
 }
 

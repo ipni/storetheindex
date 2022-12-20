@@ -71,7 +71,7 @@ func InitRegistryWithRestrictivePolicy(t *testing.T, restrictive bool) *registry
 			Publish: false,
 		}
 	}
-	reg, err := registry.NewRegistry(context.Background(), discoveryCfg, nil, nil)
+	reg, err := registry.New(context.Background(), discoveryCfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

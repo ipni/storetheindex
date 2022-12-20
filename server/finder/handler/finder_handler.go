@@ -182,7 +182,8 @@ func (h *FinderHandler) ListProviders() ([]byte, error) {
 		}
 		pInfo := infos[i]
 		responses[i] = model.MakeProviderInfo(pInfo.AddrInfo, pInfo.LastAdvertisement,
-			pInfo.LastAdvertisementTime, pInfo.Publisher, pInfo.PublisherAddr, indexCount)
+			pInfo.LastAdvertisementTime, pInfo.Publisher, pInfo.PublisherAddr,
+			pInfo.FrozenAt, pInfo.FrozenAtTime, indexCount)
 
 		responses[i].ExtendedProviders = makeExtendedProviders(pInfo)
 	}
@@ -243,7 +244,9 @@ func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 			log.Errorw("Could not get provider index count", "err", err)
 		}
 	}
-	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastAdvertisement, info.LastAdvertisementTime, info.Publisher, info.PublisherAddr, indexCount)
+	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastAdvertisement,
+		info.LastAdvertisementTime, info.Publisher, info.PublisherAddr,
+		info.FrozenAt, info.FrozenAtTime, indexCount)
 	rsp.ExtendedProviders = makeExtendedProviders(info)
 
 	return json.Marshal(&rsp)

@@ -1494,7 +1494,7 @@ func mkRegistry(t *testing.T) *registry.Registry {
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),
 	}
-	reg, err := registry.NewRegistry(context.Background(), discoveryCfg, nil, nil)
+	reg, err := registry.New(context.Background(), discoveryCfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1804,10 +1804,7 @@ func (te *testEnv) Close(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
 	}
-	err = te.reg.Close()
-	if err != nil {
-		t.Errorf("Error closing registry: %s", err)
-	}
+	te.reg.Close()
 	rm = te.ingesterHost.Network().ResourceManager()
 	err = te.ingesterHost.Close()
 	if err != nil {

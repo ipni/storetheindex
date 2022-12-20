@@ -99,6 +99,15 @@ func Test_SetLogLevel(t *testing.T) {
 				assertLogLevelBySubSystem(t, "indexer/admin", zapcore.DebugLevel, true)
 			},
 		},
+		{
+			name:           "regex all to error",
+			givenSubsystem: ".*",
+			givenLevel:     "error",
+			wantStatus:     http.StatusOK,
+			wantAssertions: func(t *testing.T) {
+				assertLogLevel(t, zapcore.ErrorLevel, true)
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

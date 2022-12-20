@@ -700,6 +700,10 @@ func (ing *Ingester) autoSync() {
 		}
 		autoSyncInProgress[provInfo.AddrInfo.ID] = struct{}{}
 
+		if stopCid := provInfo.StopCid(); stopCid != cid.Undef {
+			ing.markAdProcessed(provInfo.Publisher, stopCid)
+		}
+
 		// Attempt to sync the provider at its last know publisher, in a
 		// separate goroutine.
 		ing.waitForPendingSyncs.Add(1)
@@ -892,6 +896,8 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 	var skips []int
 	skip := -1
 
+	frozen := ing.reg.Frozen()
+
 	// Filter out ads that are already processed, and any earlier ads.
 	splitAtIndex := len(assignment.adInfos)
 	for i, ai := range assignment.adInfos {
@@ -909,10 +915,9 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		processed, resync := ing.adAlreadyProcessed(ai.cid)
 		if processed {
 			// This ad is already processed, which means that all earlier ads
-			// are also processed. Break here and split at this index
-			// later. The cids before this index are newer and have not been
-			// processed yet; the cids after are older and have already been
-			// processed.
+			// are also processed. Break here and split at this index later.
+			// The cids before this index are newer and have not been processed
+			// yet; the cids after are older and have already been processed.
 			splitAtIndex = i
 			break
 		}
@@ -931,6 +936,13 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		// (deeped in chain) ads with the same context ID.
 		if ai.ad.IsRm {
 			rmCtxID[ctxIdStr] = struct{}{}
+			continue
+		}
+
+		// If indexer is frozen, then skip all ads that are not removals.
+		if frozen {
+			skips = append(skips, skip)
+			skip = i
 		}
 	}
 

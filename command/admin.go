@@ -31,6 +31,13 @@ var block = &cli.Command{
 	Action: blockCmd,
 }
 
+var freezeIndexer = &cli.Command{
+	Name:   "freeze",
+	Usage:  "Put indexer into frozen mode",
+	Flags:  adminFreezeFlags,
+	Action: freezeCmd,
+}
+
 var importProviders = &cli.Command{
 	Name:   "import-providers",
 	Usage:  "Import provider information from another indexer",
@@ -74,6 +81,7 @@ var AdminCmd = &cli.Command{
 	Subcommands: []*cli.Command{
 		allow,
 		block,
+		freezeIndexer,
 		importProviders,
 		listAssigned,
 		listPreferred,
@@ -133,8 +141,12 @@ func listAssignedCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, peerID := range assigned {
-		fmt.Println(peerID)
+	for publisher, continued := range assigned {
+		if continued.Validate() == nil {
+			fmt.Println(publisher, "continued-from:", continued)
+		} else {
+			fmt.Println(publisher)
+		}
 	}
 	return nil
 }
@@ -168,6 +180,18 @@ func blockCmd(cctx *cli.Context) error {
 		return err
 	}
 	fmt.Println("Blocking advertisements and content from peer", peerID)
+	return nil
+}
+
+func freezeCmd(cctx *cli.Context) error {
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	if err = cl.Freeze(cctx.Context); err != nil {
+		return err
+	}
+	fmt.Println("Indexer frozen")
 	return nil
 }
 

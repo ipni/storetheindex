@@ -17,6 +17,8 @@ type ProviderInfo struct {
 	Publisher             *peer.AddrInfo     `json:",omitempty"`
 	IndexCount            uint64             `json:",omitempty"`
 	ExtendedProviders     *ExtendedProviders `json:",omitempty"`
+	FrozenAt              cid.Cid            `json:",omitempty"`
+	FrozenAtTime          string             `json:",omitempty"`
 }
 
 type ExtendedProviders struct {
@@ -30,7 +32,7 @@ type ContextualExtendedProviders struct {
 	Providers []peer.AddrInfo
 }
 
-func MakeProviderInfo(addrInfo peer.AddrInfo, lastAd cid.Cid, lastAdTime time.Time, publisherID peer.ID, publisherAddr multiaddr.Multiaddr, indexCount uint64) ProviderInfo {
+func MakeProviderInfo(addrInfo peer.AddrInfo, lastAd cid.Cid, lastAdTime time.Time, publisherID peer.ID, publisherAddr multiaddr.Multiaddr, frozenAt cid.Cid, frozenAtTime time.Time, indexCount uint64) ProviderInfo {
 	pinfo := ProviderInfo{
 		AddrInfo:          addrInfo,
 		LastAdvertisement: lastAd,
@@ -46,6 +48,13 @@ func MakeProviderInfo(addrInfo peer.AddrInfo, lastAd cid.Cid, lastAdTime time.Ti
 
 	if lastAd != cid.Undef && !lastAdTime.IsZero() {
 		pinfo.LastAdvertisementTime = iso8601(lastAdTime)
+	}
+
+	if frozenAt != cid.Undef {
+		pinfo.FrozenAt = frozenAt
+	}
+	if !frozenAtTime.IsZero() {
+		pinfo.FrozenAtTime = iso8601(frozenAtTime)
 	}
 
 	return pinfo

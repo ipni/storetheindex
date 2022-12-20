@@ -13,6 +13,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/ipni/go-indexer-core"
+	"github.com/ipni/storetheindex/api/v0/admin/model"
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/importer"
 	"github.com/ipni/storetheindex/internal/ingest"
@@ -24,15 +25,17 @@ import (
 
 type adminHandler struct {
 	ctx           context.Context
+	id            peer.ID
 	indexer       indexer.Interface
 	ingester      *ingest.Ingester
 	reg           *registry.Registry
 	reloadErrChan chan<- chan error
 }
 
-func newHandler(ctx context.Context, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error) *adminHandler {
+func newHandler(ctx context.Context, id peer.ID, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error) *adminHandler {
 	return &adminHandler{
 		ctx:           ctx,
+		id:            id,
 		indexer:       indexer,
 		ingester:      ingester,
 		reg:           reg,
@@ -44,19 +47,25 @@ const importBatchSize = 256
 
 // ----- assignment handlers -----
 func (h *adminHandler) listAssignedPeers(w http.ResponseWriter, r *http.Request) {
-	assigned, err := h.reg.ListAssignedPeers()
+	publishers, continued, err := h.reg.ListAssignedPeers()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 
-	if len(assigned) == 0 {
+	if len(publishers) == 0 {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	data, err := json.Marshal(assigned)
+	apiAssigned := make([]model.Assigned, len(publishers))
+	for i := range publishers {
+		apiAssigned[i].Publisher = publishers[i]
+		apiAssigned[i].Continued = continued[i]
+	}
+
+	data, err := json.Marshal(apiAssigned)
 	if err != nil {
 		log.Errorw("Error marshaling assigned list", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
@@ -89,27 +98,78 @@ func (h *adminHandler) listPreferredPeers(w http.ResponseWriter, r *http.Request
 	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
+func (h *adminHandler) handoffPeer(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	peerID, ok := decodePeerID(vars["peer"], w)
+	if !ok {
+		return
+	}
+	log := log.With("publisher", peerID)
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Errorw("Failed reading body", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	if len(data) == 0 {
+		http.Error(w, "missing handoff data", http.StatusBadRequest)
+		return
+	}
+
+	var handoff model.Handoff
+	err = json.Unmarshal(data, &handoff)
+	if err != nil {
+		log.Errorw("Cannot unmarshal handoff data", "err", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	log = log.With("from", handoff.FrozenID.String())
+
+	frozenURL, err := url.Parse(handoff.FrozenURL)
+	if err != nil {
+		log.Errorw("Cannot parse handoff 'frozen' URL", "err", err, "url", handoff.FrozenURL)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = h.reg.Handoff(r.Context(), peerID, handoff.FrozenID, frozenURL)
+	if err != nil {
+		assignError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (h *adminHandler) assignPeer(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	peerID, ok := decodePeerID(vars["peer"], w)
 	if !ok {
 		return
 	}
+
 	err := h.reg.AssignPeer(peerID)
 	if err != nil {
-		log.Errorw("Cannot assign publisher to indexer", "err", err, "publisher", peerID)
-		if errors.Is(err, registry.ErrNotAllowed) {
-			http.Error(w, err.Error(), http.StatusForbidden)
-		} else if errors.Is(err, registry.ErrNoAssigner) {
-			http.Error(w, err.Error(), http.StatusServiceUnavailable)
-		} else {
-			http.Error(w, "", http.StatusInternalServerError)
-		}
+		assignError(w, err)
 		return
 	}
-	log.Infow("Assigned publisher to indexer", "publisher", peerID)
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func assignError(w http.ResponseWriter, err error) {
+	log.Errorw("Cannot assign publisher to indexer", "err", err)
+	switch {
+	case errors.Is(err, registry.ErrNotAllowed), errors.Is(err, registry.ErrPublisherNotAllowed), errors.Is(err, registry.ErrCannotPublish):
+		http.Error(w, err.Error(), http.StatusForbidden)
+	case errors.Is(err, registry.ErrNoAssigner):
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+	case errors.Is(err, registry.ErrAlreadyAssigned):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	default:
+		http.Error(w, "", http.StatusInternalServerError)
+	}
 }
 
 func (h *adminHandler) unassignPeer(w http.ResponseWriter, r *http.Request) {
@@ -243,7 +303,7 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 func (h *adminHandler) importProviders(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Errorw("failed reading import cidlist request", "err", err)
+		log.Errorw("failed reading import providers request", "err", err)
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -301,7 +361,7 @@ func (h *adminHandler) importManifest(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Errorw("failed reading import cidlist request", "err", err)
+		log.Errorw("failed reading import manifest request", "err", err)
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -468,6 +528,39 @@ func batchIndexerEntries(batchSize int, putChan <-chan multihash.Multihash, valu
 }
 
 // ----- admin handlers -----
+
+func (h *adminHandler) freeze(w http.ResponseWriter, r *http.Request) {
+	err := h.reg.Freeze()
+	if err != nil {
+		if errors.Is(err, registry.ErrNoFreeze) {
+			log.Infow("Cannot freeze indexer", "reason", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		log.Errorw("Cannot freeze indexer", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	log.Info("Indexer frozen")
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *adminHandler) status(w http.ResponseWriter, r *http.Request) {
+	status := model.Status{
+		Frozen: h.reg.Frozen(),
+		ID:     h.id,
+	}
+
+	data, err := json.Marshal(status)
+	if err != nil {
+		log.Errorw("Error marshaling status", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
 
 func (h *adminHandler) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	if err := healthCheckValueStore(h); err != nil {
