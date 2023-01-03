@@ -701,7 +701,11 @@ func (ing *Ingester) autoSync() {
 		autoSyncInProgress[provInfo.AddrInfo.ID] = struct{}{}
 
 		if stopCid := provInfo.StopCid(); stopCid != cid.Undef {
-			ing.markAdProcessed(provInfo.Publisher, stopCid)
+			err := ing.markAdProcessed(provInfo.Publisher, stopCid)
+			if err != nil {
+				log.Errorw("Failed to mark ad as processed", "err", err)
+				continue
+			}
 		}
 
 		// Attempt to sync the provider at its last know publisher, in a
