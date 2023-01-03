@@ -3,9 +3,13 @@ package core_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"sort"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,14 +23,15 @@ import (
 )
 
 const (
-	peer1IDStr  = "12D3KooWQ9j3Ur5V9U63Vi6ved72TcA3sv34k74W3wpW5rwNvDc3"
-	peer2IDStr  = "12D3KooWFhsKZsxo8sfs7zDcPRSwNnqo4vjBNn9fN25H3S1ZXGDq"
-	peer3IDStr  = "12D3KooWCAn6URUM34Z3APKrMFmd1mRkLWuPHvdJa3WwjAXbn58M"
-	serverIDStr = "12D3KooWCAn6URUM34Z3APKrMFmd1mRkLWuPHvdJa3WwjAXbn58M"
+	peer1IDStr   = "12D3KooWQ9j3Ur5V9U63Vi6ved72TcA3sv34k74W3wpW5rwNvDc3"
+	peer2IDStr   = "12D3KooWFhsKZsxo8sfs7zDcPRSwNnqo4vjBNn9fN25H3S1ZXGDq"
+	peer3IDStr   = "12D3KooWCAn6URUM34Z3APKrMFmd1mRkLWuPHvdJa3WwjAXbn58M"
+	serverIDStr  = "12D3KooWSFxHR32WJittTLkLjv7K3cD5oKbL1HqXuzshyZy7YxSZ"
+	server2IDStr = "12D3KooWLjeDyvuv7rbfG2wWNvWn7ybmmU88PirmSckuqCgXBAph"
 )
 
 var (
-	peer1ID, peer2ID, peer3ID, serverID peer.ID
+	peer1ID, peer2ID, peer3ID, serverID, server2ID peer.ID
 )
 
 func init() {
@@ -44,6 +49,10 @@ func init() {
 		panic(err)
 	}
 	serverID, err = peer.Decode(serverIDStr)
+	if err != nil {
+		panic(err)
+	}
+	server2ID, err = peer.Decode(server2IDStr)
 	if err != nil {
 		panic(err)
 	}
@@ -317,7 +326,7 @@ func TestAssignerPreferred(t *testing.T) {
 		if req.Method == "GET" {
 			switch req.URL.String() {
 			case "/status":
-				testStatusHandler(w, req)
+				testStatusHandler(serverID, false, w, req)
 			default:
 				writeJsonResponse(w, http.StatusNoContent, nil)
 			}
@@ -340,7 +349,7 @@ func TestAssignerPreferred(t *testing.T) {
 			case "/ingest/assigned":
 				writeJsonResponse(w, http.StatusNoContent, nil)
 			case "/status":
-				testStatusHandler(w, req)
+				testStatusHandler(server2ID, false, w, req)
 			default:
 				http.Error(w, "", http.StatusNotFound)
 			}
@@ -501,7 +510,7 @@ func TestPoolIndexerOffline(t *testing.T) {
 			case "/ingest/preferred":
 				writeJsonResponse(w, http.StatusNoContent, nil)
 			case "/status":
-				testStatusHandler(w, req)
+				testStatusHandler(server2ID, false, w, req)
 			default:
 				http.Error(w, "", http.StatusNotFound)
 			}
@@ -581,15 +590,211 @@ func TestPoolIndexerOffline(t *testing.T) {
 	require.NoError(t, assigner.Close())
 }
 
+// Test that assigner detects frozen indexer and handsoff its assigned
+// publishers to another indexer.
+func TestFreezeHandoff(t *testing.T) {
+	var indexer1frozen int32
+
+	testAdminHandler1 := func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		if r.Method == "GET" {
+			switch r.URL.String() {
+			case "/ingest/assigned":
+				assignedInfo := model.Assigned{
+					Publisher: peer1ID,
+				}
+				assignedInfos := []model.Assigned{assignedInfo}
+				data, err := json.Marshal(assignedInfos)
+				if err != nil {
+					panic(err.Error())
+				}
+				writeJsonResponse(w, http.StatusOK, data)
+			case "/ingest/preferred":
+				writeJsonResponse(w, http.StatusNoContent, nil)
+			case "/status":
+				frozen := atomic.LoadInt32(&indexer1frozen) != 0
+				testStatusHandler(serverID, frozen, w, r)
+			default:
+				http.Error(w, "", http.StatusNotFound)
+			}
+		} else {
+			writeJsonResponse(w, http.StatusOK, nil)
+		}
+	}
+
+	handoffChan := make(chan model.Handoff, 2)
+	handoffPubs := make([]string, 0, 2)
+
+	testAdminHandler2 := func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		if r.Method == "GET" {
+			switch r.URL.String() {
+			case "/ingest/assigned":
+				assignedInfo := model.Assigned{
+					Publisher: peer2ID,
+				}
+				assignedInfos := []model.Assigned{assignedInfo}
+				data, err := json.Marshal(assignedInfos)
+				if err != nil {
+					panic(err.Error())
+				}
+				writeJsonResponse(w, http.StatusOK, data)
+			case "/ingest/preferred":
+				writeJsonResponse(w, http.StatusNoContent, nil)
+			case "/status":
+				testStatusHandler(server2ID, false, w, r)
+			default:
+				http.Error(w, "", http.StatusNotFound)
+			}
+		} else {
+			if strings.HasPrefix(r.URL.String(), "/ingest/handoff") {
+				data, err := io.ReadAll(r.Body)
+				if err != nil {
+					http.Error(w, "Failed reading body", http.StatusBadRequest)
+					return
+				}
+				if len(data) == 0 {
+					http.Error(w, "missing handoff data", http.StatusBadRequest)
+					return
+				}
+
+				var handoff model.Handoff
+				err = json.Unmarshal(data, &handoff)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				pubIDStr := path.Base(r.URL.String())
+				t.Log("Indexer2 received", r.Method, "request for handoff of publisher", pubIDStr)
+				handoffPubs = append(handoffPubs, pubIDStr)
+				handoffChan <- handoff
+			}
+			writeJsonResponse(w, http.StatusOK, nil)
+		}
+	}
+
+	fakeIndexer1 := newTestIndexer(testAdminHandler1)
+	defer fakeIndexer1.close()
+
+	fakeIndexer2 := newTestIndexer(testAdminHandler2)
+	defer fakeIndexer2.close()
+
+	cfgAssignment := config.Assignment{
+		// IndexerPool is the set of indexers the pool.
+		IndexerPool: []config.Indexer{
+			{
+				AdminURL:  fakeIndexer1.adminServer.URL,
+				FindURL:   fakeIndexer1.findServer.URL,
+				IngestURL: fakeIndexer1.ingestServer.URL,
+			},
+			{
+				AdminURL:  fakeIndexer2.adminServer.URL,
+				FindURL:   fakeIndexer2.findServer.URL,
+				IngestURL: fakeIndexer2.ingestServer.URL,
+			},
+		},
+		Policy: config.Policy{
+			Allow: true,
+		},
+		PubSubTopic: "testtopic",
+		Replication: 1,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	assigner, err := core.NewAssigner(ctx, cfgAssignment, nil)
+	require.NoError(t, err)
+
+	assigned := assigner.Assigned(peer1ID)
+	require.Equal(t, 1, len(assigned), "peer1 should be assigned to 1 indexer")
+
+	assigned = assigner.Assigned(peer2ID)
+	require.Equal(t, 1, len(assigned), "peer2 should be assigned to 1 indexer")
+
+	asmtChan, cancel := assigner.OnAssignment(peer3ID)
+	defer cancel()
+
+	// Send announce for publisher peer3. It should be assigned to indexer 0.
+	adCid, _ := cid.Decode("bafybeigvgzoolc3drupxhlevdp2ugqcrbcsqfmcek2zxiw5wctk3xjpjwy")
+	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	addrInfo := peer.AddrInfo{
+		ID:    peer3ID,
+		Addrs: []multiaddr.Multiaddr{a},
+	}
+	err = assigner.Announce(ctx, adCid, addrInfo)
+	require.NoError(t, err)
+
+	var assignNum int
+	var assigns []int
+	timeout := time.NewTimer(3 * time.Second)
+	open := true
+	for open {
+		select {
+		case assignNum, open = <-asmtChan:
+			if !open {
+				break
+			}
+			t.Log("Publisher", peer3IDStr, "assigned to indexer", assignNum)
+			assigns = append(assigns, assignNum)
+		case <-timeout.C:
+			t.Fatal("timed out waiting for assignment")
+		}
+	}
+	if !timeout.Stop() {
+		<-timeout.C
+	}
+	require.Equal(t, 1, len(assigns))
+	require.Equal(t, 0, assigns[0])
+
+	counts := assigner.IndexerAssignedCounts()
+	require.Equal(t, 2, len(counts))
+	require.Equal(t, 2, counts[0])
+	require.Equal(t, 1, counts[1])
+
+	atomic.StoreInt32(&indexer1frozen, 1)
+	assigner.PollNow()
+	var handoffCount int
+
+	timeout.Reset(5 * time.Second)
+	for handoffCount < 2 {
+		select {
+		case handoff := <-handoffChan:
+			require.Equal(t, serverID, handoff.FrozenID)
+			require.Equal(t, fakeIndexer1.findServer.URL, handoff.FrozenURL)
+			pubID := handoffPubs[handoffCount]
+			require.True(t, peer1IDStr == pubID || peer3IDStr == pubID)
+			handoffCount++
+		case <-timeout.C:
+			t.Fatal("timed out waiting for handoff")
+		}
+	}
+	if !timeout.Stop() {
+		<-timeout.C
+	}
+
+	timeout.Reset(time.Second)
+	select {
+	case <-handoffChan:
+		t.Fatal("should not have another")
+	case <-timeout.C:
+	}
+
+	require.NoError(t, assigner.Close())
+	fakeIndexer1.close()
+	fakeIndexer2.close()
+}
+
 type testIndexer struct {
 	adminServer  *httptest.Server
 	findServer   *httptest.Server
 	ingestServer *httptest.Server
 }
 
-func testStatusHandler(w http.ResponseWriter, req *http.Request) {
+func testStatusHandler(id peer.ID, frozen bool, w http.ResponseWriter, r *http.Request) {
 	status := model.Status{
-		ID: serverID,
+		ID:     id,
+		Frozen: frozen,
 	}
 	data, err := json.Marshal(&status)
 	if err != nil {
@@ -615,7 +820,7 @@ func defaultTestAdminHandler(w http.ResponseWriter, req *http.Request) {
 		case "/ingest/preferred":
 			writeJsonResponse(w, http.StatusNoContent, nil)
 		case "/status":
-			testStatusHandler(w, req)
+			testStatusHandler(serverID, false, w, req)
 		default:
 			http.Error(w, "", http.StatusNotFound)
 		}

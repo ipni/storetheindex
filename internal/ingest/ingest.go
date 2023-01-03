@@ -703,7 +703,11 @@ func (ing *Ingester) autoSync() {
 		if stopCid := provInfo.StopCid(); stopCid != cid.Undef {
 			err := ing.markAdProcessed(provInfo.Publisher, stopCid)
 			if err != nil {
-				log.Errorw("Failed to mark ad as processed", "err", err)
+				// This error would cause the ingestion of everything from the
+				// publisher from the handoff, and is a critical failure. It
+				// also means that the datastore is failing to store data, so
+				// likely nothing else is working.
+				log.Errorw("Failed to mark ad from handoff as processed", "err", err)
 				continue
 			}
 		}

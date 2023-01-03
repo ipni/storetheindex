@@ -624,8 +624,9 @@ func (a *Assigner) checkAssignment(pubID peer.ID) (*assignment, int) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			downCount := a.initAssignments(ctx)
 			cancel()
-			// If the number of unavailable indexers is as many or more than needed, then do not do
-			// assignment since peer could already be assigned to offline indexers.
+			// If the number of unavailable indexers is as many or more than
+			// needed, then do not do assignment since peer could already be
+			// assigned to offline indexers.
 			need -= downCount
 			if need <= 0 {
 				return nil, 0
@@ -639,8 +640,9 @@ func (a *Assigner) checkAssignment(pubID peer.ID) (*assignment, int) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		downCount := a.initAssignments(ctx)
 		cancel()
-		// If the number of unavailable indexers is as many or more than needed, then do not do
-		// assignment since peer could already be assigned to offline indexers.
+		// If the number of unavailable indexers is as many or more than
+		// needed, then do not do assignment since peer could already be
+		// assigned to offline indexers.
 		required -= downCount
 		if required <= 0 {
 			return nil, 0
