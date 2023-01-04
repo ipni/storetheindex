@@ -2,13 +2,18 @@ package registry
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
+	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/registry/discovery"
 	"github.com/ipni/storetheindex/test/util"
@@ -822,5 +827,93 @@ func TestFreeze(t *testing.T) {
 	for i := range infos {
 		require.True(t, infos[i].FrozenAt.Defined())
 		require.False(t, infos[i].FrozenAtTime.IsZero())
+	}
+}
+
+func TestHandoff(t *testing.T) {
+	cfg := config.Discovery{
+		Policy: config.Policy{
+			Allow:   true,
+			Publish: true,
+		},
+		UseAssigner: true,
+	}
+
+	ctx := context.Background()
+	tempDir := t.TempDir()
+	r, err := New(ctx, cfg, datastore.NewMapDatastore(), WithFreezer(tempDir, 90.0))
+	require.NoError(t, err)
+	t.Cleanup(func() { r.Close() })
+
+	pubID, err := peer.Decode(publisherID)
+	require.NoError(t, err)
+	pubAddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	require.NoError(t, err)
+
+	provAddrInfo := peer.AddrInfo{
+		ID:    pubID,
+		Addrs: []multiaddr.Multiaddr{pubAddr},
+	}
+
+	mh, err := multihash.Sum([]byte("somedata"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+	adCid := cid.NewCidV1(cid.Raw, mh)
+	lastAdTime := time.Now()
+
+	frozenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		defer req.Body.Close()
+		t.Log("Frozen indexer received", req.Method, "request at", req.URL.String())
+		provInfo := model.MakeProviderInfo(provAddrInfo, adCid, lastAdTime, pubID, pubAddr, adCid, lastAdTime, 0)
+		pInfos := []*model.ProviderInfo{&provInfo}
+		data, err := json.Marshal(pInfos)
+		if err != nil {
+			panic(err.Error())
+		}
+		writeJsonResponse(w, http.StatusOK, data)
+
+	}))
+	defer frozenServer.Close()
+
+	frozenURL, err := url.Parse(frozenServer.URL)
+	require.NoError(t, err)
+
+	peerID, err := peer.Decode(limitedID)
+	require.NoError(t, err)
+
+	err = r.Handoff(ctx, pubID, peerID, frozenURL)
+	require.NoError(t, err)
+
+	select {
+	case pinfo := <-r.SyncChan():
+		require.Equal(t, pubID, pinfo.AddrInfo.ID, "Wrong provider ID")
+		require.Equal(t, pubID, pinfo.Publisher, "Wrong publisher ID")
+		require.Equal(t, adCid, pinfo.StopCid(), "Wrong stop ad CID")
+	default:
+		t.Fatal("Expected sync channel to be written")
+	}
+
+	pubs, froms, err := r.ListAssignedPeers()
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(pubs))
+	require.Equal(t, 1, len(froms))
+
+	require.Equal(t, pubID, pubs[0])
+	require.Equal(t, peerID, froms[0])
+
+	provs := r.AllProviderInfo()
+	require.NoError(t, err)
+	require.Equal(t, 1, len(provs))
+
+	prov := provs[0]
+	require.Equal(t, pubID, prov.AddrInfo.ID)
+	require.Equal(t, pubID, prov.Publisher)
+}
+
+func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	if _, err := w.Write(body); err != nil {
+		http.Error(w, "", http.StatusInternalServerError)
 	}
 }

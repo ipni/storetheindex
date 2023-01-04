@@ -1,6 +1,8 @@
 package disk
 
 import (
+	"unsafe"
+
 	"golang.org/x/sys/windows"
 )
 
@@ -8,9 +10,9 @@ var procGetDiskFreeSpaceExW = windows.NewLazySystemDLL("kernel32.dll").NewProc("
 
 func usage(path string) (*UsageStats, error) {
 	var (
-		freeBytesAvailable     int64
-		totalNumberOfBytes     int64
-		totalNumberOfFreeBytes int64
+		freeBytesAvailable int64
+		totalBytes         int64
+		totalFreeBytes     int64
 	)
 	diskret, _, err := procGetDiskFreeSpaceExW.Call(
 		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(path))),
