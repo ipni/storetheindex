@@ -75,6 +75,13 @@ var reload = &cli.Command{
 	Action: reloadConfigCmd,
 }
 
+var status = &cli.Command{
+	Name:   "status",
+	Usage:  "Show indexer status",
+	Flags:  statusFlags,
+	Action: statusCmd,
+}
+
 var AdminCmd = &cli.Command{
 	Name:  "admin",
 	Usage: "Perform admin activities with an indexer",
@@ -86,6 +93,7 @@ var AdminCmd = &cli.Command{
 		listAssigned,
 		listPreferred,
 		reload,
+		status,
 		sync,
 	},
 }
@@ -223,5 +231,26 @@ func reloadConfigCmd(cctx *cli.Context) error {
 		return err
 	}
 	fmt.Println("Reloaded indexer configuration")
+	return nil
+}
+
+func statusCmd(cctx *cli.Context) error {
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	st, err := cl.Status(cctx.Context)
+	if err != nil {
+		return err
+	}
+	fmt.Println("ID:", st.ID)
+	fmt.Println("Frozen:", st.Frozen)
+	var percent string
+	if st.Usage < 0 {
+		percent = "not available"
+	} else {
+		percent = fmt.Sprintf("%0.2f%%", st.Usage)
+	}
+	fmt.Println("Usage:", percent)
 	return nil
 }

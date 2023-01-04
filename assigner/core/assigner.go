@@ -347,6 +347,8 @@ func (a *Assigner) initAssignments(ctx context.Context) int {
 		if len(needHandoff) == 0 {
 			a.indexerPool[frozenIndexer].needHandoff = nil
 			a.indexerPool[frozenIndexer].frozen = true
+		} else {
+			log.Infow("Frozen indexer has incomplete handoff", "indexer", frozenIndexer)
 		}
 	}
 
@@ -719,6 +721,7 @@ func (a *Assigner) pollFrozen(ctx context.Context) {
 	defer cancel()
 
 	newFrozen := make(chan int, len(a.indexerPool))
+	var reqCount int
 
 	for i := range a.indexerPool {
 		if !a.indexerPool[i].initDone {
@@ -728,7 +731,10 @@ func (a *Assigner) pollFrozen(ctx context.Context) {
 			continue // ignore already frozen
 		}
 
-		// If incomplete handoff, indexer must be frozen so do not get status.
+		reqCount++
+
+		// If incomplete handoff, indexer must be frozen so report it as frozen
+		// without actually requesting status.
 		if len(a.indexerPool[i].needHandoff) != 0 {
 			newFrozen <- i
 			continue
@@ -751,11 +757,10 @@ func (a *Assigner) pollFrozen(ctx context.Context) {
 		}(i)
 	}
 
-	for reqCount := len(a.indexerPool); reqCount > 0; reqCount-- {
+	for ; reqCount > 0; reqCount-- {
 		i := <-newFrozen
 		if i != -1 {
-			err := a.handoffFrozen(ctx, i)
-			if err != nil {
+			if err := a.handoffFrozen(ctx, i); err != nil {
 				log.Errorw("Handoff incomplete", "err", err, "frozenIndexer", i)
 			}
 		}
@@ -796,7 +801,7 @@ func (a *Assigner) handoffFrozen(ctx context.Context, indexerNum int) error {
 
 	if needHandoff == nil {
 		needHandoff = make(map[peer.ID]struct{})
-		// Get the publishers that are assigned to the frozen indexer.
+		// Build list of publishers that are assigned to the frozen indexer.
 		for pubID, asmt := range a.assigned {
 			if asmt.hasIndexer(indexerNum) {
 				needHandoff[pubID] = struct{}{}
@@ -847,7 +852,7 @@ func (a *Assigner) handoffFrozen(ctx context.Context, indexerNum int) error {
 		for _, candNum := range candidates {
 			err := a.handoffPublisher(ctx, pubID, indexerNum, candNum)
 			if err != nil {
-				log.Errorw("Could not handoff publisher to indexer", "err", err, "indexer", candNum)
+				log.Errorw("Could not handoff publisher to indexer", "err", err, "targetIndexer", candNum)
 				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 					a.indexerPool[indexerNum].needHandoff = needHandoff
 					return err
@@ -870,7 +875,7 @@ func (a *Assigner) handoffFrozen(ctx context.Context, indexerNum int) error {
 		asmt.addIndexer(handoffTo)
 		a.notifyAssignment(pubID, handoffTo)
 
-		log.Infow("Publisher handoff done", "publisher", pubID, "indexer", handoffTo)
+		log.Infow("Publisher handoff done", "publisher", pubID, "targetIndexer", handoffTo)
 	}
 
 	// Now that handoff is complete, mark indexer as frozen.

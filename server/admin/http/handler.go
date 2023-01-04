@@ -542,14 +542,23 @@ func (h *adminHandler) freeze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info("Indexer frozen")
 	w.WriteHeader(http.StatusOK)
 }
 
 func (h *adminHandler) status(w http.ResponseWriter, r *http.Request) {
+	var usage float64
+	du, err := h.reg.ValueStoreUsage()
+	if err != nil {
+		log.Error(err)
+		usage = -1.0
+	} else {
+		usage = du.Percent
+	}
+
 	status := model.Status{
 		Frozen: h.reg.Frozen(),
 		ID:     h.id,
+		Usage:  usage,
 	}
 
 	data, err := json.Marshal(status)

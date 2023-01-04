@@ -19,6 +19,7 @@ import (
 	httpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
 	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/internal/disk"
 	"github.com/ipni/storetheindex/internal/freeze"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry/discovery"
@@ -310,6 +311,8 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		deactivateAfter: time.Duration(cfg.DeactivateAfter),
 	}
 
+	go r.run()
+
 	if opts.freezeAtPercent >= 0 {
 		r.freezer, err = freeze.New(opts.valueStoreDir, opts.freezeAtPercent, dstore, r.freeze)
 		if err != nil {
@@ -317,7 +320,6 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		}
 	}
 
-	go r.run()
 	go r.runPollCheck(poll, pollOverrides)
 
 	return r, nil
@@ -980,6 +982,13 @@ func (r *Registry) Frozen() bool {
 		return false
 	}
 	return r.freezer.Frozen()
+}
+
+func (r *Registry) ValueStoreUsage() (*disk.UsageStats, error) {
+	if r.freezer == nil {
+		return nil, ErrNoFreeze
+	}
+	return r.freezer.Usage()
 }
 
 func (r *Registry) syncFreeze(now time.Time) error {

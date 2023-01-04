@@ -247,6 +247,10 @@ var registerFlags = []cli.Flag{
 	},
 }
 
+var statusFlags = []cli.Flag{
+	indexerHostFlag,
+}
+
 var syntheticFlags = []cli.Flag{
 	fileFlag,
 	&cli.StringFlag{

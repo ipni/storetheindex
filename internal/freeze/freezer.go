@@ -45,21 +45,23 @@ func New(dirPath string, freezeAtPercent float64, dstore datastore.Datastore, fr
 		return nil, err
 	}
 
+	if frozen {
+		log.Info("Indexer already frozen")
+		return f, nil
+	}
+
 	// If not frozen, check disk usage and start monitor.
+	nextCheck, frozen, err := f.check()
+	if err != nil {
+		return nil, err
+	}
 	if !frozen {
-		// Check disk usage.
-		nextCheck, frozen, err := f.check()
-		if err != nil {
-			return nil, err
-		}
-		if !frozen {
-			// Start disk usage monitor.
-			f.checkNow = make(chan chan struct{})
-			f.done = make(chan struct{})
-			f.trigger = make(chan struct{})
-			f.triggerErr = make(chan error)
-			go f.run(nextCheck)
-		}
+		// Start disk usage monitor.
+		f.checkNow = make(chan chan struct{})
+		f.done = make(chan struct{})
+		f.trigger = make(chan struct{})
+		f.triggerErr = make(chan error)
+		go f.run(nextCheck)
 	}
 
 	return f, nil
@@ -108,6 +110,14 @@ func (f *Freezer) Close() {
 	close(f.checkNow)
 	<-f.done
 	f.checkNow = nil
+}
+
+func (f *Freezer) Usage() (*disk.UsageStats, error) {
+	du, err := disk.Usage(f.path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get disk usage at path %q: %w", f.path, err)
+	}
+	return du, nil
 }
 
 // run periodically check file system usage and sets the frozen state if the

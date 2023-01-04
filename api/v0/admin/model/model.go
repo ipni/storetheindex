@@ -17,4 +17,5 @@ type Handoff struct {
 type Status struct {
 	Frozen bool
 	ID     peer.ID
+	Usage  float64
 }
