@@ -78,15 +78,18 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 
 			epRecord := pinfo.ExtendedProviders
 
-			// If override is set to true at the context level then the chain level EPs should be ignored for this context ID
+			// If override is set to true at the context level then the chain
+			// level EPs should be ignored for this context ID
 			override := false
 
 			// Adding context-level EPs if they exist
 			if contextualEpRecord, ok := epRecord.ContextualProviders[string(iVal.ContextID)]; ok {
 				override = contextualEpRecord.Override
 				for _, epInfo := range contextualEpRecord.Providers {
-					// Skippng the main provider's record if its metadata is nil or the same to the one retrieved from the indexer,
-					// because such EP record doesn't advertise any new protocol.
+					// Skippng the main provider's record if its metadata is
+					// nil or is the same as the one retrieved from the
+					// indexer, because such EP record does not advertise any
+					// new protocol.
 					if epInfo.PeerID == provID &&
 						(len(epInfo.Metadata) == 0 || bytes.Equal(epInfo.Metadata, iVal.MetadataBytes)) {
 						continue
@@ -103,8 +106,9 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 
 			// Adding chain-level EPs if such exist
 			for _, epInfo := range epRecord.Providers {
-				// Skippng the main provider's record if its metadata is nil or the same to the one retrieved from the indexer,
-				// because such EP record doesn't advertise any new protocol.
+				// Skippng the main provider's record if its metadata is nil or
+				// is the same as the one retrieved from the indexer, because
+				// such EP record does not advertise any new protocol.
 				if epInfo.PeerID == provID &&
 					(len(epInfo.Metadata) == 0 || bytes.Equal(epInfo.Metadata, iVal.MetadataBytes)) {
 					continue
@@ -167,67 +171,23 @@ func (h *FinderHandler) fetchProviderInfo(provID peer.ID,
 	return pinfo
 }
 
-func (h *FinderHandler) ListProviders() ([]byte, error) {
+func (h *FinderHandler) ListProviders(withExtMetadata bool) ([]byte, error) {
 	infos := h.registry.AllProviderInfo()
 
 	responses := make([]model.ProviderInfo, len(infos))
-	for i := range infos {
+	for i, pInfo := range infos {
 		var indexCount uint64
 		if h.indexCounts != nil {
 			var err error
-			indexCount, err = h.indexCounts.Provider(infos[i].AddrInfo.ID)
+			indexCount, err = h.indexCounts.Provider(pInfo.AddrInfo.ID)
 			if err != nil {
 				log.Errorw("Could not get provider index count", "err", err)
 			}
 		}
-		pInfo := infos[i]
-		responses[i] = model.MakeProviderInfo(pInfo.AddrInfo, pInfo.LastAdvertisement,
-			pInfo.LastAdvertisementTime, pInfo.Publisher, pInfo.PublisherAddr,
-			pInfo.FrozenAt, pInfo.FrozenAtTime, indexCount)
-
-		responses[i].ExtendedProviders = makeExtendedProviders(pInfo)
+		responses[i] = *registry.RegToApiProviderInfo(pInfo, indexCount, withExtMetadata)
 	}
 
 	return json.Marshal(responses)
-}
-
-func makeExtendedProviders(pInfo *registry.ProviderInfo) *model.ExtendedProviders {
-	if pInfo.ExtendedProviders == nil {
-		return nil
-	}
-
-	xProvs := &model.ExtendedProviders{}
-	if len(pInfo.ExtendedProviders.Providers) > 0 {
-		xProvs.Providers = make([]peer.AddrInfo, 0, len(pInfo.ExtendedProviders.Providers))
-		for _, xp := range pInfo.ExtendedProviders.Providers {
-			xProvs.Providers = append(xProvs.Providers, peer.AddrInfo{
-				ID:    xp.PeerID,
-				Addrs: xp.Addrs,
-			})
-		}
-	}
-
-	if len(pInfo.ExtendedProviders.ContextualProviders) == 0 {
-		return xProvs
-	}
-
-	xProvs.Contextual = make([]model.ContextualExtendedProviders, 0, len(pInfo.ExtendedProviders.ContextualProviders))
-	for _, registerXp := range pInfo.ExtendedProviders.ContextualProviders {
-		modelXp := model.ContextualExtendedProviders{
-			Override:  registerXp.Override,
-			ContextID: string(registerXp.ContextID),
-			Providers: make([]peer.AddrInfo, 0, len(registerXp.Providers)),
-		}
-		for _, p := range registerXp.Providers {
-			modelXp.Providers = append(modelXp.Providers, peer.AddrInfo{
-				ID:    p.PeerID,
-				Addrs: p.Addrs,
-			})
-		}
-		xProvs.Contextual = append(xProvs.Contextual, modelXp)
-	}
-
-	return xProvs
 }
 
 func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
@@ -244,12 +204,8 @@ func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 			log.Errorw("Could not get provider index count", "err", err)
 		}
 	}
-	rsp := model.MakeProviderInfo(info.AddrInfo, info.LastAdvertisement,
-		info.LastAdvertisementTime, info.Publisher, info.PublisherAddr,
-		info.FrozenAt, info.FrozenAtTime, indexCount)
-	rsp.ExtendedProviders = makeExtendedProviders(info)
-
-	return json.Marshal(&rsp)
+	rsp := registry.RegToApiProviderInfo(info, indexCount, false)
+	return json.Marshal(rsp)
 }
 
 func (h *FinderHandler) RefreshStats() {

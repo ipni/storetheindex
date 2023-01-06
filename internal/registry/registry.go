@@ -787,7 +787,7 @@ func (r *Registry) Handoff(ctx context.Context, publisherID, frozenID peer.ID, f
 	if err != nil {
 		return err
 	}
-	provs, err := cl.ListProviders(ctx)
+	provs, err := cl.ListProviders(ctx, true)
 	if err != nil {
 		return err
 	}
@@ -821,18 +821,7 @@ func (r *Registry) Handoff(ctx context.Context, publisherID, frozenID peer.ID, f
 		return ErrCannotPublish
 	}
 
-	regInfo := &ProviderInfo{
-		AddrInfo:  provInfo.AddrInfo,
-		Publisher: publisherID,
-	}
-
-	if len(provInfo.Publisher.Addrs) == 0 {
-		// Publisher does not have addresses, so use provider address.
-		regInfo.PublisherAddr = regInfo.AddrInfo.Addrs[0]
-	} else {
-		regInfo.PublisherAddr = provInfo.Publisher.Addrs[0]
-	}
-
+	regInfo := apiToRegProviderInfo(provInfo)
 	err = r.register(ctx, regInfo)
 	if err != nil {
 		return fmt.Errorf("cannot register provider from frozen indexer: %w", err)
@@ -861,7 +850,7 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 		return 0, err
 	}
 
-	provs, err := cl.ListProviders(ctx)
+	provs, err := cl.ListProviders(ctx, true)
 	if err != nil {
 		return 0, err
 	}
@@ -871,41 +860,27 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 		if r.IsRegistered(pInfo.AddrInfo.ID) {
 			continue
 		}
-		regInfo := &ProviderInfo{
-			AddrInfo: pInfo.AddrInfo,
+
+		regInfo := apiToRegProviderInfo(pInfo)
+		if regInfo.PublisherAddr == nil {
+			log.Infow("Publisher missing address",
+				"provider", regInfo.AddrInfo.ID, "publisher", regInfo.Publisher)
 		}
 
-		var pubErr error
-		if pInfo.Publisher == nil {
-			pubErr = errors.New("missing publisher")
-		} else if pInfo.Publisher.ID.Validate() != nil {
-			pubErr = errors.New("bad publisher id")
-		} else if len(pInfo.Publisher.Addrs) == 0 {
-			pubErr = errors.New("publisher missing addresses")
-		} else if !r.policy.Allowed(pInfo.Publisher.ID) {
+		if !r.policy.Allowed(regInfo.Publisher) {
 			log.Infow("Cannot register provider", "err", ErrPublisherNotAllowed,
-				"provider", pInfo.AddrInfo.ID, "publisher", pInfo.Publisher.ID)
+				"provider", regInfo.AddrInfo.ID, "publisher", regInfo.Publisher)
 			continue
-		} else if !r.policy.PublishAllowed(pInfo.Publisher.ID, pInfo.AddrInfo.ID) {
+		} else if !r.policy.PublishAllowed(regInfo.Publisher, regInfo.AddrInfo.ID) {
 			log.Infow("Cannot register provider", "err", ErrCannotPublish,
-				"provider", pInfo.AddrInfo.ID, "publisher", pInfo.Publisher.ID)
+				"provider", regInfo.AddrInfo.ID, "publisher", regInfo.Publisher)
 			continue
-		}
-
-		if pubErr != nil {
-			// If publisher does not have a valid ID and addresses, then use
-			// provider as publisher.
-			log.Infow("Provider does not have valid publisher, assuming same as provider", "reason", pubErr, "provider", regInfo.AddrInfo.ID)
-			regInfo.Publisher = regInfo.AddrInfo.ID
-			regInfo.PublisherAddr = regInfo.AddrInfo.Addrs[0]
-		} else {
-			regInfo.Publisher = pInfo.Publisher.ID
-			regInfo.PublisherAddr = pInfo.Publisher.Addrs[0]
 		}
 
 		err = r.register(ctx, regInfo)
 		if err != nil {
-			log.Infow("Cannot register provider", "provider", pInfo.AddrInfo.ID, "err", err)
+			log.Infow("Cannot register provider", "err", err,
+				"provider", regInfo.AddrInfo.ID, "publisher", regInfo.Publisher)
 			continue
 		}
 

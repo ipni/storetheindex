@@ -108,8 +108,17 @@ func TestHandoff(t *testing.T) {
 		}
 		now := time.Now()
 
-		pInfo := model.MakeProviderInfo(frozenAddrInfo, adCid, now, peerID, provAddr, adCid, now, 0)
-		responses := []model.ProviderInfo{pInfo}
+		responses := []model.ProviderInfo{{
+			AddrInfo:              frozenAddrInfo,
+			LastAdvertisement:     adCid,
+			LastAdvertisementTime: now.Format(time.RFC3339),
+			Publisher: &peer.AddrInfo{
+				ID:    peerID,
+				Addrs: []multiaddr.Multiaddr{provAddr},
+			},
+			FrozenAt:     adCid,
+			FrozenAtTime: now.Format(time.RFC3339),
+		}}
 
 		data, err := json.Marshal(responses)
 		if err != nil {
@@ -158,9 +167,17 @@ func TestHandoffNoPublisher(t *testing.T) {
 		}
 		now := time.Now()
 
-		pInfo := model.MakeProviderInfo(frozenAddrInfo, adCid, now, indexer2ID, provAddr, adCid, now, 0)
-		responses := []model.ProviderInfo{pInfo}
-
+		responses := []model.ProviderInfo{{
+			AddrInfo:              frozenAddrInfo,
+			LastAdvertisement:     adCid,
+			LastAdvertisementTime: now.Format(time.RFC3339),
+			Publisher: &peer.AddrInfo{
+				ID:    indexer2ID,
+				Addrs: []multiaddr.Multiaddr{provAddr},
+			},
+			FrozenAt:     adCid,
+			FrozenAtTime: now.Format(time.RFC3339),
+		}}
 		data, err := json.Marshal(responses)
 		if err != nil {
 			panic(err.Error())

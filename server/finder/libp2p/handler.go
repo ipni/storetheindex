@@ -122,7 +122,19 @@ func (h *libp2pHandler) find(ctx context.Context, p peer.ID, msg *pb.FinderMessa
 }
 
 func (h *libp2pHandler) listProviders(ctx context.Context, p peer.ID, msg *pb.FinderMessage) ([]byte, error) {
-	data, err := h.finderHandler.ListProviders()
+	var withExtMetadata bool
+	data := msg.GetData()
+	if data != nil {
+		var queryParams map[string]string
+		err := json.Unmarshal(data, &queryParams)
+		if err != nil {
+			log.Errorw("error unmarshalling ListProviders request", "err", err)
+			return nil, v0.NewError(errors.New("cannot decode request"), http.StatusBadRequest)
+		}
+		withExtMetadata = queryParams["metadata"] == "true"
+	}
+
+	data, err := h.finderHandler.ListProviders(withExtMetadata)
 	if err != nil {
 		log.Errorw("cannot list providers", "err", err)
 		return nil, v0.NewError(nil, http.StatusInternalServerError)

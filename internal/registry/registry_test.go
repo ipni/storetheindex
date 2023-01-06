@@ -850,7 +850,7 @@ func TestHandoff(t *testing.T) {
 	pubAddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	require.NoError(t, err)
 
-	provAddrInfo := peer.AddrInfo{
+	pubAddrInfo := peer.AddrInfo{
 		ID:    pubID,
 		Addrs: []multiaddr.Multiaddr{pubAddr},
 	}
@@ -863,14 +863,19 @@ func TestHandoff(t *testing.T) {
 	frozenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
 		t.Log("Frozen indexer received", req.Method, "request at", req.URL.String())
-		provInfo := model.MakeProviderInfo(provAddrInfo, adCid, lastAdTime, pubID, pubAddr, adCid, lastAdTime, 0)
-		pInfos := []*model.ProviderInfo{&provInfo}
+		pInfos := []model.ProviderInfo{{
+			AddrInfo:              pubAddrInfo,
+			LastAdvertisement:     adCid,
+			LastAdvertisementTime: lastAdTime.Format(time.RFC3339),
+			Publisher:             &pubAddrInfo,
+			FrozenAt:              adCid,
+			FrozenAtTime:          lastAdTime.Format(time.RFC3339),
+		}}
 		data, err := json.Marshal(pInfos)
 		if err != nil {
 			panic(err.Error())
 		}
 		writeJsonResponse(w, http.StatusOK, data)
-
 	}))
 	defer frozenServer.Close()
 

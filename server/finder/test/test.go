@@ -278,7 +278,7 @@ func ListProvidersTest(t *testing.T, c client.Finder, providerID peer.ID) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	providers, err := c.ListProviders(ctx)
+	providers, err := c.ListProviders(ctx, false)
 	if err != nil {
 		t.Fatal(err)
 	}
