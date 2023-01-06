@@ -785,7 +785,8 @@ func TestFreeze(t *testing.T) {
 
 	ctx := context.Background()
 	tempDir := t.TempDir()
-	r, err := New(ctx, cfg, datastore.NewMapDatastore(), WithFreezer(tempDir, 90.0))
+	dstore := datastore.NewMapDatastore()
+	r, err := New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
@@ -828,6 +829,18 @@ func TestFreeze(t *testing.T) {
 		require.True(t, infos[i].FrozenAt.Defined())
 		require.False(t, infos[i].FrozenAtTime.IsZero())
 	}
+
+	// Stop and restart registry and check providers are still frozen.
+	r.Close()
+	r, err = New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
+	require.NoError(t, err)
+	require.True(t, r.Frozen())
+	infos = r.AllProviderInfo()
+	for i := range infos {
+		require.True(t, infos[i].FrozenAt.Defined())
+		require.False(t, infos[i].FrozenAtTime.IsZero())
+	}
+	r.Close()
 }
 
 func TestHandoff(t *testing.T) {

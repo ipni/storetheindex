@@ -984,7 +984,7 @@ func (r *Registry) syncFreeze(now time.Time) error {
 			continue
 		}
 
-		value, err := json.Marshal(info)
+		value, err := json.Marshal(&frozenInfo)
 		if err != nil {
 			return err
 		}
