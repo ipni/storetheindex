@@ -324,12 +324,24 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		t.Errorf("expected provider id in providers output after import-providers, got %q", string(outProviders))
 	}
 
+	// Check that status is not frozen.
+	outStatus := e.run(indexer, "admin", "status", "--indexer", "localhost:3202")
+	if !strings.Contains(string(outStatus), "Frozen: false") {
+		t.Errorf("expected indexer to be frozen, got %q", string(outProviders))
+	}
+
 	e.run(indexer, "admin", "freeze", "--indexer", "localhost:3202")
 	outProviders = e.run(indexer, "providers", "list", "--indexer", "localhost:3200")
 
 	// Check that provider ID now appears as frozen in providers output.
 	if !strings.Contains(string(outProviders), "FrozenAtTime") {
 		t.Errorf("expected provider to be frozen, got %q", string(outProviders))
+	}
+
+	// Check that status is frozen.
+	outStatus = e.run(indexer, "admin", "status", "--indexer", "localhost:3202")
+	if !strings.Contains(string(outStatus), "Frozen: true") {
+		t.Errorf("expected indexer to be frozen, got %q", string(outProviders))
 	}
 
 	e.stop(cmdIndexer2, time.Second)

@@ -805,7 +805,9 @@ func (r *Registry) Handoff(ctx context.Context, publisherID, frozenID peer.ID, f
 		// None of the providers has publisher that is being handed off. The
 		// provider changed publishers at some point after the publisher was
 		// assigned to the indexer. There is nothing to hand off for this
-		// publisher.
+		// publisher. With no associated provider, there is no way to know
+		// where indexing was frozen, so do not assign the publisher to this
+		// indexer.
 		log.Infow("handoff publisher no longer in use on frozen indexer")
 		return nil
 	}

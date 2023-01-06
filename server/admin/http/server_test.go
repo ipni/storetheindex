@@ -152,6 +152,9 @@ func TestHandoff(t *testing.T) {
 	te.close(t)
 }
 
+// TestHandoffNoPublisher tests reassigning a publisher when none of the
+// providers on the frozen indexer has that publisher. This should result in
+// successful handoff, but without reassigning the publisher
 func TestHandoffNoPublisher(t *testing.T) {
 	queriedFrozen := make(chan struct{})
 	frozenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -161,14 +164,13 @@ func TestHandoffNoPublisher(t *testing.T) {
 		adCid, _ := cid.Decode("bafybeigvgzoolc3drupxhlevdp2ugqcrbcsqfmcek2zxiw5wctk3xjpjwy")
 		provAddr, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 
-		frozenAddrInfo := peer.AddrInfo{
-			ID:    peerID,
-			Addrs: []multiaddr.Multiaddr{provAddr},
-		}
 		now := time.Now()
 
 		responses := []model.ProviderInfo{{
-			AddrInfo:              frozenAddrInfo,
+			AddrInfo: peer.AddrInfo{
+				ID:    peerID,
+				Addrs: []multiaddr.Multiaddr{provAddr},
+			},
 			LastAdvertisement:     adCid,
 			LastAdvertisementTime: now.Format(time.RFC3339),
 			Publisher: &peer.AddrInfo{
