@@ -75,6 +75,7 @@ func TestLatestSyncSuccess(t *testing.T) {
 }
 
 func TestSyncFn(t *testing.T) {
+	t.Parallel()
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcHost := test.MkTestHost()
@@ -299,6 +300,7 @@ func TestStepByStepSync(t *testing.T) {
 }
 
 func TestLatestSyncFailure(t *testing.T) {
+	t.Parallel()
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcHost := test.MkTestHost()

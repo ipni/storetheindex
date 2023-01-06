@@ -481,6 +481,7 @@ func TestAssignerPreferred(t *testing.T) {
 }
 
 func TestPoolIndexerOffline(t *testing.T) {
+	t.Parallel()
 	fakeIndexer1 := newTestIndexer(nil)
 	defer fakeIndexer1.close()
 
@@ -593,6 +594,7 @@ func TestPoolIndexerOffline(t *testing.T) {
 // Test that assigner detects frozen indexer and handsoff its assigned
 // publishers to another indexer.
 func TestFreezeHandoff(t *testing.T) {
+	t.Parallel()
 	var indexer1frozen int32
 
 	testAdminHandler1 := func(w http.ResponseWriter, r *http.Request) {

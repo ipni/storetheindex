@@ -72,6 +72,7 @@ func initPubSub(t *testing.T, srcStore, dstStore datastore.Batching) (host.Host,
 }
 
 func TestAllowPeerReject(t *testing.T) {
+	t.Parallel()
 	// Init dagsync publisher and subscriber
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -111,6 +112,7 @@ func TestAllowPeerReject(t *testing.T) {
 }
 
 func TestAllowPeerAllows(t *testing.T) {
+	t.Parallel()
 	// Init dagsync publisher and subscriber
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -147,6 +149,7 @@ func TestAllowPeerAllows(t *testing.T) {
 }
 
 func TestPublisherRejectsPeer(t *testing.T) {
+	t.Parallel()
 	// Init dagsync publisher and subscriber
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -219,6 +222,7 @@ func TestPublisherRejectsPeer(t *testing.T) {
 }
 
 func TestIdleHandlerCleaner(t *testing.T) {
+	t.Parallel()
 	blocksSeenByHook := make(map[cid.Cid]struct{})
 	blockHook := func(p peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 		blocksSeenByHook[c] = struct{}{}

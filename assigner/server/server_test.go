@@ -55,11 +55,13 @@ func setupClient(t *testing.T, host string) *client.Client {
 	return c
 }
 
-func TestAnnounce(t *testing.T) {
+func TestAssignOnAnnounce(t *testing.T) {
 	switch runtime.GOOS {
 	case "windows":
 		t.Skip("skipping test on", runtime.GOOS)
 	}
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	e := &e2eTestRunner{

@@ -12,6 +12,7 @@ import (
 )
 
 func TestAdsSyncedViaSegmentsAreProcessed(t *testing.T) {
+	t.Parallel()
 	cfg := config.NewIngest()
 	cfg.PubSubTopic = defaultTestIngestConfig.PubSubTopic
 	cfg.SyncSegmentDepthLimit = 7

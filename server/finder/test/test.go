@@ -395,6 +395,7 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 }
 
 func GetStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refreshStats func(), c client.Finder) {
+	t.Parallel()
 	mhs := util.RandomMultihashes(15, rng)
 	p, err := peer.Decode(providerID)
 	if err != nil {

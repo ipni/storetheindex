@@ -519,6 +519,7 @@ func TestHttpPeerAddrPeerstore(t *testing.T) {
 }
 
 func TestRateLimiter(t *testing.T) {
+	t.Parallel()
 	type testCase struct {
 		name   string
 		isHttp bool
@@ -531,7 +532,7 @@ func TestRateLimiter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
+			t.Parallel()
 			pubHostSys := newHostSystem(t)
 			subHostSys := newHostSystem(t)
 			defer pubHostSys.close()
@@ -574,6 +575,7 @@ func TestRateLimiter(t *testing.T) {
 }
 
 func TestBackpressureDoesntDeadlock(t *testing.T) {
+	t.Parallel()
 	pubHostSys := newHostSystem(t)
 	subHostSys := newHostSystem(t)
 	defer pubHostSys.close()

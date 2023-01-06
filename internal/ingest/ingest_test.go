@@ -345,6 +345,7 @@ func TestRestartDuringSync(t *testing.T) {
 }
 
 func TestFailDuringSync(t *testing.T) {
+	t.Parallel()
 	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(failBlockedRead)
 
 	te := setupTestEnv(t, true, blockableLsysOpt)
@@ -1324,6 +1325,7 @@ func mkTestHost(opts ...libp2p.Option) host.Host {
 }
 
 func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
+	t.Parallel()
 	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
 	te := setupTestEnv(t, true, blockableLsysOpt)
 	defer te.Close(t)
@@ -1391,6 +1393,7 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 }
 
 func TestAnnounceIsNotDeferredOnNoInProgressIngest(t *testing.T) {
+	t.Parallel()
 	te := setupTestEnv(t, true)
 	defer te.Close(t)
 	headLink := typehelpers.RandomAdBuilder{
@@ -1416,6 +1419,7 @@ func TestAnnounceIsNotDeferredOnNoInProgressIngest(t *testing.T) {
 }
 
 func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *testing.T) {
+	t.Parallel()
 	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
 	te := setupTestEnv(t, true, blockableLsysOpt)
 	defer te.Close(t)
