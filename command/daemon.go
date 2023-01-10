@@ -47,11 +47,11 @@ import (
 
 // Recognized valuestore type names.
 const (
-	vstoreMemory        = "memory"
-	vstorePebble        = "pebble"
-	vstorePebblePrivacy = "p_pebble"
-	vstorePogreb        = "pogreb"
-	vstoreStorethehash  = "sth"
+	vstoreMemory       = "memory"
+	vstorePebble       = "pebble"
+	vstoreLegacyPebble = "pebble_legacy"
+	vstorePogreb       = "pogreb"
+	vstoreStorethehash = "sth"
 )
 
 var log = logging.Logger("indexer")
@@ -533,8 +533,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		vs, err = pogreb.New(dir)
 	case vstoreMemory:
 		vs, err = memory.New(), nil
-	case vstorePebble:
-	case vstorePebblePrivacy:
+	case vstorePebble, vstoreLegacyPebble:
 
 		// TODO: parameterize values and study what settings are right for sti
 
@@ -574,13 +573,13 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		pebbleOpts.Cache = pbl.NewCache(1 << 30) // 1 GiB
 
 		if cfgIndexer.ValueStoreType == vstorePebble {
-			vs, err = pebble.New(dir, pebbleOpts)
-		} else {
 			var ds store.Interface
 			ds, err = pebble.NewDatastore(dir, pebbleOpts)
 			if err == nil {
 				vs = dhash.New(ds)
 			}
+		} else {
+			vs, err = pebble.New(dir, pebbleOpts)
 		}
 
 	default:

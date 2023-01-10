@@ -663,12 +663,6 @@ github.com/ipld/go-ipld-prime v0.18.0/go.mod h1:735yXW548CKrLwVCYXzqx90p5deRJMVV
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20211210234204-ce2a1c70cd73/go.mod h1:2PJ0JgxyB08t0b2WKrcuqI3di0V+5n6RS/LTUJhkoxY=
 github.com/ipld/go-storethehash v0.3.13 h1:1T6kX5K57lAgxbsGitZEaZMAR3RdWch2kO8okK/BgN8=
 github.com/ipld/go-storethehash v0.3.13/go.mod h1:KCYpzmamubnSwm7fvWcCkm0aIwQh4WRNtzrKK4pVhAQ=
-github.com/ipni/go-indexer-core v0.6.20-0.20221203120225-301a542115f8 h1:yVqgbaS/EwnJggQYpxf6mYJ//72NbPyM9MAGjDeD+8g=
-github.com/ipni/go-indexer-core v0.6.20-0.20221203120225-301a542115f8/go.mod h1:EBHAKGJXuQUbdDYWCCmVCNrTO7vkapCeaDUG6my66J0=
-github.com/ipni/go-indexer-core v0.6.20-0.20221216132020-e77138121ce2 h1:o18TLAyg0REVXHj8XNRIpzS2N4lsMRQdIUm2idwGE+8=
-github.com/ipni/go-indexer-core v0.6.20-0.20221216132020-e77138121ce2/go.mod h1:ep1k+uz1Dp3mWx9DkjPYzINyz/cuyQBPdm1AkhZdz5Y=
-github.com/ipni/go-indexer-core v0.6.20-0.20230109122556-889e41b194ef h1:PG1JVoemp1o2or3onsuxXP5KuDWKCX/fppqSYpk5qIM=
-github.com/ipni/go-indexer-core v0.6.20-0.20230109122556-889e41b194ef/go.mod h1:ep1k+uz1Dp3mWx9DkjPYzINyz/cuyQBPdm1AkhZdz5Y=
 github.com/ipni/go-indexer-core v0.6.20-0.20230109123135-cfa5535bbd1f h1:fHWSSlrSXYTbk/Y6dWlLlCT7q+JdVSllC2hqykxkdFg=
 github.com/ipni/go-indexer-core v0.6.20-0.20230109123135-cfa5535bbd1f/go.mod h1:g+/h02G9xHBzrkgcOvhyJ6Elgy5zB1FZFecHAJuVbyY=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52 h1:QG4CGBqCeuBo6aZlGAamSkxWdgWfZGeE49eUOWJPA4c=
