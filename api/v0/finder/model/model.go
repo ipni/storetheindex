@@ -39,6 +39,17 @@ type FindResponse struct {
 	// Signature []byte	// Providers signature.
 }
 
+// PrivateFindResponse used to answer private (aka double hashed) client lookups.
+type PrivateFindResponse struct {
+	MultihashResults []PrivateMultihashResult
+}
+
+// PrivateMultihashResult aggregates all encrypted value keys for a single multihash
+type PrivateMultihashResult struct {
+	Multihash multihash.Multihash
+	ValueKeys []string
+}
+
 // Equal compares ProviderResult values to determine if they are equal. The
 // provider addresses are omitted from the comparison.
 func (pr ProviderResult) Equal(other ProviderResult) bool {
@@ -79,6 +90,18 @@ func MarshalFindResponse(r *FindResponse) ([]byte, error) {
 // UnmarshalFindResponse de-serializes a find response.
 func UnmarshalFindResponse(b []byte) (*FindResponse, error) {
 	r := &FindResponse{}
+	err := json.Unmarshal(b, r)
+	return r, err
+}
+
+// MarshalPrivateFindResponse serializes a private find response
+func MarshalPrivateFindResponse(response *PrivateFindResponse) ([]byte, error) {
+	return json.Marshal(response)
+}
+
+// UnmarshalPrivateFindResponse de-serializes a private find response
+func UnmarshalPrivateFindResponse(b []byte) (*PrivateFindResponse, error) {
+	r := &PrivateFindResponse{}
 	err := json.Unmarshal(b, r)
 	return r, err
 }

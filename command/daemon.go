@@ -20,6 +20,8 @@ import (
 	"github.com/ipni/go-indexer-core/cache"
 	"github.com/ipni/go-indexer-core/cache/radixcache"
 	"github.com/ipni/go-indexer-core/engine"
+	"github.com/ipni/go-indexer-core/store"
+	"github.com/ipni/go-indexer-core/store/dhash"
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/go-indexer-core/store/pogreb"
@@ -45,10 +47,11 @@ import (
 
 // Recognized valuestore type names.
 const (
-	vstoreMemory       = "memory"
-	vstorePebble       = "pebble"
-	vstorePogreb       = "pogreb"
-	vstoreStorethehash = "sth"
+	vstoreMemory        = "memory"
+	vstorePebble        = "pebble"
+	vstorePebblePrivacy = "p_pebble"
+	vstorePogreb        = "pogreb"
+	vstoreStorethehash  = "sth"
 )
 
 var log = logging.Logger("indexer")
@@ -531,6 +534,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 	case vstoreMemory:
 		vs, err = memory.New(), nil
 	case vstorePebble:
+	case vstorePebblePrivacy:
 
 		// TODO: parameterize values and study what settings are right for sti
 
@@ -569,7 +573,16 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		pebbleOpts.Levels[numLevels-1].FilterPolicy = nil
 		pebbleOpts.Cache = pbl.NewCache(1 << 30) // 1 GiB
 
-		vs, err = pebble.New(dir, pebbleOpts)
+		if cfgIndexer.ValueStoreType == vstorePebble {
+			vs, err = pebble.New(dir, pebbleOpts)
+		} else {
+			var ds store.Interface
+			ds, err = pebble.NewDatastore(dir, pebbleOpts)
+			if err == nil {
+				vs = dhash.New(ds)
+			}
+		}
+
 	default:
 		err = fmt.Errorf("unrecognized store type: %s", cfgIndexer.ValueStoreType)
 	}

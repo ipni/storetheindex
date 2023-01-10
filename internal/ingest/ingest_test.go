@@ -22,7 +22,8 @@ import (
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
-	"github.com/ipni/go-indexer-core/store/memory"
+	"github.com/ipni/go-indexer-core/store/dhash"
+	"github.com/ipni/go-indexer-core/store/pebble"
 	schema "github.com/ipni/storetheindex/api/v0/ingest/schema"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/dagsync"
@@ -1482,7 +1483,9 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 
 // Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
-	return engine.New(nil, memory.New())
+	ds, err := pebble.NewDatastore(t.TempDir(), nil)
+	require.NoError(t, err)
+	return engine.New(nil, dhash.New(ds))
 }
 
 func mkRegistry(t *testing.T) *registry.Registry {

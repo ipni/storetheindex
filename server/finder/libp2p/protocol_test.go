@@ -122,7 +122,7 @@ func TestGetStats(t *testing.T) {
 	defer cancel()
 
 	// Initialize everything
-	ind := test.InitPebbleIndex(t, false)
+	ind := test.InitIndex(t, false)
 	defer ind.Close()
 	reg := test.InitRegistry(t)
 	defer reg.Close()

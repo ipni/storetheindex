@@ -44,6 +44,14 @@ func (c *Client) Find(ctx context.Context, m multihash.Multihash) (*model.FindRe
 	return c.FindBatch(ctx, []multihash.Multihash{m})
 }
 
+func (c *Client) FindPrivate(context.Context, multihash.Multihash) (*model.FindResponse, error) {
+	panic("not supported")
+}
+
+func (c *Client) FindBatchPrivate(context.Context, []multihash.Multihash) (*model.FindResponse, error) {
+	panic("not supported")
+}
+
 func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*model.FindResponse, error) {
 	if len(mhs) == 0 {
 		return &model.FindResponse{}, nil

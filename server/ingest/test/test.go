@@ -13,7 +13,8 @@ import (
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
-	"github.com/ipni/go-indexer-core/store/memory"
+	"github.com/ipni/go-indexer-core/store/dhash"
+	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/storetheindex/announce"
 	"github.com/ipni/storetheindex/announce/message"
 	v0 "github.com/ipni/storetheindex/api/v0"
@@ -27,13 +28,16 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/require"
 )
 
 var rng = rand.New(rand.NewSource(1413))
 
 // InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
-	return engine.New(nil, memory.New())
+	ds, err := pebble.NewDatastore(t.TempDir(), nil)
+	require.NoError(t, err)
+	return engine.New(nil, dhash.New(ds))
 }
 
 // InitRegistry initializes a new registry

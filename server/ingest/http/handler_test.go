@@ -52,6 +52,10 @@ func (m *mockIndexer) Put(value indexer.Value, mhs ...multihash.Multihash) error
 	return nil
 }
 
+func (m *mockIndexer) GetValue(valKey []byte) (*indexer.Value, error) { return nil, nil }
+func (m *mockIndexer) GetValueKeys(secondHash multihash.Multihash) ([][]byte, bool, error) {
+	return nil, false, nil
+}
 func (m *mockIndexer) Remove(indexer.Value, ...multihash.Multihash) error { return nil }
 func (m *mockIndexer) RemoveProvider(context.Context, peer.ID) error      { return nil }
 func (m *mockIndexer) RemoveProviderContext(peer.ID, []byte) error        { return nil }

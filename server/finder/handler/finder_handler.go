@@ -14,6 +14,7 @@ import (
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p/core/peer"
+	b58 "github.com/mr-tron/base58/base58"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
@@ -131,6 +132,29 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 	return &model.FindResponse{
 		MultihashResults: results,
 	}, nil
+}
+
+func (h *FinderHandler) FindValueKeys(mhashes []multihash.Multihash) (*model.PrivateFindResponse, error) {
+	resp := &model.PrivateFindResponse{
+		MultihashResults: make([]model.PrivateMultihashResult, 0, 0),
+	}
+	for _, mh := range mhashes {
+		mhr := model.PrivateMultihashResult{
+			Multihash: mh,
+		}
+		vks, hasResult, err := h.indexer.GetValueKeys(mh)
+		if err != nil {
+			return nil, err
+		}
+		if !hasResult {
+			continue
+		}
+		for _, vk := range vks {
+			mhr.ValueKeys = append(mhr.ValueKeys, b58.Encode(vk))
+		}
+		resp.MultihashResults = append(resp.MultihashResults, mhr)
+	}
+	return resp, nil
 }
 
 func (h *FinderHandler) fetchProviderInfo(provID peer.ID,

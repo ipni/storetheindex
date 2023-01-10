@@ -218,7 +218,7 @@ func TestProviderInfo(t *testing.T) {
 }
 
 func TestGetStats(t *testing.T) {
-	ind := test.InitPebbleIndex(t, false)
+	ind := test.InitIndex(t, false)
 	defer ind.Close()
 	reg := test.InitRegistry(t)
 	defer reg.Close()

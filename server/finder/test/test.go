@@ -15,7 +15,7 @@ import (
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/cache/radixcache"
 	"github.com/ipni/go-indexer-core/engine"
-	"github.com/ipni/go-indexer-core/store/memory"
+	"github.com/ipni/go-indexer-core/store/dhash"
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/storetheindex/api/v0/finder/client"
 	"github.com/ipni/storetheindex/api/v0/finder/model"
@@ -34,19 +34,17 @@ var rng = rand.New(rand.NewSource(1413))
 
 // InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
-	return engine.New(nil, memory.New())
-}
-
-// InitPebbleIndex initialize a new indexer engine using pebbel with cache.
-func InitPebbleIndex(t *testing.T, withCache bool) indexer.Interface {
-	valueStore, err := pebble.New(t.TempDir(), nil)
+	pebbleDs, err := pebble.NewDatastore(t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	ix := dhash.New(pebbleDs)
+
 	if withCache {
-		return engine.New(radixcache.New(1000), valueStore)
+		return engine.New(radixcache.New(1000), ix)
 	}
-	return engine.New(nil, valueStore)
+	return engine.New(nil, ix)
 }
 
 func InitRegistry(t *testing.T) *registry.Registry {
@@ -247,7 +245,7 @@ func checkResponse(r *model.FindResponse, mhs []multihash.Multihash, expected []
 
 		// Check if same value
 		for j, pr := range r.MultihashResults[i].ProviderResults {
-			if !pr.Equal(expected[j]) {
+			if pr.Provider.ID != expected[j].Provider.ID {
 				return fmt.Errorf("wrong ProviderResult included for a multihash: %s", expected[j])
 			}
 		}

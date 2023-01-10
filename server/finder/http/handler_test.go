@@ -13,19 +13,34 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-indexer-core"
+	"github.com/ipni/go-indexer-core/store/dhash"
 	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/ipni/storetheindex/server/finder/test"
 	"github.com/ipni/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
+
+	b58 "github.com/mr-tron/base58/base58"
 )
 
 func TestServer_CORSWithExpectedContentType(t *testing.T) {
 	rng := rand.New(rand.NewSource(1413))
 	mhs := util.RandomMultihashes(10, rng)
+	smhs := make([]multihash.Multihash, 0, len(mhs))
+	for _, mh := range mhs {
+		smh, err := dhash.SecondMultihash(mh)
+		require.NoError(t, err)
+		smhs = append(smhs, smh)
+	}
+
 	findBatchRequest, err := model.MarshalFindRequest(&model.FindRequest{Multihashes: mhs})
 	require.NoError(t, err)
+
+	privateFindBatchRequest, err := model.MarshalFindRequest(&model.FindRequest{Multihashes: smhs})
+	require.NoError(t, err)
+
 	c := cid.NewCidV1(cid.Raw, mhs[0])
 
 	ind := test.InitIndex(t, false)
@@ -95,6 +110,17 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 			reqMethod:       http.MethodPost,
 			reqUrl:          "/multihash",
 			reqBody:         bytes.NewBuffer(findBatchRequest),
+			wantContentType: "application/json",
+		},
+		{
+			reqMethod:       http.MethodGet,
+			reqUrl:          "/private/multihash/" + b58.Encode(smhs[0]),
+			wantContentType: "application/json",
+		},
+		{
+			reqMethod:       http.MethodPost,
+			reqUrl:          "/private/multihash",
+			reqBody:         bytes.NewBuffer(privateFindBatchRequest),
 			wantContentType: "application/json",
 		},
 		{
