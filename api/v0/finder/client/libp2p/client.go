@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ipni/storetheindex/api/v0"
+	v0 "github.com/ipni/storetheindex/api/v0"
 	"github.com/ipni/storetheindex/api/v0/finder/model"
 	pb "github.com/ipni/storetheindex/api/v0/finder/pb"
 	"github.com/ipni/storetheindex/api/v0/libp2pclient"
@@ -42,14 +42,6 @@ func (c *Client) ConnectAddrs(ctx context.Context, maddrs ...multiaddr.Multiaddr
 
 func (c *Client) Find(ctx context.Context, m multihash.Multihash) (*model.FindResponse, error) {
 	return c.FindBatch(ctx, []multihash.Multihash{m})
-}
-
-func (c *Client) FindPrivate(context.Context, multihash.Multihash) (*model.FindResponse, error) {
-	panic("not supported")
-}
-
-func (c *Client) FindBatchPrivate(context.Context, []multihash.Multihash) (*model.FindResponse, error) {
-	panic("not supported")
 }
 
 func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*model.FindResponse, error) {

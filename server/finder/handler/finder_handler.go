@@ -136,7 +136,7 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 
 func (h *FinderHandler) FindValueKeys(mhashes []multihash.Multihash) (*model.PrivateFindResponse, error) {
 	resp := &model.PrivateFindResponse{
-		MultihashResults: make([]model.PrivateMultihashResult, 0, 0),
+		MultihashResults: make([]model.PrivateMultihashResult, 0),
 	}
 	for _, mh := range mhashes {
 		mhr := model.PrivateMultihashResult{
