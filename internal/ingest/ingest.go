@@ -300,8 +300,6 @@ func (ing *Ingester) Close() error {
 		// Stop the distribution goroutine.
 		close(ing.inEvents)
 
-		close(ing.sigUpdate)
-
 		log.Info("Ingester stopped")
 	})
 
@@ -485,6 +483,9 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 		case <-ctx.Done():
 			return cid.Undef, ctx.Err()
 		case <-ing.closePendingSyncs:
+			// When shutting down the ingester, calls to Sync may return "sync
+			// closed" error, or this error may be returned first depending on
+			// goroutine scheduling.
 			return cid.Undef, errors.New("sync canceled: service closed")
 		}
 	}
@@ -689,10 +690,7 @@ func (ing *Ingester) metricsUpdater() {
 
 	for {
 		select {
-		case _, ok := <-ing.sigUpdate:
-			if !ok {
-				return
-			}
+		case <-ing.sigUpdate:
 			hasUpdate = true
 		case <-t.C:
 			if hasUpdate {
@@ -712,6 +710,10 @@ func (ing *Ingester) metricsUpdater() {
 				hasUpdate = false
 			}
 			t.Reset(time.Minute)
+		case <-ing.closePendingSyncs:
+			// If closing pending syncs, then close metrics updater as well.
+			t.Stop()
+			return
 		}
 	}
 }

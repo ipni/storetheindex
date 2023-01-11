@@ -306,7 +306,9 @@ func TestRestartDuringSync(t *testing.T) {
 
 	go func() {
 		_, err := te.ingester.Sync(sctx, te.pubHost.ID(), nil, 0, false)
-		require.ErrorContains(t, err, "sync canceled: service closed")
+		// Error will either be "sync canceled: service closed" or "sync
+		// handler failed: sync closed" depending on timing.
+		require.ErrorContains(t, err, "closed")
 	}()
 
 	// The ingester tried to sync B, but it was blocked. Now let's stop the ingester.
