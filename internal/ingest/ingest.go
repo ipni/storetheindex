@@ -1008,12 +1008,6 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			rmCtxID[ctxIdStr] = struct{}{}
 			continue
 		}
-
-		// If indexer is frozen, then skip all ads that are not removals.
-		if frozen {
-			skips = append(skips, skip)
-			skip = i
-		}
 	}
 
 	log.Infow("Running worker on ad stack", "headAdCid", assignment.adInfos[0].cid, "publisher", assignment.publisher, "numAdsToProcess", splitAtIndex)
@@ -1060,6 +1054,8 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		var entsCid string
 		if ai.ad.Entries == schema.NoEntries {
 			entsCid = "NoEntries"
+		} else if frozen {
+			entsCid = "N/A frozen"
 		} else {
 			entsCid = ai.ad.Entries.(cidlink.Link).Cid.String()
 		}
@@ -1070,7 +1066,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			"publisher", assignment.publisher,
 			"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
 
-		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad, ai.resync)
+		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad, ai.resync, frozen)
 		if err == nil {
 			// No error at all, this ad was processed successfully.
 			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))

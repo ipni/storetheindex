@@ -139,7 +139,7 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // source of the indexed content, the provider is where content can be
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement, resync bool) error {
+func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement, resync, frozen bool) error {
 	stats.Record(context.Background(), metrics.IngestChange.M(1))
 	var mhCount int
 	var entsSyncStart time.Time
@@ -277,7 +277,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	}
 
 	// If advertisement has no entries, then it is for updating metadata only.
-	if ad.Entries == schema.NoEntries {
+	if ad.Entries == schema.NoEntries || frozen {
 		// If this is a metadata update only, then ad will not have entries.
 		value := indexer.Value{
 			ContextID:     ad.ContextID,

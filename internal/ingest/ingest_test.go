@@ -632,8 +632,7 @@ func TestFreeze(t *testing.T) {
 	prov = provs[0]
 	require.Equal(t, te.pubHost.ID(), prov.Publisher)
 	require.Equal(t, prevAdCid, prov.FrozenAt)
-	// Last advertisement should be same since there were no removal ads.
-	require.Equal(t, prevAdCid, prov.LastAdvertisement)
+	require.Equal(t, adHead.(cidlink.Link).Cid, prov.LastAdvertisement)
 
 	// Check that none of the post-freeze multihashes were ingested.
 	mhs = typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
