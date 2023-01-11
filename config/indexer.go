@@ -56,6 +56,11 @@ type Indexer struct {
 	// can offer better performance in specific cases. Enabled by default. This
 	// option only applies when ValueStoreType is set to "pebble".
 	PebbleDisableWAL bool
+	// UnfreezeOnStart tells that indexer to unfreeze itself on startup if it
+	// is frozen. This reverts the indexer to the state it was in before it was
+	// frozen. It only retains the most recent provider and publisher
+	// addresses.
+	UnfreezeOnStart bool
 
 	// TODO: If left unspecified, could the functionality instead be to use whatever the existing
 	//      value store uses? If there is no existing value store, then use binary by default.
@@ -69,7 +74,7 @@ func NewIndexer() Indexer {
 		CacheSize:           300000,
 		ConfigCheckInterval: Duration(30 * time.Second),
 		CorePutConcurrency:  64,
-		FreezeAtPercent:     95.0,
+		FreezeAtPercent:     90.0,
 		GCInterval:          Duration(30 * time.Minute),
 		GCTimeLimit:         Duration(5 * time.Minute),
 		ShutdownTimeout:     0,

@@ -3,6 +3,7 @@ package freeze
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/ipfs/go-datastore"
@@ -17,28 +18,37 @@ const (
 
 	maxCheckInterval = time.Hour
 	minCheckInterval = 30 * time.Second
+
+	// logAlertRemaining is the percent from the freeze threshold at which to
+	// log a disk usage alert.
+	logAlertRemaining = 10.0
+	// logCriticalRemaining is the percent from the freeze threshold at which
+	// to log that disk usage is critical.
+	logCriticalRemaining = 2.0
 )
 
 type Freezer struct {
-	checkNow   chan chan struct{}
-	done       chan struct{}
-	dstore     datastore.Datastore
-	freezeAt   float64
-	freezeFunc func() error
-	frozen     chan struct{}
-	trigger    chan struct{}
-	triggerErr chan error
-	path       string
+	checkNow    chan chan struct{}
+	done        chan struct{}
+	dstore      datastore.Datastore
+	freezeAt    float64
+	freezeAtStr string
+	freezeFunc  func() error
+	frozen      chan struct{}
+	trigger     chan struct{}
+	triggerErr  chan error
+	path        string
 }
 
 // New creates a new Freezer that checks the usage of the file system at dirPath.
 func New(dirPath string, freezeAtPercent float64, dstore datastore.Datastore, freezeFunc func() error) (*Freezer, error) {
 	f := &Freezer{
-		dstore:     dstore,
-		freezeAt:   freezeAtPercent,
-		freezeFunc: freezeFunc,
-		frozen:     make(chan struct{}),
-		path:       dirPath,
+		dstore:      dstore,
+		freezeAt:    freezeAtPercent,
+		freezeAtStr: fmt.Sprintf("%s%%", strconv.FormatFloat(freezeAtPercent, 'f', -1, 64)),
+		freezeFunc:  freezeFunc,
+		frozen:      make(chan struct{}),
+		path:        dirPath,
 	}
 	frozen, err := f.loadFrozenState()
 	if err != nil {
@@ -120,6 +130,33 @@ func (f *Freezer) Usage() (*disk.UsageStats, error) {
 	return du, nil
 }
 
+func Unfreeze(ctx context.Context, dirPath string, freezeAtPercent float64, dstore datastore.Datastore) error {
+	if dirPath == "" || dstore == nil {
+		return nil
+	}
+	frozen, err := dstore.Has(ctx, datastore.NewKey(frozenKey))
+	if err != nil {
+		return err
+	}
+	if !frozen {
+		return nil
+	}
+
+	du, err := disk.Usage(dirPath)
+	if err != nil {
+		return fmt.Errorf("cannot get disk usage for freeze check at path %q: %w", dirPath, err)
+	}
+	if du.Percent >= freezeAtPercent {
+		return fmt.Errorf("cannot unfreeze: disk usage above %f", freezeAtPercent)
+	}
+
+	dsKey := datastore.NewKey(frozenKey)
+	if err = dstore.Delete(ctx, dsKey); err != nil {
+		return err
+	}
+	return dstore.Sync(ctx, dsKey)
+}
+
 // run periodically check file system usage and sets the frozen state if the
 // usage reaches the freeze-at point.
 func (f *Freezer) run(nextCheck time.Duration) {
@@ -165,7 +202,7 @@ func (f *Freezer) run(nextCheck time.Duration) {
 
 // check examines the file system to see if the usage is at the freeze-at
 // point. If the freeze-at point is reached, then the frozen state becomes
-// true. The frozen state is persisted so a new Freeser will start frozen.
+// true. The frozen state is persisted so a new Freezer will start frozen.
 func (f *Freezer) check() (time.Duration, bool, error) {
 	if f.path == "" {
 		return 0, false, nil
@@ -181,6 +218,17 @@ func (f *Freezer) check() (time.Duration, bool, error) {
 			return 0, false, err
 		}
 		return 0, true, nil
+	}
+
+	log := log.With("usage", fmt.Sprintf("%.2f%%", du.Percent), "freezeAt", f.freezeAtStr)
+	if du.Percent >= f.freezeAt-logAlertRemaining {
+		if du.Percent >= f.freezeAt-logCriticalRemaining {
+			log.Warnw("Disk usage CRITICAL")
+		} else {
+			log.Warnw("Disk usage ALERT")
+		}
+	} else {
+		log.Infow("Disk usage OK")
 	}
 
 	// Next check interval is proportional to the storage remaining until

@@ -203,7 +203,6 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 
 	var extendedProviders *registry.ExtendedProviders
 	if ad.ExtendedProvider != nil {
-
 		if ad.IsRm {
 			return adIngestError{adIngestIndexerErr, fmt.Errorf("rm ads can not have extended providers")}
 		}

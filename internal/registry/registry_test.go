@@ -31,6 +31,7 @@ const (
 	exceptID   = "12D3KooWK7CTS7cyWi51PeNE3cTjS2F2kDCZaQVU4A5xBmb9J1do"
 	limitedID  = "12D3KooWSG3JuvEjRkSxt93ADTjQxqe4ExbBwSkQ9Zyk1WfBaZJF"
 	limitedID2 = "12D3KooWKSNuuq77xqnpPLnU3fq1bTQW2TwSZL2Z4QTHEYpUVzfr"
+	limitedID3 = "12D3KooWLjeDyvuv7rbfG2wWNvWn7ybmmU88PirmSckuqCgXBAph"
 
 	minerDiscoAddr = "stitest999999"
 	minerAddr      = "/ip4/127.0.0.1/tcp/9999"
@@ -775,7 +776,7 @@ func TestRegistry_loadPersistedProvidersFiltersNilAddrGracefully(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestFreeze(t *testing.T) {
+func TestFreezeUnfreeze(t *testing.T) {
 	cfg := config.Discovery{
 		Policy: config.Policy{
 			Allow:   true,
@@ -830,6 +831,27 @@ func TestFreeze(t *testing.T) {
 		require.False(t, infos[i].FrozenAtTime.IsZero())
 	}
 
+	// Check that a new provider cannot be registered with a frozen publisher.
+	peerID2, err := peer.Decode(limitedID2)
+	require.NoError(t, err)
+	maddr2, err := multiaddr.NewMultiaddr(minerAddr2)
+	require.NoError(t, err)
+	prov2 := peer.AddrInfo{
+		ID:    peerID2,
+		Addrs: []multiaddr.Multiaddr{maddr2},
+	}
+	pubID2, err := peer.Decode(limitedID3)
+	require.NoError(t, err)
+	pub2 := peer.AddrInfo{
+		ID: pubID2,
+	}
+	mh, err = multihash.Sum([]byte("some-other-data"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+	adCid2 := cid.NewCidV1(cid.Raw, mh)
+
+	err = r.Update(ctx, prov2, pub2, adCid2, nil)
+	require.ErrorIs(t, err, ErrFrozen)
+
 	// Stop and restart registry and check providers are still frozen.
 	r.Close()
 	r, err = New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
@@ -841,6 +863,29 @@ func TestFreeze(t *testing.T) {
 		require.False(t, infos[i].FrozenAtTime.IsZero())
 	}
 	r.Close()
+
+	unfrozen, err := Unfreeze(ctx, tempDir, 90.0, dstore)
+	require.NoError(t, err)
+	require.Equal(t, len(infos), len(unfrozen))
+	for i := range infos {
+		frozenAt, ok := unfrozen[infos[i].Publisher]
+		require.True(t, ok)
+		require.Equal(t, infos[i].FrozenAt, frozenAt)
+	}
+
+	r, err = New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
+	require.NoError(t, err)
+	require.False(t, r.Frozen())
+	infos = r.AllProviderInfo()
+	for i := range infos {
+		require.False(t, infos[i].FrozenAt.Defined())
+		require.True(t, infos[i].FrozenAtTime.IsZero())
+	}
+	r.Close()
+
+	unfrozen, err = Unfreeze(ctx, tempDir, 90.0, dstore)
+	require.NoError(t, err)
+	require.Zero(t, len(unfrozen))
 }
 
 func TestHandoff(t *testing.T) {
@@ -926,6 +971,12 @@ func TestHandoff(t *testing.T) {
 	prov := provs[0]
 	require.Equal(t, pubID, prov.AddrInfo.ID)
 	require.Equal(t, pubID, prov.Publisher)
+
+	// Freeze the indexer and check that a new publisher cannot be assigned.
+	require.NoError(t, r.Freeze())
+	pubID2, err := peer.Decode(limitedID3)
+	require.NoError(t, err)
+	require.ErrorIs(t, r.AssignPeer(pubID2), ErrFrozen)
 }
 
 func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {

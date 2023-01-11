@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -24,4 +25,8 @@ const (
 
 func (e adIngestError) Error() string {
 	return fmt.Sprintf("%s: %s", e.state, e.err)
+}
+
+func (e adIngestError) Is(target error) bool {
+	return errors.Is(e.err, target)
 }

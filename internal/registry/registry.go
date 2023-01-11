@@ -276,7 +276,6 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		closing:   make(chan struct{}),
 		filterIPs: cfg.FilterIPs,
 		policy:    regPolicy,
-		providers: map[peer.ID]*ProviderInfo{},
 		sequences: newSequences(0),
 
 		rediscoverWait:   time.Duration(cfg.RediscoverWait),
@@ -288,16 +287,19 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		syncChan: make(chan *ProviderInfo, 1),
 	}
 
-	if err = r.loadPersistedProviders(ctx); err != nil {
+	r.providers, err = loadPersistedProviders(ctx, dstore, cfg.FilterIPs)
+	if err != nil {
 		return nil, fmt.Errorf("cannot load provider data from datastore: %w", err)
 	}
+	log.Infow("Loaded providers into registry", "count", len(r.providers))
 
 	if cfg.UseAssigner {
-		r.assigned = make(map[peer.ID]peer.ID)
-		if err = r.loadPersistedAssignments(ctx, cfg.RemoveOldAssignments); err != nil {
+		r.assigned, err = loadPersistedAssignments(ctx, dstore, cfg.RemoveOldAssignments)
+		if err != nil {
 			return nil, err
 		}
-		r.loadPreferredAssignments()
+		log.Infow("Loaded assignments into registry", "count", len(r.assigned))
+		r.preferred = loadPreferredAssignments(r.providers, r.assigned)
 	}
 
 	pollOverrides, err := makePollOverrideMap(cfg.PollOverrides)
@@ -523,11 +525,12 @@ func (r *Registry) ListPreferredPeers() ([]peer.ID, error) {
 		return nil, nil
 	}
 
-	peers := make([]peer.ID, len(r.preferred))
-	var i int
+	peers := make([]peer.ID, 0, len(r.preferred))
 	for peerID := range r.preferred {
-		peers[i] = peerID
-		i++
+		if !r.policy.Allowed(peerID) {
+			continue
+		}
+		peers = append(peers, peerID)
 	}
 
 	return peers, nil
@@ -542,6 +545,9 @@ func (r *Registry) AssignPeer(publisherID peer.ID) error {
 	}
 	if !r.policy.Allowed(publisherID) {
 		return ErrNotAllowed
+	}
+	if r.Frozen() {
+		return fmt.Errorf("cannot assign publisher: %w", ErrFrozen)
 	}
 
 	return r.assignPeer(publisherID, peer.ID(""))
@@ -651,7 +657,7 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 		}
 	} else {
 		if r.Frozen() {
-			return errors.New("cannot register new provider when frozen")
+			return fmt.Errorf("cannot register new provider: %w", ErrFrozen)
 		}
 
 		err := provider.ID.Validate()
@@ -968,9 +974,58 @@ func (r *Registry) ValueStoreUsage() (*disk.UsageStats, error) {
 	return r.freezer.Usage()
 }
 
+// Unfreeze reverts the freezer and provider information back to its unfrozen
+// state. This must only be called when the registry is not running.
+func Unfreeze(ctx context.Context, vstoreDir string, freezeAtPercent float64, dstore datastore.Datastore) (map[peer.ID]cid.Cid, error) {
+	if dstore == nil {
+		return nil, nil
+	}
+
+	err := freeze.Unfreeze(ctx, vstoreDir, freezeAtPercent, dstore)
+	if err != nil {
+		return nil, fmt.Errorf("cannot unfreeze freezer: %w", err)
+	}
+
+	providers, err := loadPersistedProviders(ctx, dstore, false)
+	if err != nil {
+		return nil, fmt.Errorf("cannot load provider info: %w", err)
+	}
+
+	unfrozen := make(map[peer.ID]cid.Cid, len(providers))
+
+	for _, info := range providers {
+		if info.FrozenAtTime.IsZero() {
+			// Already unforzen. Frozen provider will have non-zero time.
+			continue
+		}
+		unfrozen[info.Publisher] = info.FrozenAt
+
+		info.LastAdvertisement = info.FrozenAt
+		info.LastAdvertisementTime = info.FrozenAtTime
+		info.FrozenAt = cid.Undef
+		info.FrozenAtTime = time.Time{}
+
+		value, err := json.Marshal(info)
+		if err != nil {
+			return nil, err
+		}
+
+		if err = dstore.Put(ctx, info.dsKey(), value); err != nil {
+			return nil, err
+		}
+	}
+	if len(unfrozen) == 0 {
+		return nil, nil
+	}
+	if err = dstore.Sync(ctx, datastore.NewKey(providerKeyPath)); err != nil {
+		return nil, err
+	}
+	return unfrozen, nil
+}
+
 func (r *Registry) syncFreeze(now time.Time) error {
 	ctx := context.Background()
-	for i, info := range r.providers {
+	for id, info := range r.providers {
 		frozenInfo := *info
 		frozenInfo.FrozenAt = info.LastAdvertisement
 		if info.LastAdvertisementTime.IsZero() {
@@ -978,7 +1033,7 @@ func (r *Registry) syncFreeze(now time.Time) error {
 		} else {
 			frozenInfo.FrozenAtTime = info.LastAdvertisementTime
 		}
-		r.providers[i] = &frozenInfo
+		r.providers[id] = &frozenInfo
 
 		if r.dstore == nil {
 			continue
@@ -1244,12 +1299,12 @@ func (r *Registry) deleteAssignedPeer(peerID peer.ID) error {
 	return r.dstore.Delete(context.Background(), dsKey)
 }
 
-func (r *Registry) migrateOldAssignments(ctx context.Context, prefix string, deleteOld bool) error {
+func migrateOldAssignments(ctx context.Context, dstore datastore.Datastore, prefix string, deleteOld bool) error {
 	q := query.Query{
 		Prefix:   prefix,
 		KeysOnly: true,
 	}
-	results, err := r.dstore.Query(ctx, q)
+	results, err := dstore.Query(ctx, q)
 	if err != nil {
 		return err
 	}
@@ -1268,13 +1323,13 @@ func (r *Registry) migrateOldAssignments(ctx context.Context, prefix string, del
 			} else {
 				dsKey := peerIDToDsKey(assignmentsKeyPath, peerID)
 				log.Debugw("Renamed assignment", "from", key, "to", dsKey)
-				err := r.dstore.Put(ctx, dsKey, []byte{})
+				err := dstore.Put(ctx, dsKey, []byte{})
 				if err != nil {
 					return err
 				}
 			}
 		}
-		err = r.dstore.Delete(ctx, datastore.NewKey(key))
+		err = dstore.Delete(ctx, datastore.NewKey(key))
 		if err != nil {
 			return err
 		}
@@ -1283,31 +1338,32 @@ func (r *Registry) migrateOldAssignments(ctx context.Context, prefix string, del
 	return nil
 }
 
-func (r *Registry) loadPersistedProviders(ctx context.Context) error {
-	if r.dstore == nil {
-		return nil
+func loadPersistedProviders(ctx context.Context, dstore datastore.Datastore, filterIPs bool) (map[peer.ID]*ProviderInfo, error) {
+	providers := make(map[peer.ID]*ProviderInfo)
+
+	if dstore == nil {
+		return providers, nil
 	}
 
 	// Load all providers from the datastore.
 	q := query.Query{
 		Prefix: providerKeyPath,
 	}
-	results, err := r.dstore.Query(ctx, q)
+	results, err := dstore.Query(ctx, q)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer results.Close()
 
-	var count int
 	for result := range results.Next() {
 		if result.Error != nil {
-			return fmt.Errorf("cannot read provider data: %v", result.Error)
+			return nil, fmt.Errorf("cannot read provider data: %v", result.Error)
 		}
 		ent := result.Entry
 
 		peerID, err := peer.Decode(path.Base(ent.Key))
 		if err != nil {
-			return fmt.Errorf("cannot decode provider ID: %s", err)
+			return nil, fmt.Errorf("cannot decode provider ID: %s", err)
 		}
 
 		pinfo := new(ProviderInfo)
@@ -1319,7 +1375,7 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) error {
 			// does not get delisted. The next update should fix the addresses.
 		}
 
-		if r.filterIPs {
+		if filterIPs {
 			pinfo.AddrInfo.Addrs = mautil.FilterPrivateIPs(pinfo.AddrInfo.Addrs)
 			if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr != nil {
 				pubAddrs := mautil.FilterPrivateIPs([]multiaddr.Multiaddr{pinfo.PublisherAddr})
@@ -1336,22 +1392,22 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) error {
 			pinfo.PublisherAddr = pinfo.AddrInfo.Addrs[0]
 		}
 
-		r.providers[peerID] = pinfo
-		count++
+		providers[peerID] = pinfo
 	}
 
-	log.Infow("loaded providers into registry", "count", count)
-	return nil
+	return providers, nil
 }
 
-func (r *Registry) loadPersistedAssignments(ctx context.Context, deleteOld bool) error {
-	if r.dstore == nil {
-		return nil
+func loadPersistedAssignments(ctx context.Context, dstore datastore.Datastore, deleteOld bool) (map[peer.ID]peer.ID, error) {
+	assigned := make(map[peer.ID]peer.ID)
+
+	if dstore == nil {
+		return assigned, nil
 	}
 
-	err := r.migrateOldAssignments(ctx, oldAssignmentsKeyPath, deleteOld)
+	err := migrateOldAssignments(ctx, dstore, oldAssignmentsKeyPath, deleteOld)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Load all assigned publishers from datastore.
@@ -1359,21 +1415,21 @@ func (r *Registry) loadPersistedAssignments(ctx context.Context, deleteOld bool)
 		Prefix:   assignmentsKeyPath,
 		KeysOnly: true,
 	}
-	results, err := r.dstore.Query(ctx, q)
+	results, err := dstore.Query(ctx, q)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer results.Close()
 
 	for result := range results.Next() {
 		if result.Error != nil {
-			return fmt.Errorf("cannot read assignment data: %w", result.Error)
+			return nil, fmt.Errorf("cannot read assignment data: %w", result.Error)
 		}
 		ent := result.Entry
 
 		peerID, err := peer.Decode(path.Base(ent.Key))
 		if err != nil {
-			return fmt.Errorf("cannot decode assigned peer ID: %w", err)
+			return nil, fmt.Errorf("cannot decode assigned peer ID: %w", err)
 		}
 
 		var fromID peer.ID
@@ -1383,28 +1439,28 @@ func (r *Registry) loadPersistedAssignments(ctx context.Context, deleteOld bool)
 				log.Errorw("Cannot load assignment info", "err", err, "publisher", peerID)
 			}
 		}
-		r.assigned[peerID] = fromID
+		assigned[peerID] = fromID
 	}
 
-	log.Infow("loaded assignments into registry", "count", len(r.assigned))
-	return nil
+	return assigned, nil
 }
 
-func (r *Registry) loadPreferredAssignments() {
-	r.preferred = make(map[peer.ID]struct{})
-	for _, pinfo := range r.providers {
+func loadPreferredAssignments(providers map[peer.ID]*ProviderInfo, assigned map[peer.ID]peer.ID) map[peer.ID]struct{} {
+	var preferred map[peer.ID]struct{}
+	for _, pinfo := range providers {
 		if pinfo.Publisher.Validate() != nil {
 			continue
 		}
-		if !r.policy.Allowed(pinfo.Publisher) {
-			continue
-		}
-		if _, ok := r.assigned[pinfo.Publisher]; ok {
+		if _, ok := assigned[pinfo.Publisher]; ok {
 			continue
 		}
 		if pinfo.LastAdvertisement == cid.Undef {
 			continue
 		}
-		r.preferred[pinfo.Publisher] = struct{}{}
+		if preferred == nil {
+			preferred = make(map[peer.ID]struct{})
+		}
+		preferred[pinfo.Publisher] = struct{}{}
 	}
+	return preferred
 }

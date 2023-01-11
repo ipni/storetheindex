@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -42,6 +44,9 @@ const (
 	syncPrefix = "/sync/"
 	// adProcessedPrefix identifies all processed advertisements.
 	adProcessedPrefix = "/adProcessed/"
+	// adProcessedFrozenPrefix identifies all advertisements processed while in
+	// frozen mode. Used for unfreezing.
+	adProcessedFrozenPrefix = "/adF/"
 )
 
 type adProcessedEvent struct {
@@ -303,12 +308,72 @@ func (ing *Ingester) Close() error {
 	return err
 }
 
+func Unfreeze(unfrozen map[peer.ID]cid.Cid, dstore datastore.Datastore) error {
+	// Unfreeze is not cancelable since unfrozen data can only be acquired once
+	// from the registry.
+	ctx := context.Background()
+
+	// Remove all ads processed while frozen.
+	err := removeProcessedFrozen(ctx, dstore)
+	if err != nil {
+		return fmt.Errorf("cannot remove processed ads: %w", err)
+	}
+
+	for pubID, frozenAt := range unfrozen {
+		// If there was no previous frozen ad, then there was no latest ad
+		// when the indexer was frozen.
+		if frozenAt == cid.Undef {
+			err = dstore.Delete(ctx, datastore.NewKey(syncPrefix+pubID.String()))
+			if err != nil {
+				log.Errorw("Unfreeze cannot delete last processed ad", "err", err)
+			}
+			continue
+		}
+
+		// Set last processed ad to previous frozen at ad.
+		err = dstore.Put(ctx, datastore.NewKey(syncPrefix+pubID.String()), frozenAt.Bytes())
+		if err != nil {
+			log.Errorw("Unfreeze cannot set advertisement as last processed", "err", err)
+		}
+	}
+	return nil
+}
+
+func removeProcessedFrozen(ctx context.Context, dstore datastore.Datastore) error {
+	q := query.Query{
+		Prefix:   adProcessedFrozenPrefix,
+		KeysOnly: true,
+	}
+	results, err := dstore.Query(ctx, q)
+	if err != nil {
+		return err
+	}
+
+	ents, err := results.Rest()
+	if err != nil {
+		return err
+	}
+
+	for i := range ents {
+		key := ents[i].Key
+		err = dstore.Delete(ctx, datastore.NewKey(key))
+		if err != nil {
+			return err
+		}
+		err = dstore.Delete(ctx, datastore.NewKey(adProcessedPrefix+path.Base(key)))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Sync syncs advertisements, up to the the latest advertisement, from a
-// publisher. A channel is returned that gives the caller the option to wait
-// for Sync to complete. The channel returns the final CID that was synced by
-// the call to Sync.
+// publisher. This channel returns the final CID that was synced by the call to
+// Sync.
 //
-// Sync works by first fetching each advertisement from the specidief peer
+// Sync works by first fetching each advertisement from the specified peer
 // starting at the most recent and traversing to the advertisement last seen by
 // the indexer, or until the advertisement depth limit is reached. Then the
 // entries in each advertisement are synced and the multihashes in each entry
@@ -333,109 +398,96 @@ func (ing *Ingester) Close() error {
 //
 // The Context argument controls the lifetime of the sync. Canceling it cancels
 // the sync and causes the multihash channel to close without any data.
-func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int, resync bool) (<-chan cid.Cid, error) {
-	if err := peerID.Validate(); err != nil {
-		return nil, err
+func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int, resync bool) (cid.Cid, error) {
+	err := peerID.Validate()
+	if err != nil {
+		return cid.Undef, errors.New("invalid provider id")
 	}
 
-	out := make(chan cid.Cid, 1)
+	log := log.With("publisher", peerID, "address", peerAddr, "depth", depth, "resync", resync)
+	log.Info("Explicitly syncing the latest advertisement from peer")
 
-	ing.waitForPendingSyncs.Add(1)
-	go func() {
-		defer ing.waitForPendingSyncs.Done()
-		defer close(out)
+	var sel ipld.Node
+	// If depth is non-zero or traversal should not stop at the latest synced,
+	// then construct a selector to behave accordingly.
+	if depth != 0 || resync {
+		sel, err = ing.makeLimitedDepthSelector(peerID, depth, resync)
+		if err != nil {
+			return cid.Undef, fmt.Errorf("failed to construct selector for explicit sync: %w", err)
+		}
+	}
 
-		log := log.With("provider", peerID, "peerAddr", peerAddr, "depth", depth, "resync", resync)
-		log.Info("Explicitly syncing the latest advertisement from peer")
+	syncDone, cancel := ing.onAdProcessed(peerID)
+	defer cancel()
 
-		var sel ipld.Node
-		// If depth is non-zero or traversal should not stop at the latest
-		// synced, then construct a selector to behave accordingly.
-		if depth != 0 || resync {
-			var err error
-			sel, err = ing.makeLimitedDepthSelector(peerID, depth, resync)
+	latest, err := ing.GetLatestSync(peerID)
+	if err != nil {
+		return cid.Undef, fmt.Errorf("failed to get latest sync: %w", err)
+	}
+
+	// Start syncing. Notifications for the finished sync are sent
+	// asynchronously. Sync with cid.Undef so that the latest head is queried
+	// by dagsync via head-publisher.
+	//
+	// Note that if the selector is nil the default selector is used where
+	// traversal stops at the latest known head.
+	//
+	// Reference to the latest synced CID is only updated if the given selector
+	// is nil.
+	opts := []dagsync.SyncOption{
+		dagsync.AlwaysUpdateLatest(),
+	}
+	if resync {
+		// If this is a resync, then it is necessary to mark the ad as
+		// unprocessed so that everything can be reingested from the start of
+		// this sync. Create a scoped block-hook to do this.
+		opts = append(opts, dagsync.ScopedBlockHook(func(i peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
+			err := ing.markAdUnprocessed(c, true)
 			if err != nil {
-				log.Errorw("Failed to construct selector for explicit sync", "err", err)
-				return
+				log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
 			}
-		}
+			// Call the general hook because scoped block hook overrides the
+			// subscriber's general block hook.
+			ing.generalDagsyncBlockHook(i, c, actions)
+		}))
+	}
+	c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
+	if err != nil {
+		return cid.Undef, fmt.Errorf("failed to sync: %w", err)
+	}
+	// Do not persist the latest sync here, because that is done after
+	// processing the ad.
 
-		syncDone, cancel := ing.onAdProcessed(peerID)
-		defer cancel()
+	// If latest head had already finished syncing, then do not wait for
+	// syncDone since it will never happen.
+	if latest == c && !resync {
+		log.Infow("Latest advertisement already processed", "adCid", c)
+		return c, nil
+	}
 
-		latest, err := ing.GetLatestSync(peerID)
-		if err != nil {
-			log.Errorw("Failed to get latest sync", "err", err)
-			return
-		}
-
-		// Start syncing. Notifications for the finished sync are sent
-		// asynchronously. Sync with cid.Undef so that the latest head is
-		// queried by dagsync via head-publisher.
-		//
-		// Note that if the selector is nil the default selector is used where
-		// traversal stops at the latest known head.
-		//
-		// Reference to the latest synced CID is only updated if the given
-		// selector is nil.
-		opts := []dagsync.SyncOption{
-			dagsync.AlwaysUpdateLatest(),
-		}
-		if resync {
-			// If this is a resync, then it is necessary to mark the ad as
-			// unprocessed so that everything can be reingested from the start
-			// of this sync. Create a scoped block-hook to do this.
-			opts = append(opts, dagsync.ScopedBlockHook(func(i peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
-				err := ing.markAdUnprocessed(c, true)
-				if err != nil {
-					log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
-				}
-				// Call the general hook because scoped block hook overrides the subscriber's
-				// general block hook.
-				ing.generalDagsyncBlockHook(i, c, actions)
-			}))
-		}
-		c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
-		if err != nil {
-			log.Errorw("Failed to sync with provider", "err", err)
-			return
-		}
-		ing.reg.Saw(peerID)
-		// Do not persist the latest sync here, because that is done after
-		// processing the ad.
-
-		// If latest head had already finished syncing, then do not wait for
-		// syncDone since it will never happen.
-		if latest == c && !resync {
-			log.Infow("Latest advertisement already processed", "adCid", c)
-			out <- c
-			return
-		}
-
-		log.Debugw("Syncing advertisements up to latest", "adCid", c)
-		for {
-			select {
-			case adProcessedEvent := <-syncDone:
-				log.Debugw("Synced advertisement", "adCid", adProcessedEvent.adCid)
-				if adProcessedEvent.adCid == c || adProcessedEvent.err != nil && adProcessedEvent.headAdCid == c {
-					// If an error occurred then the adProcessedEvent.adCid
-					// will be the cid that caused the error, and there will
-					// not be any future adProcessedEvents. Therefore check the
-					// headAdCid to see if this was the sync that was started.
-					out <- c
+	log.Debugw("Syncing advertisements up to latest", "adCid", c)
+	for {
+		select {
+		case adProcessedEvent := <-syncDone:
+			log.Debugw("Synced advertisement", "adCid", adProcessedEvent.adCid)
+			if adProcessedEvent.err != nil {
+				// If an error occurred then the adProcessedEvent.adCid will be
+				// the cid that caused the error, and there will not be any
+				// future adProcessedEvents. Therefore check the headAdCid to
+				// see if this was the sync that was started.
+				if adProcessedEvent.headAdCid == c {
 					ing.signalMetricsUpdate()
-					return
+					return cid.Undef, adProcessedEvent.err
 				}
-			case <-ctx.Done():
-				log.Warnw("Sync cancelled", "err", ctx.Err())
-				return
-			case <-ing.closePendingSyncs:
-				log.Warnw("Sync cancelled because of close")
-				return
+			} else if adProcessedEvent.adCid == c {
+				return c, nil
 			}
+		case <-ctx.Done():
+			return cid.Undef, ctx.Err()
+		case <-ing.closePendingSyncs:
+			return cid.Undef, errors.New("sync canceled: service closed")
 		}
-	}()
-	return out, nil
+	}
 }
 
 // Announce send an announce message to directly to dagsync, instead of through
@@ -492,16 +544,18 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int, resync 
 	return dagsync.ExploreRecursiveWithStopNode(rLimit, Selectors.AdSequence, stopAt), nil
 }
 
-// markAdUnprocessed takes an advertisement CID and marks it as
-// unprocessed. This lets the ad be re-ingested in case we re-ingesting with
-// different depths or are processing even earlier ads and need to reprocess
-// later ones so that the indexer re-ingests the later ones in the context of
-// the earlier ads, and thus become consistent.
+// markAdUnprocessed takes an advertisement CID and marks it as unprocessed.
+// This lets the ad be re-ingested in case re-ingesting with different depths
+// or processing even earlier ads and need to reprocess later ones so that the
+// indexer re-ingests the later ones in the context of the earlier ads, and
+// thus become consistent.
 //
 // During a sync, this should be called be in order from newest to oldest
 // ad. This is so that if an something fails to get marked as unprocessed the
 // constraint is maintained that if an ad is processed, all older ads are also
 // processed.
+//
+// When forResync is true, index counts will not be added to the existing index count.
 func (ing *Ingester) markAdUnprocessed(adCid cid.Cid, forResync bool) error {
 	data := []byte{0}
 	if forResync {
@@ -523,20 +577,28 @@ func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool) {
 	return processed, resync
 }
 
-func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid) error {
-	log.Debugw("Persisted latest sync", "peer", publisher, "cid", adCid)
-	err := ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), []byte{1})
+func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen bool) error {
+	cidStr := adCid.String()
+	ctx := context.Background()
+	if frozen {
+		err := ing.ds.Put(ctx, datastore.NewKey(adProcessedFrozenPrefix+cidStr), []byte{1})
+		if err != nil {
+			return err
+		}
+	}
+
+	err := ing.ds.Put(ctx, datastore.NewKey(adProcessedPrefix+cidStr), []byte{1})
 	if err != nil {
 		return err
 	}
 	// This ad is processed, so remove it from the datastore.
-	err = ing.ds.Delete(context.Background(), datastore.NewKey(adCid.String()))
+	err = ing.ds.Delete(ctx, datastore.NewKey(cidStr))
 	if err != nil {
 		// Log the error, but do not return. Continue on to save the procesed ad.
 		log.Errorw("Cannot remove advertisement from datastore", "err", err)
 	}
 
-	return ing.ds.Put(context.Background(), datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
+	return ing.ds.Put(ctx, datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
 }
 
 // distributeEvents reads a adProcessedEvent, sent by a peer handler, and
@@ -701,7 +763,7 @@ func (ing *Ingester) autoSync() {
 		autoSyncInProgress[provInfo.AddrInfo.ID] = struct{}{}
 
 		if stopCid := provInfo.StopCid(); stopCid != cid.Undef {
-			err := ing.markAdProcessed(provInfo.Publisher, stopCid)
+			err := ing.markAdProcessed(provInfo.Publisher, stopCid, false)
 			if err != nil {
 				// This error would cause the ingestion of everything from the
 				// publisher from the handoff, and is a critical failure. It
@@ -983,7 +1045,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 				"publisher", assignment.publisher,
 				"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
 
-			if markErr := ing.markAdProcessed(assignment.publisher, ai.cid); markErr != nil {
+			if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen); markErr != nil {
 				log.Errorw("Failed to mark ad as processed", "err", markErr)
 			}
 			// Distribute the atProcessedEvent notices to waiting Sync calls.
@@ -1046,7 +1108,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			return
 		}
 
-		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid); markErr != nil {
+		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
 		// Distribute the atProcessedEvent notices to waiting Sync calls.

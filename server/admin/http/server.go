@@ -21,6 +21,7 @@ var log = logging.Logger("indexer/admin")
 
 type Server struct {
 	cancel   context.CancelFunc
+	handler  *adminHandler
 	listener net.Listener
 	server   *http.Server
 }
@@ -49,14 +50,14 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	h := newHandler(ctx, id, indexer, ingester, reg, reloadErrChan)
 
 	s := &Server{
 		cancel:   cancel,
+		handler:  h,
 		listener: l,
 		server:   server,
 	}
-
-	h := newHandler(ctx, id, indexer, ingester, reg, reloadErrChan)
 
 	// Set protocol handlers
 
@@ -102,5 +103,6 @@ func (s *Server) Start() error {
 func (s *Server) Close() error {
 	log.Info("admin http server shutdown")
 	s.cancel() // stop any sync in progress
+	s.handler.pendingSyncs.Wait()
 	return s.server.Shutdown(context.Background())
 }

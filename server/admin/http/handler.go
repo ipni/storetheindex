@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/gorilla/mux"
 	"github.com/ipni/go-indexer-core"
@@ -30,6 +31,7 @@ type adminHandler struct {
 	ingester      *ingest.Ingester
 	reg           *registry.Registry
 	reloadErrChan chan<- chan error
+	pendingSyncs  sync.WaitGroup
 }
 
 func newHandler(ctx context.Context, id peer.ID, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error) *adminHandler {
@@ -227,6 +229,7 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ingester disabled", http.StatusServiceUnavailable)
 		return
 	}
+
 	vars := mux.Vars(r)
 	peerID, ok := decodePeerID(vars["peer"], w)
 	if !ok {
@@ -288,13 +291,15 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	// Start the sync, but do not wait for it to complete.
 	//
 	// TODO: Provide some way for the client to see if the indexer has synced.
-	_, err = h.ingester.Sync(h.ctx, peerID, syncAddr, int(depth), resync)
-	if err != nil {
-		msg := "Cannot sync with peer"
-		log.Errorw(msg, "err", err)
-		http.Error(w, msg, http.StatusBadGateway)
-		return
-	}
+	h.pendingSyncs.Add(1)
+	go func() {
+		_, err := h.ingester.Sync(h.ctx, peerID, syncAddr, int(depth), resync)
+		if err != nil {
+			msg := "Cannot sync with peer"
+			log.Errorw(msg, "err", err)
+		}
+		h.pendingSyncs.Done()
+	}()
 
 	// Return (202) Accepted
 	w.WriteHeader(http.StatusAccepted)

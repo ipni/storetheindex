@@ -48,9 +48,8 @@ func TestAdsSyncedViaSegmentsAreProcessed(t *testing.T) {
 	providerID := te.pubHost.ID()
 	subject := te.ingester
 
-	wait, err := subject.Sync(ctx, providerID, nil, 0, false)
+	gotHeadAd, err := subject.Sync(ctx, providerID, nil, 0, false)
 	require.NoError(t, err)
-	gotHeadAd := <-wait
 	require.Equal(t, headAdCid, gotHeadAd, "Expected latest synced cid to match head of ad chain")
 
 	requireTrueEventually(t, func() bool {

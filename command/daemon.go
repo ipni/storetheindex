@@ -96,6 +96,33 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 	log.Info("Valuestore initialized")
 
+	// Create datastore
+	dataStorePath, err := config.Path("", cfg.Datastore.Dir)
+	if err != nil {
+		return err
+	}
+	err = fsutil.DirWritable(dataStorePath)
+	if err != nil {
+		return err
+	}
+	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
+	if err != nil {
+		return err
+	}
+	defer dstore.Close()
+
+	if cfg.Indexer.UnfreezeOnStart {
+		unfrozen, err := registry.Unfreeze(cctx.Context, vsDir, cfg.Indexer.FreezeAtPercent, dstore)
+		if err != nil {
+			return fmt.Errorf("cannot unfreeze registry: %w", err)
+		}
+		err = ingest.Unfreeze(unfrozen, dstore)
+		if err != nil {
+			return fmt.Errorf("cannot unfreeze ingester: %w", err)
+		}
+		log.Info("Indexer reverted to unfrozen state")
+	}
+
 	// If the value store requires a minimum key length, make sure the ingester
 	// if configured with at least the minimum.
 	if minKeyLen > cfg.Ingest.MinimumKeyLength {
@@ -117,21 +144,6 @@ func daemonCommand(cctx *cli.Context) error {
 
 	// Create indexer core
 	indexerCore := engine.New(resultCache, valueStore)
-
-	// Create datastore
-	dataStorePath, err := config.Path("", cfg.Datastore.Dir)
-	if err != nil {
-		return err
-	}
-	err = fsutil.DirWritable(dataStorePath)
-	if err != nil {
-		return err
-	}
-	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
-	if err != nil {
-		return err
-	}
-	defer dstore.Close()
 
 	indexCounts := counter.NewIndexCounts(dstore)
 	indexCounts.SetTotalAddend(cfg.Indexer.IndexCountTotalAddend)
@@ -336,6 +348,9 @@ func daemonCommand(cctx *cli.Context) error {
 	// Output message to user (not to log).
 	if cfg.Discovery.UseAssigner {
 		fmt.Println("Indexer configured to use assigner service")
+	}
+	if reg.Frozen() {
+		fmt.Println("Indexer is frozen")
 	}
 	fmt.Println("Indexer is ready")
 
