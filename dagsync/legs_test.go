@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -164,7 +165,11 @@ func TestPublisherRejectsPeer(t *testing.T) {
 	srcLnkS := test.MkLinkSystem(srcStore)
 
 	blockID := dstHost.ID()
+	var blockMutex sync.Mutex
+
 	allowPeer := func(peerID peer.ID) bool {
+		blockMutex.Lock()
+		defer blockMutex.Unlock()
 		return peerID != blockID
 	}
 
@@ -200,12 +205,14 @@ func TestPublisherRejectsPeer(t *testing.T) {
 
 	select {
 	case <-time.After(updateTimeout):
-		t.Log("publisher blocked", blockID)
+		t.Log("publisher blocked")
 	case <-watcher:
 		t.Fatal("sync should not have happened with blocked ID")
 	}
 
+	blockMutex.Lock()
 	blockID = peer.ID("")
+	blockMutex.Unlock()
 
 	c = mkLnk(t, srcStore)
 
