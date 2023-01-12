@@ -701,11 +701,21 @@ func (ing *Ingester) metricsUpdater() {
 					return
 				}
 				if ing.indexCounts != nil {
+					var usage float64
+					usageStats, err := ing.reg.ValueStoreUsage()
+					if err != nil {
+						log.Errorw("Error getting disk usage", "err", err)
+					} else {
+						usage = usageStats.Percent
+					}
 					indexCount, err := ing.indexCounts.Total()
 					if err != nil {
 						log.Errorw("Error getting index counts", "err", err)
 					}
-					stats.Record(context.Background(), coremetrics.StoreSize.M(size), metrics.IndexCount.M(int64(indexCount)))
+					stats.Record(context.Background(),
+						coremetrics.StoreSize.M(size),
+						metrics.IndexCount.M(int64(indexCount)),
+						metrics.PercentUsage.M(usage))
 				}
 				hasUpdate = false
 			}

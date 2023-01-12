@@ -36,6 +36,7 @@ var (
 	EntriesSyncLatency   = stats.Float64("ingest/entriessynclatency", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
 	MhStoreNanoseconds   = stats.Int64("ingest/mhstorenanoseconds", "Average nanoseconds to store one multihash", stats.UnitDimensionless)
 	IndexCount           = stats.Int64("provider/indexCount", "Number of indexes stored for all providers", stats.UnitDimensionless)
+	PercentUsage         = stats.Float64("ingest/percentusage", "Percent usage of storage available in value store", stats.UnitDimensionless)
 )
 
 // Views
@@ -99,6 +100,10 @@ var (
 		Measure:     IndexCount,
 		Aggregation: view.LastValue(),
 	}
+	percentUsageView = &view.View{
+		Measure:     PercentUsage,
+		Aggregation: view.LastValue(),
+	}
 )
 
 var log = logging.Logger("indexer/metrics")
@@ -121,6 +126,7 @@ func Start(views []*view.View) http.Handler {
 		adLoadError,
 		mhStoreNanosecondsView,
 		indexCountView,
+		percentUsageView,
 	)
 	if err != nil {
 		log.Errorf("cannot register metrics default views: %s", err)
