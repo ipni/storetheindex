@@ -3,7 +3,7 @@ package disk_test
 import (
 	"testing"
 
-	"github.com/ipni/storetheindex/internal/disk"
+	"github.com/ipni/storetheindex/fsutil/disk"
 	"github.com/stretchr/testify/require"
 )
 
