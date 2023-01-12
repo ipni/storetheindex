@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -72,6 +73,7 @@ func initPubSub(t *testing.T, srcStore, dstStore datastore.Batching) (host.Host,
 }
 
 func TestAllowPeerReject(t *testing.T) {
+	t.Parallel()
 	// Init dagsync publisher and subscriber
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -111,6 +113,7 @@ func TestAllowPeerReject(t *testing.T) {
 }
 
 func TestAllowPeerAllows(t *testing.T) {
+	t.Parallel()
 	// Init dagsync publisher and subscriber
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -147,6 +150,7 @@ func TestAllowPeerAllows(t *testing.T) {
 }
 
 func TestPublisherRejectsPeer(t *testing.T) {
+	t.Parallel()
 	// Init dagsync publisher and subscriber
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -161,7 +165,11 @@ func TestPublisherRejectsPeer(t *testing.T) {
 	srcLnkS := test.MkLinkSystem(srcStore)
 
 	blockID := dstHost.ID()
+	var blockMutex sync.Mutex
+
 	allowPeer := func(peerID peer.ID) bool {
+		blockMutex.Lock()
+		defer blockMutex.Unlock()
 		return peerID != blockID
 	}
 
@@ -197,12 +205,14 @@ func TestPublisherRejectsPeer(t *testing.T) {
 
 	select {
 	case <-time.After(updateTimeout):
-		t.Log("publisher blocked", blockID)
+		t.Log("publisher blocked")
 	case <-watcher:
 		t.Fatal("sync should not have happened with blocked ID")
 	}
 
+	blockMutex.Lock()
 	blockID = peer.ID("")
+	blockMutex.Unlock()
 
 	c = mkLnk(t, srcStore)
 
@@ -219,6 +229,7 @@ func TestPublisherRejectsPeer(t *testing.T) {
 }
 
 func TestIdleHandlerCleaner(t *testing.T) {
+	t.Parallel()
 	blocksSeenByHook := make(map[cid.Cid]struct{})
 	blockHook := func(p peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 		blocksSeenByHook[c] = struct{}{}

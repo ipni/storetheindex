@@ -75,6 +75,7 @@ func TestLatestSyncSuccess(t *testing.T) {
 }
 
 func TestSyncFn(t *testing.T) {
+	t.Parallel()
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcHost := test.MkTestHost()
@@ -299,6 +300,7 @@ func TestStepByStepSync(t *testing.T) {
 }
 
 func TestLatestSyncFailure(t *testing.T) {
+	t.Parallel()
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcHost := test.MkTestHost()
@@ -342,32 +344,31 @@ func TestLatestSyncFailure(t *testing.T) {
 	}
 
 	watcher, cncl := sub.OnSyncFinished()
-	defer cncl()
 
 	t.Log("Testing sync fail when the other end does not have the data")
 	err = newUpdateTest(pub, sub, dstStore, watcher, srcHost.ID(), cidlink.Link{Cid: cid.Undef}, true, chainLnks[3].(cidlink.Link).Cid)
+	cncl()
 	if err != nil {
 		t.Fatal(err)
 	}
-	cncl()
 	sub.Close()
 
 	dstStore = dssync.MutexWrap(datastore.NewMapDatastore())
-	sub, err = dagsync.NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil)
+	sub2, err := dagsync.NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sub.Close()
+	defer sub2.Close()
 
-	err = sub.SetLatestSync(srcHost.ID(), chainLnks[3].(cidlink.Link).Cid)
+	err = sub2.SetLatestSync(srcHost.ID(), chainLnks[3].(cidlink.Link).Cid)
 	if err != nil {
 		t.Fatal(err)
 	}
-	watcher, cncl = sub.OnSyncFinished()
-	defer cncl()
+	watcher, cncl = sub2.OnSyncFinished()
 
 	t.Log("Testing sync fail when not able to run the full exchange")
-	err = newUpdateTest(pub, sub, dstStore, watcher, srcHost.ID(), chainLnks[2], true, chainLnks[3].(cidlink.Link).Cid)
+	err = newUpdateTest(pub, sub2, dstStore, watcher, srcHost.ID(), chainLnks[2], true, chainLnks[3].(cidlink.Link).Cid)
+	cncl()
 	if err != nil {
 		t.Fatal(err)
 	}

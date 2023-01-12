@@ -65,9 +65,7 @@ func TestFindIndexData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = reg.Close(); err != nil {
-		t.Errorf("Error closing registry: %s", err)
-	}
+	reg.Close()
 	if err = ind.Close(); err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
 	}
@@ -112,9 +110,7 @@ func TestFindIndexWithExtendedProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = reg.Close(); err != nil {
-		t.Errorf("Error closing registry: %s", err)
-	}
+	reg.Close()
 	if err = ind.Close(); err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
 	}
@@ -162,9 +158,7 @@ func TestReframeFindIndexData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = reg.Close(); err != nil {
-		t.Errorf("Error closing registry: %s", err)
-	}
+	reg.Close()
 	if err = ind.Close(); err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
 	}
@@ -209,9 +203,7 @@ func TestProviderInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = reg.Close(); err != nil {
-		t.Errorf("Error closing registry: %s", err)
-	}
+	reg.Close()
 	if err = ind.Close(); err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
 	}
@@ -283,9 +275,7 @@ func TestRemoveProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = reg.Close(); err != nil {
-		t.Errorf("Error closing registry: %s", err)
-	}
+	reg.Close()
 	if err = ind.Close(); err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
 	}

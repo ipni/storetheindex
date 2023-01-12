@@ -59,7 +59,7 @@ func listProvidersCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	provs, err := cl.ListProviders(cctx.Context)
+	provs, err := cl.ListProviders(cctx.Context, false)
 	if err != nil {
 		return err
 	}
@@ -79,12 +79,21 @@ func showProviderInfo(pinfo *model.ProviderInfo) {
 	fmt.Println("Provider", pinfo.AddrInfo.ID)
 	fmt.Println("    Addresses:", pinfo.AddrInfo.Addrs)
 	var adCidStr string
+	var timeStr string
 	if pinfo.LastAdvertisement.Defined() {
 		adCidStr = pinfo.LastAdvertisement.String()
+		timeStr = pinfo.LastAdvertisementTime
 	}
 	fmt.Println("    LastAdvertisement:", adCidStr)
-	fmt.Println("    LastAdvertisementTime:", pinfo.LastAdvertisementTime)
+	fmt.Println("    LastAdvertisementTime:", timeStr)
 	fmt.Println("    Publisher:", pinfo.Publisher.ID)
 	fmt.Println("        Publisher Addrs:", pinfo.Publisher.Addrs)
+	if pinfo.FrozenAt.Defined() {
+		fmt.Println("    FrozenAt:", pinfo.FrozenAt.String())
+	}
+	// Provider is still frozen even if there is no FrozenAt CID.
+	if pinfo.FrozenAtTime != "" {
+		fmt.Println("    FrozenAtTime:", pinfo.FrozenAtTime)
+	}
 	fmt.Println("    IndexCount:", pinfo.IndexCount)
 }

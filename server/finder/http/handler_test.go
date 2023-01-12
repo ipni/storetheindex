@@ -34,7 +34,7 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, ind.Close())
-		require.NoError(t, reg.Close())
+		reg.Close()
 	})
 
 	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
@@ -144,7 +144,7 @@ func TestServer_Landing(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, ind.Close())
-		require.NoError(t, reg.Close())
+		reg.Close()
 	})
 
 	rr := httptest.NewRecorder()

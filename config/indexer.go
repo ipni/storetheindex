@@ -16,6 +16,10 @@ type Indexer struct {
 	// individual multihashes within a Put. A value of 1 means no concurrency,
 	// and zero uses the default.
 	CorePutConcurrency int
+	// FreezeAtPercent is the percent used, of the file system that
+	// ValueStoreDir is on, at which to trigger the indexer to enter frozen
+	// mode. A zero value uses the default. A negative value disables freezing.
+	FreezeAtPercent float64
 	// GCInterval configures the garbage collection interval for valuestores
 	// that support it.
 	GCInterval Duration
@@ -52,6 +56,11 @@ type Indexer struct {
 	// can offer better performance in specific cases. Enabled by default. This
 	// option only applies when ValueStoreType is set to "pebble".
 	PebbleDisableWAL bool
+	// UnfreezeOnStart tells that indexer to unfreeze itself on startup if it
+	// is frozen. This reverts the indexer to the state it was in before it was
+	// frozen. It only retains the most recent provider and publisher
+	// addresses.
+	UnfreezeOnStart bool
 
 	// TODO: If left unspecified, could the functionality instead be to use whatever the existing
 	//      value store uses? If there is no existing value store, then use binary by default.
@@ -65,6 +74,7 @@ func NewIndexer() Indexer {
 		CacheSize:           300000,
 		ConfigCheckInterval: Duration(30 * time.Second),
 		CorePutConcurrency:  64,
+		FreezeAtPercent:     90.0,
 		GCInterval:          Duration(30 * time.Minute),
 		GCTimeLimit:         Duration(5 * time.Minute),
 		ShutdownTimeout:     0,
@@ -89,6 +99,9 @@ func (c *Indexer) populateUnset() {
 	}
 	if c.CorePutConcurrency == 0 {
 		c.CorePutConcurrency = def.CorePutConcurrency
+	}
+	if c.FreezeAtPercent == 0 {
+		c.FreezeAtPercent = def.FreezeAtPercent
 	}
 	if c.GCInterval == 0 {
 		c.GCInterval = def.GCInterval

@@ -14,6 +14,7 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/ipni/storetheindex/api/v0/admin/model"
 	"github.com/ipni/storetheindex/api/v0/httpclient"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -40,6 +41,26 @@ func New(baseURL string, options ...httpclient.Option) (*Client, error) {
 		c:       c,
 		baseURL: u.String(),
 	}, nil
+}
+
+func (c *Client) Freeze(ctx context.Context) error {
+	u := c.baseURL + "/freeze"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, u, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
+	}
+
+	return nil
 }
 
 // ImportFromManifest processes entries from manifest and imports them into the
@@ -185,18 +206,8 @@ func (c *Client) ReloadConfig(ctx context.Context) error {
 
 // ListAssignedPeers gets a list of explicitly allowed peers, if indexer is
 // configured to work with an assigner service.
-func (c *Client) ListAssignedPeers(ctx context.Context) ([]peer.ID, error) {
-	return c.listPeers(ctx, "assigned")
-}
-
-// ListPreferredPeers gets a list of unassigned peers that the indexer has
-// previously retrieved advertisements from.
-func (c *Client) ListPreferredPeers(ctx context.Context) ([]peer.ID, error) {
-	return c.listPeers(ctx, "preferred")
-}
-
-func (c *Client) listPeers(ctx context.Context, resource string) ([]peer.ID, error) {
-	u := c.baseURL + path.Join(ingestResource, resource)
+func (c *Client) ListAssignedPeers(ctx context.Context) (map[peer.ID]peer.ID, error) {
+	u := c.baseURL + path.Join(ingestResource, "assigned")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
@@ -221,19 +232,75 @@ func (c *Client) listPeers(ctx context.Context, resource string) ([]peer.ID, err
 		return nil, err
 	}
 
-	var allowed []peer.ID
-	err = json.Unmarshal(body, &allowed)
+	var assigned []model.Assigned
+	err = json.Unmarshal(body, &assigned)
 	if err != nil {
 		return nil, err
 	}
 
-	return allowed, nil
+	assignedMap := make(map[peer.ID]peer.ID, len(assigned))
+	for i := range assigned {
+		assignedMap[assigned[i].Publisher] = assigned[i].Continued
+	}
+
+	return assignedMap, nil
+}
+
+// ListPreferredPeers gets a list of unassigned peers that the indexer has
+// previously retrieved advertisements from.
+func (c *Client) ListPreferredPeers(ctx context.Context) ([]peer.ID, error) {
+	u := c.baseURL + path.Join(ingestResource, "preferred")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNoContent {
+		return nil, nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var peers []peer.ID
+	err = json.Unmarshal(body, &peers)
+	if err != nil {
+		return nil, err
+	}
+
+	return peers, nil
 }
 
 // Assign assigns a publish to an indexer, when the indexer is configured to
 // work with an assigner service.
 func (c *Client) Assign(ctx context.Context, peerID peer.ID) error {
-	return c.ingestRequest(ctx, peerID, "assign", http.MethodPut, nil)
+	return c.ingestRequest(ctx, peerID, "assign", http.MethodPost, nil)
+}
+
+func (c *Client) Handoff(ctx context.Context, publisherID, frozenID peer.ID, frozenURL string) error {
+	handoff := model.Handoff{
+		FrozenID:  frozenID,
+		FrozenURL: frozenURL,
+	}
+
+	data, err := json.Marshal(&handoff)
+	if err != nil {
+		return err
+	}
+
+	return c.ingestRequest(ctx, publisherID, "handoff", http.MethodPost, data)
 }
 
 // Unassign unassigns a publish from an indexer, when the indexer is configured
@@ -307,6 +374,36 @@ func (c *Client) SetLogLevels(ctx context.Context, sysLvl map[string]string) err
 	return nil
 }
 
+func (c *Client) Status(ctx context.Context) (*model.Status, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/status", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var status model.Status
+	err = json.Unmarshal(body, &status)
+	if err != nil {
+		return nil, err
+	}
+
+	return &status, nil
+}
+
 func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, method string, data []byte, queryPairs ...string) error {
 	u := c.baseURL + path.Join(ingestResource, action, peerID.String())
 	var body io.Reader
@@ -318,16 +415,18 @@ func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, meth
 		return err
 	}
 
-	qpLen := len(queryPairs)
-	if qpLen%2 != 0 {
-		return fmt.Errorf("number of query pairs must be even; got %d", qpLen)
-	}
+	if len(queryPairs) != 0 {
+		qpLen := len(queryPairs)
+		if qpLen%2 != 0 {
+			return fmt.Errorf("number of query pairs must be even; got %d", qpLen)
+		}
 
-	values := req.URL.Query()
-	for i := 0; i < qpLen; i += 2 {
-		values.Add(queryPairs[i], queryPairs[i+1])
+		values := req.URL.Query()
+		for i := 0; i < qpLen; i += 2 {
+			values.Add(queryPairs[i], queryPairs[i+1])
+		}
+		req.URL.RawQuery = values.Encode()
 	}
-	req.URL.RawQuery = values.Encode()
 
 	resp, err := c.c.Do(req)
 	if err != nil {

@@ -103,6 +103,10 @@ var findFlags = []cli.Flag{
 	},
 }
 
+var adminFreezeFlags = []cli.Flag{
+	indexerHostFlag,
+}
+
 var importFlags = []cli.Flag{
 	providerFlag,
 	&cli.StringFlag{
@@ -241,6 +245,10 @@ var registerFlags = []cli.Flag{
 		Aliases:  []string{"pa"},
 		Required: true,
 	},
+}
+
+var statusFlags = []cli.Flag{
+	indexerHostFlag,
 }
 
 var syntheticFlags = []cli.Flag{

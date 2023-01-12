@@ -90,11 +90,38 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create a valuestore of the configured type.
-	valueStore, minKeyLen, err := createValueStore(cctx.Context, cfg.Indexer)
+	valueStore, minKeyLen, vsDir, err := createValueStore(cctx.Context, cfg.Indexer)
 	if err != nil {
 		return err
 	}
 	log.Info("Valuestore initialized")
+
+	// Create datastore
+	dataStorePath, err := config.Path("", cfg.Datastore.Dir)
+	if err != nil {
+		return err
+	}
+	err = fsutil.DirWritable(dataStorePath)
+	if err != nil {
+		return err
+	}
+	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
+	if err != nil {
+		return err
+	}
+	defer dstore.Close()
+
+	if cfg.Indexer.UnfreezeOnStart {
+		unfrozen, err := registry.Unfreeze(cctx.Context, vsDir, cfg.Indexer.FreezeAtPercent, dstore)
+		if err != nil {
+			return fmt.Errorf("cannot unfreeze registry: %w", err)
+		}
+		err = ingest.Unfreeze(unfrozen, dstore)
+		if err != nil {
+			return fmt.Errorf("cannot unfreeze ingester: %w", err)
+		}
+		log.Info("Indexer reverted to unfrozen state")
+	}
 
 	// If the value store requires a minimum key length, make sure the ingester
 	// if configured with at least the minimum.
@@ -118,20 +145,6 @@ func daemonCommand(cctx *cli.Context) error {
 	// Create indexer core
 	indexerCore := engine.New(resultCache, valueStore)
 
-	// Create datastore
-	dataStorePath, err := config.Path("", cfg.Datastore.Dir)
-	if err != nil {
-		return err
-	}
-	err = fsutil.DirWritable(dataStorePath)
-	if err != nil {
-		return err
-	}
-	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
-	if err != nil {
-		return err
-	}
-
 	indexCounts := counter.NewIndexCounts(dstore)
 	indexCounts.SetTotalAddend(cfg.Indexer.IndexCountTotalAddend)
 
@@ -146,7 +159,9 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create registry
-	reg, err := registry.NewRegistry(cctx.Context, cfg.Discovery, dstore, lotusDiscoverer)
+	reg, err := registry.New(cctx.Context, cfg.Discovery, dstore,
+		registry.WithDiscoverer(lotusDiscoverer),
+		registry.WithFreezer(vsDir, cfg.Indexer.FreezeAtPercent))
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}
@@ -181,6 +196,11 @@ func daemonCommand(cctx *cli.Context) error {
 		peeringService   *peering.PeeringService
 	)
 
+	peerID, privKey, err := cfg.Identity.Decode()
+	if err != nil {
+		return err
+	}
+
 	// Create libp2p host and servers
 	ctx, cancel := context.WithCancel(cctx.Context)
 	defer cancel()
@@ -192,10 +212,6 @@ func daemonCommand(cctx *cli.Context) error {
 	if p2pAddr != "" && p2pAddr != "none" {
 		cancelP2pServers = cancel
 
-		peerID, privKey, err := cfg.Identity.Decode()
-		if err != nil {
-			return err
-		}
 		p2pmaddr, err := multiaddr.NewMultiaddr(p2pAddr)
 		if err != nil {
 			return fmt.Errorf("bad p2p address %s: %s", p2pAddr, err)
@@ -253,7 +269,7 @@ func daemonCommand(cctx *cli.Context) error {
 
 		peeringService, err = reloadPeering(cfg.Peering, nil, p2pHost)
 		if err != nil {
-			return fmt.Errorf("error reloading peering service: %s", err)
+			return fmt.Errorf("error loading peering service: %s", err)
 		}
 
 		log.Infow("libp2p servers initialized", "host_id", p2pHost.ID(), "multiaddr", p2pmaddr)
@@ -292,7 +308,7 @@ func daemonCommand(cctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("bad admin address %s: %s", adminAddr, err)
 		}
-		adminSvr, err = httpadminserver.New(adminNetAddr.String(), indexerCore, ingester, reg, reloadErrsChan)
+		adminSvr, err = httpadminserver.New(adminNetAddr.String(), peerID, indexerCore, ingester, reg, reloadErrsChan)
 		if err != nil {
 			return err
 		}
@@ -332,6 +348,9 @@ func daemonCommand(cctx *cli.Context) error {
 	// Output message to user (not to log).
 	if cfg.Discovery.UseAssigner {
 		fmt.Println("Indexer configured to use assigner service")
+	}
+	if reg.Frozen() {
+		fmt.Println("Indexer is frozen")
 	}
 	fmt.Println("Indexer is ready")
 
@@ -488,21 +507,24 @@ func daemonCommand(cctx *cli.Context) error {
 		finalErr = ErrDaemonStop
 	}
 
+	reg.Close()
+	dstore.Close()
+
 	log.Info("Indexer stopped")
 	return finalErr
 }
 
-func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.Interface, int, error) {
+func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.Interface, int, string, error) {
 	const sthMinKeyLen = 4
 
 	dir, err := config.Path("", cfgIndexer.ValueStoreDir)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, "", err
 	}
 	log.Infow("Valuestore initializing/opening", "type", cfgIndexer.ValueStoreType, "path", dir)
 
 	if err = fsutil.DirWritable(dir); err != nil {
-		return nil, 0, err
+		return nil, 0, "", err
 	}
 
 	var vs indexer.Interface
@@ -574,9 +596,9 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		err = fmt.Errorf("unrecognized store type: %s", cfgIndexer.ValueStoreType)
 	}
 	if err != nil {
-		return nil, 0, fmt.Errorf("cannot create %s value store: %w", cfgIndexer.ValueStoreType, err)
+		return nil, 0, "", fmt.Errorf("cannot create %s value store: %w", cfgIndexer.ValueStoreType, err)
 	}
-	return vs, minKeyLen, nil
+	return vs, minKeyLen, dir, nil
 }
 
 func setLoggingConfig(cfgLogging config.Logging) error {

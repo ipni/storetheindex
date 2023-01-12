@@ -2,13 +2,18 @@ package registry
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
+	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/registry/discovery"
 	"github.com/ipni/storetheindex/test/util"
@@ -26,6 +31,7 @@ const (
 	exceptID   = "12D3KooWK7CTS7cyWi51PeNE3cTjS2F2kDCZaQVU4A5xBmb9J1do"
 	limitedID  = "12D3KooWSG3JuvEjRkSxt93ADTjQxqe4ExbBwSkQ9Zyk1WfBaZJF"
 	limitedID2 = "12D3KooWKSNuuq77xqnpPLnU3fq1bTQW2TwSZL2Z4QTHEYpUVzfr"
+	limitedID3 = "12D3KooWLjeDyvuv7rbfG2wWNvWn7ybmmU88PirmSckuqCgXBAph"
 
 	minerDiscoAddr = "stitest999999"
 	minerAddr      = "/ip4/127.0.0.1/tcp/9999"
@@ -81,7 +87,7 @@ func TestNewRegistryDiscovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDiscoverer)
+	r, err := New(ctx, discoveryCfg, nil, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 	t.Log("created new registry")
 
@@ -107,12 +113,10 @@ func TestNewRegistryDiscovery(t *testing.T) {
 	err = r.Update(ctx, provider, publisher, cid.Undef, nil)
 	require.NoError(t, err)
 
-	err = r.Close()
-	require.NoError(t, err)
+	r.Close()
 
 	// Check that 2nd call to Close is ok
-	err = r.Close()
-	require.NoError(t, err)
+	r.Close()
 }
 
 func TestDiscoveryAllowed(t *testing.T) {
@@ -120,9 +124,9 @@ func TestDiscoveryAllowed(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDiscoverer)
+	r, err := New(ctx, discoveryCfg, nil, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, r.Close()) })
+	t.Cleanup(func() { r.Close() })
 	t.Log("created new registry")
 
 	peerID, err := peer.Decode(exceptID)
@@ -174,7 +178,7 @@ func TestDiscoveryBlocked(t *testing.T) {
 	peerID, err := peer.Decode(exceptID)
 	require.NoError(t, err)
 
-	r, err := NewRegistry(ctx, discoveryCfg, nil, mockDiscoverer)
+	r, err := New(ctx, discoveryCfg, nil, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 	defer r.Close()
 	t.Log("created new registry")
@@ -256,7 +260,7 @@ func TestDatastore(t *testing.T) {
 	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
 
-	r, err := NewRegistry(ctx, discoveryCfg, dstore, mockDiscoverer)
+	r, err := New(ctx, discoveryCfg, dstore, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 	t.Log("created new registry with datastore")
 
@@ -279,13 +283,14 @@ func TestDatastore(t *testing.T) {
 	require.True(t, allowed)
 	require.NotNil(t, pinfo.ExtendedProviders, "did not find registered extended provider")
 
-	require.NoError(t, r.Close())
+	r.Close()
+	require.NoError(t, dstore.Close())
 
 	// Create datastore
 	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
 
-	r, err = NewRegistry(ctx, discoveryCfg, dstore, mockDiscoverer)
+	r, err = New(ctx, discoveryCfg, dstore, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 	t.Log("re-created new registry with datastore")
 
@@ -311,8 +316,8 @@ func TestDatastore(t *testing.T) {
 	require.ErrorIs(t, r.AssignPeer(pubID), ErrNoAssigner)
 	require.ErrorIs(t, r.UnassignPeer(pubID), ErrNoAssigner)
 
-	err = r.Close()
-	require.NoError(t, err)
+	r.Close()
+	require.NoError(t, dstore.Close())
 
 	// Test that configuring existing registry to use assigner service finds
 	// existing publishers.
@@ -320,11 +325,11 @@ func TestDatastore(t *testing.T) {
 	discoveryCfg.UseAssigner = true
 	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
-	r, err = NewRegistry(ctx, discoveryCfg, dstore, mockDiscoverer)
+	r, err = New(ctx, discoveryCfg, dstore, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 
 	// There should not be any assigned yet.
-	assigned, err := r.ListAssignedPeers()
+	assigned, _, err := r.ListAssignedPeers()
 	require.NoError(t, err)
 	require.Zero(t, len(assigned))
 
@@ -336,14 +341,14 @@ func TestDatastore(t *testing.T) {
 	// Assign peer and check that it is assigned.
 	err = r.AssignPeer(preferred[0])
 	require.NoError(t, err)
-	assigned, err = r.ListAssignedPeers()
+	assigned, _, err = r.ListAssignedPeers()
 	require.NoError(t, err)
 	require.Equal(t, 1, len(assigned))
 
 	// Unassign peer and check that it is not assigned.
 	err = r.UnassignPeer(preferred[0])
 	require.NoError(t, err)
-	assigned, err = r.ListAssignedPeers()
+	assigned, _, err = r.ListAssignedPeers()
 	require.NoError(t, err)
 	require.Zero(t, len(assigned))
 
@@ -351,7 +356,8 @@ func TestDatastore(t *testing.T) {
 	require.True(t, r.BlockPeer(preferred[0]))
 	require.ErrorIs(t, r.AssignPeer(preferred[0]), ErrNotAllowed)
 
-	require.NoError(t, r.Close())
+	r.Close()
+	require.NoError(t, dstore.Close())
 }
 
 func TestAllowed(t *testing.T) {
@@ -365,7 +371,7 @@ func TestAllowed(t *testing.T) {
 
 	ctx := context.Background()
 
-	r, err := NewRegistry(ctx, cfg, nil, nil)
+	r, err := New(ctx, cfg, nil)
 	require.NoError(t, err)
 
 	provID, err := peer.Decode(limitedID)
@@ -449,9 +455,9 @@ func TestPollProvider(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	r, err := NewRegistry(ctx, cfg, datastore.NewMapDatastore(), nil)
+	r, err := New(ctx, cfg, datastore.NewMapDatastore())
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, r.Close()) })
+	t.Cleanup(func() { r.Close() })
 
 	peerID, err := peer.Decode(limitedID)
 	require.NoError(t, err)
@@ -557,8 +563,8 @@ func TestPollProviderOverrides(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	r, err := NewRegistry(ctx, cfg, datastore.NewMapDatastore(), nil)
-	t.Cleanup(func() { require.NoError(t, r.Close()) })
+	r, err := New(ctx, cfg, datastore.NewMapDatastore())
+	t.Cleanup(func() { r.Close() })
 	require.NoError(t, err)
 	defer r.Close()
 
@@ -644,9 +650,9 @@ func TestPollProviderOverrides(t *testing.T) {
 
 func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 	ctx := context.Background()
-	subject, err := NewRegistry(ctx, config.NewDiscovery(), datastore.NewMapDatastore(), nil)
+	subject, err := New(ctx, config.NewDiscovery(), datastore.NewMapDatastore())
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, subject.Close()) })
+	t.Cleanup(func() { subject.Close() })
 
 	// Register a provider first
 	provId, err := peer.Decode(exceptID)
@@ -702,9 +708,9 @@ func TestFilterIPs(t *testing.T) {
 	require.NoError(t, err)
 
 	dstore := datastore.NewMapDatastore()
-	reg, err := NewRegistry(ctx, cfg, dstore, nil)
+	reg, err := New(ctx, cfg, dstore)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, reg.Close()) })
+	t.Cleanup(func() { reg.Close() })
 
 	provider := peer.AddrInfo{
 		ID:    provID,
@@ -716,12 +722,12 @@ func TestFilterIPs(t *testing.T) {
 	}
 	err = reg.Update(ctx, provider, publisher, cid.Undef, nil)
 	require.NoError(t, err)
-	require.NoError(t, reg.Close())
+	reg.Close()
 
 	cfg.FilterIPs = true
-	reg, err = NewRegistry(ctx, cfg, dstore, nil)
+	reg, err = New(ctx, cfg, dstore)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, reg.Close()) })
+	t.Cleanup(func() { reg.Close() })
 
 	require.True(t, reg.FilterIPsEnabled())
 
@@ -766,6 +772,217 @@ func TestRegistry_loadPersistedProvidersFiltersNilAddrGracefully(t *testing.T) {
 	require.NoError(t, err)
 	cfg := config.NewDiscovery()
 	cfg.FilterIPs = true
-	_, err = NewRegistry(ctx, cfg, ds, nil)
+	_, err = New(ctx, cfg, ds)
 	require.NoError(t, err)
+}
+
+func TestFreezeUnfreeze(t *testing.T) {
+	cfg := config.Discovery{
+		Policy: config.Policy{
+			Allow:   true,
+			Publish: true,
+		},
+	}
+
+	ctx := context.Background()
+	tempDir := t.TempDir()
+	dstore := datastore.NewMapDatastore()
+	r, err := New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
+	require.NoError(t, err)
+	t.Cleanup(func() { r.Close() })
+
+	peerID, err := peer.Decode(limitedID)
+	require.NoError(t, err)
+
+	pubID, err := peer.Decode(publisherID)
+	require.NoError(t, err)
+
+	maddr, err := multiaddr.NewMultiaddr(minerAddr)
+	require.NoError(t, err)
+
+	prov := peer.AddrInfo{
+		ID:    peerID,
+		Addrs: []multiaddr.Multiaddr{maddr},
+	}
+	pub := peer.AddrInfo{
+		ID: pubID,
+	}
+
+	mh, err := multihash.Sum([]byte("somedata"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+	adCid := cid.NewCidV1(cid.Raw, mh)
+
+	err = r.Update(ctx, prov, pub, adCid, nil)
+	require.NoError(t, err)
+
+	require.False(t, r.Frozen())
+	infos := r.AllProviderInfo()
+	for i := range infos {
+		require.False(t, infos[i].FrozenAt.Defined())
+		require.True(t, infos[i].FrozenAtTime.IsZero())
+	}
+
+	require.NoError(t, r.Freeze())
+
+	require.True(t, r.Frozen())
+	infos = r.AllProviderInfo()
+	for i := range infos {
+		require.True(t, infos[i].FrozenAt.Defined())
+		require.False(t, infos[i].FrozenAtTime.IsZero())
+	}
+
+	// Check that a new provider cannot be registered with a frozen publisher.
+	peerID2, err := peer.Decode(limitedID2)
+	require.NoError(t, err)
+	maddr2, err := multiaddr.NewMultiaddr(minerAddr2)
+	require.NoError(t, err)
+	prov2 := peer.AddrInfo{
+		ID:    peerID2,
+		Addrs: []multiaddr.Multiaddr{maddr2},
+	}
+	pubID2, err := peer.Decode(limitedID3)
+	require.NoError(t, err)
+	pub2 := peer.AddrInfo{
+		ID: pubID2,
+	}
+	mh, err = multihash.Sum([]byte("some-other-data"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+	adCid2 := cid.NewCidV1(cid.Raw, mh)
+
+	err = r.Update(ctx, prov2, pub2, adCid2, nil)
+	require.ErrorIs(t, err, ErrFrozen)
+
+	// Stop and restart registry and check providers are still frozen.
+	r.Close()
+	r, err = New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
+	require.NoError(t, err)
+	require.True(t, r.Frozen())
+	infos = r.AllProviderInfo()
+	for i := range infos {
+		require.True(t, infos[i].FrozenAt.Defined())
+		require.False(t, infos[i].FrozenAtTime.IsZero())
+	}
+	r.Close()
+
+	unfrozen, err := Unfreeze(ctx, tempDir, 90.0, dstore)
+	require.NoError(t, err)
+	require.Equal(t, len(infos), len(unfrozen))
+	for i := range infos {
+		frozenAt, ok := unfrozen[infos[i].Publisher]
+		require.True(t, ok)
+		require.Equal(t, infos[i].FrozenAt, frozenAt)
+	}
+
+	r, err = New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
+	require.NoError(t, err)
+	require.False(t, r.Frozen())
+	infos = r.AllProviderInfo()
+	for i := range infos {
+		require.False(t, infos[i].FrozenAt.Defined())
+		require.True(t, infos[i].FrozenAtTime.IsZero())
+	}
+	r.Close()
+
+	unfrozen, err = Unfreeze(ctx, tempDir, 90.0, dstore)
+	require.NoError(t, err)
+	require.Zero(t, len(unfrozen))
+}
+
+func TestHandoff(t *testing.T) {
+	cfg := config.Discovery{
+		Policy: config.Policy{
+			Allow:   true,
+			Publish: true,
+		},
+		UseAssigner: true,
+	}
+
+	ctx := context.Background()
+	tempDir := t.TempDir()
+	r, err := New(ctx, cfg, datastore.NewMapDatastore(), WithFreezer(tempDir, 90.0))
+	require.NoError(t, err)
+	t.Cleanup(func() { r.Close() })
+
+	pubID, err := peer.Decode(publisherID)
+	require.NoError(t, err)
+	pubAddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	require.NoError(t, err)
+
+	pubAddrInfo := peer.AddrInfo{
+		ID:    pubID,
+		Addrs: []multiaddr.Multiaddr{pubAddr},
+	}
+
+	mh, err := multihash.Sum([]byte("somedata"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+	adCid := cid.NewCidV1(cid.Raw, mh)
+	lastAdTime := time.Now()
+
+	frozenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		defer req.Body.Close()
+		t.Log("Frozen indexer received", req.Method, "request at", req.URL.String())
+		pInfos := []model.ProviderInfo{{
+			AddrInfo:              pubAddrInfo,
+			LastAdvertisement:     adCid,
+			LastAdvertisementTime: lastAdTime.Format(time.RFC3339),
+			Publisher:             &pubAddrInfo,
+			FrozenAt:              adCid,
+			FrozenAtTime:          lastAdTime.Format(time.RFC3339),
+		}}
+		data, err := json.Marshal(pInfos)
+		if err != nil {
+			panic(err.Error())
+		}
+		writeJsonResponse(w, http.StatusOK, data)
+	}))
+	defer frozenServer.Close()
+
+	frozenURL, err := url.Parse(frozenServer.URL)
+	require.NoError(t, err)
+
+	peerID, err := peer.Decode(limitedID)
+	require.NoError(t, err)
+
+	err = r.Handoff(ctx, pubID, peerID, frozenURL)
+	require.NoError(t, err)
+
+	select {
+	case pinfo := <-r.SyncChan():
+		require.Equal(t, pubID, pinfo.AddrInfo.ID, "Wrong provider ID")
+		require.Equal(t, pubID, pinfo.Publisher, "Wrong publisher ID")
+		require.Equal(t, adCid, pinfo.StopCid(), "Wrong stop ad CID")
+	default:
+		t.Fatal("Expected sync channel to be written")
+	}
+
+	pubs, froms, err := r.ListAssignedPeers()
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(pubs))
+	require.Equal(t, 1, len(froms))
+
+	require.Equal(t, pubID, pubs[0])
+	require.Equal(t, peerID, froms[0])
+
+	provs := r.AllProviderInfo()
+	require.NoError(t, err)
+	require.Equal(t, 1, len(provs))
+
+	prov := provs[0]
+	require.Equal(t, pubID, prov.AddrInfo.ID)
+	require.Equal(t, pubID, prov.Publisher)
+
+	// Freeze the indexer and check that a new publisher cannot be assigned.
+	require.NoError(t, r.Freeze())
+	pubID2, err := peer.Decode(limitedID3)
+	require.NoError(t, err)
+	require.ErrorIs(t, r.AssignPeer(pubID2), ErrFrozen)
+}
+
+func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	if _, err := w.Write(body); err != nil {
+		http.Error(w, "", http.StatusInternalServerError)
+	}
 }

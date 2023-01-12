@@ -25,3 +25,7 @@ const (
 func (e adIngestError) Error() string {
 	return fmt.Sprintf("%s: %s", e.state, e.err)
 }
+
+func (e adIngestError) Unwrap() error {
+	return e.err
+}

@@ -17,7 +17,10 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	v0 "github.com/ipni/storetheindex/api/v0"
 	httpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
+	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/internal/disk"
+	"github.com/ipni/storetheindex/internal/freeze"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry/discovery"
 	"github.com/ipni/storetheindex/internal/registry/policy"
@@ -44,6 +47,7 @@ type Registry struct {
 	closing   chan struct{}
 	dstore    datastore.Datastore
 	filterIPs bool
+	freezer   *freeze.Freezer
 	providers map[peer.ID]*ProviderInfo
 	sequences *sequences
 
@@ -53,7 +57,7 @@ type Registry struct {
 	policy        *policy.Policy
 
 	// assigned tracks peers assigned by assigner service.
-	assigned map[peer.ID]struct{}
+	assigned map[peer.ID]peer.ID
 	// assignMutex protects assigner.
 	assignMutex sync.Mutex
 	// preferred tracks unassigned peers that indexer has previously received
@@ -78,13 +82,19 @@ type ProviderInfo struct {
 	// LastAdvertisement identifies the latest advertisement the indexer has ingested.
 	LastAdvertisement cid.Cid `json:",omitempty"`
 	// LastAdvertisementTime is the time the latest advertisement was received.
-	LastAdvertisementTime time.Time `json:",omitempty"`
+	LastAdvertisementTime time.Time
 	// Publisher contains the ID of the provider info publisher.
 	Publisher peer.ID `json:",omitempty"`
 	// PublisherAddr contains the last seen publisher multiaddr.
 	PublisherAddr multiaddr.Multiaddr `json:",omitempty"`
 	// ExtendedProviders registered for that provider
 	ExtendedProviders *ExtendedProviders `json:",omitempty"`
+
+	// FrozenAt identifies the last advertisement that was received before the
+	// indexer became frozen.
+	FrozenAt cid.Cid `json:",omitempty"`
+	// FrozenAtTime is the time that the FrozenAt advertisement was received.
+	FrozenAtTime time.Time
 
 	// lastContactTime is the last time the publisher contacted the indexer.
 	// This is not persisted, so that the time since last contact is reset when
@@ -96,6 +106,9 @@ type ProviderInfo struct {
 	deleted bool
 	// inactive means polling the publisher with no response yet.
 	inactive bool
+	// handoffCid is used to tell the autosync goroutine to set the latest CID
+	// to stop the sync at.
+	stopCid cid.Cid
 }
 
 // ExtendedProviderInfo is an immutable data structure that holds information
@@ -148,6 +161,10 @@ func (p *ProviderInfo) Deleted() bool {
 
 func (p *ProviderInfo) Inactive() bool {
 	return p.inactive
+}
+
+func (p *ProviderInfo) StopCid() cid.Cid {
+	return p.stopCid
 }
 
 func (p *ProviderInfo) dsKey() datastore.Key {
@@ -233,10 +250,16 @@ func (p *ExtendedProviderInfo) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// NewRegistry creates a new provider registry, giving it provider policy
+// New creates a new provider registry, giving it provider policy
 // configuration, a datastore to persist provider data, and a Discoverer
-// interface.  The context is only used for cancellation of this function.
-func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, discoverer discovery.Discoverer) (*Registry, error) {
+// interface. The context is only used for cancellation of this function.
+func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, options ...Option) (*Registry, error) {
+	var opts regConfig
+	err := opts.apply(options...)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create policy from config.
 	regPolicy, err := policy.New(cfg.Policy)
 	if err != nil {
@@ -253,28 +276,30 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 		closing:   make(chan struct{}),
 		filterIPs: cfg.FilterIPs,
 		policy:    regPolicy,
-		providers: map[peer.ID]*ProviderInfo{},
 		sequences: newSequences(0),
 
 		rediscoverWait:   time.Duration(cfg.RediscoverWait),
 		discoveryTimeout: time.Duration(cfg.Timeout),
 
-		discoverer: discoverer,
+		discoverer: opts.discoverer,
 
 		dstore:   dstore,
 		syncChan: make(chan *ProviderInfo, 1),
 	}
 
-	if err = r.loadPersistedProviders(ctx); err != nil {
+	r.providers, err = loadPersistedProviders(ctx, dstore, cfg.FilterIPs)
+	if err != nil {
 		return nil, fmt.Errorf("cannot load provider data from datastore: %w", err)
 	}
+	log.Infow("Loaded providers into registry", "count", len(r.providers))
 
 	if cfg.UseAssigner {
-		r.assigned = make(map[peer.ID]struct{})
-		if err = r.loadPersistedAssignments(ctx, cfg.RemoveOldAssignments); err != nil {
+		r.assigned, err = loadPersistedAssignments(ctx, dstore, cfg.RemoveOldAssignments)
+		if err != nil {
 			return nil, err
 		}
-		r.loadPreferredAssignments()
+		log.Infow("Loaded assignments into registry", "count", len(r.assigned))
+		r.preferred = loadPreferredAssignments(r.providers, r.assigned)
 	}
 
 	pollOverrides, err := makePollOverrideMap(cfg.PollOverrides)
@@ -289,6 +314,14 @@ func NewRegistry(ctx context.Context, cfg config.Discovery, dstore datastore.Dat
 	}
 
 	go r.run()
+
+	if opts.freezeAtPercent >= 0 {
+		r.freezer, err = freeze.New(opts.valueStoreDir, opts.freezeAtPercent, dstore, r.freeze)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create freezer: %s", err)
+		}
+	}
+
 	go r.runPollCheck(poll, pollOverrides)
 
 	return r, nil
@@ -315,19 +348,15 @@ func makePollOverrideMap(cfgPollOverrides []config.Polling) (map[peer.ID]polling
 	return pollOverrides, nil
 }
 
-// Close waits for any pending discoverer to finish and then stops the registry
-func (r *Registry) Close() error {
-	var err error
+// Close waits for polling and actions to finish and then stops the registry.
+func (r *Registry) Close() {
 	r.closeOnce.Do(func() {
-		close(r.closing)
-		<-r.closed
-
-		if r.dstore != nil {
-			err = r.dstore.Close()
+		if r.freezer != nil {
+			r.freezer.Close()
 		}
+		close(r.closing)
 	})
 	<-r.closed
-	return err
 }
 
 func (r *Registry) SyncChan() <-chan *ProviderInfo {
@@ -431,7 +460,9 @@ func (r *Registry) Saw(provider peer.ID) {
 // be allowed.
 func (r *Registry) Allowed(peerID peer.ID) bool {
 	if r.assigned != nil {
+		r.assignMutex.Lock()
 		_, ok := r.assigned[peerID]
+		r.assignMutex.Unlock()
 		if !ok {
 			return false
 		}
@@ -460,21 +491,23 @@ func (r *Registry) SetPolicy(policyCfg config.Policy) error {
 
 // ListAssignedPeers returns list of assigned peer IDs, when the indexer is
 // configured to work with an assigner service. Otherwise returns error.
-func (r *Registry) ListAssignedPeers() ([]peer.ID, error) {
+func (r *Registry) ListAssignedPeers() ([]peer.ID, []peer.ID, error) {
 	if r.assigned == nil {
-		return nil, ErrNoAssigner
+		return nil, nil, ErrNoAssigner
 	}
 
 	r.assignMutex.Lock()
 	defer r.assignMutex.Unlock()
 
-	peers := make([]peer.ID, len(r.assigned))
+	publisherIDs := make([]peer.ID, len(r.assigned))
+	continuedIDs := make([]peer.ID, len(r.assigned))
 	var i int
-	for peerID := range r.assigned {
-		peers[i] = peerID
+	for publisher, continued := range r.assigned {
+		publisherIDs[i] = publisher
+		continuedIDs[i] = continued
 		i++
 	}
-	return peers, nil
+	return publisherIDs, continuedIDs, nil
 }
 
 // ListPreferredPeers returns list of unassigned peer IDs, that the indexer has
@@ -492,11 +525,12 @@ func (r *Registry) ListPreferredPeers() ([]peer.ID, error) {
 		return nil, nil
 	}
 
-	peers := make([]peer.ID, len(r.preferred))
-	var i int
+	peers := make([]peer.ID, 0, len(r.preferred))
 	for peerID := range r.preferred {
-		peers[i] = peerID
-		i++
+		if !r.policy.Allowed(peerID) {
+			continue
+		}
+		peers = append(peers, peerID)
 	}
 
 	return peers, nil
@@ -505,24 +539,35 @@ func (r *Registry) ListPreferredPeers() ([]peer.ID, error) {
 // AssignPeer assigns the peer to this indexer if using an assigner service.
 // This allows the indexer to accept announce messages having this peer as a
 // publisher. The assignment is persisted in the datastore.
-func (r *Registry) AssignPeer(peerID peer.ID) error {
+func (r *Registry) AssignPeer(publisherID peer.ID) error {
 	if r.assigned == nil {
 		return ErrNoAssigner
 	}
-	if !r.policy.Allowed(peerID) {
+	if !r.policy.Allowed(publisherID) {
 		return ErrNotAllowed
 	}
+	if r.Frozen() {
+		return fmt.Errorf("cannot assign publisher: %w", ErrFrozen)
+	}
 
+	return r.assignPeer(publisherID, peer.ID(""))
+}
+
+func (r *Registry) assignPeer(publisherID, frozenID peer.ID) error {
 	r.assignMutex.Lock()
 	defer r.assignMutex.Unlock()
 
-	err := r.saveAssignedPeer(peerID)
+	if _, ok := r.assigned[publisherID]; ok {
+		return ErrAlreadyAssigned
+	}
+
+	err := r.saveAssignedPeer(publisherID, frozenID)
 	if err != nil {
 		return fmt.Errorf("cannot save assignment: %w", err)
 	}
-	r.assigned[peerID] = struct{}{}
 
-	delete(r.preferred, peerID)
+	r.assigned[publisherID] = frozenID
+	delete(r.preferred, publisherID)
 	return nil
 }
 
@@ -592,6 +637,9 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 			Publisher:             info.Publisher,
 			PublisherAddr:         info.PublisherAddr,
 			ExtendedProviders:     info.ExtendedProviders,
+
+			FrozenAt:     info.FrozenAt,
+			FrozenAtTime: info.FrozenAtTime,
 		}
 
 		// If new addrs provided, update to use these.
@@ -608,6 +656,10 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 			newPublisher = true
 		}
 	} else {
+		if r.Frozen() {
+			return fmt.Errorf("cannot register new provider: %w", ErrFrozen)
+		}
+
 		err := provider.ID.Validate()
 		if err != nil {
 			return err
@@ -721,6 +773,83 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	return infos
 }
 
+func (r *Registry) Handoff(ctx context.Context, publisherID, frozenID peer.ID, frozenURL *url.URL) error {
+	if r.assigned == nil {
+		return ErrNoAssigner
+	}
+	if !r.policy.Allowed(publisherID) {
+		return ErrPublisherNotAllowed
+	}
+
+	r.assignMutex.Lock()
+	_, ok := r.assigned[publisherID]
+	r.assignMutex.Unlock()
+	if ok {
+		return ErrAlreadyAssigned
+	}
+
+	// Get the providers from the frozen indexer.
+	cl, err := httpclient.New(frozenURL.String())
+	if err != nil {
+		return err
+	}
+	provs, err := cl.ListProviders(ctx, true)
+	if err != nil {
+		return err
+	}
+
+	// Iterate through the providers to find the one with the publisher being handed off.
+	var provInfo *model.ProviderInfo
+	for _, pInfo := range provs {
+		if pInfo.Publisher.ID == publisherID {
+			provInfo = pInfo
+			break
+		}
+	}
+
+	if provInfo == nil {
+		// None of the providers has publisher that is being handed off. The
+		// provider changed publishers at some point after the publisher was
+		// assigned to the indexer. There is nothing to hand off for this
+		// publisher. With no associated provider, there is no way to know
+		// where indexing was frozen, so do not assign the publisher to this
+		// indexer.
+		log.Infow("handoff publisher no longer in use on frozen indexer")
+		return nil
+	}
+
+	// If this indexer does not allow this provider, then this publisher cannot
+	// be handed off to this indexer.
+	if !r.policy.Allowed(provInfo.AddrInfo.ID) {
+		return ErrNotAllowed
+	}
+	// If this indexer does not allow the publisher to publish for the
+	// provider, then this publisher cannot be handed off to this indexer.
+	if !r.policy.PublishAllowed(publisherID, provInfo.AddrInfo.ID) {
+		return ErrCannotPublish
+	}
+
+	regInfo := apiToRegProviderInfo(provInfo)
+	err = r.register(ctx, regInfo)
+	if err != nil {
+		return fmt.Errorf("cannot register provider from frozen indexer: %w", err)
+	}
+
+	// If source indexer has ingested any ads for the provider, then start a
+	// sync with the frozen at ad as the ad to stop at.
+	if provInfo.FrozenAt != cid.Undef {
+		regInfo.stopCid = provInfo.FrozenAt
+
+		select {
+		case r.syncChan <- regInfo:
+		case <-r.closing:
+			return errors.New("indexer shutdown")
+		}
+	}
+
+	return r.assignPeer(publisherID, frozenID)
+}
+
 // ImportProviders reads providers from another indexer and registers any that
 // are not already registered. Returns the count of newly registered providers.
 func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, error) {
@@ -729,7 +858,7 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 		return 0, err
 	}
 
-	provs, err := cl.ListProviders(ctx)
+	provs, err := cl.ListProviders(ctx, true)
 	if err != nil {
 		return 0, err
 	}
@@ -739,41 +868,27 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 		if r.IsRegistered(pInfo.AddrInfo.ID) {
 			continue
 		}
-		regInfo := &ProviderInfo{
-			AddrInfo: pInfo.AddrInfo,
+
+		regInfo := apiToRegProviderInfo(pInfo)
+		if regInfo.PublisherAddr == nil {
+			log.Infow("Publisher missing address",
+				"provider", regInfo.AddrInfo.ID, "publisher", regInfo.Publisher)
 		}
 
-		var pubErr error
-		if pInfo.Publisher == nil {
-			pubErr = errors.New("missing publisher")
-		} else if pInfo.Publisher.ID.Validate() != nil {
-			pubErr = errors.New("bad publisher id")
-		} else if len(pInfo.Publisher.Addrs) == 0 {
-			pubErr = errors.New("publisher missing addresses")
-		} else if !r.policy.Allowed(pInfo.Publisher.ID) {
+		if !r.policy.Allowed(regInfo.Publisher) {
 			log.Infow("Cannot register provider", "err", ErrPublisherNotAllowed,
-				"provider", pInfo.AddrInfo.ID, "publisher", pInfo.Publisher.ID)
+				"provider", regInfo.AddrInfo.ID, "publisher", regInfo.Publisher)
 			continue
-		} else if !r.policy.PublishAllowed(pInfo.Publisher.ID, pInfo.AddrInfo.ID) {
+		} else if !r.policy.PublishAllowed(regInfo.Publisher, regInfo.AddrInfo.ID) {
 			log.Infow("Cannot register provider", "err", ErrCannotPublish,
-				"provider", pInfo.AddrInfo.ID, "publisher", pInfo.Publisher.ID)
+				"provider", regInfo.AddrInfo.ID, "publisher", regInfo.Publisher)
 			continue
-		}
-
-		if pubErr != nil {
-			// If publisher does not have a valid ID and addresses, then use
-			// provider as publisher.
-			log.Infow("Provider does not have valid publisher, assuming same as provider", "reason", pubErr, "provider", regInfo.AddrInfo.ID)
-			regInfo.Publisher = regInfo.AddrInfo.ID
-			regInfo.PublisherAddr = regInfo.AddrInfo.Addrs[0]
-		} else {
-			regInfo.Publisher = pInfo.Publisher.ID
-			regInfo.PublisherAddr = pInfo.Publisher.Addrs[0]
 		}
 
 		err = r.register(ctx, regInfo)
 		if err != nil {
-			log.Infow("Cannot register provider", "provider", pInfo.AddrInfo.ID, "err", err)
+			log.Infow("Cannot register provider", "err", err,
+				"provider", regInfo.AddrInfo.ID, "publisher", regInfo.Publisher)
 			continue
 		}
 
@@ -817,6 +932,127 @@ func (r *Registry) RemoveProvider(ctx context.Context, providerID peer.ID) error
 
 func (r *Registry) CheckSequence(peerID peer.ID, seq uint64) error {
 	return r.sequences.check(peerID, seq)
+}
+
+// Freeze puts the indexer into forzen mode.
+//
+// The registry in not frozen directly, but the Freezer is triggered instead.
+func (r *Registry) Freeze() error {
+	if r.freezer == nil {
+		return ErrNoFreeze
+	}
+	return r.freezer.Freeze()
+}
+
+// freeze is called by the Freezer to record the last advertisement ingested
+// for each provider at the time the indexer becomes frozen.
+func (r *Registry) freeze() error {
+	now := time.Now()
+	errCh := make(chan error)
+	r.actions <- func() {
+		errCh <- r.syncFreeze(now)
+	}
+	err := <-errCh
+	if err != nil {
+		return fmt.Errorf("cannot freeze providers: %w", err)
+	}
+	return nil
+}
+
+// Frozen returns true if indexer is frozen.
+func (r *Registry) Frozen() bool {
+	if r.freezer == nil {
+		return false
+	}
+	return r.freezer.Frozen()
+}
+
+func (r *Registry) ValueStoreUsage() (*disk.UsageStats, error) {
+	if r.freezer == nil {
+		return nil, ErrNoFreeze
+	}
+	return r.freezer.Usage()
+}
+
+// Unfreeze reverts the freezer and provider information back to its unfrozen
+// state. This must only be called when the registry is not running.
+func Unfreeze(ctx context.Context, vstoreDir string, freezeAtPercent float64, dstore datastore.Datastore) (map[peer.ID]cid.Cid, error) {
+	if dstore == nil {
+		return nil, nil
+	}
+
+	err := freeze.Unfreeze(ctx, vstoreDir, freezeAtPercent, dstore)
+	if err != nil {
+		return nil, fmt.Errorf("cannot unfreeze freezer: %w", err)
+	}
+
+	providers, err := loadPersistedProviders(ctx, dstore, false)
+	if err != nil {
+		return nil, fmt.Errorf("cannot load provider info: %w", err)
+	}
+
+	unfrozen := make(map[peer.ID]cid.Cid, len(providers))
+
+	for _, info := range providers {
+		if info.FrozenAtTime.IsZero() {
+			// Already unforzen. Frozen provider will have non-zero time.
+			continue
+		}
+		unfrozen[info.Publisher] = info.FrozenAt
+
+		info.LastAdvertisement = info.FrozenAt
+		info.LastAdvertisementTime = info.FrozenAtTime
+		info.FrozenAt = cid.Undef
+		info.FrozenAtTime = time.Time{}
+
+		value, err := json.Marshal(info)
+		if err != nil {
+			return nil, err
+		}
+
+		if err = dstore.Put(ctx, info.dsKey(), value); err != nil {
+			return nil, err
+		}
+	}
+	if len(unfrozen) == 0 {
+		return nil, nil
+	}
+	if err = dstore.Sync(ctx, datastore.NewKey(providerKeyPath)); err != nil {
+		return nil, err
+	}
+	return unfrozen, nil
+}
+
+func (r *Registry) syncFreeze(now time.Time) error {
+	ctx := context.Background()
+	for id, info := range r.providers {
+		frozenInfo := *info
+		frozenInfo.FrozenAt = info.LastAdvertisement
+		if info.LastAdvertisementTime.IsZero() {
+			frozenInfo.FrozenAtTime = now
+		} else {
+			frozenInfo.FrozenAtTime = info.LastAdvertisementTime
+		}
+		r.providers[id] = &frozenInfo
+
+		if r.dstore == nil {
+			continue
+		}
+
+		value, err := json.Marshal(&frozenInfo)
+		if err != nil {
+			return err
+		}
+
+		dsKey := info.dsKey()
+		if err = r.dstore.Put(ctx, dsKey, value); err != nil {
+			return err
+		}
+	}
+	if r.dstore != nil {
+		return r.dstore.Sync(ctx, datastore.NewKey(providerKeyPath))
+	}
+	return nil
 }
 
 func (r *Registry) syncStartDiscover(peerID peer.ID, spID string, errCh chan<- error) {
@@ -960,7 +1196,10 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 			// If using assigner service, and the provider's publisher is not
 			// assigned, then do not poll.
 			if r.assigned != nil {
-				if _, ok := r.assigned[info.Publisher]; !ok {
+				r.assignMutex.Lock()
+				_, ok := r.assigned[info.Publisher]
+				r.assignMutex.Unlock()
+				if !ok {
 					continue
 				}
 			}
@@ -1028,13 +1267,24 @@ func (r *Registry) syncRemoveProvider(ctx context.Context, providerID peer.ID) e
 	return nil
 }
 
-func (r *Registry) saveAssignedPeer(peerID peer.ID) error {
+func (r *Registry) saveAssignedPeer(peerID, frozenID peer.ID) error {
 	if r.dstore == nil {
 		return nil
 	}
 	ctx := context.Background()
 	dsKey := peerIDToDsKey(assignmentsKeyPath, peerID)
-	err := r.dstore.Put(ctx, dsKey, []byte{})
+	var valData []byte
+	var err error
+	if frozenID.Validate() == nil {
+		valData, err = json.Marshal(frozenID)
+		if err != nil {
+			return err
+		}
+	} else {
+		valData = []byte{}
+	}
+
+	err = r.dstore.Put(ctx, dsKey, valData)
 	if err != nil {
 		return err
 	}
@@ -1049,12 +1299,12 @@ func (r *Registry) deleteAssignedPeer(peerID peer.ID) error {
 	return r.dstore.Delete(context.Background(), dsKey)
 }
 
-func (r *Registry) migrateOldAssignments(ctx context.Context, prefix string, deleteOld bool) error {
+func migrateOldAssignments(ctx context.Context, dstore datastore.Datastore, prefix string, deleteOld bool) error {
 	q := query.Query{
 		Prefix:   prefix,
 		KeysOnly: true,
 	}
-	results, err := r.dstore.Query(ctx, q)
+	results, err := dstore.Query(ctx, q)
 	if err != nil {
 		return err
 	}
@@ -1073,13 +1323,13 @@ func (r *Registry) migrateOldAssignments(ctx context.Context, prefix string, del
 			} else {
 				dsKey := peerIDToDsKey(assignmentsKeyPath, peerID)
 				log.Debugw("Renamed assignment", "from", key, "to", dsKey)
-				err := r.dstore.Put(ctx, dsKey, []byte{})
+				err := dstore.Put(ctx, dsKey, []byte{})
 				if err != nil {
 					return err
 				}
 			}
 		}
-		err = r.dstore.Delete(ctx, datastore.NewKey(key))
+		err = dstore.Delete(ctx, datastore.NewKey(key))
 		if err != nil {
 			return err
 		}
@@ -1088,31 +1338,32 @@ func (r *Registry) migrateOldAssignments(ctx context.Context, prefix string, del
 	return nil
 }
 
-func (r *Registry) loadPersistedProviders(ctx context.Context) error {
-	if r.dstore == nil {
-		return nil
+func loadPersistedProviders(ctx context.Context, dstore datastore.Datastore, filterIPs bool) (map[peer.ID]*ProviderInfo, error) {
+	providers := make(map[peer.ID]*ProviderInfo)
+
+	if dstore == nil {
+		return providers, nil
 	}
 
 	// Load all providers from the datastore.
 	q := query.Query{
 		Prefix: providerKeyPath,
 	}
-	results, err := r.dstore.Query(ctx, q)
+	results, err := dstore.Query(ctx, q)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer results.Close()
 
-	var count int
 	for result := range results.Next() {
 		if result.Error != nil {
-			return fmt.Errorf("cannot read provider data: %v", result.Error)
+			return nil, fmt.Errorf("cannot read provider data: %v", result.Error)
 		}
 		ent := result.Entry
 
 		peerID, err := peer.Decode(path.Base(ent.Key))
 		if err != nil {
-			return fmt.Errorf("cannot decode provider ID: %s", err)
+			return nil, fmt.Errorf("cannot decode provider ID: %s", err)
 		}
 
 		pinfo := new(ProviderInfo)
@@ -1124,7 +1375,7 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) error {
 			// does not get delisted. The next update should fix the addresses.
 		}
 
-		if r.filterIPs {
+		if filterIPs {
 			pinfo.AddrInfo.Addrs = mautil.FilterPrivateIPs(pinfo.AddrInfo.Addrs)
 			if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr != nil {
 				pubAddrs := mautil.FilterPrivateIPs([]multiaddr.Multiaddr{pinfo.PublisherAddr})
@@ -1141,22 +1392,22 @@ func (r *Registry) loadPersistedProviders(ctx context.Context) error {
 			pinfo.PublisherAddr = pinfo.AddrInfo.Addrs[0]
 		}
 
-		r.providers[peerID] = pinfo
-		count++
+		providers[peerID] = pinfo
 	}
 
-	log.Infow("loaded providers into registry", "count", count)
-	return nil
+	return providers, nil
 }
 
-func (r *Registry) loadPersistedAssignments(ctx context.Context, deleteOld bool) error {
-	if r.dstore == nil {
-		return nil
+func loadPersistedAssignments(ctx context.Context, dstore datastore.Datastore, deleteOld bool) (map[peer.ID]peer.ID, error) {
+	assigned := make(map[peer.ID]peer.ID)
+
+	if dstore == nil {
+		return assigned, nil
 	}
 
-	err := r.migrateOldAssignments(ctx, oldAssignmentsKeyPath, deleteOld)
+	err := migrateOldAssignments(ctx, dstore, oldAssignmentsKeyPath, deleteOld)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Load all assigned publishers from datastore.
@@ -1164,45 +1415,52 @@ func (r *Registry) loadPersistedAssignments(ctx context.Context, deleteOld bool)
 		Prefix:   assignmentsKeyPath,
 		KeysOnly: true,
 	}
-	results, err := r.dstore.Query(ctx, q)
+	results, err := dstore.Query(ctx, q)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer results.Close()
 
 	for result := range results.Next() {
 		if result.Error != nil {
-			return fmt.Errorf("cannot read assignment data: %w", result.Error)
+			return nil, fmt.Errorf("cannot read assignment data: %w", result.Error)
 		}
 		ent := result.Entry
 
 		peerID, err := peer.Decode(path.Base(ent.Key))
 		if err != nil {
-			return fmt.Errorf("cannot decode assigned peer ID: %w", err)
+			return nil, fmt.Errorf("cannot decode assigned peer ID: %w", err)
 		}
 
-		r.assigned[peerID] = struct{}{}
+		var fromID peer.ID
+		if len(ent.Value) != 0 {
+			err = json.Unmarshal(ent.Value, &fromID)
+			if err != nil {
+				log.Errorw("Cannot load assignment info", "err", err, "publisher", peerID)
+			}
+		}
+		assigned[peerID] = fromID
 	}
 
-	log.Infow("loaded assignments into registry", "count", len(r.assigned))
-	return nil
+	return assigned, nil
 }
 
-func (r *Registry) loadPreferredAssignments() {
-	r.preferred = make(map[peer.ID]struct{})
-	for _, pinfo := range r.providers {
+func loadPreferredAssignments(providers map[peer.ID]*ProviderInfo, assigned map[peer.ID]peer.ID) map[peer.ID]struct{} {
+	var preferred map[peer.ID]struct{}
+	for _, pinfo := range providers {
 		if pinfo.Publisher.Validate() != nil {
 			continue
 		}
-		if !r.policy.Allowed(pinfo.Publisher) {
-			continue
-		}
-		if _, ok := r.assigned[pinfo.Publisher]; ok {
+		if _, ok := assigned[pinfo.Publisher]; ok {
 			continue
 		}
 		if pinfo.LastAdvertisement == cid.Undef {
 			continue
 		}
-		r.preferred[pinfo.Publisher] = struct{}{}
+		if preferred == nil {
+			preferred = make(map[peer.ID]struct{})
+		}
+		preferred[pinfo.Publisher] = struct{}{}
 	}
+	return preferred
 }

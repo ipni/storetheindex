@@ -48,9 +48,7 @@ func TestFindIndexData(t *testing.T) {
 	}
 	test.FindIndexTest(ctx, t, c, ind, reg)
 
-	if err = reg.Close(); err != nil {
-		t.Errorf("Error closing registry: %s", err)
-	}
+	reg.Close()
 	if err = ind.Close(); err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
 	}
@@ -77,9 +75,7 @@ func TestFindIndexWithExtendedProviders(t *testing.T) {
 	test.MainProviderChainRecordIsIncludedIfItsMetadataIsDifferentTest(ctx, t, c, ind, reg)
 	test.MainProviderContextRecordIsIncludedIfItsMetadataIsDifferentTest(ctx, t, c, ind, reg)
 
-	if err = reg.Close(); err != nil {
-		t.Errorf("Error closing registry: %s", err)
-	}
+	reg.Close()
 	if err = ind.Close(); err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
 	}
@@ -109,9 +105,7 @@ func TestProviderInfo(t *testing.T) {
 
 	test.ListProvidersTest(t, p2pClient, peerID)
 
-	if err = reg.Close(); err != nil {
-		t.Errorf("Error closing registry: %s", err)
-	}
+	reg.Close()
 	if err = ind.Close(); err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
 	}
@@ -151,9 +145,7 @@ func TestRemoveProvider(t *testing.T) {
 
 	test.RemoveProviderTest(ctx, t, c, ind, reg)
 
-	if err = reg.Close(); err != nil {
-		t.Errorf("Error closing registry: %s", err)
-	}
+	reg.Close()
 	if err = ind.Close(); err != nil {
 		t.Errorf("Error closing indexer core: %s", err)
 	}

@@ -39,9 +39,8 @@ func TestIngester_IngestsMixedEntriesTypeSuccessfully(t *testing.T) {
 	subject := te.ingester
 
 	// Trigger a sync.
-	wait, err := subject.Sync(ctx, providerID, nil, 0, false)
+	gotHeadAd, err := subject.Sync(ctx, providerID, nil, 0, false)
 	require.NoError(t, err)
-	gotHeadAd := <-wait
 	require.Equal(t, headAdCid, gotHeadAd, "Expected latest synced cid to match head of ad chain")
 
 	// Assert all indices are processed eventually

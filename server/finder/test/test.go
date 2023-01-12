@@ -71,7 +71,7 @@ func InitRegistryWithRestrictivePolicy(t *testing.T, restrictive bool) *registry
 			Publish: false,
 		}
 	}
-	reg, err := registry.NewRegistry(context.Background(), discoveryCfg, nil, nil)
+	reg, err := registry.New(context.Background(), discoveryCfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +278,7 @@ func ListProvidersTest(t *testing.T, c client.Finder, providerID peer.ID) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	providers, err := c.ListProviders(ctx)
+	providers, err := c.ListProviders(ctx, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,6 +395,7 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 }
 
 func GetStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refreshStats func(), c client.Finder) {
+	t.Parallel()
 	mhs := util.RandomMultihashes(15, rng)
 	p, err := peer.Decode(providerID)
 	if err != nil {

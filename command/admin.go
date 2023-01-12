@@ -31,6 +31,13 @@ var block = &cli.Command{
 	Action: blockCmd,
 }
 
+var freezeIndexer = &cli.Command{
+	Name:   "freeze",
+	Usage:  "Put indexer into frozen mode",
+	Flags:  adminFreezeFlags,
+	Action: freezeCmd,
+}
+
 var importProviders = &cli.Command{
 	Name:   "import-providers",
 	Usage:  "Import provider information from another indexer",
@@ -68,16 +75,25 @@ var reload = &cli.Command{
 	Action: reloadConfigCmd,
 }
 
+var status = &cli.Command{
+	Name:   "status",
+	Usage:  "Show indexer status",
+	Flags:  statusFlags,
+	Action: statusCmd,
+}
+
 var AdminCmd = &cli.Command{
 	Name:  "admin",
 	Usage: "Perform admin activities with an indexer",
 	Subcommands: []*cli.Command{
 		allow,
 		block,
+		freezeIndexer,
 		importProviders,
 		listAssigned,
 		listPreferred,
 		reload,
+		status,
 		sync,
 	},
 }
@@ -133,8 +149,12 @@ func listAssignedCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, peerID := range assigned {
-		fmt.Println(peerID)
+	for publisher, continued := range assigned {
+		if continued.Validate() == nil {
+			fmt.Println(publisher, "continued-from:", continued)
+		} else {
+			fmt.Println(publisher)
+		}
 	}
 	return nil
 }
@@ -171,6 +191,18 @@ func blockCmd(cctx *cli.Context) error {
 	return nil
 }
 
+func freezeCmd(cctx *cli.Context) error {
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	if err = cl.Freeze(cctx.Context); err != nil {
+		return err
+	}
+	fmt.Println("Indexer frozen")
+	return nil
+}
+
 func importProvidersCmd(cctx *cli.Context) error {
 	fromURL := &url.URL{
 		Scheme: "http",
@@ -199,5 +231,26 @@ func reloadConfigCmd(cctx *cli.Context) error {
 		return err
 	}
 	fmt.Println("Reloaded indexer configuration")
+	return nil
+}
+
+func statusCmd(cctx *cli.Context) error {
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	st, err := cl.Status(cctx.Context)
+	if err != nil {
+		return err
+	}
+	fmt.Println("ID:", st.ID)
+	fmt.Println("Frozen:", st.Frozen)
+	var percent string
+	if st.Usage < 0 {
+		percent = "not available"
+	} else {
+		percent = fmt.Sprintf("%0.2f%%", st.Usage)
+	}
+	fmt.Println("Usage:", percent)
 	return nil
 }

@@ -137,10 +137,13 @@ func TestSend(t *testing.T) {
 }
 
 func TestSendTimeout(t *testing.T) {
+	t.Parallel()
+	block := make(chan struct{})
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(5 * time.Second)
+		<-block
 	}))
 	defer ts.Close()
+	defer close(block)
 
 	announceURL, err := url.Parse(ts.URL + httpsender.DefaultAnnouncePath)
 	require.NoError(t, err)
@@ -173,5 +176,4 @@ func TestSendTimeout(t *testing.T) {
 	defer sender.Close()
 	err = sender.Send(context.Background(), msg)
 	require.Truef(t, strings.Contains(err.Error(), "Client.Timeout exceeded") || strings.Contains(err.Error(), "i/o timeout"), "error is %q", err)
-
 }

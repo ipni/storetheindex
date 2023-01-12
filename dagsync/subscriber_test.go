@@ -519,6 +519,7 @@ func TestHttpPeerAddrPeerstore(t *testing.T) {
 }
 
 func TestRateLimiter(t *testing.T) {
+	t.Parallel()
 	type testCase struct {
 		name   string
 		isHttp bool
@@ -531,7 +532,7 @@ func TestRateLimiter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
+			t.Parallel()
 			pubHostSys := newHostSystem(t)
 			subHostSys := newHostSystem(t)
 			defer pubHostSys.close()
@@ -574,6 +575,7 @@ func TestRateLimiter(t *testing.T) {
 }
 
 func TestBackpressureDoesntDeadlock(t *testing.T) {
+	t.Parallel()
 	pubHostSys := newHostSystem(t)
 	subHostSys := newHostSystem(t)
 	defer pubHostSys.close()
@@ -787,6 +789,7 @@ func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostS
 		pub, err = dtsync.NewPublisher(pubSys.host, pubSys.ds, pubSys.lsys, topicName, dtsync.WithAnnounceSenders(p2pSender))
 		require.NoError(t, err)
 		pubAddr = pubSys.host.Addrs()[0]
+		test.WaitForPublisher(pubSys.host, topicName, subSys.host.ID())
 	}
 	require.NoError(t, err)
 	sub, err := dagsync.NewSubscriber(subSys.host, subSys.ds, subSys.lsys, topicName, nil, subOpts...)

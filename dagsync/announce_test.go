@@ -23,6 +23,7 @@ const (
 )
 
 func TestAnnounceReplace(t *testing.T) {
+	t.Parallel()
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcHost := test.MkTestHost()

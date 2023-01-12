@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	qt "github.com/frankban/quicktest"
 	"github.com/ipni/storetheindex/config"
+	"github.com/stretchr/testify/require"
 )
 
 // This is a full end-to-end test with storetheindex as the indexer daemon,
@@ -47,7 +47,7 @@ func (e *e2eTestRunner) run(name string, args ...string) []byte {
 	cmd := exec.CommandContext(e.ctx, name, args...)
 	cmd.Env = e.env
 	out, err := cmd.CombinedOutput()
-	qt.Assert(e.t, err, qt.IsNil, qt.Commentf("err: %v, output: %s", err, out))
+	require.NoError(e.t, err, out)
 	return out
 }
 
@@ -61,7 +61,7 @@ func (e *e2eTestRunner) start(prog string, args ...string) *exec.Cmd {
 	cmd.Env = e.env
 
 	stdout, err := cmd.StdoutPipe()
-	qt.Assert(e.t, err, qt.IsNil)
+	require.NoError(e.t, err)
 	cmd.Stderr = cmd.Stdout
 
 	scanner := bufio.NewScanner(stdout)
@@ -91,7 +91,7 @@ func (e *e2eTestRunner) start(prog string, args ...string) *exec.Cmd {
 	}()
 
 	err = cmd.Start()
-	qt.Assert(e.t, err, qt.IsNil)
+	require.NoError(e.t, err)
 	return cmd
 }
 
@@ -102,7 +102,7 @@ func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
 		sig = os.Kill
 	}
 	err := cmd.Process.Signal(sig)
-	qt.Assert(e.t, err, qt.IsNil)
+	require.NoError(e.t, err)
 
 	waitErr := make(chan error, 1)
 	go func() { waitErr <- cmd.Wait() }()
@@ -110,10 +110,10 @@ func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
 	select {
 	case <-time.After(timeout):
 		e.t.Logf("killing command after %s: %s", timeout, cmd)
-		err := cmd.Process.Kill()
-		qt.Assert(e.t, err, qt.IsNil)
-	case err := <-waitErr:
-		qt.Assert(e.t, err, qt.IsNil)
+		err = cmd.Process.Kill()
+		require.NoError(e.t, err)
+	case err = <-waitErr:
+		require.NoError(e.t, err)
 	}
 }
 
@@ -122,6 +122,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	case "windows":
 		t.Skip("skipping test on", runtime.GOOS)
 	}
+	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	e := &e2eTestRunner{
@@ -136,7 +137,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 	carPath := filepath.Join(e.dir, "sample-wrapped-v2.car")
 	err := downloadFile("https://github.com/ipni/index-provider/raw/main/testdata/sample-wrapped-v2.car", carPath)
-	qt.Assert(t, err, qt.IsNil)
+	require.NoError(t, err)
 
 	// Use a clean environment, with the host's PATH, and a temporary HOME.
 	// We also tell "go install" to place binaries there.
@@ -159,8 +160,8 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	}...)
 	if runtime.GOOS == "windows" {
 		const gopath = "C:\\Projects\\Go"
-		err := os.MkdirAll(gopath, 0666)
-		qt.Assert(t, err, qt.IsNil)
+		err = os.MkdirAll(gopath, 0666)
+		require.NoError(t, err)
 		e.env = append(e.env, fmt.Sprintf("GOPATH=%s", gopath))
 	}
 	t.Logf("Env: %s", strings.Join(e.env, " "))
@@ -169,7 +170,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	// This should allow "go install" to reuse work.
 	for _, name := range []string{"GOCACHE", "GOMODCACHE"} {
 		out, err := exec.Command("go", "env", name).CombinedOutput()
-		qt.Assert(t, err, qt.IsNil)
+		require.NoError(t, err)
 		out = bytes.TrimSpace(out)
 		e.env = append(e.env, fmt.Sprintf("%s=%s", name, out))
 	}
@@ -180,25 +181,25 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	provider := filepath.Join(e.dir, "provider")
 
 	cwd, err := os.Getwd()
-	qt.Assert(t, err, qt.IsNil)
+	require.NoError(t, err)
 	err = os.Chdir(e.dir)
-	qt.Assert(t, err, qt.IsNil)
+	require.NoError(t, err)
 	e.run("git", "clone", "https://github.com/ipni/index-provider.git")
 	err = os.Chdir("index-provider/cmd/provider")
-	qt.Assert(t, err, qt.IsNil)
+	require.NoError(t, err)
 	e.run("go", "install")
 	err = os.Chdir(cwd)
-	qt.Assert(t, err, qt.IsNil)
+	require.NoError(t, err)
 
 	e.run(provider, "init")
 	cfg, err := config.Load(filepath.Join(e.dir, ".index-provider", "config"))
-	qt.Assert(t, err, qt.IsNil)
+	require.NoError(t, err)
 	providerID := cfg.Identity.PeerID
 	t.Logf("Initialized provider ID: %s", providerID)
 
 	e.run(indexer, "init", "--store", "sth", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap")
 	cfg, err = config.Load(filepath.Join(e.dir, ".storetheindex", "config"))
-	qt.Assert(t, err, qt.IsNil)
+	require.NoError(t, err)
 	indexerID := cfg.Identity.PeerID
 
 	cmdProvider := e.start(provider, "daemon")
@@ -248,7 +249,8 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 			if bytes.Contains(findOutput, []byte("not found")) {
 				return fmt.Errorf("%s: index not found", mh)
-			} else if !bytes.Contains(findOutput, []byte("Provider:")) {
+			}
+			if !bytes.Contains(findOutput, []byte("Provider:")) {
 				return fmt.Errorf("%s: unexpected error: %s", mh, findOutput)
 			}
 		}
@@ -258,10 +260,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 	outProvider := e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
 	// Check that IndexCount with correct value appears in providers output.
-	expect := "IndexCount: 1043"
-	if !strings.Contains(string(outProvider), expect) {
-		t.Errorf("expected provider to contains %q, got %q", expect, string(outProvider))
-	}
+	require.Contains(t, string(outProvider), "IndexCount: 1043")
 
 	// Remove a car file from the provider.  This will cause the provider to
 	// publish an advertisement that tells the indexer to remove the car file
@@ -292,10 +291,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 	outProvider = e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
 	// Check that IndexCount is back to zero after removing car.
-	expect = "IndexCount: 0"
-	if !strings.Contains(string(outProvider), expect) {
-		t.Errorf("expected provider to contains %q, got %q", expect, string(outProvider))
-	}
+	require.Contains(t, string(outProvider), "IndexCount: 0")
 
 	root2 := filepath.Join(e.dir, ".storetheindex2")
 	e.env = append(e.env, fmt.Sprintf("%s=%s", config.EnvDir, root2))
@@ -320,9 +316,21 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	outProviders = e.run(indexer, "providers", "list", "--indexer", "localhost:3200")
 
 	// Check that provider ID now appears in providers output.
-	if !strings.Contains(string(outProviders), providerID) {
-		t.Errorf("expected provider id in providers output after import-providers, got %q", string(outProviders))
-	}
+	require.Contains(t, string(outProviders), providerID, "expected provider id in providers output after import-providers")
+
+	// Check that status is not frozen.
+	outStatus := e.run(indexer, "admin", "status", "--indexer", "localhost:3202")
+	require.Contains(t, string(outStatus), "Frozen: false", "expected indexer to be frozen")
+
+	e.run(indexer, "admin", "freeze", "--indexer", "localhost:3202")
+	outProviders = e.run(indexer, "providers", "list", "--indexer", "localhost:3200")
+
+	// Check that provider ID now appears as frozen in providers output.
+	require.Contains(t, string(outProviders), "FrozenAtTime", "expected provider to be frozen")
+
+	// Check that status is frozen.
+	outStatus = e.run(indexer, "admin", "status", "--indexer", "localhost:3202")
+	require.Contains(t, string(outStatus), "Frozen: true", "expected indexer to be frozen")
 
 	e.stop(cmdIndexer2, time.Second)
 
