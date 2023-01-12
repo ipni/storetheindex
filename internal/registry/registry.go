@@ -254,8 +254,7 @@ func (p *ExtendedProviderInfo) UnmarshalJSON(data []byte) error {
 // configuration, a datastore to persist provider data, and a Discoverer
 // interface. The context is only used for cancellation of this function.
 func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, options ...Option) (*Registry, error) {
-	var opts regConfig
-	err := opts.apply(options...)
+	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
 	}

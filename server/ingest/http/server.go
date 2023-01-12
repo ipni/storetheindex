@@ -24,12 +24,11 @@ func (s *Server) URL() string {
 	return fmt.Sprint("http://", s.l.Addr().String())
 }
 
-func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, registry *registry.Registry, options ...ServerOption) (*Server, error) {
-	var cfg serverConfig
-	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
+func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, registry *registry.Registry, options ...Option) (*Server, error) {
+	opts, err := getOpts(options)
+	if err != nil {
 		return nil, err
 	}
-	var err error
 
 	l, err := net.Listen("tcp", listen)
 	if err != nil {
@@ -39,8 +38,8 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 	r := mux.NewRouter().StrictSlash(true)
 	server := &http.Server{
 		Handler:      r,
-		WriteTimeout: cfg.apiWriteTimeout,
-		ReadTimeout:  cfg.apiReadTimeout,
+		WriteTimeout: opts.writeTimeout,
+		ReadTimeout:  opts.readTimeout,
 	}
 	s := &Server{server, l}
 

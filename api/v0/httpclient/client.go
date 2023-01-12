@@ -13,6 +13,11 @@ import (
 // New creates a base URL and a new http.Client.  The default port is only used
 // if baseURL does not contain a port.
 func New(baseURL, resource string, options ...Option) (*url.URL, *http.Client, error) {
+	opts, err := getOpts(options)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		baseURL = "http://" + baseURL
 	}
@@ -26,16 +31,11 @@ func New(baseURL, resource string, options ...Option) (*url.URL, *http.Client, e
 	}
 	u.Path = resource
 
-	var cfg clientConfig
-	if err := cfg.apply(options...); err != nil {
-		return nil, nil, err
-	}
-
-	if cfg.client != nil {
-		return u, cfg.client, nil
+	if opts.client != nil {
+		return u, opts.client, nil
 	}
 	cl := &http.Client{
-		Timeout: cfg.timeout,
+		Timeout: opts.timeout,
 	}
 	return u, cl, nil
 }

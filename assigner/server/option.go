@@ -20,7 +20,7 @@ type config struct {
 type Option func(*config) error
 
 // getOpts creates a config and applies Options to it.
-func getOpts(opts ...Option) (config, error) {
+func getOpts(opts []Option) (config, error) {
 	cfg := config{
 		writeTimeout: defaultWriteTimeout,
 		readTimeout:  defaultReadTimeout,

@@ -8,84 +8,77 @@ import (
 )
 
 const (
-	apiWriteTimeout = 30 * time.Second
-	apiReadTimeout  = 30 * time.Second
-	maxConns        = 8_000
-	defaultHomepage = "https://web-ipni.cid.contact/"
+	defaultHomepage     = "https://web-ipni.cid.contact/"
+	defaultMaxConns     = 8_000
+	defaultReadTimeout  = 30 * time.Second
+	defaultWriteTimeout = 30 * time.Second
 )
 
-// serverConfig is a structure containing all the options that can be used when constructing an http server
-type serverConfig struct {
-	apiWriteTimeout time.Duration
-	apiReadTimeout  time.Duration
-	maxConns        int
-	homepageURL     string
-	indexCounts     *counter.IndexCounts
+// config contains all options for the server.
+type config struct {
+	homepageURL  string
+	indexCounts  *counter.IndexCounts
+	maxConns     int
+	readTimeout  time.Duration
+	writeTimeout time.Duration
 }
 
-// ServerOption for httpserver
-type ServerOption func(*serverConfig) error
+// Option is a function that sets a value in a config.
+type Option func(*config) error
 
-// defaults are the default ptions. This option will be automatically
-// prepended to any options you pass to the constructor.
-var serverDefaults = func(o *serverConfig) error {
-	o.apiWriteTimeout = apiWriteTimeout
-	o.apiReadTimeout = apiReadTimeout
-	o.maxConns = maxConns
-	o.homepageURL = defaultHomepage
-	return nil
-}
-
-// apply applies the given options to this config
-func (c *serverConfig) apply(opts ...ServerOption) error {
-	err := serverDefaults(c)
-	if err != nil {
-		// Failure of default option should panic
-		panic("default option failed: " + err.Error())
+// getOpts creates a config and applies Options to it.
+func getOpts(opts []Option) (config, error) {
+	cfg := config{
+		homepageURL:  defaultHomepage,
+		maxConns:     defaultMaxConns,
+		readTimeout:  defaultReadTimeout,
+		writeTimeout: defaultWriteTimeout,
 	}
+
 	for i, opt := range opts {
-		if err := opt(c); err != nil {
-			return fmt.Errorf("httpserver option %d failed: %s", i, err)
+		if err := opt(&cfg); err != nil {
+			return config{}, fmt.Errorf("option %d error: %s", i, err)
 		}
 	}
-	return nil
+	return cfg, nil
 }
 
-// WriteTimeout config for API
-func WriteTimeout(t time.Duration) ServerOption {
-	return func(c *serverConfig) error {
-		c.apiWriteTimeout = t
-		return nil
-	}
-}
-
-// ReadTimeout config for API
-func ReadTimeout(t time.Duration) ServerOption {
-	return func(c *serverConfig) error {
-		c.apiReadTimeout = t
-		return nil
-	}
-}
-
-// MaxConnections config for API
-func MaxConnections(maxConnections int) ServerOption {
-	return func(c *serverConfig) error {
-		c.maxConns = maxConnections
-		return nil
-	}
-}
-
-// WithHomepage config for API
-func WithHomepage(URL string) ServerOption {
-	return func(c *serverConfig) error {
+// WithHomepage config for API.
+func WithHomepage(URL string) Option {
+	return func(c *config) error {
 		c.homepageURL = URL
 		return nil
 	}
 }
 
-func WithIndexCounts(indexCounts *counter.IndexCounts) ServerOption {
-	return func(c *serverConfig) error {
+// MaxConnections config allowed by server.
+func WithMaxConnections(maxConnections int) Option {
+	return func(c *config) error {
+		c.maxConns = maxConnections
+		return nil
+	}
+}
+
+// WithIndexCounts supplies a counter.IndexCounts for tracking index counts.
+func WithIndexCounts(indexCounts *counter.IndexCounts) Option {
+	return func(c *config) error {
 		c.indexCounts = indexCounts
+		return nil
+	}
+}
+
+// WithReadTimeout configures server read timeout.
+func WithReadTimeout(t time.Duration) Option {
+	return func(c *config) error {
+		c.readTimeout = t
+		return nil
+	}
+}
+
+// WithWriteTimeout configures server write timeout.
+func WithWriteTimeout(t time.Duration) Option {
+	return func(c *config) error {
+		c.writeTimeout = t
 		return nil
 	}
 }

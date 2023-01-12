@@ -31,13 +31,12 @@ type publisher struct {
 
 // NewPublisher creates a new dagsync publisher.
 func NewPublisher(host host.Host, ds datastore.Batching, lsys ipld.LinkSystem, topicName string, options ...Option) (*publisher, error) {
-	cfg := config{}
-	err := cfg.apply(options)
+	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
 	}
 
-	dtManager, _, dtClose, err := makeDataTransfer(host, ds, lsys, cfg.allowPeer)
+	dtManager, _, dtClose, err := makeDataTransfer(host, ds, lsys, opts.allowPeer)
 	if err != nil {
 		return nil, err
 	}
@@ -48,10 +47,10 @@ func NewPublisher(host host.Host, ds datastore.Batching, lsys ipld.LinkSystem, t
 	return &publisher{
 		dtManager:     dtManager,
 		dtClose:       dtClose,
-		extraData:     cfg.extraData,
+		extraData:     opts.extraData,
 		headPublisher: headPublisher,
 		host:          host,
-		senders:       cfg.senders,
+		senders:       opts.senders,
 	}, nil
 }
 
@@ -70,13 +69,12 @@ func startHeadPublisher(host host.Host, topicName string, headPublisher *head.Pu
 // NewPublisherFromExisting instantiates publishing on an existing
 // data transfer instance.
 func NewPublisherFromExisting(dtManager dt.Manager, host host.Host, topicName string, lsys ipld.LinkSystem, options ...Option) (*publisher, error) {
-	cfg := config{}
-	err := cfg.apply(options)
+	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
 	}
 
-	err = configureDataTransferForDagsync(context.Background(), dtManager, lsys, cfg.allowPeer)
+	err = configureDataTransferForDagsync(context.Background(), dtManager, lsys, opts.allowPeer)
 	if err != nil {
 		return nil, fmt.Errorf("cannot configure datatransfer: %w", err)
 	}
@@ -84,10 +82,10 @@ func NewPublisherFromExisting(dtManager dt.Manager, host host.Host, topicName st
 	startHeadPublisher(host, topicName, headPublisher)
 
 	return &publisher{
-		extraData:     cfg.extraData,
+		extraData:     opts.extraData,
 		headPublisher: headPublisher,
 		host:          host,
-		senders:       cfg.senders,
+		senders:       opts.senders,
 	}, nil
 }
 

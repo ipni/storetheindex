@@ -34,25 +34,24 @@ func (s *Server) URL() string {
 //go:embed *.html
 var webUI embed.FS
 
-func New(listen string, indexer indexer.Interface, registry *registry.Registry, options ...ServerOption) (*Server, error) {
-	var cfg serverConfig
-	if err := cfg.apply(options...); err != nil {
+func New(listen string, indexer indexer.Interface, registry *registry.Registry, options ...Option) (*Server, error) {
+	opts, err := getOpts(options)
+	if err != nil {
 		return nil, err
 	}
-	var err error
 
 	l, err := net.Listen("tcp", listen)
 	if err != nil {
 		return nil, err
 	}
 
-	if cfg.maxConns > 0 {
+	if opts.maxConns > 0 {
 		// Limit the number of open connections to the listener.
-		l = xnet.LimitListener(l, cfg.maxConns)
+		l = xnet.LimitListener(l, opts.maxConns)
 	}
 
 	// Resource handler
-	h := newHandler(indexer, registry, cfg.indexCounts)
+	h := newHandler(indexer, registry, opts.indexCounts)
 
 	// Compile index template.
 	t, err := template.ParseFS(webUI, "index.html")
@@ -63,7 +62,7 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	if err = t.Execute(&buf, struct {
 		URL string
 	}{
-		URL: cfg.homepageURL,
+		URL: opts.homepageURL,
 	}); err != nil {
 		return nil, err
 	}
@@ -88,8 +87,8 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	cors := handlers.CORS(handlers.AllowedOrigins([]string{"*"}))
 	server := &http.Server{
 		Handler:      cors(r),
-		WriteTimeout: cfg.apiWriteTimeout,
-		ReadTimeout:  cfg.apiReadTimeout,
+		WriteTimeout: opts.writeTimeout,
+		ReadTimeout:  opts.readTimeout,
 	}
 	s := &Server{
 		server: server,
