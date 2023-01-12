@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/ipfs/go-datastore"
-	"github.com/ipni/storetheindex/internal/disk"
+	"github.com/ipni/storetheindex/fsutil/disk"
 	"github.com/ipni/storetheindex/internal/freeze"
 	"github.com/stretchr/testify/require"
 )

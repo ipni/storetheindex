@@ -19,7 +19,7 @@ import (
 	httpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
 	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/internal/disk"
+	"github.com/ipni/storetheindex/fsutil/disk"
 	"github.com/ipni/storetheindex/internal/freeze"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry/discovery"

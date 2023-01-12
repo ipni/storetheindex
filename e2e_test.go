@@ -47,7 +47,7 @@ func (e *e2eTestRunner) run(name string, args ...string) []byte {
 	cmd := exec.CommandContext(e.ctx, name, args...)
 	cmd.Env = e.env
 	out, err := cmd.CombinedOutput()
-	require.NoError(e.t, err, out)
+	require.NoError(e.t, err, string(out))
 	return out
 }
 
