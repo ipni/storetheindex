@@ -30,5 +30,5 @@ func percentUsed(used, total uint64) float64 {
 	if total == 0 {
 		return 0.0
 	}
-	return float64(used) / float64(total)
+	return (float64(used) * 100) / float64(total)
 }

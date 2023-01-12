@@ -13,14 +13,14 @@ func usage(path string) (*UsageStats, error) {
 	if err != nil {
 		return nil, err
 	}
-	blockSize := stat.Bsize
+	blockSize := uint64(stat.Bsize)
 
 	// Total blocks only available to root.
-	total := stat.Blocks
+	total := uint64(stat.Blocks)
 	// Remaining free blocks usable by root.
-	availToRoot := stat.Bfree
+	availToRoot := uint64(stat.Bfree)
 	// Remaining free blocks usable by user.
-	availToUser := stat.Bavail
+	availToUser := uint64(stat.Bavail)
 	// Total blocks being used.
 	used := total - availToRoot
 	// Total blocks available to user.
@@ -29,8 +29,8 @@ func usage(path string) (*UsageStats, error) {
 	return &UsageStats{
 		Path:    path,
 		Percent: percentUsed(used, totalUser),
-		Free:    availToUser * uint64(blockSize),
-		Total:   total * uint64(blockSize),
-		Used:    used * uint64(blockSize),
+		Free:    availToUser * blockSize,
+		Total:   total * blockSize,
+		Used:    used * blockSize,
 	}, nil
 }
