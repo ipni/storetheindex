@@ -30,12 +30,11 @@ func (s *Server) URL() string {
 	return fmt.Sprint("http://", s.listener.Addr().String())
 }
 
-func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error, options ...ServerOption) (*Server, error) {
-	var cfg serverConfig
-	if err := cfg.apply(append([]ServerOption{serverDefaults}, options...)...); err != nil {
+func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error, options ...Option) (*Server, error) {
+	opts, err := getOpts(options)
+	if err != nil {
 		return nil, err
 	}
-	var err error
 
 	l, err := net.Listen("tcp", listen)
 	if err != nil {
@@ -45,8 +44,8 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	r := mux.NewRouter().StrictSlash(true)
 	server := &http.Server{
 		Handler:      r,
-		WriteTimeout: cfg.apiWriteTimeout,
-		ReadTimeout:  cfg.apiReadTimeout,
+		WriteTimeout: opts.writeTimeout,
+		ReadTimeout:  opts.readTimeout,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

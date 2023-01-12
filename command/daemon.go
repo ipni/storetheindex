@@ -178,9 +178,9 @@ func daemonCommand(cctx *cli.Context) error {
 			return fmt.Errorf("bad finder address %s: %s", finderAddr, err)
 		}
 		finderSvr, err = httpfinderserver.New(finderNetAddr.String(), indexerCore, reg,
-			httpfinderserver.ReadTimeout(time.Duration(cfg.Finder.ApiReadTimeout)),
-			httpfinderserver.WriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
-			httpfinderserver.MaxConnections(cfg.Finder.MaxConnections),
+			httpfinderserver.WithReadTimeout(time.Duration(cfg.Finder.ApiReadTimeout)),
+			httpfinderserver.WithWriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
+			httpfinderserver.WithMaxConnections(cfg.Finder.MaxConnections),
 			httpfinderserver.WithHomepage(cfg.Finder.Webpage),
 			httpfinderserver.WithIndexCounts(indexCounts),
 		)

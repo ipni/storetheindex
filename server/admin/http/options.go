@@ -6,49 +6,46 @@ import (
 )
 
 const (
-	apiWriteTimeout = 30 * time.Second
-	apiReadTimeout  = 30 * time.Second
+	defaultWriteTimeout = 30 * time.Second
+	defaultReadTimeout  = 30 * time.Second
 )
 
-// Options is a structure containing all the options that can be used when constructing an http server
-type serverConfig struct {
-	apiWriteTimeout time.Duration
-	apiReadTimeout  time.Duration
+// config contains all options for the server.
+type config struct {
+	readTimeout  time.Duration
+	writeTimeout time.Duration
 }
 
-// ServerOption for httpserver
-type ServerOption func(*serverConfig) error
+// Option is a function that sets a value in a config.
+type Option func(*config) error
 
-// defaults are the default ptions. This option will be automatically
-// prepended to any options you pass to the constructor.
-var serverDefaults = func(o *serverConfig) error {
-	o.apiWriteTimeout = apiWriteTimeout
-	o.apiReadTimeout = apiReadTimeout
-	return nil
-}
+// getOpts creates a config and applies Options to it.
+func getOpts(opts []Option) (config, error) {
+	cfg := config{
+		readTimeout:  defaultReadTimeout,
+		writeTimeout: defaultWriteTimeout,
+	}
 
-// apply applies the given options to this Option
-func (c *serverConfig) apply(opts ...ServerOption) error {
 	for i, opt := range opts {
-		if err := opt(c); err != nil {
-			return fmt.Errorf("httpserver option %d failed: %s", i, err)
+		if err := opt(&cfg); err != nil {
+			return config{}, fmt.Errorf("option %d error: %s", i, err)
 		}
 	}
-	return nil
+	return cfg, nil
 }
 
-// WriteTimeout config for API
-func WriteTimeout(t time.Duration) ServerOption {
-	return func(c *serverConfig) error {
-		c.apiWriteTimeout = t
+// WithReadTimeout configures server read timeout.
+func WithReadTimeout(t time.Duration) Option {
+	return func(c *config) error {
+		c.readTimeout = t
 		return nil
 	}
 }
 
-// ReadTimeout config for API
-func ReadTimeout(t time.Duration) ServerOption {
-	return func(c *serverConfig) error {
-		c.apiReadTimeout = t
+// WithWriteTimeout configures server write timeout.
+func WithWriteTimeout(t time.Duration) Option {
+	return func(c *config) error {
+		c.writeTimeout = t
 		return nil
 	}
 }

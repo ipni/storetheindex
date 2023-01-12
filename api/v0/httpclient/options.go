@@ -6,47 +6,41 @@ import (
 	"time"
 )
 
-type clientConfig struct {
+const defaultTimeout = time.Minute
+
+type config struct {
 	timeout time.Duration
 	client  *http.Client
 }
 
-// Option is the option type for httpclient
-type Option func(*clientConfig) error
+// Option is a function that sets a value in a config.
+type Option func(*config) error
 
-var clientDefaults = func(c *clientConfig) error {
-	// As a fallback, never take more than a minute.
-	// Most client API calls should use a context.
-	c.timeout = time.Minute
-	return nil
-}
-
-// apply applies the given options to this clientConfig
-func (c *clientConfig) apply(opts ...Option) error {
-	err := clientDefaults(c)
-	if err != nil {
-		// Failure of default option should panic
-		panic("default option failed: " + err.Error())
+// getOpts creates a config and applies Options to it.
+func getOpts(opts []Option) (config, error) {
+	cfg := config{
+		timeout: defaultTimeout,
 	}
 	for i, opt := range opts {
-		if err = opt(c); err != nil {
-			return fmt.Errorf("httpclient option %d failed: %s", i, err)
+		if err := opt(&cfg); err != nil {
+			return config{}, fmt.Errorf("option %d failed: %s", i, err)
 		}
 	}
-	return nil
+	return cfg, nil
 }
 
-// Timeout configures the timeout to wait for a response
-func Timeout(timeout time.Duration) Option {
-	return func(cfg *clientConfig) error {
+// WithTimeout configures the timeout to wait for a response.
+func WithTimeout(timeout time.Duration) Option {
+	return func(cfg *config) error {
 		cfg.timeout = timeout
 		return nil
 	}
 }
 
-// WithClient allows creation of the http client using an underlying network round tripper / client
+// WithClient allows creation of the http client using an underlying network
+// round tripper / client.
 func WithClient(c *http.Client) Option {
-	return func(cfg *clientConfig) error {
+	return func(cfg *config) error {
 		cfg.client = c
 		return nil
 	}

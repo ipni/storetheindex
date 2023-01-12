@@ -7,24 +7,25 @@ import (
 	"github.com/ipni/storetheindex/internal/registry/discovery"
 )
 
-// Options is a structure containing all the options that can be used when constructing an http server
+// regConfig contains all options for the server.
 type regConfig struct {
 	discoverer      discovery.Discoverer
 	freezeAtPercent float64
 	valueStoreDir   string
 }
 
-// Option for registry
+// Option is a function that sets a value in a regConfig.
 type Option func(*regConfig) error
 
-// apply applies the given options to this Option.
-func (c *regConfig) apply(opts ...Option) error {
+// getOpts creates a regConfig and applies Options to it.
+func getOpts(opts []Option) (regConfig, error) {
+	var cfg regConfig
 	for i, opt := range opts {
-		if err := opt(c); err != nil {
-			return fmt.Errorf("option %d failed: %s", i, err)
+		if err := opt(&cfg); err != nil {
+			return regConfig{}, fmt.Errorf("option %d error: %s", i, err)
 		}
 	}
-	return nil
+	return cfg, nil
 }
 
 func WithDiscoverer(discoverer discovery.Discoverer) Option {

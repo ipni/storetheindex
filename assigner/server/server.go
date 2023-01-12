@@ -30,7 +30,7 @@ type Server struct {
 }
 
 func New(listen string, assigner *core.Assigner, options ...Option) (*Server, error) {
-	opts, err := getOpts(options...)
+	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
 	}
