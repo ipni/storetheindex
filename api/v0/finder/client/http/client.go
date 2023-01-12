@@ -91,6 +91,8 @@ func (c *Client) ListProviders(ctx context.Context, withExtMetadata bool) ([]*mo
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
+	defer resp.Body.Close()
+
 	if err != nil {
 		return nil, err
 	}

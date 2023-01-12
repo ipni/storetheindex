@@ -34,9 +34,16 @@ type MultihashResult struct {
 
 // FindResponse used to answer client queries/requests
 type FindResponse struct {
-	MultihashResults []MultihashResult
+	MultihashResults    []MultihashResult
+	EncMultihashResults []EncMultihashResult
 	// NOTE: This feature is not enabled yet.
 	// Signature []byte	// Providers signature.
+}
+
+// EncMultihashResult aggregates all encrypted value keys for a single multihash
+type EncMultihashResult struct {
+	Multihash multihash.Multihash
+	ValueKeys [][]byte
 }
 
 // Equal compares ProviderResult values to determine if they are equal. The
