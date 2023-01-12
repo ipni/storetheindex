@@ -625,7 +625,7 @@ func TestFreezeHandoff(t *testing.T) {
 	}
 
 	handoffChan := make(chan model.Handoff, 2)
-	handoffPubs := make([]string, 0, 2)
+	handoffPubs := make(chan string, 2)
 
 	testAdminHandler2 := func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
@@ -668,7 +668,7 @@ func TestFreezeHandoff(t *testing.T) {
 				}
 				pubIDStr := path.Base(r.URL.String())
 				t.Log("Indexer2 received", r.Method, "request for handoff of publisher", pubIDStr)
-				handoffPubs = append(handoffPubs, pubIDStr)
+				handoffPubs <- pubIDStr
 				handoffChan <- handoff
 			}
 			writeJsonResponse(w, http.StatusOK, nil)
@@ -764,7 +764,7 @@ func TestFreezeHandoff(t *testing.T) {
 		case handoff := <-handoffChan:
 			require.Equal(t, serverID, handoff.FrozenID)
 			require.Equal(t, fakeIndexer1.findServer.URL, handoff.FrozenURL)
-			pubID := handoffPubs[handoffCount]
+			pubID := <-handoffPubs
 			require.True(t, peer1IDStr == pubID || peer3IDStr == pubID)
 			handoffCount++
 		case <-timeout.C:
