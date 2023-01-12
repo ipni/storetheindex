@@ -8,7 +8,6 @@ require (
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.3.0
 	github.com/filecoin-project/go-data-transfer v1.15.2
-	github.com/frankban/quicktest v1.14.3
 	github.com/gammazero/deque v0.2.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.1
@@ -91,7 +90,6 @@ require (
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect

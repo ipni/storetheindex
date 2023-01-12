@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	qt "github.com/frankban/quicktest"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -21,25 +21,25 @@ func Test_ListLoggingSubsystems(t *testing.T) {
 	registerListLogSubSystems(router)
 
 	req, err := http.NewRequest(http.MethodGet, "/config/log/subsystems", nil)
-	qt.Assert(t, err, qt.IsNil)
+	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
-	qt.Check(t, rr.Code, qt.Equals, http.StatusOK)
+	require.Equal(t, http.StatusOK, rr.Code)
 
 	scanner := bufio.NewScanner(rr.Body)
 	subsystems := logging.GetSubsystems()
 	sort.Strings(subsystems)
 	for _, ss := range subsystems {
 		eof := scanner.Scan()
-		qt.Assert(t, eof, qt.IsTrue)
+		require.True(t, eof)
 		line := scanner.Text()
-		qt.Assert(t, line, qt.Equals, ss)
+		require.Equal(t, ss, line)
 	}
 
 	eof := scanner.Scan()
-	qt.Assert(t, eof, qt.IsFalse)
-	qt.Assert(t, scanner.Err(), qt.IsNil)
+	require.False(t, eof)
+	require.NoError(t, scanner.Err())
 }
 
 func Test_SetLogLevel_NoQueryParamsIsError(t *testing.T) {
@@ -47,16 +47,16 @@ func Test_SetLogLevel_NoQueryParamsIsError(t *testing.T) {
 	registerSetLogLevelHandler(router)
 
 	req, err := http.NewRequest(http.MethodPost, "/config/log/level", nil)
-	qt.Assert(t, err, qt.IsNil)
+	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
-	qt.Check(t, rr.Code, qt.Equals, http.StatusBadRequest)
+	require.Equal(t, http.StatusBadRequest, rr.Code)
 
 	respBody, err := io.ReadAll(rr.Body)
-	qt.Assert(t, err, qt.IsNil)
-	qt.Check(t, strings.TrimSpace(string(respBody)), qt.Equals, "at least one <subsystem>=<level> query parameter must be specified")
+	require.NoError(t, err)
+	require.Equal(t, "at least one <subsystem>=<level> query parameter must be specified", strings.TrimSpace(string(respBody)))
 }
 
 func Test_SetLogLevel(t *testing.T) {
@@ -115,7 +115,7 @@ func Test_SetLogLevel(t *testing.T) {
 			registerSetLogLevelHandler(router)
 
 			req, err := http.NewRequest(http.MethodPost, "/config/log/level", nil)
-			qt.Assert(t, err, qt.IsNil)
+			require.NoError(t, err)
 			q := url.Values{}
 			q.Add(tt.givenSubsystem, tt.givenLevel)
 			req.URL.RawQuery = q.Encode()
@@ -123,11 +123,11 @@ func Test_SetLogLevel(t *testing.T) {
 			rr := httptest.NewRecorder()
 			router.ServeHTTP(rr, req)
 
-			qt.Check(t, rr.Code, qt.Equals, tt.wantStatus)
+			require.Equal(t, tt.wantStatus, rr.Code)
 
 			respBody, err := io.ReadAll(rr.Body)
-			qt.Assert(t, err, qt.IsNil)
-			qt.Check(t, strings.TrimSpace(string(respBody)), qt.Equals, tt.wantMessage)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantMessage, strings.TrimSpace(string(respBody)))
 			if tt.wantAssertions != nil {
 				tt.wantAssertions(t)
 			}
@@ -142,5 +142,5 @@ func assertLogLevel(t *testing.T, level zapcore.Level, enabled bool) {
 }
 
 func assertLogLevelBySubSystem(t *testing.T, ss string, level zapcore.Level, enabled bool) {
-	qt.Assert(t, logging.Logger(ss).Desugar().Core().Enabled(level), qt.Equals, enabled)
+	require.Equal(t, enabled, logging.Logger(ss).Desugar().Core().Enabled(level))
 }
