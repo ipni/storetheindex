@@ -13,12 +13,11 @@ import (
 	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/ipni/storetheindex/api/v0/httpclient"
 	"github.com/libp2p/go-libp2p/core/peer"
-	b58 "github.com/mr-tron/base58/base58"
 	"github.com/multiformats/go-multihash"
 )
 
 const (
-	finderPath    = "/private/multihash"
+	finderPath    = "/multihash"
 	providersPath = "/providers"
 	statsPath     = "/stats"
 )
@@ -30,6 +29,7 @@ type Client struct {
 	finderURL    string
 	providersURL string
 	statsURL     string
+	useEncApi    bool
 }
 
 // New creates a new finder HTTP client.
@@ -38,6 +38,11 @@ func New(baseURL string, options ...httpclient.Option) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	var cfg httpclient.ClientConfig
+	if err := cfg.Apply(options...); err != nil {
+		return nil, err
+	}
+
 	baseURL = u.String()
 	return &Client{
 		c:            c,
@@ -45,12 +50,30 @@ func New(baseURL string, options ...httpclient.Option) (*Client, error) {
 		finderURL:    baseURL + finderPath,
 		providersURL: baseURL + providersPath,
 		statsURL:     baseURL + statsPath,
+		useEncApi:    cfg.UseEncApi,
 	}, nil
 }
 
 // Find queries indexer entries for a multihash
 func (c *Client) Find(ctx context.Context, mh multihash.Multihash) (*model.FindResponse, error) {
+	if c.useEncApi {
+		return c.encFind(ctx, mh)
+	} else {
+		return c.find(ctx, mh)
+	}
+}
 
+func (c *Client) find(ctx context.Context, mh multihash.Multihash) (*model.FindResponse, error) {
+	u := fmt.Sprint(c.finderURL, "/", mh.B58String())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.sendRequest(req)
+}
+
+func (c *Client) encFind(ctx context.Context, mh multihash.Multihash) (*model.FindResponse, error) {
 	// query value keys from indexer
 	smh, err := dhash.SecondMultihash(mh)
 	if err != nil {
@@ -78,28 +101,55 @@ func (c *Client) Find(ctx context.Context, mh multihash.Multihash) (*model.FindR
 		return nil, httpclient.ReadError(resp.StatusCode, body)
 	}
 
-	privateFindResponse := &model.PrivateFindResponse{}
-	err = json.Unmarshal(body, privateFindResponse)
+	findResponse := &model.FindResponse{}
+	err = json.Unmarshal(body, findResponse)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.buildFindResponse(ctx, []multihash.Multihash{mh}, privateFindResponse)
+	c.decryptFindResponse(ctx, findResponse, map[string]multihash.Multihash{smh.B58String(): mh})
+
+	return findResponse, nil
 }
 
 // FindBatch queries indexer entries for a batch of multihashes
 func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*model.FindResponse, error) {
+	if c.useEncApi {
+		return c.encFindBatch(ctx, mhs)
+	} else {
+		return c.findBatch(ctx, mhs)
+	}
+}
+
+func (c *Client) findBatch(ctx context.Context, mhs []multihash.Multihash) (*model.FindResponse, error) {
+	if len(mhs) == 0 {
+		return &model.FindResponse{}, nil
+	}
+	data, err := model.MarshalFindRequest(&model.FindRequest{Multihashes: mhs})
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.finderURL, bytes.NewBuffer(data))
+	if err != nil {
+		return nil, err
+	}
+	return c.sendRequest(req)
+}
+
+func (c *Client) encFindBatch(ctx context.Context, mhs []multihash.Multihash) (*model.FindResponse, error) {
 	if len(mhs) == 0 {
 		return &model.FindResponse{}, nil
 	}
 
 	smhs := make([]multihash.Multihash, 0, len(mhs))
+	dehasher := map[string]multihash.Multihash{}
 	for _, mh := range mhs {
 		smh, err := dhash.SecondMultihash(mh)
 		if err != nil {
 			return nil, err
 		}
 		smhs = append(smhs, smh)
+		dehasher[smh.B58String()] = mh
 	}
 
 	reqBody, err := model.MarshalFindRequest(&model.FindRequest{Multihashes: smhs})
@@ -128,54 +178,36 @@ func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*mod
 		return nil, httpclient.ReadError(resp.StatusCode, resBody)
 	}
 
-	privateFindResponse := &model.PrivateFindResponse{}
-	err = json.Unmarshal(resBody, privateFindResponse)
+	findResponse := &model.FindResponse{}
+	err = json.Unmarshal(resBody, findResponse)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.buildFindResponse(ctx, mhs, privateFindResponse)
+	err = c.decryptFindResponse(ctx, findResponse, dehasher)
+	if err != nil {
+		return nil, err
+	}
+
+	return findResponse, nil
 }
 
-func (c *Client) buildFindResponse(ctx context.Context, mhs []multihash.Multihash, pfr *model.PrivateFindResponse) (*model.FindResponse, error) {
+func (c *Client) decryptFindResponse(ctx context.Context, resp *model.FindResponse, unhasher map[string]multihash.Multihash) error {
 	// decrypt each value key using the original multihash
 	// then for each decrypted value key fetch provider's addr info
-	findResponse := &model.FindResponse{
-		MultihashResults: make([]model.MultihashResult, 0, len(pfr.MultihashResults)),
-	}
-	mhi := 0
-	for _, pmhr := range pfr.MultihashResults {
-		var mh multihash.Multihash
-		for {
-			if mhi >= len(mhs) {
-				break
-			}
-			mh = mhs[mhi]
-			mhi++
-			smh, err := dhash.SecondMultihash(mh)
-			if err != nil {
-				return nil, err
-			}
-			if bytes.Equal(smh, pmhr.Multihash) {
-				break
-			}
-		}
-
-		if mh == nil {
-			break
+	for _, encRes := range resp.EncMultihashResults {
+		mh, found := unhasher[encRes.Multihash.B58String()]
+		if !found {
+			continue
 		}
 
 		mhr := model.MultihashResult{
 			Multihash: mh,
 		}
-		for _, evk := range pmhr.ValueKeys {
-			evkBytes, err := b58.Decode(evk)
+		for _, evk := range encRes.ValueKeys {
+			vk, err := dhash.DecryptValueKey(evk, mh)
 			if err != nil {
-				return nil, err
-			}
-			vk, err := dhash.DecryptValueKey(evkBytes, mh)
-			if err != nil {
-				return nil, err
+				return err
 			}
 
 			pid, _ := c.keyer.SplitKey(vk)
@@ -192,10 +224,10 @@ func (c *Client) buildFindResponse(ctx context.Context, mhs []multihash.Multihas
 			})
 		}
 		if len(mhr.ProviderResults) > 0 {
-			findResponse.MultihashResults = append(findResponse.MultihashResults, mhr)
+			resp.MultihashResults = append(resp.MultihashResults, mhr)
 		}
 	}
-	return findResponse, nil
+	return nil
 }
 
 func (c *Client) ListProviders(ctx context.Context) ([]*model.ProviderInfo, error) {
@@ -284,4 +316,27 @@ func (c *Client) GetStats(ctx context.Context) (*model.Stats, error) {
 	}
 
 	return model.UnmarshalStats(body)
+}
+
+func (c *Client) sendRequest(req *http.Request) (*model.FindResponse, error) {
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	// Handle failed requests
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return &model.FindResponse{}, nil
+		}
+		return nil, fmt.Errorf("batch find query failed: %v", http.StatusText(resp.StatusCode))
+	}
+
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return model.UnmarshalFindResponse(b)
 }

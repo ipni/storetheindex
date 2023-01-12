@@ -49,7 +49,7 @@ import (
 const (
 	vstoreMemory       = "memory"
 	vstorePebble       = "pebble"
-	vstoreLegacyPebble = "pebble_legacy"
+	vstoreEncPebble    = "pebble_enc"
 	vstorePogreb       = "pogreb"
 	vstoreStorethehash = "sth"
 )
@@ -533,7 +533,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		vs, err = pogreb.New(dir)
 	case vstoreMemory:
 		vs, err = memory.New(), nil
-	case vstorePebble, vstoreLegacyPebble:
+	case vstorePebble, vstoreEncPebble:
 
 		// TODO: parameterize values and study what settings are right for sti
 
@@ -572,7 +572,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		pebbleOpts.Levels[numLevels-1].FilterPolicy = nil
 		pebbleOpts.Cache = pbl.NewCache(1 << 30) // 1 GiB
 
-		if cfgIndexer.ValueStoreType == vstorePebble {
+		if cfgIndexer.ValueStoreType == vstoreEncPebble {
 			var ds store.Interface
 			ds, err = pebble.NewDatastore(dir, pebbleOpts)
 			if err == nil {

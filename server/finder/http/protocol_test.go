@@ -10,7 +10,8 @@ import (
 	"github.com/ipfs/go-delegated-routing/client"
 	"github.com/ipfs/go-delegated-routing/gen/proto"
 	indexer "github.com/ipni/go-indexer-core"
-	httpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
+	finderhttpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
+	httpclient "github.com/ipni/storetheindex/api/v0/httpclient"
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
 	httpserver "github.com/ipni/storetheindex/server/finder/http"
@@ -25,8 +26,8 @@ func setupServer(ind indexer.Interface, reg *registry.Registry, idxCts *counter.
 	return s
 }
 
-func setupClient(host string, t *testing.T) *httpclient.Client {
-	c, err := httpclient.New(host)
+func setupClient(host string, t *testing.T) *finderhttpclient.Client {
+	c, err := finderhttpclient.New(host, httpclient.WithUseEncApi(true))
 	if err != nil {
 		t.Fatal(err)
 	}

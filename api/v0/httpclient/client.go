@@ -26,16 +26,16 @@ func New(baseURL, resource string, options ...Option) (*url.URL, *http.Client, e
 	}
 	u.Path = resource
 
-	var cfg clientConfig
-	if err := cfg.apply(options...); err != nil {
+	var cfg ClientConfig
+	if err := cfg.Apply(options...); err != nil {
 		return nil, nil, err
 	}
 
-	if cfg.client != nil {
-		return u, cfg.client, nil
+	if cfg.Client != nil {
+		return u, cfg.Client, nil
 	}
 	cl := &http.Client{
-		Timeout: cfg.timeout,
+		Timeout: cfg.Timeout,
 	}
 	return u, cl, nil
 }

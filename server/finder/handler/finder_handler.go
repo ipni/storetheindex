@@ -14,7 +14,6 @@ import (
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p/core/peer"
-	b58 "github.com/mr-tron/base58/base58"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 )
@@ -46,64 +45,75 @@ func NewFinderHandler(indexer indexer.Interface, registry *registry.Registry, in
 // Find reads from indexer core to populate a response from a list of
 // multihashes.
 func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse, error) {
-	results := make([]model.MultihashResult, 0, len(mhashes))
+	resp := &model.FindResponse{}
 	provInfos := map[peer.ID]*registry.ProviderInfo{}
-
-	for i := range mhashes {
-		values, found, err := h.indexer.Get(mhashes[i])
+	for _, mh := range mhashes {
+		dmh, err := multihash.Decode(mh)
 		if err != nil {
-			err = fmt.Errorf("failed to query multihash %s: %s", mhashes[i].B58String(), err)
-			return nil, v0.NewError(err, http.StatusInternalServerError)
+			log.Infow("Error decoding a multihash", "multihash", mh, "err", err)
+			continue
 		}
-		if !found {
+		if dmh.Code == multihash.DBL_SHA2_256 {
+			mhr, err := h.encFind(mh)
+			if err != nil {
+				log.Infow("Error processing encfind request", "multihash", mh, "err", err)
+				continue
+			}
+			if mhr != nil {
+				resp.EncMultihashResults = append(resp.EncMultihashResults, *mhr)
+			}
+		} else {
+			mhr, err := h.find(mh, provInfos)
+			if err != nil {
+				log.Infow("Error processing find request", "multihash", mh, "err", err)
+				continue
+			}
+			if mhr != nil {
+				resp.MultihashResults = append(resp.MultihashResults, *mhr)
+			}
+		}
+	}
+
+	return resp, nil
+}
+
+func (h *FinderHandler) find(mh multihash.Multihash, provInfos map[peer.ID]*registry.ProviderInfo) (*model.MultihashResult, error) {
+	values, found, err := h.indexer.Get(mh)
+	if err != nil {
+		err = fmt.Errorf("failed to query multihash %s: %s", mh.B58String(), err)
+		return nil, v0.NewError(err, http.StatusInternalServerError)
+	}
+	if !found {
+		return nil, nil
+	}
+
+	provResults := make([]model.ProviderResult, 0, len(values))
+	for j := range values {
+		iVal := values[j]
+		provID := iVal.ProviderID
+		pinfo := h.fetchProviderInfo(provID, iVal.ContextID, provInfos, true)
+
+		if pinfo == nil {
 			continue
 		}
 
-		provResults := make([]model.ProviderResult, 0, len(values))
-		for j := range values {
-			iVal := values[j]
-			provID := iVal.ProviderID
-			pinfo := h.fetchProviderInfo(provID, iVal.ContextID, provInfos, true)
+		// Adding the main provider
+		provResult := providerResultFromValue(provID, iVal.ContextID, iVal.MetadataBytes, pinfo.AddrInfo.Addrs)
+		provResults = append(provResults, provResult)
 
-			if pinfo == nil {
-				continue
-			}
+		if pinfo.ExtendedProviders == nil {
+			continue
+		}
 
-			// Adding the main provider
-			provResult := providerResultFromValue(provID, iVal.ContextID, iVal.MetadataBytes, pinfo.AddrInfo.Addrs)
-			provResults = append(provResults, provResult)
+		epRecord := pinfo.ExtendedProviders
 
-			if pinfo.ExtendedProviders == nil {
-				continue
-			}
+		// If override is set to true at the context level then the chain level EPs should be ignored for this context ID
+		override := false
 
-			epRecord := pinfo.ExtendedProviders
-
-			// If override is set to true at the context level then the chain level EPs should be ignored for this context ID
-			override := false
-
-			// Adding context-level EPs if they exist
-			if contextualEpRecord, ok := epRecord.ContextualProviders[string(iVal.ContextID)]; ok {
-				override = contextualEpRecord.Override
-				for _, epInfo := range contextualEpRecord.Providers {
-					// Skippng the main provider's record if its metadata is nil or the same to the one retrieved from the indexer,
-					// because such EP record doesn't advertise any new protocol.
-					if epInfo.PeerID == provID &&
-						(len(epInfo.Metadata) == 0 || bytes.Equal(epInfo.Metadata, iVal.MetadataBytes)) {
-						continue
-					}
-					provResult := createExtendedProviderResult(epInfo, iVal)
-					provResults = append(provResults, *provResult)
-
-				}
-			}
-
-			if override {
-				continue
-			}
-
-			// Adding chain-level EPs if such exist
-			for _, epInfo := range epRecord.Providers {
+		// Adding context-level EPs if they exist
+		if contextualEpRecord, ok := epRecord.ContextualProviders[string(iVal.ContextID)]; ok {
+			override = contextualEpRecord.Override
+			for _, epInfo := range contextualEpRecord.Providers {
 				// Skippng the main provider's record if its metadata is nil or the same to the one retrieved from the indexer,
 				// because such EP record doesn't advertise any new protocol.
 				if epInfo.PeerID == provID &&
@@ -112,49 +122,53 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 				}
 				provResult := createExtendedProviderResult(epInfo, iVal)
 				provResults = append(provResults, *provResult)
-			}
 
+			}
 		}
 
-		// If there are no providers for this multihash, then do not return a
-		// result for it.
-		if len(provResults) == 0 {
+		if override {
 			continue
 		}
 
-		// Add the result to the list of index results.
-		results = append(results, model.MultihashResult{
-			Multihash:       mhashes[i],
-			ProviderResults: provResults,
-		})
+		// Adding chain-level EPs if such exist
+		for _, epInfo := range epRecord.Providers {
+			// Skippng the main provider's record if its metadata is nil or the same to the one retrieved from the indexer,
+			// because such EP record doesn't advertise any new protocol.
+			if epInfo.PeerID == provID &&
+				(len(epInfo.Metadata) == 0 || bytes.Equal(epInfo.Metadata, iVal.MetadataBytes)) {
+				continue
+			}
+			provResult := createExtendedProviderResult(epInfo, iVal)
+			provResults = append(provResults, *provResult)
+		}
+
 	}
 
-	return &model.FindResponse{
-		MultihashResults: results,
+	// If there are no providers for this multihash, then do not return a
+	// result for it.
+	if len(provResults) == 0 {
+		return nil, nil
+	}
+
+	return &model.MultihashResult{
+		Multihash:       mh,
+		ProviderResults: provResults,
 	}, nil
 }
 
-func (h *FinderHandler) FindValueKeys(mhashes []multihash.Multihash) (*model.PrivateFindResponse, error) {
-	resp := &model.PrivateFindResponse{
-		MultihashResults: make([]model.PrivateMultihashResult, 0),
+func (h *FinderHandler) encFind(mh multihash.Multihash) (*model.EncMultihashResult, error) {
+	mhr := &model.EncMultihashResult{
+		Multihash: mh,
 	}
-	for _, mh := range mhashes {
-		mhr := model.PrivateMultihashResult{
-			Multihash: mh,
-		}
-		vks, hasResult, err := h.indexer.GetValueKeys(mh)
-		if err != nil {
-			return nil, err
-		}
-		if !hasResult {
-			continue
-		}
-		for _, vk := range vks {
-			mhr.ValueKeys = append(mhr.ValueKeys, b58.Encode(vk))
-		}
-		resp.MultihashResults = append(resp.MultihashResults, mhr)
+	vks, hasResult, err := h.indexer.GetValueKeys(mh)
+	if err != nil {
+		return nil, err
 	}
-	return resp, nil
+	if !hasResult {
+		return nil, nil
+	}
+	mhr.ValueKeys = append(mhr.ValueKeys, vks...)
+	return mhr, nil
 }
 
 func (h *FinderHandler) fetchProviderInfo(provID peer.ID,

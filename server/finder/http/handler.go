@@ -82,63 +82,6 @@ func (h *httpHandler) findBatch(w http.ResponseWriter, r *http.Request) {
 	h.getIndexes(w, req.Multihashes)
 }
 
-func (h *httpHandler) findBatchPrivate(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Errorw("failed reading get value keys batch request", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-	req, err := model.UnmarshalFindRequest(body)
-	if err != nil {
-		log.Errorw("error unmarshalling get batch request", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	resp, err := h.finderHandler.FindValueKeys(req.Multihashes)
-	if err != nil {
-		httpserver.HandleError(w, err, "get")
-		return
-	}
-
-	rb, err := model.MarshalPrivateFindResponse(resp)
-	if err != nil {
-		log.Errorw("failed marshalling query response", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	httpserver.WriteJsonResponse(w, http.StatusOK, rb)
-
-}
-
-func (h *httpHandler) findPrivate(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	mhVar := vars["multihash"]
-	m, err := multihash.FromB58String(mhVar)
-	if err != nil {
-		log.Errorw("error decoding multihash", "multihash", mhVar, "err", err)
-		httpserver.HandleError(w, err, "find")
-		return
-	}
-
-	resp, err := h.finderHandler.FindValueKeys([]multihash.Multihash{m})
-	if err != nil {
-		httpserver.HandleError(w, err, "get")
-		return
-	}
-
-	rb, err := model.MarshalPrivateFindResponse(resp)
-	if err != nil {
-		log.Errorw("failed marshalling query response", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	httpserver.WriteJsonResponse(w, http.StatusOK, rb)
-}
-
 func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash) {
 	startTime := time.Now()
 	var found bool
@@ -152,12 +95,6 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 	response, err := h.finderHandler.Find(mhs)
 	if err != nil {
 		httpserver.HandleError(w, err, "get")
-		return
-	}
-
-	// If no info for any multihashes, then 404
-	if len(response.MultihashResults) == 0 {
-		http.Error(w, "no results for query", http.StatusNotFound)
 		return
 	}
 

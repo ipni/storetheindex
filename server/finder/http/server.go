@@ -76,8 +76,6 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	}).Methods(http.MethodGet)
 	r.HandleFunc("/cid/{cid}", h.findCid).Methods(http.MethodGet)
 	r.HandleFunc("/multihash/{multihash}", h.find).Methods(http.MethodGet)
-	r.HandleFunc("/private/multihash/{multihash}", h.findPrivate).Methods(http.MethodGet)
-	r.HandleFunc("/private/multihash", h.findBatchPrivate).Methods(http.MethodPost)
 	r.HandleFunc("/multihash", h.findBatch).Methods(http.MethodPost)
 	r.HandleFunc("/health", h.health).Methods(http.MethodGet)
 	r.HandleFunc("/providers", h.listProviders).Methods(http.MethodGet)

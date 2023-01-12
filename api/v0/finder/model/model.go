@@ -32,22 +32,19 @@ type MultihashResult struct {
 	ProviderResults []ProviderResult
 }
 
+// EncMultihashResult aggregates all encrypted value keys for a single multihash
+type EncMultihashResult struct {
+	Multihash multihash.Multihash
+	ValueKeys [][]byte
+}
+
 // FindResponse used to answer client queries/requests
 type FindResponse struct {
-	MultihashResults []MultihashResult
+	MultihashResults    []MultihashResult
+	EncMultihashResults []EncMultihashResult
+
 	// NOTE: This feature is not enabled yet.
 	// Signature []byte	// Providers signature.
-}
-
-// PrivateFindResponse used to answer private (aka double hashed) client lookups.
-type PrivateFindResponse struct {
-	MultihashResults []PrivateMultihashResult
-}
-
-// PrivateMultihashResult aggregates all encrypted value keys for a single multihash
-type PrivateMultihashResult struct {
-	Multihash multihash.Multihash
-	ValueKeys []string
 }
 
 // Equal compares ProviderResult values to determine if they are equal. The
@@ -90,18 +87,6 @@ func MarshalFindResponse(r *FindResponse) ([]byte, error) {
 // UnmarshalFindResponse de-serializes a find response.
 func UnmarshalFindResponse(b []byte) (*FindResponse, error) {
 	r := &FindResponse{}
-	err := json.Unmarshal(b, r)
-	return r, err
-}
-
-// MarshalPrivateFindResponse serializes a private find response
-func MarshalPrivateFindResponse(response *PrivateFindResponse) ([]byte, error) {
-	return json.Marshal(response)
-}
-
-// UnmarshalPrivateFindResponse de-serializes a private find response
-func UnmarshalPrivateFindResponse(b []byte) (*PrivateFindResponse, error) {
-	r := &PrivateFindResponse{}
 	err := json.Unmarshal(b, r)
 	return r, err
 }
