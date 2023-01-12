@@ -285,7 +285,11 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			ProviderID:    providerID,
 		}
 
-		log.Info("Advertisement is metadata update only")
+		if frozen {
+			log.Infow("Indexer frozen, advertisement only updates metadata")
+		} else {
+			log.Infow("Advertisement is metadata update only")
+		}
 		err = ing.indexer.Put(value)
 		if err != nil {
 			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to update metadata: %w", err)}
