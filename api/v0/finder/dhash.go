@@ -54,14 +54,14 @@ func SecondMultihash(mh multihash.Multihash) (multihash.Multihash, error) {
 	return mh, nil
 }
 
-// DeriveKey derives encryptioin key from the passphrase using SHA256
-func DeriveKey(passphrase []byte) []byte {
+// deriveKey derives encryptioin key from the passphrase using SHA256
+func deriveKey(passphrase []byte) []byte {
 	return SHA256(append([]byte("AESGCM"), passphrase...), nil)
 }
 
 // DecryptAES decrypts AES payload using the nonce and the passphrase
 func DecryptAES(nonce, payload, passphrase []byte) ([]byte, error) {
-	key := DeriveKey(passphrase)
+	key := deriveKey(passphrase)
 	b, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func DecryptAES(nonce, payload, passphrase []byte) ([]byte, error) {
 // returns nonce and encrypted bytes.
 func EncryptAES(payload, passphrase []byte) ([]byte, []byte, error) {
 	// Derive the encryption key
-	derivedKey := DeriveKey([]byte(passphrase))
+	derivedKey := deriveKey([]byte(passphrase))
 
 	// Create initialization vector (nonse) to be used during encryption
 	// Nonce is derived from the mulithash (passpharase) so that encrypted payloads
