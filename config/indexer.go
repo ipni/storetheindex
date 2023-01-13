@@ -16,6 +16,13 @@ type Indexer struct {
 	// individual multihashes within a Put. A value of 1 means no concurrency,
 	// and zero uses the default.
 	CorePutConcurrency int
+	// DHBatchSize configures the batch size when sending batches of merge
+	// requests to the DHStore service. A value < 1 results in the default
+	// size.
+	DHBatchSize int
+	// DHStoreURL is the base URL for the DHStore service. This option value
+	// tells the indexer core to use a DHStore service, if configured.
+	DHStoreURL string
 	// FreezeAtPercent is the percent used, of the file system that
 	// ValueStoreDir is on, at which to trigger the indexer to enter frozen
 	// mode. A zero value uses the default. A negative value disables freezing.
@@ -61,6 +68,10 @@ type Indexer struct {
 	// frozen. It only retains the most recent provider and publisher
 	// addresses.
 	UnfreezeOnStart bool
+	// VSNoNewMH, when true, prevents storing new multihashes in the
+	// valuestore. Existing data is still retrievable and metadata can be
+	// deleted and updated.
+	VSNoNewMH bool
 
 	// TODO: If left unspecified, could the functionality instead be to use whatever the existing
 	//      value store uses? If there is no existing value store, then use binary by default.

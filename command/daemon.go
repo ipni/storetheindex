@@ -135,7 +135,11 @@ func daemonCommand(cctx *cli.Context) error {
 	}
 
 	// Create indexer core
-	indexerCore := engine.New(resultCache, valueStore)
+	indexerCore := engine.New(resultCache, valueStore,
+		engine.WithDHBatchSize(cfg.Indexer.DHBatchSize),
+		engine.WithDHStore(cfg.Indexer.DHStoreURL),
+		engine.WithVSNoNewMH(cfg.Indexer.VSNoNewMH),
+	)
 
 	indexCounts := counter.NewIndexCounts(dstore)
 	indexCounts.SetTotalAddend(cfg.Indexer.IndexCountTotalAddend)
