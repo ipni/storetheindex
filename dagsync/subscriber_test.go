@@ -235,6 +235,7 @@ func TestConcurrentSync(t *testing.T) {
 func TestSync(t *testing.T) {
 	err := quick.Check(func(dpsb dagsyncPubSubBuilder, ll llBuilder) bool {
 		return t.Run("Quickcheck", func(t *testing.T) {
+			t.Parallel()
 			pubSys := newHostSystem(t)
 			subSys := newHostSystem(t)
 			defer pubSys.close()
@@ -291,6 +292,7 @@ func TestSync(t *testing.T) {
 func TestSyncWithHydratedDataStore(t *testing.T) {
 	err := quick.Check(func(dpsb dagsyncPubSubBuilder, ll llBuilder) bool {
 		return t.Run("Quickcheck", func(t *testing.T) {
+			t.Parallel()
 			pubPrivKey, _, err := crypto.GenerateEd25519Key(cryptorand.Reader)
 			require.NoError(t, err)
 
