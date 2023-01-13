@@ -235,6 +235,7 @@ func TestConcurrentSync(t *testing.T) {
 func TestSync(t *testing.T) {
 	err := quick.Check(func(dpsb dagsyncPubSubBuilder, ll llBuilder) bool {
 		return t.Run("Quickcheck", func(t *testing.T) {
+			t.Parallel()
 			pubSys := newHostSystem(t)
 			subSys := newHostSystem(t)
 			defer pubSys.close()
@@ -291,6 +292,7 @@ func TestSync(t *testing.T) {
 func TestSyncWithHydratedDataStore(t *testing.T) {
 	err := quick.Check(func(dpsb dagsyncPubSubBuilder, ll llBuilder) bool {
 		return t.Run("Quickcheck", func(t *testing.T) {
+			t.Parallel()
 			pubPrivKey, _, err := crypto.GenerateEd25519Key(cryptorand.Reader)
 			require.NoError(t, err)
 
@@ -789,7 +791,6 @@ func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostS
 		pub, err = dtsync.NewPublisher(pubSys.host, pubSys.ds, pubSys.lsys, topicName, dtsync.WithAnnounceSenders(p2pSender))
 		require.NoError(t, err)
 		pubAddr = pubSys.host.Addrs()[0]
-		test.WaitForPublisher(pubSys.host, topicName, subSys.host.ID())
 	}
 	require.NoError(t, err)
 	sub, err := dagsync.NewSubscriber(subSys.host, subSys.ds, subSys.lsys, topicName, nil, subOpts...)
