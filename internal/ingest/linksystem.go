@@ -504,7 +504,6 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 			ing.indexCounts.AddCount(providerID, ad.ContextID, uint64(mhCount))
 		}
 	}
-	ing.signalMetricsUpdate()
 
 	if len(errsIngestingEntryChunks) > 0 {
 		return adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to ingest entry chunks: %v", errsIngestingEntryChunks)}
@@ -536,7 +535,6 @@ func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertiseme
 		return fmt.Errorf("failed processing entries for advertisement: %w", err)
 	}
 
-	ing.signalMetricsUpdate()
 	return nil
 }
 

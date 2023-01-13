@@ -47,6 +47,8 @@ const (
 	// adProcessedFrozenPrefix identifies all advertisements processed while in
 	// frozen mode. Used for unfreezing.
 	adProcessedFrozenPrefix = "/adF/"
+	// metricsUpdateInterva determines how ofter to update ingestion metrics.
+	metricsUpdateInterval = time.Minute
 )
 
 type adProcessedEvent struct {
@@ -91,7 +93,6 @@ type Ingester struct {
 
 	batchSize uint32
 	closeOnce sync.Once
-	sigUpdate chan struct{}
 
 	sub         *dagsync.Subscriber
 	syncTimeout time.Duration
@@ -157,7 +158,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		lsys:        mkLinkSystem(ds, reg),
 		indexer:     idxr,
 		batchSize:   uint32(cfg.StoreBatchSize),
-		sigUpdate:   make(chan struct{}, 1),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		entriesSel:  Selectors.EntriesWithLimit(recursionLimit(cfg.EntriesDepthLimit)),
 		reg:         reg,
@@ -474,7 +474,6 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 				// future adProcessedEvents. Therefore check the headAdCid to
 				// see if this was the sync that was started.
 				if adProcessedEvent.headAdCid == c {
-					ing.signalMetricsUpdate()
 					return cid.Undef, adProcessedEvent.err
 				}
 			} else if adProcessedEvent.adCid == c {
@@ -673,53 +672,43 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 	return ch, cncl
 }
 
-// signalMetricsUpdate signals that metrics should be updated.
-func (ing *Ingester) signalMetricsUpdate() {
-	select {
-	case ing.sigUpdate <- struct{}{}:
-	default:
-		// Already signaled
-	}
-}
-
-// metricsUpdate periodically updates metrics. This goroutine exits when the
-// sigUpdate channel is closed, when Close is called.
+// metricsUpdate periodically updates metrics. This goroutine exits when
+// canceling pending syncs, when Close is called.
 func (ing *Ingester) metricsUpdater() {
-	hasUpdate := true
-	t := time.NewTimer(time.Minute)
+	t := time.NewTimer(metricsUpdateInterval)
 
 	for {
 		select {
-		case <-ing.sigUpdate:
-			hasUpdate = true
 		case <-t.C:
-			if hasUpdate {
-				// Update value store size metric after sync.
-				size, err := ing.indexer.Size()
-				if err != nil {
-					log.Errorw("Error getting indexer value store size", "err", err)
-					return
-				}
-				if ing.indexCounts != nil {
-					var usage float64
-					usageStats, err := ing.reg.ValueStoreUsage()
-					if err != nil {
-						log.Errorw("Error getting disk usage", "err", err)
-					} else {
-						usage = usageStats.Percent
-					}
-					indexCount, err := ing.indexCounts.Total()
-					if err != nil {
-						log.Errorw("Error getting index counts", "err", err)
-					}
-					stats.Record(context.Background(),
-						coremetrics.StoreSize.M(size),
-						metrics.IndexCount.M(int64(indexCount)),
-						metrics.PercentUsage.M(usage))
-				}
-				hasUpdate = false
+			// Update value store size metric after sync.
+			size, err := ing.indexer.Size()
+			if err != nil {
+				log.Errorw("Error getting indexer value store size", "err", err)
 			}
-			t.Reset(time.Minute)
+			var usage float64
+			usageStats, err := ing.reg.ValueStoreUsage()
+			if err != nil {
+				log.Errorw("Error getting disk usage", "err", err)
+			} else {
+				usage = usageStats.Percent
+			}
+
+			if ing.indexCounts != nil {
+				indexCount, err := ing.indexCounts.Total()
+				if err != nil {
+					log.Errorw("Error getting index counts", "err", err)
+				}
+				stats.Record(context.Background(),
+					coremetrics.StoreSize.M(size),
+					metrics.IndexCount.M(int64(indexCount)),
+					metrics.PercentUsage.M(usage))
+			} else {
+				stats.Record(context.Background(),
+					coremetrics.StoreSize.M(size),
+					metrics.PercentUsage.M(usage))
+			}
+
+			t.Reset(metricsUpdateInterval)
 		case <-ing.closePendingSyncs:
 			// If closing pending syncs, then close metrics updater as well.
 			t.Stop()
