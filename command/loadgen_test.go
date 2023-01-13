@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/filecoin-project/storetheindex/command/loadgen"
-	"github.com/filecoin-project/storetheindex/config"
+	"github.com/ipni/storetheindex/command/loadgen"
+	"github.com/ipni/storetheindex/config"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
@@ -22,22 +22,30 @@ const FinderAddr = "/ip4/127.0.0.1/tcp/13000"
 const IngestAddr = "/ip4/127.0.0.1/tcp/13001"
 const AdminAddr = "/ip4/127.0.0.1/tcp/13002"
 
-func TestSmallLoad(t *testing.T) {
+func TestSmallLoadNoHTTP(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
 	ctx, cncl := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cncl()
 	testLoadHelper(ctx, t, 1, 1000, false)
 }
 
 func TestSmallLoadOverHTTP(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
 	ctx, cncl := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cncl()
 	testLoadHelper(ctx, t, 1, 1000, true)
 }
 
 func TestLargeLoad(t *testing.T) {
-	switch runtime.GOOS {
-	case "linux":
-		t.Skip("skipping Large load test on linux because it takes too long in Github Actions CI.")
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
+	if os.Getenv("CI") != "" {
+		t.Skip("Skipping testing in CI environment")
 	}
 
 	ctx, cncl := context.WithTimeout(context.Background(), 180*time.Second)
@@ -52,7 +60,7 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 	}
 
 	// Set up a context that is canceled when the command is interrupted
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	tempDir := t.TempDir()
@@ -75,8 +83,10 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 	err := app.RunContext(ctx, []string{"storetheindex", "init"})
 	require.NoError(t, err)
 
+	daemonDone := make(chan struct{})
 	go func() {
 		app.RunContext(ctx, []string{"storetheindex", "daemon"})
+		close(daemonDone)
 	}()
 
 	finderParts := strings.Split(FinderAddr, "/")
@@ -103,10 +113,13 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	loadgenDone := make(chan struct{})
 	go func() {
 		startLoadgen(ctx, "http://127.0.0.1:"+ingestPort, concurrentProviders, numberOfEntriesPerProvider, useHTTP)
+		close(loadgenDone)
 	}()
 
+	timer := time.NewTimer(time.Second)
 	foundAll := false
 LOOP:
 	for {
@@ -118,11 +131,19 @@ LOOP:
 		select {
 		case <-ctx.Done():
 			break LOOP
-		case <-time.After(1 * time.Second):
+		case <-timer.C:
+			timer.Reset(time.Second)
 		}
 	}
+	timer.Stop()
 
 	require.True(t, foundAll, "Did not find all entries")
+
+	// Wait until loadgen and daemon are stopped so that tempDir can be removed
+	// on Windows.
+	cancel()
+	<-loadgenDone
+	<-daemonDone
 }
 
 func startLoadgen(ctx context.Context, indexerAddr string, concurrentProviders uint, numberOfEntriesPerProvider uint, useHTTP bool) {

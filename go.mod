@@ -23,6 +23,7 @@ require (
 	github.com/ipfs/kubo v0.17.0
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
 	github.com/ipld/go-ipld-prime v0.19.0
+	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
 	github.com/ipld/go-storethehash v0.3.13
 	github.com/ipni/go-indexer-core v0.6.20-0.20230112154735-7b53be959fe6
 	github.com/libp2p/go-libp2p v0.23.4

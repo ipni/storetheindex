@@ -11,23 +11,22 @@ import (
 
 	mathrand "math/rand"
 
-	"github.com/filecoin-project/go-legs"
-	legsDT "github.com/filecoin-project/go-legs/dtsync"
-	legsHttp "github.com/filecoin-project/go-legs/httpsync"
-	ingesthttpclient "github.com/filecoin-project/storetheindex/api/v0/ingest/client/http"
-	"github.com/filecoin-project/storetheindex/api/v0/ingest/schema"
-	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/storage/dsadapter"
+	ingesthttpclient "github.com/ipni/storetheindex/api/v0/ingest/client/http"
+	"github.com/ipni/storetheindex/api/v0/ingest/schema"
+	"github.com/ipni/storetheindex/dagsync"
+	"github.com/ipni/storetheindex/dagsync/dtsync"
+	"github.com/ipni/storetheindex/dagsync/httpsync"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
 	libp2pconfig "github.com/libp2p/go-libp2p/config"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 	"github.com/multiformats/go-varint"
@@ -94,12 +93,16 @@ func startProviderLoadGen(config Config, indexerHttpAddr string, addressMapping 
 
 	fmt.Printf("Provider seed=%d ID=%v\n", p.config.Seed, p.h.ID())
 
-	stopGenAds = p.runUpdater(func() {
-		err := p.announce()
-		if err != nil {
-			panic("Failed to announce: " + err.Error())
+	var afterEachUpdate func()
+	if !config.IsHttp {
+		afterEachUpdate = func() {
+			err := p.announce()
+			if err != nil {
+				panic("Failed to announce: " + err.Error())
+			}
 		}
-	})
+	}
+	stopGenAds = p.runUpdater(afterEachUpdate)
 
 	close = func() {}
 	if config.IsHttp {
@@ -133,15 +136,15 @@ func newProviderLoadGen(c Config, indexerHttpAddr string, addressMapping map[str
 		panic("Failed to start host" + err.Error())
 	}
 
-	var pub legs.Publisher
+	var pub dagsync.Publisher
 	if c.IsHttp {
-		pub, err = legsHttp.NewPublisher(c.HttpListenAddr, lsys, host.ID(), signingKey)
+		pub, err = httpsync.NewPublisher(c.HttpListenAddr, lsys, host.ID(), signingKey)
 	} else {
-		pub, err = legsDT.NewPublisher(host, ds, lsys, c.GossipSubTopic)
+		pub, err = dtsync.NewPublisher(host, ds, lsys, c.GossipSubTopic)
 
 	}
 	if err != nil {
-		panic("Failed to start legs publisher: " + err.Error())
+		panic("Failed to start publisher: " + err.Error())
 	}
 	p := &providerLoadGen{
 		indexerHttpAddr: indexerHttpAddr,
@@ -161,13 +164,13 @@ type providerLoadGen struct {
 	signingKey      crypto.PrivKey
 	h               host.Host
 	lsys            ipld.LinkSystem
-	pub             legs.Publisher
+	pub             dagsync.Publisher
 	// Keep track of the total number of entries we've created. There are a couple uses for this:
 	//   * At the end we can tell the user how many entries we've created.
 	//   * We can generate multihashes as a function of this number. E.g. the multihash is just an encoded version of the entry number.
 	entriesGenerated uint
 	adsGenerated     uint
-	currentHead      *ipld.Link
+	currentHead      ipld.Link
 	recordKeepingMu  sync.Mutex
 }
 
@@ -189,9 +192,10 @@ func (p *providerLoadGen) announce() error {
 	}
 
 	if p.currentHead == nil {
-		return client.Announce(context.Background(), &peer.AddrInfo{ID: p.h.ID(), Addrs: addrs}, cid.Undef)
+		// Nothing to announce
+		return nil
 	}
-	return client.Announce(context.Background(), &peer.AddrInfo{ID: p.h.ID(), Addrs: addrs}, (*p.currentHead).(cidlink.Link).Cid)
+	return client.Announce(context.Background(), &peer.AddrInfo{ID: p.h.ID(), Addrs: addrs}, (p.currentHead).(cidlink.Link).Cid)
 }
 
 func (p *providerLoadGen) announceInBackground() func() {
@@ -214,9 +218,8 @@ func (p *providerLoadGen) announceInBackground() func() {
 	}
 }
 
-func (p *providerLoadGen) runUpdater(afterFirstUpdate func()) func() {
+func (p *providerLoadGen) runUpdater(afterEachUpdate func()) func() {
 	closer := make(chan struct{})
-	var callAfterFirstUpdate *sync.Once = &sync.Once{}
 
 	go func() {
 		t := time.NewTicker(time.Second / time.Duration(p.config.AdsPerSec))
@@ -246,7 +249,7 @@ func (p *providerLoadGen) runUpdater(afterFirstUpdate func()) func() {
 					panic(fmt.Sprintf("Failed to build ad: %s", err))
 				}
 
-				p.currentHead = &nextAdHead
+				p.currentHead = nextAdHead
 				p.adsGenerated = p.adsGenerated + 1
 				p.entriesGenerated = adBuilder.entryCount + p.entriesGenerated
 				fmt.Printf("ID=%d .Number of generated entries: %d\n", p.config.Seed, p.entriesGenerated)
@@ -258,8 +261,9 @@ func (p *providerLoadGen) runUpdater(afterFirstUpdate func()) func() {
 					panic(fmt.Sprintf("Failed to publish ad: %s", err))
 				}
 
-				callAfterFirstUpdate.Do(afterFirstUpdate)
-
+				if afterEachUpdate != nil {
+					afterEachUpdate()
+				}
 				fmt.Println("Published ad in", time.Since(start))
 
 				if p.config.StopAfterNEntries > 0 && p.entriesGenerated > uint(p.config.StopAfterNEntries) {
@@ -301,13 +305,12 @@ type adBuilder struct {
 	providerAddrs   []string
 }
 
-func (b adBuilder) build(lsys ipld.LinkSystem, signingKey crypto.PrivKey, prevAd *ipld.Link) (ipld.Link, error) {
+func (b adBuilder) build(lsys ipld.LinkSystem, signingKey crypto.PrivKey, prevAd ipld.Link) (ipld.Link, error) {
 	contextID := []byte(fmt.Sprintf("%d", b.contextID))
 	metadata := b.metadata
-	var entriesLink *ipld.Link
+	var entriesLink ipld.Link
 	if b.entryCount == 0 {
-		l := ipld.Link(schema.NoEntries)
-		entriesLink = &l
+		entriesLink = ipld.Link(schema.NoEntries)
 	} else {
 		var allMhs []multihash.Multihash
 		for i := uint(0); i < b.entryCount; i++ {
@@ -338,7 +341,7 @@ func (b adBuilder) build(lsys ipld.LinkSystem, signingKey crypto.PrivKey, prevAd
 				return nil, err
 			}
 			if entriesLinkV != nil {
-				entriesLink = &entriesLinkV
+				entriesLink = entriesLinkV
 			}
 		}
 	}
@@ -346,7 +349,7 @@ func (b adBuilder) build(lsys ipld.LinkSystem, signingKey crypto.PrivKey, prevAd
 		PreviousID: prevAd,
 		Provider:   b.provider,
 		Addresses:  b.providerAddrs,
-		Entries:    *entriesLink,
+		Entries:    entriesLink,
 		ContextID:  contextID,
 		Metadata:   metadata,
 		IsRm:       b.isRm,

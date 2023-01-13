@@ -11,8 +11,8 @@ import (
 	"github.com/multiformats/go-multihash"
 	"github.com/urfave/cli/v2"
 
-	httpfinderclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
-	"github.com/filecoin-project/storetheindex/command/loadgen"
+	httpfinderclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
+	"github.com/ipni/storetheindex/command/loadgen"
 )
 
 var LoadGenCmd = &cli.Command{
