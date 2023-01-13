@@ -665,10 +665,8 @@ github.com/ipld/go-ipld-prime v0.19.0/go.mod h1:Q9j3BaVXwaA3o5JUDNvptDDr/x8+F7FG
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20211210234204-ce2a1c70cd73/go.mod h1:2PJ0JgxyB08t0b2WKrcuqI3di0V+5n6RS/LTUJhkoxY=
 github.com/ipld/go-storethehash v0.3.13 h1:1T6kX5K57lAgxbsGitZEaZMAR3RdWch2kO8okK/BgN8=
 github.com/ipld/go-storethehash v0.3.13/go.mod h1:KCYpzmamubnSwm7fvWcCkm0aIwQh4WRNtzrKK4pVhAQ=
-github.com/ipni/dhstore v0.0.0-20230112144046-8ff997ffb734 h1:/7zMZLsQ/jiS69JXESqk0BwxBBrxJHMDTmqgP11/wsQ=
-github.com/ipni/dhstore v0.0.0-20230112144046-8ff997ffb734/go.mod h1:5tFpcinFsdZEsBr+iVvPhVkmpRAfrzBlcZXqy646k30=
-github.com/ipni/go-indexer-core v0.6.20-0.20230113114806-c78fdee08ae7 h1:FfW0xTLlxlSIuqMSfMcgxGJaxAt/5G53c8uWY/pzaW8=
-github.com/ipni/go-indexer-core v0.6.20-0.20230113114806-c78fdee08ae7/go.mod h1:n1redpWwh2Id2vboe5dVhNnn+Brw+JDqNNqsYOljvUU=
+github.com/ipni/go-indexer-core v0.6.20-0.20221203120225-301a542115f8 h1:yVqgbaS/EwnJggQYpxf6mYJ//72NbPyM9MAGjDeD+8g=
+github.com/ipni/go-indexer-core v0.6.20-0.20221203120225-301a542115f8/go.mod h1:EBHAKGJXuQUbdDYWCCmVCNrTO7vkapCeaDUG6my66J0=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52 h1:QG4CGBqCeuBo6aZlGAamSkxWdgWfZGeE49eUOWJPA4c=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52/go.mod h1:fdg+/X9Gg4AsAIzWpEHwnqd+QY3b7lajxyjE1m4hkq4=
 github.com/iris-contrib/blackfriday v2.0.0+incompatible/go.mod h1:UzZ2bDEoaSGPbkg6SAB4att1aAwTmVIx/5gCVqeyUdI=

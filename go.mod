@@ -24,7 +24,7 @@ require (
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
 	github.com/ipld/go-ipld-prime v0.19.0
 	github.com/ipld/go-storethehash v0.3.13
-	github.com/ipni/go-indexer-core v0.6.20-0.20230113114806-c78fdee08ae7
+	github.com/ipni/go-indexer-core v0.6.20-0.20221203120225-301a542115f8
 	github.com/libp2p/go-libp2p v0.23.4
 	github.com/libp2p/go-libp2p-gostream v0.5.0
 	github.com/libp2p/go-libp2p-pubsub v0.8.1
@@ -122,7 +122,6 @@ require (
 	github.com/ipfs/go-verifcid v0.0.2 // indirect
 	github.com/ipld/edelweiss v0.2.0 // indirect
 	github.com/ipld/go-codec-dagpb v1.5.0 // indirect
-	github.com/ipni/dhstore v0.0.0-20230112144046-8ff997ffb734 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
