@@ -168,12 +168,10 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 		replication = len(indexerPool)
 	}
 
-	httpClient := &http.Client{}
-
 	a := &Assigner{
 		assigned:    make(map[peer.ID]*assignment),
 		indexerPool: indexerPool,
-		httpClient:  httpClient,
+		httpClient:  &http.Client{},
 		p2pHost:     p2pHost,
 		policy:      policy,
 		pollDone:    make(chan struct{}),
