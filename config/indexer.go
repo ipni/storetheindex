@@ -16,6 +16,9 @@ type Indexer struct {
 	// individual multihashes within a Put. A value of 1 means no concurrency,
 	// and zero uses the default.
 	CorePutConcurrency int
+	// DHStoreURL is the base URL for the DHStore service. This option value
+	// tells the indexer core to use a DHStore service, if configured.
+	DHStoreURL string
 	// FreezeAtPercent is the percent used, of the file system that
 	// ValueStoreDir is on, at which to trigger the indexer to enter frozen
 	// mode. A zero value uses the default. A negative value disables freezing.
