@@ -1,6 +1,6 @@
 //go:build !race
 
-package command
+package command_test
 
 import (
 	"context"
@@ -12,15 +12,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ipni/storetheindex/command"
 	"github.com/ipni/storetheindex/command/loadgen"
 	"github.com/ipni/storetheindex/config"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
 
-const FinderAddr = "/ip4/127.0.0.1/tcp/13000"
-const IngestAddr = "/ip4/127.0.0.1/tcp/13001"
-const AdminAddr = "/ip4/127.0.0.1/tcp/13002"
+const (
+	finderAddr = "/ip4/127.0.0.1/tcp/13000"
+	ingestAddr = "/ip4/127.0.0.1/tcp/13001"
+	adminAddr  = "/ip4/127.0.0.1/tcp/13002"
+)
 
 func TestSmallLoadNoHTTP(t *testing.T) {
 	if testing.Short() {
@@ -65,18 +68,18 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 
 	tempDir := t.TempDir()
 	os.Setenv(config.EnvDir, tempDir)
-	os.Setenv("STORETHEINDEX_LISTEN_FINDER", FinderAddr)
-	os.Setenv("STORETHEINDEX_LISTEN_ADMIN", AdminAddr)
-	os.Setenv("STORETHEINDEX_LISTEN_INGEST", IngestAddr)
+	os.Setenv("STORETHEINDEX_LISTEN_FINDER", finderAddr)
+	os.Setenv("STORETHEINDEX_LISTEN_ADMIN", adminAddr)
+	os.Setenv("STORETHEINDEX_LISTEN_INGEST", ingestAddr)
 	os.Setenv("STORETHEINDE_PUBSUB_TOPIC", loadgen.DefaultConfig().GossipSubTopic)
 
 	app := &cli.App{
 		Name: "indexer",
 		Commands: []*cli.Command{
-			InitCmd,
-			DaemonCmd,
-			LoadGenCmd,
-			LoadGenVerifyCmd,
+			command.InitCmd,
+			command.DaemonCmd,
+			command.LoadGenCmd,
+			command.LoadGenVerifyCmd,
 		},
 	}
 
@@ -89,7 +92,7 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 		close(daemonDone)
 	}()
 
-	finderParts := strings.Split(FinderAddr, "/")
+	finderParts := strings.Split(finderAddr, "/")
 	finderPort := finderParts[len(finderParts)-1]
 
 	c := http.Client{}
@@ -103,7 +106,7 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 
 	// Sleep a bit for the ingester to finish spinning up (should be right after finder but CI runs slow)
 	time.Sleep(1 * time.Second)
-	ingestParts := strings.Split(IngestAddr, "/")
+	ingestParts := strings.Split(ingestAddr, "/")
 	ingestPort := ingestParts[len(ingestParts)-1]
 	for {
 		resp, err := c.Get("http://127.0.0.1:" + ingestPort + "/health")
