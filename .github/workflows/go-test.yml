@@ -13,7 +13,6 @@ jobs:
         go: [ "1.18.x", "1.19.x" ]
     env:
       COVERAGES: ""
-      SKIP32BIT: false
     runs-on: ${{ format('{0}-latest', matrix.os) }}
     name: ${{ matrix.os }} (go ${{ matrix.go }})
     steps:
@@ -38,13 +37,6 @@ jobs:
       - name: Run repo-specific setup
         uses: ./.github/actions/go-test-setup
         if: hashFiles('./.github/actions/go-test-setup') != ''
-      - name: Read config
-        if: hashFiles('./.github/workflows/go-test-config.json') != ''
-        shell: bash
-        run: |
-          if jq -re .skip32bit ./.github/workflows/go-test-config.json; then
-            echo "SKIP32BIT=true" >> $GITHUB_ENV
-          fi
       - name: Run tests
         uses: protocol/multiple-go-modules@v1.2
         with:
@@ -53,7 +45,7 @@ jobs:
           # this means ./B's coverage will be significantly higher than 0%.
           run: go test -v -shuffle=on -coverprofile=module-coverage.txt -coverpkg=./... ./...
       - name: Run tests (32 bit)
-        if: matrix.os != 'macos' && env.SKIP32BIT == 'false' # can't run 32 bit tests on OSX.
+        if: ${{ matrix.os != 'macos' }} # can't run 32 bit tests on OSX.
         uses: protocol/multiple-go-modules@v1.2
         env:
           GOARCH: 386
