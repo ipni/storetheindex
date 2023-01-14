@@ -9,10 +9,12 @@
     "IndexerPool": [
       {
         "AdminURL": "http://ber-indexer:3002",
+        "FindURL": "http://ber-indexer:3000",
         "IngestURL": "http://ber-indexer:3001"
       },
       {
         "AdminURL": "http://cali-indexer:3002",
+        "FindURL": "http://cali-indexer:3000",
         "IngestURL": "http://cali-indexer:3001"
       }
     ],
