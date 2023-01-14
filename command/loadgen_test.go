@@ -26,34 +26,33 @@ const (
 )
 
 func TestSmallLoadNoHTTP(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in short mode.")
-	}
+	skipUnlessLoadTest(t)
+
 	ctx, cncl := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cncl()
 	testLoadHelper(ctx, t, 1, 1000, false)
 }
 
 func TestSmallLoadOverHTTP(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in short mode.")
-	}
+	skipUnlessLoadTest(t)
+
 	ctx, cncl := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cncl()
 	testLoadHelper(ctx, t, 1, 1000, true)
 }
 
 func TestLargeLoad(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in short mode.")
-	}
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping testing in CI environment")
-	}
+	skipUnlessLoadTest(t)
 
 	ctx, cncl := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cncl()
 	testLoadHelper(ctx, t, 10, 1000, false)
+}
+
+func skipUnlessLoadTest(t *testing.T) {
+	if os.Getenv("STI_LOAD_TEST") == "" {
+		t.SkipNow()
+	}
 }
 
 func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint, numberOfEntriesPerProvider uint, useHTTP bool) {
@@ -67,11 +66,7 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 	defer cancel()
 
 	tempDir := t.TempDir()
-	os.Setenv(config.EnvDir, tempDir)
-	os.Setenv("STORETHEINDEX_LISTEN_FINDER", finderAddr)
-	os.Setenv("STORETHEINDEX_LISTEN_ADMIN", adminAddr)
-	os.Setenv("STORETHEINDEX_LISTEN_INGEST", ingestAddr)
-	os.Setenv("STORETHEINDE_PUBSUB_TOPIC", loadgen.DefaultConfig().GossipSubTopic)
+	t.Setenv(config.EnvDir, tempDir)
 
 	app := &cli.App{
 		Name: "indexer",
@@ -83,7 +78,13 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 		},
 	}
 
-	err := app.RunContext(ctx, []string{"storetheindex", "init"})
+	t.Log("---> tempDir:", tempDir)
+	err := app.RunContext(ctx, []string{"storetheindex", "init", "--no-bootstrap",
+		"--listen-admin", adminAddr,
+		"--listen-finder", finderAddr,
+		"--listen-ingest", ingestAddr,
+		"--pubsub-topic", loadgen.DefaultConfig().GossipSubTopic,
+	})
 	require.NoError(t, err)
 
 	daemonDone := make(chan struct{})

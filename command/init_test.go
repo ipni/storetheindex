@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/ipni/storetheindex/config"
@@ -16,7 +15,7 @@ func TestInit(t *testing.T) {
 	defer cancel()
 
 	tempDir := t.TempDir()
-	os.Setenv(config.EnvDir, tempDir)
+	t.Setenv(config.EnvDir, tempDir)
 
 	app := &cli.App{
 		Name: "indexer",
