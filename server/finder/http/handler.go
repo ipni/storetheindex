@@ -87,7 +87,7 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 		}
 		_ = stats.RecordWithOptions(context.Background(),
 			stats.WithTags(tag.Insert(metrics.Method, "http"), tag.Insert(metrics.Found, fmt.Sprintf("%v", found))),
-			stats.WithMeasurements(measure.M(coremetrics.MsecSince(startTime))))
+			stats.WithMeasurements(measure.M(coremetrics.MsecSince(startTime)/ float64(len(mhs)))))
 	}()
 
 	response, err := h.finderHandler.Find(mhs)
