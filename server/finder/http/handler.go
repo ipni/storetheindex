@@ -79,7 +79,6 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 	startTime := time.Now()
 	var found bool
 	defer func() {
-		msecPerMh := coremetrics.MsecSince(startTime) / float64(len(mhs))
 		var measure *stats.Float64Measure
 		if len(mhs) == 1 {
 			measure = metrics.FindLatency
