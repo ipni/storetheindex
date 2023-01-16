@@ -84,7 +84,7 @@ func (c *DHashClient) decryptFindResponse(ctx context.Context, resp *model.FindR
 
 	// decrypt each value key using the original multihash
 	// then for each decrypted value key fetch provider's addr info
-	for _, encRes := range resp.EncMultihashResults {
+	for _, encRes := range resp.EncryptedMultihashResults {
 		mh, found := unhasher[encRes.Multihash.B58String()]
 		if !found {
 			continue
@@ -93,7 +93,7 @@ func (c *DHashClient) decryptFindResponse(ctx context.Context, resp *model.FindR
 		mhr := model.MultihashResult{
 			Multihash: mh,
 		}
-		for _, evk := range encRes.ValueKeys {
+		for _, evk := range encRes.EncryptedValueKeys {
 			vk, err := dhash.DecryptValueKey(evk, mh)
 			if err != nil {
 				return err
