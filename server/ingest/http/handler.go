@@ -1,6 +1,7 @@
 package httpingestserver
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/server/ingest/handler"
+	"github.com/ipni/storetheindex/version"
 )
 
 type httpHandler struct {
@@ -108,4 +110,12 @@ func (h *httpHandler) announce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// GET /health
+func (h *httpHandler) health(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache")
+	v := version.String()
+	b, _ := json.Marshal(v)
+	httpserver.WriteJsonResponse(w, http.StatusOK, b)
 }

@@ -47,6 +47,8 @@ func main() {
 			command.ProvidersCmd,
 			command.RegisterCmd,
 			command.SyntheticCmd,
+			command.LoadGenCmd,
+			command.LoadGenVerifyCmd,
 		},
 	}
 
