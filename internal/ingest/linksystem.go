@@ -276,6 +276,15 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		return nil
 	}
 
+	if len(ad.Metadata) == 0 {
+		// If the ad has no metadata and no entries, then the ad is only for
+		// updating provider addresses.
+		if ad.Entries == schema.NoEntries {
+			return nil
+		}
+		return adIngestError{adIngestMalformedErr, fmt.Errorf("advertisement missing metadata")}
+	}
+
 	// If advertisement has no entries, then it is for updating metadata only.
 	if ad.Entries == schema.NoEntries || frozen {
 		// If this is a metadata update only, then ad will not have entries.
