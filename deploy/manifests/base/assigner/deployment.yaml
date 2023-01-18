@@ -8,11 +8,14 @@ spec:
   selector:
     matchLabels:
       app: assigner
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
         app: assigner
     spec:
+      terminationGracePeriodSeconds: 30
       securityContext:
         runAsUser: 10001
         fsGroup: 532
