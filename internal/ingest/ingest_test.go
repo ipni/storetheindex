@@ -1047,7 +1047,7 @@ func TestSyncTooLargeMetadata(t *testing.T) {
 	require.Equal(t, cid.Undef, lcid)
 }
 
-func TestSyncAddrUpdateOnly(t *testing.T) {
+func TestSyncSkipNoMetadata(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
