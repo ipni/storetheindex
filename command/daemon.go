@@ -11,6 +11,7 @@ import (
 
 	pbl "github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
+	"github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipfs/kubo/core/bootstrap"
@@ -85,10 +86,6 @@ func daemonCommand(cctx *cli.Context) error {
 		log.Warn("Configuration file out-of-date. Upgrade by running: ./storetheindex init --upgrade")
 	}
 
-	if cfg.Datastore.Type != "levelds" {
-		return fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Datastore.Type)
-	}
-
 	// Create a valuestore of the configured type.
 	valueStore, minKeyLen, vsDir, err := createValueStore(cctx.Context, cfg.Indexer)
 	if err != nil {
@@ -97,19 +94,14 @@ func daemonCommand(cctx *cli.Context) error {
 	log.Info("Valuestore initialized")
 
 	// Create datastore
-	dataStorePath, err := config.Path("", cfg.Datastore.Dir)
-	if err != nil {
-		return err
-	}
-	err = fsutil.DirWritable(dataStorePath)
-	if err != nil {
-		return err
-	}
-	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
+	dstore, dstoreAds, err := createDatastore(cfg.Datastore)
 	if err != nil {
 		return err
 	}
 	defer dstore.Close()
+	if dstoreAds != nil {
+		defer dstoreAds.Close()
+	}
 
 	if cfg.Indexer.UnfreezeOnStart {
 		unfrozen, err := registry.Unfreeze(cctx.Context, vsDir, cfg.Indexer.FreezeAtPercent, dstore)
@@ -242,7 +234,8 @@ func daemonCommand(cctx *cli.Context) error {
 		}
 
 		// Initialize ingester.
-		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, indexCounts)
+		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore,
+			ingest.WithAdsDatastore(dstoreAds), ingest.WithIndexCounts(indexCounts))
 		if err != nil {
 			return err
 		}
@@ -720,4 +713,43 @@ func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p
 	}
 
 	return peeringService, nil
+}
+
+func createDatastore(cfg config.Datastore) (datastore.Batching, datastore.Batching, error) {
+	if cfg.Type != "levelds" {
+		return nil, nil, fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Type)
+	}
+	dataStorePath, err := config.Path("", cfg.Dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = fsutil.DirWritable(dataStorePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	if cfg.DirAdvertisements == "" || cfg.DirAdvertisements == cfg.Dir {
+		return dstore, nil, nil
+	}
+
+	dsAdsPath, err := config.Path("", cfg.DirAdvertisements)
+	if err != nil {
+		dstore.Close()
+		return nil, nil, err
+	}
+	err = fsutil.DirWritable(dsAdsPath)
+	if err != nil {
+		dstore.Close()
+		return nil, nil, err
+	}
+	dstoreAds, err := leveldb.NewDatastore(dsAdsPath, nil)
+	if err != nil {
+		dstore.Close()
+		return nil, nil, err
+	}
+
+	return dstore, dstoreAds, nil
 }

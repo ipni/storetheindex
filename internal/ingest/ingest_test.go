@@ -330,7 +330,7 @@ func TestRestartDuringSync(t *testing.T) {
 	// Now we bring up the ingester again.
 	ingesterHost := mkTestHost(libp2p.Identity(te.ingesterPriv))
 	connectHosts(t, te.pubHost, ingesterHost)
-	ingester, err := NewIngester(defaultTestIngestConfig, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds, nil)
+	ingester, err := NewIngester(defaultTestIngestConfig, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ingester.Close()
@@ -1314,7 +1314,7 @@ func TestRateLimitConfig(t *testing.T) {
 	h := mkTestHost()
 
 	cfg := defaultTestIngestConfig
-	ingester, err := NewIngester(cfg, h, core, reg, store, nil)
+	ingester, err := NewIngester(cfg, h, core, reg, store)
 	require.NoError(t, err)
 	limiter := ingester.getRateLimiter(pubHost.ID())
 	require.NotNil(t, limiter)
@@ -1322,7 +1322,7 @@ func TestRateLimitConfig(t *testing.T) {
 	ingester.Close()
 
 	cfg.RateLimit.Apply = false
-	ingester, err = NewIngester(cfg, h, core, reg, store, nil)
+	ingester, err = NewIngester(cfg, h, core, reg, store)
 	require.NoError(t, err)
 	limiter = ingester.getRateLimiter(pubHost.ID())
 	require.NotNil(t, limiter)
@@ -1331,7 +1331,7 @@ func TestRateLimitConfig(t *testing.T) {
 
 	cfg.RateLimit.Apply = true
 	cfg.RateLimit.BlocksPerSecond = 0
-	ingester, err = NewIngester(cfg, h, core, reg, store, nil)
+	ingester, err = NewIngester(cfg, h, core, reg, store)
 	require.NoError(t, err)
 	limiter = ingester.getRateLimiter(pubHost.ID())
 	require.NotNil(t, limiter)
@@ -1579,7 +1579,7 @@ func mkIngestWithConfig(t *testing.T, h host.Host, cfg config.Ingest) (*Ingester
 	reg := mkRegistry(t)
 	core := mkIndexer(t, true)
 	indexCounts := counter.NewIndexCounts(store)
-	ing, err := NewIngester(cfg, h, core, reg, store, indexCounts)
+	ing, err := NewIngester(cfg, h, core, reg, store, WithIndexCounts(indexCounts))
 	require.NoError(t, err)
 	return ing, core, reg, indexCounts
 }

@@ -41,6 +41,9 @@ type Ingest struct {
 	// IngestWorkerCount sets how many ingest worker goroutines to spawn. This
 	// controls how many concurrent ingest from different providers we can handle.
 	IngestWorkerCount int
+	// KeepAdvertisements, when true, prevents advertisements from being
+	// deleted after they are ingested.
+	KeepAdvertisements bool
 	// MinimumKeyLengt causes any multihash, that has a digest length less than
 	// this, to be ignored. If using storethehash, this value is automatically
 	// set to 4 if it was configured to be anything less.

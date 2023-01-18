@@ -86,7 +86,7 @@ func init() {
 		panic(err)
 	}
 	ds := dssync.MutexWrap(datastore.NewMapDatastore())
-	ing, err := ingest.NewIngester(config.NewIngest(), host, idx, reg, ds, nil)
+	ing, err := ingest.NewIngester(config.NewIngest(), host, idx, reg, ds)
 	if err != nil {
 		panic(err)
 	}
