@@ -8,4 +8,4 @@ resources:
 images:
 - name: storetheindex
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
-  newTag: 20230118131811-68223393bdbc269aad5b31c470eba6fabb406885 # {"$imagepolicy": "storetheindex:storetheindex:tag"}
+  newTag: 20230118173749-42f249c09a0ef2d064c96e37a49dbe1495d8b752 # {"$imagepolicy": "storetheindex:storetheindex:tag"}
