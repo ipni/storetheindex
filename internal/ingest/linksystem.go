@@ -365,7 +365,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		}
 		defer func() {
 			for _, c := range hamtCids {
-				err := ing.ds.Delete(ctx, datastore.NewKey(c.String()))
+				err := ing.dsAds.Delete(ctx, datastore.NewKey(c.String()))
 				if err != nil {
 					log.Errorw("Error deleting HAMT cid from datastore", "cid", c, "err", err)
 				}
@@ -533,7 +533,7 @@ func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertiseme
 		// has finished. This prevents storing redundant information in several
 		// datastores.
 		entryChunkKey := datastore.NewKey(entryChunkCid.String())
-		err := ing.ds.Delete(ctx, entryChunkKey)
+		err := ing.dsAds.Delete(ctx, entryChunkKey)
 		if err != nil {
 			log.Errorw("Error deleting index from datastore", "err", err)
 		}
@@ -645,7 +645,7 @@ func (ing *Ingester) loadHamt(c cid.Cid) (*hamt.Node, error) {
 
 func (ing *Ingester) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Node, error) {
 	key := datastore.NewKey(c.String())
-	val, err := ing.ds.Get(context.Background(), key)
+	val, err := ing.dsAds.Get(context.Background(), key)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch the node from datastore: %w", err)
 	}

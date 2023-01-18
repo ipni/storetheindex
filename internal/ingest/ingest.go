@@ -88,6 +88,7 @@ type workerAssignment struct {
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
+	dsAds   datastore.Batching
 	lsys    ipld.LinkSystem
 	indexer indexer.Interface
 
@@ -147,15 +148,25 @@ type Ingester struct {
 	minKeyLen int
 
 	indexCounts *counter.IndexCounts
+	keepAds     bool
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
 // communication with providers.
-func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching, idxCounts *counter.IndexCounts) (*Ingester, error) {
+func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching, options ...Option) (*Ingester, error) {
+	opts, err := getOpts(options)
+	if err != nil {
+		return nil, err
+	}
+	if opts.dsAds == nil {
+		opts.dsAds = ds
+	}
+
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
-		lsys:        mkLinkSystem(ds, reg),
+		dsAds:       opts.dsAds,
+		lsys:        mkLinkSystem(opts.dsAds, reg),
 		indexer:     idxr,
 		batchSize:   uint32(cfg.StoreBatchSize),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
@@ -172,10 +183,10 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		minKeyLen: cfg.MinimumKeyLength,
 
-		indexCounts: idxCounts,
+		indexCounts: opts.idxCounts,
+		keepAds:     cfg.KeepAdvertisements,
 	}
 
-	var err error
 	ing.rateApply, ing.rateBurst, ing.rateLimit, err = configRateLimit(cfg.RateLimit)
 	if err != nil {
 		log.Error(err.Error())
@@ -591,11 +602,14 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen bo
 	if err != nil {
 		return err
 	}
-	// This ad is processed, so remove it from the datastore.
-	err = ing.ds.Delete(ctx, datastore.NewKey(cidStr))
-	if err != nil {
-		// Log the error, but do not return. Continue on to save the procesed ad.
-		log.Errorw("Cannot remove advertisement from datastore", "err", err)
+
+	if !ing.keepAds || frozen {
+		// This ad is processed, so remove it from the datastore.
+		err = ing.dsAds.Delete(ctx, datastore.NewKey(cidStr))
+		if err != nil {
+			// Log the error, but do not return. Continue on to save the procesed ad.
+			log.Errorw("Cannot remove advertisement from datastore", "err", err)
+		}
 	}
 
 	return ing.ds.Put(ctx, datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
