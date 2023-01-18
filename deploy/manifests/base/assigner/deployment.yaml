@@ -8,11 +8,15 @@ spec:
   selector:
     matchLabels:
       app: assigner
+  # Terminate previous assigner before rolling out new ones to avoid conflicts between assignments.
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
         app: assigner
     spec:
+      terminationGracePeriodSeconds: 30
       securityContext:
         runAsUser: 10001
         fsGroup: 532
