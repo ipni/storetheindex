@@ -1044,7 +1044,60 @@ func TestSyncTooLargeMetadata(t *testing.T) {
 	if lnk != nil {
 		lcid = lnk.(cidlink.Link).Cid
 	}
-	require.Equal(t, lcid, cid.Undef)
+	require.Equal(t, cid.Undef, lcid)
+}
+
+func TestSyncSkipNoMetadata(t *testing.T) {
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := mkTestHost()
+	pubHost := mkTestHost()
+	i, core, reg, _ := mkIngest(t, h)
+	defer core.Close()
+	defer i.Close()
+	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	defer pub.Close()
+	connectHosts(t, h, pubHost)
+
+	err := dstest.WaitForPublisher(h, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
+	require.NoError(t, err)
+
+	// Test ad that has no entries and no metadata.
+	adCid, _, providerID, _ := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, 0, []byte{})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	endCid, err := i.Sync(ctx, pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+
+	// We receive the CID that we synced.
+	require.Equal(t, adCid, endCid)
+	lcid := cid.Undef
+
+	// Check that subscriber recorded latest sync.
+	lnk := i.sub.GetLatestSync(pubHost.ID())
+	if lnk != nil {
+		lcid = lnk.(cidlink.Link).Cid
+	}
+	require.Equal(t, adCid, lcid)
+
+	pInfo, found := reg.ProviderInfo(providerID)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, adCid, pInfo.LastAdvertisement)
+
+	// Test ad that has entries and no metadata.
+	adCid, _, providerID, _ = publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, 10, []byte{})
+	endCid, err = i.Sync(ctx, pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+	require.Equal(t, adCid, endCid)
+
+	// Even though the ad was malformed, processing it completed and indexer
+	// can continue processing later ads in the chain. Check that the ad was
+	// processed.
+	pInfo, found = reg.ProviderInfo(providerID)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, adCid, pInfo.LastAdvertisement)
 }
 
 func TestReSyncWithDepth(t *testing.T) {
@@ -1628,20 +1681,24 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub dagsync.Pub
 		metadata = []byte("test-metadata")
 	}
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
-	mhsLnk, mhs := newRandomLinkedList(t, lsys, eChunkCount)
 
 	adv := &schema.Advertisement{
 		Provider:  p.String(),
 		Addresses: addrs,
-		Entries:   mhsLnk,
 		ContextID: ctxID,
 		Metadata:  metadata,
 	}
+	var mhs []multihash.Multihash
+	if eChunkCount == 0 {
+		adv.Entries = schema.NoEntries
+	} else {
+		adv.Entries, mhs = newRandomLinkedList(t, lsys, eChunkCount)
+	}
+
 	if !fakeSig {
 		err := adv.Sign(priv)
 		require.NoError(t, err)
 	}
-
 	node, err := adv.ToNode()
 	require.NoError(t, err)
 	advLnk, err := lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
