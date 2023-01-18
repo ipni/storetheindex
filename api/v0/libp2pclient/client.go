@@ -140,11 +140,7 @@ func (c *Client) Close() error {
 	}
 
 	if c.ownHost {
-		rm := c.host.Network().ResourceManager()
 		if err = c.host.Close(); err != nil {
-			return err
-		}
-		if err = rm.Close(); err != nil {
 			return err
 		}
 	}
