@@ -57,13 +57,6 @@ func QueryRootCid(ctx context.Context, host host.Host, topic string, peerID peer
 	client := http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				addrInfo := peer.AddrInfo{
-					ID: peerID,
-				}
-				err := host.Connect(ctx, addrInfo)
-				if err != nil {
-					return nil, err
-				}
 				conn, err := gostream.Dial(ctx, host, peerID, deriveProtocolID(topic))
 				if err != nil {
 					// If protocol ID is wrong, then try the old "double-slashed" protocol ID.
