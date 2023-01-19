@@ -17,6 +17,7 @@ spec:
             # TLS handshake overhead.
             - '--backends=http://ber-indexer:3000/'
             - '--backends=http://cali-indexer:3000/'
+            - '--backends=http://dhstore.internal.dev.cid.contact/'
           resources:
             limits:
               cpu: "3"
