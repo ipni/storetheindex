@@ -5,6 +5,7 @@ resources:
 - assigner
 - instances
 - indexstar
+- dhstore
 images:
 - name: storetheindex
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
