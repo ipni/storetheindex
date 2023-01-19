@@ -398,16 +398,21 @@ func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, 
 		ScopedSegmentDepthLimit(s.segDepthLimit)}
 	opts := getSyncOpts(append(defaultOptions, options...))
 
+	var peerAddrs []multiaddr.Multiaddr
+	if peerAddr != nil {
+		transport, pid := peer.SplitAddr(peerAddr)
+		peerAddrs = []multiaddr.Multiaddr{transport}
+		if peerID == "" {
+			peerID = pid
+		}
+	}
+
 	if peerID == "" {
 		return cid.Undef, errors.New("empty peer id")
 	}
 
 	log := log.With("peer", peerID)
 
-	var peerAddrs []multiaddr.Multiaddr
-	if peerAddr != nil {
-		peerAddrs = []multiaddr.Multiaddr{peerAddr}
-	}
 	syncer, isHttp, err := s.makeSyncer(peerID, peerAddrs, tempAddrTTL, opts.rateLimiter)
 	if err != nil {
 		return cid.Undef, err
