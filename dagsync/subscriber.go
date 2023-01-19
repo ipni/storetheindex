@@ -400,8 +400,9 @@ func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, 
 
 	var peerAddrs []multiaddr.Multiaddr
 	if peerAddr != nil {
-		transport, pid := peer.SplitAddr(peerAddr)
-		peerAddrs = []multiaddr.Multiaddr{transport}
+		var pid peer.ID
+		peerAddr, pid = peer.SplitAddr(peerAddr)
+		peerAddrs = []multiaddr.Multiaddr{peerAddr}
 		if peerID == "" {
 			peerID = pid
 		}
