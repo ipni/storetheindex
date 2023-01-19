@@ -8,9 +8,6 @@ spec:
   selector:
     matchLabels:
       app: assigner
-  # Terminate previous assigner before rolling out new ones to avoid conflicts between assignments.
-  strategy:
-    type: Recreate
   template:
     metadata:
       labels:
