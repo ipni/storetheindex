@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dhstore
+spec:
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+      containers:
+        - name: dhstore
+          args:
+            - '--storePath=/data'
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            limits:
+              cpu: "3"
+              memory: 10Gi
+            requests:
+              cpu: "3"
+              memory: 10Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: dhstore-data
