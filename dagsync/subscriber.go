@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -406,7 +407,7 @@ func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, 
 
 	var peerAddrs []multiaddr.Multiaddr
 	if peerAddr != nil {
-		peerAddrs = []multiaddr.Multiaddr{peerAddr}
+		peerAddrs = []multiaddr.Multiaddr{rmPeerIDFromMultiaddr(peerAddr)}
 	}
 	syncer, isHttp, err := s.makeSyncer(peerID, peerAddrs, tempAddrTTL, opts.rateLimiter)
 	if err != nil {
@@ -659,6 +660,27 @@ func firstHTTPAddr(peerAddrs []multiaddr.Multiaddr) multiaddr.Multiaddr {
 		}
 	}
 	return nil
+}
+
+func rmPeerIDFromMultiaddr(addr multiaddr.Multiaddr) multiaddr.Multiaddr {
+	if addr == nil {
+		return nil
+	}
+	for _, p := range addr.Protocols() {
+		if p.Code == multiaddr.P_P2P {
+			addrStr := addr.String()
+			p2pIdx := strings.Index(addrStr, "/p2p/")
+			if p2pIdx != -1 {
+				newAddr, err := multiaddr.NewMultiaddr(addrStr[:p2pIdx])
+				if err != nil {
+					log.Errorw("Could not remove p2p ID from multiaddr", "err", err)
+					return addr
+				}
+				return newAddr
+			}
+		}
+	}
+	return addr
 }
 
 // handleAsync starts a goroutine to process the latest announce message
