@@ -8,6 +8,14 @@ spec:
   selector:
     matchLabels:
       app: assigner
+  # Terminate previous assigner before rolling out new ones to avoid conflicts between assignments.
+  strategy:
+    type: Recreate
+    # Explicitly override the default rolling update configuration. Otherwise, the manifest will be 
+    # invalid when strategy.type is set to Recreate.
+    # See:
+    #  - https://github.com/kubernetes/kubernetes/issues/24198
+    rollingUpdate: null
   template:
     metadata:
       labels:
