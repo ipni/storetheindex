@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexer
+spec:
+  template:
+    spec:
+      terminationGracePeriodSeconds: 600
+      containers:
+        - name: indexer
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: addata
+              mountPath: /addata
+          resources:
+            limits:
+              cpu: "3"
+              memory: 10Gi
+            requests:
+              cpu: "3"
+              memory: 10Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ago-data
+        - name: addata
+          persistentVolumeClaim:
+            claimName: ago-addata
+

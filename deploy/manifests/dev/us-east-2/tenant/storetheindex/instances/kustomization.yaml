@@ -8,3 +8,4 @@ resources:
   - pod-monitor.yaml
   - ber
   - cali
+  - ago
