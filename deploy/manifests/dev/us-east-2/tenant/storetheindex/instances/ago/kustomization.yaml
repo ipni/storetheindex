@@ -29,3 +29,7 @@ patchesStrategicMerge:
   - deployment.yaml
   - pvc_data.yaml
 
+images:
+  - name: storetheindex
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+    newTag: 20230120104254-ce3bb6c48f9e431c634d2eeb722d465328f9be77
