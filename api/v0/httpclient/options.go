@@ -9,8 +9,9 @@ import (
 const defaultTimeout = time.Minute
 
 type config struct {
-	timeout time.Duration
-	client  *http.Client
+	timeout         time.Duration
+	client          *http.Client
+	defaultMetadata []byte
 }
 
 // Option is a function that sets a value in a config.
@@ -42,6 +43,14 @@ func WithTimeout(timeout time.Duration) Option {
 func WithClient(c *http.Client) Option {
 	return func(cfg *config) error {
 		cfg.client = c
+		return nil
+	}
+}
+
+// WithDefaultMetadata defines metadata to use if one has not been found for a lookup request.
+func WithDefaultMetadata(metadata []byte) Option {
+	return func(cfg *config) error {
+		cfg.defaultMetadata = metadata
 		return nil
 	}
 }

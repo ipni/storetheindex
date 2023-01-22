@@ -16,15 +16,21 @@ import (
 )
 
 const (
-	metadataPath = "/metadata"
+	metadataPath = "metadata"
 )
 
 type DHashClient struct {
 	Client
 
 	metadataUrl string
+	// defaultMetadata defines the metadata to use if one can't be found for some multihashes.
+	// Metadata might be missing for IPFS multihashes as they assume bitswap protocol by default.
+	// If defaultMetadata is not set - 404 errors to metadata lookups will result into error.
+	defaultMetadata []byte
 }
 
+// NewDHashClient instantiates a new client that uses Reader Privacy API for querying data.
+// It requires more roundtrips to fullfill one query however it also protects the user from a passive observer.
 func NewDHashClient(baseURL string, options ...httpclient.Option) (*DHashClient, error) {
 	c, err := New(baseURL, options...)
 	if err != nil {
@@ -72,7 +78,10 @@ func (c *DHashClient) Find(ctx context.Context, mh multihash.Multihash) (*model.
 		return nil, err
 	}
 
-	c.decryptFindResponse(ctx, findResponse, map[string]multihash.Multihash{smh.B58String(): mh})
+	err = c.decryptFindResponse(ctx, findResponse, map[string]multihash.Multihash{smh.B58String(): mh})
+	if err != nil {
+		return nil, err
+	}
 
 	return findResponse, nil
 }
@@ -153,9 +162,13 @@ func (c *DHashClient) fetchMetadata(ctx context.Context, vk []byte) ([]byte, err
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, httpclient.ReadError(resp.StatusCode, body)
+	if resp.StatusCode == http.StatusOK {
+		return dhash.DecryptMetadata(body, vk)
 	}
 
-	return dhash.DecryptMetadata(body, vk)
+	if resp.StatusCode == http.StatusNotFound && c.defaultMetadata != nil {
+		return c.defaultMetadata, nil
+	}
+
+	return nil, httpclient.ReadError(resp.StatusCode, body)
 }
