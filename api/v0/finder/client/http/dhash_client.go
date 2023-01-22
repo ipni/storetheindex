@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/ipni/dhstore"
 	"github.com/ipni/go-indexer-core/store/dhash"
 	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/ipni/storetheindex/api/v0/httpclient"
@@ -25,6 +26,8 @@ type DHashClient struct {
 	metadataUrl string
 }
 
+// NewDHashClient instantiates a new client that uses Reader Privacy API for querying data.
+// It requires more roundtrips to fullfill one query however it also protects the user from a passive observer.
 func NewDHashClient(baseURL string, options ...httpclient.Option) (*DHashClient, error) {
 	c, err := New(baseURL, options...)
 	if err != nil {
@@ -72,7 +75,10 @@ func (c *DHashClient) Find(ctx context.Context, mh multihash.Multihash) (*model.
 		return nil, err
 	}
 
-	c.decryptFindResponse(ctx, findResponse, map[string]multihash.Multihash{smh.B58String(): mh})
+	err = c.decryptFindResponse(ctx, findResponse, map[string]multihash.Multihash{smh.B58String(): mh})
+	if err != nil {
+		return nil, err
+	}
 
 	return findResponse, nil
 }
@@ -109,7 +115,7 @@ func (c *DHashClient) decryptFindResponse(ctx context.Context, resp *model.FindR
 			if pinfo == nil {
 				pinfo, err = c.GetProvider(ctx, pid)
 				if err != nil {
-					continue
+					return err
 				}
 				pinfoCache[pid] = pinfo
 			}
@@ -117,7 +123,7 @@ func (c *DHashClient) decryptFindResponse(ctx context.Context, resp *model.FindR
 			// fetch metadata
 			metadata, err := c.fetchMetadata(ctx, vk)
 			if err != nil {
-				continue
+				return err
 			}
 
 			mhr.ProviderResults = append(mhr.ProviderResults, model.ProviderResult{
@@ -157,5 +163,12 @@ func (c *DHashClient) fetchMetadata(ctx context.Context, vk []byte) ([]byte, err
 		return nil, httpclient.ReadError(resp.StatusCode, body)
 	}
 
-	return dhash.DecryptMetadata(body, vk)
+	findResponse := &dhstore.GetMetadataResponse{}
+	err = json.Unmarshal(body, findResponse)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return dhash.DecryptMetadata(findResponse.EncryptedMetadata, vk)
 }
