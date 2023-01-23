@@ -19,6 +19,11 @@ spec:
             - '--backends=http://cali-indexer:3000/'
             - '--backends=http://ago-indexer:3000/'
             - '--backends=http://dhstore.internal.dev.cid.contact/'
+          env:
+            # Increase maximum accepted request body to 1 MiB in order to allow batch finds requests
+            # by the `provider verify-ingest` CLI command. 
+            - name: SERVER_MAX_REQUEST_BODY_SIZE
+              value: '1048576'
           resources:
             limits:
               cpu: "3"

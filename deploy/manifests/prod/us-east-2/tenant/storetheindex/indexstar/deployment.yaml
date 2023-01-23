@@ -18,6 +18,11 @@ spec:
             - '--backends=http://dido-indexer:3000/'
             - '--backends=http://oden-indexer:3000/'
             - '--backends=http://kepa-indexer:3000/'
+          env:
+            # Increase maximum accepted request body to 1 MiB in order to allow batch finds requests
+            # by the `provider verify-ingest` CLI command. 
+            - name: SERVER_MAX_REQUEST_BODY_SIZE
+              value: '1048576' 
           resources:
             limits:
               cpu: "3"
