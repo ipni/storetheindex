@@ -22,12 +22,12 @@ module "eks" {
 
   eks_managed_node_groups = {
     # Node group used by double hashing indexer nodes
-    dev-ue2b-r6a-xl = {
+    dev-ue2a-r6a-xl = {
       min_size       = 0
       max_size       = 3
       desired_size   = 1
       instance_types = ["r6a.xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2b1.id]
+      subnet_ids     = [data.aws_subnet.ue2a2.id]
     }
     dev-ue2-m4-xl-2 = {
       min_size       = 3
