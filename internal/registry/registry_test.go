@@ -110,7 +110,7 @@ func TestNewRegistryDiscovery(t *testing.T) {
 		Addrs: []multiaddr.Multiaddr{pubAddr},
 	}
 
-	err = r.Update(ctx, provider, publisher, cid.Undef, nil)
+	err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
 	require.NoError(t, err)
 
 	r.Close()
@@ -153,7 +153,7 @@ func TestDiscoveryAllowed(t *testing.T) {
 	}
 	publisher := peer.AddrInfo{}
 
-	err = r.Update(ctx, provider, publisher, cid.Undef, nil)
+	err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
 	require.NoError(t, err)
 
 	require.True(t, r.IsRegistered(peerID), "peer is not registered")
@@ -264,13 +264,13 @@ func TestDatastore(t *testing.T) {
 	require.NoError(t, err)
 	t.Log("created new registry with datastore")
 
-	err = r.Update(ctx, provider1, peer.AddrInfo{}, cid.Undef, nil)
+	err = r.Update(ctx, provider1, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err)
 
 	mh, err := multihash.Sum([]byte("somedata"), multihash.SHA2_256, -1)
 	require.NoError(t, err)
 	adCid := cid.NewCidV1(cid.Raw, mh)
-	err = r.Update(ctx, provider2, publisher, adCid, extProviders)
+	err = r.Update(ctx, provider2, publisher, adCid, extProviders, 0)
 	require.NoError(t, err)
 
 	pinfo, allowed := r.ProviderInfo(provID1)
@@ -392,7 +392,7 @@ func TestAllowed(t *testing.T) {
 		Addrs: []multiaddr.Multiaddr{pubAddr},
 	}
 
-	err = r.Update(ctx, provider, publisher, cid.Undef, nil)
+	err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
 	require.NoError(t, err)
 
 	// Check that provider is allowed.
@@ -475,7 +475,7 @@ func TestPollProvider(t *testing.T) {
 	pub := peer.AddrInfo{
 		ID: pubID,
 	}
-	err = r.Update(ctx, prov, pub, cid.Undef, nil)
+	err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
 	require.NoError(t, err)
 
 	poll := polling{
@@ -583,7 +583,7 @@ func TestPollProviderOverrides(t *testing.T) {
 	pub := peer.AddrInfo{
 		ID: pubID,
 	}
-	err = r.Update(ctx, prov, pub, cid.Undef, nil)
+	err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
 	if err != nil {
 		t.Fatal("failed to register directly:", err)
 	}
@@ -663,14 +663,14 @@ func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 		ID:    provId,
 		Addrs: []multiaddr.Multiaddr{ma},
 	}
-	err = subject.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil)
+	err = subject.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err)
 
 	// Assert that updating publisher for the registered provider with empty addrs does not panic.
 	mh, err := multihash.Sum([]byte("fish"), multihash.SHA2_256, -1)
 	require.NoError(t, err)
 	c := cid.NewCidV1(cid.Raw, mh)
-	err = subject.Update(ctx, provider, peer.AddrInfo{ID: publisherID}, c, nil)
+	err = subject.Update(ctx, provider, peer.AddrInfo{ID: publisherID}, c, nil, 0)
 	require.NoError(t, err)
 
 	info, _ := subject.ProviderInfo(provId)
@@ -679,7 +679,7 @@ func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 
 	// Register a publisher that has no addresses, but publisherID is same as
 	// provider. Registry should use provider's address as publisher.
-	err = subject.Update(ctx, provider, peer.AddrInfo{ID: provId}, c, nil)
+	err = subject.Update(ctx, provider, peer.AddrInfo{ID: provId}, c, nil, 0)
 	info, _ = subject.ProviderInfo(provId)
 	require.NoError(t, err)
 	require.NotNil(t, info)
@@ -720,7 +720,7 @@ func TestFilterIPs(t *testing.T) {
 		ID:    pubID,
 		Addrs: []multiaddr.Multiaddr{maddrPvt, pubAddr, maddrLocal},
 	}
-	err = reg.Update(ctx, provider, publisher, cid.Undef, nil)
+	err = reg.Update(ctx, provider, publisher, cid.Undef, nil, 0)
 	require.NoError(t, err)
 	reg.Close()
 
@@ -741,7 +741,7 @@ func TestFilterIPs(t *testing.T) {
 	require.Nil(t, pinfo.PublisherAddr)
 
 	// Check the Update filters IPs.
-	err = reg.Update(ctx, provider, publisher, cid.Undef, nil)
+	err = reg.Update(ctx, provider, publisher, cid.Undef, nil, 0)
 	require.NoError(t, err)
 	pinfo, _ = reg.ProviderInfo(provID)
 	require.NotNil(t, pinfo)
@@ -754,7 +754,7 @@ func TestFilterIPs(t *testing.T) {
 		Addrs: []multiaddr.Multiaddr{maddrPvt, pubAddr, maddrLocal},
 	}
 	// Check the Register filters IPs.
-	err = reg.Update(ctx, provider2, peer.AddrInfo{}, cid.Undef, nil)
+	err = reg.Update(ctx, provider2, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err)
 	pinfo, _ = reg.ProviderInfo(pubID)
 	require.NotNil(t, pinfo)
@@ -812,7 +812,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 	require.NoError(t, err)
 	adCid := cid.NewCidV1(cid.Raw, mh)
 
-	err = r.Update(ctx, prov, pub, adCid, nil)
+	err = r.Update(ctx, prov, pub, adCid, nil, 0)
 	require.NoError(t, err)
 
 	require.False(t, r.Frozen())
@@ -849,7 +849,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 	require.NoError(t, err)
 	adCid2 := cid.NewCidV1(cid.Raw, mh)
 
-	err = r.Update(ctx, prov2, pub2, adCid2, nil)
+	err = r.Update(ctx, prov2, pub2, adCid2, nil, 0)
 	require.ErrorIs(t, err, ErrFrozen)
 
 	// Stop and restart registry and check providers are still frozen.

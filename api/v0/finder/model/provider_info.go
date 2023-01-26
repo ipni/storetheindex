@@ -11,6 +11,7 @@ type ProviderInfo struct {
 	AddrInfo              peer.AddrInfo
 	LastAdvertisement     cid.Cid            `json:",omitempty"`
 	LastAdvertisementTime string             `json:",omitempty"`
+	Lag                   int                `json:",omitempty"`
 	Publisher             *peer.AddrInfo     `json:",omitempty"`
 	IndexCount            uint64             `json:",omitempty"`
 	ExtendedProviders     *ExtendedProviders `json:",omitempty"`

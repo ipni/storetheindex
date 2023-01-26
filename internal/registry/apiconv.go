@@ -18,6 +18,7 @@ func RegToApiProviderInfo(pi *ProviderInfo, indexCount uint64, withExtMetadata b
 	apiPI := &model.ProviderInfo{
 		AddrInfo:   pi.AddrInfo,
 		IndexCount: indexCount,
+		Lag:        pi.Lag,
 	}
 	if pi.LastAdvertisement != cid.Undef {
 		apiPI.LastAdvertisement = pi.LastAdvertisement
