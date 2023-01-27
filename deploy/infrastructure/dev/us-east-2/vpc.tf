@@ -106,3 +106,20 @@ data "aws_subnet" "ue2c1" {
     values = ["20.10.3.0/24"]
   }
 }
+
+data "aws_subnet" "ue2c2" {
+  vpc_id = module.vpc.vpc_id
+
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-2c"]
+  }
+  filter {
+    name   = "subnet-id"
+    values = module.vpc.private_subnets
+  }
+  filter {
+    name   = "cidr-block"
+    values = ["20.10.6.0/24"]
+  }
+}
