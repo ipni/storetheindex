@@ -45,6 +45,7 @@ config file at runtime.
     "Type": "levelds"
   },
   "Discovery": {
+    "FilterIPs": false,
     "LotusGateway": "https://api.chain.love",
     "Policy": {
       "Allow": true,
@@ -55,6 +56,7 @@ config file at runtime.
     "PollInterval": "24h0m0s",
     "PollRetryAfter": "5h0m0s",
     "PollStopAfter": "168h0m0s",
+    "DeactivateAfter": "168h0m0s",
     "PollOverrides": [
       {
         "ProviderID": "12D3KooWRYLtcVBtDpBZDt5zkAVFceEHyozoQxr4giccF7fquHR2",
@@ -64,7 +66,9 @@ config file at runtime.
       }
     ],
     "RediscoverWait": "5m0s",
-    "Timeout": "2m0s"
+    "Timeout": "2m0s",
+    "RemoveOldAssignments": false,
+    "UseAssigner": false
   },
   "Finder": {
     "ApiReadTimeout": "30s",
@@ -77,6 +81,7 @@ config file at runtime.
     "ConfigCheckInterval": "30s",
     "GCInterval": "30m0s",
     "GCTimeLimit": "5m0s",
+    "IndexCountTotalAddend": 0,
     "ShutdownTimeout": "10s",
     "ValueStoreDir": "valuestore",
     "ValueStoreType": "sth",
@@ -84,7 +89,10 @@ config file at runtime.
     "STHBurstRate": 8388608,
     "STHFileCacheSize": 512,
     "STHSyncInterval": "1s",
-    "PebbleDisableWAL": false
+    "PebbleDisableWAL": false,
+    "UnfreezeOnStart": false,
+    "VSNoNewMH": false,
+    "DHStoreURL": ""
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
@@ -94,6 +102,7 @@ config file at runtime.
     "HttpSyncRetryWaitMin": "1s",
     "HttpSyncTimeout": "10s",
     "IngestWorkerCount": 10,
+    "MinimumKeyLength": 0,
     "PubSubTopic": "/indexer/ingest/mainnet",
     "RateLimit": {
       "Apply": false,
@@ -177,6 +186,7 @@ Description: [Discovery](https://pkg.go.dev/github.com/ipni/storetheindex/config
 Default:
 ```json
 "Discovery": {
+  "FilterIPs": false,
   "LotusGateway": "https://api.chain.love",
   "Policy": {},
   "PollInterval": "24h0m0s",
@@ -184,7 +194,9 @@ Default:
   "PollStopAfter": "168h0m0s",
   "PollOverrides": null,
   "RediscoverWait": "5m0s",
-  "Timeout": "2m0s"
+  "Timeout": "2m0s",
+  "RemoveOldAssignments": false,
+  "UseAssigner": false
 }
 ```
 
@@ -229,11 +241,19 @@ Default:
 "Indexer": {
   "CacheSize": 300000,
   "ConfigCheckInterval": "30s",
+  "CorePutConcurrency": 64,
+  "ConfigCheckInterval": "30s",
+  "FreezeAtPercent": 90,
   "GCInterval": "30m0s",
   "GCTimeLimit": "5m0s",
+  "IndexCountTotalAddend": 0,
   "ShutdownTimeout": "10s",
   "ValueStoreDir": "valuestore",
-  "ValueStoreType": "sth"
+  "ValueStoreType": "pebble",
+  "PebbleDisableWAL": false,
+  "UnfreezeOnStart": false,
+  "VSNoNewMH": false,
+  "DHStoreURL": ""
 }
 ```
 
@@ -250,6 +270,8 @@ Default:
   "HttpSyncRetryWaitMin": "1s",
   "HttpSyncTimeout": "10s",
   "IngestWorkerCount": 10,
+  "KeepAdvertisements": false,
+  "MinimumKeyLength": 0,
   "PubSubTopic": "/indexer/ingest/mainnet",
   "RateLimit": {},
   "ResendDirectAnnounce": false,
