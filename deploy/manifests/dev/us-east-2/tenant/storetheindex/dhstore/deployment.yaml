@@ -19,10 +19,23 @@ spec:
           resources:
             limits:
               cpu: "3"
-              memory: 10Gi
+              memory: 20Gi
             requests:
               cpu: "3"
-              memory: 10Gi
+              memory: 20Gi
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.kubernetes.io/instance-type
+                    operator: In
+                    values:
+                      - r6a.xlarge
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - us-east-2c    
       volumes:
         - name: data
           persistentVolumeClaim:
