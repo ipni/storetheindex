@@ -86,6 +86,9 @@ func showProviderInfo(pinfo *model.ProviderInfo) {
 	}
 	fmt.Println("    LastAdvertisement:", adCidStr)
 	fmt.Println("    LastAdvertisementTime:", timeStr)
+	if adCidStr != "" {
+		fmt.Println("    Lag:", pinfo.Lag)
+	}
 	fmt.Println("    Publisher:", pinfo.Publisher.ID)
 	fmt.Println("        Publisher Addrs:", pinfo.Publisher.Addrs)
 	if pinfo.FrozenAt.Defined() {

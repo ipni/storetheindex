@@ -68,7 +68,7 @@ func (h *IngestHandler) RegisterProvider(ctx context.Context, data []byte) error
 	}
 	publisher := peer.AddrInfo{}
 
-	return h.registry.Update(ctx, provider, publisher, cid.Undef, nil)
+	return h.registry.Update(ctx, provider, publisher, cid.Undef, nil, 0)
 }
 
 // IndexContent handles an IngestRequest
@@ -103,7 +103,7 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 	}
 
 	// Register provider if not registered, or update addreses if already registered
-	err = h.registry.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil)
+	err = h.registry.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
 	if err != nil {
 		return err
 	}

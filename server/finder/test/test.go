@@ -126,7 +126,7 @@ func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Finder, rc
 		ID:    p,
 		Addrs: []multiaddr.Multiaddr{a},
 	}
-	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil)
+	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
 	if err != nil {
 		t.Fatal("could not register provider info:", err)
 	}
@@ -166,7 +166,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 		ID:    p,
 		Addrs: []multiaddr.Multiaddr{a},
 	}
-	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil)
+	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
 	if err != nil {
 		t.Fatal("could not register provider info:", err)
 	}
@@ -343,7 +343,7 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 		ID:    p,
 		Addrs: []multiaddr.Multiaddr{a},
 	}
-	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil)
+	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
 	if err != nil {
 		t.Fatal("could not register provider info:", err)
 	}
@@ -459,7 +459,7 @@ func Register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID
 		},
 	}
 
-	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, extProviders)
+	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, extProviders, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

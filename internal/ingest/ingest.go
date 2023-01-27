@@ -1075,13 +1075,15 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			entsCid = ai.ad.Entries.(cidlink.Link).Cid.String()
 		}
 
+		lag := splitAtIndex - count
 		log.Infow("Processing advertisement",
 			"adCid", ai.cid,
 			"entriesCid", entsCid,
 			"publisher", assignment.publisher,
-			"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
+			"progress", fmt.Sprintf("%d of %d", count, splitAtIndex),
+			"lag", lag)
 
-		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad, ai.resync, frozen)
+		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad, ai.resync, frozen, lag)
 		if err == nil {
 			// No error at all, this ad was processed successfully.
 			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))

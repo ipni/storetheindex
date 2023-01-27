@@ -83,6 +83,9 @@ type ProviderInfo struct {
 	LastAdvertisement cid.Cid `json:",omitempty"`
 	// LastAdvertisementTime is the time the latest advertisement was received.
 	LastAdvertisementTime time.Time
+	// Lag is how far the indexer is behing in processing the ad chain.
+	Lag int `json:",omitempty"`
+
 	// Publisher contains the ID of the provider info publisher.
 	Publisher peer.ID `json:",omitempty"`
 	// PublisherAddr contains the last seen publisher multiaddr.
@@ -612,7 +615,7 @@ func (r *Registry) FilterIPsEnabled() bool {
 // Update attempts to update the registry's provider information. If publisher
 // has a valid ID, then the supplied publisher data replaces the provider's
 // previous publisher information.
-func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo, adCid cid.Cid, extendedProviders *ExtendedProviders) error {
+func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo, adCid cid.Cid, extendedProviders *ExtendedProviders, lag int) error {
 	// Do not accept update if provider is not allowed.
 	if !r.policy.Allowed(provider.ID) {
 		return ErrNotAllowed
@@ -703,6 +706,7 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 	if adCid != info.LastAdvertisement && adCid != cid.Undef {
 		info.LastAdvertisement = adCid
 		info.LastAdvertisementTime = now
+		info.Lag = lag
 	}
 	info.lastContactTime = now
 

@@ -254,6 +254,10 @@ func TestFailDuringResync(t *testing.T) {
 	// We still have the mhs from the head ad.
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs[1:])
 
+	pinfo, ok := te.reg.ProviderInfo(te.pubHost.ID())
+	require.True(t, ok)
+	require.Equal(t, 1, pinfo.Lag)
+
 	latestSync, err := te.ingester.GetLatestSync(te.pubHost.ID())
 	require.NoError(t, err)
 	require.Equal(t, adHead.(cidlink.Link).Cid, latestSync)

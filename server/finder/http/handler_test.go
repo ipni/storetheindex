@@ -57,7 +57,7 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 		Addrs: []multiaddr.Multiaddr{a},
 	}
 
-	err = reg.Update(context.Background(), provider, peer.AddrInfo{}, cid.Undef, nil)
+	err = reg.Update(context.Background(), provider, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err)
 
 	tests := []struct {
