@@ -8,7 +8,7 @@ The majority of indexing work is currently dominated by ingesting index data. Th
 
 - Must be able to add indexers at anytime to increase overall indexing capacity.
 - Any indexer node must gracefully hand-over work when it reaches capacity, even from a single data source.
-- Must be able to have data redundancy within indexer pool, to tolerate loss of node(s).
+- Must support optional data redundancy within indexer pool, to tolerate loss of node(s).
 - Must be able to send queries to all indexers and merge results into single response.
 
 ## Approach Overview: A Simple Strategy to Handle Index Ingestion
@@ -60,9 +60,9 @@ Indexing data is not sharded by provider, because knowing the provider requires 
 
 The Assigner Service (AS) is responsible for assigning publishers to the indexers in its configured pool of indexers. The AS runs as a single instance, for a pool of indexers, on the same network as the indexers it manages assignments for. An indexer may only be a member of one Assigner’s indexer pool.
 
-In addition to assigning new publishers to indexers, the AS also detects when indexers have gone into “frozen” mode, and is responsible for re-assigning the publishers from a frozen indexer to non-frozen indexers. The AS also republishes direct HTTP announcements over gossip pubsub, so that all indexers in the pool can receive them.
+In addition to assigning new publishers to indexers, the AS also detects when indexers have gone into “frozen” mode, and the AS is responsible for re-assigning the publishers from a frozen indexer to non-frozen indexers. The AS also republishes direct HTTP announcements over gossip pubsub, so that all indexers in the pool can receive them.
 
-The AS is intended for use within a single private deployment due to a number of assumptions: that assignments can be made to any indexer, that the admin API of all indexers is on a private network or similarly protected, and that there is no established means or protocol for different parties to manage nodes being adding to or removing from the pool.
+The AS is intended for use within a single private deployment due to a number of assumptions: that assignments can be made to any indexer, that the admin API of all indexers is on a private network or similarly protected, and that there is no established means or protocol for different parties to manage nodes being added to or removed from the pool.
 
 ### Assigning a Publisher to an Indexer
 
@@ -70,10 +70,10 @@ An AS listens for gossip-sub and direct HTTP messages announcing the availabilit
 
 1. Determines if the publisher is already assigned to the requires indexers, if not…
 2. Selects candidate indexers (not already assigned the publisher, not in frozen mode) from its pool of indexers
-3. Orders these candidates to prefer those with fewest assignments
-4. Assigns the publisher to candidate indexer.
+3. Orders these candidates to prefer those with the fewest assignments
+4. Assigns the publisher to a candidate indexer.
 5. Gets response from assigned indexer to confirm or reject assignment.
-6. May be assigned to multiple indexers depending on replication configuration. Assigning the publisher to candidate indexrs continues until the require number of assignments made, or until there are no more indexers that the publisher can be assigned to.
+6. May be assigned to multiple indexers depending on replication configuration. Assigning the publisher to candidate indexrs continues until the required number of assignments made, or until there are no more indexers that the publisher can be assigned to.
 
 After assignment, a sync with the new publishers is started on the assigned indexers, and the indexers receive announcements from these publishers and handle ingestion themselves.
 
@@ -87,7 +87,7 @@ The AS does not persist any information about publisher assignments or indexer s
 
 ### State Recovered at Startup
 
-On startup, the AS reads its configuration file which describes the indexers in the pool it controls. The AS then queries the publisher assignments from each indexer, to get the set of assigned publishers, and keeps this in memory. It also queries the status of each indexer to see which indexers are frozen, and if their assigned publishers have already been handed off to other indexers. Once this is done, then AS resumes assigning publishers to indexers. As assignments are made, the AS in-memory state is updated.
+On startup, the AS reads its configuration file which describes the indexers in the pool it controls. The AS then queries the publisher assignments from each indexer, to get the set of assigned publishers, and keeps this in memory. It also queries the status of each indexer to see which indexers are frozen and if their assigned publishers have already been handed off to other indexers. Once this is done, then the AS resumes assigning publishers to indexers. As assignments are made, the AS in-memory state is updated.
 
 If any of the indexers in the AS pool are not online when the AS starts, the AS will retry querying any offline indexers on receiving an announce message with a publisher that needs assignment. 
 
@@ -137,19 +137,19 @@ The AS has a configurable [`Replication`](https://pkg.go.dev/github.com/ipni/sto
 
 When an indexer’s storage usage reaches its configured limit, [`FreezeAtPercent`](https://pkg.go.dev/github.com/ipni/storetheindex/config#Indexer) (default 90%), the indexer automatically enters “frozen” mode. This is a mode of operation where the indexer does not store any new index data, but still processes updates and deletions of index data. A frozen indexer will not accept any new publisher assignments.
 
-Provider information is still updated to reflect that the indexer is still handling ads, but shows an additional “FrozenAt” and “FrozenAtTime” to give the advertisement CID ingested before the freeze and the time the indexer became frozen. Internally the indexer tracks where in the ad chain it has read for the purpose of ingesting update and removal ads. The indexer continues to respond to any queries for index data.
+Provider information is still updated to reflect that the indexer is still handling ads, but contains an additional “FrozenAt” and “FrozenAtTime” to give the advertisement CID ingested before the freeze and the time the indexer became frozen. Internally the indexer tracks where in the ad chain it has read for the purpose of ingesting update and removal ads. The indexer continues to respond to any queries for index data.
 
-An indexer can also be manually frozen using its admin API to request a freeze. This may be done to stop ingestion until the indexer’s storage capacity is increased, or if using an AS, so that continued indexing for can be taken over by other indexer nodes. An indexer may also be subsequently unfrozen.
+An indexer can also be manually frozen using its admin API to request a freeze. This may be done to stop ingestion until the indexer’s storage capacity is increased, or if using an AS, so that continued indexing can be taken over by other indexer nodes. An indexer may also be subsequently unfrozen.
 
 Indexer frozen mode does not require the use of an AS, and is useful to automatically stop ingestion before storage is full and becomes unusable.
 
 ### Disk Usage Monitoring
 
-Each indexer monitors its disk capacity. It reports this in log messages and maintains a disk usage percent metric for administrative monitoring and alerting. When the indexer is within 10% of the freeze limit, the log message changes to a warning. If the freeze limit is set at 90% usage, then the warning starts when the indexer is at or above 80% usage. When the indexer is with 2% of the freeze limit, a critical disk usage warning is logged. These log warnings are intended to give sufficient time to allow administrators to increase storage capacity before the indexer goes into frozen mode.
+Each indexer monitors its disk capacity. It reports this in log messages and maintains a disk usage percent metric for administrative monitoring and alerting. When the indexer is within 10% of the freeze limit, the log message changes to a warning. If the freeze limit is set at 90% usage, then the warning starts when the indexer is at or above 80% usage. When the indexer is within 2% of the freeze limit, a critical disk usage warning is logged. These log warnings are intended to give sufficient time to allow administrators to increase storage capacity before the indexer goes into frozen mode.
 
 ### Freeze Independent of Assigner
 
-Indexer freezing is independent of an assigner service, and is useful to stop ingestion from completely filling storage and making the indexer inoperable. If an indexer becomes frozen, and is not using an assigner service, then there is no publisher handoff.  The indexer stops ingestion, and will remain frozen until its storage capacity is increased and it is configured to unfreeze. 
+Indexer freezing is independent of an assigner service and is useful to stop ingestion from completely filling storage and making the indexer inoperable. If an indexer becomes frozen and is not using an assigner service, then there is no publisher handoff. The indexer stops ingestion and will remain frozen until its storage capacity is increased and it is configured to unfreeze. 
 
 ### Unfreeze
 
