@@ -308,7 +308,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 
 	entriesCid := ad.Entries.(cidlink.Link).Cid
 	if entriesCid == cid.Undef {
-		return adIngestError{adIngestMalformedErr, fmt.Errorf("advertisement entries link is undefined")}
+		return adIngestError{adIngestMalformedErr, errors.New("advertisement entries link is undefined")}
 	}
 
 	if ing.syncTimeout != 0 {
@@ -363,14 +363,16 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		gatherCids := func(_ peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 			hamtCids = append(hamtCids, c)
 		}
-		defer func() {
-			for _, c := range hamtCids {
-				err := ing.dsAds.Delete(ctx, datastore.NewKey(c.String()))
-				if err != nil {
-					log.Errorw("Error deleting HAMT cid from datastore", "cid", c, "err", err)
+		if !ing.keepAds {
+			defer func() {
+				for _, c := range hamtCids {
+					err := ing.dsAds.Delete(ctx, datastore.NewKey(c.String()))
+					if err != nil {
+						log.Errorw("Error deleting HAMT cid from datastore", "cid", c, "err", err)
+					}
 				}
-			}
-		}()
+			}()
+		}
 
 		// Load the CID as HAMT root node.
 		hn, err := ing.loadHamt(syncedFirstEntryCid)
@@ -528,17 +530,18 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 // operation. This function is used as a scoped block hook, and is called for
 // each block that is received.
 func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertisement, entryChunkCid cid.Cid, chunk schema.EntryChunk, log *zap.SugaredLogger) error {
-	defer func() {
-		// Remove the content block from the data store now that processing it
-		// has finished. This prevents storing redundant information in several
-		// datastores.
-		entryChunkKey := datastore.NewKey(entryChunkCid.String())
-		err := ing.dsAds.Delete(ctx, entryChunkKey)
-		if err != nil {
-			log.Errorw("Error deleting index from datastore", "err", err)
-		}
-	}()
-
+	if !ing.keepAds {
+		defer func() {
+			// Remove the content block from the data store now that processing it
+			// has finished. This prevents storing redundant information in several
+			// datastores.
+			entryChunkKey := datastore.NewKey(entryChunkCid.String())
+			err := ing.dsAds.Delete(ctx, entryChunkKey)
+			if err != nil {
+				log.Errorw("Error deleting index from datastore", "err", err)
+			}
+		}()
+	}
 	err := ing.indexAdMultihashes(ad, chunk.Entries, log)
 	if err != nil {
 		return fmt.Errorf("failed processing entries for advertisement: %w", err)
@@ -610,7 +613,7 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash
 func (ing *Ingester) loadAd(c cid.Cid) (schema.Advertisement, error) {
 	adn, err := ing.loadNode(c, schema.AdvertisementPrototype)
 	if err != nil {
-		return schema.Advertisement{}, fmt.Errorf("cannot decode ipld node: %w", err)
+		return schema.Advertisement{}, err
 	}
 	ad, err := schema.UnwrapAdvertisement(adn)
 	if err != nil {
@@ -623,7 +626,7 @@ func (ing *Ingester) loadAd(c cid.Cid) (schema.Advertisement, error) {
 func (ing *Ingester) loadEntryChunk(c cid.Cid) (*schema.EntryChunk, error) {
 	node, err := ing.loadNode(c, schema.EntryChunkPrototype)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode ipldNode: %w", err)
+		return nil, err
 	}
 	return schema.UnwrapEntryChunk(node)
 }
@@ -631,7 +634,7 @@ func (ing *Ingester) loadEntryChunk(c cid.Cid) (*schema.EntryChunk, error) {
 func (ing *Ingester) loadHamt(c cid.Cid) (*hamt.Node, error) {
 	node, err := ing.loadNode(c, hamt.HashMapRootPrototype)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode ipldNode: %w", err)
+		return nil, err
 	}
 	root := bindnode.Unwrap(node).(*hamt.HashMapRoot)
 	if root == nil {
@@ -649,7 +652,12 @@ func (ing *Ingester) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Nod
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch the node from datastore: %w", err)
 	}
-	return decodeIPLDNode(c.Prefix().Codec, bytes.NewBuffer(val), prototype)
+	node, err := decodeIPLDNode(c.Prefix().Codec, bytes.NewBuffer(val), prototype)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode ipldNode: %w", err)
+	}
+	return node, nil
+
 }
 
 // decodeIPLDNode decodes an ipld.Node from bytes read from an io.Reader.
