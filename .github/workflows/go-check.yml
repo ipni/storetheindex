@@ -64,7 +64,7 @@ jobs:
         with:
           run: |
             git clean -fd # make sure there aren't untracked files / directories
-            go generate ./...
+            go generate -x ./...
             # check if go generate modified or added any files
             if ! $(git add . && git diff-index HEAD --exit-code --quiet); then
               echo "go generated caused changes to the repository:"
