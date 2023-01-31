@@ -18,4 +18,4 @@ secretGenerator:
 images:
   - name: caskadht
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/caskadht
-    newTag: 0.0.1
+    newTag: 20230131153649-97e4586dc40712658e75e275dfda5415c73819ef
