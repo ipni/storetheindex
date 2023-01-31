@@ -13,6 +13,8 @@ spec:
         - name: caskadht
           args:
             - '--libp2pIdentityPath=/identity/identity.key'
+            # Respond with 404 if `?cascade=ipfs-dht` is not specified as URL query parameter.
+            - '--ipniRequireQueryParam'
           volumeMounts:
             - name: identity
               mountPath: /identity
