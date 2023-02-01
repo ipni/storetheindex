@@ -221,9 +221,12 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 	// initialize indexer
 	e.run(indexer, "init", "--store", "sth", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap", "--dhstore", "http://127.0.0.1:40080")
-	cfg, err = config.Load(filepath.Join(e.dir, ".storetheindex", "config"))
+	stiCfgPath := filepath.Join(e.dir, ".storetheindex", "config")
+	cfg, err = config.Load(stiCfgPath)
 	require.NoError(t, err)
 	indexerID := cfg.Identity.PeerID
+	cfg.Ingest.KeepAdvertisementsCarDir = e.dir
+	cfg.Save(stiCfgPath)
 
 	// start provider
 	cmdProvider := e.start(provider, "daemon")
@@ -291,6 +294,21 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 		return nil
 	})
+
+	// Check that ad was saved as CAR file.
+	dir, err := os.Open(e.dir)
+	require.NoError(t, err)
+	names, err := dir.Readdirnames(-1)
+	dir.Close()
+	require.NoError(t, err)
+	var foundCar bool
+	for _, name := range names {
+		if strings.HasSuffix(name, ".car") {
+			foundCar = true
+			break
+		}
+	}
+	require.True(t, foundCar)
 
 	outProvider := e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
 	// Check that IndexCount with correct value appears in providers output.

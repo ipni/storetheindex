@@ -363,7 +363,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		gatherCids := func(_ peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 			hamtCids = append(hamtCids, c)
 		}
-		if !ing.keepAds {
+		if ing.adToCar == nil {
 			defer func() {
 				for _, c := range hamtCids {
 					err := ing.dsAds.Delete(ctx, datastore.NewKey(c.String()))
@@ -530,7 +530,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 // operation. This function is used as a scoped block hook, and is called for
 // each block that is received.
 func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertisement, entryChunkCid cid.Cid, chunk schema.EntryChunk, log *zap.SugaredLogger) error {
-	if !ing.keepAds {
+	if ing.adToCar == nil {
 		defer func() {
 			// Remove the content block from the data store now that processing it
 			// has finished. This prevents storing redundant information in several
@@ -677,15 +677,16 @@ func decodeIPLDNode(codec uint64, r io.Reader, prototype ipld.NodePrototype) (ip
 	return nb.Build(), nil
 }
 
-// isAdvertisement checks if an IPLD node is an advertisement, by looking to see if it has a
-// "Signature" field. Additional checks may be needed if the schema is extended
-// with new types that are traversable.
+// isAdvertisement checks if an IPLD node is an advertisement, by looking to
+// see if it has a "Signature" field. Additional checks may be needed if the
+// schema is extended with new types that are traversable.
 func isAdvertisement(n ipld.Node) bool {
 	indexID, _ := n.LookupByString("Signature")
 	return indexID != nil
 }
 
-// isHAMT checks if the given IPLD node is a HAMT root node by looking for a field named  "hamt".
+// isHAMT checks if the given IPLD node is a HAMT root node by looking for a
+// field named "hamt".
 //
 // See: https://github.com/ipld/go-ipld-adl-hamt/blob/master/schema.ipldsch
 func isHAMT(n ipld.Node) bool {
