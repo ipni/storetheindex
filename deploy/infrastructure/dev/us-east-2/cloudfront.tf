@@ -1,7 +1,7 @@
 locals {
-  indexstar_origin_id = "${local.environment_name}_${local.region}_indexstar"
+  indexstar_origin_id     = "${local.environment_name}_${local.region}_indexstar"
   http_announce_origin_id = "${local.environment_name}_${local.region}_http_announce"
-  cdn_subdomain       = "cdn"
+  cdn_subdomain           = "cdn"
 }
 
 resource "aws_cloudfront_distribution" "cdn" {
@@ -50,7 +50,6 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
   }
 
-
   custom_error_response {
     error_code            = 404
     error_caching_min_ttl = 300
@@ -62,14 +61,8 @@ resource "aws_cloudfront_distribution" "cdn" {
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
     cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.indexstar_origin_id
+    cache_policy_id  = aws_cloudfront_cache_policy.lookup.id
 
-    forwarded_values {
-      query_string = false
-
-      cookies {
-        forward = "none"
-      }
-    }
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
@@ -192,6 +185,37 @@ resource "aws_cloudfront_cache_policy" "reframe" {
     }
     query_strings_config {
       query_string_behavior = "all"
+    }
+
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+  }
+}
+
+resource "aws_cloudfront_cache_policy" "lookup" {
+  name = "${local.environment_name}_lookup"
+
+  # We have to set non-zero TTL values because otherwise CloudFront won't let 
+  # the query strings settings to be configured.
+  min_ttl     = 0
+  default_ttl = 3600
+  max_ttl     = 86400
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "whitelist"
+      headers {
+        items = ["Accept"]
+      }
+    }
+    query_strings_config {
+      query_string_behavior = "whitelist"
+      query_strings {
+        items = ["cascade"]
+      }
     }
 
     enable_accept_encoding_brotli = true
