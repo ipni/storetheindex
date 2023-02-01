@@ -25,7 +25,10 @@ import (
 	"go.opencensus.io/tag"
 )
 
-var versionData []byte
+var (
+	versionData []byte
+	newline     = []byte("\n")
+)
 
 func init() {
 	versionData, _ = json.Marshal(version.String())
@@ -43,6 +46,11 @@ func newHandler(indexer indexer.Interface, registry *registry.Registry, indexCou
 }
 
 func (h *httpHandler) find(w http.ResponseWriter, r *http.Request) {
+	stream, err := explicitlyAcceptsNDJson(r)
+	if err != nil {
+		http.Error(w, "invalid Accept header: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 	vars := mux.Vars(r)
 	mhVar := vars["multihash"]
 	m, err := multihash.FromB58String(mhVar)
@@ -51,10 +59,15 @@ func (h *httpHandler) find(w http.ResponseWriter, r *http.Request) {
 		httpserver.HandleError(w, err, "find")
 		return
 	}
-	h.getIndexes(w, []multihash.Multihash{m})
+	h.getIndexes(w, []multihash.Multihash{m}, stream)
 }
 
 func (h *httpHandler) findCid(w http.ResponseWriter, r *http.Request) {
+	stream, err := explicitlyAcceptsNDJson(r)
+	if err != nil {
+		http.Error(w, "invalid Accept header: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 	vars := mux.Vars(r)
 	cidVar := vars["cid"]
 	c, err := cid.Decode(cidVar)
@@ -63,7 +76,7 @@ func (h *httpHandler) findCid(w http.ResponseWriter, r *http.Request) {
 		httpserver.HandleError(w, err, "find")
 		return
 	}
-	h.getIndexes(w, []multihash.Multihash{c.Hash()})
+	h.getIndexes(w, []multihash.Multihash{c.Hash()}, stream)
 }
 
 func (h *httpHandler) findBatch(w http.ResponseWriter, r *http.Request) {
@@ -79,10 +92,15 @@ func (h *httpHandler) findBatch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
-	h.getIndexes(w, req.Multihashes)
+	h.getIndexes(w, req.Multihashes, false)
 }
 
-func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash) {
+func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, stream bool) {
+	if len(mhs) != 1 && stream {
+		log.Errorw("Streaming response is not supported for batch find")
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
 	startTime := time.Now()
 	var found bool
 	defer func() {
@@ -101,6 +119,43 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 	// If no info for any multihashes, then 404
 	if len(response.MultihashResults) == 0 {
 		http.Error(w, "no results for query", http.StatusNotFound)
+		return
+	}
+
+	if stream {
+		log := log.With("mh", mhs[0].B58String())
+		pr := response.MultihashResults[0].ProviderResults
+		if len(pr) == 0 {
+			http.Error(w, "no results for query", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", mediaTypeNDJson)
+		w.Header().Set("Connection", "Keep-Alive")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		flusher, flushable := w.(http.Flusher)
+		encoder := json.NewEncoder(w)
+		var count int
+		for _, result := range pr {
+			if err := encoder.Encode(result); err != nil {
+				log.Errorw("Failed to encode streaming response", "err", err)
+				break
+			}
+			if _, err := w.Write(newline); err != nil {
+				log.Errorw("failed to write newline while streaming results", "err", err)
+				break
+			}
+			// TODO: optimise the number of time we call flush based on some time-based or result
+			//       count heuristic.
+			if flushable {
+				flusher.Flush()
+			}
+			count++
+		}
+		if count == 0 {
+			log.Errorw("Failed to encode results; falling back on not found", "resultsCount", len(pr))
+			http.Error(w, "no results for query", http.StatusNotFound)
+			return
+		}
 		return
 	}
 
