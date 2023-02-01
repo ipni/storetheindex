@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	blocks "github.com/ipfs/go-block-format"
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	bstore "github.com/ipfs/go-ipfs-blockstore"
+	"github.com/ipfs/go-libipfs/blocks"
 	logging "github.com/ipfs/go-log/v2"
 	carblockstore "github.com/ipld/go-car/v2/blockstore"
 	ipld "github.com/ipld/go-ipld-prime"
