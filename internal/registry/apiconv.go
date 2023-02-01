@@ -10,7 +10,7 @@ import (
 )
 
 // RegToApiProviderInfo converts provider info from registry to api objects.
-func RegToApiProviderInfo(pi *ProviderInfo, indexCount uint64, withExtMetadata bool) *model.ProviderInfo {
+func RegToApiProviderInfo(pi *ProviderInfo, indexCount uint64) *model.ProviderInfo {
 	if pi == nil {
 		return nil
 	}
@@ -42,25 +42,20 @@ func RegToApiProviderInfo(pi *ProviderInfo, indexCount uint64, withExtMetadata b
 		apiPI.FrozenAtTime = pi.FrozenAtTime.Format(time.RFC3339)
 	}
 
-	xpiToApi := func(xpis []ExtendedProviderInfo, withMeta bool) ([]peer.AddrInfo, [][]byte) {
+	xpiToApi := func(xpis []ExtendedProviderInfo) ([]peer.AddrInfo, [][]byte) {
 		if len(xpis) == 0 {
 			return nil, nil
 		}
 
 		apiProvs := make([]peer.AddrInfo, len(xpis))
-		var apiMetas [][]byte
-		if withMeta {
-			apiMetas = make([][]byte, len(xpis))
-		}
+		var apiMetas = make([][]byte, len(xpis))
 
 		for i := range xpis {
 			apiProvs[i] = peer.AddrInfo{
 				ID:    xpis[i].PeerID,
 				Addrs: xpis[i].Addrs,
 			}
-			if withMeta {
-				apiMetas[i] = xpis[i].Metadata
-			}
+			apiMetas[i] = xpis[i].Metadata
 		}
 
 		return apiProvs, apiMetas
@@ -68,14 +63,14 @@ func RegToApiProviderInfo(pi *ProviderInfo, indexCount uint64, withExtMetadata b
 
 	if pi.ExtendedProviders != nil {
 		xp := pi.ExtendedProviders
-		apiProvs, apiMetas := xpiToApi(xp.Providers, withExtMetadata)
+		apiProvs, apiMetas := xpiToApi(xp.Providers)
 
 		var apiCtxProvs []model.ContextualExtendedProviders
 		if len(xp.ContextualProviders) != 0 {
 			apiCtxProvs = make([]model.ContextualExtendedProviders, len(xp.ContextualProviders))
 			var i int
 			for contextID, cxp := range xp.ContextualProviders {
-				provs, metas := xpiToApi(cxp.Providers, withExtMetadata)
+				provs, metas := xpiToApi(cxp.Providers)
 				apiCtxProvs[i] = model.ContextualExtendedProviders{
 					Override:  cxp.Override,
 					ContextID: contextID,

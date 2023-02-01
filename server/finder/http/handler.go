@@ -119,13 +119,7 @@ func (h *httpHandler) getIndexes(w http.ResponseWriter, mhs []multihash.Multihas
 
 // GET /providers",
 func (h *httpHandler) listProviders(w http.ResponseWriter, r *http.Request) {
-	var withExtMetadata bool
-	vars := mux.Vars(r)
-	if len(vars) != 0 {
-		withExtMetadata = vars["metadata"] == "true"
-	}
-
-	data, err := h.finderHandler.ListProviders(withExtMetadata)
+	data, err := h.finderHandler.ListProviders()
 	if err != nil {
 		log.Errorw("cannot list providers", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)

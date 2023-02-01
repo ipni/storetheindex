@@ -304,6 +304,7 @@ func verifyProviderInfo(t *testing.T, provInfo *model.ProviderInfo) {
 				Addrs: provInfo.ExtendedProviders.Providers[0].Addrs,
 			},
 		},
+		Metadatas: [][]byte{nil},
 		Contextual: []model.ContextualExtendedProviders{
 			{
 				Override:  true,
@@ -314,6 +315,7 @@ func verifyProviderInfo(t *testing.T, provInfo *model.ProviderInfo) {
 						Addrs: provInfo.ExtendedProviders.Contextual[0].Providers[0].Addrs,
 					},
 				},
+				Metadatas: [][]byte{nil},
 			},
 		},
 	})
