@@ -79,7 +79,7 @@ func TestRegToApiProviderInfo(t *testing.T) {
 		FrozenAtTime: frozenAtTime,
 	}
 
-	apiPI := RegToApiProviderInfo(&regPI, indexCount, true)
+	apiPI := RegToApiProviderInfo(&regPI, indexCount)
 	require.NotNil(t, apiPI)
 
 	require.Equal(t, regPI.AddrInfo, apiPI.AddrInfo)
@@ -124,6 +124,6 @@ func TestRegToApiProviderInfo(t *testing.T) {
 
 	require.Equal(t, regPI, *regPI2)
 
-	require.Nil(t, RegToApiProviderInfo(nil, 0, false))
+	require.Nil(t, RegToApiProviderInfo(nil, 0))
 	require.Nil(t, apiToRegProviderInfo(nil))
 }

@@ -171,7 +171,7 @@ func (h *FinderHandler) fetchProviderInfo(provID peer.ID,
 	return pinfo
 }
 
-func (h *FinderHandler) ListProviders(withExtMetadata bool) ([]byte, error) {
+func (h *FinderHandler) ListProviders() ([]byte, error) {
 	infos := h.registry.AllProviderInfo()
 
 	responses := make([]model.ProviderInfo, len(infos))
@@ -184,7 +184,7 @@ func (h *FinderHandler) ListProviders(withExtMetadata bool) ([]byte, error) {
 				log.Errorw("Could not get provider index count", "err", err)
 			}
 		}
-		responses[i] = *registry.RegToApiProviderInfo(pInfo, indexCount, withExtMetadata)
+		responses[i] = *registry.RegToApiProviderInfo(pInfo, indexCount)
 	}
 
 	return json.Marshal(responses)
@@ -204,7 +204,7 @@ func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 			log.Errorw("Could not get provider index count", "err", err)
 		}
 	}
-	rsp := registry.RegToApiProviderInfo(info, indexCount, false)
+	rsp := registry.RegToApiProviderInfo(info, indexCount)
 	return json.Marshal(rsp)
 }
 
