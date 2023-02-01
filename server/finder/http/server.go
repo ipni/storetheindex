@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"strings"
 	"text/template"
 	"time"
 
@@ -44,14 +45,17 @@ func acceptsAnyOrJson(req *http.Request, _ *mux.RouteMatch) bool {
 
 	// Accept either `application/json` or `*/*`
 	for _, accept := range values {
-		mt, _, err := mime.ParseMediaType(accept)
-		if err != nil {
-			log.Debugw("invalid accept header", "err", err)
-			return false
-		}
-		switch mt {
-		case "application/json", "*/*":
-			return true
+		amts := strings.Split(accept, ",")
+		for _, amt := range amts {
+			mt, _, err := mime.ParseMediaType(amt)
+			if err != nil {
+				log.Debugw("invalid accept header", "err", err)
+				return false
+			}
+			switch mt {
+			case "application/json", "*/*":
+				return true
+			}
 		}
 	}
 	return false
