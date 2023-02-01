@@ -5,10 +5,8 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"mime"
 	"net"
 	"net/http"
-	"strings"
 	"text/template"
 	"time"
 
@@ -42,23 +40,26 @@ func acceptsAnyOrJson(req *http.Request, _ *mux.RouteMatch) bool {
 	if len(values) == 0 {
 		return true
 	}
-
-	// Accept either `application/json` or `*/*`
-	for _, accept := range values {
-		amts := strings.Split(accept, ",")
-		for _, amt := range amts {
-			mt, _, err := mime.ParseMediaType(amt)
-			if err != nil {
-				log.Debugw("invalid accept header", "err", err)
-				return false
-			}
-			switch mt {
-			case "application/json", "*/*":
-				return true
-			}
-		}
+	accepts, err := acceptsAnyOf(req, mediaTypeJson, mediaTypeAny)
+	if err != nil {
+		log.Debugw("invalid accept header", "err", err)
+		return false
 	}
-	return false
+	return accepts
+}
+
+func acceptsAnyOrNDJsonOrJson(req *http.Request, _ *mux.RouteMatch) bool {
+	values := req.Header.Values("Accept")
+	// If there is no `Accept` header values, be forgiving and fall back on JSON.
+	if len(values) == 0 {
+		return true
+	}
+	accepts, err := acceptsAnyOf(req, mediaTypeJson, mediaTypeNDJson, mediaTypeAny)
+	if err != nil {
+		log.Debugw("invalid accept header", "err", err)
+		return false
+	}
+	return accepts
 }
 
 func New(listen string, indexer indexer.Interface, registry *registry.Registry, options ...Option) (*Server, error) {
@@ -101,8 +102,8 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 		http.ServeContent(w, r, "index.html", compileTime, bytes.NewReader(buf.Bytes()))
 	}).Methods(http.MethodGet)
 
-	r.HandleFunc("/cid/{cid}", h.findCid).Methods(http.MethodGet).MatcherFunc(acceptsAnyOrJson)
-	r.HandleFunc("/multihash/{multihash}", h.find).Methods(http.MethodGet).MatcherFunc(acceptsAnyOrJson)
+	r.HandleFunc("/cid/{cid}", h.findCid).Methods(http.MethodGet).MatcherFunc(acceptsAnyOrNDJsonOrJson)
+	r.HandleFunc("/multihash/{multihash}", h.find).Methods(http.MethodGet).MatcherFunc(acceptsAnyOrNDJsonOrJson)
 	r.HandleFunc("/multihash", h.findBatch).Methods(http.MethodPost).MatcherFunc(acceptsAnyOrJson)
 	r.HandleFunc("/health", h.health).Methods(http.MethodGet)
 	r.HandleFunc("/providers", h.listProviders).Methods(http.MethodGet).MatcherFunc(acceptsAnyOrJson)
