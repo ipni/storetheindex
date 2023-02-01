@@ -18,8 +18,6 @@ type Finder interface {
 	// GetProvider gets information about the provider identified by peer.ID.
 	GetProvider(context.Context, peer.ID) (*model.ProviderInfo, error)
 	// ListPrividers gets information about all providers known to the indexer.
-	// The withExtMetadata requests that extended provider metedata be
-	// included in the response.
 	ListProviders(ctx context.Context) ([]*model.ProviderInfo, error)
 
 	// GetStats get statistics for indexer.
