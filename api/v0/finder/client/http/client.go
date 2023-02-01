@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 
 	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/ipni/storetheindex/api/v0/httpclient"
@@ -71,18 +70,12 @@ func (c *Client) FindBatch(ctx context.Context, mhs []multihash.Multihash) (*mod
 	return c.sendRequest(req)
 }
 
-func (c *Client) ListProviders(ctx context.Context, withExtMetadata bool) ([]*model.ProviderInfo, error) {
+func (c *Client) ListProviders(ctx context.Context) ([]*model.ProviderInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.providersURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Add("Accept", "application/json")
-
-	if withExtMetadata {
-		q := url.Values{}
-		q.Add("metadata", "true")
-		req.URL.RawQuery = q.Encode()
-	}
 
 	resp, err := c.c.Do(req)
 	if err != nil {

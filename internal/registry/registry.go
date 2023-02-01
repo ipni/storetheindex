@@ -796,7 +796,7 @@ func (r *Registry) Handoff(ctx context.Context, publisherID, frozenID peer.ID, f
 	if err != nil {
 		return err
 	}
-	provs, err := cl.ListProviders(ctx, true)
+	provs, err := cl.ListProviders(ctx)
 	if err != nil {
 		return err
 	}
@@ -861,7 +861,7 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 		return 0, err
 	}
 
-	provs, err := cl.ListProviders(ctx, true)
+	provs, err := cl.ListProviders(ctx)
 	if err != nil {
 		return 0, err
 	}

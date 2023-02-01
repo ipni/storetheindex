@@ -20,7 +20,7 @@ type Finder interface {
 	// ListPrividers gets information about all providers known to the indexer.
 	// The withExtMetadata requests that extended provider metedata be
 	// included in the response.
-	ListProviders(ctx context.Context, withExtMetadata bool) ([]*model.ProviderInfo, error)
+	ListProviders(ctx context.Context) ([]*model.ProviderInfo, error)
 
 	// GetStats get statistics for indexer.
 	GetStats(context.Context) (*model.Stats, error)
