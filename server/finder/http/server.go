@@ -5,6 +5,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"mime"
 	"net"
 	"net/http"
 	"text/template"
@@ -33,6 +34,28 @@ func (s *Server) URL() string {
 
 //go:embed *.html
 var webUI embed.FS
+
+func acceptsAnyOrJson(req *http.Request, _ *mux.RouteMatch) bool {
+	values := req.Header.Values("Accept")
+	// If there is no `Accept` header values, be forgiving and fall back on JSON.
+	if len(values) == 0 {
+		return true
+	}
+
+	// Accept either `application/json` or `*/*`
+	for _, accept := range values {
+		mt, _, err := mime.ParseMediaType(accept)
+		if err != nil {
+			log.Debugw("invalid accept header", "err", err)
+			return false
+		}
+		switch mt {
+		case "application/json", "*/*":
+			return true
+		}
+	}
+	return false
+}
 
 func New(listen string, indexer indexer.Interface, registry *registry.Registry, options ...Option) (*Server, error) {
 	opts, err := getOpts(options)
@@ -73,13 +96,14 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeContent(w, r, "index.html", compileTime, bytes.NewReader(buf.Bytes()))
 	}).Methods(http.MethodGet)
-	r.HandleFunc("/cid/{cid}", h.findCid).Methods(http.MethodGet)
-	r.HandleFunc("/multihash/{multihash}", h.find).Methods(http.MethodGet)
-	r.HandleFunc("/multihash", h.findBatch).Methods(http.MethodPost)
+
+	r.HandleFunc("/cid/{cid}", h.findCid).Methods(http.MethodGet).MatcherFunc(acceptsAnyOrJson)
+	r.HandleFunc("/multihash/{multihash}", h.find).Methods(http.MethodGet).MatcherFunc(acceptsAnyOrJson)
+	r.HandleFunc("/multihash", h.findBatch).Methods(http.MethodPost).MatcherFunc(acceptsAnyOrJson)
 	r.HandleFunc("/health", h.health).Methods(http.MethodGet)
-	r.HandleFunc("/providers", h.listProviders).Methods(http.MethodGet)
-	r.HandleFunc("/providers/{providerid}", h.getProvider).Methods(http.MethodGet)
-	r.HandleFunc("/stats", h.getStats).Methods(http.MethodGet)
+	r.HandleFunc("/providers", h.listProviders).Methods(http.MethodGet).MatcherFunc(acceptsAnyOrJson)
+	r.HandleFunc("/providers/{providerid}", h.getProvider).Methods(http.MethodGet).MatcherFunc(acceptsAnyOrJson)
+	r.HandleFunc("/stats", h.getStats).Methods(http.MethodGet).MatcherFunc(acceptsAnyOrJson)
 
 	reframeHandler := reframe.NewReframeHTTPHandler(indexer, registry)
 	r.HandleFunc("/reframe", reframeHandler)
