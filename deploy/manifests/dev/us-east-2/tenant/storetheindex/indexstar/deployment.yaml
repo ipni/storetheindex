@@ -19,7 +19,7 @@ spec:
             - '--backends=http://cali-indexer:3000/'
             - '--backends=http://ago-indexer:3000/'
             - '--backends=http://dhstore.internal.dev.cid.contact/'
-            - '--backends=http://cascadht.internal.dev.cid.contact/'
+            - '--backends=http://caskadht.internal.dev.cid.contact/'
           env:
             # Increase maximum accepted request body to 1 MiB in order to allow batch finds requests
             # by the `provider verify-ingest` CLI command. 
