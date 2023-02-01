@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ipni/storetheindex/api/v0"
+	v0 "github.com/ipni/storetheindex/api/v0"
 	"github.com/ipni/storetheindex/api/v0/finder/model"
 	pb "github.com/ipni/storetheindex/api/v0/finder/pb"
 	"github.com/ipni/storetheindex/api/v0/libp2pclient"
@@ -90,20 +90,9 @@ func (c *Client) GetProvider(ctx context.Context, providerID peer.ID) (*model.Pr
 	return &providerInfo, nil
 }
 
-func (c *Client) ListProviders(ctx context.Context, withExtMetadata bool) ([]*model.ProviderInfo, error) {
+func (c *Client) ListProviders(ctx context.Context) ([]*model.ProviderInfo, error) {
 	req := &pb.FinderMessage{
 		Type: pb.FinderMessage_LIST_PROVIDERS,
-	}
-
-	if withExtMetadata {
-		queryParams := make(map[string]string)
-		queryParams["metadata"] = "true"
-
-		var err error
-		req.Data, err = json.Marshal(queryParams)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	data, err := c.sendRecv(ctx, req, pb.FinderMessage_LIST_PROVIDERS_RESPONSE)

@@ -59,7 +59,7 @@ func listProvidersCmd(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	provs, err := cl.ListProviders(cctx.Context, false)
+	provs, err := cl.ListProviders(cctx.Context)
 	if err != nil {
 		return err
 	}
