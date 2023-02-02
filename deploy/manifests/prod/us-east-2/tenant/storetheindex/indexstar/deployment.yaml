@@ -18,11 +18,15 @@ spec:
             - '--backends=http://dido-indexer:3000/'
             - '--backends=http://oden-indexer:3000/'
             - '--backends=http://kepa-indexer:3000/'
+            - '--backends=http://caskadht.internal.prod.cid.contact/'
           env:
             # Increase maximum accepted request body to 1 MiB in order to allow batch finds requests
             # by the `provider verify-ingest` CLI command. 
             - name: SERVER_MAX_REQUEST_BODY_SIZE
-              value: '1048576' 
+              value: '1048576'
+            # The service provided by caskadht.
+            - name: SERVER_CASCADE_LABELS
+              value: 'ipfs-dht'
           resources:
             limits:
               cpu: "3"
