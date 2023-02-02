@@ -78,7 +78,7 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   ordered_cache_behavior {
-    path_pattern = "reframe"
+    path_pattern           = "reframe"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
     allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
@@ -92,18 +92,14 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   ordered_cache_behavior {
-    path_pattern = "multihash/*"
+    path_pattern     = "multihash/*"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
     cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.indexstar_origin_id
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
+    cache_policy_id  = aws_cloudfront_cache_policy.lookup.id
+
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
@@ -116,12 +112,8 @@ resource "aws_cloudfront_distribution" "cdn" {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.indexstar_origin_id
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
+    cache_policy_id  = aws_cloudfront_cache_policy.lookup.id
+
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
@@ -148,7 +140,7 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   ordered_cache_behavior {
-    path_pattern = "ingest/*"
+    path_pattern     = "ingest/*"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
@@ -203,6 +195,37 @@ resource "aws_cloudfront_cache_policy" "reframe" {
   }
 }
 
+resource "aws_cloudfront_cache_policy" "lookup" {
+  name = "lookup"
+
+  # We have to set non-zero TTL values because otherwise CloudFront won't let 
+  # the query strings settings to be configured.
+  min_ttl     = 0
+  default_ttl = 3600
+  max_ttl     = 86400
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "whitelist"
+      headers {
+        items = ["Accept"]
+      }
+    }
+    query_strings_config {
+      query_string_behavior = "whitelist"
+      query_strings {
+        items = ["cascade"]
+      }
+    }
+
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+  }
+}
+
 provider "aws" {
   alias  = "use1"
   region = "us-east-1"
@@ -232,8 +255,8 @@ module "records" {
 
   records = [
     {
-      name = local.cdn_subdomain
-      type = "A"
+      name  = local.cdn_subdomain
+      type  = "A"
       alias = {
         name    = aws_cloudfront_distribution.cdn.domain_name
         zone_id = aws_cloudfront_distribution.cdn.hosted_zone_id
