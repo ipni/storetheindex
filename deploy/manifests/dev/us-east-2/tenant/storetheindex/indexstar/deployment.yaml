@@ -25,6 +25,9 @@ spec:
             # by the `provider verify-ingest` CLI command. 
             - name: SERVER_MAX_REQUEST_BODY_SIZE
               value: '1048576'
+            # The service provided by caskadht.
+            - name: SERVER_CASCADE_LABELS
+              value: 'ipfs-dht'
           resources:
             limits:
               cpu: "3"
