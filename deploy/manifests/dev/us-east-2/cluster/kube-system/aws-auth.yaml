@@ -37,16 +37,6 @@ data:
     - groups:
       - system:bootstrappers
       - system:nodes
-      rolearn: arn:aws:iam::407967248065:role/dev-ue2b-r5b-4xl-eks-node-group
-      username: system:node:{{EC2PrivateDNSName}}
-    - groups:
-      - system:bootstrappers
-      - system:nodes
-      rolearn: arn:aws:iam::407967248065:role/dev-ue2c-r5b-4xl-eks-node-group
-      username: system:node:{{EC2PrivateDNSName}}
-    - groups:
-      - system:bootstrappers
-      - system:nodes
       rolearn: arn:aws:iam::407967248065:role/dev-ue2b-r5n-2xl-eks-node-group
       username: system:node:{{EC2PrivateDNSName}}
     - groups:
