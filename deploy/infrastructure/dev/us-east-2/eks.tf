@@ -21,7 +21,7 @@ module "eks" {
   }
 
   eks_managed_node_groups = {
-    # Node group used by double hashing indexer nodes
+    # Node group used by double hashing indexer nodes
     dev-ue2a-r6a-xl = {
       min_size       = 0
       max_size       = 3
@@ -29,7 +29,7 @@ module "eks" {
       instance_types = ["r6a.xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a2.id]
     }
-    # Node group used by dhstore nodes
+    # Node group used by dhstore nodes
     dev-ue2c-r6a-xl = {
       min_size       = 0
       max_size       = 3
@@ -37,18 +37,13 @@ module "eks" {
       instance_types = ["r6a.xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id]
     }
+    # TODO: break into node groups per subnet for less cost
     dev-ue2-m4-xl-2 = {
       min_size       = 3
       max_size       = 7
       desired_size   = 3
       instance_types = ["m4.xlarge"]
       subnet_ids     = module.vpc.private_subnets
-    }
-    dev-ue2-r5a-2xl = {
-      min_size       = 0
-      max_size       = 7
-      desired_size   = 1
-      instance_types = ["r5a.2xlarge"]
     }
     # Node group primarily used by autoretrieve with PVC in us-east2a availability zone.
     dev-ue2a-r5a-2xl = {
@@ -72,7 +67,7 @@ module "eks" {
       }
     }
     dev-ue2b-r5b-4xl = {
-      min_size       = 1
+      min_size       = 0
       max_size       = 3
       desired_size   = 1
       instance_types = ["r5b.4xlarge"]
@@ -86,7 +81,7 @@ module "eks" {
       }
     }
     dev-ue2c-r5b-4xl = {
-      min_size       = 1
+      min_size       = 0
       max_size       = 3
       desired_size   = 1
       instance_types = ["r5b.4xlarge"]
@@ -95,6 +90,35 @@ module "eks" {
         dedicated = {
           key    = "dedicated"
           value  = "r5b-4xl"
+          effect = "NO_SCHEDULE"
+        }
+      }
+    }
+
+    dev-ue2b-r5n-2xl = {
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 1
+      instance_types = ["r5n.2xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2b2.id]
+      taints = {
+        dedicated = {
+          key    = "dedicated"
+          value  = "r5n-2xl"
+          effect = "NO_SCHEDULE"
+        }
+      }
+    }
+    dev-ue2c-r5n-2xl = {
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 1
+      instance_types = ["r5n.2xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2c2.id]
+      taints = {
+        dedicated = {
+          key    = "dedicated"
+          value  = "r5n-2xl"
           effect = "NO_SCHEDULE"
         }
       }
