@@ -37,14 +37,40 @@ module "eks" {
       instance_types = ["r6a.xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id]
     }
-    # TODO: break into node groups per subnet for less cost
     dev-ue2-m4-xl-2 = {
-      min_size       = 3
+      min_size       = 0
       max_size       = 7
       desired_size   = 3
       instance_types = ["m4.xlarge"]
       subnet_ids     = module.vpc.private_subnets
     }
+
+    # General purpose node groups, one per subnet.
+    # They are split per subnet so that:
+    #  - we can scale down to zero instances in any subnet we are not running any pods.
+    #  - we work around the inability to control subnets in which ASG spins up instances.
+    dev-ue2a-m4-xl = {
+      min_size       = 0
+      max_size       = 7
+      desired_size   = 1
+      instance_types = ["m4.xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2a1.id, data.aws_subnet.ue2a2.id]
+    }
+    dev-ue2b-m4-xl = {
+      min_size       = 0
+      max_size       = 7
+      desired_size   = 1
+      instance_types = ["m4.xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2b1.id, data.aws_subnet.ue2b2.id]
+    }
+    dev-ue2c-m4-xl = {
+      min_size       = 0
+      max_size       = 7
+      desired_size   = 1
+      instance_types = ["m4.xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2c1.id, data.aws_subnet.ue2c2.id]
+    }
+
     # Node group primarily used by autoretrieve with PVC in us-east2a availability zone.
     dev-ue2a-r5a-2xl = {
       min_size       = 1
@@ -58,7 +84,7 @@ module "eks" {
       max_size       = 3
       desired_size   = 3
       instance_types = ["r5b.xlarge"]
-      taints = {
+      taints         = {
         dedicated = {
           key    = "dedicated"
           value  = "r5b"
@@ -73,7 +99,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["r5n.2xlarge"]
       subnet_ids     = [data.aws_subnet.ue2b2.id]
-      taints = {
+      taints         = {
         dedicated = {
           key    = "dedicated"
           value  = "r5n-2xl"
@@ -87,7 +113,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["r5n.2xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id]
-      taints = {
+      taints         = {
         dedicated = {
           key    = "dedicated"
           value  = "r5n-2xl"
