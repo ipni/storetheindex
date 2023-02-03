@@ -14,7 +14,7 @@ jobs:
     env:
       COVERAGES: ""
       SKIP32BIT: false
-    runs-on: ${{ format('{0}-latest', matrix.os) }}
+    runs-on: ${{ fromJSON(vars[format('UCI_GO_TEST_RUNNER_{0}', matrix.os)] || format('"{0}-latest"', matrix.os)) }}
     name: ${{ matrix.os }} (go ${{ matrix.go }})
     steps:
       - uses: actions/checkout@v3
