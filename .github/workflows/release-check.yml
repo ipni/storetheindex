@@ -3,7 +3,7 @@
 
 name: Release Checker
 on:
-  pull_request:
+  pull_request_target:
     paths: [ 'version.json' ]
 
 jobs:
