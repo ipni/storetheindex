@@ -90,6 +90,23 @@ data "aws_subnet" "ue2b1" {
   }
 }
 
+data "aws_subnet" "ue2b2" {
+  vpc_id = module.vpc.vpc_id
+
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-2b"]
+  }
+  filter {
+    name   = "subnet-id"
+    values = module.vpc.private_subnets
+  }
+  filter {
+    name   = "cidr-block"
+    values = ["20.10.5.0/24"]
+  }
+}
+
 data "aws_subnet" "ue2c1" {
   vpc_id = module.vpc.vpc_id
 
