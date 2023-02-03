@@ -21,7 +21,8 @@ module "eks" {
   }
 
   eks_managed_node_groups = {
-    # Node group used by double hashing indexer nodes
+    # Smaller memory optimised node groups primarily used to run indexer and dhstore nodes with
+    # lighter duty work.
     dev-ue2a-r6a-xl = {
       min_size       = 0
       max_size       = 3
@@ -29,20 +30,12 @@ module "eks" {
       instance_types = ["r6a.xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a2.id]
     }
-    # Node group used by dhstore nodes
     dev-ue2c-r6a-xl = {
       min_size       = 0
       max_size       = 3
       desired_size   = 1
       instance_types = ["r6a.xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id]
-    }
-    dev-ue2-m4-xl-2 = {
-      min_size       = 0
-      max_size       = 7
-      desired_size   = 3
-      instance_types = ["m4.xlarge"]
-      subnet_ids     = module.vpc.private_subnets
     }
 
     # General purpose node groups, one per subnet.
@@ -79,20 +72,8 @@ module "eks" {
       instance_types = ["r5a.2xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a1.id]
     }
-    dev-ue2-r5b-xl = {
-      min_size       = 3
-      max_size       = 3
-      desired_size   = 3
-      instance_types = ["r5b.xlarge"]
-      taints         = {
-        dedicated = {
-          key    = "dedicated"
-          value  = "r5b"
-          effect = "NO_SCHEDULE"
-        }
-      }
-    }
-
+    
+    # Memory optimised node groups primarily used to run indexer nodes.
     dev-ue2b-r5n-2xl = {
       min_size       = 1
       max_size       = 3
