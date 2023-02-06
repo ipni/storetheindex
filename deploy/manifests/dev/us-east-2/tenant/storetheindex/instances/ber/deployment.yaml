@@ -28,6 +28,10 @@ spec:
                     operator: In
                     values:
                       - us-east-2b
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ber-data-gp3
       tolerations:
         - key: dedicated
           operator: Equal
