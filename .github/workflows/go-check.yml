@@ -8,26 +8,20 @@ jobs:
   unit:
     runs-on: ubuntu-latest
     name: All
-    env:
-      RUNGOGENERATE: false
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
+      - id: config
+        uses: protocol/.github/.github/actions/read-config@next
       - uses: actions/setup-go@v3
         with:
           go-version: "1.19.x"
       - name: Run repo-specific setup
         uses: ./.github/actions/go-check-setup
         if: hashFiles('./.github/actions/go-check-setup') != ''
-      - name: Read config
-        if: hashFiles('./.github/workflows/go-check-config.json') != ''
-        run: |
-          if jq -re .gogenerate ./.github/workflows/go-check-config.json; then
-            echo "RUNGOGENERATE=true" >> $GITHUB_ENV
-          fi
       - name: Install staticcheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@376210a89477dedbe6fdc4484b233998650d7b3c # 2022.1.3 (v0.3.3)
+        run: go install honnef.co/go/tools/cmd/staticcheck@4970552d932f48b71485287748246cf3237cebdf # 2023.1 (v0.4.0)
       - name: Check that go.mod is tidy
         uses: protocol/multiple-go-modules@v1.2
         with:
@@ -60,7 +54,7 @@ jobs:
             staticcheck ./... | sed -e 's@\(.*\)\.go@./\1.go@g'
       - name: go generate
         uses: protocol/multiple-go-modules@v1.2
-        if: (success() || failure()) && env.RUNGOGENERATE == 'true'
+        if: (success() || failure()) && fromJSON(steps.config.outputs.json).gogenerate == true
         with:
           run: |
             git clean -fd # make sure there aren't untracked files / directories
