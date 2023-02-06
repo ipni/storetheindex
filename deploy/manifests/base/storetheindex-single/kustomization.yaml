@@ -9,7 +9,6 @@ generatorOptions:
 resources:
   - deployment.yaml
   - service.yaml
-  - pvc.yaml
 
 transformers:
   - labels.yaml

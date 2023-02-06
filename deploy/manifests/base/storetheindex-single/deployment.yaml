@@ -42,8 +42,6 @@ spec:
           volumeMounts:
             - name: identity
               mountPath: /identity
-            - name: data
-              mountPath: /data
             - name: config
               mountPath: /config
           readinessProbe:
@@ -59,9 +57,6 @@ spec:
         - name: identity
           secret:
             secretName: identity
-        - name: data
-          persistentVolumeClaim:
-            claimName: data
         - name: config
           configMap:
             name: config
