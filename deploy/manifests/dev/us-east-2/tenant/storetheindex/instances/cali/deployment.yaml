@@ -28,6 +28,10 @@ spec:
                     operator: In
                     values:
                       - us-east-2c
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: cali-data-gp3
       tolerations:
         - key: dedicated
           operator: Equal
