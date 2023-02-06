@@ -7,6 +7,7 @@ resources:
   - ../../../../../../base/storetheindex-single
   - ingress.yaml
   - dido-snapshot.yaml
+  - pvc.yaml
 
 namePrefix: kepa-
 
@@ -26,7 +27,6 @@ configMapGenerator:
       - config=config.json
 
 patchesStrategicMerge:
-  - pvc.yaml
   - deployment.yaml
 
 images:

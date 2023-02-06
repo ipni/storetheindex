@@ -7,6 +7,9 @@ spec:
     spec:
       containers:
         - name: indexer
+          volumeMounts:
+            - mountPath: /data
+              name: data
           resources:
             limits:
               cpu: "10"
@@ -27,6 +30,10 @@ spec:
                     operator: In
                     values:
                       - us-east-2b
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: oden-data
       tolerations:
         - key: dedicated
           operator: Equal

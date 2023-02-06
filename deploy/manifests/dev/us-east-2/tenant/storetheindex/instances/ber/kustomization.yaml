@@ -27,5 +27,4 @@ configMapGenerator:
       - config=config.json
 
 patchesStrategicMerge:
-  - pvc.yaml
   - deployment.yaml

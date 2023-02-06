@@ -6,6 +6,7 @@ namespace: storetheindex
 resources:
   - ../../../../../../base/storetheindex-single
   - ingress.yaml
+  - pvc.yaml
 
 namePrefix: oden-
 
@@ -25,5 +26,4 @@ configMapGenerator:
       - config=config.json
 
 patchesStrategicMerge:
-  - pvc.yaml
   - deployment.yaml
