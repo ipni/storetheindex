@@ -225,7 +225,12 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	cfg, err = config.Load(stiCfgPath)
 	require.NoError(t, err)
 	indexerID := cfg.Identity.PeerID
-	cfg.Ingest.KeepAdvertisementsCarDir = e.dir
+	cfg.Ingest.AdvertisementsToCar = config.FileStore{
+		Type: "local",
+		Local: config.LocalFileStore{
+			BasePath: e.dir,
+		},
+	}
 	cfg.Save(stiCfgPath)
 
 	// start provider
@@ -301,14 +306,13 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	names, err := dir.Readdirnames(-1)
 	dir.Close()
 	require.NoError(t, err)
-	var foundCar bool
+	var carCount int
 	for _, name := range names {
-		if strings.HasSuffix(name, ".car") {
-			foundCar = true
-			break
+		if strings.HasSuffix(name, ".car") && strings.HasPrefix(name, "baguqeera") {
+			carCount++
 		}
 	}
-	require.True(t, foundCar)
+	require.Equal(t, 2, carCount)
 
 	outProvider := e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
 	// Check that IndexCount with correct value appears in providers output.

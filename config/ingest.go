@@ -17,6 +17,9 @@ type Ingest struct {
 	// size set by SyncSegmentDepthLimit. AdvertisementDepthLimit sets the
 	// limit on the total number of advertisements across all segments.
 	AdvertisementDepthLimit int
+	// AdvertisementsToCar configures if and how to store ingested advertisement
+	// and entries in CAR files.
+	AdvertisementsToCar FileStore
 	// EntriesDepthLimit is the total maximum recursion depth limit when
 	// syncing advertisement entries. The value -1 means no limit and zero
 	// means use the default value. The purpose is to prevent overload from
@@ -41,9 +44,6 @@ type Ingest struct {
 	// IngestWorkerCount sets how many ingest worker goroutines to spawn. This
 	// controls how many concurrent ingest from different providers we can handle.
 	IngestWorkerCount int
-	// KeepAdvertisementsCarDir specifies a directory to write CAR files
-	// containing advertisements that have been ingested.
-	KeepAdvertisementsCarDir string
 	// MinimumKeyLengt causes any multihash, that has a digest length less than
 	// this, to be ignored. If using storethehash, this value is automatically
 	// set to 4 if it was configured to be anything less.
@@ -74,6 +74,29 @@ type Ingest struct {
 	// or a chain of advertisement entries. The value is an integer string
 	// ending in "s", "m", "h" for seconds. minutes, hours.
 	SyncTimeout Duration
+}
+
+// FileStore configures a particular file store implementation.
+type FileStore struct {
+	// Type of file store to use: "", "local", "s3"
+	Type string
+	// Configuration for storing files in local filesystem.
+	Local LocalFileStore
+	// Configuration for storing files in S3.
+	S3 S3FileStore
+}
+
+type LocalFileStore struct {
+	// Path to filesystem directory where files are stored.
+	BasePath string
+}
+
+type S3FileStore struct {
+	BasePath   string
+	BucketName string
+	Region     string
+	AccessKey  string
+	SecretKey  string
 }
 
 // NewIngest returns Ingest with values set to their defaults.

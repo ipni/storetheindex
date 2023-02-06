@@ -17,8 +17,10 @@ import (
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
+	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/fsutil"
 	"github.com/ipni/storetheindex/internal/carwriter"
+	"github.com/ipni/storetheindex/internal/filestore"
 	"github.com/ipni/storetheindex/test/util"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -42,8 +44,16 @@ func TestWrite(t *testing.T) {
 	metadata := []byte("car-test-metadata")
 
 	carDir := t.TempDir()
-	carw, err := carwriter.New(dstore, carDir)
+	cfg := config.FileStore{
+		Type: "local",
+		Local: config.LocalFileStore{
+			BasePath: carDir,
+		},
+	}
+
+	fileStore, err := filestore.New(cfg)
 	require.NoError(t, err)
+	carw := carwriter.New(dstore, fileStore)
 
 	adCid, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, dstore)
 	entriesCid := ad.Entries.(cidlink.Link).Cid
@@ -57,25 +67,32 @@ func TestWrite(t *testing.T) {
 	require.True(t, ok)
 
 	// Test that car file is created.
-	carPath, err := carw.Write(adCid, false)
+	adCarPath, entCarPath, err := carw.Write(context.Background(), adCid, false)
 	require.NoError(t, err)
-	require.True(t, fsutil.FileExists(carPath))
-	t.Log("Created CAR file:", filepath.Base(carPath))
+	require.True(t, fsutil.FileExists(adCarPath))
+	require.True(t, fsutil.FileExists(entCarPath))
+	t.Log("Created advertisement CAR file:", filepath.Base(adCarPath))
+	t.Log("Created entries CAR file:", filepath.Base(entCarPath))
 
 	// Read CAR file and see that it has expected contents.
-	cbs, err := carblockstore.OpenReadOnly(carPath)
+	acbs, err := carblockstore.OpenReadOnly(adCarPath)
 	require.NoError(t, err)
 	// Check that ad block is present.
-	blk, err := cbs.Get(context.Background(), adCid)
+	blk, err := acbs.Get(context.Background(), adCid)
 	require.NoError(t, err, "failed to get ad block from car file")
 	require.NotNil(t, blk)
+
+	// Read CAR file and see that it has expected contents.
+	ecbs, err := carblockstore.OpenReadOnly(entCarPath)
+	require.NoError(t, err)
+
 	// Check that first entries block is present.
-	blk, err = cbs.Get(context.Background(), entriesCid)
+	blk, err = ecbs.Get(context.Background(), entriesCid)
 	require.NoError(t, err, "failed to get ad entried block from car file")
 	require.NotNil(t, blk)
 
 	// Check that the CAR is iterable.
-	cr, err := car.OpenReader(carPath)
+	cr, err := car.OpenReader(entCarPath)
 	require.NoError(t, err)
 	defer cr.Close()
 
@@ -92,18 +109,18 @@ func TestWrite(t *testing.T) {
 	itIdx, ok := idx.(carindex.IterableIndex)
 	require.True(t, ok, "expected CAR index to implement index.IterableIndex interface")
 
-	offset, err := carindex.GetFirst(itIdx, adCid)
+	offset, err := carindex.GetFirst(itIdx, entriesCid)
 	require.NoError(t, err)
 	require.NotZero(t, offset)
 
-	// Check that there are 6 items stored (ad + 5 blocks of entries)
+	// Check that there are 5 chunks stored.
 	var count int
 	err = itIdx.ForEach(func(mh multihash.Multihash, offset uint64) error {
 		count++
 		return nil
 	})
 	require.NoError(t, err)
-	require.Equal(t, entBlockCount+1, count)
+	require.Equal(t, entBlockCount, count)
 
 	// Check that ad and entries block are no longer in datastore.
 	ok, err = dstore.Has(context.Background(), datastore.NewKey(adCid.String()))
@@ -114,7 +131,7 @@ func TestWrite(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestWriteToExistingCar(t *testing.T) {
+func TestWriteToExistingAdCar(t *testing.T) {
 	const entBlockCount = 1
 
 	dstore := datastore.NewMapDatastore()
@@ -132,21 +149,34 @@ func TestWriteToExistingCar(t *testing.T) {
 	require.True(t, ok)
 
 	carDir := t.TempDir()
-	carPath := filepath.Join(carDir, adCid.String()) + ".car"
-	f, err := os.Create(carPath)
+	adCarPath := filepath.Join(carDir, adCid.String()) + "_adv.car"
+	f, err := os.Create(adCarPath)
 	require.NoError(t, err)
 	f.Close()
 
-	carw, err := carwriter.New(dstore, carDir)
+	cfg := config.FileStore{
+		Type: "local",
+		Local: config.LocalFileStore{
+			BasePath: carDir,
+		},
+	}
+	fileStore, err := filestore.New(cfg)
 	require.NoError(t, err)
 
-	carPath, err = carw.Write(adCid, false)
+	carw := carwriter.New(dstore, fileStore)
+
+	adCarPath, entCarPath, err := carw.Write(context.Background(), adCid, false)
 	require.NoError(t, err)
 
-	// Check that car file was not written to.
-	fi, err := os.Stat(carPath)
+	// Check that ad car file was not written to.
+	fi, err := os.Stat(adCarPath)
 	require.NoError(t, err)
 	require.Zero(t, fi.Size())
+
+	// Check that entries car file was written to.
+	fi, err = os.Stat(entCarPath)
+	require.NoError(t, err)
+	require.NotZero(t, fi.Size())
 
 	// Check that ad and entries block are no longer in datastore.
 	ok, err = dstore.Has(context.Background(), datastore.NewKey(adCid.String()))
@@ -175,14 +205,22 @@ func TestWriteExistingAdsInStore(t *testing.T) {
 	require.True(t, ok)
 
 	carDir := t.TempDir()
-	carw, err := carwriter.New(dstore, carDir)
+	cfg := config.FileStore{
+		Type: "local",
+		Local: config.LocalFileStore{
+			BasePath: carDir,
+		},
+	}
+	fileStore, err := filestore.New(cfg)
 	require.NoError(t, err)
 
-	n, err := carw.WriteExisting()
-	require.NoError(t, err)
+	carw := carwriter.New(dstore, fileStore)
+
+	countChan := carw.WriteExisting(context.Background())
+	n := <-countChan
 	require.Equal(t, 1, n)
-	carPath := filepath.Join(carDir, adCid.String()) + ".car"
-	require.True(t, fsutil.FileExists(carPath))
+	require.True(t, fsutil.FileExists(filepath.Join(carDir, adCid.String())+"_adv.car"))
+	require.True(t, fsutil.FileExists(filepath.Join(carDir, entriesCid.String())+"_mhs.car"))
 
 	// Check that ad and entries block are no longer in datastore.
 	ok, err = dstore.Has(context.Background(), datastore.NewKey(adCid.String()))

@@ -26,6 +26,7 @@ import (
 	"github.com/ipni/storetheindex/dagsync"
 	"github.com/ipni/storetheindex/internal/carwriter"
 	"github.com/ipni/storetheindex/internal/counter"
+	"github.com/ipni/storetheindex/internal/filestore"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/peerutil"
@@ -163,21 +164,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		opts.dsAds = ds
 	}
 
-	var adToCar *carwriter.CarWriter
-	if cfg.KeepAdvertisementsCarDir != "" {
-		adToCar, err = carwriter.New(ds, cfg.KeepAdvertisementsCarDir)
-		if err != nil {
-			return nil, err
-		}
-		n, err := adToCar.WriteExisting()
-		if err != nil {
-			return nil, err
-		}
-		if n != 0 {
-			log.Infof("Wrote %d advertisements to CAR files", n)
-		}
-	}
-
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
@@ -200,7 +186,21 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		minKeyLen: cfg.MinimumKeyLength,
 
 		indexCounts: opts.idxCounts,
-		adToCar:     adToCar,
+	}
+
+	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
+
+	if cfg.AdvertisementsToCar.Type != "" {
+		fileStore, err := filestore.New(cfg.AdvertisementsToCar)
+		if err != nil {
+			return nil, fmt.Errorf("Cannot create file store for CAR failes: %w", err)
+		}
+
+		ing.adToCar = carwriter.New(ds, fileStore)
+
+		// Start writing existing ads to car files in background. Process
+		// canceled if workers are canceled.
+		ing.adToCar.WriteExisting(ing.workersCtx)
 	}
 
 	ing.rateApply, ing.rateBurst, ing.rateLimit, err = configRateLimit(cfg.RateLimit)
@@ -246,7 +246,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		return nil, errors.New("ingester worker count must be > 0")
 	}
 
-	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 	ing.RunWorkers(cfg.IngestWorkerCount)
 
 	go ing.runIngesterLoop()
@@ -1075,7 +1074,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 				log.Errorw("Failed to mark ad as processed", "err", markErr)
 			}
 			if !frozen && keep {
-				_, err := ing.adToCar.Write(ai.cid, true)
+				_, _, err := ing.adToCar.Write(ctx, ai.cid, true)
 				if err != nil {
 					// Log the error, but do not return. Continue on to save the procesed ad.
 					log.Errorw("Cannot write advertisement to CAR file", "err", err)
@@ -1151,7 +1150,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
 		if !frozen && keep {
-			_, err = ing.adToCar.Write(ai.cid, false)
+			_, _, err = ing.adToCar.Write(ctx, ai.cid, false)
 			if err != nil {
 				// Log the error, but do not return. Continue on to save the procesed ad.
 				log.Errorw("Cannot write advertisement to CAR file", "err", err)
