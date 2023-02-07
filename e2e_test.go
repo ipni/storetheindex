@@ -18,7 +18,9 @@ import (
 	"testing"
 	"time"
 
+	finderhttpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
 	"github.com/ipni/storetheindex/config"
+	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,6 +38,7 @@ type e2eTestRunner struct {
 
 	indexerReady    chan struct{}
 	providerReady   chan struct{}
+	dhstoreReady    chan struct{}
 	providerHasPeer chan struct{}
 }
 
@@ -86,6 +89,10 @@ func (e *e2eTestRunner) start(prog string, args ...string) *exec.Cmd {
 				} else if strings.Contains(line, "admin http server listening") {
 					e.providerReady <- struct{}{}
 				}
+			case "dhstore":
+				if strings.Contains(line, "Store opened.") {
+					e.dhstoreReady <- struct{}{}
+				}
 			}
 		}
 	}()
@@ -132,6 +139,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 		indexerReady:    make(chan struct{}, 1),
 		providerReady:   make(chan struct{}, 1),
+		dhstoreReady:    make(chan struct{}, 1),
 		providerHasPeer: make(chan struct{}, 1),
 	}
 
@@ -175,33 +183,49 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		e.env = append(e.env, fmt.Sprintf("%s=%s", name, out))
 	}
 
+	// install storetheindex
 	indexer := filepath.Join(e.dir, "storetheindex")
 	e.run("go", "install", ".")
 
 	provider := filepath.Join(e.dir, "provider")
+	dhstore := filepath.Join(e.dir, "dhstore")
 
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
+
+	// install index-provider
 	err = os.Chdir(e.dir)
 	require.NoError(t, err)
 	e.run("git", "clone", "https://github.com/ipni/index-provider.git")
 	err = os.Chdir("index-provider/cmd/provider")
 	require.NoError(t, err)
 	e.run("go", "install")
+
+	// install dhstore
+	err = os.Chdir(e.dir)
+	require.NoError(t, err)
+	e.run("git", "clone", "https://github.com/ipni/dhstore.git", "dhstore_repo")
+	err = os.Chdir("dhstore_repo/cmd/dhstore")
+	require.NoError(t, err)
+	e.run("go", "install")
+
 	err = os.Chdir(cwd)
 	require.NoError(t, err)
 
+	// initialize index-provider
 	e.run(provider, "init")
 	cfg, err := config.Load(filepath.Join(e.dir, ".index-provider", "config"))
 	require.NoError(t, err)
 	providerID := cfg.Identity.PeerID
 	t.Logf("Initialized provider ID: %s", providerID)
 
-	e.run(indexer, "init", "--store", "sth", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap")
+	// initialize indexer
+	e.run(indexer, "init", "--store", "sth", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap", "--dhstore", "http://127.0.0.1:40080")
 	cfg, err = config.Load(filepath.Join(e.dir, ".storetheindex", "config"))
 	require.NoError(t, err)
 	indexerID := cfg.Identity.PeerID
 
+	// start provider
 	cmdProvider := e.start(provider, "daemon")
 	select {
 	case <-e.providerReady:
@@ -209,6 +233,15 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		t.Fatal("timed out waiting for provider to start")
 	}
 
+	// start dhstore
+	cmdDhstore := e.start(dhstore, "--storePath", e.dir)
+	select {
+	case <-e.dhstoreReady:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for dhstore to start")
+	}
+
+	// start indexer
 	cmdIndexer := e.start(indexer, "daemon")
 	select {
 	case <-e.indexerReady:
@@ -216,6 +249,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		t.Fatal("timed out waiting for indexer to start")
 	}
 
+	// connect provider to the indexer
 	e.run(provider, "connect",
 		"--imaddr", fmt.Sprintf("/dns/localhost/tcp/3003/p2p/%s", indexerID),
 		"--listen-admin", "http://localhost:3102",
@@ -261,6 +295,21 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	outProvider := e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
 	// Check that IndexCount with correct value appears in providers output.
 	require.Contains(t, string(outProvider), "IndexCount: 1043")
+
+	// Create double hashed client and verify that the multihashes ended up in dhstore
+	client, err := finderhttpclient.NewDHashClient("http://127.0.0.1:40080", "http://127.0.0.1:3000")
+	require.NoError(t, err)
+
+	mh, err := multihash.FromB58String("2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj")
+	require.NoError(t, err)
+
+	dhResp, err := client.Find(e.ctx, mh)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(dhResp.MultihashResults))
+	require.Equal(t, dhResp.MultihashResults[0].Multihash, mh)
+	require.Equal(t, 1, len(dhResp.MultihashResults[0].ProviderResults))
+	require.Equal(t, providerID, dhResp.MultihashResults[0].ProviderResults[0].Provider.ID.String())
 
 	// Remove a car file from the provider.  This will cause the provider to
 	// publish an advertisement that tells the indexer to remove the car file
@@ -336,6 +385,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 	e.stop(cmdIndexer, time.Second)
 	e.stop(cmdProvider, time.Second)
+	e.stop(cmdDhstore, time.Second)
 }
 
 func retryWithTimeout(t *testing.T, timeout time.Duration, timeBetweenRetries time.Duration, retryableFn func() error) {

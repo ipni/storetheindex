@@ -26,21 +26,28 @@ const (
 type DHashClient struct {
 	Client
 
-	metadataUrl string
-	pcache      *providerCache
+	dhstoreUrl    string
+	dhFinderUrl   string
+	dhMetadataUrl string
+	pcache        *providerCache
 }
 
 // NewDHashClient instantiates a new client that uses Reader Privacy API for querying data.
 // It requires more roundtrips to fullfill one query however it also protects the user from a passive observer.
-func NewDHashClient(baseURL string, options ...httpclient.Option) (*DHashClient, error) {
-	c, err := New(baseURL, options...)
+// dhstoreUrl specifies the URL of the double hashed store that can respond to find encrypted multihash and find encrypted metadata requests.
+// stiUrl specifies the URL of storetheindex that can respond to find provider requests.
+// dhstoreUrl and stiUrl are expected to be the same when these services are deployed behing a proxy - indexstar.
+func NewDHashClient(dhstoreUrl string, stiUrl string, options ...httpclient.Option) (*DHashClient, error) {
+	c, err := New(stiUrl, options...)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DHashClient{
-		Client:      *c,
-		metadataUrl: baseURL + metadataPath,
+		Client:        *c,
+		dhstoreUrl:    dhstoreUrl,
+		dhFinderUrl:   dhstoreUrl + finderPath,
+		dhMetadataUrl: dhstoreUrl + metadataPath,
 		pcache: &providerCache{
 			ttl:    pcacheTtl,
 			pinfos: make(map[peer.ID]*pinfoWrapper),
@@ -57,7 +64,7 @@ func (c *DHashClient) Find(ctx context.Context, mh multihash.Multihash) (*model.
 	if err != nil {
 		return nil, err
 	}
-	u := fmt.Sprint(c.finderURL, "/", smh.B58String())
+	u := fmt.Sprint(c.dhFinderUrl, "/", smh.B58String())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
@@ -141,7 +148,7 @@ func (c *DHashClient) decryptFindResponse(ctx context.Context, resp *model.FindR
 }
 
 func (c *DHashClient) fetchMetadata(ctx context.Context, vk []byte) ([]byte, error) {
-	u := fmt.Sprint(c.metadataUrl, "/", b58.Encode(dhash.SHA256(vk, nil)))
+	u := fmt.Sprint(c.dhMetadataUrl, "/", b58.Encode(dhash.SHA256(vk, nil)))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
@@ -208,8 +215,10 @@ func (pc *providerCache) getResults(ctx context.Context, pid peer.ID, ctxID []by
 			cxps:  make(map[string]*model.ContextualExtendedProviders),
 		}
 		pc.pinfos[pinfo.AddrInfo.ID] = wrapper
-		for _, cxp := range pinfo.ExtendedProviders.Contextual {
-			wrapper.cxps[cxp.ContextID] = &cxp
+		if pinfo.ExtendedProviders != nil {
+			for _, cxp := range pinfo.ExtendedProviders.Contextual {
+				wrapper.cxps[cxp.ContextID] = &cxp
+			}
 		}
 	}
 
@@ -220,6 +229,11 @@ func (pc *providerCache) getResults(ctx context.Context, pid peer.ID, ctxID []by
 		Metadata:  metadata,
 		Provider:  wrapper.pinfo.AddrInfo,
 	})
+
+	// return results if there are no further extended providers to unpack
+	if wrapper.pinfo.ExtendedProviders == nil {
+		return results, nil
+	}
 
 	// If override is set to true at the context level then the chain
 	// level EPs should be ignored for this context ID

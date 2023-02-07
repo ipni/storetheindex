@@ -139,5 +139,12 @@ func initCommand(cctx *cli.Context) error {
 		cfg.Discovery.UseAssigner = true
 	}
 
+	dhstoreUrl := cctx.String("dhstore")
+	if dhstoreUrl != "" {
+		log.Infow("dhstoreUrl", dhstoreUrl)
+		cfg.Indexer.DHStoreURL = dhstoreUrl
+		cfg.Indexer.DHBatchSize = -1
+	}
+
 	return cfg.Save(configFile)
 }

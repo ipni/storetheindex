@@ -206,6 +206,11 @@ var initFlags = []cli.Flag{
 		Usage:    "Configure the indexer to work with an assigner service",
 		Required: false,
 	},
+	&cli.StringFlag{
+		Name:     "dhstore",
+		Usage:    "Url of DHStore for double hashed index",
+		Required: false,
+	},
 }
 
 var providersGetFlags = []cli.Flag{
