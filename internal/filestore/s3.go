@@ -27,7 +27,13 @@ func newS3(cfg config.S3FileStore) (*S3, error) {
 		return nil, errors.New("s3 configuration missing 'Region'")
 	}
 
-	return nil, ErrNotImplemented
+	return &S3{
+		basePath:   cfg.BasePath,
+		bucketName: cfg.BucketName,
+		region:     cfg.Region,
+		accessKey:  cfg.AccessKey,
+		secretKey:  cfg.SecretKey,
+	}, nil
 }
 
 func (s3 *S3) Delete(ctx context.Context, path string) error {

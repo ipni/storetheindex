@@ -206,6 +206,16 @@ func (cw *CarWriter) writeEntriesToCar(ctx context.Context, adCid, entriesCid ci
 		return nil, fmt.Errorf("failed to load first entry: %w", err)
 	}
 
+	// If the entries file alredy exists, remove the entries from the datastore
+	// and do not re-create the entries CAR file.
+	fileInfo, err := cw.fileStore.Head(ctx, fileName)
+	if err == nil {
+		if err = cw.removeEntriesData(entriesCid, node); err != nil {
+			return nil, err
+		}
+		return fileInfo, nil
+	}
+
 	carStore, err := carblockstore.OpenReadWrite(carTmp, []cid.Cid{entriesCid})
 	if err != nil {
 		return nil, &WriteError{fmt.Errorf("cannot open entries car file: %w", err)}
@@ -243,7 +253,7 @@ func (cw *CarWriter) writeEntriesToCar(ctx context.Context, adCid, entriesCid ci
 		return nil, err
 	}
 
-	fileInfo, err := cw.fileStore.Put(ctx, fileName, carFile)
+	fileInfo, err = cw.fileStore.Put(ctx, fileName, carFile)
 	if err != nil {
 		return nil, err
 	}
@@ -317,35 +327,11 @@ func (cw *CarWriter) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Nod
 	return node, val, nil
 }
 
-func (cw *CarWriter) removeAdData(adCid cid.Cid, skipEntries bool) error {
-	delCids := []cid.Cid{adCid}
+func (cw *CarWriter) removeEntriesData(entriesCid cid.Cid, node ipld.Node) error {
+	delCids := []cid.Cid{entriesCid}
 	defer func() {
 		cw.deleteCids(delCids)
 	}()
-
-	ad, _, err := cw.loadAd(adCid)
-	if err != nil {
-		if errors.Is(err, datastore.ErrNotFound) {
-			delCids = nil
-			return nil
-		}
-		return fmt.Errorf("cannot load advertisement: %w", err)
-	}
-
-	if skipEntries || ad.Entries == schema.NoEntries || ad.Entries == nil {
-		return nil
-	}
-
-	entriesCid := ad.Entries.(cidlink.Link).Cid
-	if entriesCid == cid.Undef {
-		return errors.New("advertisement entries link is undefined")
-	}
-
-	node, _, err := cw.loadNode(entriesCid, basicnode.Prototype.Any)
-	if err != nil {
-		return fmt.Errorf("failed to load first entry: %w", err)
-	}
-	delCids = append(delCids, entriesCid)
 
 	if isHAMT(node) {
 		return nil

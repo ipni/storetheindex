@@ -45,7 +45,7 @@ func TestLocalPut(t *testing.T) {
 
 	// Check for error with non-writable directory.
 	cfg.Local.BasePath = roDir
-	ls, err = filestore.New(cfg)
+	_, err = filestore.New(cfg)
 	require.ErrorIs(t, err, fs.ErrPermission)
 }
 
@@ -69,7 +69,7 @@ func TestLocalGet(t *testing.T) {
 	require.Nil(t, fileInfo)
 
 	data := "hello world"
-	fileInfo, err = ls.Put(context.Background(), fileName, strings.NewReader(data))
+	_, err = ls.Put(context.Background(), fileName, strings.NewReader(data))
 	require.NoError(t, err)
 
 	fileInfo, r, err := ls.Get(context.Background(), fileName)
@@ -88,7 +88,7 @@ func TestLocalGet(t *testing.T) {
 
 	subdir := "abc"
 	subName := filepath.Join(subdir, fileName)
-	fileInfo, err = ls.Put(context.Background(), subName, strings.NewReader(data))
+	_, err = ls.Put(context.Background(), subName, strings.NewReader(data))
 	require.NoError(t, err)
 
 	_, _, err = ls.Get(context.Background(), subdir)
@@ -115,7 +115,7 @@ func TestLocalHead(t *testing.T) {
 	require.Nil(t, fileInfo)
 
 	data := "hello world"
-	fileInfo, err = ls.Put(context.Background(), fileName, strings.NewReader(data))
+	_, err = ls.Put(context.Background(), fileName, strings.NewReader(data))
 	require.NoError(t, err)
 
 	fileInfo, err = ls.Head(context.Background(), fileName)
@@ -125,7 +125,7 @@ func TestLocalHead(t *testing.T) {
 	require.False(t, fileInfo.Modified.IsZero())
 
 	// Should get ErrNotFound when looking for subdirectory.
-	fileInfo, err = ls.Head(context.Background(), "abc")
+	_, err = ls.Head(context.Background(), "abc")
 	require.ErrorIs(t, err, filestore.ErrNotFound)
 }
 
