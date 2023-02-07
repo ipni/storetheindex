@@ -69,21 +69,34 @@ func TestWrite(t *testing.T) {
 	// Test that car file is created.
 	adCarPath, entCarPath, err := carw.Write(context.Background(), adCid, false)
 	require.NoError(t, err)
-	require.True(t, fsutil.FileExists(adCarPath))
-	require.True(t, fsutil.FileExists(entCarPath))
-	t.Log("Created advertisement CAR file:", filepath.Base(adCarPath))
-	t.Log("Created entries CAR file:", filepath.Base(entCarPath))
+	require.True(t, fsutil.FileExists(filepath.Join(carDir, adCarPath)))
+	require.True(t, fsutil.FileExists(filepath.Join(carDir, entCarPath)))
+	t.Log("Created advertisement CAR file:", adCarPath)
+	t.Log("Created entries CAR file:", entCarPath)
 
 	// Read CAR file and see that it has expected contents.
-	acbs, err := carblockstore.OpenReadOnly(adCarPath)
+	_, r, err := fileStore.Get(context.Background(), adCarPath)
 	require.NoError(t, err)
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, r)
+	require.NoError(t, err)
+	reader := bytes.NewReader(buf.Bytes())
+	acbs, err := carblockstore.NewReadOnly(reader, nil)
+	require.NoError(t, err)
+
 	// Check that ad block is present.
 	blk, err := acbs.Get(context.Background(), adCid)
 	require.NoError(t, err, "failed to get ad block from car file")
 	require.NotNil(t, blk)
 
 	// Read CAR file and see that it has expected contents.
-	ecbs, err := carblockstore.OpenReadOnly(entCarPath)
+	_, r, err = fileStore.Get(context.Background(), entCarPath)
+	require.NoError(t, err)
+	buf.Reset()
+	_, err = io.Copy(&buf, r)
+	require.NoError(t, err)
+	reader.Reset(buf.Bytes())
+	ecbs, err := carblockstore.NewReadOnly(reader, nil)
 	require.NoError(t, err)
 
 	// Check that first entries block is present.
@@ -92,7 +105,8 @@ func TestWrite(t *testing.T) {
 	require.NotNil(t, blk)
 
 	// Check that the CAR is iterable.
-	cr, err := car.OpenReader(entCarPath)
+	reader.Reset(buf.Bytes())
+	cr, err := car.NewReader(reader)
 	require.NoError(t, err)
 	defer cr.Close()
 
@@ -169,14 +183,14 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that ad car file was not written to.
-	fi, err := os.Stat(adCarPath)
+	fileInfo, err := fileStore.Head(context.Background(), adCarPath)
 	require.NoError(t, err)
-	require.Zero(t, fi.Size())
+	require.Zero(t, fileInfo.Size)
 
 	// Check that entries car file was written to.
-	fi, err = os.Stat(entCarPath)
+	fileInfo, err = fileStore.Head(context.Background(), entCarPath)
 	require.NoError(t, err)
-	require.NotZero(t, fi.Size())
+	require.NotZero(t, fileInfo.Size)
 
 	// Check that ad and entries block are no longer in datastore.
 	ok, err = dstore.Has(context.Background(), datastore.NewKey(adCid.String()))

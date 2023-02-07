@@ -193,7 +193,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	if cfg.AdvertisementsToCar.Type != "" {
 		fileStore, err := filestore.New(cfg.AdvertisementsToCar)
 		if err != nil {
-			return nil, fmt.Errorf("Cannot create file store for CAR failes: %w", err)
+			return nil, fmt.Errorf("cannot create file store for car failes: %w", err)
 		}
 
 		ing.adToCar = carwriter.New(ds, fileStore)

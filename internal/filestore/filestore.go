@@ -14,6 +14,7 @@ import (
 // File contains information about a stored file.
 type File struct {
 	// Path is the path to the file relative to the root of the file store.
+	// Path separators are always slash ('/') characters.
 	Path string
 	// Link is a URL where the file can be retrieved from, if available.
 	Link *url.URL
@@ -23,7 +24,9 @@ type File struct {
 	Modified time.Time
 }
 
-// Interface is the interface supported by all file store implementations.
+// Interface is the interface supported by all file store implementations. All
+// Path arguments are relative to the root of the file store and always use
+// slash ('/') characters.
 type Interface interface {
 	// Delete removes the specified file from storage.
 	Delete(ctx context.Context, path string) error
@@ -34,9 +37,11 @@ type Interface interface {
 	// List returns a series of *File on the first channel returned. If an
 	// error occurs, the first channel is closed and the error is returned on
 	// the second channel.
-	List(ctx context.Context, path string) (<-chan *File, <-chan error)
+	List(ctx context.Context, path string, recursive bool) (<-chan *File, <-chan error)
 	// Put writes a file to storage.
 	Put(ctx context.Context, path string, reader io.Reader) (*File, error)
+	// Type returns the file store type.
+	Type() string
 }
 
 // Create a new storage system of the configured type.

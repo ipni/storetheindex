@@ -42,7 +42,7 @@ func (s3 *S3) Head(ctx context.Context, path string) (*File, error) {
 	return nil, ErrNotImplemented
 }
 
-func (s3 *S3) List(ctx context.Context, path string) (<-chan *File, <-chan error) {
+func (s3 *S3) List(ctx context.Context, path string, recursive bool) (<-chan *File, <-chan error) {
 	c := make(chan *File)
 	e := make(chan error, 1)
 
@@ -55,4 +55,8 @@ func (s3 *S3) List(ctx context.Context, path string) (<-chan *File, <-chan error
 
 func (s3 *S3) Put(ctx context.Context, path string, reader io.Reader) (*File, error) {
 	return nil, ErrNotImplemented
+}
+
+func (s3 *S3) Type() string {
+	return "s3"
 }

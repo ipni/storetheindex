@@ -31,7 +31,7 @@ func newLocal(cfg config.LocalFileStore) (*Local, error) {
 }
 
 func (l *Local) Delete(ctx context.Context, relPath string) error {
-	err := os.Remove(filepath.Join(l.basePath, relPath))
+	err := os.Remove(filepath.Join(l.basePath, filepath.FromSlash(relPath)))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -39,7 +39,7 @@ func (l *Local) Delete(ctx context.Context, relPath string) error {
 }
 
 func (l *Local) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, error) {
-	absPath := filepath.Join(l.basePath, relPath)
+	absPath := filepath.Join(l.basePath, filepath.FromSlash(relPath))
 
 	f, err := os.Open(absPath)
 	if err != nil {
@@ -61,15 +61,19 @@ func (l *Local) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, 
 		return nil, nil, err
 	}
 
+	if fi.IsDir() {
+		return nil, nil, ErrNotFound
+	}
+
 	return &File{
 		Modified: fi.ModTime(),
-		Path:     absPath,
+		Path:     relPath,
 		Size:     fi.Size(),
 	}, f, nil
 }
 
 func (l *Local) Head(ctx context.Context, relPath string) (*File, error) {
-	absPath := filepath.Join(l.basePath, relPath)
+	absPath := filepath.Join(l.basePath, filepath.FromSlash(relPath))
 	fi, err := os.Stat(absPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -78,27 +82,39 @@ func (l *Local) Head(ctx context.Context, relPath string) (*File, error) {
 		return nil, err
 	}
 
+	if fi.IsDir() {
+		return nil, ErrNotFound
+	}
+
 	return &File{
 		Modified: fi.ModTime(),
-		Path:     absPath,
+		Path:     relPath,
 		Size:     fi.Size(),
 	}, nil
 }
 
-func (l *Local) List(ctx context.Context, relPath string) (<-chan *File, <-chan error) {
+func (l *Local) List(ctx context.Context, relPath string, recursive bool) (<-chan *File, <-chan error) {
 	c := make(chan *File)
 	e := make(chan error, 1)
 
 	go func() {
+		defer close(e)
 		defer close(c)
 
-		absPath := filepath.Join(l.basePath, relPath)
+		absPath := filepath.Join(l.basePath, filepath.FromSlash(relPath))
 		e <- filepath.WalkDir(absPath, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
-				if errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) {
-					return nil
+				if errors.Is(err, os.ErrNotExist) {
+					return ErrNotFound
 				}
 				return err
+			}
+
+			if d.IsDir() {
+				if !recursive && path != absPath {
+					return fs.SkipDir
+				}
+				return nil
 			}
 
 			// Only return results for regular files.
@@ -111,9 +127,14 @@ func (l *Local) List(ctx context.Context, relPath string) (<-chan *File, <-chan 
 				return err
 			}
 
+			relFilePath, err := filepath.Rel(l.basePath, path)
+			if err != nil {
+				return err
+			}
+
 			f := &File{
 				Modified: fi.ModTime(),
-				Path:     path,
+				Path:     filepath.ToSlash(relFilePath),
 				Size:     fi.Size(),
 			}
 
@@ -130,7 +151,7 @@ func (l *Local) List(ctx context.Context, relPath string) (<-chan *File, <-chan 
 }
 
 func (l *Local) Put(ctx context.Context, relPath string, r io.Reader) (*File, error) {
-	absPath := filepath.Join(l.basePath, relPath)
+	absPath := filepath.Join(l.basePath, filepath.FromSlash(relPath))
 
 	dir, _ := filepath.Split(relPath)
 	if dir != "" {
@@ -164,7 +185,11 @@ func (l *Local) Put(ctx context.Context, relPath string, r io.Reader) (*File, er
 
 	return &File{
 		Modified: fi.ModTime(),
-		Path:     absPath,
+		Path:     relPath,
 		Size:     n,
 	}, nil
+}
+
+func (l *Local) Type() string {
+	return "local"
 }
