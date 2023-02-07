@@ -173,9 +173,12 @@ func (l *Local) Put(ctx context.Context, relPath string, r io.Reader) (*File, er
 		}
 	}()
 
-	n, err := io.Copy(f, r)
-	if err != nil {
-		return nil, err
+	var n int64
+	if r != nil {
+		n, err = io.Copy(f, r)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	fi, err := f.Stat()

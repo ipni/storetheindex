@@ -259,6 +259,11 @@ func TestLocalDelete(t *testing.T) {
 	_, err = ls.Head(ctx, fileName1)
 	require.ErrorIs(t, err, filestore.ErrNotFound)
 
+	// Delete non-existant file should be OK.
+	err = ls.Delete(ctx, fileName1)
+	require.NoError(t, err)
+
+	// Delete non-empty directory should fail.
 	err = ls.Delete(ctx, "abc")
 	require.Error(t, err)
 }

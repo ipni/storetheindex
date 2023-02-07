@@ -38,7 +38,7 @@ type Interface interface {
 	// error occurs, the first channel is closed and the error is returned on
 	// the second channel.
 	List(ctx context.Context, path string, recursive bool) (<-chan *File, <-chan error)
-	// Put writes a file to storage.
+	// Put writes a file to storage. A nil reader creates an empty file.
 	Put(ctx context.Context, path string, reader io.Reader) (*File, error)
 	// Type returns the file store type.
 	Type() string
