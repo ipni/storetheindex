@@ -5,8 +5,6 @@ import (
 	"context"
 	"io"
 	"math/rand"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/ipfs/go-cid"
@@ -18,7 +16,6 @@ import (
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/fsutil"
 	"github.com/ipni/storetheindex/internal/carwriter"
 	"github.com/ipni/storetheindex/internal/filestore"
 	"github.com/ipni/storetheindex/test/util"
@@ -58,24 +55,28 @@ func TestWrite(t *testing.T) {
 	adCid, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, dstore)
 	entriesCid := ad.Entries.(cidlink.Link).Cid
 
+	ctx := context.Background()
+
 	// Check that datastore has ad and entries CID before reading to car.
-	ok, err := dstore.Has(context.Background(), datastore.NewKey(adCid.String()))
+	ok, err := dstore.Has(ctx, datastore.NewKey(adCid.String()))
 	require.NoError(t, err)
 	require.True(t, ok)
-	ok, err = dstore.Has(context.Background(), datastore.NewKey(entriesCid.String()))
+	ok, err = dstore.Has(ctx, datastore.NewKey(entriesCid.String()))
 	require.NoError(t, err)
 	require.True(t, ok)
 
 	// Test that car file is created.
-	adCarPath, entCarPath, err := carw.Write(context.Background(), adCid, false)
+	adCarPath, entCarPath, err := carw.Write(ctx, adCid, false)
 	require.NoError(t, err)
-	require.True(t, fsutil.FileExists(filepath.Join(carDir, adCarPath)))
-	require.True(t, fsutil.FileExists(filepath.Join(carDir, entCarPath)))
+	_, err = fileStore.Head(ctx, adCarPath)
+	require.NoError(t, err)
+	_, err = fileStore.Head(ctx, entCarPath)
+	require.NoError(t, err)
 	t.Log("Created advertisement CAR file:", adCarPath)
 	t.Log("Created entries CAR file:", entCarPath)
 
 	// Read CAR file and see that it has expected contents.
-	_, r, err := fileStore.Get(context.Background(), adCarPath)
+	_, r, err := fileStore.Get(ctx, adCarPath)
 	require.NoError(t, err)
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, r)
@@ -85,12 +86,12 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that ad block is present.
-	blk, err := acbs.Get(context.Background(), adCid)
+	blk, err := acbs.Get(ctx, adCid)
 	require.NoError(t, err, "failed to get ad block from car file")
 	require.NotNil(t, blk)
 
 	// Read CAR file and see that it has expected contents.
-	_, r, err = fileStore.Get(context.Background(), entCarPath)
+	_, r, err = fileStore.Get(ctx, entCarPath)
 	require.NoError(t, err)
 	buf.Reset()
 	_, err = io.Copy(&buf, r)
@@ -100,7 +101,7 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that first entries block is present.
-	blk, err = ecbs.Get(context.Background(), entriesCid)
+	blk, err = ecbs.Get(ctx, entriesCid)
 	require.NoError(t, err, "failed to get ad entried block from car file")
 	require.NotNil(t, blk)
 
@@ -137,10 +138,10 @@ func TestWrite(t *testing.T) {
 	require.Equal(t, entBlockCount, count)
 
 	// Check that ad and entries block are no longer in datastore.
-	ok, err = dstore.Has(context.Background(), datastore.NewKey(adCid.String()))
+	ok, err = dstore.Has(ctx, datastore.NewKey(adCid.String()))
 	require.NoError(t, err)
 	require.False(t, ok)
-	ok, err = dstore.Has(context.Background(), datastore.NewKey(entriesCid.String()))
+	ok, err = dstore.Has(ctx, datastore.NewKey(entriesCid.String()))
 	require.NoError(t, err)
 	require.False(t, ok)
 }
@@ -154,49 +155,49 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	adCid, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, dstore)
 	entriesCid := ad.Entries.(cidlink.Link).Cid
 
-	// Check that datastore has ad and entries CID before reading to car.
-	ok, err := dstore.Has(context.Background(), datastore.NewKey(adCid.String()))
-	require.NoError(t, err)
-	require.True(t, ok)
-	ok, err = dstore.Has(context.Background(), datastore.NewKey(entriesCid.String()))
-	require.NoError(t, err)
-	require.True(t, ok)
+	ctx := context.Background()
 
-	carDir := t.TempDir()
-	adCarPath := filepath.Join(carDir, adCid.String()) + "_adv.car"
-	f, err := os.Create(adCarPath)
+	// Check that datastore has ad and entries CID before reading to car.
+	ok, err := dstore.Has(ctx, datastore.NewKey(adCid.String()))
 	require.NoError(t, err)
-	f.Close()
+	require.True(t, ok)
+	ok, err = dstore.Has(ctx, datastore.NewKey(entriesCid.String()))
+	require.NoError(t, err)
+	require.True(t, ok)
 
 	cfg := config.FileStore{
 		Type: "local",
 		Local: config.LocalFileStore{
-			BasePath: carDir,
+			BasePath: t.TempDir(),
 		},
 	}
 	fileStore, err := filestore.New(cfg)
 	require.NoError(t, err)
 
+	fileName := adCid.String() + "_adv.car"
+	_, err = fileStore.Put(ctx, fileName, nil)
+	require.NoError(t, err)
+
 	carw := carwriter.New(dstore, fileStore)
 
-	adCarPath, entCarPath, err := carw.Write(context.Background(), adCid, false)
+	adCarPath, entCarPath, err := carw.Write(ctx, adCid, false)
 	require.NoError(t, err)
 
 	// Check that ad car file was not written to.
-	fileInfo, err := fileStore.Head(context.Background(), adCarPath)
+	fileInfo, err := fileStore.Head(ctx, adCarPath)
 	require.NoError(t, err)
 	require.Zero(t, fileInfo.Size)
 
 	// Check that entries car file was written to.
-	fileInfo, err = fileStore.Head(context.Background(), entCarPath)
+	fileInfo, err = fileStore.Head(ctx, entCarPath)
 	require.NoError(t, err)
 	require.NotZero(t, fileInfo.Size)
 
 	// Check that ad and entries block are no longer in datastore.
-	ok, err = dstore.Has(context.Background(), datastore.NewKey(adCid.String()))
+	ok, err = dstore.Has(ctx, datastore.NewKey(adCid.String()))
 	require.NoError(t, err)
 	require.False(t, ok)
-	ok, err = dstore.Has(context.Background(), datastore.NewKey(entriesCid.String()))
+	ok, err = dstore.Has(ctx, datastore.NewKey(entriesCid.String()))
 	require.NoError(t, err)
 	require.False(t, ok)
 }
@@ -210,11 +211,13 @@ func TestWriteExistingAdsInStore(t *testing.T) {
 	adCid, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, dstore)
 	entriesCid := ad.Entries.(cidlink.Link).Cid
 
+	ctx := context.Background()
+
 	// Check that datastore has ad and entries CID before reading to car.
-	ok, err := dstore.Has(context.Background(), datastore.NewKey(adCid.String()))
+	ok, err := dstore.Has(ctx, datastore.NewKey(adCid.String()))
 	require.NoError(t, err)
 	require.True(t, ok)
-	ok, err = dstore.Has(context.Background(), datastore.NewKey(entriesCid.String()))
+	ok, err = dstore.Has(ctx, datastore.NewKey(entriesCid.String()))
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -230,17 +233,33 @@ func TestWriteExistingAdsInStore(t *testing.T) {
 
 	carw := carwriter.New(dstore, fileStore)
 
-	countChan := carw.WriteExisting(context.Background())
+	countChan := carw.WriteExisting(ctx)
 	n := <-countChan
 	require.Equal(t, 1, n)
-	require.True(t, fsutil.FileExists(filepath.Join(carDir, adCid.String())+"_adv.car"))
-	require.True(t, fsutil.FileExists(filepath.Join(carDir, entriesCid.String())+"_mhs.car"))
+	adName := adCid.String() + "_adv.car"
+	entName := entriesCid.String() + "_mhs.car"
+	var adFound, entFound bool
+	fc, ec := fileStore.List(ctx, "", false)
+	for fileInfo := range fc {
+		switch fileInfo.Path {
+		case adName:
+			adFound = true
+		case entName:
+			entFound = true
+		default:
+			t.Fatal("unexpected file")
+		}
+	}
+	err = <-ec
+	require.NoError(t, err)
+	require.True(t, adFound)
+	require.True(t, entFound)
 
 	// Check that ad and entries block are no longer in datastore.
-	ok, err = dstore.Has(context.Background(), datastore.NewKey(adCid.String()))
+	ok, err = dstore.Has(ctx, datastore.NewKey(adCid.String()))
 	require.NoError(t, err)
 	require.False(t, ok)
-	ok, err = dstore.Has(context.Background(), datastore.NewKey(entriesCid.String()))
+	ok, err = dstore.Has(ctx, datastore.NewKey(entriesCid.String()))
 	require.NoError(t, err)
 	require.False(t, ok)
 }
