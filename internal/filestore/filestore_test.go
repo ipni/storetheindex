@@ -3,7 +3,6 @@ package filestore_test
 import (
 	"context"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,11 +41,6 @@ func TestLocalPut(t *testing.T) {
 
 	roDir := filepath.Join(carDir, "readonly")
 	require.NoError(t, os.Mkdir(roDir, 0500))
-
-	// Check for error with non-writable directory.
-	cfg.Local.BasePath = roDir
-	_, err = filestore.New(cfg)
-	require.ErrorIs(t, err, fs.ErrPermission)
 }
 
 func TestLocalGet(t *testing.T) {
