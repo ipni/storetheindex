@@ -162,8 +162,6 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 			Prefix: aws.String(relPath),
 		}
 
-		var any bool
-
 		for {
 			rsp, err := s.client.ListObjectsV2(ctx, req)
 			if err != nil {
@@ -172,7 +170,6 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 			}
 
 			for _, content := range rsp.Contents {
-				any = true
 				if strings.HasSuffix(*content.Key, "/") {
 					continue
 				}
@@ -206,9 +203,6 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 			}
 
 			req.ContinuationToken = rsp.NextContinuationToken
-		}
-		if !any {
-			ec <- ErrNotFound
 		}
 	}()
 

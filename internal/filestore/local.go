@@ -105,7 +105,8 @@ func (l *Local) List(ctx context.Context, relPath string, recursive bool) (<-cha
 		e <- filepath.WalkDir(absPath, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				if errors.Is(err, os.ErrNotExist) {
-					return ErrNotFound
+					// A resource that is not found does not get listed.
+					return nil
 				}
 				return err
 			}

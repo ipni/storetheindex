@@ -198,7 +198,7 @@ func testList(t *testing.T, cfg config.FileStore) {
 	require.Nil(t, fileInfo)
 	require.False(t, ok)
 	err = <-errCh
-	require.ErrorIs(t, err, filestore.ErrNotFound)
+	require.NoError(t, err)
 
 	_, err = fs.Put(context.Background(), fileName1, strings.NewReader(data1))
 	require.NoError(t, err)
