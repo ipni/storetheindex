@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/url"
 	"time"
 
 	"github.com/ipni/storetheindex/config"
@@ -13,15 +12,15 @@ import (
 
 // File contains information about a stored file.
 type File struct {
+	// Modified it the last modification time.
+	Modified time.Time
 	// Path is the path to the file relative to the root of the file store.
 	// Path separators are always slash ('/') characters.
 	Path string
-	// Link is a URL where the file can be retrieved from, if available.
-	Link *url.URL
 	// Size if the number of bytes of data in the file.
 	Size int64
-	// Modified it the last modification time.
-	Modified time.Time
+	// URL is a URL where the file can be retrieved from, if available.
+	URL string
 }
 
 // Interface is the interface supported by all file store implementations. All

@@ -174,7 +174,7 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	fileStore, err := filestore.New(cfg)
 	require.NoError(t, err)
 
-	fileName := adCid.String() + "_adv.car"
+	fileName := adCid.String() + ".car"
 	_, err = fileStore.Put(ctx, fileName, nil)
 	require.NoError(t, err)
 
@@ -236,8 +236,8 @@ func TestWriteExistingAdsInStore(t *testing.T) {
 	countChan := carw.WriteExisting(ctx)
 	n := <-countChan
 	require.Equal(t, 1, n)
-	adName := adCid.String() + "_adv.car"
-	entName := entriesCid.String() + "_mhs.car"
+	adName := adCid.String() + ".car"
+	entName := entriesCid.String() + ".car"
 	var adFound, entFound bool
 	fc, ec := fileStore.List(ctx, "", false)
 	for fileInfo := range fc {

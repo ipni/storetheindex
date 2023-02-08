@@ -156,7 +156,7 @@ func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries bool)
 
 // writeAdToCar wites the advertisement data to a CAR file.
 func (cw *CarWriter) writeAdToCar(ctx context.Context, adCid cid.Cid, data []byte) (*filestore.File, error) {
-	fileName := adCid.String() + "_adv.car"
+	fileName := adCid.String() + ".car"
 
 	// If the destination file already exists, do not rewrite it.
 	fileInfo, err := cw.fileStore.Head(ctx, fileName)
@@ -192,7 +192,7 @@ func (cw *CarWriter) writeAdToCar(ctx context.Context, adCid cid.Cid, data []byt
 func (cw *CarWriter) writeEntriesToCar(ctx context.Context, adCid, entriesCid cid.Cid) (*filestore.File, error) {
 	delCids := []cid.Cid{adCid, entriesCid}
 
-	fileName := entriesCid.String() + "_mhs.car"
+	fileName := entriesCid.String() + ".car"
 	carTmp := filepath.Join(os.TempDir(), fileName)
 
 	node, data, err := cw.loadNode(entriesCid, basicnode.Prototype.Any)

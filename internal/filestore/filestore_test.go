@@ -2,6 +2,7 @@ package filestore_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,7 +13,53 @@ import (
 	"github.com/ipni/storetheindex/fsutil"
 	"github.com/ipni/storetheindex/internal/filestore"
 	"github.com/stretchr/testify/require"
+
+	"github.com/orlangure/gnomock"
+	"github.com/orlangure/gnomock/preset/localstack"
 )
+
+func TestS3Put(t *testing.T) {
+	const fileName = "testfile.txt"
+	const bucketName = "testbucket"
+
+	tempDir := t.TempDir()
+	err := os.MkdirAll(fmt.Sprintf("./%s/%s", tempDir, bucketName), 0755)
+	require.NoError(t, err)
+
+	p := localstack.Preset(
+		localstack.WithServices(localstack.S3),
+		localstack.WithS3Files(fmt.Sprintf("./%s", tempDir)),
+	)
+	localS3, err := gnomock.Start(p)
+	if err != nil {
+		if strings.HasPrefix(err.Error(), "can't start container") {
+			t.Skip("Docker required for s3 tests")
+		}
+	}
+	require.NoError(t, err)
+	defer func() { _ = gnomock.Stop(localS3) }()
+
+	cfg := config.FileStore{
+		Type: "s3",
+		S3: config.S3FileStore{
+			BucketName: bucketName,
+			Endpoint:   fmt.Sprintf("http://%s/", localS3.Address(localstack.APIPort)),
+			AccessKey:  "abcd1234",
+			SecretKey:  "1qaz2wsx",
+		},
+	}
+
+	fs, err := filestore.New(cfg)
+	require.NoError(t, err)
+	_, ok := fs.(*filestore.S3)
+	require.True(t, ok)
+	require.Equal(t, "s3", fs.Type())
+
+	data := "hello world"
+	fileInfo, err := fs.Put(context.Background(), fileName, strings.NewReader(data))
+	require.NoError(t, err)
+	require.Equal(t, int64(len(data)), fileInfo.Size)
+}
 
 func TestLocalPut(t *testing.T) {
 	const fileName = "testfile.txt"
@@ -38,9 +85,6 @@ func TestLocalPut(t *testing.T) {
 	require.True(t, fsutil.FileExists(filepath.Join(carDir, fileName)))
 	require.Equal(t, fileName, fileInfo.Path)
 	require.Equal(t, int64(len(data)), fileInfo.Size)
-
-	roDir := filepath.Join(carDir, "readonly")
-	require.NoError(t, os.Mkdir(roDir, 0500))
 }
 
 func TestLocalGet(t *testing.T) {

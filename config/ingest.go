@@ -94,9 +94,12 @@ type LocalFileStore struct {
 type S3FileStore struct {
 	BasePath   string
 	BucketName string
-	Region     string
-	AccessKey  string
-	SecretKey  string
+
+	// ---- Optional Overrides ----
+	Endpoint  string
+	Region    string
+	AccessKey string
+	SecretKey string
 }
 
 // NewIngest returns Ingest with values set to their defaults.
