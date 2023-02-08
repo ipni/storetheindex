@@ -23,7 +23,6 @@ import (
 // The region is set by environment variable and authentication is done by
 // assuming a role, which is handled by infrastructure.
 type S3 struct {
-	basePath   string
 	bucketName string
 	client     *s3.Client
 	uploader   *manager.Uploader
@@ -64,7 +63,6 @@ func newS3(cfg config.S3FileStore) (*S3, error) {
 		o.UsePathStyle = usePathStyle
 	})
 	return &S3{
-		basePath:   cfg.BasePath,
 		bucketName: cfg.BucketName,
 		client:     client,
 		uploader:   manager.NewUploader(client),
@@ -74,7 +72,7 @@ func newS3(cfg config.S3FileStore) (*S3, error) {
 func (s *S3) Delete(ctx context.Context, relPath string) error {
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(s.bucketName),
-		Key:    aws.String(path.Join(s.basePath, relPath)),
+		Key:    aws.String(relPath),
 	})
 
 	return err
@@ -83,7 +81,7 @@ func (s *S3) Delete(ctx context.Context, relPath string) error {
 func (s *S3) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, error) {
 	rsp, err := s.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucketName),
-		Key:    aws.String(path.Join(s.basePath, relPath)),
+		Key:    aws.String(relPath),
 	})
 
 	if err != nil {
@@ -108,7 +106,7 @@ func (s *S3) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, err
 func (s *S3) Head(ctx context.Context, relPath string) (*File, error) {
 	rsp, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(s.bucketName),
-		Key:    aws.String(path.Join(s.basePath, relPath)),
+		Key:    aws.String(relPath),
 	})
 
 	if err != nil {
@@ -139,7 +137,7 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 		defer close(ec)
 		req := &s3.ListObjectsV2Input{
 			Bucket: aws.String(s.bucketName),
-			Prefix: aws.String(path.Join(s.basePath, relPath)),
+			Prefix: aws.String(relPath),
 		}
 
 		for {
@@ -155,7 +153,7 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 				}
 
 				file := &File{
-					Path: path.Join("/", strings.TrimPrefix(*content.Key, s.basePath)),
+					Path: path.Join("/", *content.Key),
 					Size: content.Size,
 				}
 				if content.LastModified != nil {
@@ -184,7 +182,7 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 func (s *S3) Put(ctx context.Context, relPath string, reader io.Reader) (*File, error) {
 	rsp, err := s.uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucketName),
-		Key:         aws.String(path.Join(s.basePath, relPath)),
+		Key:         aws.String(relPath),
 		Body:        reader,
 		ContentType: aws.String("application/octet-stream"),
 	})

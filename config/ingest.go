@@ -92,10 +92,13 @@ type LocalFileStore struct {
 }
 
 type S3FileStore struct {
-	BasePath   string
 	BucketName string
 
-	// ---- Optional Overrides ----
+	// ## Optional Overrides ##
+	//
+	// These values are generally set by the environment and should only be
+	// provided when necessary to override values from the environment, or when the
+	// environment is not configured.
 	Endpoint  string
 	Region    string
 	AccessKey string
