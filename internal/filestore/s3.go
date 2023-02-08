@@ -34,27 +34,32 @@ func newS3(cfg config.S3FileStore) (*S3, error) {
 	}
 
 	var usePathStyle bool
-	var epResolverFunc aws.EndpointResolverWithOptionsFunc
+	var cfgOpts []func(*awsconfig.LoadOptions) error
+
+	if cfg.Region != "" {
+		cfgOpts = append(cfgOpts, awsconfig.WithRegion(cfg.Region))
+	}
 	if cfg.Endpoint != "" {
+		var epResolverFunc aws.EndpointResolverWithOptionsFunc
 		epResolverFunc = aws.EndpointResolverWithOptionsFunc(
 			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 				return aws.Endpoint{URL: cfg.Endpoint}, nil
 			})
 		usePathStyle = true
+		cfgOpts = append(cfgOpts, awsconfig.WithEndpointResolverWithOptions(epResolverFunc))
+	}
+	if cfg.AccessKey != "" && cfg.SecretKey != "" {
+		staticCreds := credentials.StaticCredentialsProvider{
+			Value: aws.Credentials{
+				AccessKeyID:     cfg.AccessKey,
+				SecretAccessKey: cfg.SecretKey,
+				Source:          "filestore configuration",
+			},
+		}
+		cfgOpts = append(cfgOpts, awsconfig.WithCredentialsProvider(staticCreds))
 	}
 
-	awscfg, err := awsconfig.LoadDefaultConfig(context.Background(),
-		awsconfig.WithRegion(cfg.Region),
-		awsconfig.WithCredentialsProvider(
-			credentials.StaticCredentialsProvider{
-				Value: aws.Credentials{
-					AccessKeyID:     cfg.AccessKey,
-					SecretAccessKey: cfg.SecretKey,
-					Source:          "filestore configuration",
-				},
-			}),
-		awsconfig.WithEndpointResolverWithOptions(epResolverFunc),
-	)
+	awscfg, err := awsconfig.LoadDefaultConfig(context.Background(), cfgOpts...)
 	if err != nil {
 		return nil, err
 	}
