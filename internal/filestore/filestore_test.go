@@ -2,6 +2,7 @@ package filestore_test
 
 import (
 	"context"
+	//"errors"
 	"fmt"
 	"io"
 	"os"
@@ -18,8 +19,20 @@ import (
 	"github.com/orlangure/gnomock/preset/localstack"
 )
 
-func TestS3Put(t *testing.T) {
-	const fileName = "testfile.txt"
+const (
+	fileName  = "testfile.txt"
+	fileName1 = "testfile1.txt"
+	fileName2 = "testfile2.txt"
+	fileName3 = "abc/testfile3.txt"
+	subdir    = "abc"
+
+	data  = "hello world"
+	data1 = "foo"
+	data2 = "bar"
+	data3 = "baz"
+)
+
+func TestS3(t *testing.T) {
 	const bucketName = "testbucket"
 
 	tempDir := t.TempDir()
@@ -49,21 +62,28 @@ func TestS3Put(t *testing.T) {
 		},
 	}
 
-	fs, err := filestore.New(cfg)
-	require.NoError(t, err)
-	_, ok := fs.(*filestore.S3)
-	require.True(t, ok)
-	require.Equal(t, "s3", fs.Type())
+	t.Run("test-S3-Put", func(t *testing.T) {
+		testPut(t, cfg)
+	})
 
-	data := "hello world"
-	fileInfo, err := fs.Put(context.Background(), fileName, strings.NewReader(data))
-	require.NoError(t, err)
-	require.Equal(t, int64(len(data)), fileInfo.Size)
+	t.Run("test-S3-Head", func(t *testing.T) {
+		testHead(t, cfg)
+	})
+
+	t.Run("test-S3-Get", func(t *testing.T) {
+		testGet(t, cfg)
+	})
+
+	t.Run("test-S3-List", func(t *testing.T) {
+		testList(t, cfg)
+	})
+
+	t.Run("test-S3-Delete", func(t *testing.T) {
+		testDelete(t, cfg)
+	})
 }
 
-func TestLocalPut(t *testing.T) {
-	const fileName = "testfile.txt"
-
+func TestLocal(t *testing.T) {
 	carDir := t.TempDir()
 	cfg := config.FileStore{
 		Type: "local",
@@ -72,45 +92,76 @@ func TestLocalPut(t *testing.T) {
 		},
 	}
 
-	ls, err := filestore.New(cfg)
-	require.NoError(t, err)
-	_, ok := ls.(*filestore.Local)
-	require.True(t, ok)
-	require.Equal(t, "local", ls.Type())
-
-	data := "hello world"
-	fileInfo, err := ls.Put(context.Background(), fileName, strings.NewReader(data))
-	require.NoError(t, err)
+	t.Run("test-Local-Put", func(t *testing.T) {
+		testPut(t, cfg)
+	})
 
 	require.True(t, fsutil.FileExists(filepath.Join(carDir, fileName)))
+
+	t.Run("test-Local-Head", func(t *testing.T) {
+		testHead(t, cfg)
+	})
+
+	t.Run("test-Local-Get", func(t *testing.T) {
+		testGet(t, cfg)
+	})
+
+	t.Run("test-Local-List", func(t *testing.T) {
+		testList(t, cfg)
+	})
+
+	t.Run("test-Local-Delete", func(t *testing.T) {
+		testDelete(t, cfg)
+	})
+}
+
+func testPut(t *testing.T, cfg config.FileStore) {
+	fs, err := filestore.New(cfg)
+	require.NoError(t, err)
+	require.Equal(t, cfg.Type, fs.Type())
+
+	fileInfo, err := fs.Put(context.Background(), fileName, strings.NewReader(data))
+	require.NoError(t, err)
 	require.Equal(t, fileName, fileInfo.Path)
 	require.Equal(t, int64(len(data)), fileInfo.Size)
 }
 
-func TestLocalGet(t *testing.T) {
-	const fileName = "testfile.txt"
-
-	carDir := t.TempDir()
-	cfg := config.FileStore{
-		Type: "local",
-		Local: config.LocalFileStore{
-			BasePath: carDir,
-		},
-	}
-
-	ls, err := filestore.New(cfg)
+func testHead(t *testing.T, cfg config.FileStore) {
+	fs, err := filestore.New(cfg)
 	require.NoError(t, err)
 
 	// Get file that does not exist.
-	fileInfo, _, err := ls.Get(context.Background(), fileName)
+	fileInfo, err := fs.Head(context.Background(), "not-here")
 	require.ErrorIs(t, err, filestore.ErrNotFound)
 	require.Nil(t, fileInfo)
 
-	data := "hello world"
-	_, err = ls.Put(context.Background(), fileName, strings.NewReader(data))
+	_, err = fs.Put(context.Background(), fileName3, strings.NewReader(data))
 	require.NoError(t, err)
 
-	fileInfo, r, err := ls.Get(context.Background(), fileName)
+	fileInfo, err = fs.Head(context.Background(), fileName3)
+	require.NoError(t, err)
+	require.Equal(t, fileName3, fileInfo.Path)
+	require.Equal(t, int64(len(data)), fileInfo.Size)
+	require.False(t, fileInfo.Modified.IsZero())
+
+	// Should get ErrNotFound when looking for subdirectory.
+	_, err = fs.Head(context.Background(), subdir)
+	require.ErrorIs(t, err, filestore.ErrNotFound)
+}
+
+func testGet(t *testing.T, cfg config.FileStore) {
+	fs, err := filestore.New(cfg)
+	require.NoError(t, err)
+
+	// Get file that does not exist.
+	fileInfo, _, err := fs.Get(context.Background(), "not-here")
+	require.ErrorIs(t, err, filestore.ErrNotFound)
+	require.Nil(t, fileInfo)
+
+	_, err = fs.Put(context.Background(), fileName, strings.NewReader(data))
+	require.NoError(t, err)
+
+	fileInfo, r, err := fs.Get(context.Background(), fileName)
 	require.NoError(t, err)
 	require.Equal(t, fileName, fileInfo.Path)
 	require.Equal(t, int64(len(data)), fileInfo.Size)
@@ -123,116 +174,70 @@ func TestLocalGet(t *testing.T) {
 	require.Equal(t, []byte(data), data2)
 	_, err = r.Read(data2)
 	require.ErrorIs(t, err, io.EOF)
+	require.NoError(t, r.Close())
 
-	subdir := "abc"
-	subName := filepath.Join(subdir, fileName)
-	_, err = ls.Put(context.Background(), subName, strings.NewReader(data))
+	_, err = fs.Put(context.Background(), fileName3, strings.NewReader(data3))
 	require.NoError(t, err)
 
-	_, _, err = ls.Get(context.Background(), subdir)
+	_, _, err = fs.Get(context.Background(), subdir)
 	require.ErrorIs(t, err, filestore.ErrNotFound)
+
+	fileInfo, r, err = fs.Get(context.Background(), fileName3)
+	require.NoError(t, err)
+	require.NoError(t, r.Close())
+	require.Equal(t, int64(len(data3)), fileInfo.Size)
 }
 
-func TestLocalHead(t *testing.T) {
-	const fileName = "abc/testfile.txt"
-
-	carDir := t.TempDir()
-	cfg := config.FileStore{
-		Type: "local",
-		Local: config.LocalFileStore{
-			BasePath: carDir,
-		},
-	}
-
-	ls, err := filestore.New(cfg)
+func testList(t *testing.T, cfg config.FileStore) {
+	fs, err := filestore.New(cfg)
 	require.NoError(t, err)
 
-	// Get file that does not exist.
-	fileInfo, err := ls.Head(context.Background(), fileName)
-	require.ErrorIs(t, err, filestore.ErrNotFound)
-	require.Nil(t, fileInfo)
-
-	data := "hello world"
-	_, err = ls.Put(context.Background(), fileName, strings.NewReader(data))
-	require.NoError(t, err)
-
-	fileInfo, err = ls.Head(context.Background(), fileName)
-	require.NoError(t, err)
-	require.Equal(t, fileName, fileInfo.Path)
-	require.Equal(t, int64(len(data)), fileInfo.Size)
-	require.False(t, fileInfo.Modified.IsZero())
-
-	// Should get ErrNotFound when looking for subdirectory.
-	_, err = ls.Head(context.Background(), "abc")
-	require.ErrorIs(t, err, filestore.ErrNotFound)
-}
-
-func TestLocalList(t *testing.T) {
-	const (
-		fileName1 = "testfile1.txt"
-		fileName2 = "testfile2.txt"
-		fileName3 = "abc/testfile3.txt"
-	)
-
-	carDir := t.TempDir()
-	cfg := config.FileStore{
-		Type: "local",
-		Local: config.LocalFileStore{
-			BasePath: carDir,
-		},
-	}
-
-	ls, err := filestore.New(cfg)
-	require.NoError(t, err)
-
-	// Get file that does not exist.
-	fileCh, errCh := ls.List(context.Background(), "/not-here", false)
+	// List file that does not exist.
+	fileCh, errCh := fs.List(context.Background(), "not-here/", false)
 	fileInfo, ok := <-fileCh
 	require.Nil(t, fileInfo)
 	require.False(t, ok)
 	err = <-errCh
 	require.ErrorIs(t, err, filestore.ErrNotFound)
 
-	data0 := "hello world"
-	_, err = ls.Put(context.Background(), fileName1, strings.NewReader(data0))
+	_, err = fs.Put(context.Background(), fileName1, strings.NewReader(data1))
 	require.NoError(t, err)
 
-	data1 := "foo"
-	_, err = ls.Put(context.Background(), fileName2, strings.NewReader(data1))
+	_, err = fs.Put(context.Background(), fileName2, strings.NewReader(data2))
 	require.NoError(t, err)
 
-	data2 := "bar"
-	_, err = ls.Put(context.Background(), fileName3, strings.NewReader(data2))
+	_, err = fs.Put(context.Background(), fileName3, strings.NewReader(data3))
 	require.NoError(t, err)
 
-	fileCh, errCh = ls.List(context.Background(), "", false)
+	fileCh, errCh = fs.List(context.Background(), "", false)
 	infos := make([]*filestore.File, 0, 3)
 	for fileInfo := range fileCh {
 		infos = append(infos, fileInfo)
 	}
 	err = <-errCh
 	require.NoError(t, err)
-	require.Equal(t, 2, len(infos))
-	require.Equal(t, fileName1, infos[0].Path)
-	require.Equal(t, int64(len(data0)), infos[0].Size)
-	require.False(t, infos[0].Modified.IsZero())
-	require.Equal(t, fileName2, infos[1].Path)
-	require.Equal(t, int64(len(data1)), infos[1].Size)
-	require.False(t, infos[1].Modified.IsZero())
+	require.Equal(t, 3, len(infos))
+	expectNames := []string{fileName, fileName1, fileName2}
+	expectSizes := []int64{int64(len(data)), int64(len(data1)), int64(len(data2))}
+	for i := range infos {
+		require.Equal(t, expectNames[i], infos[i].Path)
+		require.Equal(t, expectSizes[i], infos[i].Size)
+		require.False(t, infos[0].Modified.IsZero())
+	}
 
-	fileCh, errCh = ls.List(context.Background(), "", true)
+	fileCh, errCh = fs.List(context.Background(), "", true)
 	infos = infos[:0]
 	for fileInfo := range fileCh {
 		infos = append(infos, fileInfo)
 	}
 	err = <-errCh
 	require.NoError(t, err)
-	require.Equal(t, 3, len(infos))
+	require.Equal(t, 4, len(infos))
 	require.Equal(t, fileName3, infos[0].Path)
-	require.Equal(t, int64(len(data2)), infos[0].Size)
+	require.Equal(t, int64(len(data3)), infos[0].Size)
 
 	// File specific file.
-	fileCh, errCh = ls.List(context.Background(), fileName1, false)
+	fileCh, errCh = fs.List(context.Background(), fileName1, false)
 	infos = infos[:0]
 	for fileInfo := range fileCh {
 		infos = append(infos, fileInfo)
@@ -243,7 +248,7 @@ func TestLocalList(t *testing.T) {
 	require.Equal(t, fileName1, infos[0].Path)
 
 	// File specific file.
-	fileCh, errCh = ls.List(context.Background(), fileName3, false)
+	fileCh, errCh = fs.List(context.Background(), fileName3, false)
 	infos = infos[:0]
 	for fileInfo := range fileCh {
 		infos = append(infos, fileInfo)
@@ -254,54 +259,43 @@ func TestLocalList(t *testing.T) {
 	require.Equal(t, fileName3, infos[0].Path)
 }
 
-func TestLocalDelete(t *testing.T) {
-	const (
-		fileName1 = "testfile1.txt"
-		fileName2 = "testfile2.txt"
-		fileName3 = "abc/testfile3.txt"
-	)
-
-	carDir := t.TempDir()
-	cfg := config.FileStore{
-		Type: "local",
-		Local: config.LocalFileStore{
-			BasePath: carDir,
-		},
-	}
-
-	ls, err := filestore.New(cfg)
+func testDelete(t *testing.T, cfg config.FileStore) {
+	fs, err := filestore.New(cfg)
 	require.NoError(t, err)
 
 	ctx := context.Background()
 
-	data0 := "hello world"
-	_, err = ls.Put(ctx, fileName1, strings.NewReader(data0))
+	_, err = fs.Put(ctx, fileName1, strings.NewReader(data1))
 	require.NoError(t, err)
 
-	data1 := "foo"
-	_, err = ls.Put(ctx, fileName2, strings.NewReader(data1))
+	_, err = fs.Put(ctx, fileName2, strings.NewReader(data2))
 	require.NoError(t, err)
 
-	data2 := "bar"
-	_, err = ls.Put(ctx, fileName3, strings.NewReader(data2))
+	_, err = fs.Put(ctx, fileName3, strings.NewReader(data3))
 	require.NoError(t, err)
 
 	// File exists before delet.
-	_, err = ls.Head(ctx, fileName1)
+	_, err = fs.Head(ctx, fileName1)
 	require.NoError(t, err)
 
-	err = ls.Delete(ctx, fileName1)
+	err = fs.Delete(ctx, fileName1)
 	require.NoError(t, err)
 
 	// File gone after delete.
-	_, err = ls.Head(ctx, fileName1)
+	_, err = fs.Head(ctx, fileName1)
 	require.ErrorIs(t, err, filestore.ErrNotFound)
 
 	// Delete non-existant file should be OK.
-	err = ls.Delete(ctx, fileName1)
+	err = fs.Delete(ctx, fileName1)
 	require.NoError(t, err)
 
-	// Delete non-empty directory should fail.
-	err = ls.Delete(ctx, "abc")
-	require.Error(t, err)
+	err = fs.Delete(ctx, fileName2)
+	require.NoError(t, err)
+
+	err = fs.Delete(ctx, fileName3)
+	require.NoError(t, err)
+
+	// Delete empty directory should be ok.
+	err = fs.Delete(ctx, subdir)
+	require.NoError(t, err)
 }

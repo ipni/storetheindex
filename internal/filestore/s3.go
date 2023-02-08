@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 )
 
 // S3 is a file store that stores files in AWS S3.
@@ -94,6 +95,12 @@ func (s *S3) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, err
 		if errors.As(err, &nsk) {
 			return nil, nil, ErrNotFound
 		}
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) {
+			if "NotFound" == apiErr.ErrorCode() {
+				return nil, nil, ErrNotFound
+			}
+		}
 		return nil, nil, err
 	}
 
@@ -105,7 +112,7 @@ func (s *S3) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, err
 		file.Modified = *rsp.LastModified
 	}
 
-	return file, rsp.Body, nil
+	return file, &wrappedReadCloser{rsp.Body}, nil
 }
 
 func (s *S3) Head(ctx context.Context, relPath string) (*File, error) {
@@ -115,8 +122,18 @@ func (s *S3) Head(ctx context.Context, relPath string) (*File, error) {
 	})
 
 	if err != nil {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) {
+			if "NotFound" == apiErr.ErrorCode() {
+				return nil, ErrNotFound
+			}
+		}
 		var nsk *types.NoSuchKey
 		if errors.As(err, &nsk) {
+			return nil, ErrNotFound
+		}
+		var nf *types.NotFound
+		if errors.As(err, &nf) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -145,6 +162,8 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 			Prefix: aws.String(relPath),
 		}
 
+		var any bool
+
 		for {
 			rsp, err := s.client.ListObjectsV2(ctx, req)
 			if err != nil {
@@ -153,12 +172,21 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 			}
 
 			for _, content := range rsp.Contents {
+				any = true
 				if strings.HasSuffix(*content.Key, "/") {
 					continue
 				}
 
+				if !recursive {
+					// If not resursive then skip subdirectories of relPath.
+					dir, _ := path.Split(strings.TrimPrefix(*content.Key, relPath))
+					if dir != "" {
+						continue
+					}
+				}
+
 				file := &File{
-					Path: path.Join("/", *content.Key),
+					Path: *content.Key,
 					Size: content.Size,
 				}
 				if content.LastModified != nil {
@@ -178,6 +206,9 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 			}
 
 			req.ContinuationToken = rsp.NextContinuationToken
+		}
+		if !any {
+			ec <- ErrNotFound
 		}
 	}()
 
@@ -206,4 +237,22 @@ func (s *S3) Put(ctx context.Context, relPath string, reader io.Reader) (*File, 
 
 func (s *S3) Type() string {
 	return "s3"
+}
+
+// wrappedReadCloser wraps an io.ReadCloser to ensure that Read returns io.EOF
+// only on the call after all data has been read, that is when n == 0.
+type wrappedReadCloser struct {
+	r io.ReadCloser
+}
+
+func (w wrappedReadCloser) Read(p []byte) (int, error) {
+	n, err := w.r.Read(p)
+	if err != nil && errors.Is(err, io.EOF) && n != 0 {
+		return n, nil
+	}
+	return n, err
+}
+
+func (w wrappedReadCloser) Close() error {
+	return w.r.Close()
 }
