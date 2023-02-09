@@ -80,6 +80,7 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, r)
+	require.NoError(t, r.Close())
 	require.NoError(t, err)
 	reader := bytes.NewReader(buf.Bytes())
 	acbs, err := carblockstore.NewReadOnly(reader, nil)
@@ -95,6 +96,7 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 	buf.Reset()
 	_, err = io.Copy(&buf, r)
+	require.NoError(t, r.Close())
 	require.NoError(t, err)
 	reader.Reset(buf.Bytes())
 	ecbs, err := carblockstore.NewReadOnly(reader, nil)
