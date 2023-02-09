@@ -36,12 +36,12 @@ func TestS3(t *testing.T) {
 	const bucketName = "testbucket"
 
 	tempDir := t.TempDir()
-	err := os.MkdirAll(fmt.Sprintf("./%s/%s", tempDir, bucketName), 0755)
+	err := os.MkdirAll(fmt.Sprintf("%s/%s", tempDir, bucketName), 0755)
 	require.NoError(t, err)
 
 	p := localstack.Preset(
 		localstack.WithServices(localstack.S3),
-		localstack.WithS3Files(fmt.Sprintf("./%s", tempDir)),
+		localstack.WithS3Files(tempDir),
 	)
 	localS3, err := gnomock.Start(p)
 	if err != nil {

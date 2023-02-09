@@ -41,8 +41,7 @@ func newS3(cfg config.S3FileStore) (*S3, error) {
 		cfgOpts = append(cfgOpts, awsconfig.WithRegion(cfg.Region))
 	}
 	if cfg.Endpoint != "" {
-		var epResolverFunc aws.EndpointResolverWithOptionsFunc
-		epResolverFunc = aws.EndpointResolverWithOptionsFunc(
+		epResolverFunc := aws.EndpointResolverWithOptionsFunc(
 			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 				return aws.Endpoint{URL: cfg.Endpoint}, nil
 			})
@@ -97,7 +96,7 @@ func (s *S3) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, err
 		}
 		var apiErr smithy.APIError
 		if errors.As(err, &apiErr) {
-			if "NotFound" == apiErr.ErrorCode() {
+			if apiErr.ErrorCode() == "NotFound" {
 				return nil, nil, ErrNotFound
 			}
 		}
@@ -124,7 +123,7 @@ func (s *S3) Head(ctx context.Context, relPath string) (*File, error) {
 	if err != nil {
 		var apiErr smithy.APIError
 		if errors.As(err, &apiErr) {
-			if "NotFound" == apiErr.ErrorCode() {
+			if apiErr.ErrorCode() == "NotFound" {
 				return nil, ErrNotFound
 			}
 		}
