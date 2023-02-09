@@ -77,8 +77,7 @@ func main() {
 	}
 
 	log.Printf("found %d matching providers", len(match))
-	notMatched := 0
-	matched := 0
+	st := &stats{}
 	ctx := context.Background()
 
 	for _, p := range match {
@@ -121,41 +120,78 @@ func main() {
 
 		for i := 0; i < *mhlimit; i++ {
 			mh := ai.mhs[rand.Intn(len(ai.mhs))]
+			start := time.Now()
 			res1, err := sourceClient.Find(context.Background(), mh)
 			if err != nil {
 				log.Printf("\t[%s] error querying source client=%v", mh.B58String(), err)
 				continue
 			}
+			st.sourceDurations = append(st.sourceDurations, time.Since(start))
+
+			start = time.Now()
 			res2, err := targetClient.Find(context.Background(), mh)
 			if err != nil {
 				log.Printf("\t[%s] error querying target client: %v", mh.B58String(), err)
+				st.errors++
 				continue
 			}
+			st.targetDurations = append(st.targetDurations, time.Since(start))
+
 			if len(res1.MultihashResults) != 1 || len(res2.MultihashResults) != 1 {
 				log.Printf("\t[%s] no match: mismatching multihash results length", mh.B58String())
-				notMatched++
+				st.noMatch++
 				continue
 			}
 
 			if m, errs := compare(res1.MultihashResults[0], res2.MultihashResults[0]); !m {
 				log.Printf("\t[%s] no match: %s", mh.B58String(), strings.Join(errs, "; "))
-				notMatched++
+				st.noMatch++
 				continue
 			}
 			log.Printf("\t[%s] match", mh.B58String())
-			matched++
+			st.match++
 		}
+		st.providers++
+		st.print()
 	}
-
-	fmt.Println()
-	fmt.Print("Stats\n")
-	fmt.Printf("\tMatched: %d\n", matched)
-	fmt.Printf("\tNot matched: %d", notMatched)
 }
 
 type adInfo struct {
 	prevCid string
 	mhs     []multihash.Multihash
+}
+
+type stats struct {
+	providers       int
+	match           int
+	noMatch         int
+	errors          int
+	sourceDurations []time.Duration
+	targetDurations []time.Duration
+}
+
+func (s *stats) print() {
+	total := float32(s.match + s.noMatch + s.errors)
+	log.Printf("***********************************************")
+	log.Printf("stats")
+	log.Printf("\troviders: %d", s.providers)
+	log.Printf("\tmatched: %.1f%%", 100*float32(s.match)/total)
+	log.Printf("\tnot matched: %.1f%%", 100*float32(s.noMatch)/total)
+	log.Printf("\terrors: %.1f%%", 100*float32(s.errors)/total)
+	log.Printf("\tsource 70pct: %v", percentile(s.sourceDurations, 70))
+	log.Printf("\tsource 90pct: %v", percentile(s.sourceDurations, 90))
+	log.Printf("\tsource 99pct: %v", percentile(s.sourceDurations, 99))
+	log.Printf("\ttarget 70pct: %v", percentile(s.targetDurations, 70))
+	log.Printf("\ttarget 90pct: %v", percentile(s.targetDurations, 90))
+	log.Printf("\ttarget 99pct: %v", percentile(s.targetDurations, 99))
+	log.Printf("***********************************************")
+}
+
+func percentile(durations []time.Duration, p int) time.Duration {
+	sort.SliceStable(durations, func(i1, i2 int) bool {
+		return durations[i1] < durations[i2]
+	})
+	return durations[p*len(durations)/100]
 }
 
 // getAdInfo fetches ad from provider via provider CLI
