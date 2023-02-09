@@ -316,6 +316,21 @@ func TestDatastore(t *testing.T) {
 	require.ErrorIs(t, r.AssignPeer(pubID), ErrNoAssigner)
 	require.ErrorIs(t, r.UnassignPeer(pubID), ErrNoAssigner)
 
+	// Check that extended provider missing address is caught.
+	prevAddrs := extProviders.Providers[0].Addrs
+	extProviders.Providers[0].Addrs = nil
+	err = r.Update(ctx, provider2, publisher, adCid, extProviders, 0)
+	require.ErrorContains(t, err, "missing address")
+	extProviders.Providers[0].Addrs = prevAddrs
+
+	// Check that contextual extended provider missing address is caught.
+	epCtxIdStr := string(epContextId)
+	prevAddrs = extProviders.ContextualProviders[epCtxIdStr].Providers[0].Addrs
+	extProviders.ContextualProviders[epCtxIdStr].Providers[0].Addrs = nil
+	err = r.Update(ctx, provider2, publisher, adCid, extProviders, 0)
+	require.ErrorContains(t, err, "missing address")
+	extProviders.ContextualProviders[epCtxIdStr].Providers[0].Addrs = prevAddrs
+
 	r.Close()
 	require.NoError(t, dstore.Close())
 
@@ -352,7 +367,7 @@ func TestDatastore(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, len(assigned))
 
-	// Should not be able to assigned blocked peer.
+	// Should not be able to assign blocked peer.
 	require.True(t, r.BlockPeer(preferred[0]))
 	require.ErrorIs(t, r.AssignPeer(preferred[0]), ErrNotAllowed)
 
