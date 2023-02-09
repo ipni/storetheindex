@@ -184,6 +184,7 @@ func (cw *CarWriter) writeAdToCar(ctx context.Context, adCid cid.Cid, data []byt
 	if err != nil {
 		return nil, err
 	}
+	defer carFile.Close()
 
 	return cw.fileStore.Put(ctx, fileName, carFile)
 }
@@ -252,6 +253,7 @@ func (cw *CarWriter) writeEntriesToCar(ctx context.Context, adCid, entriesCid ci
 	if err != nil {
 		return nil, err
 	}
+	defer carFile.Close()
 
 	fileInfo, err = cw.fileStore.Put(ctx, fileName, carFile)
 	if err != nil {
