@@ -24,7 +24,9 @@ import (
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/dagsync"
+	"github.com/ipni/storetheindex/internal/carwriter"
 	"github.com/ipni/storetheindex/internal/counter"
+	"github.com/ipni/storetheindex/internal/filestore"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/peerutil"
@@ -148,7 +150,7 @@ type Ingester struct {
 	minKeyLen int
 
 	indexCounts *counter.IndexCounts
-	keepAds     bool
+	adToCar     *carwriter.CarWriter
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
@@ -184,7 +186,21 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		minKeyLen: cfg.MinimumKeyLength,
 
 		indexCounts: opts.idxCounts,
-		keepAds:     cfg.KeepAdvertisements,
+	}
+
+	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
+
+	if cfg.AdvertisementsToCar.Type != "" {
+		fileStore, err := filestore.New(cfg.AdvertisementsToCar)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create file store for car failes: %w", err)
+		}
+
+		ing.adToCar = carwriter.New(ds, fileStore)
+
+		// Start writing existing ads to car files in background. Process
+		// canceled if workers are canceled.
+		ing.adToCar.WriteExisting(ing.workersCtx)
 	}
 
 	ing.rateApply, ing.rateBurst, ing.rateLimit, err = configRateLimit(cfg.RateLimit)
@@ -230,7 +246,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		return nil, errors.New("ingester worker count must be > 0")
 	}
 
-	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 	ing.RunWorkers(cfg.IngestWorkerCount)
 
 	go ing.runIngesterLoop()
@@ -588,7 +603,7 @@ func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool) {
 	return processed, resync
 }
 
-func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen bool) error {
+func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, keep bool) error {
 	cidStr := adCid.String()
 	ctx := context.Background()
 	if frozen {
@@ -603,7 +618,7 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen bo
 		return err
 	}
 
-	if !ing.keepAds || frozen {
+	if !keep || frozen {
 		// This ad is processed, so remove it from the datastore.
 		err = ing.dsAds.Delete(ctx, datastore.NewKey(cidStr))
 		if err != nil {
@@ -778,7 +793,7 @@ func (ing *Ingester) autoSync() {
 		autoSyncInProgress[provInfo.AddrInfo.ID] = struct{}{}
 
 		if stopCid := provInfo.StopCid(); stopCid != cid.Undef {
-			err := ing.markAdProcessed(provInfo.Publisher, stopCid, false)
+			err := ing.markAdProcessed(provInfo.Publisher, stopCid, false, false)
 			if err != nil {
 				// This error would cause the ingestion of everything from the
 				// publisher from the handoff, and is a critical failure. It
@@ -1054,9 +1069,18 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 				"publisher", assignment.publisher,
 				"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
 
-			if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen); markErr != nil {
+			keep := ing.adToCar != nil
+			if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, keep); markErr != nil {
 				log.Errorw("Failed to mark ad as processed", "err", markErr)
 			}
+			if !frozen && keep {
+				_, _, err := ing.adToCar.Write(ctx, ai.cid, true)
+				if err != nil {
+					// Log the error, but do not return. Continue on to save the procesed ad.
+					log.Errorw("Cannot write advertisement to CAR file", "err", err)
+				}
+			}
+
 			// Distribute the atProcessedEvent notices to waiting Sync calls.
 			ing.inEvents <- adProcessedEvent{
 				publisher: assignment.publisher,
@@ -1121,9 +1145,18 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			return
 		}
 
-		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen); markErr != nil {
+		keep := ing.adToCar != nil
+		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, keep); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
+		if !frozen && keep {
+			_, _, err = ing.adToCar.Write(ctx, ai.cid, false)
+			if err != nil {
+				// Log the error, but do not return. Continue on to save the procesed ad.
+				log.Errorw("Cannot write advertisement to CAR file", "err", err)
+			}
+		}
+
 		// Distribute the atProcessedEvent notices to waiting Sync calls.
 		ing.inEvents <- adProcessedEvent{
 			publisher: assignment.publisher,
