@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"time"
 
 	finderhttpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
 	"github.com/ipni/storetheindex/api/v0/finder/model"
@@ -234,7 +235,9 @@ func compare(mhr1, mhr2 model.MultihashResult) (bool, []string) {
 
 // runCmd executes a CLI command
 func runCmd(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	ctxt, closer := context.WithTimeout(ctx, 10*time.Second)
+	defer closer()
+	cmd := exec.CommandContext(ctxt, name, args...)
 	cmd.Env = os.Environ()
 	return cmd.CombinedOutput()
 }
