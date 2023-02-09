@@ -22,7 +22,7 @@ import (
 	"github.com/ipld/go-ipld-prime/multicodec"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
-	"github.com/ipni/storetheindex/internal/filestore"
+	"github.com/ipni/storetheindex/filestore"
 )
 
 var log = logging.Logger("carwriter")

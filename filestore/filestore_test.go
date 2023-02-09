@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/filestore"
 	"github.com/ipni/storetheindex/fsutil"
-	"github.com/ipni/storetheindex/internal/filestore"
 	"github.com/stretchr/testify/require"
 
 	"github.com/orlangure/gnomock"
