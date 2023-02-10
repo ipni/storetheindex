@@ -1271,6 +1271,10 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 			} else if sincePollingStarted >= poll.deactivateAfter {
 				// Still polling after deactivateAfter, so mark inactive.
 				// This will exclude the provider from find responses.
+				log.Infow("Deactivating provider, too long with no updates",
+					"publisher", info.Publisher,
+					"provider", info.AddrInfo.ID,
+					"since", info.lastContactTime)
 				info.inactive = true
 			}
 			select {
