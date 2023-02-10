@@ -612,6 +612,28 @@ func (r *Registry) FilterIPsEnabled() bool {
 	return r.filterIPs
 }
 
+func validateExtProviderInfos(xpInfos []ExtendedProviderInfo) error {
+	for i := range xpInfos {
+		if len(xpInfos[i].Addrs) == 0 {
+			return errors.New("missing address")
+		}
+	}
+	return nil
+}
+
+func validateExtProviders(extendedProviders *ExtendedProviders) error {
+	err := validateExtProviderInfos(extendedProviders.Providers)
+	if err != nil {
+		return fmt.Errorf("extended providers error: %s", err)
+	}
+	for _, cxp := range extendedProviders.ContextualProviders {
+		if err = validateExtProviderInfos(cxp.Providers); err != nil {
+			return fmt.Errorf("context extended providers error: %s", err)
+		}
+	}
+	return nil
+}
+
 // Update attempts to update the registry's provider information. If publisher
 // has a valid ID, then the supplied publisher data replaces the provider's
 // previous publisher information.
@@ -650,6 +672,9 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 		}
 
 		if extendedProviders != nil {
+			if err := validateExtProviders(extendedProviders); err != nil {
+				return err
+			}
 			info.ExtendedProviders = extendedProviders
 		}
 
@@ -670,9 +695,15 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 			return errors.New("missing provider address")
 		}
 		info = &ProviderInfo{
-			AddrInfo:          provider,
-			ExtendedProviders: extendedProviders,
+			AddrInfo: provider,
 		}
+		if extendedProviders != nil {
+			if err := validateExtProviders(extendedProviders); err != nil {
+				return err
+			}
+			info.ExtendedProviders = extendedProviders
+		}
+
 		// It is possible to have a provider with no publisher, in the case of
 		// a provider that is only manually synced.
 		if publisher.ID.Validate() == nil {
