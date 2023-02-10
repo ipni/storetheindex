@@ -324,12 +324,11 @@ func TestDatastore(t *testing.T) {
 	extProviders.Providers[0].Addrs = prevAddrs
 
 	// Check that contextual extended provider missing address is caught.
-	epCtxIdStr := string(epContextId)
-	prevAddrs = extProviders.ContextualProviders[epCtxIdStr].Providers[0].Addrs
-	extProviders.ContextualProviders[epCtxIdStr].Providers[0].Addrs = nil
+	prevAddrs = extProviders.ContextualProviders[string(epContextId)].Providers[0].Addrs
+	extProviders.ContextualProviders[string(epContextId)].Providers[0].Addrs = nil
 	err = r.Update(ctx, provider2, publisher, adCid, extProviders, 0)
 	require.ErrorContains(t, err, "missing address")
-	extProviders.ContextualProviders[epCtxIdStr].Providers[0].Addrs = prevAddrs
+	extProviders.ContextualProviders[string(epContextId)].Providers[0].Addrs = prevAddrs
 
 	r.Close()
 	require.NoError(t, dstore.Close())
