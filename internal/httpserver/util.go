@@ -14,6 +14,15 @@ import (
 
 var log = logging.Logger("indexer/http")
 
+func MethodOK(w http.ResponseWriter, r *http.Request, method string) bool {
+	if r.Method != method {
+		w.Header().Set("Allow", method)
+		http.Error(w, "", http.StatusMethodNotAllowed)
+		return false
+	}
+	return true
+}
+
 func WriteJsonResponse(w http.ResponseWriter, status int, body []byte) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)

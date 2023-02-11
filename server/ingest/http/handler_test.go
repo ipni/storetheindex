@@ -17,17 +17,13 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
+	"github.com/stretchr/testify/require"
 )
 
 var ident = config.Identity{
 	PeerID:  "12D3KooWPw6bfQbJHfKa2o5XpusChoq67iZoqgfnhecygjKsQRmG",
 	PrivKey: "CAESQEQliDSXbU/zR4hrGNgAM0crtmxcZ49F3OwjmptYEFuU0b0TwLTJz/OlSBBuK7QDV2PiyGOCjDkyxSXymuqLu18=",
 }
-
-var providerID peer.ID
-
-var hnd *httpHandler
-var reg *registry.Registry
 
 type mockIndexer struct {
 	store map[string][]indexer.Value
@@ -61,8 +57,8 @@ func (m *mockIndexer) Close() error                                       { retu
 func (m *mockIndexer) Iter() (indexer.Iterator, error)                    { return nil, nil }
 func (m *mockIndexer) Stats() (*indexer.Stats, error)                     { return nil, indexer.ErrStatsNotSupported }
 
-func init() {
-	var discoveryCfg = config.Discovery{
+func TestHandleRegisterProvider(t *testing.T) {
+	discoveryCfg := config.Discovery{
 		Policy: config.Policy{
 			Allow:         false,
 			Except:        []string{ident.PeerID},
@@ -71,38 +67,26 @@ func init() {
 		},
 	}
 
-	var err error
-	reg, err = registry.New(context.Background(), discoveryCfg, nil)
-	if err != nil {
-		panic(err)
-	}
+	reg, err := registry.New(context.Background(), discoveryCfg, nil)
+	require.NoError(t, err)
+	defer reg.Close()
 
 	idx := &mockIndexer{
 		store: map[string][]indexer.Value{},
 	}
 
 	host, err := libp2p.New()
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
+
 	ds := dssync.MutexWrap(datastore.NewMapDatastore())
 	ing, err := ingest.NewIngester(config.NewIngest(), host, idx, reg, ds)
-	if err != nil {
-		panic(err)
-	}
-	hnd = newHandler(idx, ing, reg)
+	require.NoError(t, err)
 
-	providerID, err = peer.Decode(ident.PeerID)
-	if err != nil {
-		panic("Could not decode peer ID")
-	}
-}
+	s, err := New("127.0.0.1:", idx, ing, reg)
+	require.NoError(t, err)
 
-func TestHandleRegisterProvider(t *testing.T) {
 	peerID, privKey, err := ident.Decode()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 	data, err := model.MakeRegisterRequest(peerID, privKey, addrs)
@@ -113,7 +97,7 @@ func TestHandleRegisterProvider(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/providers", reqBody)
 	w := httptest.NewRecorder()
-	hnd.registerProvider(w, req)
+	s.postRegisterProvider(w, req)
 
 	resp := w.Result()
 

@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 	indexer "github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
@@ -41,9 +40,9 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 		return nil, err
 	}
 
-	r := mux.NewRouter().StrictSlash(true)
+	mux := http.NewServeMux()
 	server := &http.Server{
-		Handler:      r,
+		Handler:      mux,
 		WriteTimeout: opts.writeTimeout,
 		ReadTimeout:  opts.readTimeout,
 	}
@@ -61,35 +60,35 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	// Set protocol handlers
 
 	// Import routes
-	r.HandleFunc("/import/manifest/{provider}", h.importManifest).Methods(http.MethodPost)
-	r.HandleFunc("/import/cidlist/{provider}", h.importCidList).Methods(http.MethodPost)
+	mux.HandleFunc("/import/manifest/", h.importManifest)
+	mux.HandleFunc("/import/cidlist/", h.importCidList)
 
 	// Admin routes
-	r.HandleFunc("/freeze", h.freeze).Methods(http.MethodPut)
-	r.HandleFunc("/status", h.status).Methods(http.MethodGet)
-	r.HandleFunc("/healthcheck", h.healthCheckHandler).Methods(http.MethodGet)
-	r.HandleFunc("/importproviders", h.importProviders).Methods(http.MethodPost)
-	r.HandleFunc("/reloadconfig", h.reloadConfig).Methods(http.MethodPost)
+	mux.HandleFunc("/freeze", h.freeze)
+	mux.HandleFunc("/status", h.status)
+	mux.HandleFunc("/healthcheck", h.healthCheckHandler)
+	mux.HandleFunc("/importproviders", h.importProviders)
+	mux.HandleFunc("/reloadconfig", h.reloadConfig)
 
 	// Ingester routes
-	r.HandleFunc("/ingest/allow/{peer}", h.allowPeer).Methods(http.MethodPut)
-	r.HandleFunc("/ingest/block/{peer}", h.blockPeer).Methods(http.MethodPut)
-	r.HandleFunc("/ingest/sync/{peer}", h.sync).Methods(http.MethodPost)
+	mux.HandleFunc("/ingest/allow/", h.allowPeer)
+	mux.HandleFunc("/ingest/block/", h.blockPeer)
+	mux.HandleFunc("/ingest/sync/", h.sync)
 
 	// Assignment routes
-	r.HandleFunc("/ingest/assigned", h.listAssignedPeers).Methods(http.MethodGet)
-	r.HandleFunc("/ingest/assign/{peer}", h.assignPeer).Methods(http.MethodPost)
-	r.HandleFunc("/ingest/handoff/{peer}", h.handoffPeer).Methods(http.MethodPost)
-	r.HandleFunc("/ingest/unassign/{peer}", h.unassignPeer).Methods(http.MethodPut)
-	r.HandleFunc("/ingest/preferred", h.listPreferredPeers).Methods(http.MethodGet)
+	mux.HandleFunc("/ingest/assign/", h.assignPeer)
+	mux.HandleFunc("/ingest/assigned", h.listAssignedPeers)
+	mux.HandleFunc("/ingest/handoff/", h.handoffPeer)
+	mux.HandleFunc("/ingest/unassign/", h.unassignPeer)
+	mux.HandleFunc("/ingest/preferred", h.listPreferredPeers)
 
 	// Metrics routes
-	r.Handle("/metrics", metrics.Start(coremetrics.DefaultViews))
-	r.PathPrefix("/debug/pprof").Handler(pprof.WithProfile())
+	mux.Handle("/metrics", metrics.Start(coremetrics.DefaultViews))
+	mux.Handle("/debug/pprof", pprof.WithProfile())
 
 	// Config routes
-	registerSetLogLevelHandler(r)
-	registerListLogSubSystems(r)
+	mux.HandleFunc("/config/log/level", setLogLevel)
+	mux.HandleFunc("/config/log/subsystems", listLogSubSystems)
 
 	return s, nil
 }
