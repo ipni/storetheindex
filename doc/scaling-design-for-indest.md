@@ -77,13 +77,15 @@ An AS listens for gossip-sub and direct HTTP messages announcing the availabilit
 
 After assignment, a sync with the new publishers is started on the assigned indexers, and the indexers receive announcements from these publishers and handle ingestion themselves.
 
+![assigner](assigner.png)
+
 If indexers remain offline while the AS handles a publisher that needs assignment, the AS assumes that the publisher may already be assigned to an offline indexer. This prevents over-assignment due to indexers going offline temporarily.
 
 The assignment is communicated to the chosen indexer via a request sent from the AS to the indexer on an administrative endpoint. It is assumed that the administrative endpoint is only available on the internal private network and would not be accessible to any unauthorized connection.
 
 ### No Persisted Assignment State
 
-The AS does not persist any information about publisher assignments or indexer status. Instead the state is rebuilt by querying indexers at startup. This simplifies the operation of the AS by removing any need to manage persistent storage for it. The AS is outside the critical path for index data ingestion and provider lookup, and is only needed when a publisher needs to be assigned to an indexer.
+The AS does not persist any information about publisher assignments or indexer status. Instead the state is rebuilt by querying indexers at startup. This simplifies the operation of the AS by removing any need to manage persistent storage for it. The AS is outside the critical path for index data ingestion and provider lookup, and is only needed when a publisher needs to be assigned to an indexer. This also means there is not a single point of failure that will cause the loss of assignment information. The AS node can be destroyed and a new one started without any operational impact.
 
 ### State Recovered at Startup
 
