@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strconv"
 	"sync"
 
-	"github.com/gorilla/mux"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/storetheindex/api/v0/admin/model"
 	"github.com/ipni/storetheindex/internal/httpserver"
@@ -49,6 +49,10 @@ const importBatchSize = 256
 
 // ----- assignment handlers -----
 func (h *adminHandler) listAssignedPeers(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+
 	publishers, continued, err := h.reg.ListAssignedPeers()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
@@ -78,6 +82,10 @@ func (h *adminHandler) listAssignedPeers(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *adminHandler) listPreferredPeers(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+
 	preferred, err := h.reg.ListPreferredPeers()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
@@ -101,8 +109,11 @@ func (h *adminHandler) listPreferredPeers(w http.ResponseWriter, r *http.Request
 }
 
 func (h *adminHandler) handoffPeer(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	peerID, ok := decodePeerID(vars["peer"], w)
+	if !httpserver.MethodOK(w, r, http.MethodPost) {
+		return
+	}
+
+	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
 		return
 	}
@@ -145,8 +156,11 @@ func (h *adminHandler) handoffPeer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) assignPeer(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	peerID, ok := decodePeerID(vars["peer"], w)
+	if !httpserver.MethodOK(w, r, http.MethodPost) {
+		return
+	}
+
+	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
 		return
 	}
@@ -175,8 +189,11 @@ func assignError(w http.ResponseWriter, err error) {
 }
 
 func (h *adminHandler) unassignPeer(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	peerID, ok := decodePeerID(vars["peer"], w)
+	if !httpserver.MethodOK(w, r, http.MethodPut) {
+		return
+	}
+
+	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
 		return
 	}
@@ -198,8 +215,11 @@ func (h *adminHandler) unassignPeer(w http.ResponseWriter, r *http.Request) {
 // ----- ingest handlers -----
 
 func (h *adminHandler) allowPeer(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	peerID, ok := decodePeerID(vars["peer"], w)
+	if !httpserver.MethodOK(w, r, http.MethodPut) {
+		return
+	}
+
+	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
 		return
 	}
@@ -211,8 +231,11 @@ func (h *adminHandler) allowPeer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	peerID, ok := decodePeerID(vars["peer"], w)
+	if !httpserver.MethodOK(w, r, http.MethodPut) {
+		return
+	}
+
+	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
 		return
 	}
@@ -224,14 +247,17 @@ func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodPost) {
+		return
+	}
+
 	if h.ingester == nil {
 		log.Warn("sync not available, ingester disabled")
 		http.Error(w, "ingester disabled", http.StatusServiceUnavailable)
 		return
 	}
 
-	vars := mux.Vars(r)
-	peerID, ok := decodePeerID(vars["peer"], w)
+	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
 		return
 	}
@@ -306,6 +332,10 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) importProviders(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodPost) {
+		return
+	}
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("failed reading import providers request", "err", err)
@@ -343,6 +373,10 @@ func (h *adminHandler) importProviders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) reloadConfig(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodPost) {
+		return
+	}
+
 	errChan := make(chan error)
 	h.reloadErrChan <- errChan
 	err := <-errChan
@@ -356,10 +390,13 @@ func (h *adminHandler) reloadConfig(w http.ResponseWriter, r *http.Request) {
 // ----- import handlers -----
 
 func (h *adminHandler) importManifest(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodPost) {
+		return
+	}
+
 	// TODO: This code is the same for all import handlers.
 	// We probably can take it out to its own function to deduplicate.
-	vars := mux.Vars(r)
-	provID, ok := decodePeerID(vars["provider"], w)
+	provID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
 		return
 	}
@@ -438,8 +475,11 @@ func getParams(data []byte) (string, []byte, []byte, error) {
 }
 
 func (h *adminHandler) importCidList(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	provID, ok := decodePeerID(vars["provider"], w)
+	if !httpserver.MethodOK(w, r, http.MethodPost) {
+		return
+	}
+
+	provID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
 		return
 	}
@@ -535,6 +575,10 @@ func batchIndexerEntries(batchSize int, putChan <-chan multihash.Multihash, valu
 // ----- admin handlers -----
 
 func (h *adminHandler) freeze(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodPut) {
+		return
+	}
+
 	err := h.reg.Freeze()
 	if err != nil {
 		if errors.Is(err, registry.ErrNoFreeze) {
@@ -551,6 +595,10 @@ func (h *adminHandler) freeze(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) status(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+
 	var usage float64
 	du, err := h.reg.ValueStoreUsage()
 	if err != nil {
@@ -577,6 +625,10 @@ func (h *adminHandler) status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+
 	if err := healthCheckValueStore(h); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

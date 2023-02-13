@@ -5,13 +5,9 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/ipni/storetheindex/internal/httpserver"
 )
-
-func registerSetLogLevelHandler(r *mux.Router) *mux.Route {
-	return r.HandleFunc("/config/log/level", setLogLevel).Methods(http.MethodPost)
-}
 
 // setLogLevel sets the log level for a subsystem matched using regular expression.
 // Multiple subsystems and levels may be specified as query parameters where
@@ -20,6 +16,9 @@ func registerSetLogLevelHandler(r *mux.Router) *mux.Route {
 //
 // See: registerSetLogLevelHandler.
 func setLogLevel(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodPost) {
+		return
+	}
 
 	query := r.URL.Query()
 	qSize := len(query)
@@ -48,15 +47,15 @@ func setLogLevel(w http.ResponseWriter, r *http.Request) {
 }
 
 // listLogSubSystems prints current logging subsystems one at a line.
-func listLogSubSystems(w http.ResponseWriter, _ *http.Request) {
+func listLogSubSystems(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+
 	subsystems := logging.GetSubsystems()
 	sort.Strings(subsystems)
 	for _, ss := range subsystems {
 		_, _ = fmt.Fprintln(w, ss)
 	}
 	log.Debugw("Listed logging subsystems", "subsystems", subsystems)
-}
-
-func registerListLogSubSystems(r *mux.Router) *mux.Route {
-	return r.HandleFunc("/config/log/subsystems", listLogSubSystems).Methods(http.MethodGet)
 }

@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/storetheindex/announce/message"
 	"github.com/ipni/storetheindex/assigner/core"
@@ -40,9 +39,9 @@ func New(listen string, assigner *core.Assigner, options ...Option) (*Server, er
 		return nil, err
 	}
 
-	r := mux.NewRouter().StrictSlash(true)
+	mux := http.NewServeMux()
 	server := &http.Server{
-		Handler:      r,
+		Handler:      mux,
 		WriteTimeout: opts.writeTimeout,
 		ReadTimeout:  opts.readTimeout,
 	}
@@ -53,9 +52,9 @@ func New(listen string, assigner *core.Assigner, options ...Option) (*Server, er
 	}
 
 	// Direct announce.
-	r.HandleFunc("/ingest/announce", s.announce).Methods(http.MethodPut)
+	mux.HandleFunc("/ingest/announce", s.announce)
 	// Health check.
-	r.HandleFunc("/health", s.health).Methods(http.MethodGet)
+	mux.HandleFunc("/health", s.health)
 
 	return s, nil
 }
@@ -76,6 +75,10 @@ func (s *Server) Close() error {
 
 // PUT /ingest/announce
 func (s *Server) announce(w http.ResponseWriter, r *http.Request) {
+	if !methodOK(w, r, http.MethodPut) {
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	defer r.Body.Close()
 
@@ -122,6 +125,9 @@ func (s *Server) announce(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
+	if !methodOK(w, r, http.MethodGet) {
+		return
+	}
 	w.Header().Set("Cache-Control", "no-cache")
 	writeJsonResponse(w, http.StatusOK, versionData)
 }
@@ -133,4 +139,13 @@ func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
 		log.Errorw("cannot write response", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
 	}
+}
+
+func methodOK(w http.ResponseWriter, r *http.Request, method string) bool {
+	if r.Method != method {
+		w.Header().Set("Allow", method)
+		http.Error(w, "", http.StatusMethodNotAllowed)
+		return false
+	}
+	return true
 }

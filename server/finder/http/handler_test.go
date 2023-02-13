@@ -89,7 +89,6 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 	for _, tt := range tests {
 		name := fmt.Sprintf("%s %s", tt.reqMethod, tt.reqUrl)
 		t.Run(name, func(t *testing.T) {
-
 			rr := httptest.NewRecorder()
 
 			req, err := http.NewRequest(tt.reqMethod, tt.reqUrl, tt.reqBody)
@@ -207,7 +206,6 @@ func TestServer_Landing(t *testing.T) {
 }
 
 func setupTestServerHander(t *testing.T, iv indexer.Value, mhs []multihash.Multihash) http.HandlerFunc {
-
 	ind := test.InitIndex(t, false)
 	reg := test.InitRegistry(t)
 	s, err := New("127.0.0.1:0", ind, reg)

@@ -10,21 +10,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 )
 
 func Test_ListLoggingSubsystems(t *testing.T) {
-	router := mux.NewRouter()
-	registerListLogSubSystems(router)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/config/log/subsystems", listLogSubSystems)
 
 	req, err := http.NewRequest(http.MethodGet, "/config/log/subsystems", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
+	mux.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	scanner := bufio.NewScanner(rr.Body)
@@ -43,14 +42,14 @@ func Test_ListLoggingSubsystems(t *testing.T) {
 }
 
 func Test_SetLogLevel_NoQueryParamsIsError(t *testing.T) {
-	router := mux.NewRouter()
-	registerSetLogLevelHandler(router)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/config/log/level", setLogLevel)
 
 	req, err := http.NewRequest(http.MethodPost, "/config/log/level", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
+	mux.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 
@@ -111,8 +110,8 @@ func Test_SetLogLevel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := mux.NewRouter()
-			registerSetLogLevelHandler(router)
+			mux := http.NewServeMux()
+			mux.HandleFunc("/config/log/level", setLogLevel)
 
 			req, err := http.NewRequest(http.MethodPost, "/config/log/level", nil)
 			require.NoError(t, err)
@@ -121,7 +120,7 @@ func Test_SetLogLevel(t *testing.T) {
 			req.URL.RawQuery = q.Encode()
 
 			rr := httptest.NewRecorder()
-			router.ServeHTTP(rr, req)
+			mux.ServeHTTP(rr, req)
 
 			require.Equal(t, tt.wantStatus, rr.Code)
 

@@ -16,8 +16,6 @@ require (
 	github.com/filecoin-project/go-data-transfer v1.15.2
 	github.com/gammazero/deque v0.2.0
 	github.com/gogo/protobuf v1.3.2
-	github.com/gorilla/handlers v1.5.1
-	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-retryablehttp v0.7.1
 	github.com/ipfs/go-cid v0.3.2
@@ -101,7 +99,6 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
-	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/filecoin-project/go-cbor-util v0.0.1 // indirect
 	github.com/filecoin-project/go-ds-versioning v0.1.2 // indirect
 	github.com/filecoin-project/go-statemachine v1.0.2 // indirect

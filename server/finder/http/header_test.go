@@ -2,6 +2,7 @@ package httpfinderserver
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,15 +16,18 @@ func Test_explicitlyAcceptsNDJson(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:  "browser",
-			given: "ext/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+			name:    "browser",
+			given:   "ext/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+			wantErr: true,
 		},
 		{
-			name:  "extra space",
-			given: "ext/html,application/xhtml+xml   ,   application/xml;q=0.9",
+			name:    "extra space",
+			given:   "ext/html,application/xhtml+xml   ,   application/xml;q=0.9",
+			wantErr: true,
 		},
 		{
-			name: "none",
+			name:    "none",
+			wantErr: true,
 		},
 		{
 			name:    "invalid",
@@ -36,8 +40,9 @@ func Test_explicitlyAcceptsNDJson(t *testing.T) {
 			want:  true,
 		},
 		{
-			name:  "json",
-			given: "application/json",
+			name:    "json",
+			given:   "application/json",
+			wantErr: true,
 		},
 		{
 			name:  "ndjson",
@@ -45,6 +50,7 @@ func Test_explicitlyAcceptsNDJson(t *testing.T) {
 			want:  true,
 		},
 	}
+	w := httptest.NewRecorder()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r, err := http.NewRequest(http.MethodGet, "fish.invalid", nil)
@@ -52,11 +58,12 @@ func Test_explicitlyAcceptsNDJson(t *testing.T) {
 			if tt.given != "" {
 				r.Header.Set("Accept", tt.given)
 			}
-			got, err := explicitlyAcceptsNDJson(r)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("getAccepts() error = %v, wantErr %v", err, tt.wantErr)
+			match, ok := acceptsAnyOf(w, r, true, mediaTypeNDJson)
+			if ok == tt.wantErr {
+				t.Errorf("getAccepts() hasError = %v, wantErr %v", !ok, tt.wantErr)
 				return
 			}
+			got := match != ""
 			require.Equal(t, got, tt.want, "getAccepts() got = %v, want %v", got, tt.want)
 		})
 	}
@@ -67,23 +74,25 @@ func Test_acceptsAnyOf(t *testing.T) {
 		name        string
 		givenHeader string
 		givenAnyOf  []string
-		want        bool
+		want        string
 		wantErr     bool
 	}{
 		{
 			name:        "empty match",
 			givenHeader: "ext/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+			wantErr:     true,
 		},
 		{
 			name:        "no match",
 			givenHeader: "ext/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
 			givenAnyOf:  []string{"application/json"},
+			wantErr:     true,
 		},
 		{
 			name:        "extra space with match",
 			givenHeader: "ext/html,application/xhtml+xml   ,   application/xml;q=0.9",
 			givenAnyOf:  []string{"application/json", "application/xhtml+xml"},
-			want:        true,
+			want:        "application/xhtml+xml",
 		},
 		{
 			name: "none",
@@ -97,21 +106,22 @@ func Test_acceptsAnyOf(t *testing.T) {
 			name:        "extra space ndjson",
 			givenHeader: "ext/html,application/xhtml+xml   ,   application/x-ndjson;q=0.9",
 			givenAnyOf:  []string{"application/x-ndjson"},
-			want:        true,
+			want:        "application/x-ndjson",
 		},
 		{
 			name:        "json repeated",
 			givenHeader: "application/x-ndjson,   application/x-ndjson;q=0.9, application/json",
 			givenAnyOf:  []string{"application/json"},
-			want:        true,
+			want:        "application/json",
 		},
 		{
 			name:        "ndjson",
 			givenHeader: "application/json,   application/x-ndjson;q=0.9",
 			givenAnyOf:  []string{"application/x-ndjson", "application/json"},
-			want:        true,
+			want:        "application/x-ndjson",
 		},
 	}
+	w := httptest.NewRecorder()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r, err := http.NewRequest(http.MethodGet, "fish.invalid", nil)
@@ -119,12 +129,12 @@ func Test_acceptsAnyOf(t *testing.T) {
 			if tt.givenHeader != "" {
 				r.Header.Set("Accept", tt.givenHeader)
 			}
-			got, err := acceptsAnyOf(r, tt.givenAnyOf...)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("getAccepts() error = %v, wantErr %v", err, tt.wantErr)
+			firstMatch, ok := acceptsAnyOf(w, r, true, tt.givenAnyOf...)
+			if ok == tt.wantErr {
+				t.Errorf("getAccepts() hasError = %v, wantErr %v", !ok, tt.wantErr)
 				return
 			}
-			require.Equal(t, got, tt.want, "getAccepts() got = %v, want %v", got, tt.want)
+			require.Equal(t, firstMatch, tt.want, "getAccepts() firstMatch = %v, want %v", firstMatch, tt.want)
 		})
 	}
 }
