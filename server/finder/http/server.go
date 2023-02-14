@@ -85,20 +85,7 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	}
 	compileTime := time.Now()
 
-	/*
-		r := httprouter.New()
-		r.GlobalOPTIONS = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("Access-Control-Request-Method") != "" {
-				// Set CORS headers
-				header := w.Header()
-				header.Set("Access-Control-Allow-Methods", r.Header.Get("Allow"))
-				header.Set("Access-Control-Allow-Origin", "*")
-			}
-			w.WriteHeader(http.StatusNoContent)
-		})
-	*/
 	mux := http.NewServeMux()
-
 	server := &http.Server{
 		Handler:      mux,
 		WriteTimeout: opts.writeTimeout,

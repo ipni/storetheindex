@@ -10,56 +10,106 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var sync = &cli.Command{
+var syncCmd = &cli.Command{
 	Name:   "sync",
 	Usage:  "Sync indexer with provider",
 	Flags:  adminSyncFlags,
-	Action: syncCmd,
+	Action: syncAction,
 }
 
-var allow = &cli.Command{
+var adminSyncFlags = []cli.Flag{
+	indexerHostFlag,
+	&cli.StringFlag{
+		Name:     "pubid",
+		Usage:    "Publisher peer ID",
+		Aliases:  []string{"p"},
+		Required: true,
+	},
+	&cli.StringFlag{
+		Name:  "addr",
+		Usage: "Multiaddr address of peer to sync with",
+	},
+	&cli.Int64Flag{
+		Name:  "depth",
+		Usage: "Depth limit of advertisements (distance from current) to sync. No limit if -1. Unspecified or 0 defaults to indexer config.",
+	},
+	&cli.BoolFlag{
+		Name:  "resync",
+		Usage: "Ignore the latest synced advertisement and sync advertisements as far back as the depth limit allows.",
+		Value: false,
+	},
+}
+
+var allowCmd = &cli.Command{
 	Name:   "allow",
 	Usage:  "Allow advertisements and content from peer",
 	Flags:  adminPolicyFlags,
-	Action: allowCmd,
+	Action: allowAction,
 }
 
-var block = &cli.Command{
+var blockCmd = &cli.Command{
 	Name:   "block",
 	Usage:  "Block advertisements and content from peer",
 	Flags:  adminPolicyFlags,
-	Action: blockCmd,
+	Action: blockAction,
 }
 
-var freezeIndexer = &cli.Command{
-	Name:   "freeze",
-	Usage:  "Put indexer into frozen mode",
-	Flags:  adminFreezeFlags,
-	Action: freezeCmd,
+var adminPolicyFlags = []cli.Flag{
+	&cli.StringFlag{
+		Name:     "peer",
+		Usage:    "Peer ID of publisher or provider to allow or block",
+		Aliases:  []string{"p"},
+		Required: true,
+	},
+	indexerHostFlag,
 }
 
-var importProviders = &cli.Command{
+var freezeIndexerCmd = &cli.Command{
+	Name:  "freeze",
+	Usage: "Put indexer into frozen mode",
+	Flags: []cli.Flag{
+		indexerHostFlag,
+	},
+
+	Action: freezeAction,
+}
+
+var importProvidersCmd = &cli.Command{
 	Name:   "import-providers",
 	Usage:  "Import provider information from another indexer",
 	Flags:  importProvidersFlags,
-	Action: importProvidersCmd,
+	Action: importProvidersAction,
 }
 
-var listAssigned = &cli.Command{
-	Name:   "list-assigned",
-	Usage:  "List assigned peers when configured to work with assigner service",
-	Flags:  adminListAssignedFlags,
-	Action: listAssignedCmd,
+var importProvidersFlags = []cli.Flag{
+	&cli.StringFlag{
+		Name:     "from",
+		Usage:    "Host or host:port of indexer to get providers from",
+		Aliases:  []string{"f"},
+		Required: true,
+	},
+	indexerHostFlag,
 }
 
-var listPreferred = &cli.Command{
-	Name:   "list-preferred",
-	Usage:  "List unassigned peers that indexer has retrieved content from",
-	Flags:  adminListPreferredFlags,
-	Action: listPreferredCmd,
+var listAssignedCmd = &cli.Command{
+	Name:  "list-assigned",
+	Usage: "List assigned peers when configured to work with assigner service",
+	Flags: []cli.Flag{
+		indexerHostFlag,
+	},
+	Action: listAssignedAction,
 }
 
-var reload = &cli.Command{
+var listPreferredCmd = &cli.Command{
+	Name:  "list-preferred",
+	Usage: "List unassigned peers that indexer has retrieved content from",
+	Flags: []cli.Flag{
+		indexerHostFlag,
+	},
+	Action: listPreferredAction,
+}
+
+var reloadCmd = &cli.Command{
 	Name:  "reload-config",
 	Usage: "Reload various settings from the configuration file",
 	Description: "Reloades the following portions of the config file:" +
@@ -71,34 +121,38 @@ var reload = &cli.Command{
 		" Ingest.StoreBatchSize," +
 		" Logging," +
 		" Peering",
-	Flags:  adminReloadConfigFlags,
-	Action: reloadConfigCmd,
+	Flags: []cli.Flag{
+		indexerHostFlag,
+	},
+	Action: reloadConfigAction,
 }
 
-var status = &cli.Command{
-	Name:   "status",
-	Usage:  "Show indexer status",
-	Flags:  statusFlags,
-	Action: statusCmd,
+var statusCmd = &cli.Command{
+	Name:  "status",
+	Usage: "Show indexer status",
+	Flags: []cli.Flag{
+		indexerHostFlag,
+	},
+	Action: statusAction,
 }
 
 var AdminCmd = &cli.Command{
 	Name:  "admin",
 	Usage: "Perform admin activities with an indexer",
 	Subcommands: []*cli.Command{
-		allow,
-		block,
-		freezeIndexer,
-		importProviders,
-		listAssigned,
-		listPreferred,
-		reload,
-		status,
-		sync,
+		allowCmd,
+		blockCmd,
+		freezeIndexerCmd,
+		importProvidersCmd,
+		listAssignedCmd,
+		listPreferredCmd,
+		reloadCmd,
+		statusCmd,
+		syncCmd,
 	},
 }
 
-func syncCmd(cctx *cli.Context) error {
+func syncAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
@@ -123,7 +177,7 @@ func syncCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func allowCmd(cctx *cli.Context) error {
+func allowAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
@@ -140,7 +194,7 @@ func allowCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func listAssignedCmd(cctx *cli.Context) error {
+func listAssignedAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
@@ -159,7 +213,7 @@ func listAssignedCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func listPreferredCmd(cctx *cli.Context) error {
+func listPreferredAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
@@ -174,7 +228,7 @@ func listPreferredCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func blockCmd(cctx *cli.Context) error {
+func blockAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
@@ -191,7 +245,7 @@ func blockCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func freezeCmd(cctx *cli.Context) error {
+func freezeAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
@@ -203,7 +257,7 @@ func freezeCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func importProvidersCmd(cctx *cli.Context) error {
+func importProvidersAction(cctx *cli.Context) error {
 	fromURL := &url.URL{
 		Scheme: "http",
 		Host:   cctx.String("from"),
@@ -221,7 +275,7 @@ func importProvidersCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func reloadConfigCmd(cctx *cli.Context) error {
+func reloadConfigAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
@@ -234,7 +288,7 @@ func reloadConfigCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func statusCmd(cctx *cli.Context) error {
+func statusAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err

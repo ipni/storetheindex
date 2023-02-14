@@ -39,16 +39,13 @@ func main() {
 		Commands: []*cli.Command{
 			command.AdminCmd,
 			command.AssignerCmd,
-			command.ConfigCmd,
 			command.DaemonCmd,
 			command.FindCmd,
 			command.ImportCmd,
 			command.InitCmd,
+			command.LoadtestCmd,
+			command.LogCmd,
 			command.ProvidersCmd,
-			command.RegisterCmd,
-			command.SyntheticCmd,
-			command.LoadGenCmd,
-			command.LoadGenVerifyCmd,
 		},
 	}
 

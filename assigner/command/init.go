@@ -14,10 +14,31 @@ var InitCmd = &cli.Command{
 	Name:   "init",
 	Usage:  "Initialize or upgrade config file",
 	Flags:  initFlags,
-	Action: initCommand,
+	Action: initAction,
 }
 
-func initCommand(cctx *cli.Context) error {
+var initFlags = []cli.Flag{
+	&cli.BoolFlag{
+		Name:     "no-bootstrap",
+		Usage:    "Do not configure bootstrap peers",
+		EnvVars:  []string{"NO_BOOTSTRAP"},
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "pubsub-topic",
+		Usage:    "Subscribe to this pubsub topic to receive advertisement notification",
+		EnvVars:  []string{"ASSIGNER_PUBSUB_TOPIC"},
+		Required: false,
+	},
+	&cli.BoolFlag{
+		Name:     "upgrade",
+		Usage:    "Upgrade the config file to the current version, saving the old config as config.prev, and ignoring other flags ",
+		Aliases:  []string{"u"},
+		Required: false,
+	},
+}
+
+func initAction(cctx *cli.Context) error {
 	// Check that the config root exists and it writable.
 	configRoot, err := config.PathRoot()
 	if err != nil {

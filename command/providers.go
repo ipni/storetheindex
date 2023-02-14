@@ -13,31 +13,36 @@ var ProvidersCmd = &cli.Command{
 	Name:  "providers",
 	Usage: "Commands to get provider information",
 	Subcommands: []*cli.Command{
-		get,
-		list,
+		getProvidersCmd,
+		listProvidersCmd,
 	},
 }
 
-var get = &cli.Command{
-	Name:   "get",
-	Usage:  "Show information about a specific provider",
-	Flags:  providersGetFlags,
-	Action: getProvidersCmd,
+var getProvidersCmd = &cli.Command{
+	Name:  "get",
+	Usage: "Show information about a specific provider",
+	Flags: []cli.Flag{
+		indexerHostFlag,
+		providerFlag,
+	},
+	Action: getProvidersAction,
 }
 
-var list = &cli.Command{
-	Name:   "list",
-	Usage:  "Show information about all known providers",
-	Flags:  providersListFlags,
-	Action: listProvidersCmd,
+var listProvidersCmd = &cli.Command{
+	Name:  "list",
+	Usage: "Show information about all known providers",
+	Flags: []cli.Flag{
+		indexerHostFlag,
+	},
+	Action: listProvidersAction,
 }
 
-func getProvidersCmd(cctx *cli.Context) error {
+func getProvidersAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "finder"))
 	if err != nil {
 		return err
 	}
-	peerID, err := peer.Decode(cctx.String("provid"))
+	peerID, err := peer.Decode(cctx.String("provider"))
 	if err != nil {
 		return err
 	}
@@ -54,7 +59,7 @@ func getProvidersCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func listProvidersCmd(cctx *cli.Context) error {
+func listProvidersAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "finder"))
 	if err != nil {
 		return err

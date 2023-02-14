@@ -29,10 +29,31 @@ var DaemonCmd = &cli.Command{
 	Name:   "daemon",
 	Usage:  "Start assigner service daemon",
 	Flags:  daemonFlags,
-	Action: daemonCommand,
+	Action: daemonAction,
 }
 
-func daemonCommand(cctx *cli.Context) error {
+var daemonFlags = []cli.Flag{
+	&cli.StringFlag{
+		Name:     "listen-admin",
+		Usage:    "Admin HTTP API listen address",
+		EnvVars:  []string{"ASSIGNER_LISTEN_ADMIN"},
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "listen-http",
+		Usage:    "HTTP listen address",
+		EnvVars:  []string{"ASSIGNER_LISTEN_HTTP"},
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "listen-p2p",
+		Usage:    "P2P listen address",
+		EnvVars:  []string{"ASSIGNER_LISTEN_P2P"},
+		Required: false,
+	},
+}
+
+func daemonAction(cctx *cli.Context) error {
 	cfg, err := loadConfig("")
 	if err != nil {
 		if errors.Is(err, sticfg.ErrNotInitialized) {

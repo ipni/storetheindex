@@ -17,10 +17,37 @@ var FindCmd = &cli.Command{
 	Name:   "find",
 	Usage:  "Find value by CID or multihash in indexer",
 	Flags:  findFlags,
-	Action: findCmd,
+	Action: findAction,
 }
 
-func findCmd(cctx *cli.Context) error {
+var findFlags = []cli.Flag{
+	&cli.StringSliceFlag{
+		Name:     "mh",
+		Usage:    "Specify multihash to use as indexer key, multiple OK",
+		Required: false,
+	},
+	&cli.StringSliceFlag{
+		Name:     "cid",
+		Usage:    "Specify CID to use as indexer key, multiple OK",
+		Required: false,
+	},
+	indexerHostFlag,
+	&cli.StringFlag{
+		Name:     "indexerid",
+		Usage:    "Indexer peer ID to use when protocol=libp2p",
+		Aliases:  []string{"iid"},
+		EnvVars:  []string{"INDEXER_ID"},
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "protocol",
+		Usage:    "Protocol to query the indexer (http, libp2p currently supported)",
+		Value:    "http",
+		Required: false,
+	},
+}
+
+func findAction(cctx *cli.Context) error {
 	protocol := cctx.String("protocol")
 
 	mhArgs := cctx.StringSlice("mh")

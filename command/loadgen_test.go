@@ -73,8 +73,7 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 		Commands: []*cli.Command{
 			command.InitCmd,
 			command.DaemonCmd,
-			command.LoadGenCmd,
-			command.LoadGenVerifyCmd,
+			command.LoadtestCmd,
 		},
 	}
 
@@ -127,7 +126,7 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 	foundAll := false
 LOOP:
 	for {
-		err = app.RunContext(ctx, []string{"storetheindex", "loadgen-verify", "--indexerFind=http://127.0.0.1:" + finderPort, "--concurrentProviders=" + fmt.Sprint(concurrentProviders), "--maxEntryNumber=" + fmt.Sprint(numberOfEntriesPerProvider)})
+		err = app.RunContext(ctx, []string{"storetheindex", "loadtest", "loadgen-verify", "--indexerFind=http://127.0.0.1:" + finderPort, "--concurrentProviders=" + fmt.Sprint(concurrentProviders), "--maxEntryNumber=" + fmt.Sprint(numberOfEntriesPerProvider)})
 		if err == nil {
 			foundAll = true
 			break
