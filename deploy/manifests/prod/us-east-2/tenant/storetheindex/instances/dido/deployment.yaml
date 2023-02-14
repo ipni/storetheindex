@@ -34,7 +34,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: dido-data
+            claimName: dido-data-gp3
       tolerations:
         - key: dedicated
           operator: Equal
