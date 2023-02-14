@@ -63,10 +63,25 @@ var DaemonCmd = &cli.Command{
 	Name:   "daemon",
 	Usage:  "Start an indexer daemon, accepting http requests",
 	Flags:  daemonFlags,
-	Action: daemonCommand,
+	Action: daemonAction,
 }
 
-func daemonCommand(cctx *cli.Context) error {
+var daemonFlags = []cli.Flag{
+	cacheSizeFlag,
+	listenAdminFlag,
+	listenFinderFlag,
+	listenIngestFlag,
+	listenP2PFlag,
+	&cli.BoolFlag{
+		Name:     "watch-config",
+		Usage:    "Watch for changes to config file and automatically reload",
+		EnvVars:  []string{"STORETHEINDEX_WATCH_CONFIG"},
+		Value:    true,
+		Required: false,
+	},
+}
+
+func daemonAction(cctx *cli.Context) error {
 	cfg, err := loadConfig("")
 	if err != nil {
 		if errors.Is(err, config.ErrNotInitialized) {

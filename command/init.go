@@ -14,10 +14,53 @@ var InitCmd = &cli.Command{
 	Name:   "init",
 	Usage:  "Initialize or upgrade indexer node config file",
 	Flags:  initFlags,
-	Action: initCommand,
+	Action: initAction,
 }
 
-func initCommand(cctx *cli.Context) error {
+var initFlags = []cli.Flag{
+	cacheSizeFlag,
+	listenAdminFlag,
+	listenFinderFlag,
+	listenIngestFlag,
+	listenP2PFlag,
+	&cli.StringFlag{
+		Name:     "store",
+		Usage:    "Type of value store (pebble, sth). Default is \"pebble\"",
+		Aliases:  []string{"s"},
+		EnvVars:  []string{"STORETHEINDEX_VALUE_STORE"},
+		Required: false,
+	},
+	&cli.BoolFlag{
+		Name:     "no-bootstrap",
+		Usage:    "Do not configure bootstrap peers",
+		EnvVars:  []string{"NO_BOOTSTRAP"},
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "pubsub-topic",
+		Usage:    "Subscribe to this pubsub topic to receive advertisement notification",
+		EnvVars:  []string{"STORETHEINDE_PUBSUB_TOPIC"},
+		Required: false,
+	},
+	&cli.BoolFlag{
+		Name:     "upgrade",
+		Usage:    "Upgrade the config file to the current version, saving the old config as config.prev, and ignoring other flags ",
+		Aliases:  []string{"u"},
+		Required: false,
+	},
+	&cli.BoolFlag{
+		Name:     "use-assigner",
+		Usage:    "Configure the indexer to work with an assigner service",
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "dhstore",
+		Usage:    "Url of DHStore for double hashed index",
+		Required: false,
+	},
+}
+
+func initAction(cctx *cli.Context) error {
 	// Check that the config root exists and it writable.
 	configRoot, err := config.PathRoot()
 	if err != nil {

@@ -9,38 +9,56 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var importCidList = &cli.Command{
+var importCidListCmd = &cli.Command{
 	Name:   "cidlist",
 	Usage:  "Import indexer data from cidList",
 	Flags:  importFlags,
-	Action: importListCmd,
+	Action: importListAction,
 }
 
-var importCar = &cli.Command{
+var importCarCmd = &cli.Command{
 	Name:   "car",
 	Usage:  "Import indexer data from car",
 	Flags:  importFlags,
-	Action: importCarCmd,
+	Action: importCarAction,
 }
 
-var importManifest = &cli.Command{
+var importManifestCmd = &cli.Command{
 	Name:   "manifest",
 	Usage:  "Import manifest of CID aggregator",
 	Flags:  importFlags,
-	Action: importManifestCmd,
+	Action: importManifestAction,
+}
+
+var importFlags = []cli.Flag{
+	providerFlag,
+	&cli.StringFlag{
+		Name:     "ctxid",
+		Usage:    "Context ID of data imported",
+		Aliases:  []string{"c"},
+		Required: true,
+	},
+	&cli.StringFlag{
+		Name:     "metadata",
+		Usage:    "Bytes of opaque metadata corresponding to protocol 0",
+		Aliases:  []string{"m"},
+		Required: false,
+	},
+	fileFlag,
+	indexerHostFlag,
 }
 
 var ImportCmd = &cli.Command{
 	Name:  "import",
 	Usage: "Imports data directly into indexer, bypassing ingestion process",
 	Subcommands: []*cli.Command{
-		importCidList,
-		importCar,
-		importManifest,
+		importCidListCmd,
+		importCarCmd,
+		importManifestCmd,
 	},
 }
 
-func importListCmd(cctx *cli.Context) error {
+func importListAction(cctx *cli.Context) error {
 	// NOTE: Importing manually from CLI only supported for http protocol
 	// for now. This feature is mainly for testing purposes
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
@@ -63,12 +81,11 @@ func importListCmd(cctx *cli.Context) error {
 	return nil
 }
 
-func importCarCmd(c *cli.Context) error {
-	//fmt.Println("Telling indexer to import manifest file:", fileName)
+func importCarAction(c *cli.Context) error {
 	return errors.New("importing from car not implemented yet")
 }
 
-func importManifestCmd(cctx *cli.Context) error {
+func importManifestAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err

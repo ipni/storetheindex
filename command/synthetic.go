@@ -17,14 +17,36 @@ import (
 
 const DAG_MAX = 3200000
 
-var SyntheticCmd = &cli.Command{
+var syntheticCmd = &cli.Command{
 	Name:   "synthetic",
 	Usage:  "Generate synthetic load to import in indexer",
 	Flags:  syntheticFlags,
-	Action: syntheticCmd,
+	Action: syntheticAction,
 }
 
-func syntheticCmd(c *cli.Context) error {
+var syntheticFlags = []cli.Flag{
+	fileFlag,
+	&cli.StringFlag{
+		Name:     "type",
+		Usage:    "Type of synthetic load to generate (manifest, cidlist, car)",
+		Aliases:  []string{"t"},
+		Required: true,
+	},
+	&cli.Int64Flag{
+		Name:     "num",
+		Usage:    "Number of entries to generate",
+		Aliases:  []string{"n"},
+		Required: false,
+	},
+	&cli.Int64Flag{
+		Name:     "size",
+		Usage:    "Total size of the CIDs to generate",
+		Aliases:  []string{"s"},
+		Required: false,
+	},
+}
+
+func syntheticAction(c *cli.Context) error {
 	fileName := c.String("file")
 	num := int(c.Int64("num"))
 	size := int(c.Int64("size"))

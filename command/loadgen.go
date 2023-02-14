@@ -15,18 +15,18 @@ import (
 	"github.com/ipni/storetheindex/command/loadgen"
 )
 
-var LoadGenCmd = &cli.Command{
+var loadGenCmd = &cli.Command{
 	Name:   "loadgen",
 	Usage:  "Generate fake provider load for the indexer",
 	Flags:  loadGenFlags,
-	Action: loadGenCmd,
+	Action: loadGenAction,
 }
 
-var LoadGenVerifyCmd = &cli.Command{
+var loadGenVerifyCmd = &cli.Command{
 	Name:   "loadgen-verify",
 	Usage:  "Generate fake provider load for the indexer",
 	Flags:  loadGenVerifyFlags,
-	Action: loadGenVerifyCmd,
+	Action: loadGenVerifyAction,
 }
 
 var loadGenFlags = []cli.Flag{
@@ -63,7 +63,7 @@ var loadGenFlags = []cli.Flag{
 	},
 }
 
-func loadGenCmd(cctx *cli.Context) error {
+func loadGenAction(cctx *cli.Context) error {
 	configFile := cctx.String("config")
 	config := loadgen.DefaultConfig()
 	if configFile != "" {
@@ -114,7 +114,7 @@ var loadGenVerifyFlags = []cli.Flag{
 	},
 }
 
-func loadGenVerifyCmd(cctx *cli.Context) error {
+func loadGenVerifyAction(cctx *cli.Context) error {
 	client, err := httpfinderclient.New(cctx.String("indexerFind"))
 	if err != nil {
 		return err
