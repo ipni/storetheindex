@@ -7,6 +7,7 @@ resources:
   - github.com/ipni/dhstore/deploy/kubernetes?ref=58dfcad7aae9c172c68237dad25494625d8ac160
   - pvc.yaml
   - internal-service.yaml
+  - pod-monitor.yaml
 
 patchesStrategicMerge:
   - deployment.yaml

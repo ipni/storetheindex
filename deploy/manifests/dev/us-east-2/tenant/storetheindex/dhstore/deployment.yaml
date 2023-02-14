@@ -23,6 +23,9 @@ spec:
             requests:
               cpu: "3"
               memory: 28Gi
+          ports:
+            - containerPort: 40081
+              name: metrics
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
