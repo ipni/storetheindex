@@ -22,9 +22,7 @@ func TestFilterPrivateIPs(t *testing.T) {
 	for i := range addrs {
 		var err error
 		maddrs[i], err = multiaddr.NewMultiaddr(addrs[i])
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 	expected := make([]multiaddr.Multiaddr, 0, 3)
 	expected = append(expected, maddrs[1])
@@ -32,20 +30,14 @@ func TestFilterPrivateIPs(t *testing.T) {
 	expected = append(expected, maddrs[5])
 
 	filtered := mautil.FilterPrivateIPs(maddrs)
-	if len(filtered) != len(expected) {
-		t.Fatalf("wrong number of addrs after filtering, expected %d got %d", len(expected), len(filtered))
-	}
+	require.Equal(t, len(expected), len(filtered))
 
 	for i := range filtered {
-		if filtered[i] != expected[i] {
-			t.Fatalf("unexpected multiaddrs %s, expected %s", filtered[i], expected[i])
-		}
+		require.Equal(t, expected[i], filtered[i])
 	}
 
 	filtered = mautil.FilterPrivateIPs(nil)
-	if filtered != nil {
-		t.Fatal("expected nil")
-	}
+	require.Nil(t, filtered)
 }
 
 func TestFilterPrivateIPs_DoesNotPanicOnNilAddr(t *testing.T) {
