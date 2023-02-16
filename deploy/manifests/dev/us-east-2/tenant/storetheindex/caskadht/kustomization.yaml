@@ -16,6 +16,12 @@ secretGenerator:
     files:
       - identity.key=identity.key.encrypted # 12D3KooWAY6nosu5ireZaqo5M3zegzQFd9i1cWDqq7PTiAV4U9SV
 
+configMapGenerator:
+  - name: caskadht-env-vars
+    behavior: merge
+    literals:
+      - GOLOG_LOG_LEVEL="info,net/identify=error"
+
 images:
   - name: caskadht
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/caskadht
