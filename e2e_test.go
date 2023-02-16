@@ -225,7 +225,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	cfg, err = config.Load(stiCfgPath)
 	require.NoError(t, err)
 	indexerID := cfg.Identity.PeerID
-	cfg.Ingest.AdvertisementsToCar = config.FileStore{
+	cfg.Ingest.CarMirrorDestination = config.FileStore{
 		Type: "local",
 		Local: config.LocalFileStore{
 			BasePath: e.dir,
@@ -312,7 +312,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 			carCount++
 		}
 	}
-	require.Equal(t, 2, carCount)
+	require.Equal(t, 1, carCount)
 
 	outProvider := e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
 	// Check that IndexCount with correct value appears in providers output.

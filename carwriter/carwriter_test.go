@@ -66,44 +66,34 @@ func TestWrite(t *testing.T) {
 	require.True(t, ok)
 
 	// Test that car file is created.
-	adCarPath, entCarPath, err := carw.Write(ctx, adCid, false)
+	carInfo, err := carw.Write(ctx, adCid, false)
 	require.NoError(t, err)
-	_, err = fileStore.Head(ctx, adCarPath)
+	require.NotNil(t, carInfo)
+	headInfo, err := fileStore.Head(ctx, carInfo.Path)
 	require.NoError(t, err)
-	_, err = fileStore.Head(ctx, entCarPath)
-	require.NoError(t, err)
-	t.Log("Created advertisement CAR file:", adCarPath)
-	t.Log("Created entries CAR file:", entCarPath)
+	require.Equal(t, carInfo.Path, headInfo.Path)
+	require.Equal(t, carInfo.Size, headInfo.Size)
+	t.Log("Created advertisement CAR file:", carInfo.Path)
 
 	// Read CAR file and see that it has expected contents.
-	_, r, err := fileStore.Get(ctx, adCarPath)
+	_, r, err := fileStore.Get(ctx, carInfo.Path)
 	require.NoError(t, err)
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, r)
-	require.NoError(t, r.Close())
+	require.NoError(t, err)
+	err = r.Close()
 	require.NoError(t, err)
 	reader := bytes.NewReader(buf.Bytes())
-	acbs, err := carblockstore.NewReadOnly(reader, nil)
+	cbs, err := carblockstore.NewReadOnly(reader, nil)
 	require.NoError(t, err)
 
 	// Check that ad block is present.
-	blk, err := acbs.Get(ctx, adCid)
+	blk, err := cbs.Get(ctx, adCid)
 	require.NoError(t, err, "failed to get ad block from car file")
 	require.NotNil(t, blk)
 
-	// Read CAR file and see that it has expected contents.
-	_, r, err = fileStore.Get(ctx, entCarPath)
-	require.NoError(t, err)
-	buf.Reset()
-	_, err = io.Copy(&buf, r)
-	require.NoError(t, r.Close())
-	require.NoError(t, err)
-	reader.Reset(buf.Bytes())
-	ecbs, err := carblockstore.NewReadOnly(reader, nil)
-	require.NoError(t, err)
-
 	// Check that first entries block is present.
-	blk, err = ecbs.Get(ctx, entriesCid)
+	blk, err = cbs.Get(ctx, entriesCid)
 	require.NoError(t, err, "failed to get ad entried block from car file")
 	require.NotNil(t, blk)
 
@@ -130,14 +120,14 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 	require.NotZero(t, offset)
 
-	// Check that there are 5 chunks stored.
+	// Check that there is 1 ad and 5 entries chunks stored.
 	var count int
 	err = itIdx.ForEach(func(mh multihash.Multihash, offset uint64) error {
 		count++
 		return nil
 	})
 	require.NoError(t, err)
-	require.Equal(t, entBlockCount, count)
+	require.Equal(t, 1+entBlockCount, count)
 
 	// Check that ad and entries block are no longer in datastore.
 	ok, err = dstore.Has(ctx, datastore.NewKey(adCid.String()))
@@ -182,18 +172,13 @@ func TestWriteToExistingAdCar(t *testing.T) {
 
 	carw := carwriter.New(dstore, fileStore)
 
-	adCarPath, entCarPath, err := carw.Write(ctx, adCid, false)
+	carInfo, err := carw.Write(ctx, adCid, false)
 	require.NoError(t, err)
 
 	// Check that ad car file was not written to.
-	fileInfo, err := fileStore.Head(ctx, adCarPath)
+	fileInfo, err := fileStore.Head(ctx, carInfo.Path)
 	require.NoError(t, err)
 	require.Zero(t, fileInfo.Size)
-
-	// Check that entries car file was written to.
-	fileInfo, err = fileStore.Head(ctx, entCarPath)
-	require.NoError(t, err)
-	require.NotZero(t, fileInfo.Size)
 
 	// Check that ad and entries block are no longer in datastore.
 	ok, err = dstore.Has(ctx, datastore.NewKey(adCid.String()))
@@ -238,24 +223,19 @@ func TestWriteExistingAdsInStore(t *testing.T) {
 	countChan := carw.WriteExisting(ctx)
 	n := <-countChan
 	require.Equal(t, 1, n)
-	adName := adCid.String() + ".car"
-	entName := entriesCid.String() + ".car"
-	var adFound, entFound bool
+	carName := adCid.String() + ".car"
+	var carFound bool
 	fc, ec := fileStore.List(ctx, "", false)
 	for fileInfo := range fc {
-		switch fileInfo.Path {
-		case adName:
-			adFound = true
-		case entName:
-			entFound = true
-		default:
+		if fileInfo.Path == carName {
+			carFound = true
+		} else {
 			t.Fatal("unexpected file")
 		}
 	}
 	err = <-ec
 	require.NoError(t, err)
-	require.True(t, adFound)
-	require.True(t, entFound)
+	require.True(t, carFound)
 
 	// Check that ad and entries block are no longer in datastore.
 	ok, err = dstore.Has(ctx, datastore.NewKey(adCid.String()))
