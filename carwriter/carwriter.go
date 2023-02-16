@@ -40,12 +40,12 @@ func (e WriteError) Unwrap() error {
 }
 
 // CarWriter writes advertisements and entries, that are stored in a datastore,
-// to CAR files. For each advertisemtns, two separate CAR files are writen. One
-// for the advertisement data and one for all of the multihash entries chunks
-// or HAMT. The original chunks or HAMT are preserved for the purpose of being
-// able to verify links from advertisements and verify the advertisement
-// signature. Such verification may be necessary when fetching car files from a
-// location that is not completely trusted.
+// to CAR files. Each advertisement and its associated multihash entries
+// blocks, or HAMT, are written to a single CAR file. The original chunks or
+// HAMT are preserved, as opposed to storing only multihashes, for the purpose
+// of being able to verify links from advertisements and verify the
+// advertisement signature. Such verification may be necessary when fetching
+// car files from a location that is not completely trusted.
 type CarWriter struct {
 	dstore    datastore.Datastore
 	fileStore filestore.Interface
@@ -90,7 +90,7 @@ func (cw *CarWriter) WriteExisting(ctx context.Context) <-chan int {
 			if ctx.Err() != nil {
 				break
 			}
-			_, _, err = cw.Write(ctx, adCid, false)
+			_, err = cw.Write(ctx, adCid, false)
 			if err != nil {
 				log.Errorw("Cannot write advertisement to CAR file", "err", err)
 				var werr *WriteError
@@ -112,157 +112,105 @@ func (cw *CarWriter) WriteExisting(ctx context.Context) <-chan int {
 }
 
 // Write reads the advertisement, specified by CID, from the datastore and
-// writes it and its entries into CAR file. The car file is stored in the
+// writes it and its entries into a CAR file. The car file is stored in the
 // directory specified when the CarWriter was created, and is named with the
 // advertisement CID.
 //
-// The CAR file is written without entries if skipEntries is true. The prupose
+// The CAR file is written without entries if skipEntries is true. The purpose
 // of this to create a car file, to maintain the link in the advertisement
 // chain, when it is know that a later advertisement deletes this
 // advertisement's entries.
-func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries bool) (string, string, error) {
+func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries bool) (*filestore.File, error) {
 	ad, data, err := cw.loadAd(adCid)
 	if err != nil {
-		return "", "", fmt.Errorf("cannot load advertisement: %w", err)
+		return nil, fmt.Errorf("cannot load advertisement: %w", err)
 	}
 
-	adCarFile, err := cw.writeAdToCar(ctx, adCid, data)
-	if err != nil {
-		return "", "", &WriteError{err}
-	}
-
-	if skipEntries || ad.Entries == schema.NoEntries || ad.Entries == nil {
-		cw.deleteCids([]cid.Cid{adCid})
-		log.Infow("Wrote advertisement CAR", "adFile", adCarFile.Path, "adFileSize", adCarFile.Size)
-		return adCarFile.Path, "", nil
-	}
-
-	entriesCid := ad.Entries.(cidlink.Link).Cid
-	if entriesCid == cid.Undef {
-		cw.deleteCids([]cid.Cid{adCid})
-		return adCarFile.Path, "", nil
-	}
-
-	entCarFile, err := cw.writeEntriesToCar(ctx, adCid, entriesCid)
-	if err != nil {
-		return "", "", err
-	}
-
-	log.Infow("Wrote advertisement CAR", "adFile", adCarFile.Path, "adFileSize", adCarFile.Size,
-		"entriesFile", entCarFile.Path, "entriesFileSize", entCarFile.Size)
-
-	return adCarFile.Path, entCarFile.Path, nil
-}
-
-// writeAdToCar wites the advertisement data to a CAR file.
-func (cw *CarWriter) writeAdToCar(ctx context.Context, adCid cid.Cid, data []byte) (*filestore.File, error) {
 	fileName := adCid.String() + ".car"
+	carTmp := filepath.Join(os.TempDir(), fileName)
+	roots := make([]cid.Cid, 1, 2)
+	roots[0] = adCid
+
+	var entriesCid cid.Cid
+	if !skipEntries && ad.Entries != nil && ad.Entries != schema.NoEntries {
+		entriesCid = ad.Entries.(cidlink.Link).Cid
+		roots = append(roots, entriesCid)
+	}
 
 	// If the destination file already exists, do not rewrite it.
 	fileInfo, err := cw.fileStore.Head(ctx, fileName)
 	if err == nil {
+		if err = cw.removeAdData(roots); err != nil {
+			log.Errorw("Cannot remove advertisement data from datastore", "err", err)
+		}
 		return fileInfo, nil
 	}
 
-	carTmp := filepath.Join(os.TempDir(), fileName)
-
-	carStore, err := carblockstore.OpenReadWrite(carTmp, []cid.Cid{adCid})
+	carStore, err := carblockstore.OpenReadWrite(carTmp, roots)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open advertisement car file: %w", err)
 	}
 	defer os.Remove(carTmp)
 
 	if err = writeBlock(adCid, data, carStore); err != nil {
-		return nil, fmt.Errorf("cannot write advertisement data to car file: %w", err)
+		return nil, &WriteError{fmt.Errorf("cannot write advertisement data to car file: %w", err)}
 	}
 
-	if err = carStore.Finalize(); err != nil {
-		return nil, fmt.Errorf("cannot finalize advertisement car file: %w", err)
-	}
+	delCids := make([]cid.Cid, len(roots))
+	copy(delCids, roots)
 
-	carFile, err := os.Open(carTmp)
-	if err != nil {
-		return nil, err
-	}
-	defer carFile.Close()
+	if entriesCid != cid.Undef {
+		delCids = append(delCids, entriesCid)
 
-	return cw.fileStore.Put(ctx, fileName, carFile)
-}
-
-// writeEntriesToCar writes the entries chunks or HAMT to a car file.
-func (cw *CarWriter) writeEntriesToCar(ctx context.Context, adCid, entriesCid cid.Cid) (*filestore.File, error) {
-	delCids := []cid.Cid{adCid, entriesCid}
-
-	fileName := entriesCid.String() + ".car"
-	carTmp := filepath.Join(os.TempDir(), fileName)
-
-	node, data, err := cw.loadNode(entriesCid, basicnode.Prototype.Any)
-	if err != nil {
-		cw.deleteCids(delCids)
-		if errors.Is(err, datastore.ErrNotFound) {
-			// This is not an error because an ad whose contents was deleted
-			// later in the chain will have no entries in the datastore.
-			return nil, nil
+		node, data, err := cw.loadNode(entriesCid, basicnode.Prototype.Any)
+		if err != nil && !errors.Is(err, datastore.ErrNotFound) {
+			cw.deleteCids(delCids)
+			return nil, fmt.Errorf("failed to load first entry: %w", err)
 		}
-		return nil, fmt.Errorf("failed to load first entry: %w", err)
-	}
 
-	// If the entries file alredy exists, remove the entries from the datastore
-	// and do not re-create the entries CAR file.
-	fileInfo, err := cw.fileStore.Head(ctx, fileName)
-	if err == nil {
-		if err = cw.removeEntriesData(entriesCid, node); err != nil {
-			return nil, err
-		}
-		return fileInfo, nil
-	}
-
-	carStore, err := carblockstore.OpenReadWrite(carTmp, []cid.Cid{entriesCid})
-	if err != nil {
-		return nil, &WriteError{fmt.Errorf("cannot open entries car file: %w", err)}
-	}
-	defer os.Remove(carTmp)
-
-	if isHAMT(node) {
-		if err = writeBlock(entriesCid, data, carStore); err != nil {
-			return nil, &WriteError{fmt.Errorf("cannot write entries hamt to car file: %w", err)}
-		}
-	} else {
-		for entriesCid != cid.Undef {
-			chunk, data, err := cw.loadEntryChunk(entriesCid)
-			if err != nil {
-				cw.deleteCids(delCids)
-				return nil, fmt.Errorf("cannot load entries block: %w", err)
+		if len(data) != 0 {
+			if isHAMT(node) {
+				if err = writeBlock(entriesCid, data, carStore); err != nil {
+					return nil, &WriteError{fmt.Errorf("cannot write entries hamt to car file: %w", err)}
+				}
+			} else {
+				for entriesCid != cid.Undef {
+					chunk, data, err := cw.loadEntryChunk(entriesCid)
+					if err != nil {
+						cw.deleteCids(delCids)
+						return nil, fmt.Errorf("cannot load entries block: %w", err)
+					}
+					if err = writeBlock(entriesCid, data, carStore); err != nil {
+						return nil, &WriteError{fmt.Errorf("cannot write entries block to car file: %w", err)}
+					}
+					if chunk.Next == nil {
+						break
+					}
+					entriesCid = chunk.Next.(cidlink.Link).Cid
+					delCids = append(delCids, entriesCid)
+				}
 			}
-			if err = writeBlock(entriesCid, data, carStore); err != nil {
-				return nil, &WriteError{fmt.Errorf("cannot write entries block to car file: %w", err)}
-			}
-			if chunk.Next == nil {
-				break
-			}
-			entriesCid = chunk.Next.(cidlink.Link).Cid
-			delCids = append(delCids, entriesCid)
 		}
 	}
 
 	if err = carStore.Finalize(); err != nil {
-		return nil, &WriteError{fmt.Errorf("cannot finalize entries car file: %w", err)}
+		return nil, &WriteError{fmt.Errorf("cannot finalize advertisement car file: %w", err)}
 	}
 
 	carFile, err := os.Open(carTmp)
 	if err != nil {
-		return nil, err
+		return nil, &WriteError{err}
 	}
 	defer carFile.Close()
 
-	fileInfo, err = cw.fileStore.Put(ctx, fileName, carFile)
+	carInfo, err := cw.fileStore.Put(ctx, fileName, carFile)
 	if err != nil {
-		return nil, err
+		return nil, &WriteError{err}
 	}
 
 	cw.deleteCids(delCids)
 
-	return fileInfo, nil
+	return carInfo, nil
 }
 
 func (cw *CarWriter) deleteCids(delCids []cid.Cid) {
@@ -329,11 +277,21 @@ func (cw *CarWriter) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Nod
 	return node, val, nil
 }
 
-func (cw *CarWriter) removeEntriesData(entriesCid cid.Cid, node ipld.Node) error {
-	delCids := []cid.Cid{entriesCid}
+func (cw *CarWriter) removeAdData(delCids []cid.Cid) error {
 	defer func() {
 		cw.deleteCids(delCids)
 	}()
+
+	if len(delCids) < 2 {
+		return nil
+	}
+
+	entriesCid := delCids[1]
+
+	node, _, err := cw.loadNode(entriesCid, basicnode.Prototype.Any)
+	if err != nil && !errors.Is(err, datastore.ErrNotFound) {
+		return fmt.Errorf("failed to load first entry: %w", err)
+	}
 
 	if isHAMT(node) {
 		return nil

@@ -17,9 +17,9 @@ type Ingest struct {
 	// size set by SyncSegmentDepthLimit. AdvertisementDepthLimit sets the
 	// limit on the total number of advertisements across all segments.
 	AdvertisementDepthLimit int
-	// AdvertisementsToCar configures if and how to store ingested
+	// CarMirrorDestination configures if, how, and where to store ingested
 	// advertisements and entries in CAR files.
-	AdvertisementsToCar FileStore
+	CarMirrorDestination FileStore
 	// EntriesDepthLimit is the total maximum recursion depth limit when
 	// syncing advertisement entries. The value -1 means no limit and zero
 	// means use the default value. The purpose is to prevent overload from

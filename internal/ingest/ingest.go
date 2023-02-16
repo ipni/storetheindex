@@ -190,8 +190,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 
-	if cfg.AdvertisementsToCar.Type != "" {
-		fileStore, err := filestore.New(cfg.AdvertisementsToCar)
+	if cfg.CarMirrorDestination.Type != "" {
+		fileStore, err := filestore.New(cfg.CarMirrorDestination)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create file store for car failes: %w", err)
 		}
@@ -1074,11 +1074,12 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 				log.Errorw("Failed to mark ad as processed", "err", markErr)
 			}
 			if !frozen && keep {
-				_, _, err := ing.adToCar.Write(ctx, ai.cid, true)
+				carInfo, err := ing.adToCar.Write(ctx, ai.cid, true)
 				if err != nil {
 					// Log the error, but do not return. Continue on to save the procesed ad.
 					log.Errorw("Cannot write advertisement to CAR file", "err", err)
 				}
+				log.Infow("Wrote CAR for skipped advertisement", "path", carInfo.Path, "size", carInfo.Size)
 			}
 
 			// Distribute the atProcessedEvent notices to waiting Sync calls.
@@ -1150,11 +1151,12 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
 		if !frozen && keep {
-			_, _, err = ing.adToCar.Write(ctx, ai.cid, false)
+			carInfo, err := ing.adToCar.Write(ctx, ai.cid, false)
 			if err != nil {
 				// Log the error, but do not return. Continue on to save the procesed ad.
 				log.Errorw("Cannot write advertisement to CAR file", "err", err)
 			}
+			log.Infow("Wrote CAR for advertisement", "path", carInfo.Path, "size", carInfo.Size)
 		}
 
 		// Distribute the atProcessedEvent notices to waiting Sync calls.
