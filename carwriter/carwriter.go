@@ -40,7 +40,7 @@ func (e WriteError) Unwrap() error {
 }
 
 // CarWriter writes advertisements and entries, that are stored in a datastore,
-// to CAR files. Each advertisemtns and its associated multihash entries
+// to CAR files. Each advertisement and its associated multihash entries
 // blocks, or HAMT, are written to a single CAR file. The original chunks or
 // HAMT are preserved, as opposed to storing only multihashes, for the purpose
 // of being able to verify links from advertisements and verify the
