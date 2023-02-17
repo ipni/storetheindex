@@ -26,7 +26,7 @@ data "aws_iam_policy_document" "sti_s3_rw" {
 }
 
 resource "aws_iam_policy" "sti_s3_rw" {
-  name   = "${local.environment_name}_kust_ctrlr"
+  name   = "${local.environment_name}_sti_s3_rw"
   policy = data.aws_iam_policy_document.sti_s3_rw.json
   tags   = local.tags
 }
