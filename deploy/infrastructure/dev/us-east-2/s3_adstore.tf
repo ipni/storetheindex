@@ -9,8 +9,13 @@
 #  acl    = "private"
 #}
 
+module "s3-bucket" {
+  source  = "terraform-aws-modules/s3-bucket/aws"
+  version = "3.7.0"
+}
+
 module "sti_s3_rw_role" {
-  source  = "registry.terraform.io/terraform-aws-modules/iam/aws//modules/iam-assumable-role-with-oidc"
+  source  = "registry.terraform.io/terraform-aws-modules/iam/aws/modules/iam-assumable-role-with-oidc"
   version = "4.17.1"
 
   create_role = true
@@ -19,7 +24,7 @@ module "sti_s3_rw_role" {
   provider_url = module.eks.oidc_provider
 
   role_policy_arns = [
-#    TODO find predefined ARN
+    arn:aws:iam::aws:policy/AmazonS3FullAccess
   ]
 
   oidc_fully_qualified_subjects = ["system:serviceaccount:storetheindex:storetheindex"]
