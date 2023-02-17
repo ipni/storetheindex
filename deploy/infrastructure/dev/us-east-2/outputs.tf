@@ -49,3 +49,7 @@ output "dev_cid_contact_zone_id" {
 output "amp_endpoint" {
   value = aws_prometheus_workspace.monitoring.prometheus_endpoint
 }
+
+output "sti_s3_rw_role_arn" {
+  value = module.sti_s3_rw_role.iam_role_arn
+}
