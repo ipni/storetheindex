@@ -17,6 +17,7 @@ func TestFilterPrivateIPs(t *testing.T) {
 		"/ip4/192.168.11.22/tcp/9999",
 		"/dns4/example.net/tcp/1234",
 		"/ip4/127.0.0.1/tcp/9999",
+		"/dns4/localhost/tcp/1234",
 	}
 	maddrs := make([]multiaddr.Multiaddr, len(addrs))
 	for i := range addrs {

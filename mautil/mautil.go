@@ -14,6 +14,9 @@ import (
 // removed, then returns the original slice.
 func FilterPrivateIPs(maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
 	filtered := multiaddr.FilterAddrs(maddrs, func(target multiaddr.Multiaddr) bool {
+		if target == nil {
+			return true
+		}
 		c, _ := multiaddr.SplitFirst(target)
 		if c == nil {
 			return false
@@ -23,21 +26,13 @@ func FilterPrivateIPs(maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
 			return manet.IsPublicAddr(target)
 		case multiaddr.P_DNS, multiaddr.P_DNS4, multiaddr.P_DNS6, multiaddr.P_DNSADDR:
 			return c.Value() != "localhost"
-		default:
-			return true
 		}
+		return true
 	})
 	if len(filtered) == 0 {
 		return nil
 	}
 	return filtered
-}
-
-func notPrivateAddr(a multiaddr.Multiaddr) bool {
-	if a == nil {
-		return true
-	}
-	return !manet.IsPrivateAddr(a)
 }
 
 func MultiaddrStringToNetAddr(maddrStr string) (net.Addr, error) {
