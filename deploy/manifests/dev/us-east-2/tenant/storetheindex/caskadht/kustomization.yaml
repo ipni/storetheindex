@@ -25,4 +25,4 @@ configMapGenerator:
 images:
   - name: caskadht
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/caskadht
-    newTag: 20230216144459-7e028ac907acac6c46ed8cdc1f22c97688bc55c2
+    newTag: 20230217131726-9c35827bb3e33edc22cc2daab5f6fc19609d8974
