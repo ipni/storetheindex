@@ -13,7 +13,20 @@ import (
 // loopback, or unspecified IP multiaddrs removed. If no multiaddrs are
 // removed, then returns the original slice.
 func FilterPrivateIPs(maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-	filtered := multiaddr.FilterAddrs(maddrs, notPrivateAddr)
+	filtered := multiaddr.FilterAddrs(maddrs, func(target multiaddr.Multiaddr) bool {
+		c, _ := multiaddr.SplitFirst(target)
+		if c == nil {
+			return false
+		}
+		switch c.Protocol().Code {
+		case multiaddr.P_IP4, multiaddr.P_IP6, multiaddr.P_IP6ZONE, multiaddr.P_IPCIDR:
+			return manet.IsPublicAddr(target)
+		case multiaddr.P_DNS, multiaddr.P_DNS4, multiaddr.P_DNS6, multiaddr.P_DNSADDR:
+			return c.Value() != "localhost"
+		default:
+			return true
+		}
+	})
 	if len(filtered) == 0 {
 		return nil
 	}
