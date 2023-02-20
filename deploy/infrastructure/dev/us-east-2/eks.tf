@@ -30,11 +30,11 @@ module "eks" {
       instance_types = ["r6a.xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a2.id]
     }
-    dev-ue2c-r6a-xl = {
+    dev-ue2c-c5n-2xl = {
       min_size       = 0
       max_size       = 3
       desired_size   = 1
-      instance_types = ["r6a.xlarge"]
+      instance_types = ["c5n.2xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id]
     }
 
