@@ -19,11 +19,11 @@ type FindRequest struct {
 // provider of indexed context.
 type ProviderResult struct {
 	// ContextID identifies the metadata that is part of this value.
-	ContextID []byte
+	ContextID []byte `json:"ContextID,omitempty"`
 	// Metadata contains information for the provider to use to retrieve data.
-	Metadata []byte
+	Metadata []byte `json:"Metadata,omitempty"`
 	// Provider is the peer ID and addresses of the provider.
-	Provider peer.AddrInfo
+	Provider *peer.AddrInfo `json:"Provider,omitempty"`
 }
 
 // MultihashResult aggregates all values for a single multihash.
@@ -34,16 +34,16 @@ type MultihashResult struct {
 
 // FindResponse used to answer client queries/requests
 type FindResponse struct {
-	MultihashResults          []MultihashResult
-	EncryptedMultihashResults []EncryptedMultihashResult
+	MultihashResults          []MultihashResult          `json:"MultihashResults,omitempty"`
+	EncryptedMultihashResults []EncryptedMultihashResult `json:"EncryptedMultihashResults,omitempty"`
 	// NOTE: This feature is not enabled yet.
 	// Signature []byte	// Providers signature.
 }
 
 // EncryptedMultihashResult aggregates all encrypted value keys for a single multihash
 type EncryptedMultihashResult struct {
-	Multihash          multihash.Multihash
-	EncryptedValueKeys [][]byte
+	Multihash          multihash.Multihash `json:"Multihash,omitempty"`
+	EncryptedValueKeys [][]byte            `json:"EncryptedValueKeys,omitempty"`
 }
 
 // Equal compares ProviderResult values to determine if they are equal. The

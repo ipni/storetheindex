@@ -52,7 +52,7 @@ func (x *ReframeService) FindProviders(ctx context.Context, key cid.Cid) (<-chan
 		return nil, err
 	}
 	ch := make(chan client.FindProvidersAsyncResult, 1)
-	peerAddrs := []peer.AddrInfo{}
+	var peerAddrs []peer.AddrInfo
 	for _, mhr := range fr.MultihashResults {
 		if !bytes.Equal(mhr.Multihash, mh) {
 			continue
@@ -61,7 +61,7 @@ func (x *ReframeService) FindProviders(ctx context.Context, key cid.Cid) (<-chan
 			if !containsTransportBitswap(pr.Metadata) {
 				continue
 			}
-			peerAddrs = append(peerAddrs, pr.Provider)
+			peerAddrs = append(peerAddrs, *pr.Provider)
 		}
 	}
 	go func() {

@@ -180,7 +180,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 
 	provResult := model.ProviderResult{
 		ContextID: v.ContextID,
-		Provider: peer.AddrInfo{
+		Provider: &peer.AddrInfo{
 			ID:    v.ProviderID,
 			Addrs: provider.Addrs,
 		},
@@ -361,7 +361,7 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 
 	provResult := model.ProviderResult{
 		ContextID: v.ContextID,
-		Provider: peer.AddrInfo{
+		Provider: &peer.AddrInfo{
 			ID:    v.ProviderID,
 			Addrs: provider.Addrs,
 		},
