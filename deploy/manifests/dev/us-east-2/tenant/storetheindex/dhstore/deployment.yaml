@@ -13,6 +13,7 @@ spec:
         - name: dhstore
           args:
             - '--storePath=/data'
+            - '--disableWAL'
           volumeMounts:
             - name: data
               mountPath: /data
