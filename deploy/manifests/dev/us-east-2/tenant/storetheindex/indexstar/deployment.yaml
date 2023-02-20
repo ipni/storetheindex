@@ -13,6 +13,7 @@ spec:
         - name: indexstar
           args:
             - '--translateReframe'
+            - '--translateNonStreaming'
             # Use service names local to the namespace over HTTP to avoid
             # TLS handshake overhead.
             - '--backends=http://ber-indexer:3000/'
@@ -28,6 +29,12 @@ spec:
             # The service provided by caskadht.
             - name: SERVER_CASCADE_LABELS
               value: 'ipfs-dht'
+            - name: SERVER_HTTP_CLIENT_TIMEOUT
+              value: '30s'
+            - name: SERVER_RESULT_MAX_WAIT
+              value: '30s'
+            - name: SERVER_RESULT_STREAM_MAX_WAIT
+              value: '30s'
           resources:
             limits:
               cpu: "3"
