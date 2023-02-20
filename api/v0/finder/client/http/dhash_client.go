@@ -227,7 +227,7 @@ func (pc *providerCache) getResults(ctx context.Context, pid peer.ID, ctxID []by
 	results = append(results, model.ProviderResult{
 		ContextID: ctxID,
 		Metadata:  metadata,
-		Provider:  wrapper.pinfo.AddrInfo,
+		Provider:  &wrapper.pinfo.AddrInfo,
 	})
 
 	// return results if there are no further extended providers to unpack
@@ -260,7 +260,7 @@ func (pc *providerCache) getResults(ctx context.Context, pid peer.ID, ctxID []by
 			results = append(results, model.ProviderResult{
 				ContextID: ctxID,
 				Metadata:  xmd,
-				Provider:  xpinfo,
+				Provider:  &xpinfo,
 			})
 		}
 	}
@@ -287,7 +287,7 @@ func (pc *providerCache) getResults(ctx context.Context, pid peer.ID, ctxID []by
 		results = append(results, model.ProviderResult{
 			ContextID: ctxID,
 			Metadata:  xmd,
-			Provider:  xpinfo,
+			Provider:  &xpinfo,
 		})
 	}
 

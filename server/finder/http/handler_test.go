@@ -137,7 +137,7 @@ func TestServer_StreamingResponse(t *testing.T) {
 			reqURI:           "/multihash/" + mhs[3].B58String(),
 			reqAccept:        "ext/html,  application/json",
 			wantContentType:  "application/json; charset=utf-8",
-			wantResponseBody: `{"MultihashResults":[{"Multihash":"EiCtVzjVYlU7UrB20GmR2mqk59dl7fk+Ann4CmsLfQfT+g==","ProviderResults":[{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}]}],"EncryptedMultihashResults":null}`,
+			wantResponseBody: `{"MultihashResults":[{"Multihash":"EiCtVzjVYlU7UrB20GmR2mqk59dl7fk+Ann4CmsLfQfT+g==","ProviderResults":[{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}]}]}`,
 		},
 		{
 			name:            "mutlihash ndjson",
@@ -153,7 +153,7 @@ func TestServer_StreamingResponse(t *testing.T) {
 			reqURI:           "/cid/" + cid.NewCidV1(cid.Raw, mhs[0]).String(),
 			reqAccept:        "application/json,ext/html,  application/xhtml+xml,application/xml;q=0.9",
 			wantContentType:  "application/json; charset=utf-8",
-			wantResponseBody: `{"MultihashResults":[{"Multihash":"EiC44Rthii367t9Nb5PD6C0XT49Ub14+f0iF7gA4Xgr/6A==","ProviderResults":[{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}]}],"EncryptedMultihashResults":null}`,
+			wantResponseBody: `{"MultihashResults":[{"Multihash":"EiC44Rthii367t9Nb5PD6C0XT49Ub14+f0iF7gA4Xgr/6A==","ProviderResults":[{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}]}]}`,
 		},
 		{
 			name:            "cid ndjson",

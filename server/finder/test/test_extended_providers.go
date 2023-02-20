@@ -43,7 +43,7 @@ func ProvidersShouldBeUnaffectedByExtendedProvidersOfEachOtherTest(ctx context.C
 	err = checkResponse(resp, mhs2[:10], []model.ProviderResult{
 		{
 			ContextID: ctxId2,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    prov2,
 				Addrs: addrs2,
 			},
@@ -93,7 +93,7 @@ func ExtendedProviderShouldHaveOwnMetadataTest(ctx context.Context, t *testing.T
 	err = checkResponse(resp, mhs1, []model.ProviderResult{
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    prov1,
 				Addrs: addrs1,
 			},
@@ -101,7 +101,7 @@ func ExtendedProviderShouldHaveOwnMetadataTest(ctx context.Context, t *testing.T
 		},
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    ep2,
 				Addrs: ep2Addrs,
 			},
@@ -109,7 +109,7 @@ func ExtendedProviderShouldHaveOwnMetadataTest(ctx context.Context, t *testing.T
 		},
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    ep1,
 				Addrs: ep1Addrs,
 			},
@@ -155,7 +155,7 @@ func ExtendedProviderShouldInheritMetadataOfMainProviderTest(ctx context.Context
 	err = checkResponse(resp, mhs1, []model.ProviderResult{
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    prov1,
 				Addrs: addrs1,
 			},
@@ -163,7 +163,7 @@ func ExtendedProviderShouldInheritMetadataOfMainProviderTest(ctx context.Context
 		},
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    ep2,
 				Addrs: ep2Addrs,
 			},
@@ -171,7 +171,7 @@ func ExtendedProviderShouldInheritMetadataOfMainProviderTest(ctx context.Context
 		},
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    ep1,
 				Addrs: ep1Addrs,
 			},
@@ -227,7 +227,7 @@ func ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx context.
 	err = checkResponse(resp, mhs1, []model.ProviderResult{
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    prov1,
 				Addrs: addrs1,
 			},
@@ -235,7 +235,7 @@ func ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx context.
 		},
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    ep2,
 				Addrs: ep2Addrs,
 			},
@@ -243,7 +243,7 @@ func ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx context.
 		},
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    ep1,
 				Addrs: ep1Addrs,
 			},
@@ -258,7 +258,7 @@ func ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx context.
 	err = checkResponse(resp, mhs2, []model.ProviderResult{
 		{
 			ContextID: ctxId2,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    prov1,
 				Addrs: addrs1,
 			},
@@ -266,7 +266,7 @@ func ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx context.
 		},
 		{
 			ContextID: ctxId2,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    ep1,
 				Addrs: ep1Addrs,
 			},
@@ -312,7 +312,7 @@ func ContextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx context.Con
 	err = checkResponse(resp, mhs1, []model.ProviderResult{
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    prov1,
 				Addrs: addrs1,
 			},
@@ -320,7 +320,7 @@ func ContextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx context.Con
 		},
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    ep2,
 				Addrs: ep2Addrs,
 			},
@@ -363,7 +363,7 @@ func MainProviderChainRecordIsIncludedIfItsMetadataIsDifferentTest(ctx context.C
 	err = checkResponse(resp, mhs1, []model.ProviderResult{
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    providerId,
 				Addrs: addrs,
 			},
@@ -371,7 +371,7 @@ func MainProviderChainRecordIsIncludedIfItsMetadataIsDifferentTest(ctx context.C
 		},
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    providerId,
 				Addrs: chainAddrs,
 			},
@@ -414,7 +414,7 @@ func MainProviderContextRecordIsIncludedIfItsMetadataIsDifferentTest(ctx context
 	err = checkResponse(resp, mhs1, []model.ProviderResult{
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    providerId,
 				Addrs: addrs,
 			},
@@ -422,7 +422,7 @@ func MainProviderContextRecordIsIncludedIfItsMetadataIsDifferentTest(ctx context
 		},
 		{
 			ContextID: ctxId1,
-			Provider: peer.AddrInfo{
+			Provider: &peer.AddrInfo{
 				ID:    providerId,
 				Addrs: contextAddrs,
 			},

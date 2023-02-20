@@ -228,7 +228,7 @@ func providerResultFromValue(provID peer.ID, contextID []byte, metadata []byte, 
 	return model.ProviderResult{
 		ContextID: contextID,
 		Metadata:  metadata,
-		Provider: peer.AddrInfo{
+		Provider: &peer.AddrInfo{
 			ID:    provID,
 			Addrs: addrs,
 		},
