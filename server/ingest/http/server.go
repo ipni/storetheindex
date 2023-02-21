@@ -1,6 +1,7 @@
 package httpingestserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,7 +10,8 @@ import (
 	"net/http"
 
 	logging "github.com/ipfs/go-log/v2"
-	indexer "github.com/ipni/go-indexer-core"
+	"github.com/ipni/go-indexer-core"
+	"github.com/ipni/storetheindex/announce/message"
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
@@ -79,9 +81,28 @@ func (s *Server) putAnnounce(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-
+	var b io.Reader
 	defer r.Body.Close()
-	err := s.ingestHandler.Announce(r.Body)
+	
+	if r.Header.Get("Content-Type") == "application/json" {
+		am := message.Message{}
+		err := json.NewDecoder(r.Body).Decode(&am)
+		if err != nil {
+			httpserver.HandleError(w, err, "announce")
+			return
+		}
+		buff := new(bytes.Buffer)
+		err = am.MarshalCBOR(buff)
+		if err != nil {
+			httpserver.HandleError(w, err, "announce")
+			return
+		}
+		b = buff
+	} else {
+		b = r.Body
+	}
+
+	err := s.ingestHandler.Announce(b)
 	if err != nil {
 		httpserver.HandleError(w, err, "announce")
 		return
