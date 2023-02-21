@@ -3,6 +3,7 @@ package httpsender
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -71,7 +72,7 @@ func (s *Sender) Send(ctx context.Context, msg message.Message) error {
 
 	if len(s.announceURLs) < 2 {
 		u := s.announceURLs[0]
-		err = s.sendAnnounce(ctx, u, buf)
+		err = s.sendAnnounce(ctx, u, buf, false)
 		if err != nil {
 			return fmt.Errorf("failed to send http announce to %s: %w", u, err)
 		}
@@ -84,7 +85,7 @@ func (s *Sender) Send(ctx context.Context, msg message.Message) error {
 		// Send HTTP announce to indexers concurrently. If context is canceled,
 		// then requests will be canceled.
 		go func(announceURL string) {
-			err := s.sendAnnounce(ctx, announceURL, bytes.NewBuffer(data))
+			err := s.sendAnnounce(ctx, announceURL, bytes.NewBuffer(data), false)
 			if err != nil {
 				errChan <- fmt.Errorf("failed to send http announce to %s: %w", announceURL, err)
 				return
@@ -102,12 +103,56 @@ func (s *Sender) Send(ctx context.Context, msg message.Message) error {
 	return errs
 }
 
-func (s *Sender) sendAnnounce(ctx context.Context, announceURL string, buf *bytes.Buffer) error {
+func (s *Sender) SendJson(ctx context.Context, msg message.Message) error {
+	buf := new(bytes.Buffer)
+	err := json.NewEncoder(buf).Encode(msg)
+	if err != nil {
+		return err
+	}
+
+	if len(s.announceURLs) < 2 {
+		u := s.announceURLs[0]
+		err = s.sendAnnounce(ctx, u, buf, true)
+		if err != nil {
+			return fmt.Errorf("failed to send http announce to %s: %w", u, err)
+		}
+		return nil
+	}
+
+	errChan := make(chan error)
+	data := buf.Bytes()
+	for _, u := range s.announceURLs {
+		// Send HTTP announce to indexers concurrently. If context is canceled,
+		// then requests will be canceled.
+		go func(announceURL string) {
+			err := s.sendAnnounce(ctx, announceURL, bytes.NewBuffer(data), true)
+			if err != nil {
+				errChan <- fmt.Errorf("failed to send http announce to %s: %w", announceURL, err)
+				return
+			}
+			errChan <- nil
+		}(u)
+	}
+	var errs error
+	for i := 0; i < len(s.announceURLs); i++ {
+		err := <-errChan
+		if err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+	return errs
+}
+
+func (s *Sender) sendAnnounce(ctx context.Context, announceURL string, buf *bytes.Buffer, js bool) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, announceURL, buf)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/octet-stream")
+	if js {
+		req.Header.Set("Content-Type", "application/json")
+	} else {
+		req.Header.Set("Content-Type", "application/octet-stream")
+	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {

@@ -2,6 +2,7 @@ package httpsender_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -176,4 +177,57 @@ func TestSendTimeout(t *testing.T) {
 	defer sender.Close()
 	err = sender.Send(context.Background(), msg)
 	require.Truef(t, strings.Contains(err.Error(), "Client.Timeout exceeded") || strings.Contains(err.Error(), "i/o timeout"), "error is %q", err)
+}
+
+func TestJSONSend(t *testing.T) {
+	var count int
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Decode CID and originator addresses from message.
+		an := message.Message{}
+		err := json.NewDecoder(r.Body).Decode(&an)
+		require.NoError(t, err)
+
+		require.NotZero(t, len(an.Addrs), "must specify location to fetch on direct announcments")
+
+		addrs, err := an.GetAddrs()
+		require.NoError(t, err, "could not decode addrs from announce message")
+
+		ais, err := peer.AddrInfosFromP2pAddrs(addrs...)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(ais), "peer id must be the same for all addresses")
+
+		addrInfo := ais[0]
+		require.Equal(t, testPeerID, addrInfo.ID)
+		require.Equal(t, len(testAddrs), len(addrInfo.Addrs))
+		require.True(t, addrInfo.Addrs[0].Equal(testAddrs[0]))
+
+		count++
+	}))
+	defer ts.Close()
+
+	announceURL, err := url.Parse(ts.URL + httpsender.DefaultAnnouncePath)
+	require.NoError(t, err)
+
+	_, err = httpsender.New(nil)
+	require.Error(t, err)
+
+	sender, err := httpsender.New([]*url.URL{announceURL}, httpsender.WithClient(ts.Client()))
+	require.NoError(t, err)
+	defer sender.Close()
+
+	ai := peer.AddrInfo{
+		ID:    testPeerID,
+		Addrs: testAddrs,
+	}
+	addrs, err := peer.AddrInfoToP2pAddrs(&ai)
+	require.NoError(t, err)
+	msg := message.Message{
+		Cid: testCid,
+	}
+	msg.SetAddrs(addrs)
+
+	err = sender.SendJson(context.Background(), msg)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	require.NoError(t, sender.Close())
 }
