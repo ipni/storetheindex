@@ -81,9 +81,8 @@ func (s *Server) putAnnounce(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	var b io.Reader
 	defer r.Body.Close()
-	
+
 	if r.Header.Get("Content-Type") == "application/json" {
 		am := message.Message{}
 		err := json.NewDecoder(r.Body).Decode(&am)
@@ -97,15 +96,17 @@ func (s *Server) putAnnounce(w http.ResponseWriter, r *http.Request) {
 			httpserver.HandleError(w, err, "announce")
 			return
 		}
-		b = buff
+		err = s.ingestHandler.Announce(buff)
+		if err != nil {
+			httpserver.HandleError(w, err, "announce")
+			return
+		}
 	} else {
-		b = r.Body
-	}
-
-	err := s.ingestHandler.Announce(b)
-	if err != nil {
-		httpserver.HandleError(w, err, "announce")
-		return
+		err := s.ingestHandler.Announce(r.Body)
+		if err != nil {
+			httpserver.HandleError(w, err, "announce")
+			return
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
