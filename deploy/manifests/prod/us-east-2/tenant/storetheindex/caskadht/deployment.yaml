@@ -17,6 +17,8 @@ spec:
             - '--useResourceManager=false'
             # Respond with 404 if `?cascade=ipfs-dht` is not specified as URL query parameter.
             - '--ipniRequireQueryParam'
+            - '--libp2pConMgrLow=200'
+            - '--libp2pConMgrHigh=5000'
           ports:
             - containerPort: 40090
               name: libp2p
