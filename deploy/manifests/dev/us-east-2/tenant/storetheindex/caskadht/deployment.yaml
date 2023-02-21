@@ -25,11 +25,11 @@ spec:
               mountPath: /identity
           resources:
             limits:
-              cpu: "2"
-              memory: 2Gi
+              cpu: "3"
+              memory: 5Gi
             requests:
-              cpu: "2"
-              memory: 2Gi
+              cpu: "3"
+              memory: 5Gi
       volumes:
         - name: identity
           secret:
