@@ -44,3 +44,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: dhstore-data
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: r5n-2xl
+          effect: NoSchedule
+
