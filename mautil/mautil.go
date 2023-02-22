@@ -13,45 +13,26 @@ import (
 // loopback, or unspecified IP multiaddrs removed. If no multiaddrs are
 // removed, then returns the original slice.
 func FilterPrivateIPs(maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-	var pvt []int
-	for i, maddr := range maddrs {
-		if maddr == nil {
-			continue
+	filtered := multiaddr.FilterAddrs(maddrs, func(target multiaddr.Multiaddr) bool {
+		if target == nil {
+			return true
 		}
-		ip, err := manet.ToIP(maddr)
-		if err != nil {
-			continue
+		c, _ := multiaddr.SplitFirst(target)
+		if c == nil {
+			return false
 		}
-		if ip.IsPrivate() || ip.IsLoopback() || ip.IsUnspecified() {
-			pvt = append(pvt, i)
+		switch c.Protocol().Code {
+		case multiaddr.P_IP4, multiaddr.P_IP6, multiaddr.P_IP6ZONE, multiaddr.P_IPCIDR:
+			return manet.IsPublicAddr(target)
+		case multiaddr.P_DNS, multiaddr.P_DNS4, multiaddr.P_DNS6, multiaddr.P_DNSADDR:
+			return c.Value() != "localhost"
 		}
-	}
-
-	// If no private addrs, return original slice.
-	if len(pvt) == 0 {
-		return maddrs
-	}
-
-	// If no non-private addrs, return nothing.
-	notPrivLen := len(maddrs) - len(pvt)
-	if notPrivLen == 0 {
+		return true
+	})
+	if len(filtered) == 0 {
 		return nil
 	}
-
-	// Return new slice with non-private addrs.
-	newAddrs := make([]multiaddr.Multiaddr, 0, notPrivLen)
-	skip := pvt[0]
-	for i, maddr := range maddrs {
-		if i == skip {
-			if len(pvt) > 1 {
-				pvt = pvt[1:]
-				skip = pvt[0]
-			}
-			continue
-		}
-		newAddrs = append(newAddrs, maddr)
-	}
-	return newAddrs
+	return filtered
 }
 
 func MultiaddrStringToNetAddr(maddrStr string) (net.Addr, error) {
