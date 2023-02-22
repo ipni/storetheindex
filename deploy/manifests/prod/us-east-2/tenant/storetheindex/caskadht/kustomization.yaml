@@ -22,6 +22,10 @@ configMapGenerator:
     literals:
       - GOLOG_LOG_LEVEL="info,net/identify=error"
 
+replicas:
+  - name: caskadht
+    count: 3
+
 images:
   - name: caskadht
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/caskadht
