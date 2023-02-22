@@ -575,20 +575,27 @@ func (r *Registry) assignPeer(publisherID, frozenID peer.ID) error {
 
 // UnassignPeer removes a peer assignment from this indexer if using an
 // assigner service. The assignment removal is persisted in the datastore.
-func (r *Registry) UnassignPeer(peerID peer.ID) error {
+// Returns true if the specified peer was assigned.
+func (r *Registry) UnassignPeer(peerID peer.ID) (bool, error) {
 	if r.assigned == nil {
-		return ErrNoAssigner
+		return false, ErrNoAssigner
 	}
 
 	r.assignMutex.Lock()
 	defer r.assignMutex.Unlock()
 
+	_, ok := r.assigned[peerID]
+	if !ok {
+		return false, nil
+	}
+
 	err := r.deleteAssignedPeer(peerID)
 	if err != nil {
-		return fmt.Errorf("cannot save assignment: %w", err)
+		return false, fmt.Errorf("cannot save assignment: %w", err)
 	}
+
 	delete(r.assigned, peerID)
-	return nil
+	return true, nil
 }
 
 // AllowPeer configures the policy to allow messages published by the

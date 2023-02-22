@@ -197,7 +197,7 @@ func (h *adminHandler) unassignPeer(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := h.reg.UnassignPeer(peerID)
+	ok, err := h.reg.UnassignPeer(peerID)
 	if err != nil {
 		log.Infow("Cannot unassign peer from indexer", "peer", peerID.String())
 		if errors.Is(err, registry.ErrNoAssigner) {
@@ -207,8 +207,12 @@ func (h *adminHandler) unassignPeer(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	log.Infow("Unassigned publisher from indexer", "publisher", peerID)
+	if !ok {
+		http.Error(w, "peer was not assigned", http.StatusNotFound)
+		return
+	}
 
+	log.Infow("Unassigned publisher from indexer", "publisher", peerID)
 	w.WriteHeader(http.StatusOK)
 }
 
