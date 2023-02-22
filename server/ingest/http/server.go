@@ -82,9 +82,9 @@ func (s *Server) putAnnounce(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	defer r.Body.Close()
 
-	an := message.Message{}
-
+	var an message.Message
 	var err error
+
 	if r.Header.Get("Content-Type") == "application/json" {
 		err = json.NewDecoder(r.Body).Decode(&an)
 	} else {
@@ -95,7 +95,7 @@ func (s *Server) putAnnounce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.ingestHandler.Announce(an); err != nil {
+	if err = s.ingestHandler.Announce(an); err != nil {
 		httpserver.HandleError(w, err, "announce")
 		return
 	}
