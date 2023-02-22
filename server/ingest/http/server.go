@@ -84,16 +84,15 @@ func (s *Server) putAnnounce(w http.ResponseWriter, r *http.Request) {
 
 	an := message.Message{}
 
+	var err error
 	if r.Header.Get("Content-Type") == "application/json" {
-		if err := json.NewDecoder(r.Body).Decode(&an); err != nil {
-			httpserver.HandleError(w, err, "announce")
-			return
-		}
+		err = json.NewDecoder(r.Body).Decode(&an)
 	} else {
-		if err := an.UnmarshalCBOR(r.Body); err != nil {
-			httpserver.HandleError(w, err, "announce")
-			return
-		}
+		err = an.UnmarshalCBOR(r.Body)
+	}
+	if err != nil {
+		httpserver.HandleError(w, err, "announce")
+		return
 	}
 
 	if err := s.ingestHandler.Announce(an); err != nil {
