@@ -98,11 +98,19 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		enableCors(w)
-		if !httpserver.MethodOK(w, r, http.MethodGet) {
-			return
+		// Do not fall back on web-ui on unknwon paths. Instead, strictly check the path and
+		// return 404 on anything but "/" and "index.html". Otherwise, paths that are supported by
+		// some backends and not others, like "/metadata" will return text/html.
+		switch r.URL.Path {
+		case "/", "/index.html":
+			enableCors(w)
+			if !httpserver.MethodOK(w, r, http.MethodGet) {
+				return
+			}
+			http.ServeContent(w, r, "index.html", compileTime, bytes.NewReader(buf.Bytes()))
+		default:
+			http.Error(w, "", http.StatusNotFound)
 		}
-		http.ServeContent(w, r, "index.html", compileTime, bytes.NewReader(buf.Bytes()))
 	})
 	mux.HandleFunc("/cid/", s.findCid)
 	mux.HandleFunc("/multihash", s.findBatch)
