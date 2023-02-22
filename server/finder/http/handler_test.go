@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -150,6 +151,13 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 }
 
 func TestServer_StreamingResponse(t *testing.T) {
+	landing := landingRendered
+	if runtime.GOOS == "windows" {
+		// Replace newlines with whatever new line is in the current runtime environment to keep
+		// windows tests happy; cause they render template with `\r\n`.
+		landing = strings.ReplaceAll(landingRendered, "\n", "\r\n")
+	}
+
 	rng := rand.New(rand.NewSource(1413))
 	mhs := util.RandomMultihashes(10, rng)
 	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
@@ -209,14 +217,14 @@ func TestServer_StreamingResponse(t *testing.T) {
 			name:               "landing",
 			reqURI:             "/",
 			wantContentType:    "text/html; charset=utf-8",
-			wantResponseBody:   landingRendered,
+			wantResponseBody:   landing,
 			wantResponseStatus: http.StatusOK,
 		},
 		{
 			name:               "index.html",
 			reqURI:             "/index.html",
 			wantContentType:    "text/html; charset=utf-8",
-			wantResponseBody:   landingRendered,
+			wantResponseBody:   landing,
 			wantResponseStatus: http.StatusOK,
 		},
 		{
