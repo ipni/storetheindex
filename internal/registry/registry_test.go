@@ -314,7 +314,8 @@ func TestDatastore(t *testing.T) {
 	}
 
 	require.ErrorIs(t, r.AssignPeer(pubID), ErrNoAssigner)
-	require.ErrorIs(t, r.UnassignPeer(pubID), ErrNoAssigner)
+	_, err = r.UnassignPeer(pubID)
+	require.ErrorIs(t, err, ErrNoAssigner)
 
 	// Check that extended provider missing address is caught.
 	prevAddrs := extProviders.Providers[0].Addrs
@@ -360,11 +361,15 @@ func TestDatastore(t *testing.T) {
 	require.Equal(t, 1, len(assigned))
 
 	// Unassign peer and check that it is not assigned.
-	err = r.UnassignPeer(preferred[0])
+	ok, err := r.UnassignPeer(preferred[0])
 	require.NoError(t, err)
+	require.True(t, ok)
 	assigned, _, err = r.ListAssignedPeers()
 	require.NoError(t, err)
 	require.Zero(t, len(assigned))
+	ok, err = r.UnassignPeer(preferred[0])
+	require.NoError(t, err)
+	require.False(t, ok)
 
 	// Should not be able to assign blocked peer.
 	require.True(t, r.BlockPeer(preferred[0]))

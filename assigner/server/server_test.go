@@ -191,9 +191,7 @@ func TestAssignOnAnnounce(t *testing.T) {
 	// Check assignment
 	outProvider := e.run(indexer, "admin", "list-assigned", "--indexer", cfg.IndexerPool[0].AdminURL)
 	expect := peerID.String()
-	if !strings.Contains(string(outProvider), expect) {
-		t.Errorf("expected provider to contains %q, got %q", expect, string(outProvider))
-	}
+	require.Contains(t, string(outProvider), expect)
 
 	e.stop(cmdIndexer, 5*time.Second)
 
@@ -205,9 +203,13 @@ func TestAssignOnAnnounce(t *testing.T) {
 		t.Fatal("timed out waiting for indexer to start")
 	}
 	outProvider = e.run(indexer, "admin", "list-assigned", "--indexer", cfg.IndexerPool[0].AdminURL)
-	if !strings.Contains(string(outProvider), expect) {
-		t.Errorf("expected provider to contains %q, got %q", expect, string(outProvider))
-	}
+	require.Contains(t, string(outProvider), expect)
+
+	outProvider = e.run(indexer, "admin", "unassign", "--indexer", cfg.IndexerPool[0].AdminURL, "-p", peerID.String())
+	require.Contains(t, string(outProvider), expect)
+
+	outProvider = e.run(indexer, "admin", "list-assigned", "--indexer", cfg.IndexerPool[0].AdminURL)
+	require.NotContains(t, string(outProvider), expect)
 
 	e.stop(cmdIndexer, 5*time.Second)
 }

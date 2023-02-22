@@ -10,6 +10,23 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+var AdminCmd = &cli.Command{
+	Name:  "admin",
+	Usage: "Perform admin activities with an indexer",
+	Subcommands: []*cli.Command{
+		allowCmd,
+		blockCmd,
+		freezeIndexerCmd,
+		importProvidersCmd,
+		listAssignedCmd,
+		listPreferredCmd,
+		reloadCmd,
+		statusCmd,
+		syncCmd,
+		unassignCmd,
+	},
+}
+
 var syncCmd = &cli.Command{
 	Name:   "sync",
 	Usage:  "Sync indexer with provider",
@@ -136,20 +153,21 @@ var statusCmd = &cli.Command{
 	Action: statusAction,
 }
 
-var AdminCmd = &cli.Command{
-	Name:  "admin",
-	Usage: "Perform admin activities with an indexer",
-	Subcommands: []*cli.Command{
-		allowCmd,
-		blockCmd,
-		freezeIndexerCmd,
-		importProvidersCmd,
-		listAssignedCmd,
-		listPreferredCmd,
-		reloadCmd,
-		statusCmd,
-		syncCmd,
+var unassignCmd = &cli.Command{
+	Name:   "unassign",
+	Usage:  "Un-assign a publisher from the indexer",
+	Flags:  unassignFlags,
+	Action: unassignAction,
+}
+
+var unassignFlags = []cli.Flag{
+	&cli.StringFlag{
+		Name:     "peer",
+		Usage:    "Peer ID of publisher un-assign",
+		Aliases:  []string{"p"},
+		Required: true,
 	},
+	indexerHostFlag,
 }
 
 func syncAction(cctx *cli.Context) error {
@@ -306,5 +324,24 @@ func statusAction(cctx *cli.Context) error {
 		percent = fmt.Sprintf("%0.2f%%", st.Usage)
 	}
 	fmt.Println("Usage:", percent)
+	return nil
+}
+
+func unassignAction(cctx *cli.Context) error {
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	peerID, err := peer.Decode(cctx.String("peer"))
+	if err != nil {
+		return err
+	}
+	err = cl.Unassign(cctx.Context, peerID)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Un-assigned", peerID, "from indexer")
+	fmt.Println()
+	fmt.Println("Restart assigner service see this change. To prevent re-assignment to this indexer, first block the peer on this indexer or configure a pre-set assignment.")
 	return nil
 }
