@@ -41,7 +41,9 @@
     "LotusGateway": "wss://api.chain.love",
     "Policy": {
       "Allow": true,
-      "Except": null,
+      "Except": [
+        "Qma8ddFEQWEU8ijWvdxXm3nxU7oHsRtCykAaVz8WUYhiKn"
+      ],
       "Publish": true,
       "PublishExcept": null
     },
