@@ -22,6 +22,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const landingRendered = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Indexer</title>
+    <style type="text/css">
+*, ::after, ::before {
+  box-sizing: border-box;
+  border: 0 solid;
+}
+body {
+  font-family: inherit;
+  line-height: inherit;
+  margin: 0;
+}
+iframe {
+  position:fixed;
+  top:0; left:0;
+  bottom:0;
+  right:0;
+  width:100vw;
+  height:100vh;
+  border:none;
+  margin:0;
+  padding:0;
+  overflow:hidden;
+  z-index:999999;
+}
+    </style>
+</head>
+<body>
+  <iframe src="https://web-ipni.cid.contact/" frameborder="0"></iframe>
+</body>
+</html>`
+
 func TestServer_CORSWithExpectedContentType(t *testing.T) {
 	rng := rand.New(rand.NewSource(1413))
 	mhs := util.RandomMultihashes(10, rng)
@@ -126,18 +162,20 @@ func TestServer_StreamingResponse(t *testing.T) {
 	}, mhs)
 
 	tests := []struct {
-		name             string
-		reqURI           string
-		reqAccept        string
-		wantContentType  string
-		wantResponseBody string
+		name               string
+		reqURI             string
+		reqAccept          string
+		wantContentType    string
+		wantResponseStatus int
+		wantResponseBody   string
 	}{
 		{
-			name:             "mutlihash json",
-			reqURI:           "/multihash/" + mhs[3].B58String(),
-			reqAccept:        "ext/html,  application/json",
-			wantContentType:  "application/json; charset=utf-8",
-			wantResponseBody: `{"MultihashResults":[{"Multihash":"EiCtVzjVYlU7UrB20GmR2mqk59dl7fk+Ann4CmsLfQfT+g==","ProviderResults":[{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}]}]}`,
+			name:               "mutlihash json",
+			reqURI:             "/multihash/" + mhs[3].B58String(),
+			reqAccept:          "ext/html,  application/json",
+			wantContentType:    "application/json; charset=utf-8",
+			wantResponseBody:   `{"MultihashResults":[{"Multihash":"EiCtVzjVYlU7UrB20GmR2mqk59dl7fk+Ann4CmsLfQfT+g==","ProviderResults":[{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}]}]}`,
+			wantResponseStatus: http.StatusOK,
 		},
 		{
 			name:            "mutlihash ndjson",
@@ -147,13 +185,15 @@ func TestServer_StreamingResponse(t *testing.T) {
 			wantResponseBody: `{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}
 
 `,
+			wantResponseStatus: http.StatusOK,
 		},
 		{
-			name:             "cid json",
-			reqURI:           "/cid/" + cid.NewCidV1(cid.Raw, mhs[0]).String(),
-			reqAccept:        "application/json,ext/html,  application/xhtml+xml,application/xml;q=0.9",
-			wantContentType:  "application/json; charset=utf-8",
-			wantResponseBody: `{"MultihashResults":[{"Multihash":"EiC44Rthii367t9Nb5PD6C0XT49Ub14+f0iF7gA4Xgr/6A==","ProviderResults":[{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}]}]}`,
+			name:               "cid json",
+			reqURI:             "/cid/" + cid.NewCidV1(cid.Raw, mhs[0]).String(),
+			reqAccept:          "application/json,ext/html,  application/xhtml+xml,application/xml;q=0.9",
+			wantContentType:    "application/json; charset=utf-8",
+			wantResponseBody:   `{"MultihashResults":[{"Multihash":"EiC44Rthii367t9Nb5PD6C0XT49Ub14+f0iF7gA4Xgr/6A==","ProviderResults":[{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}]}]}`,
+			wantResponseStatus: http.StatusOK,
 		},
 		{
 			name:            "cid ndjson",
@@ -163,6 +203,35 @@ func TestServer_StreamingResponse(t *testing.T) {
 			wantResponseBody: `{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}
 
 `,
+			wantResponseStatus: http.StatusOK,
+		},
+		{
+			name:               "landing",
+			reqURI:             "/",
+			wantContentType:    "text/html; charset=utf-8",
+			wantResponseBody:   landingRendered,
+			wantResponseStatus: http.StatusOK,
+		},
+		{
+			name:               "index.html",
+			reqURI:             "/index.html",
+			wantContentType:    "text/html; charset=utf-8",
+			wantResponseBody:   landingRendered,
+			wantResponseStatus: http.StatusOK,
+		},
+		{
+			name:               "unknown metadata",
+			reqURI:             "/metadata/fish",
+			wantContentType:    "text/plain; charset=utf-8",
+			wantResponseBody:   "\n",
+			wantResponseStatus: http.StatusNotFound,
+		},
+		{
+			name:               "unknwon any",
+			reqURI:             "/lobster",
+			wantContentType:    "text/plain; charset=utf-8",
+			wantResponseBody:   "\n",
+			wantResponseStatus: http.StatusNotFound,
 		},
 	}
 
@@ -174,7 +243,7 @@ func TestServer_StreamingResponse(t *testing.T) {
 			require.NoError(t, err)
 			req.Header.Set("Accept", tt.reqAccept)
 			subject(rr, req)
-			require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+			require.Equal(t, tt.wantResponseStatus, rr.Code, rr.Body.String())
 
 			gotContentType := rr.Header().Get("Content-Type")
 			require.Equal(t, tt.wantContentType, gotContentType)
