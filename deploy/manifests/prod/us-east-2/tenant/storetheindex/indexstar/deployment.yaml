@@ -31,7 +31,7 @@ spec:
             - name: SERVER_HTTP_CLIENT_TIMEOUT
               value: '30s'
             - name: SERVER_RESULT_MAX_WAIT
-              value: '10s'
+              value: '5s'
             - name: SERVER_RESULT_STREAM_MAX_WAIT
               value: '30s'
           resources:
