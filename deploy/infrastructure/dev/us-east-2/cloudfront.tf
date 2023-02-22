@@ -65,9 +65,6 @@ resource "aws_cloudfront_distribution" "cdn" {
 
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
   }
 
   ordered_cache_behavior {
@@ -79,9 +76,6 @@ resource "aws_cloudfront_distribution" "cdn" {
     target_origin_id       = local.indexstar_origin_id
     cache_policy_id        = aws_cloudfront_cache_policy.reframe.id
     viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 0
   }
 
   ordered_cache_behavior {
