@@ -1,7 +1,6 @@
 package httpingestserver
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -83,30 +82,23 @@ func (s *Server) putAnnounce(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	defer r.Body.Close()
 
+	an := message.Message{}
+
 	if r.Header.Get("Content-Type") == "application/json" {
-		am := message.Message{}
-		err := json.NewDecoder(r.Body).Decode(&am)
-		if err != nil {
-			httpserver.HandleError(w, err, "announce")
-			return
-		}
-		buff := new(bytes.Buffer)
-		err = am.MarshalCBOR(buff)
-		if err != nil {
-			httpserver.HandleError(w, err, "announce")
-			return
-		}
-		err = s.ingestHandler.Announce(buff)
-		if err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&an); err != nil {
 			httpserver.HandleError(w, err, "announce")
 			return
 		}
 	} else {
-		err := s.ingestHandler.Announce(r.Body)
-		if err != nil {
+		if err := an.UnmarshalCBOR(r.Body); err != nil {
 			httpserver.HandleError(w, err, "announce")
 			return
 		}
+	}
+
+	if err := s.ingestHandler.Announce(an); err != nil {
+		httpserver.HandleError(w, err, "announce")
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

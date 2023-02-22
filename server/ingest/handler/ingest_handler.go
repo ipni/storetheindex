@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/ipfs/go-cid"
@@ -124,13 +123,7 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 	return nil
 }
 
-func (h *IngestHandler) Announce(r io.Reader) error {
-	// Decode CID and originator addresses from message.
-	an := message.Message{}
-	if err := an.UnmarshalCBOR(r); err != nil {
-		return err
-	}
-
+func (h *IngestHandler) Announce(an message.Message) error {
 	if len(an.Addrs) == 0 {
 		return fmt.Errorf("must specify location to fetch on direct announcments")
 	}
