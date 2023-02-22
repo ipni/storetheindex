@@ -15,7 +15,10 @@
       {
         "AdminURL": "http://kepa-indexer:3002",
         "FindURL": "http://kepa-indexer:3000",
-        "IngestURL": "http://kepa-indexer:3001"
+        "IngestURL": "http://kepa-indexer:3001",
+        "PresetPeers": [
+          "Qma8ddFEQWEU8ijWvdxXm3nxU7oHsRtCykAaVz8WUYhiKn"
+        ]
       },
       {
         "AdminURL": "http://oden-indexer:3002",
