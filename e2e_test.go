@@ -19,6 +19,7 @@ import (
 	"time"
 
 	finderhttpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
+	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
@@ -306,13 +307,16 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	names, err := dir.Readdirnames(-1)
 	dir.Close()
 	require.NoError(t, err)
-	var carCount int
+	var carCount, headCount int
 	for _, name := range names {
-		if strings.HasSuffix(name, ".car") && strings.HasPrefix(name, "baguqeera") {
+		if strings.HasSuffix(name, carstore.CarFileSuffix) && strings.HasPrefix(name, "baguqeera") {
 			carCount++
+		} else if strings.HasSuffix(name, carstore.HeadFileSuffix) {
+			headCount++
 		}
 	}
 	require.Equal(t, 1, carCount)
+	require.Equal(t, 1, headCount)
 
 	outProvider := e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
 	// Check that IndexCount with correct value appears in providers output.

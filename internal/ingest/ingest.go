@@ -22,7 +22,7 @@ import (
 	indexer "github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
-	"github.com/ipni/storetheindex/carwriter"
+	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/dagsync"
 	"github.com/ipni/storetheindex/filestore"
@@ -150,7 +150,7 @@ type Ingester struct {
 	minKeyLen int
 
 	indexCounts *counter.IndexCounts
-	adToCar     *carwriter.CarWriter
+	carWriter   *carstore.CarWriter
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
@@ -196,11 +196,11 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			return nil, fmt.Errorf("cannot create file store for car failes: %w", err)
 		}
 
-		ing.adToCar = carwriter.New(ds, fileStore)
+		ing.carWriter = carstore.NewWriter(ds, fileStore)
 
 		// Start writing existing ads to car files in background. Process
 		// canceled if workers are canceled.
-		ing.adToCar.WriteExisting(ing.workersCtx)
+		ing.writeExistingAds(ing.workersCtx)
 	}
 
 	ing.rateApply, ing.rateBurst, ing.rateLimit, err = configRateLimit(cfg.RateLimit)
@@ -293,6 +293,59 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 	}
 	// Return rate limiter with rate setting from config.
 	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
+}
+
+func (ing *Ingester) writeExistingAds(ctx context.Context) error {
+	// Write existing advertisement CAR files in background.
+	ing.carWriter.WriteExisting(ctx)
+
+	// Write the head files for the all latest synced ads.
+	latestSyncs, err := ing.getLatestSyncs(ctx)
+	if err != nil {
+		return err
+	}
+	for publisher, adCid := range latestSyncs {
+		_, err = ing.carWriter.WriteHead(ctx, adCid, publisher)
+		if err != nil {
+			return err
+		}
+	}
+	log.Infow("Wrote head files", "count", len(latestSyncs))
+
+	return nil
+}
+
+func (ing *Ingester) getLatestSyncs(ctx context.Context) (map[peer.ID]cid.Cid, error) {
+	q := query.Query{
+		Prefix: syncPrefix,
+	}
+	results, err := ing.ds.Query(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer results.Close()
+
+	latestSyncs := make(map[peer.ID]cid.Cid)
+	for result := range results.Next() {
+		if result.Error != nil {
+			return nil, fmt.Errorf("cannot read sync data: %v", result.Error)
+		}
+		ent := result.Entry
+
+		peerID, err := peer.Decode(path.Base(ent.Key))
+		if err != nil {
+			return nil, fmt.Errorf("cannot decode provider ID: %s", err)
+		}
+
+		_, adCid, err := cid.CidFromBytes(ent.Value)
+		if err != nil {
+			return nil, fmt.Errorf("cannot decode CID: %s", err)
+		}
+
+		latestSyncs[peerID] = adCid
+	}
+
+	return latestSyncs, nil
 }
 
 func (ing *Ingester) Close() error {
@@ -1069,17 +1122,24 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 				"publisher", assignment.publisher,
 				"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
 
-			keep := ing.adToCar != nil
+			keep := ing.carWriter != nil
 			if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, keep); markErr != nil {
 				log.Errorw("Failed to mark ad as processed", "err", markErr)
 			}
 			if !frozen && keep {
-				carInfo, err := ing.adToCar.Write(ctx, ai.cid, true)
+				// Write the advertisement to a CAR file, but omit the entries.
+				carInfo, err := ing.carWriter.Write(ctx, ai.cid, true)
 				if err != nil {
 					// Log the error, but do not return. Continue on to save the procesed ad.
 					log.Errorw("Cannot write advertisement to CAR file", "err", err)
+				} else {
+					log.Infow("Wrote CAR for skipped advertisement", "path", carInfo.Path, "size", carInfo.Size)
+					// TODO: Move this when iterating latest (head) to earliest (root).
+					_, err = ing.carWriter.WriteHead(ctx, ai.cid, assignment.publisher)
+					if err != nil {
+						log.Errorw("Cannot write publisher head", "err", err)
+					}
 				}
-				log.Infow("Wrote CAR for skipped advertisement", "path", carInfo.Path, "size", carInfo.Size)
 			}
 
 			// Distribute the atProcessedEvent notices to waiting Sync calls.
@@ -1146,17 +1206,25 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			return
 		}
 
-		keep := ing.adToCar != nil
+		keep := ing.carWriter != nil
 		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, keep); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
+
 		if !frozen && keep {
-			carInfo, err := ing.adToCar.Write(ctx, ai.cid, false)
+			carInfo, err := ing.carWriter.Write(ctx, ai.cid, false)
 			if err != nil {
 				// Log the error, but do not return. Continue on to save the procesed ad.
 				log.Errorw("Cannot write advertisement to CAR file", "err", err)
+			} else {
+				log.Infow("Wrote CAR for advertisement", "path", carInfo.Path, "size", carInfo.Size)
+
+				// TODO: Move this when iterating latest (head) to earliest (root).
+				_, err = ing.carWriter.WriteHead(ctx, ai.cid, assignment.publisher)
+				if err != nil {
+					log.Errorw("Cannot write publisher head", "err", err)
+				}
 			}
-			log.Infow("Wrote CAR for advertisement", "path", carInfo.Path, "size", carInfo.Size)
 		}
 
 		// Distribute the atProcessedEvent notices to waiting Sync calls.

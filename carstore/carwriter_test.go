@@ -1,4 +1,4 @@
-package carwriter_test
+package carstore_test
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ipfs/go-cid"
+	//"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	car "github.com/ipld/go-car/v2"
 	carblockstore "github.com/ipld/go-car/v2/blockstore"
@@ -15,7 +15,7 @@ import (
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
-	"github.com/ipni/storetheindex/carwriter"
+	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
 	"github.com/ipni/storetheindex/test/util"
@@ -50,9 +50,10 @@ func TestWrite(t *testing.T) {
 
 	fileStore, err := filestore.New(cfg)
 	require.NoError(t, err)
-	carw := carwriter.New(dstore, fileStore)
+	carw := carstore.NewWriter(dstore, fileStore)
 
-	adCid, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, dstore)
+	adLink, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, nil, dstore)
+	adCid := adLink.(cidlink.Link).Cid
 	entriesCid := ad.Entries.(cidlink.Link).Cid
 
 	ctx := context.Background()
@@ -144,7 +145,8 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	dstore := datastore.NewMapDatastore()
 	metadata := []byte("car-test-metadata")
 
-	adCid, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, dstore)
+	adLink, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, nil, dstore)
+	adCid := adLink.(cidlink.Link).Cid
 	entriesCid := ad.Entries.(cidlink.Link).Cid
 
 	ctx := context.Background()
@@ -166,11 +168,11 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	fileStore, err := filestore.New(cfg)
 	require.NoError(t, err)
 
-	fileName := adCid.String() + ".car"
+	fileName := adCid.String() + carstore.CarFileSuffix
 	_, err = fileStore.Put(ctx, fileName, nil)
 	require.NoError(t, err)
 
-	carw := carwriter.New(dstore, fileStore)
+	carw := carstore.NewWriter(dstore, fileStore)
 
 	carInfo, err := carw.Write(ctx, adCid, false)
 	require.NoError(t, err)
@@ -189,13 +191,52 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestWriteChain(t *testing.T) {
+	const entBlockCount = 5
+
+	dstore := datastore.NewMapDatastore()
+	metadata := []byte("car-test-metadata")
+
+	carDir := t.TempDir()
+	cfg := config.FileStore{
+		Type: "local",
+		Local: config.LocalFileStore{
+			BasePath: carDir,
+		},
+	}
+
+	fileStore, err := filestore.New(cfg)
+	require.NoError(t, err)
+	carw := carstore.NewWriter(dstore, fileStore)
+
+	adLink1, _, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, nil, dstore)
+	adLink2, _, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, adLink1, dstore)
+	adCid2 := adLink2.(cidlink.Link).Cid
+
+	ctx := context.Background()
+
+	count, err := carw.WriteChain(ctx, adCid2)
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
+
+	// Test that car file is created.
+	fileCh, errCh := fileStore.List(ctx, "", false)
+	infos := make([]*filestore.File, 0, 2)
+	for fileInfo := range fileCh {
+		infos = append(infos, fileInfo)
+	}
+	err = <-errCh
+	require.NoError(t, err)
+	require.Equal(t, 2, len(infos))
+}
+
 func TestWriteExistingAdsInStore(t *testing.T) {
 	const entBlockCount = 5
 
 	dstore := datastore.NewMapDatastore()
 	metadata := []byte("car-test-metadata")
 
-	adCid, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, dstore)
+	adCid, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, nil, dstore)
 	entriesCid := ad.Entries.(cidlink.Link).Cid
 
 	ctx := context.Background()
@@ -218,12 +259,12 @@ func TestWriteExistingAdsInStore(t *testing.T) {
 	fileStore, err := filestore.New(cfg)
 	require.NoError(t, err)
 
-	carw := carwriter.New(dstore, fileStore)
+	carw := carstore.NewWriter(dstore, fileStore)
 
 	countChan := carw.WriteExisting(ctx)
 	n := <-countChan
 	require.Equal(t, 1, n)
-	carName := adCid.String() + ".car"
+	carName := adCid.String() + carstore.CarFileSuffix
 	var carFound bool
 	fc, ec := fileStore.List(ctx, "", false)
 	for fileInfo := range fc {
@@ -285,7 +326,7 @@ func mkProvLinkSystem(ds datastore.Datastore) ipld.LinkSystem {
 	return lsys
 }
 
-func storeRandomIndexAndAd(t *testing.T, eChunkCount int, metadata []byte, dstore datastore.Datastore) (cid.Cid, *schema.Advertisement, []multihash.Multihash, peer.ID, crypto.PrivKey) {
+func storeRandomIndexAndAd(t *testing.T, eChunkCount int, metadata []byte, prevLink ipld.Link, dstore datastore.Datastore) (ipld.Link, *schema.Advertisement, []multihash.Multihash, peer.ID, crypto.PrivKey) {
 	lsys := mkProvLinkSystem(dstore)
 
 	priv, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
@@ -301,10 +342,11 @@ func storeRandomIndexAndAd(t *testing.T, eChunkCount int, metadata []byte, dstor
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 
 	adv := &schema.Advertisement{
-		Provider:  p.String(),
-		Addresses: addrs,
-		ContextID: ctxID,
-		Metadata:  metadata,
+		Provider:   p.String(),
+		Addresses:  addrs,
+		ContextID:  ctxID,
+		Metadata:   metadata,
+		PreviousID: prevLink,
 	}
 	var mhs []multihash.Multihash
 	if eChunkCount == 0 {
@@ -322,5 +364,5 @@ func storeRandomIndexAndAd(t *testing.T, eChunkCount int, metadata []byte, dstor
 	advLnk, err := lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
 	require.NoError(t, err)
 
-	return advLnk.(cidlink.Link).Cid, adv, mhs, p, priv
+	return advLnk, adv, mhs, p, priv
 }
