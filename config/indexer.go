@@ -23,6 +23,8 @@ type Indexer struct {
 	// DHStoreURL is the base URL for the DHStore service. This option value
 	// tells the indexer core to use a DHStore service, if configured.
 	DHStoreURL string
+	// DHStoreHttpClientTimeout is a timeout for the DHStore http client
+	DHStoreHttpClientTimeout Duration
 	// FreezeAtPercent is the percent used, of the file system that
 	// ValueStoreDir is on, at which to trigger the indexer to enter frozen
 	// mode. A zero value uses the default. A negative value disables freezing.
@@ -95,6 +97,8 @@ func NewIndexer() Indexer {
 		STHBurstRate:        8 * 1024 * 1024,
 		STHFileCacheSize:    512,
 		STHSyncInterval:     Duration(time.Second),
+		// defaulting http timeout to 10 seconds to survive over occasional spikes caused by compaction
+		DHStoreHttpClientTimeout: Duration(10 * time.Second),
 	}
 }
 
@@ -137,5 +141,8 @@ func (c *Indexer) populateUnset() {
 	}
 	if c.STHSyncInterval == 0 {
 		c.STHSyncInterval = def.STHSyncInterval
+	}
+	if c.DHStoreHttpClientTimeout == 0 {
+		c.DHStoreHttpClientTimeout = def.DHStoreHttpClientTimeout
 	}
 }

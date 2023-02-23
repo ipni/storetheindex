@@ -154,6 +154,7 @@ func daemonAction(cctx *cli.Context) error {
 		engine.WithDHBatchSize(cfg.Indexer.DHBatchSize),
 		engine.WithDHStore(cfg.Indexer.DHStoreURL),
 		engine.WithVSNoNewMH(cfg.Indexer.VSNoNewMH),
+		engine.WithHttpClientTimeout(time.Duration(cfg.Indexer.DHStoreHttpClientTimeout)),
 	)
 
 	indexCounts := counter.NewIndexCounts(dstore)
