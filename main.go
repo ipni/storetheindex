@@ -40,6 +40,7 @@ func main() {
 			command.AdminCmd,
 			command.AssignerCmd,
 			command.DaemonCmd,
+			command.CommandsCmd,
 			command.FindCmd,
 			command.ImportCmd,
 			command.InitCmd,

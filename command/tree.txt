@@ -1,0 +1,32 @@
+|-- admin           Perform admin activities with an indexer
+|   |-- allow             Allow advertisements and content from peer
+|   |-- block             Block advertisements and content from peer
+|   |-- freeze            Put indexer into frozen mode
+|   |-- import-providers  Import provider information from another indexer
+|   |-- list-assigned     List assigned peers when configured to work with assigner service
+|   |-- list-preferred    List unassigned peers that indexer has retrieved content from
+|   |-- reload-config     Reload various settings from the configuration file
+|   |-- status            Show indexer status
+|   |-- sync              Sync indexer with provider
+|   `-- unassign          Un-assign a publisher from the indexer
+|-- assigner        Assigner service
+|   |-- daemon            Start assigner service daemon
+|   `-- init              Initialize or upgrade config file
+|-- commands        Print tree of commands and subcommands
+|-- daemon          Start an indexer daemon, accepting http requests
+|-- find            Find value by CID or multihash in indexer
+|-- import          Imports data directly into indexer, bypassing ingestion process
+|   |-- cidlist           Import indexer data from cidList
+|   |-- car               Import indexer data from car
+|   `-- manifest          Import manifest of CID aggregator
+|-- init            Initialize or upgrade indexer node config file
+|-- loadtest
+|   |-- synthetic         Generate synthetic load to import in indexer
+|   |-- loadgen           Generate fake provider load for the indexer
+|   `-- loadgen-verify    Generate fake provider load for the indexer
+|-- log             Show log subsystems and modify log levels
+|   |-- getsubsys         Lists the available logging subsystems
+|   `-- setlevel          Sets log level for logging subsystems
+`-- providers       Commands to get provider information
+    |-- get               Show information about a specific provider
+    `-- list              Show information about all known providers
