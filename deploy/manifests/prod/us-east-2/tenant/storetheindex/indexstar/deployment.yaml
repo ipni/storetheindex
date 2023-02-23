@@ -19,7 +19,7 @@ spec:
             - '--backends=http://dido-indexer:3000/'
             - '--backends=http://oden-indexer:3000/'
             - '--backends=http://kepa-indexer:3000/'
-            - '--backends=http://caskadht.internal.prod.cid.contact/'
+            - '--cascadeBackends=http://caskadht.internal.prod.cid.contact/'
           env:
             # Increase maximum accepted request body to 1 MiB in order to allow batch finds requests
             # by the `provider verify-ingest` CLI command. 
@@ -31,7 +31,7 @@ spec:
             - name: SERVER_HTTP_CLIENT_TIMEOUT
               value: '30s'
             - name: SERVER_RESULT_MAX_WAIT
-              value: '5s'
+              value: '2s'
             - name: SERVER_RESULT_STREAM_MAX_WAIT
               value: '30s'
           resources:
