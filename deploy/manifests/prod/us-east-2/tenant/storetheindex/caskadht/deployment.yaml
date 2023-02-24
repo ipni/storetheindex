@@ -9,6 +9,15 @@ spec:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
           whenUnsatisfiable: ScheduleAnyway
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.kubernetes.io/instance-type
+                    operator: In
+                    values:
+                      - c6a.8xlarge
       containers:
         - name: caskadht
           args:
@@ -27,12 +36,17 @@ spec:
               mountPath: /identity
           resources:
             limits:
-              cpu: "3"
-              memory: 5Gi
+              cpu: "30"
+              memory: 58Gi
             requests:
-              cpu: "3"
-              memory: 5Gi
+              cpu: "30"
+              memory: 58Gi
       volumes:
         - name: identity
           secret:
             secretName: caskadht-identity
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: c6a-8xl
+          effect: NoSchedule
