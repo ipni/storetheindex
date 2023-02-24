@@ -64,7 +64,8 @@
     "DisableWAL": true,
     "VSNoNewMH": true,
     "DHBatchSize": -1,
-    "DHStoreURL": "http://dhstore.internal.dev.cid.contact"
+    "DHStoreURL": "http://dhstore.internal.dev.cid.contact",
+    "DHStoreHttpClientTimeout": "20s"
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
