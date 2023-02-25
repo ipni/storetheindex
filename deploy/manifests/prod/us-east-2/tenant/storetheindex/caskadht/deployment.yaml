@@ -22,7 +22,7 @@ spec:
         - name: caskadht
           args:
             - '--libp2pIdentityPath=/identity/identity.key'
-            - '--libp2pListenAddrs=/ip4/0.0.0.0/tcp/40090,/ip4/0.0.0.0/udp/40090/quic,/ip4/0.0.0.0/udp/40090/quic-v1,/ip4/0.0.0.0/udp/40090/quic-v1/webtransport'
+            - '--libp2pListenAddrs=/ip4/0.0.0.0/tcp/40090,/ip4/0.0.0.0/udp/40090/quic,/ip4/0.0.0.0/udp/40090/quic-v1'
             - '--useResourceManager=false'
             # Respond with 404 if `?cascade=ipfs-dht` is not specified as URL query parameter.
             - '--ipniRequireQueryParam'
