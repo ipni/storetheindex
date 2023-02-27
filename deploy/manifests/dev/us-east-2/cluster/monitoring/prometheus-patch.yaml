@@ -7,6 +7,8 @@ spec:
   # Do not include prometheus_replica label in metrics. Because, running more than one replicas
   # results in duplicate metrics.
   replicaExternalLabelName: ""
+  enableFeatures:
+    - remote-write-receiver
   remoteWrite:
     - url: https://aps-workspaces.us-east-2.amazonaws.com/workspaces/ws-324f25cd-3624-4250-9b66-96d36addd73f/api/v1/remote_write
       sigv4:

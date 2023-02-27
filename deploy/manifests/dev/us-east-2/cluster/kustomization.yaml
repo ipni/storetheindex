@@ -17,3 +17,4 @@ resources:
   - index-provider
   - external-snapshotter
   - snapshots
+  - ../../../base/k6-operator
