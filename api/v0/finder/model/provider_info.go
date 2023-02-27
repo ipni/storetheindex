@@ -18,7 +18,7 @@ type ProviderInfo struct {
 	FrozenAt              cid.Cid            `json:",omitempty"`
 	FrozenAtTime          string             `json:",omitempty"`
 	// Inactive means that no update has been received for the configured
-	// PollPeriod, and the publisher has is not responding to polls.
+	// Discovery.PollInterval, and the publisher is not responding to polls.
 	Inactive bool `json:",omitempty"`
 }
 
