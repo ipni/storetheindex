@@ -17,6 +17,9 @@ type ProviderInfo struct {
 	ExtendedProviders     *ExtendedProviders `json:",omitempty"`
 	FrozenAt              cid.Cid            `json:",omitempty"`
 	FrozenAtTime          string             `json:",omitempty"`
+	// Inactive means that no update has been received for the configured
+	// PollPeriod, and the publisher has is not responding to polls.
+	Inactive bool `json:",omitempty"`
 }
 
 type ExtendedProviders struct {
