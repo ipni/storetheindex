@@ -802,9 +802,17 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	r.actions <- func() {
 		infos = make([]*ProviderInfo, 0, len(r.providers))
 		for _, info := range r.providers {
-			if !info.Inactive() && r.policy.Allowed(info.AddrInfo.ID) {
-				infos = append(infos, info)
+			if r.assigned != nil {
+				r.assignMutex.Lock()
+				_, ok := r.assigned[info.Publisher]
+				r.assignMutex.Unlock()
+				if !ok {
+					// Skip providers whose publisher is not assigned, if using
+					// assigner service.
+					continue
+				}
 			}
+			infos = append(infos, info)
 		}
 		close(done)
 	}
