@@ -363,7 +363,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		gatherCids := func(_ peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 			hamtCids = append(hamtCids, c)
 		}
-		if ing.adToCar == nil {
+		if ing.carWriter == nil {
 			defer func() {
 				for _, c := range hamtCids {
 					err := ing.dsAds.Delete(ctx, datastore.NewKey(c.String()))
@@ -530,7 +530,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 // operation. This function is used as a scoped block hook, and is called for
 // each block that is received.
 func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertisement, entryChunkCid cid.Cid, chunk schema.EntryChunk, log *zap.SugaredLogger) error {
-	if ing.adToCar == nil {
+	if ing.carWriter == nil {
 		defer func() {
 			// Remove the content block from the data store now that processing it
 			// has finished. This prevents storing redundant information in several
