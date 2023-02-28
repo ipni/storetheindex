@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"testing"
 
-	//"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	car "github.com/ipld/go-car/v2"
 	carblockstore "github.com/ipld/go-car/v2/blockstore"
