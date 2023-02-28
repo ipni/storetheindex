@@ -104,4 +104,7 @@ func showProviderInfo(pinfo *model.ProviderInfo) {
 		fmt.Println("    FrozenAtTime:", pinfo.FrozenAtTime)
 	}
 	fmt.Println("    IndexCount:", pinfo.IndexCount)
+	if pinfo.Inactive {
+		fmt.Println("    Inactive: true")
+	}
 }

@@ -797,18 +797,25 @@ func (r *Registry) ProviderInfo(providerID peer.ID) (*ProviderInfo, bool) {
 // AllProviderInfo returns information for all registered providers that are
 // active and allowed.
 func (r *Registry) AllProviderInfo() []*ProviderInfo {
-	var infos []*ProviderInfo
-	done := make(chan struct{})
+	infosCh := make(chan []*ProviderInfo)
 	r.actions <- func() {
-		infos = make([]*ProviderInfo, 0, len(r.providers))
+		infos := make([]*ProviderInfo, 0, len(r.providers))
 		for _, info := range r.providers {
-			if !info.Inactive() && r.policy.Allowed(info.AddrInfo.ID) {
-				infos = append(infos, info)
+			if r.assigned != nil {
+				r.assignMutex.Lock()
+				_, ok := r.assigned[info.Publisher]
+				r.assignMutex.Unlock()
+				if !ok {
+					// Skip providers whose publisher is not assigned, if using
+					// assigner service.
+					continue
+				}
 			}
+			infos = append(infos, info)
 		}
-		close(done)
+		infosCh <- infos
 	}
-	<-done
+	infos := <-infosCh
 	// Stats tracks the number of active, allowed providers.
 	stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(infos))))
 	return infos
