@@ -46,6 +46,7 @@ func main() {
 			command.LoadtestCmd,
 			command.LogCmd,
 			command.ProvidersCmd,
+			command.SPAddrCmd,
 		},
 	}
 

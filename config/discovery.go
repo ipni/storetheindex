@@ -10,9 +10,6 @@ type Discovery struct {
 	// FilterIPs, when true, removes any private, loopback, or unspecified IP
 	// addresses from provider and publisher addresses.
 	FilterIPs bool
-	// LotusGateway is the host or host:port for a lotus gateway used to
-	// verify providers on the blockchain.
-	LotusGateway string
 	// Policy configures which publishers are allowed and blocked, rate-limited,
 	// and allowed to publish on behalf of others providers.
 	Policy Policy
@@ -42,13 +39,6 @@ type Discovery struct {
 	DeactivateAfter Duration
 	// PollOverrides configures polling for specific providers.
 	PollOverrides []Polling
-	// RediscoverWait is the amount of time that must pass before a provider
-	// can be discovered following a previous discovery attempt. A value of 0
-	// means there is no wait time.
-	RediscoverWait Duration
-	// Timeout is the maximum amount of time that the indexer will spend trying
-	// to discover and verify a new provider.
-	Timeout Duration
 	// RemoveOldAssignments, if true, removes persisted assignments of previous
 	// versions. When false, previous versions of persisted assignments are
 	// migrated. Only applies if UseAssigner is true.
@@ -81,14 +71,11 @@ type Polling struct {
 func NewDiscovery() Discovery {
 	const defaultStopAfter = Duration(7 * 24 * time.Hour)
 	return Discovery{
-		LotusGateway:    "https://api.chain.love",
 		Policy:          NewPolicy(),
 		PollInterval:    Duration(24 * time.Hour),
 		PollRetryAfter:  Duration(5 * time.Hour),
 		PollStopAfter:   defaultStopAfter,
 		DeactivateAfter: defaultStopAfter,
-		RediscoverWait:  Duration(5 * time.Minute),
-		Timeout:         Duration(2 * time.Minute),
 	}
 }
 
@@ -109,8 +96,5 @@ func (c *Discovery) populateUnset() {
 		// Set deactivation to the same value as PollStopAfter.
 		// This means no inactive grace period for providers by default.
 		c.DeactivateAfter = def.PollStopAfter
-	}
-	if c.Timeout == 0 {
-		c.Timeout = def.Timeout
 	}
 }

@@ -3,13 +3,10 @@ package registry
 import (
 	"errors"
 	"fmt"
-
-	"github.com/ipni/storetheindex/internal/registry/discovery"
 )
 
 // regConfig contains all options for the server.
 type regConfig struct {
-	discoverer      discovery.Discoverer
 	freezeAtPercent float64
 	valueStoreDir   string
 }
@@ -26,13 +23,6 @@ func getOpts(opts []Option) (regConfig, error) {
 		}
 	}
 	return cfg, nil
-}
-
-func WithDiscoverer(discoverer discovery.Discoverer) Option {
-	return func(c *regConfig) error {
-		c.discoverer = discoverer
-		return nil
-	}
 }
 
 func WithFreezer(valueStoreDir string, freezeAtPercent float64) Option {

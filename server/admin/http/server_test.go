@@ -287,9 +287,8 @@ func initRegistry(t *testing.T, trustedID string) *registry.Registry {
 			Publish:       false,
 			PublishExcept: []string{trustedID},
 		},
-		PollInterval:   config.Duration(time.Minute),
-		RediscoverWait: config.Duration(time.Minute),
-		UseAssigner:    true,
+		PollInterval: config.Duration(time.Minute),
+		UseAssigner:  true,
 	}
 	reg, err := registry.New(context.Background(), discoveryCfg, nil)
 	if err != nil {

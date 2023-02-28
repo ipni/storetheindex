@@ -29,14 +29,12 @@ import (
 	"github.com/ipni/storetheindex/fsutil"
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/ingest"
-	"github.com/ipni/storetheindex/internal/lotus"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/mautil"
 	httpadminserver "github.com/ipni/storetheindex/server/admin/http"
 	httpfinderserver "github.com/ipni/storetheindex/server/finder/http"
 	p2pfinderserver "github.com/ipni/storetheindex/server/finder/libp2p"
 	httpingestserver "github.com/ipni/storetheindex/server/ingest/http"
-	p2pingestserver "github.com/ipni/storetheindex/server/ingest/libp2p"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -160,19 +158,8 @@ func daemonAction(cctx *cli.Context) error {
 	indexCounts := counter.NewIndexCounts(dstore)
 	indexCounts.SetTotalAddend(cfg.Indexer.IndexCountTotalAddend)
 
-	var lotusDiscoverer *lotus.Discoverer
-	if cfg.Discovery.LotusGateway != "none" {
-		log.Infow("discovery using lotus", "gateway", cfg.Discovery.LotusGateway)
-		// Create lotus client
-		lotusDiscoverer, err = lotus.NewDiscoverer(cfg.Discovery.LotusGateway)
-		if err != nil {
-			return fmt.Errorf("cannot create lotus client: %s", err)
-		}
-	}
-
 	// Create registry
 	reg, err := registry.New(cctx.Context, cfg.Discovery, dstore,
-		registry.WithDiscoverer(lotusDiscoverer),
 		registry.WithFreezer(vsDir, cfg.Indexer.FreezeAtPercent))
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
@@ -302,9 +289,6 @@ func daemonAction(cctx *cli.Context) error {
 		ingestSvr, err = httpingestserver.New(ingestNetAddr.String(), indexerCore, ingester, reg)
 		if err != nil {
 			return err
-		}
-		if p2pHost != nil {
-			p2pingestserver.New(ctx, p2pHost, indexerCore, ingester, reg)
 		}
 	}
 

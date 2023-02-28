@@ -54,7 +54,6 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 	}
 
 	mux.HandleFunc("/announce", s.putAnnounce)
-	mux.HandleFunc("/discover", s.postDiscoverProvider)
 	mux.HandleFunc("/health", s.getHealth)
 	mux.HandleFunc("/register", s.postRegisterProvider)
 
@@ -100,28 +99,6 @@ func (s *Server) putAnnounce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (s *Server) postDiscoverProvider(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPost) {
-		return
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Errorw("failed reading body", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	err = s.ingestHandler.DiscoverProvider(body)
-	if err != nil {
-		httpserver.HandleError(w, err, "discover")
-		return
-	}
-
-	// Retrun accepted (202) response
-	w.WriteHeader(http.StatusAccepted)
 }
 
 func (s *Server) getHealth(w http.ResponseWriter, r *http.Request) {
