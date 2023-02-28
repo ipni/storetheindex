@@ -23,6 +23,7 @@ var initFlags = []cli.Flag{
 	listenFinderFlag,
 	listenIngestFlag,
 	listenP2PFlag,
+	listenMetricsFlag,
 	&cli.StringFlag{
 		Name:     "store",
 		Usage:    "Type of value store (pebble, sth). Default is \"pebble\"",

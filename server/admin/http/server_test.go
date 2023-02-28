@@ -13,12 +13,14 @@ import (
 	dssync "github.com/ipfs/go-datastore/sync"
 	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
+	"github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/go-indexer-core/store/memory"
 	client "github.com/ipni/storetheindex/api/v0/admin/client/http"
 	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/ingest"
+	stimetrics "github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	server "github.com/ipni/storetheindex/server/admin/http"
 	"github.com/libp2p/go-libp2p"
@@ -291,7 +293,10 @@ func initRegistry(t *testing.T, trustedID string) *registry.Registry {
 		RediscoverWait: config.Duration(time.Minute),
 		UseAssigner:    true,
 	}
-	reg, err := registry.New(context.Background(), discoveryCfg, nil)
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	reg, err := registry.New(context.Background(), discoveryCfg, nil, sm)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +304,9 @@ func initRegistry(t *testing.T, trustedID string) *registry.Registry {
 }
 
 func initIndex(t *testing.T, withCache bool) indexer.Interface {
-	return engine.New(nil, memory.New())
+	m, err := metrics.New(nil)
+	require.NoError(t, err)
+	return engine.New(nil, memory.New(), m)
 }
 
 func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *ingest.Ingester {
@@ -310,7 +317,13 @@ func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *i
 		t.Fatal(err)
 	}
 
-	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds)
+	m, err := metrics.New(nil)
+	require.NoError(t, err)
+
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds, m, sm)
 	if err != nil {
 		t.Fatal(err)
 	}

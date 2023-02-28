@@ -3,7 +3,6 @@ package reframe
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/storetheindex/internal/metrics"
+	stimetrics "github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/server/finder/handler"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -20,20 +20,20 @@ import (
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/multiformats/go-varint"
-	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
+	"go.opentelemetry.io/otel/attribute"
 )
 
-func NewReframeHTTPHandler(indexer indexer.Interface, registry *registry.Registry) http.HandlerFunc {
-	return server.DelegatedRoutingAsyncHandler(NewReframeService(handler.NewFinderHandler(indexer, registry, nil)))
+func NewReframeHTTPHandler(indexer indexer.Interface, registry *registry.Registry, sm *stimetrics.StiMetrics) http.HandlerFunc {
+	return server.DelegatedRoutingAsyncHandler(NewReframeService(handler.NewFinderHandler(indexer, registry, nil), sm))
 }
 
-func NewReframeService(fh *handler.FinderHandler) *ReframeService {
-	return &ReframeService{finderHandler: fh}
+func NewReframeService(fh *handler.FinderHandler, sm *stimetrics.StiMetrics) *ReframeService {
+	return &ReframeService{finderHandler: fh, sm: sm}
 }
 
 type ReframeService struct {
 	finderHandler *handler.FinderHandler
+	sm            *stimetrics.StiMetrics
 }
 
 func (x *ReframeService) FindProviders(ctx context.Context, key cid.Cid) (<-chan client.FindProvidersAsyncResult, error) {
@@ -41,9 +41,7 @@ func (x *ReframeService) FindProviders(ctx context.Context, key cid.Cid) (<-chan
 	var found bool
 	defer func() {
 		msecPerMh := coremetrics.MsecSince(startTime)
-		_ = stats.RecordWithOptions(context.Background(),
-			stats.WithTags(tag.Insert(metrics.Method, "reframe"), tag.Insert(metrics.Found, fmt.Sprintf("%v", found))),
-			stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
+		x.sm.FindLatency.Record(context.Background(), msecPerMh, attribute.String(metrics.Method, "reframe"), attribute.Bool(metrics.Found, found))
 	}()
 
 	mh := key.Hash()

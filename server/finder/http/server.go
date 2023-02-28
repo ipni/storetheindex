@@ -54,7 +54,7 @@ func (s *Server) URL() string {
 //go:embed *.html
 var webUI embed.FS
 
-func New(listen string, indexer indexer.Interface, registry *registry.Registry, options ...Option) (*Server, error) {
+func New(listen string, indexer indexer.Interface, registry *registry.Registry, sm options ...Option) (*Server, error) {
 	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
@@ -120,7 +120,7 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	mux.HandleFunc("/providers/", s.getProvider)
 	mux.HandleFunc("/stats", s.getStats)
 
-	reframeHandler := reframe.NewReframeHTTPHandler(indexer, registry)
+	reframeHandler := reframe.NewReframeHTTPHandler(indexer, registry, sm)
 	mux.HandleFunc("/reframe", reframeHandler)
 
 	return s, nil
@@ -316,7 +316,7 @@ func (s *Server) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, st
 	startTime := time.Now()
 	var found bool
 	defer func() {
-		msecPerMh := coremetrics.MsecSince(startTime) / float64(len(mhs))
+		msecPerMh := float64(coremetrics.MsecSince(startTime)) / float64(len(mhs))
 		_ = stats.RecordWithOptions(context.Background(),
 			stats.WithTags(tag.Insert(metrics.Method, "http"), tag.Insert(metrics.Found, fmt.Sprintf("%v", found))),
 			stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))

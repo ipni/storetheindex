@@ -15,6 +15,7 @@ import (
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/cache/radixcache"
 	"github.com/ipni/go-indexer-core/engine"
+	"github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/storetheindex/api/v0/finder/client"
@@ -34,7 +35,9 @@ var rng = rand.New(rand.NewSource(1413))
 
 // InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
-	return engine.New(nil, memory.New())
+	m, err := metrics.New(nil)
+	require.NoError(t, err)
+	return engine.New(nil, memory.New(), m)
 }
 
 // InitPebbleIndex initialize a new indexer engine using pebbel with cache.
@@ -43,10 +46,15 @@ func InitPebbleIndex(t *testing.T, withCache bool) indexer.Interface {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if withCache {
-		return engine.New(radixcache.New(1000), valueStore)
+	m, err := metrics.New(nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return engine.New(nil, valueStore)
+
+	if withCache {
+		return engine.New(radixcache.New(1000, m), valueStore, m)
+	}
+	return engine.New(nil, valueStore, m)
 }
 
 func InitRegistry(t *testing.T) *registry.Registry {

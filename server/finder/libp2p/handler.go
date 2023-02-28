@@ -99,7 +99,7 @@ func (h *libp2pHandler) find(ctx context.Context, p peer.ID, msg *pb.FinderMessa
 
 	var found bool
 	defer func() {
-		msecPerMh := coremetrics.MsecSince(startTime) / float64(len(req.Multihashes))
+		msecPerMh := float64(coremetrics.MsecSince(startTime)) / float64(len(req.Multihashes))
 		_ = stats.RecordWithOptions(context.Background(),
 			stats.WithTags(tag.Insert(metrics.Method, "libp2p"), tag.Insert(metrics.Found, fmt.Sprintf("%v", found))),
 			stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))

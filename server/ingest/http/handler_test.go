@@ -10,6 +10,7 @@ import (
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipni/go-indexer-core"
+	"github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/storetheindex/api/v0/ingest/model"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/ingest"
@@ -79,7 +80,11 @@ func TestHandleRegisterProvider(t *testing.T) {
 	require.NoError(t, err)
 
 	ds := dssync.MutexWrap(datastore.NewMapDatastore())
-	ing, err := ingest.NewIngester(config.NewIngest(), host, idx, reg, ds)
+
+	m, err := metrics.New(nil)
+	require.NoError(t, err)
+
+	ing, err := ingest.NewIngester(config.NewIngest(), host, idx, reg, ds, m)
 	require.NoError(t, err)
 
 	s, err := New("127.0.0.1:", idx, ing, reg)

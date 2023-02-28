@@ -60,6 +60,12 @@ var listenP2PFlag = &cli.StringFlag{
 	EnvVars:  []string{"STORETHEINDEX_LISTEN_P2P"},
 	Required: false,
 }
+var listenMetricsFlag = &cli.StringFlag{
+	Name:     "listen-metrics",
+	Usage:    "Prometheus metrics listen address, overrides config",
+	EnvVars:  []string{"STORETHEINDEX_LISTEN_METRICS"},
+	Required: false,
+}
 
 // cliIndexer reads the indexer host from CLI flag or from config.
 func cliIndexer(cctx *cli.Context, addrType string) string {
@@ -92,6 +98,8 @@ func indexerHost(addrType string) string {
 	case "admin":
 		maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Admin)
 	case "ingest":
+		maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Ingest)
+	case "metrics":
 		maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Ingest)
 	default:
 		return ""

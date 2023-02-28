@@ -13,6 +13,7 @@ import (
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
+	"github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/storetheindex/announce"
 	"github.com/ipni/storetheindex/announce/message"
@@ -21,19 +22,26 @@ import (
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/ingest"
+	stimetrics "github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/require"
 )
 
 var rng = rand.New(rand.NewSource(1413))
 
 // InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
-	return engine.New(nil, memory.New())
+	m, err := metrics.New(nil)
+	if err != nil {
+		panic(err)
+	}
+
+	return engine.New(nil, memory.New(), m)
 }
 
 // InitRegistry initializes a new registry
@@ -48,7 +56,11 @@ func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),
 	}
-	reg, err := registry.New(context.Background(), discoveryCfg, nil)
+
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	reg, err := registry.New(context.Background(), discoveryCfg, nil, sm)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +75,15 @@ func InitIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *i
 		t.Fatal(err)
 	}
 
-	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds)
+	m, err := metrics.New(nil)
+	if err != nil {
+		panic(err)
+	}
+
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds, m, sm)
 	if err != nil {
 		t.Fatal(err)
 	}

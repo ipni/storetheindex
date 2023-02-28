@@ -21,13 +21,12 @@ import (
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/fsutil/disk"
 	"github.com/ipni/storetheindex/internal/freeze"
-	"github.com/ipni/storetheindex/internal/metrics"
+	stimetrics "github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry/discovery"
 	"github.com/ipni/storetheindex/internal/registry/policy"
 	"github.com/ipni/storetheindex/mautil"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
-	"go.opencensus.io/stats"
 )
 
 const (
@@ -68,6 +67,8 @@ type Registry struct {
 	rediscoverWait   time.Duration
 
 	syncChan chan *ProviderInfo
+
+	sm *stimetrics.StiMetrics
 }
 
 // ProviderInfo is an immutable data structure that holds information about a
@@ -256,7 +257,7 @@ func (p *ExtendedProviderInfo) UnmarshalJSON(data []byte) error {
 // New creates a new provider registry, giving it provider policy
 // configuration, a datastore to persist provider data, and a Discoverer
 // interface. The context is only used for cancellation of this function.
-func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, options ...Option) (*Registry, error) {
+func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, sm *stimetrics.StiMetrics, options ...Option) (*Registry, error) {
 	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
@@ -287,6 +288,7 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 
 		dstore:   dstore,
 		syncChan: make(chan *ProviderInfo, 1),
+		sm:       sm,
 	}
 
 	r.providers, err = loadPersistedProviders(ctx, dstore, cfg.FilterIPs)
@@ -810,7 +812,8 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	}
 	<-done
 	// Stats tracks the number of active, allowed providers.
-	stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(infos))))
+
+	r.sm.ProviderCountValue.Store(int64(len(infos)))
 	return infos
 }
 

@@ -27,7 +27,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
-	"go.opencensus.io/stats"
 	"go.uber.org/zap"
 
 	// Import so these codecs get registered.
@@ -140,7 +139,7 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
 func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement, resync, frozen bool, lag int) error {
-	stats.Record(context.Background(), metrics.IngestChange.M(1))
+	metrics.Sti.IngestChange.Add(context.Background(), 1)
 	var mhCount int
 	var entsSyncStart time.Time
 	var entsStoreElapsed time.Duration
@@ -153,8 +152,9 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 
 		// Record how long ad sync took.
 		elapsed := now.Sub(ingestStart)
-		elapsedMsec := float64(elapsed.Nanoseconds()) / 1e6
-		stats.Record(context.Background(), metrics.AdIngestLatency.M(elapsedMsec))
+		elapsedMsec := elapsed.Nanoseconds() / 1e6
+
+		metrics.Sti.AdIngestLatency.Record(context.Background(), elapsedMsec)
 		log.Infow("Finished syncing advertisement", "elapsed", elapsed.String(), "multihashes", mhCount)
 
 		if mhCount == 0 {
@@ -163,13 +163,13 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 
 		// Record how long entries sync took.
 		elapsed = now.Sub(entsSyncStart)
-		elapsedMsec = float64(elapsed.Nanoseconds()) / 1e6
-		stats.Record(context.Background(), metrics.EntriesSyncLatency.M(elapsedMsec))
+		elapsedMsec = elapsed.Nanoseconds() / 1e6
+		metrics.Sti.EntriesSyncLatency.Record(context.Background(), elapsedMsec)
 
 		// Record average time to store one multihash, for all multihahses in
 		// this ad's entries.
 		elapsedPerMh := int64(math.Round(float64(entsStoreElapsed.Nanoseconds()) / float64(mhCount)))
-		stats.Record(context.Background(), metrics.MhStoreNanoseconds.M(elapsedPerMh))
+		metrics.Sti.MhStoreNanosecondsValue.Store(elapsedPerMh)
 	}()
 
 	// Get provider ID from advertisement.

@@ -15,6 +15,7 @@ import (
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/ipni/storetheindex/config"
+	stimetrics "github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry/discovery"
 	"github.com/ipni/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -123,8 +124,10 @@ func TestDiscoveryAllowed(t *testing.T) {
 	mockDiscoverer := newMockDiscoverer(t, exceptID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
 
-	r, err := New(ctx, discoveryCfg, nil, WithDiscoverer(mockDiscoverer))
+	r, err := New(ctx, discoveryCfg, nil, sm, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 	t.Log("created new registry")
@@ -178,7 +181,10 @@ func TestDiscoveryBlocked(t *testing.T) {
 	peerID, err := peer.Decode(exceptID)
 	require.NoError(t, err)
 
-	r, err := New(ctx, discoveryCfg, nil, WithDiscoverer(mockDiscoverer))
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	r, err := New(ctx, discoveryCfg, nil, sm, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 	defer r.Close()
 	t.Log("created new registry")
@@ -260,7 +266,10 @@ func TestDatastore(t *testing.T) {
 	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
 
-	r, err := New(ctx, discoveryCfg, dstore, WithDiscoverer(mockDiscoverer))
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	r, err := New(ctx, discoveryCfg, dstore, sm, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 	t.Log("created new registry with datastore")
 
@@ -290,7 +299,7 @@ func TestDatastore(t *testing.T) {
 	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
 
-	r, err = New(ctx, discoveryCfg, dstore, WithDiscoverer(mockDiscoverer))
+	r, err = New(ctx, discoveryCfg, dstore, sm, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 	t.Log("re-created new registry with datastore")
 
@@ -340,7 +349,7 @@ func TestDatastore(t *testing.T) {
 	discoveryCfg.UseAssigner = true
 	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
-	r, err = New(ctx, discoveryCfg, dstore, WithDiscoverer(mockDiscoverer))
+	r, err = New(ctx, discoveryCfg, dstore, sm, WithDiscoverer(mockDiscoverer))
 	require.NoError(t, err)
 
 	// There should not be any assigned yet.
@@ -390,7 +399,10 @@ func TestAllowed(t *testing.T) {
 
 	ctx := context.Background()
 
-	r, err := New(ctx, cfg, nil)
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	r, err := New(ctx, cfg, nil, sm)
 	require.NoError(t, err)
 
 	provID, err := peer.Decode(limitedID)
@@ -474,7 +486,11 @@ func TestPollProvider(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	r, err := New(ctx, cfg, datastore.NewMapDatastore())
+
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	r, err := New(ctx, cfg, datastore.NewMapDatastore(), sm)
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
@@ -581,8 +597,11 @@ func TestPollProviderOverrides(t *testing.T) {
 		RediscoverWait: config.Duration(time.Minute),
 	}
 
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
 	ctx := context.Background()
-	r, err := New(ctx, cfg, datastore.NewMapDatastore())
+	r, err := New(ctx, cfg, datastore.NewMapDatastore(), sm)
 	t.Cleanup(func() { r.Close() })
 	require.NoError(t, err)
 	defer r.Close()
@@ -669,7 +688,10 @@ func TestPollProviderOverrides(t *testing.T) {
 
 func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 	ctx := context.Background()
-	subject, err := New(ctx, config.NewDiscovery(), datastore.NewMapDatastore())
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	subject, err := New(ctx, config.NewDiscovery(), datastore.NewMapDatastore(), sm)
 	require.NoError(t, err)
 	t.Cleanup(func() { subject.Close() })
 
@@ -726,8 +748,11 @@ func TestFilterIPs(t *testing.T) {
 	pubAddr, err := multiaddr.NewMultiaddr("/dns4/publisher.example.com/tcp/9876")
 	require.NoError(t, err)
 
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
 	dstore := datastore.NewMapDatastore()
-	reg, err := New(ctx, cfg, dstore)
+	reg, err := New(ctx, cfg, dstore, sm)
 	require.NoError(t, err)
 	t.Cleanup(func() { reg.Close() })
 
@@ -744,7 +769,7 @@ func TestFilterIPs(t *testing.T) {
 	reg.Close()
 
 	cfg.FilterIPs = true
-	reg, err = New(ctx, cfg, dstore)
+	reg, err = New(ctx, cfg, dstore, sm)
 	require.NoError(t, err)
 	t.Cleanup(func() { reg.Close() })
 
@@ -791,7 +816,11 @@ func TestRegistry_loadPersistedProvidersFiltersNilAddrGracefully(t *testing.T) {
 	require.NoError(t, err)
 	cfg := config.NewDiscovery()
 	cfg.FilterIPs = true
-	_, err = New(ctx, cfg, ds)
+
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	_, err = New(ctx, cfg, ds, sm)
 	require.NoError(t, err)
 }
 
@@ -803,10 +832,13 @@ func TestFreezeUnfreeze(t *testing.T) {
 		},
 	}
 
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	dstore := datastore.NewMapDatastore()
-	r, err := New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
+	r, err := New(ctx, cfg, dstore, sm, WithFreezer(tempDir, 90.0))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
@@ -873,7 +905,8 @@ func TestFreezeUnfreeze(t *testing.T) {
 
 	// Stop and restart registry and check providers are still frozen.
 	r.Close()
-	r, err = New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
+
+	r, err = New(ctx, cfg, dstore, sm, WithFreezer(tempDir, 90.0))
 	require.NoError(t, err)
 	require.True(t, r.Frozen())
 	infos = r.AllProviderInfo()
@@ -892,7 +925,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 		require.Equal(t, infos[i].FrozenAt, frozenAt)
 	}
 
-	r, err = New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
+	r, err = New(ctx, cfg, dstore, sm, WithFreezer(tempDir, 90.0))
 	require.NoError(t, err)
 	require.False(t, r.Frozen())
 	infos = r.AllProviderInfo()
@@ -918,7 +951,11 @@ func TestHandoff(t *testing.T) {
 
 	ctx := context.Background()
 	tempDir := t.TempDir()
-	r, err := New(ctx, cfg, datastore.NewMapDatastore(), WithFreezer(tempDir, 90.0))
+
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	r, err := New(ctx, cfg, datastore.NewMapDatastore(), sm, WithFreezer(tempDir, 90.0))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 

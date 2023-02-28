@@ -14,6 +14,8 @@ type Addresses struct {
 	// P2PMaddr is the libp2p host multiaddr for all servers. Set to "none" to
 	// disable libp2p hosting.
 	P2PAddr string
+	// Metrics is the prometheus metrics server http listen addrs.
+	Metrics string
 	// NoResourceManager disables the libp2p resource manager when true.
 	NoResourceManager bool
 }
@@ -25,6 +27,7 @@ func NewAddresses() Addresses {
 		Finder:  "/ip4/0.0.0.0/tcp/3000",
 		Ingest:  "/ip4/0.0.0.0/tcp/3001",
 		P2PAddr: "/ip4/0.0.0.0/tcp/3003",
+		Metrics: "/ip4/127.0.0.1/tcp/40081",
 	}
 }
 
@@ -43,5 +46,8 @@ func (c *Addresses) populateUnset() {
 	}
 	if c.P2PAddr == "" {
 		c.P2PAddr = def.P2PAddr
+	}
+	if c.Metrics == "" {
+		c.P2PAddr = def.Metrics
 	}
 }

@@ -20,7 +20,6 @@ import (
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	indexer "github.com/ipni/go-indexer-core"
-	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
 	"github.com/ipni/storetheindex/carwriter"
 	"github.com/ipni/storetheindex/config"
@@ -33,8 +32,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
-	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/time/rate"
 )
 
@@ -722,19 +720,16 @@ func (ing *Ingester) metricsUpdater() {
 				usage = usageStats.Percent
 			}
 
+			metrics.Core.Core.StoreSizeValue.Store(size)
+			metrics.Sti.PercentUsageValue.Store(usage)
+
 			if ing.indexCounts != nil {
 				indexCount, err := ing.indexCounts.Total()
 				if err != nil {
 					log.Errorw("Error getting index counts", "err", err)
 				}
-				stats.Record(context.Background(),
-					coremetrics.StoreSize.M(size),
-					metrics.IndexCount.M(int64(indexCount)),
-					metrics.PercentUsage.M(usage))
-			} else {
-				stats.Record(context.Background(),
-					coremetrics.StoreSize.M(size),
-					metrics.PercentUsage.M(usage))
+
+				metrics.Sti.IndexCountValue.Store(int64(indexCount))
 			}
 
 			t.Reset(metricsUpdateInterval)
@@ -902,7 +897,7 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent dagsync.SyncFinished) {
 
 		ad, err := ing.loadAd(c)
 		if err != nil {
-			stats.Record(context.Background(), metrics.AdLoadError.M(1))
+			metrics.Sti.AdLoadError.Add(context.Background(), 1)
 			log.Errorw("Failed to load advertisement CID, skipping", "cid", c, "err", err)
 			continue
 		}
@@ -943,8 +938,9 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent dagsync.SyncFinished) {
 			// schedule one.
 			ing.reg.Saw(p)
 			pushCount := ing.toWorkers.Push(providerID(p))
-			stats.Record(context.Background(), metrics.AdIngestQueued.M(int64(ing.toWorkers.Length())))
-			stats.Record(context.Background(), metrics.AdIngestBacklog.M(int64(pushCount)))
+
+			metrics.Sti.AdIngestQueued.Add(context.Background(), int64(ing.toWorkers.Length()))
+			metrics.Sti.AdIngestBacklog.Record(context.Background(), int64(pushCount))
 		}
 	}
 }
@@ -959,19 +955,19 @@ func (ing *Ingester) ingestWorker(ctx context.Context) {
 			log.Debug("stopped ingest worker")
 			return
 		case provider := <-ing.toWorkers.PopChan():
-			stats.Record(context.Background(), metrics.AdIngestQueued.M(int64(ing.toWorkers.Length())))
+			metrics.Sti.AdIngestQueued.Add(context.Background(), int64(ing.toWorkers.Length()))
 			pid := peer.ID(provider)
 			ing.providersBeingProcessedMu.Lock()
 			pc := ing.providersBeingProcessed[pid]
 			ing.providersBeingProcessedMu.Unlock()
 			activeWorkers := atomic.AddInt32(&ing.activeWorkers, 1)
-			stats.Record(context.Background(), metrics.AdIngestActive.M(int64(activeWorkers)))
+			metrics.Sti.AdIngestActive.Record(context.Background(), int64(activeWorkers))
 			pc <- struct{}{}
 			ing.ingestWorkerLogic(ctx, pid)
 			ing.handlePendingAnnounce(ctx, pid)
 			<-pc
 			activeWorkers = atomic.AddInt32(&ing.activeWorkers, -1)
-			stats.Record(context.Background(), metrics.AdIngestActive.M(int64(activeWorkers)))
+			metrics.Sti.AdIngestActive.Record(context.Background(), int64(activeWorkers))
 		}
 	}
 }
@@ -1111,7 +1107,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad, ai.resync, frozen, lag)
 		if err == nil {
 			// No error at all, this ad was processed successfully.
-			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))
+			metrics.Sti.AdIngestSuccessCount.Add(context.Background(), 1)
 		}
 
 		var adIngestErr adIngestError
@@ -1121,16 +1117,13 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 				// These error cases are permanent. If retried later the same
 				// error will happen. So log and drop this error.
 				log.Errorw("Skipping ad because of a permanent error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
-				stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
+				metrics.Sti.AdIngestSuccessCount.Add(context.Background(), 1)
 				err = nil
 			}
-			stats.RecordWithOptions(context.Background(),
-				stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
-				stats.WithTags(tag.Insert(metrics.ErrKind, string(adIngestErr.state))))
+
+			metrics.Sti.AdIngestErrorCount.Add(context.Background(), 1, attribute.String(metrics.ErrKind, string(adIngestErr.state)))
 		} else if err != nil {
-			stats.RecordWithOptions(context.Background(),
-				stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
-				stats.WithTags(tag.Insert(metrics.ErrKind, "other error")))
+			metrics.Sti.AdIngestErrorCount.Add(context.Background(), 1, attribute.String(metrics.ErrKind, "other error"))
 		}
 
 		if err != nil {

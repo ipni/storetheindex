@@ -21,6 +21,8 @@ import (
 	"github.com/ipni/go-indexer-core/cache"
 	"github.com/ipni/go-indexer-core/cache/radixcache"
 	"github.com/ipni/go-indexer-core/engine"
+	"github.com/ipni/go-indexer-core/metrics"
+
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/go-indexer-core/store/pogreb"
@@ -72,6 +74,7 @@ var daemonFlags = []cli.Flag{
 	listenFinderFlag,
 	listenIngestFlag,
 	listenP2PFlag,
+	listenMetricsFlag,
 	&cli.BoolFlag{
 		Name:     "watch-config",
 		Usage:    "Watch for changes to config file and automatically reload",
@@ -101,8 +104,19 @@ func daemonAction(cctx *cli.Context) error {
 		log.Warn("Configuration file out-of-date. Upgrade by running: ./storetheindex init --upgrade")
 	}
 
+	// // get metrics address
+	// metricsAddr := cfg.Addresses.Metrics
+	// if cctx.String("listen-metrics") != "" {
+	// 	metricsAddr = cctx.String("listen-metrics")
+	// }
+
+	// metricsNetAddr, err := mautil.MultiaddrStringToNetAddr(metricsAddr)
+	// if err != nil {
+	// 	return fmt.Errorf("bad metrics address %s: %s", metricsAddr, err)
+	// }
+
 	// Create a valuestore of the configured type.
-	valueStore, minKeyLen, vsDir, err := createValueStore(cctx.Context, cfg.Indexer)
+	valueStore, minKeyLen, vsDir, err := createValueStore(cctx.Context, cfg.Indexer, m)
 	if err != nil {
 		return err
 	}
@@ -143,14 +157,14 @@ func daemonAction(cctx *cli.Context) error {
 		cacheSize = cfg.Indexer.CacheSize
 	}
 	if cacheSize > 0 {
-		resultCache = radixcache.New(cacheSize)
+		resultCache = radixcache.New(cacheSize, m)
 		log.Infow("Result cache enabled", "size", cacheSize)
 	} else {
 		log.Info("Result cache disabled")
 	}
 
 	// Create indexer core
-	indexerCore := engine.New(resultCache, valueStore,
+	indexerCore := engine.New(resultCache, valueStore, m,
 		engine.WithDHBatchSize(cfg.Indexer.DHBatchSize),
 		engine.WithDHStore(cfg.Indexer.DHStoreURL),
 		engine.WithVSNoNewMH(cfg.Indexer.VSNoNewMH),
@@ -171,7 +185,7 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	// Create registry
-	reg, err := registry.New(cctx.Context, cfg.Discovery, dstore,
+	reg, err := registry.New(cctx.Context, cfg.Discovery, dstore, sm,
 		registry.WithDiscoverer(lotusDiscoverer),
 		registry.WithFreezer(vsDir, cfg.Indexer.FreezeAtPercent))
 	if err != nil {
@@ -254,7 +268,7 @@ func daemonAction(cctx *cli.Context) error {
 		}
 
 		// Initialize ingester.
-		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore,
+		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, m, sm,
 			ingest.WithAdsDatastore(dstoreAds), ingest.WithIndexCounts(indexCounts))
 		if err != nil {
 			return err
@@ -330,6 +344,10 @@ func daemonAction(cctx *cli.Context) error {
 	svrErrChan := make(chan error, 3)
 
 	log.Info("Starting http servers")
+	err = m.Start(ctx)
+	if err != nil {
+		return nil
+	}
 	if finderSvr != nil {
 		go func() {
 			svrErrChan <- finderSvr.Start()
@@ -523,11 +541,13 @@ func daemonAction(cctx *cli.Context) error {
 	reg.Close()
 	dstore.Close()
 
+	m.Shutdown(ctx)
+
 	log.Info("Indexer stopped")
 	return finalErr
 }
 
-func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.Interface, int, string, error) {
+func createValueStore(ctx context.Context, cfgIndexer config.Indexer, m *metrics.Metrics) (indexer.Interface, int, string, error) {
 	const sthMinKeyLen = 4
 
 	dir, err := config.Path("", cfgIndexer.ValueStoreDir)
@@ -604,7 +624,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		pebbleOpts.Levels[numLevels-1].FilterPolicy = nil
 		pebbleOpts.Cache = pbl.NewCache(1 << 30) // 1 GiB
 
-		vs, err = pebble.New(dir, pebbleOpts)
+		vs, err = pebble.NewWithMetrics(dir, pebbleOpts, m)
 	default:
 		err = fmt.Errorf("unrecognized store type: %s", cfgIndexer.ValueStoreType)
 	}

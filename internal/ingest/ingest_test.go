@@ -29,6 +29,7 @@ import (
 	"github.com/ipni/storetheindex/dagsync/dtsync"
 	dstest "github.com/ipni/storetheindex/dagsync/test"
 	"github.com/ipni/storetheindex/internal/counter"
+	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/test/typehelpers"
 	"github.com/ipni/storetheindex/test/util"
@@ -334,7 +335,14 @@ func TestRestartDuringSync(t *testing.T) {
 	// Now we bring up the ingester again.
 	ingesterHost := mkTestHost(libp2p.Identity(te.ingesterPriv))
 	connectHosts(t, te.pubHost, ingesterHost)
-	ingester, err := NewIngester(defaultTestIngestConfig, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds)
+
+	m, err := metrics.New(nil)
+	require.NoError(t, err)
+
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	ingester, err := NewIngester(defaultTestIngestConfig, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds, m, sm)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ingester.Close()
@@ -1370,8 +1378,14 @@ func TestRateLimitConfig(t *testing.T) {
 	pubHost := mkTestHost()
 	h := mkTestHost()
 
+	m, err := metrics.New(nil)
+	require.NoError(t, err)
+
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
 	cfg := defaultTestIngestConfig
-	ingester, err := NewIngester(cfg, h, core, reg, store)
+	ingester, err := NewIngester(cfg, h, core, reg, store, m, sm)
 	require.NoError(t, err)
 	limiter := ingester.getRateLimiter(pubHost.ID())
 	require.NotNil(t, limiter)
@@ -1379,7 +1393,7 @@ func TestRateLimitConfig(t *testing.T) {
 	ingester.Close()
 
 	cfg.RateLimit.Apply = false
-	ingester, err = NewIngester(cfg, h, core, reg, store)
+	ingester, err = NewIngester(cfg, h, core, reg, store, m, sm)
 	require.NoError(t, err)
 	limiter = ingester.getRateLimiter(pubHost.ID())
 	require.NotNil(t, limiter)
@@ -1388,7 +1402,7 @@ func TestRateLimitConfig(t *testing.T) {
 
 	cfg.RateLimit.Apply = true
 	cfg.RateLimit.BlocksPerSecond = 0
-	ingester, err = NewIngester(cfg, h, core, reg, store)
+	ingester, err = NewIngester(cfg, h, core, reg, store, m, sm)
 	require.NoError(t, err)
 	limiter = ingester.getRateLimiter(pubHost.ID())
 	require.NotNil(t, limiter)
@@ -1582,7 +1596,11 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 
 // Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
-	return engine.New(nil, memory.New())
+	m, err := metrics.New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return engine.New(nil, memory.New(), m)
 }
 
 func mkRegistry(t *testing.T) *registry.Registry {
@@ -1594,7 +1612,9 @@ func mkRegistry(t *testing.T) *registry.Registry {
 		PollInterval:   config.Duration(time.Minute),
 		RediscoverWait: config.Duration(time.Minute),
 	}
-	reg, err := registry.New(context.Background(), discoveryCfg, nil)
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+	reg, err := registry.New(context.Background(), discoveryCfg, nil, sm)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1636,7 +1656,12 @@ func mkIngestWithConfig(t *testing.T, h host.Host, cfg config.Ingest) (*Ingester
 	reg := mkRegistry(t)
 	core := mkIndexer(t, true)
 	indexCounts := counter.NewIndexCounts(store)
-	ing, err := NewIngester(cfg, h, core, reg, store, WithIndexCounts(indexCounts))
+	m, err := metrics.New(nil)
+	require.NoError(t, err)
+	sm, err := stimetrics.New()
+	require.NoError(t, err)
+
+	ing, err := NewIngester(cfg, h, core, reg, store, m, sm, WithIndexCounts(indexCounts))
 	require.NoError(t, err)
 	return ing, core, reg, indexCounts
 }
