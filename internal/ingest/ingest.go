@@ -90,7 +90,6 @@ type workerAssignment struct {
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
-	dsAds   datastore.Batching
 	lsys    ipld.LinkSystem
 	indexer indexer.Interface
 
@@ -160,15 +159,11 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	if err != nil {
 		return nil, err
 	}
-	if opts.dsAds == nil {
-		opts.dsAds = ds
-	}
 
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
-		dsAds:       opts.dsAds,
-		lsys:        mkLinkSystem(opts.dsAds, reg),
+		lsys:        mkLinkSystem(ds, reg),
 		indexer:     idxr,
 		batchSize:   uint32(cfg.StoreBatchSize),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
@@ -196,13 +191,28 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			return nil, fmt.Errorf("cannot create file store for car failes: %w", err)
 		}
 
-		ing.carWriter = carstore.NewWriter(ing.dsAds, fileStore)
+		ing.carWriter = carstore.NewWriter(ds, fileStore)
 
-		// Start writing existing ads to car files in background. Process
-		// canceled if workers are canceled.
-		err = ing.writeExistingAds(ing.workersCtx)
-		if err != nil {
-			log.Errorw("Cannot write head files for existing advertisement data", "err", err)
+		// Read existing ads from the ads datastore if one is configured.
+		//
+		// TODO: Stop using dsAds after ago-indexer migrated.
+		if opts.dsAds != nil {
+			carWriter := carstore.NewWriter(opts.dsAds, fileStore)
+			// Do this in background. This is safe because the dsAds datastore
+			// is not used anywhere else.
+			go func() {
+				err = ing.writeExistingAds(ing.workersCtx, carWriter)
+				if err != nil {
+					log.Errorw("Cannot writing existing advertisement data from ad datastore", "err", err)
+				}
+			}()
+		} else {
+			// Start writing existing ads to car files in background. Process
+			// canceled if workers are canceled.
+			err = ing.writeExistingAds(ing.workersCtx, ing.carWriter)
+			if err != nil {
+				log.Errorw("Cannot writing existing advertisement data", "err", err)
+			}
 		}
 	}
 
@@ -298,14 +308,14 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
 }
 
-func (ing *Ingester) writeExistingAds(ctx context.Context) error {
+func (ing *Ingester) writeExistingAds(ctx context.Context, carWriter *carstore.CarWriter) error {
 	// Write the head files for the all latest synced ads.
 	latestSyncs, err := ing.getLatestSyncs(ctx)
 	if err != nil {
 		return err
 	}
 	for publisher, adCid := range latestSyncs {
-		_, err = ing.carWriter.WriteHead(ctx, adCid, publisher)
+		_, err = carWriter.WriteHead(ctx, adCid, publisher)
 		if err != nil {
 			return err
 		}
@@ -313,7 +323,7 @@ func (ing *Ingester) writeExistingAds(ctx context.Context) error {
 	log.Infow("Wrote head files", "count", len(latestSyncs))
 
 	// Write existing advertisement CAR files in background.
-	ing.carWriter.WriteExisting(ctx)
+	carWriter.WriteExisting(ctx)
 
 	return nil
 }
@@ -676,7 +686,7 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, k
 
 	if !keep || frozen {
 		// This ad is processed, so remove it from the datastore.
-		err = ing.dsAds.Delete(ctx, datastore.NewKey(cidStr))
+		err = ing.ds.Delete(ctx, datastore.NewKey(cidStr))
 		if err != nil {
 			// Log the error, but do not return. Continue on to save the procesed ad.
 			log.Errorw("Cannot remove advertisement from datastore", "err", err)

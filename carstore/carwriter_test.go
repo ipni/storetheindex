@@ -260,9 +260,9 @@ func TestWriteExistingAdsInStore(t *testing.T) {
 
 	carw := carstore.NewWriter(dstore, fileStore)
 
-	countChan := carw.WriteExisting(ctx)
-	n := <-countChan
-	require.Equal(t, 1, n)
+	err = carw.WriteExisting(ctx)
+	require.NoError(t, err)
+
 	carName := adCid.String() + carstore.CarFileSuffix
 	var carFound bool
 	fc, ec := fileStore.List(ctx, "", false)

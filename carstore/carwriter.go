@@ -214,36 +214,43 @@ func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid) (int, error)
 }
 
 // WriteExisting iterates the datastore to find existing advertisements. It
-// then starts a goroutine to asynchronously write these and their entries to
-// CAR files, and returns. Any advertisements added to the datastore after this
-// function returns will not be handled by the goroutine. Advertisements and
-// entries that are written to CAR files are removed from the datastore.
+// then writes these and their entries to CAR files. Advertisements and entries
+// that are written to CAR files are removed from the datastore.
 //
 // An error writing to a CAR file, or context concellation, stops processing
 // the advertisements from the datastore.
-func (cw *CarWriter) WriteExisting(ctx context.Context) <-chan int {
-	done := make(chan int, 1)
-
-	adCids, err := cw.findAds(context.Background())
+func (cw *CarWriter) WriteExisting(ctx context.Context) error {
+	var q query.Query
+	results, err := cw.dstore.Query(ctx, q)
 	if err != nil {
-		log.Errorw("Error loading existing advertisements from datastore", "err", err)
-		close(done)
-		return done
+		return err
 	}
+	defer results.Close()
 
-	if len(adCids) == 0 {
-		log.Infow("Did not find existing advertisements to write to CAR files")
-		close(done)
-		return done
-	}
+	var count int
+	for result := range results.Next() {
+		if result.Error != nil {
+			return fmt.Errorf("cannot read query result from datastore: %w", result.Error)
+		}
+		ent := result.Entry
+		key := ent.Key[1:]
 
-	go func() {
-		log.Infow("Writing existing advertisements from datastore to CAR files", "count", len(adCids))
-		var count int
-		for _, adCid := range adCids {
-			if ctx.Err() != nil {
-				break
-			}
+		// Not a CID if it contains "/".
+		if strings.Contains(key, "/") {
+			continue
+		}
+		if len(ent.Value) == 0 {
+			continue
+		}
+		adCid, err := cid.Decode(key)
+		if err != nil {
+			continue
+		}
+		node, err := decodeIPLDNode(bytes.NewBuffer(ent.Value), adCid.Prefix().Codec, schema.AdvertisementPrototype)
+		if err != nil {
+			continue
+		}
+		if isAdvertisement(node) {
 			_, err = cw.Write(ctx, adCid, false)
 			if err != nil {
 				log.Errorw("Cannot write advertisement to CAR file", "err", err)
@@ -257,12 +264,10 @@ func (cw *CarWriter) WriteExisting(ctx context.Context) <-chan int {
 			}
 			count++
 		}
-		log.Infof("Wrote %d of %d advertisements from datastore to CAR files", count, len(adCids))
-		done <- count
-		close(done)
-	}()
+	}
+	log.Infow("Wrote advertisements from datastore to CAR files", "count", count)
 
-	return done
+	return nil
 }
 
 func (cw *CarWriter) WriteHead(ctx context.Context, adCid cid.Cid, publisher peer.ID) (*filestore.File, error) {
@@ -356,45 +361,6 @@ func (cw *CarWriter) removeAdData(delCids []cid.Cid) error {
 	}
 
 	return nil
-}
-
-func (cw *CarWriter) findAds(ctx context.Context) ([]cid.Cid, error) {
-	var q query.Query
-	results, err := cw.dstore.Query(ctx, q)
-	if err != nil {
-		return nil, err
-	}
-	defer results.Close()
-
-	var adCids []cid.Cid
-	for result := range results.Next() {
-		if result.Error != nil {
-			return nil, fmt.Errorf("cannot read query result from datastore: %w", result.Error)
-		}
-		ent := result.Entry
-		key := ent.Key[1:]
-
-		// Not a CID if it contains "/".
-		if strings.Contains(key, "/") {
-			continue
-		}
-		if len(ent.Value) == 0 {
-			continue
-		}
-		adCid, err := cid.Decode(key)
-		if err != nil {
-			continue
-		}
-		node, err := decodeIPLDNode(bytes.NewBuffer(ent.Value), adCid.Prefix().Codec, schema.AdvertisementPrototype)
-		if err != nil {
-			continue
-		}
-		if isAdvertisement(node) {
-			adCids = append(adCids, adCid)
-		}
-	}
-
-	return adCids, nil
 }
 
 func decodeAd(data []byte, c cid.Cid) (schema.Advertisement, error) {

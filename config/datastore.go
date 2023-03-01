@@ -6,6 +6,8 @@ type Datastore struct {
 	// absolute path then the location is relative to the indexer repo
 	// directory.
 	Dir string
+	// TODO: Remove after ago-indexer migrated.
+	//
 	// DirAdvertisements specifies to keep advertisements in a separate
 	// datastore directory, using a separate datastore instance. If this is not
 	// set or is set to the same value as Dir, then the same datastore instance
