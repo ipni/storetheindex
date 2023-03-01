@@ -196,11 +196,14 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			return nil, fmt.Errorf("cannot create file store for car failes: %w", err)
 		}
 
-		ing.carWriter = carstore.NewWriter(ds, fileStore)
+		ing.carWriter = carstore.NewWriter(ing.dsAds, fileStore)
 
 		// Start writing existing ads to car files in background. Process
 		// canceled if workers are canceled.
-		ing.writeExistingAds(ing.workersCtx)
+		err = ing.writeExistingAds(ing.workersCtx)
+		if err != nil {
+			log.Errorw("Cannot write head files for existing advertisement data", "err", err)
+		}
 	}
 
 	ing.rateApply, ing.rateBurst, ing.rateLimit, err = configRateLimit(cfg.RateLimit)
@@ -296,9 +299,6 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 }
 
 func (ing *Ingester) writeExistingAds(ctx context.Context) error {
-	// Write existing advertisement CAR files in background.
-	ing.carWriter.WriteExisting(ctx)
-
 	// Write the head files for the all latest synced ads.
 	latestSyncs, err := ing.getLatestSyncs(ctx)
 	if err != nil {
@@ -311,6 +311,9 @@ func (ing *Ingester) writeExistingAds(ctx context.Context) error {
 		}
 	}
 	log.Infow("Wrote head files", "count", len(latestSyncs))
+
+	// Write existing advertisement CAR files in background.
+	ing.carWriter.WriteExisting(ctx)
 
 	return nil
 }
@@ -1093,7 +1096,9 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		}
 	}
 
-	log.Infow("Running worker on ad stack", "headAdCid", assignment.adInfos[0].cid, "publisher", assignment.publisher, "numAdsToProcess", splitAtIndex)
+	log := log.With("publisher", assignment.publisher)
+
+	log.Infow("Running worker on ad stack", "headAdCid", assignment.adInfos[0].cid, "numAdsToProcess", splitAtIndex)
 	var count int
 	for i := splitAtIndex - 1; i >= 0; i-- {
 		// Note that iteration proceeds backwards here. Earliest to newest.
@@ -1119,7 +1124,6 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			skips = skips[:len(skips)-1]
 			log.Infow("Skipping advertisement with deleted context",
 				"adCid", ai.cid,
-				"publisher", assignment.publisher,
 				"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
 
 			keep := ing.carWriter != nil
@@ -1152,7 +1156,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		}
 
 		var entsCid string
-		if ai.ad.Entries == schema.NoEntries {
+		if ai.ad.Entries == nil || ai.ad.Entries == schema.NoEntries {
 			entsCid = "NoEntries"
 		} else if frozen {
 			entsCid = "N/A frozen"
@@ -1164,7 +1168,6 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		log.Infow("Processing advertisement",
 			"adCid", ai.cid,
 			"entriesCid", entsCid,
-			"publisher", assignment.publisher,
 			"progress", fmt.Sprintf("%d of %d", count, splitAtIndex),
 			"lag", lag)
 
@@ -1194,7 +1197,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		}
 
 		if err != nil {
-			log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "publisher", assignment.provider, "err", err, "adsLeftToProcess", i+1)
+			log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err, "adsLeftToProcess", i+1)
 			// Tell anyone waiting that the sync finished for this head because
 			// of error.  TODO(mm) would be better to propagate the error.
 			ing.inEvents <- adProcessedEvent{
