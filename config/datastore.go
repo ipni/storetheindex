@@ -6,12 +6,6 @@ type Datastore struct {
 	// absolute path then the location is relative to the indexer repo
 	// directory.
 	Dir string
-	// DirAdvertisements specifies to keep advertisements in a separate
-	// datastore directory, using a separate datastore instance. If this is not
-	// set or is set to the same value as Dir, then the same datastore instance
-	// is used to store advertisements. If this is not an absolute path then
-	// the location is relative to the indexer repo directory.
-	DirAdvertisements string
 	// Type is the type of datastore.
 	Type string
 }

@@ -107,14 +107,11 @@ func daemonAction(cctx *cli.Context) error {
 	log.Info("Valuestore initialized")
 
 	// Create datastore
-	dstore, dstoreAds, err := createDatastore(cfg.Datastore)
+	dstore, err := createDatastore(cfg.Datastore)
 	if err != nil {
 		return err
 	}
 	defer dstore.Close()
-	if dstoreAds != nil {
-		defer dstoreAds.Close()
-	}
 
 	if cfg.Indexer.UnfreezeOnStart {
 		unfrozen, err := registry.Unfreeze(cctx.Context, vsDir, cfg.Indexer.FreezeAtPercent, dstore)
@@ -242,7 +239,7 @@ func daemonAction(cctx *cli.Context) error {
 
 		// Initialize ingester.
 		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore,
-			ingest.WithAdsDatastore(dstoreAds), ingest.WithIndexCounts(indexCounts))
+			ingest.WithIndexCounts(indexCounts))
 		if err != nil {
 			return err
 		}
@@ -719,41 +716,16 @@ func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p
 	return peeringService, nil
 }
 
-func createDatastore(cfg config.Datastore) (datastore.Batching, datastore.Batching, error) {
+func createDatastore(cfg config.Datastore) (datastore.Batching, error) {
 	if cfg.Type != "levelds" {
-		return nil, nil, fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Type)
+		return nil, fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Type)
 	}
 	dataStorePath, err := config.Path("", cfg.Dir)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	err = fsutil.DirWritable(dataStorePath)
-	if err != nil {
-		return nil, nil, err
+	if err = fsutil.DirWritable(dataStorePath); err != nil {
+		return nil, err
 	}
-	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	if cfg.DirAdvertisements == "" || cfg.DirAdvertisements == cfg.Dir {
-		return dstore, nil, nil
-	}
-
-	dsAdsPath, err := config.Path("", cfg.DirAdvertisements)
-	if err != nil {
-		dstore.Close()
-		return nil, nil, err
-	}
-	err = fsutil.DirWritable(dsAdsPath)
-	if err != nil {
-		dstore.Close()
-		return nil, nil, err
-	}
-	dstoreAds, err := leveldb.NewDatastore(dsAdsPath, nil)
-	if err != nil {
-		dstore.Close()
-		return nil, nil, err
-	}
-
-	return dstore, dstoreAds, nil
+	return leveldb.NewDatastore(dataStorePath, nil)
 }

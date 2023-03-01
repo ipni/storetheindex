@@ -104,7 +104,6 @@ type workerAssignment struct {
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
-	dsAds   datastore.Batching
 	lsys    ipld.LinkSystem
 	indexer indexer.Interface
 
@@ -173,9 +172,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	if err != nil {
 		return nil, err
 	}
-	if opts.dsAds == nil {
-		opts.dsAds = ds
-	}
 
 	if cfg.IngestWorkerCount == 0 {
 		return nil, errors.New("ingester worker count must be > 0")
@@ -184,8 +180,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
-		dsAds:       opts.dsAds,
-		lsys:        mkLinkSystem(opts.dsAds, reg),
+		lsys:        mkLinkSystem(ds, reg),
 		indexer:     idxr,
 		batchSize:   uint32(cfg.StoreBatchSize),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
@@ -207,7 +202,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 
-	ing.mirror, err = newMirror(cfg.AdvertisementMirror, ing.dsAds)
+	ing.mirror, err = newMirror(cfg.AdvertisementMirror, ds)
 	if err != nil {
 		return nil, err
 	}
@@ -634,7 +629,7 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, k
 
 	if !keep || frozen {
 		// This ad is processed, so remove it from the datastore.
-		err = ing.dsAds.Delete(ctx, datastore.NewKey(cidStr))
+		err = ing.ds.Delete(ctx, datastore.NewKey(cidStr))
 		if err != nil {
 			// Log the error, but do not return. Continue on to save the procesed ad.
 			log.Errorw("Cannot remove advertisement from datastore", "err", err)

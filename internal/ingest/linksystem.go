@@ -411,7 +411,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	if !ing.mirror.canWrite() {
 		defer func() {
 			for _, c := range hamtCids {
-				err := ing.dsAds.Delete(ctx, datastore.NewKey(c.String()))
+				err := ing.ds.Delete(ctx, datastore.NewKey(c.String()))
 				if err != nil {
 					log.Errorw("Error deleting HAMT cid from datastore", "cid", c, "err", err)
 				}
@@ -625,7 +625,7 @@ func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertiseme
 	err := ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
 	if !ing.mirror.canWrite() {
 		// Done processing entries chunk, so remove from datastore.
-		if err := ing.dsAds.Delete(ctx, datastore.NewKey(entryChunkCid.String())); err != nil {
+		if err := ing.ds.Delete(ctx, datastore.NewKey(entryChunkCid.String())); err != nil {
 			log.Errorw("Error deleting index from datastore", "err", err)
 		}
 	}
@@ -728,7 +728,7 @@ func (ing *Ingester) loadHamt(c cid.Cid) (*hamt.Node, error) {
 
 func (ing *Ingester) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Node, error) {
 	key := datastore.NewKey(c.String())
-	val, err := ing.dsAds.Get(context.Background(), key)
+	val, err := ing.ds.Get(context.Background(), key)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch the node from datastore: %w", err)
 	}
