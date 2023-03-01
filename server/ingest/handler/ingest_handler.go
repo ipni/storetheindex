@@ -34,19 +34,6 @@ func NewIngestHandler(indexer indexer.Interface, ingester *ingest.Ingester, regi
 	}
 }
 
-func (h *IngestHandler) DiscoverProvider(data []byte) error {
-	discoReq, err := model.ReadDiscoverRequest(data)
-	if err != nil {
-		return fmt.Errorf("connot read discover request: %s", err)
-	}
-
-	if err = h.registry.CheckSequence(discoReq.ProviderID, discoReq.Seq); err != nil {
-		return err
-	}
-
-	return h.registry.Discover(discoReq.ProviderID, discoReq.DiscoveryAddr, false)
-}
-
 func (h *IngestHandler) RegisterProvider(ctx context.Context, data []byte) error {
 	peerRec, err := model.ReadRegisterRequest(data)
 	if err != nil {

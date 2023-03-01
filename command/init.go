@@ -162,11 +162,6 @@ func initAction(cctx *cli.Context) error {
 		cfg.Addresses.P2PAddr = p2pAddr
 	}
 
-	lotusGateway := cctx.String("lotus-gateway")
-	if lotusGateway != "" {
-		cfg.Discovery.LotusGateway = lotusGateway
-	}
-
 	noBootstrap := cctx.Bool("no-bootstrap")
 	if noBootstrap {
 		cfg.Bootstrap.Peers = []string{}

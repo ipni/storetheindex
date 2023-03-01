@@ -3,7 +3,6 @@ package registry
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,17 +14,12 @@ import (
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/ipni/storetheindex/api/v0/finder/model"
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/internal/registry/discovery"
 	"github.com/ipni/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 )
-
-type mockDiscoverer struct {
-	discoverRsp *discovery.Discovered
-}
 
 const (
 	exceptID   = "12D3KooWK7CTS7cyWi51PeNE3cTjS2F2kDCZaQVU4A5xBmb9J1do"
@@ -48,46 +42,14 @@ var discoveryCfg = config.Discovery{
 		Publish:       false,
 		PublishExcept: []string{publisherID},
 	},
-	PollInterval:   config.Duration(time.Minute),
-	RediscoverWait: config.Duration(time.Minute),
+	PollInterval: config.Duration(time.Minute),
 }
 
-func newMockDiscoverer(t *testing.T, providerID string) *mockDiscoverer {
-	peerID, err := peer.Decode(providerID)
-	if err != nil {
-		t.Fatal("bad provider ID:", err)
-	}
-
-	maddr, err := multiaddr.NewMultiaddr(minerAddr)
-	if err != nil {
-		t.Fatal("bad miner address:", err)
-	}
-
-	return &mockDiscoverer{
-		discoverRsp: &discovery.Discovered{
-			AddrInfo: peer.AddrInfo{
-				ID:    peerID,
-				Addrs: []multiaddr.Multiaddr{maddr},
-			},
-			Type: discovery.MinerType,
-		},
-	}
-}
-
-func (m *mockDiscoverer) Discover(ctx context.Context, peerID peer.ID, filecoinAddr string) (*discovery.Discovered, error) {
-	if filecoinAddr == "bad1234" {
-		return nil, errors.New("unknown miner")
-	}
-
-	return m.discoverRsp, nil
-}
-
-func TestNewRegistryDiscovery(t *testing.T) {
-	mockDiscoverer := newMockDiscoverer(t, exceptID)
+func TestUpdateNewProvider(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	r, err := New(ctx, discoveryCfg, nil, WithDiscoverer(mockDiscoverer))
+	r, err := New(ctx, discoveryCfg, nil)
 	require.NoError(t, err)
 	t.Log("created new registry")
 
@@ -119,85 +81,8 @@ func TestNewRegistryDiscovery(t *testing.T) {
 	r.Close()
 }
 
-func TestDiscoveryAllowed(t *testing.T) {
-	t.Skip("need to investigate intermittent failure")
-	mockDiscoverer := newMockDiscoverer(t, exceptID)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	r, err := New(ctx, discoveryCfg, nil, WithDiscoverer(mockDiscoverer))
-	require.NoError(t, err)
-	t.Cleanup(func() { r.Close() })
-	t.Log("created new registry")
-
-	peerID, err := peer.Decode(exceptID)
-	require.NoError(t, err)
-
-	err = r.Discover(peerID, minerDiscoAddr, true)
-	require.NoError(t, err)
-	t.Log("discovered mock miner", minerDiscoAddr)
-
-	info, allowed := r.ProviderInfo(peerID)
-	require.NotNil(t, info)
-	require.True(t, allowed)
-	t.Log("got provider info for miner")
-
-	require.Equal(t, info.AddrInfo.ID, peerID, "did not get correct porvider id")
-
-	peerID, err = peer.Decode(limitedID)
-	require.NoError(t, err)
-	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/3002")
-	require.NoError(t, err)
-	provider := peer.AddrInfo{
-		ID:    peerID,
-		Addrs: []multiaddr.Multiaddr{maddr},
-	}
-	publisher := peer.AddrInfo{}
-
-	err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
-	require.NoError(t, err)
-
-	require.True(t, r.IsRegistered(peerID), "peer is not registered")
-
-	infos := r.AllProviderInfo()
-	require.Equal(t, 2, len(infos))
-
-	r.cleanup()
-	r.actions <- func() { r.rediscoverWait = 0 }
-	require.NotZero(t, len(r.discoverTimes), "should not have cleaned up discovery times")
-
-	r.cleanup()
-	r.actions <- func() {}
-	require.Zero(t, len(r.discoverTimes), "should have cleaned up discovery times")
-}
-
-func TestDiscoveryBlocked(t *testing.T) {
-	mockDiscoverer := newMockDiscoverer(t, exceptID)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	peerID, err := peer.Decode(exceptID)
-	require.NoError(t, err)
-
-	r, err := New(ctx, discoveryCfg, nil, WithDiscoverer(mockDiscoverer))
-	require.NoError(t, err)
-	defer r.Close()
-	t.Log("created new registry")
-
-	r.BlockPeer(peerID)
-
-	err = r.Discover(peerID, minerDiscoAddr, true)
-	if !errors.Is(err, ErrNotAllowed) {
-		t.Fatal("expected error:", ErrNotAllowed, "got:", err)
-	}
-
-	info, _ := r.ProviderInfo(peerID)
-	require.Nil(t, info, "should not have found provider info for miner")
-}
-
 func TestDatastore(t *testing.T) {
 	dataStorePath := t.TempDir()
-	mockDiscoverer := newMockDiscoverer(t, exceptID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -261,7 +146,7 @@ func TestDatastore(t *testing.T) {
 	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
 
-	r, err := New(ctx, discoveryCfg, dstore, WithDiscoverer(mockDiscoverer))
+	r, err := New(ctx, discoveryCfg, dstore)
 	require.NoError(t, err)
 	t.Log("created new registry with datastore")
 
@@ -291,7 +176,7 @@ func TestDatastore(t *testing.T) {
 	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
 
-	r, err = New(ctx, discoveryCfg, dstore, WithDiscoverer(mockDiscoverer))
+	r, err = New(ctx, discoveryCfg, dstore)
 	require.NoError(t, err)
 	t.Log("re-created new registry with datastore")
 
@@ -301,9 +186,7 @@ func TestDatastore(t *testing.T) {
 	for _, provInfo := range infos {
 		switch provInfo.AddrInfo.ID {
 		case provider1.ID:
-			if provInfo.Publisher.Validate() == nil {
-				t.Fatal("provider1 should not have valid publisher")
-			}
+			require.NotNil(t, provInfo.Publisher.Validate())
 		case provider2.ID:
 			require.Equal(t, provInfo.Publisher, publisher.ID, "info2 has wrong publisher ID")
 			require.NotNil(t, provInfo.PublisherAddr, "info2 missing publisher address")
@@ -341,7 +224,7 @@ func TestDatastore(t *testing.T) {
 	discoveryCfg.UseAssigner = true
 	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
-	r, err = New(ctx, discoveryCfg, dstore, WithDiscoverer(mockDiscoverer))
+	r, err = New(ctx, discoveryCfg, dstore)
 	require.NoError(t, err)
 
 	// There should not be any assigned yet.
@@ -386,7 +269,6 @@ func TestAllowed(t *testing.T) {
 			Allow:   true,
 			Publish: true,
 		},
-		RediscoverWait: config.Duration(time.Minute),
 	}
 
 	ctx := context.Background()
@@ -452,9 +334,7 @@ func TestAllowed(t *testing.T) {
 
 	require.NoError(t, r.SetPolicy(config.Policy{}))
 
-	if !r.policy.NoneAllowed() {
-		t.Error("expected inaccessible policy")
-	}
+	require.True(t, r.policy.NoneAllowed(), "expected inaccessible policy")
 
 	err = r.SetPolicy(config.Policy{
 		Allow:  true,
@@ -471,7 +351,6 @@ func TestPollProvider(t *testing.T) {
 			Allow:   true,
 			Publish: true,
 		},
-		RediscoverWait: config.Duration(time.Minute),
 	}
 
 	ctx := context.Background()
@@ -579,7 +458,6 @@ func TestPollProviderOverrides(t *testing.T) {
 			Allow:   true,
 			Publish: true,
 		},
-		RediscoverWait: config.Duration(time.Minute),
 	}
 
 	ctx := context.Background()
@@ -604,9 +482,7 @@ func TestPollProviderOverrides(t *testing.T) {
 		ID: pubID,
 	}
 	err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
-	if err != nil {
-		t.Fatal("failed to register directly:", err)
-	}
+	require.NoError(t, err)
 
 	poll := polling{
 		interval:   2 * time.Hour,

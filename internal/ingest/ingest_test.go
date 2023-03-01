@@ -1591,8 +1591,7 @@ func mkRegistry(t *testing.T) *registry.Registry {
 			Allow:   true,
 			Publish: true,
 		},
-		PollInterval:   config.Duration(time.Minute),
-		RediscoverWait: config.Duration(time.Minute),
+		PollInterval: config.Duration(time.Minute),
 	}
 	reg, err := registry.New(context.Background(), discoveryCfg, nil)
 	if err != nil {

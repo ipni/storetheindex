@@ -56,8 +56,7 @@ func InitRegistry(t *testing.T) *registry.Registry {
 // InitRegistry initializes a new registry
 func InitRegistryWithRestrictivePolicy(t *testing.T, restrictive bool) *registry.Registry {
 	var discoveryCfg = config.Discovery{
-		PollInterval:   config.Duration(time.Minute),
-		RediscoverWait: config.Duration(time.Minute),
+		PollInterval: config.Duration(time.Minute),
 	}
 	if restrictive {
 		discoveryCfg.Policy = config.Policy{

@@ -1,24 +1,17 @@
-package lotus
+package spinfo
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/ipfs/go-cid"
-	"github.com/ipni/storetheindex/api/v0"
-	"github.com/ipni/storetheindex/internal/registry/discovery"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	jrpc "github.com/ybbus/jsonrpc/v2"
 )
-
-type Discoverer struct {
-	gatewayURL string
-}
 
 type ExpTipSet struct {
 	Cids []cid.Cid
@@ -42,64 +35,40 @@ type MinerInfo struct {
 	ConsensusFaultElapsed      int64
 }
 
-// New creates a new lotus Discoverer
-func NewDiscoverer(gateway string) (*Discoverer, error) {
+func SPAddrInfo(ctx context.Context, gateway, spID string) (peer.AddrInfo, error) {
 	if gateway == "" {
-		return nil, errors.New("empty gateway")
+		return peer.AddrInfo{}, errors.New("empty gateway")
 	}
 
-	u := url.URL{
+	// Get SP info from lotus
+	spAddr, err := address.NewFromString(spID)
+	if err != nil {
+		return peer.AddrInfo{}, fmt.Errorf("invalid storage provider id: %w", err)
+	}
+
+	gwURL := url.URL{
 		Host:   gateway,
 		Scheme: "https",
 		Path:   "/rpc/v1",
 	}
-
-	return &Discoverer{
-		gatewayURL: u.String(),
-	}, nil
-}
-
-func (d *Discoverer) Discover(ctx context.Context, peerID peer.ID, minerAddr string) (*discovery.Discovered, error) {
-	// Get miner info from lotus
-	minerAddress, err := address.NewFromString(minerAddr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid provider filecoin address: %s", err)
-	}
-
-	jrpcClient := jrpc.NewClient(d.gatewayURL)
+	jrpcClient := jrpc.NewClient(gwURL.String())
 
 	var ets ExpTipSet
 	err = jrpcClient.CallFor(&ets, "Filecoin.ChainHead")
 	if err != nil {
-		return nil, v0.NewError(err, http.StatusBadGateway)
+		return peer.AddrInfo{}, fmt.Errorf("cannot get chain head from gateway: %w", err)
 	}
 
 	var minerInfo MinerInfo
-	err = jrpcClient.CallFor(&minerInfo, "Filecoin.StateMinerInfo", minerAddress, ets.Cids)
+	err = jrpcClient.CallFor(&minerInfo, "Filecoin.StateMinerInfo", spAddr, ets.Cids)
 	if err != nil {
-		return nil, v0.NewError(err, http.StatusBadGateway)
+		return peer.AddrInfo{}, fmt.Errorf("cannot get miner infor from gateway: %w", err)
 	}
 
 	if minerInfo.PeerId == nil {
-		return nil, errors.New("no peer id for miner")
-	}
-	if *minerInfo.PeerId != peerID {
-		return nil, errors.New("provider id mismatch")
+		return peer.AddrInfo{}, errors.New("no peer id for miner")
 	}
 
-	// Get miner peer ID and addresses from miner info
-	addrInfo, err := d.getMinerPeerAddr(minerInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	return &discovery.Discovered{
-		AddrInfo: addrInfo,
-		Type:     discovery.MinerType,
-	}, nil
-}
-
-func (d *Discoverer) getMinerPeerAddr(minerInfo MinerInfo) (peer.AddrInfo, error) {
 	multiaddrs := make([]multiaddr.Multiaddr, 0, len(minerInfo.Multiaddrs))
 	for _, a := range minerInfo.Multiaddrs {
 		maddr, err := multiaddr.NewMultiaddrBytes(a)
