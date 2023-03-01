@@ -69,6 +69,12 @@
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
+    "CarMirrorDestination": {                                                                                                            
+      "Type": "s3",
+      "S3": {
+        "BucketName": "dev-sti-adstore"
+      }
+    },
     "EntriesDepthLimit": 65536,
     "HttpSyncRetryMax": 4,
     "HttpSyncRetryWaitMax": "30s",
