@@ -53,7 +53,7 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   custom_error_response {
     error_code            = 404
-    error_caching_min_ttl = 300
+    error_caching_min_ttl = 5
   }
 
   default_cache_behavior {
