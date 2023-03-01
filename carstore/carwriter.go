@@ -232,12 +232,13 @@ func (cw *CarWriter) WriteExisting(ctx context.Context) <-chan int {
 	}
 
 	if len(adCids) == 0 {
+		log.Infow("Did not find existing advertisements to write to CAR files")
 		close(done)
 		return done
 	}
 
 	go func() {
-		log.Infof("Writing %d advertisements from datastore to CAR files", len(adCids))
+		log.Infow("Writing existing advertisements from datastore to CAR files", "count", len(adCids))
 		var count int
 		for _, adCid := range adCids {
 			if ctx.Err() != nil {
