@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -24,6 +26,7 @@ import (
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
 	schema "github.com/ipni/storetheindex/api/v0/ingest/schema"
+	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/dagsync"
 	"github.com/ipni/storetheindex/dagsync/dtsync"
@@ -282,11 +285,6 @@ func TestFirstAdMissingAddrs(t *testing.T) {
 	require.NoError(t, err)
 	cAd, err := schema.UnwrapAdvertisement(cAdNode)
 	require.NoError(t, err)
-
-	// Chain of 3 ads, A<-B<-C, here head is C.
-	allAds := typehelpers.AllAds(t, cAd, te.publisherLinkSys)
-	rootAd := allAds[len(allAds)-1]
-	rootAd.Addresses = nil
 
 	ctx := context.Background()
 	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
@@ -1606,6 +1604,109 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 	// i,e, C->B->A through publisher.UpdateRoot, and D through explicit announce, all the entries
 	// should get indexed eventually.
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+}
+
+func TestGetEntryDataFromCar(t *testing.T) {
+	tempDir := t.TempDir()
+	cfgWithMirror := defaultTestIngestConfig
+	cfgWithMirror.AdvertisementMirror.Read = true
+	cfgWithMirror.AdvertisementMirror.Write = true
+	cfgWithMirror.AdvertisementMirror.Storage.Type = "local"
+	cfgWithMirror.AdvertisementMirror.Storage.Local.BasePath = tempDir
+
+	te := setupTestEnv(t, true, func(optCfg *testEnvOpts) {
+		optCfg.ingestConfig = &cfgWithMirror
+	})
+
+	cCid := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 5, EntriesPerChunk: 10, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 5, EntriesPerChunk: 10, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 5, EntriesPerChunk: 10, Seed: 2},
+		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	cAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	cAd, err := schema.UnwrapAdvertisement(cAdNode)
+	require.NoError(t, err)
+
+	// Chain of 3 ads, A<-B<-C, here head is C.
+	allAds := typehelpers.AllAds(t, cAd, te.publisherLinkSys)
+	rootAd := allAds[len(allAds)-1]
+	rootAd.Addresses = nil
+
+	ctx := context.Background()
+	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
+	require.NoError(t, err)
+
+	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+
+	allMhs := typehelpers.AllMultihashesFromAdChain(t, cAd, te.publisherLinkSys)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+
+	dir, err := os.Open(tempDir)
+	require.NoError(t, err)
+	names, err := dir.Readdirnames(-1)
+	dir.Close()
+	require.NoError(t, err)
+	var carCount, headCount int
+	carSuffix := carstore.CarFileSuffix
+	if cfgWithMirror.AdvertisementMirror.Compress == carstore.Gzip {
+		carSuffix += carstore.GzipFileSuffix
+	}
+	for _, name := range names {
+		if strings.HasSuffix(name, carSuffix) {
+			carCount++
+		} else if strings.HasSuffix(name, carstore.HeadFileSuffix) {
+			headCount++
+		}
+	}
+	require.Equal(t, 3, carCount)
+	require.Equal(t, 1, headCount)
+
+	// Read and read CAR file.
+	adBlock, err := te.ingester.mirror.read(ctx, cCid.(cidlink.Link).Cid, false)
+	require.NoError(t, err)
+	require.NotZero(t, len(adBlock.Data))
+
+	entriesCid := cAd.Entries.(cidlink.Link).Cid
+
+	// Check that the data is a valid advertisement.
+	adv, err := adBlock.Advertisement()
+	require.NoError(t, err)
+	require.Equal(t, entriesCid, adv.Entries.(cidlink.Link).Cid)
+
+	// Check the first entries block looks correct.
+	require.NotNil(t, adBlock.Entries)
+	entBlock := <-adBlock.Entries
+	require.NoError(t, entBlock.Err)
+	require.Equal(t, entriesCid, entBlock.Cid)
+	require.NotZero(t, len(entBlock.Data))
+
+	// Check that the data is a valid EntryChunk.
+	chunk, err := entBlock.EntryChunk()
+	require.NoError(t, err)
+	require.Equal(t, 10, len(chunk.Entries))
+
+	// Check for expected number of entries blocks.
+	count := 1
+	for entBlock = range adBlock.Entries {
+		require.NoError(t, entBlock.Err)
+		require.NotZero(t, len(entBlock.Data))
+		require.True(t, entBlock.Cid.Defined())
+		count++
+	}
+	require.Equal(t, 5, count)
+
+	// Do a resync and see that multihashes are pulled from CAR files.
+	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, true)
+	require.NoError(t, err)
+
+	allMhs = typehelpers.AllMultihashesFromAdChain(t, cAd, te.publisherLinkSys)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+
+	require.Equal(t, 3*5*10, int(te.ingester.MultihashesFromMirror()))
 }
 
 // Make new indexer engine

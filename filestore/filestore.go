@@ -26,9 +26,11 @@ type File struct {
 type Interface interface {
 	// Delete removes the specified file from storage.
 	Delete(ctx context.Context, path string) error
-	// Get retrieves the specified file from storage.
+	// Get retrieves the specified file from storage. Returns fs.ErrNotExist if
+	// file is not count.
 	Get(ctx context.Context, path string) (*File, io.ReadCloser, error)
-	// Head gets information about the specified file in storage.
+	// Head gets information about the specified file in storage. Returns
+	// fs.ErrNotExist if file is not count.
 	Head(ctx context.Context, path string) (*File, error)
 	// List returns a series of *File on the first channel returned. If an
 	// error occurs, the first channel is closed and the error is returned on

@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"io"
+	"io/fs"
 	"math/rand"
 	"testing"
 
@@ -170,6 +171,10 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	require.NoError(t, err)
 
 	fileName := adCid.String() + carstore.CarFileSuffix
+	if testCompress == carstore.Gzip {
+		fileName += carstore.GzipFileSuffix
+	}
+
 	_, err = fileStore.Put(ctx, fileName, nil)
 	require.NoError(t, err)
 
@@ -177,7 +182,8 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	require.NoError(t, err)
 
 	carInfo, err := carw.Write(ctx, adCid, false)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, fs.ErrExist)
+	require.Zero(t, carInfo.Size)
 
 	// Check that ad car file was not written to.
 	fileInfo, err := fileStore.Head(ctx, carInfo.Path)

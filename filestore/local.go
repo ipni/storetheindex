@@ -43,7 +43,7 @@ func (l *Local) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, 
 	f, err := os.Open(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil, ErrNotFound
+			return nil, nil, fs.ErrNotExist
 		}
 		return nil, nil, err
 	}
@@ -56,7 +56,7 @@ func (l *Local) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, 
 
 	if fi.IsDir() {
 		f.Close()
-		return nil, nil, ErrNotFound
+		return nil, nil, fs.ErrNotExist
 	}
 
 	return &File{
@@ -71,13 +71,13 @@ func (l *Local) Head(ctx context.Context, relPath string) (*File, error) {
 	fi, err := os.Stat(absPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, ErrNotFound
+			return nil, fs.ErrNotExist
 		}
 		return nil, err
 	}
 
 	if fi.IsDir() {
-		return nil, ErrNotFound
+		return nil, fs.ErrNotExist
 	}
 
 	return &File{

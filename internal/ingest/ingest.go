@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"path"
 	"sync"
@@ -22,10 +23,8 @@ import (
 	indexer "github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
-	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/dagsync"
-	"github.com/ipni/storetheindex/filestore"
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
@@ -162,8 +161,9 @@ type Ingester struct {
 	// Multihash minimum length
 	minKeyLen int
 
-	indexCounts *counter.IndexCounts
-	carWriter   *carstore.CarWriter
+	indexCounts   *counter.IndexCounts
+	mirror        adMirror
+	mhsFromMirror uint64
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
@@ -207,16 +207,9 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 
-	if cfg.CarMirrorDestination.Type != "" {
-		fileStore, err := makeFilestore(cfg.CarMirrorDestination)
-		if err != nil {
-			return nil, fmt.Errorf("cannot create file store for car failes: %w", err)
-		}
-
-		ing.carWriter, err = carstore.NewWriter(ing.dsAds, fileStore, carstore.WithCompress(cfg.CarMirrorDestination.Compress))
-		if err != nil {
-			return nil, fmt.Errorf("cannot create car file writer: %w", err)
-		}
+	ing.mirror, err = newMirror(cfg.AdvertisementMirror, ing.dsAds)
+	if err != nil {
+		return nil, err
 	}
 
 	ing.rateApply, ing.rateBurst, ing.rateLimit, err = configRateLimit(cfg.RateLimit)
@@ -273,6 +266,10 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	log.Debugf("Ingester started and all hooks and linksystem registered")
 
 	return ing, nil
+}
+
+func (ing *Ingester) MultihashesFromMirror() uint64 {
+	return atomic.LoadUint64(&ing.mhsFromMirror)
 }
 
 func (ing *Ingester) generalDagsyncBlockHook(_ peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
@@ -722,7 +719,7 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 // canceling pending syncs, when Close is called.
 func (ing *Ingester) metricsUpdater() {
 	t := time.NewTimer(metricsUpdateInterval)
-
+	var prevMhsFromMirror uint64
 	for {
 		select {
 		case <-t.C:
@@ -752,6 +749,14 @@ func (ing *Ingester) metricsUpdater() {
 				stats.Record(context.Background(),
 					coremetrics.StoreSize.M(size),
 					metrics.PercentUsage.M(usage))
+			}
+
+			if ing.mirror.canRead() {
+				mhsFromMirror := ing.MultihashesFromMirror()
+				if mhsFromMirror != prevMhsFromMirror {
+					log.Infof("Multihashes from mirror: %d", mhsFromMirror)
+					prevMhsFromMirror = mhsFromMirror
+				}
 			}
 
 			t.Reset(metricsUpdateInterval)
@@ -1127,20 +1132,23 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 				"adCid", ai.cid,
 				"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
 
-			keep := ing.carWriter != nil || ing.dsAds != ing.ds
+			keep := ing.mirror.canWrite() || ing.dsAds != ing.ds
 			if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, keep); markErr != nil {
 				log.Errorw("Failed to mark ad as processed", "err", markErr)
 			}
-			if !frozen && ing.carWriter != nil {
+			if !frozen && ing.mirror.canWrite() {
 				// Write the advertisement to a CAR file, but omit the entries.
-				carInfo, err := ing.carWriter.Write(ctx, ai.cid, true)
+				carInfo, err := ing.mirror.write(ctx, ai.cid, true)
 				if err != nil {
-					// Log the error, but do not return. Continue on to save the procesed ad.
-					log.Errorw("Cannot write advertisement to CAR file", "err", err)
+					if !errors.Is(err, fs.ErrExist) {
+						// Log the error, but do not return. Continue on to save the procesed ad.
+						log.Errorw("Cannot write advertisement to CAR file", "err", err)
+					}
+					// else car file already exists
 				} else {
 					log.Infow("Wrote CAR for skipped advertisement", "path", carInfo.Path, "size", carInfo.Size)
 					// TODO: Move this when iterating latest (head) to earliest (root).
-					_, err = ing.carWriter.WriteHead(ctx, ai.cid, assignment.publisher)
+					_, err = ing.mirror.writeHead(ctx, ai.cid, assignment.publisher)
 					if err != nil {
 						log.Errorw("Cannot write publisher head", "err", err)
 					}
@@ -1210,21 +1218,23 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			return
 		}
 
-		keep := ing.carWriter != nil || ing.dsAds != ing.ds
+		keep := ing.mirror.canWrite() || ing.dsAds != ing.ds
 		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, keep); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
 
-		if !frozen && ing.carWriter != nil {
-			carInfo, err := ing.carWriter.Write(ctx, ai.cid, false)
+		if !frozen && ing.mirror.canWrite() {
+			carInfo, err := ing.mirror.write(ctx, ai.cid, false)
 			if err != nil {
-				// Log the error, but do not return. Continue on to save the procesed ad.
-				log.Errorw("Cannot write advertisement to CAR file", "err", err)
+				if !errors.Is(err, fs.ErrExist) {
+					// Log the error, but do not return. Continue on to save the procesed ad.
+					log.Errorw("Cannot write advertisement to CAR file", "err", err)
+				}
+				// else car file already exists
 			} else {
 				log.Infow("Wrote CAR for advertisement", "path", carInfo.Path, "size", carInfo.Size)
-
 				// TODO: Move this when iterating latest (head) to earliest (root).
-				_, err = ing.carWriter.WriteHead(ctx, ai.cid, assignment.publisher)
+				_, err = ing.mirror.writeHead(ctx, ai.cid, assignment.publisher)
 				if err != nil {
 					log.Errorw("Cannot write publisher head", "err", err)
 				}
@@ -1299,21 +1309,4 @@ func configRateLimit(cfgRateLimit config.RateLimit) (apply peerutil.Policy, burs
 
 	log.Info("rate limiting enabled")
 	return
-}
-
-// Create a new storage system of the configured type.
-func makeFilestore(cfg config.FileStore) (filestore.Interface, error) {
-	switch cfg.Type {
-	case "local":
-		return filestore.NewLocal(cfg.Local.BasePath)
-	case "s3":
-		return filestore.NewS3(cfg.S3.BucketName,
-			filestore.WithEndpoint(cfg.S3.Endpoint),
-			filestore.WithRegion(cfg.S3.Region),
-			filestore.WithKeys(cfg.S3.AccessKey, cfg.S3.SecretKey),
-		)
-	case "", "none":
-		return nil, nil
-	}
-	return nil, fmt.Errorf("unsupported file storage type: %s", cfg.Type)
 }

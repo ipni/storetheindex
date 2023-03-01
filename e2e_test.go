@@ -226,10 +226,14 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	cfg, err = config.Load(stiCfgPath)
 	require.NoError(t, err)
 	indexerID := cfg.Identity.PeerID
-	cfg.Ingest.CarMirrorDestination = config.FileStore{
-		Type: "local",
-		Local: config.LocalFileStore{
-			BasePath: e.dir,
+	cfg.Ingest.AdvertisementMirror = config.Mirror{
+		Compress: "gzip",
+		Write:    true,
+		Storage: config.FileStore{
+			Type: "local",
+			Local: config.LocalFileStore{
+				BasePath: e.dir,
+			},
 		},
 	}
 	cfg.Save(stiCfgPath)
