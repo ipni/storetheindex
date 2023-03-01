@@ -28,4 +28,4 @@ replicas:
 images:
   - name: caskadht
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/caskadht
-    newTag: 20230221163035-cf92b0520184317bec2044432bee26d754a28064
+    newTag: 20230228121423-58580c9970ad3a1d0e3a92e97df7599b23ca0820
