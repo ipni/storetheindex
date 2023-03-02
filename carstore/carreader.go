@@ -2,6 +2,7 @@ package carstore
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 )
 
 type CarReader struct {
+	compAlg   string
 	fileStore filestore.Interface
 }
 
@@ -52,12 +54,39 @@ func (e EntryBlock) EntryChunk() (*schema.EntryChunk, error) {
 	return chunk, nil
 }
 
+type gzipReadCloser struct {
+	r   io.ReadCloser
+	gzr *gzip.Reader
+}
+
+func (g gzipReadCloser) Read(p []byte) (n int, err error) {
+	return g.gzr.Read(p)
+}
+
+func (g gzipReadCloser) Close() error {
+	err := g.gzr.Close()
+	if err != nil {
+		g.r.Close()
+		return err
+	}
+	return g.r.Close()
+}
+
 // NewReader creates a CarReader that reads CAR files from the given filestore
 // and returns advertisements and entries.
-func NewReader(fileStore filestore.Interface) *CarReader {
-	return &CarReader{
-		fileStore: fileStore,
+func NewReader(fileStore filestore.Interface, options ...Option) (*CarReader, error) {
+	opts, err := getOpts(options)
+	if err != nil {
+		return nil, err
 	}
+	return &CarReader{
+		compAlg:   opts.compAlg,
+		fileStore: fileStore,
+	}, nil
+}
+
+func (cr *CarReader) Compression() string {
+	return cr.compAlg
 }
 
 // Read reads an advertisement CAR file, identitfied by the advertisement CID
@@ -65,20 +94,41 @@ func NewReader(fileStore filestore.Interface) *CarReader {
 // entries.
 func (cr *CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) (*AdBlock, error) {
 	carPath := adCid.String() + CarFileSuffix
+	if cr.compAlg == Gzip {
+		carPath += GzipFileSuffix
+	}
 	_, r, err := cr.fileStore.Get(ctx, carPath)
 	if err != nil {
 		return nil, err
 	}
-	cbr, err := car.NewBlockReader(r)
+
+	var rc io.ReadCloser
+	if cr.compAlg == Gzip {
+		gzr, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, err
+		}
+		rc = &gzipReadCloser{
+			r:   r,
+			gzr: gzr,
+		}
+	} else {
+		rc = r
+	}
+
+	cbr, err := car.NewBlockReader(rc)
 	if err != nil {
+		rc.Close()
 		return nil, fmt.Errorf("cannot create car blockstore: %w", err)
 	}
 	if len(cbr.Roots) == 0 || cbr.Roots[0] != adCid {
+		rc.Close()
 		return nil, errors.New("car file has wrong root")
 	}
 
 	blk, err := cbr.Next()
 	if err != nil {
+		rc.Close()
 		return nil, fmt.Errorf("cannot read advertisement data: %w", err)
 	}
 
@@ -90,11 +140,11 @@ func (cr *CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) 
 	if !skipEntries && len(cbr.Roots) > 1 {
 		entsCh := make(chan EntryBlock)
 		adBlock.Entries = entsCh
-		go readEntries(ctx, cbr, r, entsCh)
-		return &adBlock, nil
+		go readEntries(ctx, cbr, rc, entsCh)
+	} else {
+		rc.Close()
 	}
 
-	r.Close()
 	return &adBlock, nil
 }
 

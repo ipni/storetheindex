@@ -1,7 +1,9 @@
 package carstore
 
 import (
+	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -46,17 +48,27 @@ func (e WriteError) Unwrap() error {
 // advertisement signature. Such verification may be necessary when fetching
 // car files from a location that is not completely trusted.
 type CarWriter struct {
+	compAlg   string
 	dstore    datastore.Datastore
 	fileStore filestore.Interface
 }
 
 // NewWriter create a new CarWriter that reads advertisement data from the
 // given datastore and writes car files to the specified directory.
-func NewWriter(dstore datastore.Datastore, fileStore filestore.Interface) *CarWriter {
+func NewWriter(dstore datastore.Datastore, fileStore filestore.Interface, options ...Option) (*CarWriter, error) {
+	opts, err := getOpts(options)
+	if err != nil {
+		return nil, err
+	}
 	return &CarWriter{
+		compAlg:   opts.compAlg,
 		dstore:    dstore,
 		fileStore: fileStore,
-	}
+	}, nil
+}
+
+func (cw *CarWriter) Compression() string {
+	return cw.compAlg
 }
 
 // Write reads the advertisement, specified by CID, from the datastore and
@@ -78,7 +90,7 @@ func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries bool)
 
 func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Advertisement, data []byte, skipEntries bool) (*filestore.File, error) {
 	fileName := adCid.String() + CarFileSuffix
-	carTmp := filepath.Join(os.TempDir(), fileName)
+	carTmpName := filepath.Join(os.TempDir(), fileName)
 	roots := make([]cid.Cid, 1, 2)
 	roots[0] = adCid
 
@@ -97,18 +109,16 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 		return fileInfo, nil
 	}
 
-	//carStore, err := carblockstore.OpenReadWrite(carTmp, roots)
-	carFile, err := os.Create(carTmp)
+	carFile, err := os.Create(carTmpName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create car file: %w", err)
 	}
+	defer os.Remove(carTmpName)
 	defer carFile.Close()
-	defer os.Remove(carTmp)
 
-	//carStore, err := carblockstore.OpenReadWrite(carTmp, roots)
 	carStore, err := storage.NewWritable(carFile, roots)
 	if err != nil {
-		return nil, fmt.Errorf("cannot open advertisement car file: %w", err)
+		return nil, fmt.Errorf("cannot open writable car storage: %w", err)
 	}
 
 	if err = carStore.Put(ctx, adCid.KeyString(), data); err != nil {
@@ -163,9 +173,51 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 		return nil, &WriteError{err}
 	}
 
+	if cw.compAlg == Gzip {
+		fileName += GzipFileSuffix
+		gzTmpName := carTmpName + GzipFileSuffix
+		gzFile, err := os.Create(gzTmpName)
+		if err != nil {
+			return nil, &WriteError{fmt.Errorf("cannot create gzip file: %w", err)}
+		}
+		defer os.Remove(gzTmpName)
+		defer gzFile.Close()
+
+		wbuf := bufio.NewWriter(gzFile)
+		gzw := gzip.NewWriter(wbuf)
+		_, err = io.Copy(gzw, carFile)
+		if err != nil {
+			return nil, &WriteError{fmt.Errorf("cannot write gzip file: %w", err)}
+		}
+		if err = carFile.Close(); err != nil {
+			// Since data in car file has already been written, an error from close
+			// is not critical, so only log warning.
+			log.Warnw("Error closing temporary car file", "err", err, "name", carFile.Name())
+		}
+		// Close gzip writer; finish writing gzip data to buffer.
+		if err = gzw.Close(); err != nil {
+			return nil, &WriteError{fmt.Errorf("cannot close gzip writer: %w", err)}
+		}
+		// Flush buffered data to file.
+		if err = wbuf.Flush(); err != nil {
+			return nil, &WriteError{fmt.Errorf("cannot write gzip file: %w", err)}
+		}
+		_, err = gzFile.Seek(0, io.SeekStart)
+		if err != nil {
+			return nil, &WriteError{err}
+		}
+		carFile = gzFile
+	}
+
 	carInfo, err := cw.fileStore.Put(ctx, fileName, carFile)
 	if err != nil {
 		return nil, &WriteError{err}
+	}
+
+	if err = carFile.Close(); err != nil {
+		// Since data in car file has already been written, an error from close
+		// is not critical, so only log warning.
+		log.Warnw("Error closing temporary car file", "err", err, "name", carFile.Name())
 	}
 
 	cw.deleteCids(delCids)
@@ -214,39 +266,46 @@ func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid) (int, error)
 }
 
 // WriteExisting iterates the datastore to find existing advertisements. It
-// then starts a goroutine to asynchronously write these and their entries to
-// CAR files, and returns. Any advertisements added to the datastore after this
-// function returns will not be handled by the goroutine. Advertisements and
-// entries that are written to CAR files are removed from the datastore.
+// then writes these and their entries to CAR files. Advertisements and entries
+// that are written to CAR files are removed from the datastore.
 //
 // An error writing to a CAR file, or context concellation, stops processing
 // the advertisements from the datastore.
-func (cw *CarWriter) WriteExisting(ctx context.Context) <-chan int {
-	done := make(chan int, 1)
-
-	adCids, err := cw.findAds(context.Background())
+func (cw *CarWriter) WriteExisting(ctx context.Context) error {
+	var q query.Query
+	results, err := cw.dstore.Query(ctx, q)
 	if err != nil {
-		log.Errorw("Error loading existing advertisements from datastore", "err", err)
-		close(done)
-		return done
+		return err
 	}
+	defer results.Close()
 
-	if len(adCids) == 0 {
-		log.Infow("Did not find existing advertisements to write to CAR files")
-		close(done)
-		return done
-	}
+	var count int
+	for result := range results.Next() {
+		if result.Error != nil {
+			return fmt.Errorf("cannot read query result from datastore: %w", result.Error)
+		}
+		ent := result.Entry
+		key := ent.Key[1:]
 
-	go func() {
-		log.Infow("Writing existing advertisements from datastore to CAR files", "count", len(adCids))
-		var count int
-		for _, adCid := range adCids {
-			if ctx.Err() != nil {
-				break
-			}
+		// Not a CID if it contains "/".
+		if strings.Contains(key, "/") {
+			continue
+		}
+		if len(ent.Value) == 0 {
+			continue
+		}
+		adCid, err := cid.Decode(key)
+		if err != nil {
+			continue
+		}
+		node, err := decodeIPLDNode(bytes.NewBuffer(ent.Value), adCid.Prefix().Codec, schema.AdvertisementPrototype)
+		if err != nil {
+			continue
+		}
+		if isAdvertisement(node) {
 			_, err = cw.Write(ctx, adCid, false)
 			if err != nil {
-				log.Errorw("Cannot write advertisement to CAR file", "err", err)
+				log.Errorw("Cannot write saved advertisement to CAR file", "err", err, "adCid", adCid)
 				var werr *WriteError
 				if errors.As(err, &werr) {
 					// Error writing to car file; stop writing ads.
@@ -257,12 +316,10 @@ func (cw *CarWriter) WriteExisting(ctx context.Context) <-chan int {
 			}
 			count++
 		}
-		log.Infof("Wrote %d of %d advertisements from datastore to CAR files", count, len(adCids))
-		done <- count
-		close(done)
-	}()
+	}
+	log.Infow("Wrote saved advertisements from datastore to CAR files", "count", count)
 
-	return done
+	return nil
 }
 
 func (cw *CarWriter) WriteHead(ctx context.Context, adCid cid.Cid, publisher peer.ID) (*filestore.File, error) {
@@ -356,45 +413,6 @@ func (cw *CarWriter) removeAdData(delCids []cid.Cid) error {
 	}
 
 	return nil
-}
-
-func (cw *CarWriter) findAds(ctx context.Context) ([]cid.Cid, error) {
-	var q query.Query
-	results, err := cw.dstore.Query(ctx, q)
-	if err != nil {
-		return nil, err
-	}
-	defer results.Close()
-
-	var adCids []cid.Cid
-	for result := range results.Next() {
-		if result.Error != nil {
-			return nil, fmt.Errorf("cannot read query result from datastore: %w", result.Error)
-		}
-		ent := result.Entry
-		key := ent.Key[1:]
-
-		// Not a CID if it contains "/".
-		if strings.Contains(key, "/") {
-			continue
-		}
-		if len(ent.Value) == 0 {
-			continue
-		}
-		adCid, err := cid.Decode(key)
-		if err != nil {
-			continue
-		}
-		node, err := decodeIPLDNode(bytes.NewBuffer(ent.Value), adCid.Prefix().Codec, schema.AdvertisementPrototype)
-		if err != nil {
-			continue
-		}
-		if isAdvertisement(node) {
-			adCids = append(adCids, adCid)
-		}
-	}
-
-	return adCids, nil
 }
 
 func decodeAd(data []byte, c cid.Cid) (schema.Advertisement, error) {

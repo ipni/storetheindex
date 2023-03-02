@@ -7,8 +7,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/ipni/storetheindex/config"
-
 	// AWS
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -29,30 +27,35 @@ type S3 struct {
 	uploader   *manager.Uploader
 }
 
-func newS3(cfg config.S3FileStore) (*S3, error) {
-	if cfg.BucketName == "" {
-		return nil, errors.New("s3 configuration missing 'BucketName'")
+func NewS3(bucketName string, options ...S3Option) (*S3, error) {
+	if bucketName == "" {
+		return nil, errors.New("s3 filestore requires bucket name")
+	}
+
+	opts, err := getOpts(options)
+	if err != nil {
+		return nil, err
 	}
 
 	var usePathStyle bool
 	var cfgOpts []func(*awsconfig.LoadOptions) error
 
-	if cfg.Region != "" {
-		cfgOpts = append(cfgOpts, awsconfig.WithRegion(cfg.Region))
+	if opts.region != "" {
+		cfgOpts = append(cfgOpts, awsconfig.WithRegion(opts.region))
 	}
-	if cfg.Endpoint != "" {
+	if opts.endpoint != "" {
 		epResolverFunc := aws.EndpointResolverWithOptionsFunc(
 			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-				return aws.Endpoint{URL: cfg.Endpoint}, nil
+				return aws.Endpoint{URL: opts.endpoint}, nil
 			})
 		usePathStyle = true
 		cfgOpts = append(cfgOpts, awsconfig.WithEndpointResolverWithOptions(epResolverFunc))
 	}
-	if cfg.AccessKey != "" && cfg.SecretKey != "" {
+	if opts.accessKey != "" && opts.secretKey != "" {
 		staticCreds := credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{
-				AccessKeyID:     cfg.AccessKey,
-				SecretAccessKey: cfg.SecretKey,
+				AccessKeyID:     opts.accessKey,
+				SecretAccessKey: opts.secretKey,
 				Source:          "filestore configuration",
 			},
 		}
@@ -68,7 +71,7 @@ func newS3(cfg config.S3FileStore) (*S3, error) {
 		o.UsePathStyle = usePathStyle
 	})
 	return &S3{
-		bucketName: cfg.BucketName,
+		bucketName: bucketName,
 		client:     client,
 		uploader:   manager.NewUploader(client),
 	}, nil

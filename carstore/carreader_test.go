@@ -29,7 +29,8 @@ func TestRead(t *testing.T) {
 
 	fileStore, err := filestore.New(cfg)
 	require.NoError(t, err)
-	carw := carstore.NewWriter(dstore, fileStore)
+	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
+	require.NoError(t, err)
 
 	adLink, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, nil, dstore)
 	adCid := adLink.(cidlink.Link).Cid
@@ -42,7 +43,8 @@ func TestRead(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create reader.
-	carr := carstore.NewReader(fileStore)
+	carr, err := carstore.NewReader(fileStore, carstore.WithCompress(testCompress))
+	require.NoError(t, err)
 
 	// Read and read CAR file.
 	adBlock, err := carr.Read(ctx, adCid, false)

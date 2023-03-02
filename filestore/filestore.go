@@ -3,11 +3,8 @@ package filestore
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"time"
-
-	"github.com/ipni/storetheindex/config"
 )
 
 // File contains information about a stored file.
@@ -41,17 +38,4 @@ type Interface interface {
 	Put(ctx context.Context, path string, reader io.Reader) (*File, error)
 	// Type returns the file store type.
 	Type() string
-}
-
-// Create a new storage system of the configured type.
-func New(cfg config.FileStore) (Interface, error) {
-	switch cfg.Type {
-	case "local":
-		return newLocal(cfg.Local)
-	case "s3":
-		return newS3(cfg.S3)
-	case "", "none":
-		return nil, nil
-	}
-	return nil, fmt.Errorf("unsupported file storage type: %s", cfg.Type)
 }

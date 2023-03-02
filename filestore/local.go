@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/fsutil"
 )
 
@@ -17,16 +16,16 @@ type Local struct {
 	basePath string
 }
 
-func newLocal(cfg config.LocalFileStore) (*Local, error) {
-	if !filepath.IsAbs(cfg.BasePath) {
+func NewLocal(basePath string) (*Local, error) {
+	if !filepath.IsAbs(basePath) {
 		return nil, errors.New("base path must be absolute")
 	}
-	err := fsutil.DirWritable(cfg.BasePath)
+	err := fsutil.DirWritable(basePath)
 	if err != nil {
 		return nil, err
 	}
 	return &Local{
-		basePath: cfg.BasePath,
+		basePath: basePath,
 	}, nil
 }
 
@@ -174,9 +173,8 @@ func (l *Local) Put(ctx context.Context, relPath string, r io.Reader) (*File, er
 		}
 	}()
 
-	var n int64
 	if r != nil {
-		n, err = io.Copy(f, r)
+		_, err = io.Copy(f, r)
 		if err != nil {
 			return nil, err
 		}
@@ -187,10 +185,14 @@ func (l *Local) Put(ctx context.Context, relPath string, r io.Reader) (*File, er
 		return nil, err
 	}
 
+	if err = f.Close(); err != nil {
+		return nil, err
+	}
+
 	return &File{
 		Modified: fi.ModTime(),
 		Path:     relPath,
-		Size:     n,
+		Size:     fi.Size(),
 	}, nil
 }
 

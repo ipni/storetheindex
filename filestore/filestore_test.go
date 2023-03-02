@@ -2,7 +2,6 @@ package filestore_test
 
 import (
 	"context"
-	//"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
 	"github.com/ipni/storetheindex/fsutil"
 	"github.com/stretchr/testify/require"
@@ -52,84 +50,71 @@ func TestS3(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = gnomock.Stop(localS3) }()
 
-	cfg := config.FileStore{
-		Type: "s3",
-		S3: config.S3FileStore{
-			BucketName: bucketName,
-			Endpoint:   fmt.Sprintf("http://%s/", localS3.Address(localstack.APIPort)),
-			AccessKey:  "abcd1234",
-			SecretKey:  "1qaz2wsx",
-		},
-	}
+	fs, err := filestore.NewS3(bucketName,
+		filestore.WithEndpoint(fmt.Sprintf("http://%s/", localS3.Address(localstack.APIPort))),
+		filestore.WithKeys("abcd1234", "1qaz2wsx"))
+	require.NoError(t, err)
+	require.Equal(t, "s3", fs.Type())
 
 	t.Run("test-S3-Put", func(t *testing.T) {
-		testPut(t, cfg)
+		testPut(t, fs)
 	})
 
 	t.Run("test-S3-Head", func(t *testing.T) {
-		testHead(t, cfg)
+		testHead(t, fs)
 	})
 
 	t.Run("test-S3-Get", func(t *testing.T) {
-		testGet(t, cfg)
+		testGet(t, fs)
 	})
 
 	t.Run("test-S3-List", func(t *testing.T) {
-		testList(t, cfg)
+		testList(t, fs)
 	})
 
 	t.Run("test-S3-Delete", func(t *testing.T) {
-		testDelete(t, cfg)
+		testDelete(t, fs)
 	})
 }
 
 func TestLocal(t *testing.T) {
 	carDir := t.TempDir()
-	cfg := config.FileStore{
-		Type: "local",
-		Local: config.LocalFileStore{
-			BasePath: carDir,
-		},
-	}
+
+	fs, err := filestore.NewLocal(carDir)
+	require.NoError(t, err)
+	require.Equal(t, "local", fs.Type())
 
 	t.Run("test-Local-Put", func(t *testing.T) {
-		testPut(t, cfg)
+		testPut(t, fs)
 	})
 
 	require.True(t, fsutil.FileExists(filepath.Join(carDir, fileName)))
 
 	t.Run("test-Local-Head", func(t *testing.T) {
-		testHead(t, cfg)
+		testHead(t, fs)
 	})
 
 	t.Run("test-Local-Get", func(t *testing.T) {
-		testGet(t, cfg)
+		testGet(t, fs)
 	})
 
 	t.Run("test-Local-List", func(t *testing.T) {
-		testList(t, cfg)
+		testList(t, fs)
 	})
 
 	t.Run("test-Local-Delete", func(t *testing.T) {
-		testDelete(t, cfg)
+		testDelete(t, fs)
 	})
 }
 
-func testPut(t *testing.T, cfg config.FileStore) {
-	fs, err := filestore.New(cfg)
-	require.NoError(t, err)
-	require.Equal(t, cfg.Type, fs.Type())
-
+func testPut(t *testing.T, fs filestore.Interface) {
 	fileInfo, err := fs.Put(context.Background(), fileName, strings.NewReader(data))
 	require.NoError(t, err)
 	require.Equal(t, fileName, fileInfo.Path)
 	require.Equal(t, int64(len(data)), fileInfo.Size)
 }
 
-func testHead(t *testing.T, cfg config.FileStore) {
-	fs, err := filestore.New(cfg)
-	require.NoError(t, err)
-
+func testHead(t *testing.T, fs filestore.Interface) {
 	// Get file that does not exist.
 	fileInfo, err := fs.Head(context.Background(), "not-here")
 	require.ErrorIs(t, err, filestore.ErrNotFound)
@@ -149,10 +134,7 @@ func testHead(t *testing.T, cfg config.FileStore) {
 	require.ErrorIs(t, err, filestore.ErrNotFound)
 }
 
-func testGet(t *testing.T, cfg config.FileStore) {
-	fs, err := filestore.New(cfg)
-	require.NoError(t, err)
-
+func testGet(t *testing.T, fs filestore.Interface) {
 	// Get file that does not exist.
 	fileInfo, _, err := fs.Get(context.Background(), "not-here")
 	require.ErrorIs(t, err, filestore.ErrNotFound)
@@ -188,16 +170,13 @@ func testGet(t *testing.T, cfg config.FileStore) {
 	require.Equal(t, int64(len(data3)), fileInfo.Size)
 }
 
-func testList(t *testing.T, cfg config.FileStore) {
-	fs, err := filestore.New(cfg)
-	require.NoError(t, err)
-
+func testList(t *testing.T, fs filestore.Interface) {
 	// List file that does not exist.
 	fileCh, errCh := fs.List(context.Background(), "not-here/", false)
 	fileInfo, ok := <-fileCh
 	require.Nil(t, fileInfo)
 	require.False(t, ok)
-	err = <-errCh
+	err := <-errCh
 	require.NoError(t, err)
 
 	_, err = fs.Put(context.Background(), fileName1, strings.NewReader(data1))
@@ -259,13 +238,10 @@ func testList(t *testing.T, cfg config.FileStore) {
 	require.Equal(t, fileName3, infos[0].Path)
 }
 
-func testDelete(t *testing.T, cfg config.FileStore) {
-	fs, err := filestore.New(cfg)
-	require.NoError(t, err)
-
+func testDelete(t *testing.T, fs filestore.Interface) {
 	ctx := context.Background()
 
-	_, err = fs.Put(ctx, fileName1, strings.NewReader(data1))
+	_, err := fs.Put(ctx, fileName1, strings.NewReader(data1))
 	require.NoError(t, err)
 
 	_, err = fs.Put(ctx, fileName2, strings.NewReader(data2))
