@@ -13,16 +13,18 @@ module "vpc" {
   azs                    = data.aws_availability_zones.available.names
   one_nat_gateway_per_az = true
 
-  cidr = "20.10.0.0/16"
+  cidr            = "20.10.0.0/16"
   private_subnets = [
     "20.10.1.0/24", "20.10.2.0/24", "20.10.3.0/24",
     "20.10.4.0/24", "20.10.5.0/24", "20.10.6.0/24"
   ]
-  public_subnets = ["20.10.11.0/24", "20.10.12.0/24", "20.10.13.0/24"]
+  public_subnets   = ["20.10.11.0/24", "20.10.12.0/24", "20.10.13.0/24"]
+  database_subnets = ["20.10.101.0/24", "20.10.102.0/24", "20.10.103.0/24"]
 
-  enable_nat_gateway   = true
-  enable_dns_hostnames = true
-  enable_dns_support   = true
+  create_database_subnet_group = true
+  enable_nat_gateway           = true
+  enable_dns_hostnames         = true
+  enable_dns_support           = true
 
   public_subnet_tags = {
     "kubernetes.io/role/elb" = "1"
