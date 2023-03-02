@@ -599,7 +599,7 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash
 	// No code path should ever allow this, so it is a programming error if
 	// this ever happens.
 	if ad.IsRm {
-		panic("removing individual multihashes no allowed")
+		panic("removing individual multihashes not allowed")
 	}
 
 	if err = ing.indexer.Put(value, mhs...); err != nil {

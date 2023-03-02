@@ -253,7 +253,7 @@ func (cw *CarWriter) WriteExisting(ctx context.Context) error {
 		if isAdvertisement(node) {
 			_, err = cw.Write(ctx, adCid, false)
 			if err != nil {
-				log.Errorw("Cannot write advertisement to CAR file", "err", err)
+				log.Errorw("Cannot write saved advertisement to CAR file", "err", err, "adCid", adCid)
 				var werr *WriteError
 				if errors.As(err, &werr) {
 					// Error writing to car file; stop writing ads.
@@ -265,7 +265,7 @@ func (cw *CarWriter) WriteExisting(ctx context.Context) error {
 			count++
 		}
 	}
-	log.Infow("Wrote advertisements from datastore to CAR files", "count", count)
+	log.Infow("Wrote saved advertisements from datastore to CAR files", "count", count)
 
 	return nil
 }
