@@ -13,10 +13,10 @@ jobs:
         with:
           submodules: recursive
       - id: config
-        uses: protocol/.github/.github/actions/read-config@next
+        uses: protocol/.github/.github/actions/read-config@master
       - uses: actions/setup-go@v3
         with:
-          go-version: "1.19.x"
+          go-version: 1.20.x
       - name: Run repo-specific setup
         uses: ./.github/actions/go-check-setup
         if: hashFiles('./.github/actions/go-check-setup') != ''
@@ -33,7 +33,7 @@ jobs:
             fi
             git diff --exit-code -- go.sum go.mod
       - name: gofmt
-        if: ${{ success() || failure() }} # run this step even if the previous one failed
+        if: success() || failure() # run this step even if the previous one failed
         run: |
           out=$(gofmt -s -l .)
           if [[ -n "$out" ]]; then
@@ -41,12 +41,12 @@ jobs:
             exit 1
           fi
       - name: go vet
-        if: ${{ success() || failure() }} # run this step even if the previous one failed
+        if: success() || failure() # run this step even if the previous one failed
         uses: protocol/multiple-go-modules@v1.2
         with:
           run: go vet ./...
       - name: staticcheck
-        if: ${{ success() || failure() }} # run this step even if the previous one failed
+        if: success() || failure() # run this step even if the previous one failed
         uses: protocol/multiple-go-modules@v1.2
         with:
           run: |
