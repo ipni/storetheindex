@@ -2,6 +2,7 @@ package carstore_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"io"
 	"math/rand"
@@ -27,6 +28,8 @@ import (
 )
 
 const (
+	testCompress = carstore.Gzip
+
 	testEntriesChunkCount = 3
 	testEntriesChunkSize  = 15
 )
@@ -49,7 +52,8 @@ func TestWrite(t *testing.T) {
 
 	fileStore, err := filestore.New(cfg)
 	require.NoError(t, err)
-	carw := carstore.NewWriter(dstore, fileStore)
+	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
+	require.NoError(t, err)
 
 	adLink, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, nil, dstore)
 	adCid := adLink.(cidlink.Link).Cid
@@ -83,7 +87,18 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 	err = r.Close()
 	require.NoError(t, err)
+
+	if carw.Compression() == carstore.Gzip {
+		gzr, err := gzip.NewReader(&buf)
+		require.NoError(t, err)
+		var ungzBuf bytes.Buffer
+		_, err = io.Copy(&ungzBuf, gzr)
+		gzr.Close()
+		buf = ungzBuf
+	}
+
 	reader := bytes.NewReader(buf.Bytes())
+
 	cbs, err := carblockstore.NewReadOnly(reader, nil)
 	require.NoError(t, err)
 
@@ -171,7 +186,8 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	_, err = fileStore.Put(ctx, fileName, nil)
 	require.NoError(t, err)
 
-	carw := carstore.NewWriter(dstore, fileStore)
+	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
+	require.NoError(t, err)
 
 	carInfo, err := carw.Write(ctx, adCid, false)
 	require.NoError(t, err)
@@ -206,7 +222,8 @@ func TestWriteChain(t *testing.T) {
 
 	fileStore, err := filestore.New(cfg)
 	require.NoError(t, err)
-	carw := carstore.NewWriter(dstore, fileStore)
+	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
+	require.NoError(t, err)
 
 	adLink1, _, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, nil, dstore)
 	adLink2, _, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, adLink1, dstore)
@@ -258,12 +275,16 @@ func TestWriteExistingAdsInStore(t *testing.T) {
 	fileStore, err := filestore.New(cfg)
 	require.NoError(t, err)
 
-	carw := carstore.NewWriter(dstore, fileStore)
+	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
+	require.NoError(t, err)
 
-	countChan := carw.WriteExisting(ctx)
-	n := <-countChan
-	require.Equal(t, 1, n)
+	err = carw.WriteExisting(ctx)
+	require.NoError(t, err)
+
 	carName := adCid.String() + carstore.CarFileSuffix
+	if carw.Compression() == carstore.Gzip {
+		carName += carstore.GzipFileSuffix
+	}
 	var carFound bool
 	fc, ec := fileStore.List(ctx, "", false)
 	for fileInfo := range fc {

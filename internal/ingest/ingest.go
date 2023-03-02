@@ -192,12 +192,15 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	// Only use carstore if not using separate ad datastore.
 	if ing.dsAds == ing.ds && cfg.CarMirrorDestination.Type != "" {
-		fileStore, err := filestore.New(cfg.CarMirrorDestination)
+		fileStore, err := makeFilestore(cfg.CarMirrorDestination)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create file store for car failes: %w", err)
 		}
 
-		ing.carWriter = carstore.NewWriter(ing.dsAds, fileStore)
+		ing.carWriter, err = carstore.NewWriter(ing.dsAds, fileStore, carstore.WithCompress(cfg.CarMirrorDestination.Compress))
+		if err != nil {
+			return nil, fmt.Errorf("cannot create car file writer: %w", err)
+		}
 
 		// Start writing existing ads to car files in background. Process
 		// canceled if workers are canceled.
@@ -1299,4 +1302,21 @@ func configRateLimit(cfgRateLimit config.RateLimit) (apply peerutil.Policy, burs
 
 	log.Info("rate limiting enabled")
 	return
+}
+
+// Create a new storage system of the configured type.
+func makeFilestore(cfg config.FileStore) (filestore.Interface, error) {
+	switch cfg.Type {
+	case "local":
+		return filestore.NewLocal(cfg.Local.BasePath)
+	case "s3":
+		return filestore.NewS3(cfg.S3.BucketName,
+			filestore.WithEndpoint(cfg.S3.Endpoint),
+			filestore.WithRegion(cfg.S3.Region),
+			filestore.WithKeys(cfg.S3.AccessKey, cfg.S3.SecretKey),
+		)
+	case "", "none":
+		return nil, nil
+	}
+	return nil, fmt.Errorf("unsupported file storage type: %s", cfg.Type)
 }

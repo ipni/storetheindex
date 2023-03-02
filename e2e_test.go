@@ -308,8 +308,9 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	dir.Close()
 	require.NoError(t, err)
 	var carCount, headCount int
+	carSuffix := carstore.CarFileSuffix + carstore.GzipFileSuffix
 	for _, name := range names {
-		if strings.HasSuffix(name, carstore.CarFileSuffix) && strings.HasPrefix(name, "baguqeera") {
+		if strings.HasSuffix(name, carSuffix) && strings.HasPrefix(name, "baguqeera") {
 			carCount++
 		} else if strings.HasSuffix(name, carstore.HeadFileSuffix) {
 			headCount++

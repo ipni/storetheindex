@@ -78,6 +78,9 @@ type Ingest struct {
 
 // FileStore configures a particular file store implementation.
 type FileStore struct {
+	// Compress specifies how to compress files. One of: "gzip", "none".
+	// Defaults to "gzip" if unspecified.
+	Compress string
 	// Type of file store to use: "", "local", "s3"
 	Type string
 	// Configuration for storing files in local filesystem.
@@ -109,17 +112,20 @@ type S3FileStore struct {
 func NewIngest() Ingest {
 	return Ingest{
 		AdvertisementDepthLimit: 33554432,
-		EntriesDepthLimit:       65536,
-		HttpSyncRetryMax:        4,
-		HttpSyncRetryWaitMax:    Duration(30 * time.Second),
-		HttpSyncRetryWaitMin:    Duration(1 * time.Second),
-		HttpSyncTimeout:         Duration(10 * time.Second),
-		IngestWorkerCount:       10,
-		PubSubTopic:             "/indexer/ingest/mainnet",
-		RateLimit:               NewRateLimit(),
-		StoreBatchSize:          4096,
-		SyncSegmentDepthLimit:   2_000,
-		SyncTimeout:             Duration(2 * time.Hour),
+		CarMirrorDestination: FileStore{
+			Compress: "gzip",
+		},
+		EntriesDepthLimit:     65536,
+		HttpSyncRetryMax:      4,
+		HttpSyncRetryWaitMax:  Duration(30 * time.Second),
+		HttpSyncRetryWaitMin:  Duration(1 * time.Second),
+		HttpSyncTimeout:       Duration(10 * time.Second),
+		IngestWorkerCount:     10,
+		PubSubTopic:           "/indexer/ingest/mainnet",
+		RateLimit:             NewRateLimit(),
+		StoreBatchSize:        4096,
+		SyncSegmentDepthLimit: 2_000,
+		SyncTimeout:           Duration(2 * time.Hour),
 	}
 }
 
@@ -129,6 +135,9 @@ func (c *Ingest) populateUnset() {
 
 	if c.AdvertisementDepthLimit == 0 {
 		c.AdvertisementDepthLimit = def.AdvertisementDepthLimit
+	}
+	if c.CarMirrorDestination.Compress == "" {
+		c.CarMirrorDestination.Compress = def.CarMirrorDestination.Compress
 	}
 	if c.EntriesDepthLimit == 0 {
 		c.EntriesDepthLimit = def.EntriesDepthLimit
