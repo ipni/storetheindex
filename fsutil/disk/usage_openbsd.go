@@ -3,6 +3,8 @@
 package disk
 
 import (
+	"syscall"
+
 	"golang.org/x/sys/unix"
 )
 

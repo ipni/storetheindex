@@ -9,7 +9,7 @@ import (
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/ipni/storetheindex/api/v0"
+	v0 "github.com/ipni/storetheindex/api/v0"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
