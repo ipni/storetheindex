@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ "ubuntu", "windows", "macos" ]
-        go: [ "1.18.x", "1.19.x" ]
+        go: ["1.19.x","1.20.x"]
     env:
       COVERAGES: ""
     runs-on: ${{ fromJSON(vars[format('UCI_GO_TEST_RUNNER_{0}', matrix.os)] || format('"{0}-latest"', matrix.os)) }}
@@ -20,7 +20,7 @@ jobs:
         with:
           submodules: recursive
       - id: config
-        uses: protocol/.github/.github/actions/read-config@next
+        uses: protocol/.github/.github/actions/read-config@master
       - uses: actions/setup-go@v3
         with:
           go-version: ${{ matrix.go }}
@@ -29,7 +29,7 @@ jobs:
           go version
           go env
       - name: Use msys2 on windows
-        if: ${{ matrix.os == 'windows' }}
+        if: matrix.os == 'windows'
         shell: bash
         # The executable for msys2 is also called bash.cmd
         #   https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md#shells
@@ -57,7 +57,7 @@ jobs:
           GOARCH: 386
         with:
           run: |
-            export "PATH=${{ env.PATH_386 }}:$PATH"
+            export "PATH=$PATH_386:$PATH"
             go test -v -shuffle=on ./...
       - name: Run tests with race detector
         # speed things up. Windows and OSX VMs are slow
