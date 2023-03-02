@@ -190,7 +190,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 
-	if cfg.CarMirrorDestination.Type != "" {
+	// Only use carstore if not using separate ad datastore.
+	if ing.dsAds == ing.ds && cfg.CarMirrorDestination.Type != "" {
 		fileStore, err := filestore.New(cfg.CarMirrorDestination)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create file store for car failes: %w", err)
