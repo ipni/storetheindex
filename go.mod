@@ -31,7 +31,7 @@ require (
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
 	github.com/ipld/go-storethehash v0.3.13
 	github.com/ipni/dhstore v0.0.2-0.20230120184057-c54e9d7c72f7
-	github.com/ipni/go-indexer-core v0.7.2-0.20230221145318-9aef8658e4ea
+	github.com/ipni/go-indexer-core v0.7.2
 	github.com/libp2p/go-libp2p v0.23.4
 	github.com/libp2p/go-libp2p-gostream v0.5.0
 	github.com/libp2p/go-libp2p-pubsub v0.8.1
