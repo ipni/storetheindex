@@ -69,7 +69,8 @@
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
-    "CarMirrorDestination": {                                                                                                            
+    "CarMirrorDestination": {
+      "Compress": "gzip",
       "Type": "s3",
       "S3": {
         "BucketName": "dev-sti-adstore"
