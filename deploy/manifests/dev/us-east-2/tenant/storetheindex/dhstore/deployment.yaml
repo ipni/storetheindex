@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: dhstore
 spec:
+  replicas: 0
   template:
     spec:
       topologySpreadConstraints:
