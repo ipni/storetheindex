@@ -294,39 +294,6 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
 }
 
-func (ing *Ingester) getLatestSyncs(ctx context.Context) (map[peer.ID]cid.Cid, error) {
-	q := query.Query{
-		Prefix: syncPrefix,
-	}
-	results, err := ing.ds.Query(ctx, q)
-	if err != nil {
-		return nil, err
-	}
-	defer results.Close()
-
-	latestSyncs := make(map[peer.ID]cid.Cid)
-	for result := range results.Next() {
-		if result.Error != nil {
-			return nil, fmt.Errorf("cannot read sync data: %v", result.Error)
-		}
-		ent := result.Entry
-
-		peerID, err := peer.Decode(path.Base(ent.Key))
-		if err != nil {
-			return nil, fmt.Errorf("cannot decode provider ID: %s", err)
-		}
-
-		_, adCid, err := cid.CidFromBytes(ent.Value)
-		if err != nil {
-			return nil, fmt.Errorf("cannot decode CID: %s", err)
-		}
-
-		latestSyncs[peerID] = adCid
-	}
-
-	return latestSyncs, nil
-}
-
 func (ing *Ingester) Close() error {
 	// Tell workers to stop ingestion in progress.
 	ing.cancelWorkers()
