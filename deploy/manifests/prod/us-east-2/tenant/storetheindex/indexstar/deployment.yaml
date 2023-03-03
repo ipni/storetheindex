@@ -33,7 +33,7 @@ spec:
             - name: SERVER_RESULT_MAX_WAIT
               value: '2s'
             - name: SERVER_RESULT_STREAM_MAX_WAIT
-              value: '30s'
+              value: '5s'
           resources:
             limits:
               cpu: "3"
