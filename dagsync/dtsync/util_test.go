@@ -16,7 +16,6 @@ func Test_registerVoucherHandlesAlreadyRegisteredGracefully(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, close()) })
 
-	v := &Voucher{}
-	require.NoError(t, registerVoucher(dt, v, nil))
-	require.NoError(t, registerVoucher(dt, v, nil))
+	require.NoError(t, registerVoucher(dt, nil))
+	require.NoError(t, registerVoucher(dt, nil))
 }

@@ -62,7 +62,9 @@ func QueryRootCid(ctx context.Context, host host.Host, topic string, peerID peer
 					// If protocol ID is wrong, then try the old "double-slashed" protocol ID.
 					//
 					// TODO: remove this code when all providers have upgraded.
-					if !errors.Is(err, multistream.ErrNotSupported) {
+					if !errors.Is(err, multistream.ErrNotSupported[protocol.ID]{
+						Protos: []protocol.ID{deriveProtocolID(topic)},
+					}) {
 						return nil, err
 					}
 					oldProtoID := protocol.ID("/legs/head/" + topic + "/0.0.1")

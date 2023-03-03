@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"sync"
 
-	dt "github.com/filecoin-project/go-data-transfer"
+	dt "github.com/filecoin-project/go-data-transfer/v2"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"

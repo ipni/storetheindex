@@ -1,0 +1,7 @@
+type Voucher struct {
+	Head nullable &Any
+}
+
+type VoucherResult struct {
+  Code Int
+}

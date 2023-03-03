@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	dt "github.com/filecoin-project/go-data-transfer"
+	dt "github.com/filecoin-project/go-data-transfer/v2"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-graphsync"
@@ -53,7 +53,7 @@ type Sync struct {
 // NewSyncWithDT creates a new Sync with a datatransfer.Manager provided by the
 // caller.
 func NewSyncWithDT(host host.Host, dtManager dt.Manager, gs graphsync.GraphExchange, ls *ipld.LinkSystem, blockHook func(peer.ID, cid.Cid)) (*Sync, error) {
-	err := registerVoucher(dtManager, &Voucher{}, nil)
+	err := registerVoucher(dtManager, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	dt "github.com/filecoin-project/go-data-transfer"
-	"github.com/filecoin-project/go-data-transfer/channelmonitor"
-	datatransfer "github.com/filecoin-project/go-data-transfer/impl"
-	dtnetwork "github.com/filecoin-project/go-data-transfer/network"
-	gstransport "github.com/filecoin-project/go-data-transfer/transport/graphsync"
+	dt "github.com/filecoin-project/go-data-transfer/v2"
+	"github.com/filecoin-project/go-data-transfer/v2/channelmonitor"
+	datatransfer "github.com/filecoin-project/go-data-transfer/v2/impl"
+	dtnetwork "github.com/filecoin-project/go-data-transfer/v2/network"
+	gstransport "github.com/filecoin-project/go-data-transfer/v2/transport/graphsync"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-graphsync"
@@ -29,13 +29,12 @@ type dtCloseFunc func() error
 // configureDataTransferForDagsync configures an existing data transfer
 // instance to serve dagsync requests from given linksystem (publisher only).
 func configureDataTransferForDagsync(ctx context.Context, dtManager dt.Manager, lsys ipld.LinkSystem, allowPeer func(peer.ID) bool) error {
-	v := &Voucher{}
-	err := registerVoucher(dtManager, v, allowPeer)
+	err := registerVoucher(dtManager, allowPeer)
 	if err != nil {
 		return err
 	}
 	lsc := dagsyncStorageConfiguration{lsys}
-	if err = dtManager.RegisterTransportConfigurer(v, lsc.configureTransport); err != nil {
+	if err = dtManager.RegisterTransportConfigurer(LegsVoucherType, lsc.configureTransport); err != nil {
 		return fmt.Errorf("failed to register datatransfer TransportConfigurer: %w", err)
 	}
 	return nil
@@ -49,35 +48,24 @@ type dagsyncStorageConfiguration struct {
 	linkSystem ipld.LinkSystem
 }
 
-func (lsc dagsyncStorageConfiguration) configureTransport(chid dt.ChannelID, voucher dt.Voucher, transport dt.Transport) {
-	storeConfigurableTransport, ok := transport.(storeConfigurableTransport)
-	if !ok {
-		return
-	}
-	err := storeConfigurableTransport.UseStore(chid, lsc.linkSystem)
-	if err != nil {
-		log.Errorw("Failed to configure transport to use data store", "err", err)
-	}
+func (lsc dagsyncStorageConfiguration) configureTransport(_ dt.ChannelID, _ dt.TypedVoucher) []dt.TransportOption {
+	return []dt.TransportOption{gstransport.UseStore(lsc.linkSystem)}
 }
 
-func registerVoucher(dtManager dt.Manager, v *Voucher, allowPeer func(peer.ID) bool) error {
+func registerVoucher(dtManager dt.Manager, allowPeer func(peer.ID) bool) error {
 	val := &dagsyncValidator{
 		allowPeer: allowPeer,
 	}
-	err := dtManager.RegisterVoucherType(v, val)
+	err := dtManager.RegisterVoucherType(LegsVoucherType, val)
 	if err != nil {
 		// This can happen if a host is both a publisher and a subscriber.
-		if strings.Contains(err.Error(), "identifier already registered: "+string(v.Type())) {
+		if strings.Contains(err.Error(), "identifier already registered: "+string(LegsVoucherType)) {
 			// Matching the error string is the best we can do until datatransfer exposes some handles
 			// to either check for types or re-register vouchers.
-			log.Warn("voucher type already registered; skipping datatrasfer voucher registration", "type", v.Type())
+			log.Warn("voucher type already registered; skipping datatrasfer voucher registration", "type", LegsVoucherType)
 			return nil
 		}
 		return fmt.Errorf("failed to register dagsync validator voucher type: %w", err)
-	}
-	lvr := &VoucherResult{}
-	if err = dtManager.RegisterVoucherResultType(lvr); err != nil {
-		return fmt.Errorf("failed to register dagsync voucher result type: %w", err)
 	}
 	return nil
 }
@@ -109,7 +97,7 @@ func makeDataTransfer(host host.Host, ds datastore.Batching, lsys ipld.LinkSyste
 		return nil, nil, nil, fmt.Errorf("failed to instantiate datatransfer: %w", err)
 	}
 
-	err = registerVoucher(dtManager, &Voucher{}, allowPeer)
+	err = registerVoucher(dtManager, allowPeer)
 	if err != nil {
 		cancel()
 		return nil, nil, nil, fmt.Errorf("failed to register voucher: %w", err)
