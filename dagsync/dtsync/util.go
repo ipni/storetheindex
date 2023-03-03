@@ -40,10 +40,6 @@ func configureDataTransferForDagsync(ctx context.Context, dtManager dt.Manager, 
 	return nil
 }
 
-type storeConfigurableTransport interface {
-	UseStore(dt.ChannelID, ipld.LinkSystem) error
-}
-
 type dagsyncStorageConfiguration struct {
 	linkSystem ipld.LinkSystem
 }
