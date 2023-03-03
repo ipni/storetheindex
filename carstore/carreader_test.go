@@ -7,7 +7,6 @@ import (
 	"github.com/ipfs/go-datastore"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/storetheindex/carstore"
-	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -20,14 +19,7 @@ func TestRead(t *testing.T) {
 	metadata := []byte("car-test-metadata")
 
 	carDir := t.TempDir()
-	cfg := config.FileStore{
-		Type: "local",
-		Local: config.LocalFileStore{
-			BasePath: carDir,
-		},
-	}
-
-	fileStore, err := filestore.New(cfg)
+	fileStore, err := filestore.NewLocal(carDir)
 	require.NoError(t, err)
 	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
 	require.NoError(t, err)
