@@ -85,6 +85,7 @@ func TestWrite(t *testing.T) {
 		require.NoError(t, err)
 		var ungzBuf bytes.Buffer
 		_, err = io.Copy(&ungzBuf, gzr)
+		require.NoError(t, err)
 		gzr.Close()
 		buf = ungzBuf
 	}

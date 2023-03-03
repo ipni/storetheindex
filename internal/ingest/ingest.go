@@ -190,8 +190,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 
-	// Only use carstore if not using separate ad datastore.
-	if ing.dsAds == ing.ds && cfg.CarMirrorDestination.Type != "" {
+	if cfg.CarMirrorDestination.Type != "" {
 		fileStore, err := makeFilestore(cfg.CarMirrorDestination)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create file store for car failes: %w", err)
@@ -200,13 +199,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		ing.carWriter, err = carstore.NewWriter(ing.dsAds, fileStore, carstore.WithCompress(cfg.CarMirrorDestination.Compress))
 		if err != nil {
 			return nil, fmt.Errorf("cannot create car file writer: %w", err)
-		}
-
-		// Start writing existing ads to car files in background. Process
-		// canceled if workers are canceled.
-		err = ing.writeExistingAds(ing.workersCtx)
-		if err != nil {
-			log.Errorw("Cannot write head files for existing advertisement data", "err", err)
 		}
 	}
 
@@ -300,26 +292,6 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 	}
 	// Return rate limiter with rate setting from config.
 	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
-}
-
-func (ing *Ingester) writeExistingAds(ctx context.Context) error {
-	// Write the head files for the all latest synced ads.
-	latestSyncs, err := ing.getLatestSyncs(ctx)
-	if err != nil {
-		return err
-	}
-	for publisher, adCid := range latestSyncs {
-		_, err = ing.carWriter.WriteHead(ctx, adCid, publisher)
-		if err != nil {
-			return err
-		}
-	}
-	log.Infow("Wrote head files", "count", len(latestSyncs))
-
-	// Write existing advertisement CAR files in background.
-	ing.carWriter.WriteExisting(ctx)
-
-	return nil
 }
 
 func (ing *Ingester) getLatestSyncs(ctx context.Context) (map[peer.ID]cid.Cid, error) {
