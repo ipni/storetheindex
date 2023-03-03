@@ -16,7 +16,6 @@ import (
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
 	"github.com/ipni/storetheindex/carstore"
-	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
 	"github.com/ipni/storetheindex/test/util"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -43,14 +42,7 @@ func TestWrite(t *testing.T) {
 	metadata := []byte("car-test-metadata")
 
 	carDir := t.TempDir()
-	cfg := config.FileStore{
-		Type: "local",
-		Local: config.LocalFileStore{
-			BasePath: carDir,
-		},
-	}
-
-	fileStore, err := filestore.New(cfg)
+	fileStore, err := filestore.NewLocal(carDir)
 	require.NoError(t, err)
 	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
 	require.NoError(t, err)
@@ -173,13 +165,7 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	cfg := config.FileStore{
-		Type: "local",
-		Local: config.LocalFileStore{
-			BasePath: t.TempDir(),
-		},
-	}
-	fileStore, err := filestore.New(cfg)
+	fileStore, err := filestore.NewLocal(t.TempDir())
 	require.NoError(t, err)
 
 	fileName := adCid.String() + carstore.CarFileSuffix
@@ -213,14 +199,7 @@ func TestWriteChain(t *testing.T) {
 	metadata := []byte("car-test-metadata")
 
 	carDir := t.TempDir()
-	cfg := config.FileStore{
-		Type: "local",
-		Local: config.LocalFileStore{
-			BasePath: carDir,
-		},
-	}
-
-	fileStore, err := filestore.New(cfg)
+	fileStore, err := filestore.NewLocal(carDir)
 	require.NoError(t, err)
 	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
 	require.NoError(t, err)
@@ -266,13 +245,7 @@ func TestWriteExistingAdsInStore(t *testing.T) {
 	require.True(t, ok)
 
 	carDir := t.TempDir()
-	cfg := config.FileStore{
-		Type: "local",
-		Local: config.LocalFileStore{
-			BasePath: carDir,
-		},
-	}
-	fileStore, err := filestore.New(cfg)
+	fileStore, err := filestore.NewLocal(carDir)
 	require.NoError(t, err)
 
 	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
