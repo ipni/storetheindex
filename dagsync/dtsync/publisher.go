@@ -93,6 +93,35 @@ func (p *publisher) Addrs() []multiaddr.Multiaddr {
 	return p.host.Addrs()
 }
 
+func (p *publisher) AnnounceHead(ctx context.Context) error {
+	return p.announce(ctx, p.headPublisher.Root(), p.Addrs())
+}
+
+func (p *publisher) AnnounceHeadWithAddrs(ctx context.Context, addrs []multiaddr.Multiaddr) error {
+	return p.announce(ctx, p.headPublisher.Root(), addrs)
+}
+
+func (p *publisher) announce(ctx context.Context, c cid.Cid, addrs []multiaddr.Multiaddr) error {
+	// Do nothing if nothing to announce or no means to announce it.
+	if c == cid.Undef || len(p.senders) == 0 {
+		return nil
+	}
+
+	msg := message.Message{
+		Cid:       c,
+		ExtraData: p.extraData,
+	}
+	msg.SetAddrs(addrs)
+
+	var errs error
+	for _, sender := range p.senders {
+		if err := sender.Send(ctx, msg); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+	return errs
+}
+
 func (p *publisher) SetRoot(ctx context.Context, c cid.Cid) error {
 	if c == cid.Undef {
 		return errors.New("cannot update to an undefined cid")
@@ -102,7 +131,7 @@ func (p *publisher) SetRoot(ctx context.Context, c cid.Cid) error {
 }
 
 func (p *publisher) UpdateRoot(ctx context.Context, c cid.Cid) error {
-	return p.UpdateRootWithAddrs(ctx, c, p.host.Addrs())
+	return p.UpdateRootWithAddrs(ctx, c, p.Addrs())
 }
 
 func (p *publisher) UpdateRootWithAddrs(ctx context.Context, c cid.Cid, addrs []multiaddr.Multiaddr) error {
@@ -110,24 +139,7 @@ func (p *publisher) UpdateRootWithAddrs(ctx context.Context, c cid.Cid, addrs []
 	if err != nil {
 		return err
 	}
-	if len(p.senders) == 0 {
-		return nil
-	}
-
-	log.Debugf("Publishing CID and addresses in pubsub channel: %s", c)
-	msg := message.Message{
-		Cid:       c,
-		ExtraData: p.extraData,
-	}
-	msg.SetAddrs(addrs)
-
-	var errs error
-	for _, sender := range p.senders {
-		if err = sender.Send(ctx, msg); err != nil {
-			errs = multierror.Append(errs, err)
-		}
-	}
-	return errs
+	return p.announce(ctx, c, addrs)
 }
 
 func (p *publisher) Close() error {

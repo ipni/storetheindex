@@ -43,7 +43,7 @@ func setupPublisherSubscriber(t *testing.T, subscriberOptions []dagsync.Option) 
 	srcHost = test.MkTestHost(libp2p.Identity(srcPrivKey))
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcLinkSys := test.MkLinkSystem(srcStore)
-	httpPub, err := httpsync.NewPublisher("127.0.0.1:0", srcLinkSys, srcHost.ID(), srcPrivKey)
+	httpPub, err := httpsync.NewPublisher("127.0.0.1:0", srcLinkSys, srcPrivKey)
 	if err != nil {
 		t.Fatal(err)
 	}

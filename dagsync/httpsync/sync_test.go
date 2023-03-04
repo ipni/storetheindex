@@ -130,7 +130,7 @@ func TestHttpsync_AcceptsSpecCompliantDagJson(t *testing.T) {
 		publs.SetWriteStorage(pubstore)
 		publs.SetReadStorage(pubstore)
 
-		pub, err := httpsync.NewPublisher("0.0.0.0:0", publs, pubID, pubPrK)
+		pub, err := httpsync.NewPublisher("0.0.0.0:0", publs, pubPrK)
 		require.NoError(t, err)
 		pubAddr = pub.Addrs()[0]
 		t.Cleanup(func() { require.NoError(t, pub.Close()) })

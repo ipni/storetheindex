@@ -144,3 +144,9 @@ func (p *Publisher) Close() error {
 	defer cancel()
 	return p.server.Shutdown(ctx)
 }
+
+func (p *Publisher) Root() cid.Cid {
+	p.rl.Lock()
+	defer p.rl.Unlock()
+	return p.root
+}
