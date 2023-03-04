@@ -138,7 +138,7 @@ func newProviderLoadGen(c Config, indexerHttpAddr string, addressMapping map[str
 
 	var pub dagsync.Publisher
 	if c.IsHttp {
-		pub, err = httpsync.NewPublisher(c.HttpListenAddr, lsys, host.ID(), signingKey)
+		pub, err = httpsync.NewPublisher(c.HttpListenAddr, lsys, signingKey)
 	} else {
 		pub, err = dtsync.NewPublisher(host, ds, lsys, c.GossipSubTopic)
 
