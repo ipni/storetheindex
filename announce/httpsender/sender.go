@@ -24,6 +24,10 @@ type Sender struct {
 	peerID       peer.ID
 }
 
+// New creates a new Sender that sends announce messages over HTTP. Announce
+// messages are sent to the specified URLs. The addresses in announce messages
+// are modified to include the specified peerID, which is necessary to
+// communicate the publisher ID over HTTP.
 func New(announceURLs []*url.URL, peerID peer.ID, options ...Option) (*Sender, error) {
 	if len(announceURLs) == 0 {
 		return nil, errors.New("no announce urls")
