@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/storetheindex/api/v0"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -16,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-msgio"
+	"google.golang.org/protobuf/proto"
 )
 
 // Idle time before the stream is closed
