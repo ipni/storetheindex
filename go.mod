@@ -21,7 +21,7 @@ require (
 	github.com/ipfs/go-datastore v0.6.0
 	github.com/ipfs/go-delegated-routing v0.7.0
 	github.com/ipfs/go-ds-leveldb v0.5.0
-	github.com/ipfs/go-graphsync v0.14.1
+	github.com/ipfs/go-graphsync v0.14.3
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipfs/kubo v0.18.1
 	github.com/ipld/go-car/v2 v2.7.0
@@ -31,7 +31,7 @@ require (
 	github.com/ipld/go-storethehash v0.3.13
 	github.com/ipni/dhstore v0.0.2-0.20230120184057-c54e9d7c72f7
 	github.com/ipni/go-indexer-core v0.7.2-0.20230221145318-9aef8658e4ea
-	github.com/libp2p/go-libp2p v0.25.0
+	github.com/libp2p/go-libp2p v0.25.1
 	github.com/libp2p/go-libp2p-gostream v0.5.0
 	github.com/libp2p/go-libp2p-pubsub v0.9.0
 	github.com/libp2p/go-msgio v0.3.0
@@ -40,7 +40,7 @@ require (
 	github.com/multiformats/go-multiaddr v0.8.0
 	github.com/multiformats/go-multicodec v0.8.0
 	github.com/multiformats/go-multihash v0.2.1
-	github.com/multiformats/go-multistream v0.4.0
+	github.com/multiformats/go-multistream v0.4.1
 	github.com/multiformats/go-varint v0.0.7
 	github.com/orlangure/gnomock v0.24.0
 	github.com/prometheus/client_golang v1.14.0
