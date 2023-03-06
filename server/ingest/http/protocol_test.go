@@ -42,7 +42,12 @@ func setupSender(t *testing.T, baseURL string) *httpsender.Sender {
 		t.Fatal(err)
 	}
 
-	httpSender, err := httpsender.New([]*url.URL{announceURL})
+	peerID, _, err := providerIdent.Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	httpSender, err := httpsender.New([]*url.URL{announceURL}, peerID)
 	if err != nil {
 		t.Fatal(err)
 	}

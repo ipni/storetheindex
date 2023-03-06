@@ -18,7 +18,6 @@ import (
 	"github.com/ipni/storetheindex/announce"
 	"github.com/ipni/storetheindex/announce/message"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 )
@@ -27,7 +26,6 @@ type publisher struct {
 	addr      multiaddr.Multiaddr
 	closer    io.Closer
 	lsys      ipld.LinkSystem
-	peerID    peer.ID
 	privKey   ic.PrivKey
 	rl        sync.RWMutex
 	root      cid.Cid
@@ -39,7 +37,7 @@ var _ http.Handler = (*publisher)(nil)
 
 // NewPublisher creates a new http publisher, listening on the specified
 // address.
-func NewPublisher(address string, lsys ipld.LinkSystem, peerID peer.ID, privKey ic.PrivKey, options ...Option) (*publisher, error) {
+func NewPublisher(address string, lsys ipld.LinkSystem, privKey ic.PrivKey, options ...Option) (*publisher, error) {
 	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
@@ -65,7 +63,6 @@ func NewPublisher(address string, lsys ipld.LinkSystem, peerID peer.ID, privKey 
 		addr:      multiaddr.Join(maddr, proto),
 		closer:    l,
 		lsys:      lsys,
-		peerID:    peerID,
 		privKey:   privKey,
 		senders:   opts.senders,
 		extraData: opts.extraData,
@@ -87,6 +84,42 @@ func (p *publisher) Addrs() []multiaddr.Multiaddr {
 	return []multiaddr.Multiaddr{p.addr}
 }
 
+func (p *publisher) AnnounceHead(ctx context.Context) error {
+	p.rl.Lock()
+	c := p.root
+	p.rl.Unlock()
+	return p.announce(ctx, c, p.Addrs())
+}
+
+func (p *publisher) AnnounceHeadWithAddrs(ctx context.Context, addrs []multiaddr.Multiaddr) error {
+	p.rl.Lock()
+	c := p.root
+	p.rl.Unlock()
+	return p.announce(ctx, c, addrs)
+}
+
+func (p *publisher) announce(ctx context.Context, c cid.Cid, addrs []multiaddr.Multiaddr) error {
+	// Do nothing if nothing to announce or no means to announce it.
+	if c == cid.Undef || len(p.senders) == 0 {
+		return nil
+	}
+
+	log.Debugf("Publishing CID and addresses over HTTP: %s", c)
+	msg := message.Message{
+		Cid:       c,
+		ExtraData: p.extraData,
+	}
+	msg.SetAddrs(addrs)
+
+	var errs error
+	for _, sender := range p.senders {
+		if err := sender.Send(ctx, msg); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+	return errs
+}
+
 func (p *publisher) SetRoot(ctx context.Context, c cid.Cid) error {
 	p.rl.Lock()
 	defer p.rl.Unlock()
@@ -103,24 +136,7 @@ func (p *publisher) UpdateRootWithAddrs(ctx context.Context, c cid.Cid, addrs []
 	if err != nil {
 		return err
 	}
-	if len(p.senders) == 0 {
-		return nil
-	}
-
-	log.Debugf("Publishing CID and addresses over HTTP: %s", c)
-	msg := message.Message{
-		Cid:       c,
-		ExtraData: p.extraData,
-	}
-	msg.SetAddrs(addrs)
-
-	var errs error
-	for _, sender := range p.senders {
-		if err = sender.Send(ctx, msg); err != nil {
-			errs = multierror.Append(errs, err)
-		}
-	}
-	return errs
+	return p.announce(ctx, c, addrs)
 }
 
 func (p *publisher) Close() error {

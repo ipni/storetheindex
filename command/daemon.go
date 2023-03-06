@@ -223,7 +223,7 @@ func daemonAction(cctx *cli.Context) error {
 		}
 		if cfg.Addresses.NoResourceManager {
 			log.Info("libp2p resource manager disabled")
-			p2pOpts = append(p2pOpts, libp2p.ResourceManager(network.NullResourceManager))
+			p2pOpts = append(p2pOpts, libp2p.ResourceManager(&network.NullResourceManager{}))
 		}
 
 		p2pHost, err = libp2p.New(p2pOpts...)

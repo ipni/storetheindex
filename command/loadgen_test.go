@@ -77,7 +77,6 @@ func testLoadHelper(ctx context.Context, t *testing.T, concurrentProviders uint,
 		},
 	}
 
-	t.Log("---> tempDir:", tempDir)
 	err := app.RunContext(ctx, []string{"storetheindex", "init", "--no-bootstrap",
 		"--listen-admin", adminAddr,
 		"--listen-finder", finderAddr,

@@ -159,7 +159,7 @@ func TestAnnounce_LearnsHttpPublisherAddr(t *testing.T) {
 	defer pubh.Close()
 	pubds := dssync.MutexWrap(datastore.NewMapDatastore())
 	publs := test.MkLinkSystem(pubds)
-	pub, err := httpsync.NewPublisher("0.0.0.0:0", publs, pubh.ID(), pubh.Peerstore().PrivKey(pubh.ID()))
+	pub, err := httpsync.NewPublisher("0.0.0.0:0", publs, pubh.Peerstore().PrivKey(pubh.ID()))
 	require.NoError(t, err)
 	defer pub.Close()
 

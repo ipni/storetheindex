@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	dt "github.com/filecoin-project/go-data-transfer"
+	dt "github.com/filecoin-project/go-data-transfer/v2"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-graphsync"
 	"github.com/ipld/go-ipld-prime/traversal/selector"

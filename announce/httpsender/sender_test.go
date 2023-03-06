@@ -78,23 +78,20 @@ func TestSend(t *testing.T) {
 	announceURL, err := url.Parse(ts.URL + httpsender.DefaultAnnouncePath)
 	require.NoError(t, err)
 
-	_, err = httpsender.New(nil)
+	_, err = httpsender.New(nil, testPeerID)
 	require.Error(t, err)
 
-	sender, err := httpsender.New([]*url.URL{announceURL}, httpsender.WithClient(ts.Client()))
+	_, err = httpsender.New([]*url.URL{announceURL}, peer.ID(""))
+	require.Error(t, err)
+
+	sender, err := httpsender.New([]*url.URL{announceURL}, testPeerID, httpsender.WithClient(ts.Client()))
 	require.NoError(t, err)
 	defer sender.Close()
 
-	ai := peer.AddrInfo{
-		ID:    testPeerID,
-		Addrs: testAddrs,
-	}
-	addrs, err := peer.AddrInfoToP2pAddrs(&ai)
-	require.NoError(t, err)
 	msg := message.Message{
 		Cid: testCid,
 	}
-	msg.SetAddrs(addrs)
+	msg.SetAddrs(testAddrs)
 
 	err = sender.Send(context.Background(), msg)
 	require.NoError(t, err)
@@ -102,7 +99,7 @@ func TestSend(t *testing.T) {
 	require.NoError(t, sender.Close())
 
 	// Create sender with duplicate URLs.
-	sender, err = httpsender.New([]*url.URL{announceURL, announceURL})
+	sender, err = httpsender.New([]*url.URL{announceURL, announceURL}, testPeerID)
 	require.NoError(t, err)
 	defer sender.Close()
 
@@ -122,7 +119,7 @@ func TestSend(t *testing.T) {
 	require.NoError(t, err)
 
 	sender.Close()
-	sender, err = httpsender.New([]*url.URL{announceURL, announceURL2})
+	sender, err = httpsender.New([]*url.URL{announceURL, announceURL2}, testPeerID)
 	require.NoError(t, err)
 	defer sender.Close()
 
@@ -149,7 +146,7 @@ func TestSendTimeout(t *testing.T) {
 	announceURL, err := url.Parse(ts.URL + httpsender.DefaultAnnouncePath)
 	require.NoError(t, err)
 
-	sender, err := httpsender.New([]*url.URL{announceURL})
+	sender, err := httpsender.New([]*url.URL{announceURL}, testPeerID)
 	require.NoError(t, err)
 	defer sender.Close()
 
@@ -172,7 +169,7 @@ func TestSendTimeout(t *testing.T) {
 
 	// Test client timeout.
 	sender.Close()
-	sender, err = httpsender.New([]*url.URL{announceURL}, httpsender.WithTimeout(time.Second))
+	sender, err = httpsender.New([]*url.URL{announceURL}, testPeerID, httpsender.WithTimeout(time.Second))
 	require.NoError(t, err)
 	defer sender.Close()
 	err = sender.Send(context.Background(), msg)
@@ -208,23 +205,14 @@ func TestJSONSend(t *testing.T) {
 	announceURL, err := url.Parse(ts.URL + httpsender.DefaultAnnouncePath)
 	require.NoError(t, err)
 
-	_, err = httpsender.New(nil)
-	require.Error(t, err)
-
-	sender, err := httpsender.New([]*url.URL{announceURL}, httpsender.WithClient(ts.Client()))
+	sender, err := httpsender.New([]*url.URL{announceURL}, testPeerID, httpsender.WithClient(ts.Client()))
 	require.NoError(t, err)
 	defer sender.Close()
 
-	ai := peer.AddrInfo{
-		ID:    testPeerID,
-		Addrs: testAddrs,
-	}
-	addrs, err := peer.AddrInfoToP2pAddrs(&ai)
-	require.NoError(t, err)
 	msg := message.Message{
 		Cid: testCid,
 	}
-	msg.SetAddrs(addrs)
+	msg.SetAddrs(testAddrs)
 
 	err = sender.SendJson(context.Background(), msg)
 	require.NoError(t, err)

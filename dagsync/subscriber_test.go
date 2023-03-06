@@ -778,10 +778,7 @@ func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostS
 	var pub dagsync.Publisher
 	var err error
 	if b.IsHttp {
-		var id peer.ID
-		id, err = peer.IDFromPrivateKey(pubSys.privKey)
-		require.NoError(t, err)
-		httpPub, err := httpsync.NewPublisher("127.0.0.1:0", pubSys.lsys, id, pubSys.privKey)
+		httpPub, err := httpsync.NewPublisher("127.0.0.1:0", pubSys.lsys, pubSys.privKey)
 		require.NoError(t, err)
 		pubAddr = httpPub.Addrs()[0]
 		pub = httpPub

@@ -13,6 +13,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/ipni/storetheindex/announce/message"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 const DefaultAnnouncePath = "/ingest/announce"
@@ -20,11 +21,20 @@ const DefaultAnnouncePath = "/ingest/announce"
 type Sender struct {
 	announceURLs []string
 	client       *http.Client
+	peerID       peer.ID
 }
 
-func New(announceURLs []*url.URL, options ...Option) (*Sender, error) {
+// New creates a new Sender that sends announce messages over HTTP. Announce
+// messages are sent to the specified URLs. The addresses in announce messages
+// are modified to include the specified peerID, which is necessary to
+// communicate the publisher ID over HTTP.
+func New(announceURLs []*url.URL, peerID peer.ID, options ...Option) (*Sender, error) {
 	if len(announceURLs) == 0 {
 		return nil, errors.New("no announce urls")
+	}
+	err := peerID.Validate()
+	if err != nil {
+		return nil, err
 	}
 
 	opts, err := getOpts(options)
@@ -54,6 +64,7 @@ func New(announceURLs []*url.URL, options ...Option) (*Sender, error) {
 	return &Sender{
 		announceURLs: urls,
 		client:       client,
+		peerID:       peerID,
 	}, nil
 }
 
@@ -64,57 +75,58 @@ func (s *Sender) Close() error {
 
 // Send sends the Message to the announce URLs.
 func (s *Sender) Send(ctx context.Context, msg message.Message) error {
-	buf := bytes.NewBuffer(nil)
-	err := msg.MarshalCBOR(buf)
+	err := s.addIDToAddrs(&msg)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot add p2p id to message addrs: %w", err)
 	}
-
-	if len(s.announceURLs) < 2 {
-		u := s.announceURLs[0]
-		err = s.sendAnnounce(ctx, u, buf, false)
-		if err != nil {
-			return fmt.Errorf("failed to send http announce to %s: %w", u, err)
-		}
-		return nil
+	buf := bytes.NewBuffer(nil)
+	if err = msg.MarshalCBOR(buf); err != nil {
+		return fmt.Errorf("cannot cbor encode announce message: %w", err)
 	}
-
-	errChan := make(chan error)
-	data := buf.Bytes()
-	for _, u := range s.announceURLs {
-		// Send HTTP announce to indexers concurrently. If context is canceled,
-		// then requests will be canceled.
-		go func(announceURL string) {
-			err := s.sendAnnounce(ctx, announceURL, bytes.NewBuffer(data), false)
-			if err != nil {
-				errChan <- fmt.Errorf("failed to send http announce to %s: %w", announceURL, err)
-				return
-			}
-			errChan <- nil
-		}(u)
-	}
-	var errs error
-	for i := 0; i < len(s.announceURLs); i++ {
-		err := <-errChan
-		if err != nil {
-			errs = multierror.Append(errs, err)
-		}
-	}
-	return errs
+	return s.sendData(ctx, buf, false)
 }
 
 func (s *Sender) SendJson(ctx context.Context, msg message.Message) error {
+	err := s.addIDToAddrs(&msg)
+	if err != nil {
+		return fmt.Errorf("cannot add p2p id to message addrs: %w", err)
+	}
 	buf := new(bytes.Buffer)
-	err := json.NewEncoder(buf).Encode(msg)
+	if err = json.NewEncoder(buf).Encode(msg); err != nil {
+		return fmt.Errorf("cannot json encode announce message: %w", err)
+	}
+	return s.sendData(ctx, buf, true)
+}
+
+// addIDToAddrs adds the peerID to each of the multiaddrs in the message. This
+// is necessay to communicate the publisher ID when sending an announce over
+// HTTP.
+func (s *Sender) addIDToAddrs(msg *message.Message) error {
+	if len(msg.Addrs) == 0 {
+		return nil
+	}
+	addrs, err := msg.GetAddrs()
+	if err != nil {
+		return fmt.Errorf("cannot get addrs from message: %s", err)
+	}
+	ai := peer.AddrInfo{
+		ID:    s.peerID,
+		Addrs: addrs,
+	}
+	p2pAddrs, err := peer.AddrInfoToP2pAddrs(&ai)
 	if err != nil {
 		return err
 	}
+	msg.SetAddrs(p2pAddrs)
+	return nil
+}
 
+func (s *Sender) sendData(ctx context.Context, buf *bytes.Buffer, js bool) error {
 	if len(s.announceURLs) < 2 {
 		u := s.announceURLs[0]
-		err = s.sendAnnounce(ctx, u, buf, true)
+		err := s.sendAnnounce(ctx, u, buf, js)
 		if err != nil {
-			return fmt.Errorf("failed to send http announce to %s: %w", u, err)
+			return fmt.Errorf("failed to send http announce message to %s: %w", u, err)
 		}
 		return nil
 	}
@@ -125,7 +137,7 @@ func (s *Sender) SendJson(ctx context.Context, msg message.Message) error {
 		// Send HTTP announce to indexers concurrently. If context is canceled,
 		// then requests will be canceled.
 		go func(announceURL string) {
-			err := s.sendAnnounce(ctx, announceURL, bytes.NewBuffer(data), true)
+			err := s.sendAnnounce(ctx, announceURL, bytes.NewBuffer(data), js)
 			if err != nil {
 				errChan <- fmt.Errorf("failed to send http announce to %s: %w", announceURL, err)
 				return
@@ -166,7 +178,7 @@ func (s *Sender) sendAnnounce(ctx context.Context, announceURL string, buf *byte
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("%s: %s", http.StatusText(resp.StatusCode), strings.TrimSpace(string(body)))
+		return fmt.Errorf("%d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), strings.TrimSpace(string(body)))
 	}
 	return nil
 }

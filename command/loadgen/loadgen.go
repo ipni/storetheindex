@@ -131,14 +131,14 @@ func newProviderLoadGen(c Config, indexerHttpAddr string, addressMapping map[str
 		panic("Failed to generate signing key")
 	}
 
-	host, err := libp2p.New(libp2p.ListenAddrStrings(c.ListenMultiaddr), libp2p.Identity(signingKey), libp2p.AddrsFactory(newAddrsFactory(addressMapping)), libp2p.ResourceManager(network.NullResourceManager))
+	host, err := libp2p.New(libp2p.ListenAddrStrings(c.ListenMultiaddr), libp2p.Identity(signingKey), libp2p.AddrsFactory(newAddrsFactory(addressMapping)), libp2p.ResourceManager(&network.NullResourceManager{}))
 	if err != nil {
 		panic("Failed to start host" + err.Error())
 	}
 
 	var pub dagsync.Publisher
 	if c.IsHttp {
-		pub, err = httpsync.NewPublisher(c.HttpListenAddr, lsys, host.ID(), signingKey)
+		pub, err = httpsync.NewPublisher(c.HttpListenAddr, lsys, signingKey)
 	} else {
 		pub, err = dtsync.NewPublisher(host, ds, lsys, c.GossipSubTopic)
 

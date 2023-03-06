@@ -69,7 +69,7 @@ func (s *Syncer) Sync(ctx context.Context, nextCid cid.Cid, sel ipld.Node) error
 		v := Voucher{&nextCid}
 		// Do not pass cancelable context into OpenPullDataChannel because a
 		// canceled context causes it to hang.
-		_, err := s.sync.dtManager.OpenPullDataChannel(context.Background(), s.peerID, &v, nextCid, sel)
+		_, err := s.sync.dtManager.OpenPullDataChannel(context.Background(), s.peerID, v.AsVoucher(), nextCid, sel)
 		if err != nil {
 			s.sync.signalSyncDone(inProgressSyncK, nil)
 			return fmt.Errorf("cannot open data channel: %w", err)
