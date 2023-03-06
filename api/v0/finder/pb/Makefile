@@ -4,7 +4,7 @@ GO = $(PB:.proto=.pb.go)
 all: $(GO)
 
 %.pb.go: %.proto
-	protoc --proto_path=$(GOPATH)/pkg/mod:. --proto_path=/usr/include --gogofaster_out=. $<
+	docker run -v $(CURDIR):/defs -w /defs namely/protoc-all -d . -l go --go-module-prefix github.com/ipni/storetheindex/api/v0/finder/pb -o .
 
 clean:
 	rm -f *.pb.go

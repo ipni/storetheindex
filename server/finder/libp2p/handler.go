@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	logging "github.com/ipfs/go-log/v2"
 	indexer "github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
@@ -24,6 +23,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
+	"google.golang.org/protobuf/proto"
 )
 
 var log = logging.Logger("indexer/finder")
@@ -48,7 +48,7 @@ func (h *libp2pHandler) ProtocolID() protocol.ID {
 
 func (h *libp2pHandler) HandleMessage(ctx context.Context, msgPeer peer.ID, msgbytes []byte) (proto.Message, error) {
 	var req pb.FinderMessage
-	err := req.Unmarshal(msgbytes)
+	err := proto.Unmarshal(msgbytes, &req)
 	if err != nil {
 		return nil, err
 	}

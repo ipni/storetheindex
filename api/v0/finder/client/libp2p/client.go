@@ -13,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
+	"google.golang.org/protobuf/proto"
 )
 
 type Client struct {
@@ -123,9 +124,9 @@ func (c *Client) GetStats(ctx context.Context) (*model.Stats, error) {
 }
 
 func (c *Client) sendRecv(ctx context.Context, req *pb.FinderMessage, expectRspType pb.FinderMessage_MessageType) ([]byte, error) {
-	resp := new(pb.FinderMessage)
+	var resp pb.FinderMessage
 	err := c.p2pc.SendRequest(ctx, req, func(data []byte) error {
-		return resp.Unmarshal(data)
+		return proto.Unmarshal(data, &resp)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to indexer: %s", err)

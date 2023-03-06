@@ -6,8 +6,8 @@ import (
 	"io"
 	"sync"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/libp2p/go-msgio/protoio"
+	"github.com/libp2p/go-msgio/pbio"
+	"google.golang.org/protobuf/proto"
 )
 
 // The Protobuf writer performs multiple small writes when writing a message.
@@ -15,7 +15,7 @@ import (
 // packet for every single write.
 type bufferedDelimitedWriter struct {
 	*bufio.Writer
-	protoio.WriteCloser
+	pbio.WriteCloser
 }
 
 var writerPool = sync.Pool{
@@ -23,7 +23,7 @@ var writerPool = sync.Pool{
 		w := bufio.NewWriter(nil)
 		return &bufferedDelimitedWriter{
 			Writer:      w,
-			WriteCloser: protoio.NewDelimitedWriter(w),
+			WriteCloser: pbio.NewDelimitedWriter(w),
 		}
 	},
 }
