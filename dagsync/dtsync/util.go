@@ -112,13 +112,17 @@ func makeDataTransfer(host host.Host, ds datastore.Batching, lsys ipld.LinkSyste
 		cancel()
 		return nil, nil, nil, fmt.Errorf("failed to start datatransfer: %w", err)
 	}
+	log.Info("Started data transfer manager successfully.")
 
 	// Wait for datatransfer to be ready.
+	log.Info("Awaiting data transfer manager to become ready...")
 	err = <-dtReady
 	if err != nil {
+		log.Errorw("Failed while waiting for data transfer manager to become ready", "err", err)
 		cancel()
 		return nil, nil, nil, err
 	}
+	log.Info("Data transfer manager is read.")
 
 	closeFunc := func() error {
 		var err, errs error
