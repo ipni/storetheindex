@@ -28,3 +28,10 @@ configMapGenerator:
 
 patchesStrategicMerge:
   - deployment.yaml
+
+images:
+  - name: storetheindex
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+    # Image with extra logging to check where ingester instantiaton hangs.
+    # See: https://github.com/ipni/storetheindex/issues/1371
+    newTag: 20230307204324-c105e9fc81f32cbf0004721267bd8475208ee659
