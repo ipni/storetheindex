@@ -122,7 +122,7 @@ func makeDataTransfer(host host.Host, ds datastore.Batching, lsys ipld.LinkSyste
 		cancel()
 		return nil, nil, nil, err
 	}
-	log.Info("Data transfer manager is read.")
+	log.Info("Data transfer manager is ready.")
 
 	closeFunc := func() error {
 		var err, errs error
