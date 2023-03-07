@@ -3,7 +3,6 @@ kind: Deployment
 metadata:
   name: indexer
 spec:
-  replicas: 0
   template:
     spec:
       serviceAccountName: storetheindex
