@@ -326,9 +326,13 @@ func (s *Subscriber) doClose() error {
 func (s *Subscriber) OnSyncFinished() (<-chan SyncFinished, context.CancelFunc) {
 	// Channel is buffered to prevent distribute() from blocking if a reader is
 	// not reading the channel immediately.
+	log.Info("Configuring subscriber OnSyncFinished...")
 	ch := make(chan SyncFinished, 1)
 	s.outEventsMutex.Lock()
-	defer s.outEventsMutex.Unlock()
+	defer func() {
+		s.outEventsMutex.Unlock()
+		log.Info("Subscriber OnSyncFinished configured.")
+	}()
 
 	s.outEventsChans = append(s.outEventsChans, ch)
 	cncl := func() {
