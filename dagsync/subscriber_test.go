@@ -533,6 +533,7 @@ func TestRateLimiter(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		isHttp := tc.isHttp
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			pubHostSys := newHostSystem(t)
@@ -544,7 +545,7 @@ func TestRateLimiter(t *testing.T) {
 			limiter := rate.NewLimiter(rate.Every(tokenEvery), 1)
 			var calledTimes int64
 			pubAddr, pub, sub := dagsyncPubSubBuilder{
-				IsHttp: tc.isHttp,
+				IsHttp: isHttp,
 			}.Build(t, testTopic, pubHostSys, subHostSys, []dagsync.Option{
 				dagsync.BlockHook(func(i peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 					atomic.AddInt64(&calledTimes, 1)

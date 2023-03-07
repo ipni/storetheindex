@@ -16,7 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-const DefaultAnnouncePath = "/ingest/announce"
+const DefaultAnnouncePath = "/announce"
 
 type Sender struct {
 	announceURLs []string
@@ -52,6 +52,9 @@ func New(announceURLs []*url.URL, peerID peer.ID, options ...Option) (*Sender, e
 	urls := make([]string, 0, len(announceURLs))
 	seen := make(map[string]struct{}, len(announceURLs))
 	for _, u := range announceURLs {
+		if u.Path == "" {
+			u.Path = DefaultAnnouncePath
+		}
 		ustr := u.String()
 		if _, ok := seen[ustr]; ok {
 			// Skip duplicate.
