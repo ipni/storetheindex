@@ -19,7 +19,6 @@ spec:
             - '--ipniRequireQueryParam'
             - '--libp2pConMgrLow=200'
             - '--libp2pConMgrHigh=5000'
-            - '--useAcceleratedDHT=false'
           ports:
             - containerPort: 40090
               name: libp2p
