@@ -1,9 +1,10 @@
 //go:build openbsd
-// +build openbsd
 
 package disk
 
 import (
+	"syscall"
+
 	"golang.org/x/sys/unix"
 )
 
