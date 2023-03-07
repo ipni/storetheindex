@@ -27,6 +27,7 @@
 |-- log             Show log subsystems and modify log levels
 |   |-- getsubsys         Lists the available logging subsystems
 |   `-- setlevel          Sets log level for logging subsystems
-`-- providers       Commands to get provider information
-    |-- get               Show information about a specific provider
-    `-- list              Show information about all known providers
+|-- providers       Commands to get provider information
+|    |-- get               Show information about a specific provider
+|    `-- list              Show information about all known providers
+`-- spaddr          Get storage provider p2p ID and address from lotus gateway
