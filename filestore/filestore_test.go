@@ -250,7 +250,7 @@ func testDelete(t *testing.T, fs filestore.Interface) {
 	_, err = fs.Put(ctx, fileName3, strings.NewReader(data3))
 	require.NoError(t, err)
 
-	// File exists before delet.
+	// File exists before delete.
 	_, err = fs.Head(ctx, fileName1)
 	require.NoError(t, err)
 
@@ -270,6 +270,18 @@ func testDelete(t *testing.T, fs filestore.Interface) {
 
 	err = fs.Delete(ctx, fileName3)
 	require.NoError(t, err)
+
+	// Verify nothing in subdir.
+	fileCh, errCh := fs.List(context.Background(), fileName3, false)
+	var count int
+	var name string
+	for fileInfo := range fileCh {
+		count++
+		name = fileInfo.Path
+	}
+	err = <-errCh
+	require.NoError(t, err)
+	require.Zero(t, count, "file exists:", name)
 
 	// Delete empty directory should be ok.
 	err = fs.Delete(ctx, subdir)
