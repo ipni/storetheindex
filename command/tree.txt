@@ -23,7 +23,7 @@
 |-- loadtest
 |   |-- synthetic         Generate synthetic load to import in indexer
 |   |-- loadgen           Generate fake provider load for the indexer
-|   `-- loadgen-verify    Generate fake provider load for the indexer
+|   `-- loadgen-verify    Verify fake provider data generated for the indexer
 |-- log             Show log subsystems and modify log levels
 |   |-- getsubsys         Lists the available logging subsystems
 |   `-- setlevel          Sets log level for logging subsystems

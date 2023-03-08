@@ -24,7 +24,7 @@ var loadGenCmd = &cli.Command{
 
 var loadGenVerifyCmd = &cli.Command{
 	Name:   "loadgen-verify",
-	Usage:  "Generate fake provider load for the indexer",
+	Usage:  "Verify fake provider data generated for the indexer",
 	Flags:  loadGenVerifyFlags,
 	Action: loadGenVerifyAction,
 }
