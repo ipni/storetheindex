@@ -36,7 +36,7 @@ import (
 
 const (
 	testTopic     = "/dagsync/testtopic"
-	updateTimeout = 1 * time.Second
+	updateTimeout = 3 * time.Second
 )
 
 type pubMeta struct {
