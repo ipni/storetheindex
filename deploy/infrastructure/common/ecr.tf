@@ -10,6 +10,7 @@ module "ecr_ue2" {
     "ipni/heyfil",
     "ipni/dhstore",
     "ipni/caskadht",
+    "ipni/dhfind",
   ]
   tags = local.tags
 }
