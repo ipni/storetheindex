@@ -942,8 +942,9 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent dagsync.SyncFinished) {
 			// schedule one.
 			ing.reg.Saw(p)
 			pushCount := ing.toWorkers.Push(providerID(p))
-			stats.Record(context.Background(), metrics.AdIngestQueued.M(int64(ing.toWorkers.Length())))
-			stats.Record(context.Background(), metrics.AdIngestBacklog.M(int64(pushCount)))
+			stats.Record(context.Background(),
+				metrics.AdIngestQueued.M(int64(ing.toWorkers.Length())),
+				metrics.AdIngestBacklog.M(int64(pushCount)))
 		}
 	}
 }
@@ -958,14 +959,20 @@ func (ing *Ingester) ingestWorker(ctx context.Context) {
 			log.Debug("stopped ingest worker")
 			return
 		case provider := <-ing.toWorkers.PopChan():
-			stats.Record(context.Background(), metrics.AdIngestQueued.M(int64(ing.toWorkers.Length())))
 			pid := peer.ID(provider)
 			ing.providersBeingProcessedMu.Lock()
 			pc := ing.providersBeingProcessed[pid]
 			ing.providersBeingProcessedMu.Unlock()
 			activeWorkers := atomic.AddInt32(&ing.activeWorkers, 1)
-			stats.Record(context.Background(), metrics.AdIngestActive.M(int64(activeWorkers)))
-			pc <- struct{}{}
+			stats.Record(context.Background(),
+				metrics.AdIngestQueued.M(int64(ing.toWorkers.Length())),
+				metrics.AdIngestActive.M(int64(activeWorkers)))
+			select {
+			case pc <- struct{}{}:
+			case <-ing.closeWorkers:
+				log.Debug("stopped ingest worker")
+				return
+			}
 			ing.ingestWorkerLogic(ctx, pid)
 			ing.handlePendingAnnounce(ctx, pid)
 			<-pc
