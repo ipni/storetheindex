@@ -32,6 +32,8 @@ patchesStrategicMerge:
 images:
   - name: storetheindex
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
-    # Image with extra logging to check where ingester instantiaton hangs.
-    # See: https://github.com/ipni/storetheindex/issues/1371
-    newTag: 20230307204324-c105e9fc81f32cbf0004721267bd8475208ee659
+    # Image with data transfer datastore wrapped to avid FSM migration
+    # See: 
+    #  - https://github.com/ipni/storetheindex/issues/1371
+    #  - https://github.com/ipni/storetheindex/pull/1377
+    newTag: 20230308150823-e3a25cc5ebfdf4f7f152764568a048383c04c78b
