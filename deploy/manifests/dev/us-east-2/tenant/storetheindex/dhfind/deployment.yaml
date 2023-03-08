@@ -17,8 +17,8 @@ spec:
             - '--simulation=true'
           resources:
             limits:
-              cpu: "3"
-              memory: 5Gi
+              cpu: "0.5"
+              memory: 1Gi
             requests:
-              cpu: "3"
-              memory: 5Gi
+              cpu: "0.5"
+              memory: 1Gi
