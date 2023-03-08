@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/namespace"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -169,6 +170,7 @@ func NewSubscriber(host host.Host, ds datastore.Batching, lsys ipld.LinkSystem, 
 		}
 		dtSync, err = dtsync.NewSyncWithDT(host, opts.dtManager, opts.graphExchange, &lsys, blockHook)
 	} else {
+		ds := namespace.Wrap(ds, datastore.NewKey("data-transfer-v2"))
 		dtSync, err = dtsync.NewSync(host, ds, lsys, blockHook)
 	}
 	if err != nil {
