@@ -63,9 +63,9 @@
     "ValueStoreType": "pebble",
     "DisableWAL": true,
     "VSNoNewMH": true,
-    "DHBatchSize": -1,
+    "DHBatchSize": 5000,
     "DHStoreURL": "http://dhstore.internal.dev.cid.contact",
-    "DHStoreHttpClientTimeout": "20s"
+    "DHStoreHttpClientTimeout": "30s"
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
@@ -81,7 +81,7 @@
     "HttpSyncRetryWaitMax": "30s",
     "HttpSyncRetryWaitMin": "1s",
     "HttpSyncTimeout": "10s",
-    "IngestWorkerCount": 12,
+    "IngestWorkerCount": 10,
     "KeepAdvertisements":true,
     "PubSubTopic": "/indexer/ingest/mainnet",
     "RateLimit": {
