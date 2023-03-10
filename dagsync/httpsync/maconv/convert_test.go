@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRoundtrip(t *testing.T) {
@@ -19,22 +20,12 @@ func TestRoundtrip(t *testing.T) {
 	for _, s := range samples {
 		u, _ := url.Parse(s)
 		mu, err := ToMultiaddr(u)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		u2, err := ToURL(mu)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if u2.Scheme != u.Scheme {
-			t.Fatalf("scheme didn't roundtrip. got %s expected %s", u2.Scheme, u.Scheme)
-		}
-		if u2.Host != u.Host {
-			t.Fatalf("host didn't roundtrip. got %s, expected %s", u2.Host, u.Host)
-		}
-		if u2.Path != u.Path {
-			t.Fatalf("path didn't roundtrip. got %s, expected %s", u2.Path, u.Path)
-		}
+		require.NoError(t, err)
+		require.Equal(t, u.Scheme, u2.Scheme, "scheme didn't roundtrip")
+		require.Equal(t, u.Host, u2.Host, "host didn't roundtrip")
+		require.Equal(t, u.Path, u2.Path, "path didn't roundtrip")
 	}
 }
 
@@ -59,16 +50,10 @@ func TestTLSProtos(t *testing.T) {
 
 	for i := range samples {
 		m, err := multiaddr.NewMultiaddr(samples[i])
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		u, err := ToURL(m)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if u.String() != expect[i] {
-			t.Fatalf("expected %s to convert to url %s, got %s", m.String(), expect[i], u.String())
-		}
+		require.NoError(t, err)
+		require.Equal(t, expect[i], u.String(), "Did not convert to expected URL")
 	}
 }

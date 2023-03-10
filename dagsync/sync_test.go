@@ -44,15 +44,11 @@ func TestLatestSyncSuccess(t *testing.T) {
 	defer pub.Close()
 
 	sub, err := dagsync.NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil, dagsync.Topic(topics[1]))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer sub.Close()
 
 	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
@@ -61,17 +57,11 @@ func TestLatestSyncSuccess(t *testing.T) {
 	chainLnks := test.MkChain(srcLnkS, true)
 
 	err = newUpdateTest(pub, sub, dstStore, watcher, srcHost.ID(), chainLnks[2], false, chainLnks[2].(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	err = newUpdateTest(pub, sub, dstStore, watcher, srcHost.ID(), chainLnks[1], false, chainLnks[1].(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	err = newUpdateTest(pub, sub, dstStore, watcher, srcHost.ID(), chainLnks[0], false, chainLnks[0].(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 }
 
 func TestSyncFn(t *testing.T) {
@@ -307,9 +297,7 @@ func TestLatestSyncFailure(t *testing.T) {
 	defer srcHost.Close()
 	srcLnkS := test.MkLinkSystem(srcStore)
 	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer pub.Close()
 
 	chainLnks := test.MkChain(srcLnkS, true)
@@ -324,54 +312,39 @@ func TestLatestSyncFailure(t *testing.T) {
 	t.Log("targer host:", dstHost.ID())
 
 	sub, err := dagsync.NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer sub.Close()
 
-	if err := srcHost.Connect(context.Background(), dstHost.Peerstore().PeerInfo(dstHost.ID())); err != nil {
-		t.Fatal(err)
-	}
+	err = srcHost.Connect(context.Background(), dstHost.Peerstore().PeerInfo(dstHost.ID()))
+	require.NoError(t, err)
 
 	err = sub.SetLatestSync(srcHost.ID(), chainLnks[3].(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
 
 	t.Log("Testing sync fail when the other end does not have the data")
 	err = newUpdateTest(pub, sub, dstStore, watcher, srcHost.ID(), cidlink.Link{Cid: cid.Undef}, true, chainLnks[3].(cidlink.Link).Cid)
 	cncl()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	sub.Close()
 
 	dstStore = dssync.MutexWrap(datastore.NewMapDatastore())
 	sub2, err := dagsync.NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer sub2.Close()
 
 	err = sub2.SetLatestSync(srcHost.ID(), chainLnks[3].(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	watcher, cncl = sub2.OnSyncFinished()
 
 	t.Log("Testing sync fail when not able to run the full exchange")
 	err = newUpdateTest(pub, sub2, dstStore, watcher, srcHost.ID(), chainLnks[2], true, chainLnks[3].(cidlink.Link).Cid)
 	cncl()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 }
 
 func TestAnnounce(t *testing.T) {
@@ -388,21 +361,15 @@ func TestAnnounce(t *testing.T) {
 	dstLnkS := test.MkLinkSystem(dstStore)
 
 	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer pub.Close()
 
 	sub, err := dagsync.NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer sub.Close()
 
 	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
@@ -411,17 +378,11 @@ func TestAnnounce(t *testing.T) {
 	chainLnks := test.MkChain(srcLnkS, true)
 
 	err = newAnnounceTest(pub, sub, dstStore, watcher, srcHost.ID(), srcHost.Addrs(), chainLnks[2], chainLnks[2].(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	err = newAnnounceTest(pub, sub, dstStore, watcher, srcHost.ID(), srcHost.Addrs(), chainLnks[1], chainLnks[1].(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	err = newAnnounceTest(pub, sub, dstStore, watcher, srcHost.ID(), srcHost.Addrs(), chainLnks[0], chainLnks[0].(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 }
 
 func newAnnounceTest(pub dagsync.Publisher, sub *dagsync.Subscriber, dstStore datastore.Batching, watcher <-chan dagsync.SyncFinished, peerID peer.ID, peerAddrs []multiaddr.Multiaddr, lnk ipld.Link, expectedSync cid.Cid) error {

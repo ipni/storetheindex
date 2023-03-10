@@ -65,9 +65,7 @@ func TestAnnounceReplace(t *testing.T) {
 	// Have the subscriber receive an announce.  This is the same as if it was
 	// published by the publisher without having to wait for it to arrive.
 	err = sub.Announce(context.Background(), firstCid, srcHost.ID(), srcHost.Addrs())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Log("Sent announce for first CID", firstCid)
 
 	// This first announce should start the handler goroutine and clear the
@@ -113,15 +111,10 @@ func TestAnnounceReplace(t *testing.T) {
 	case <-time.After(updateTimeout):
 		t.Fatal("timed out waiting for sync to propagate")
 	case downstream, open := <-watcher:
-		if !open {
-			t.Fatal("event channle closed without receiving event")
-		}
-		if !downstream.Cid.Equals(firstCid) {
-			t.Fatalf("sync returned unexpected first cid %s, expected %s", downstream.Cid, firstCid)
-		}
-		if _, err = dstStore.Get(context.Background(), datastore.NewKey(downstream.Cid.String())); err != nil {
-			t.Fatalf("data not in receiver store: %s", err)
-		}
+		require.True(t, open, "event channle closed without receiving event")
+		require.Equal(t, firstCid, downstream.Cid, "sync returned unexpected first cid")
+		_, err = dstStore.Get(context.Background(), datastore.NewKey(downstream.Cid.String()))
+		require.NoError(t, err, "data not in receiver store")
 		t.Log("Received sync notification for first CID:", firstCid)
 	}
 
@@ -130,15 +123,10 @@ func TestAnnounceReplace(t *testing.T) {
 	case <-time.After(updateTimeout):
 		t.Fatal("timed out waiting for sync to propagate")
 	case downstream, open := <-watcher:
-		if !open {
-			t.Fatal("event channle closed without receiving event")
-		}
-		if !downstream.Cid.Equals(lastCid) {
-			t.Fatalf("sync returned unexpected last cid %s, expected %s", downstream.Cid, lastCid)
-		}
-		if _, err = dstStore.Get(context.Background(), datastore.NewKey(downstream.Cid.String())); err != nil {
-			t.Fatalf("data not in receiver store: %s", err)
-		}
+		require.True(t, open, "event channle closed without receiving event")
+		require.Equal(t, lastCid, downstream.Cid, "sync returned unexpected last cid")
+		_, err = dstStore.Get(context.Background(), datastore.NewKey(downstream.Cid.String()))
+		require.NoError(t, err, "data not in receiver store")
 		t.Log("Received sync notification for last CID:", lastCid)
 	}
 
@@ -146,10 +134,9 @@ func TestAnnounceReplace(t *testing.T) {
 	select {
 	case <-time.After(3 * time.Second):
 	case changeEvent, open := <-watcher:
-		if open {
-			t.Fatalf("no exchange should have been performed, but got change from peer %s for cid %s",
-				changeEvent.PeerID, changeEvent.Cid)
-		}
+		require.Falsef(t, open,
+			"no exchange should have been performed, but got change from peer %s for cid %s",
+			changeEvent.PeerID, changeEvent.Cid)
 	}
 }
 
