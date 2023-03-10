@@ -1,0 +1,44 @@
+checkers:
+  # Check dev endpoint behind cache
+  cid_contact:
+    type: ipni-non-streaming
+    ipniEndpoint: https://dev.cid.contact
+    Timeout: 30s
+    ipfsDhtCascade: false
+    parallelism: 10
+  # Check dev endpoint behind cache with cascade over IPFS DHT enabled
+  cid_contact_with_cascade:
+    type: ipni-non-streaming
+    ipniEndpoint: https://dev.cid.contact
+    Timeout: 30s
+    ipfsDhtCascade: true
+    parallelism: 10
+  # Check dev endpoint without cache
+  indexstar:
+    type: ipni-non-streaming
+    ipniEndpoint: https://indexstar.dev.cid.contact
+    Timeout: 30s
+    ipfsDhtCascade: false
+    parallelism: 10
+  # Check dev endpoint without cache with cascade over IPFS DHT enabled
+  indexstar_with_cascade:
+    type: ipni-non-streaming
+    ipniEndpoint: https://indexstar.dev.cid.contact
+    Timeout: 30s
+    ipfsDhtCascade: true
+    parallelism: 10
+samplers:
+  # List of root CIDs of well known IPFS datasets.
+  # See: 
+  #  - https://awesome.ipfs.io/datasets/
+  'awesome.ipfs.io/datasets':
+    type: awesome-ipfs-datasets
+  # List of top CIDs collected by saturn orchestrator with inner paths stripped.
+  # See:
+  #  - https://orchestrator.strn.pl/top-cids
+  'orchestrator.strn.pl/top-cids':
+    type: saturn-orch-top-cids
+checkInterval: 10m
+checkersParallelism: 10
+samplersParallelism: 10
+metricsListenAddr: 0.0.0.0:40080

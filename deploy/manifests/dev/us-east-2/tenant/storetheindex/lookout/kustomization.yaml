@@ -10,7 +10,13 @@ resources:
 patchesStrategicMerge:
   - deployment.yaml
 
+configMapGenerator:
+  - name: lookout-config
+    behavior: create
+    files:
+      - config.yaml
+
 images:
   - name: lookout
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/lookout
-    newTag: 20230310105018-589a5140cb28bfbafa6f8e1e4740705a50d8e269
+    newTag: 20230310151919-6fe5cfdd18aa6f36f7f2d6470d629e3e33a0599e

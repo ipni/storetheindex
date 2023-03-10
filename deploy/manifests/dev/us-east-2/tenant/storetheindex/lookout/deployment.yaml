@@ -7,6 +7,8 @@ spec:
     spec:
       containers:
         - name: lookout
+          args:
+            - '--config=/config/config.yaml'
           resources:
             limits:
               cpu: "0.3"
@@ -14,3 +16,10 @@ spec:
             requests:
               cpu: "0.3"
               memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: config
+          configMap:
+            name: lookout-config
