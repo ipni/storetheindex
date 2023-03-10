@@ -11,6 +11,7 @@ module "ecr_ue2" {
     "ipni/dhstore",
     "ipni/caskadht",
     "ipni/dhfind",
+    "ipni/lookout",
   ]
   tags = local.tags
 }
