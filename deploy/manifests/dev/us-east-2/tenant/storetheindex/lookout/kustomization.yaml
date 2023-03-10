@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - ../../../../../base/lookout
+  - pod-monitor.yaml
+
+patchesStrategicMerge:
+  - deployment.yaml
+
+images:
+  - name: lookout
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/lookout
+    newTag: 20230310105018-589a5140cb28bfbafa6f8e1e4740705a50d8e269
