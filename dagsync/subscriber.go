@@ -110,7 +110,8 @@ type SyncFinished struct {
 	// Cid is the CID identifying the link that finished and is now the latest
 	// sync for a specific peer.
 	Cid cid.Cid
-	// PeerID identifies the peer this SyncFinished event pertains to.
+	// PeerID identifies the peer this SyncFinished event pertains to. This is
+	// the publisher of the advertisement chain.
 	PeerID peer.ID
 	// A list of cids that this sync acquired. In order from latest to oldest.
 	// The latest cid will always be at the beginning.
@@ -127,7 +128,8 @@ type handler struct {
 	// it should grab this lock to insure no other process updates that state
 	// concurrently.
 	latestSyncMu sync.Mutex
-	// peerID is the ID of the peer this handler is responsible for.
+	// peerID is the ID of the peer this handler is responsible for. This is
+	// the publisher of an advertisement chain.
 	peerID peer.ID
 	// pendingCid is a CID queued for async handling.
 	pendingCid cid.Cid
@@ -369,10 +371,10 @@ func (s *Subscriber) RemoveHandler(peerID peer.ID) bool {
 	return true
 }
 
-// Sync performs a one-off explicit sync with the given peer for a specific CID
-// and updates the latest synced link to it. Completing sync may take a
-// significant amount of time, so Sync should generally be run in its own
-// goroutine.
+// Sync performs a one-off explicit sync with the given peer (publisher) for a
+// specific CID and updates the latest synced link to it. Completing sync may
+// take a significant amount of time, so Sync should generally be run in its
+// own goroutine.
 //
 // If given cid.Undef, the latest root CID is queried from the peer directly
 // and used instead. Note that in an event where there is no latest root, i.e.
@@ -463,7 +465,8 @@ func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, 
 		wrapSel = true
 	}
 
-	// Check for existing handler. If none, create one if allowed.
+	// Check for an existing handler for the specified peer (publisher). If
+	// none, create one if allowed.
 	hnd, err := s.getOrCreateHandler(peerID)
 	if err != nil {
 		return cid.Undef, err
@@ -484,7 +487,11 @@ func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, 
 
 	if updateLatest {
 		hnd.subscriber.latestSyncHander.SetLatestSync(hnd.peerID, nextCid)
-		hnd.subscriber.inEvents <- SyncFinished{Cid: nextCid, PeerID: hnd.peerID, SyncedCids: syncedCids}
+		hnd.subscriber.inEvents <- SyncFinished{
+			Cid:        nextCid,
+			PeerID:     hnd.peerID,
+			SyncedCids: syncedCids,
+		}
 	}
 
 	// The sync succeeded, so let's remember this address in the appropriate
@@ -608,9 +615,11 @@ func (s *Subscriber) watch() {
 	}
 }
 
-// Announce handles a direct announce message, that was not arrived over
-// pubsub. The message is resent over pubsub if the Receiver is configured to do so.
-// with the original peerID encoded into the message extra data.
+// Announce handles a direct announce message, that was not received over
+// pubsub. The message is resent over pubsub, if the Receiver is configured to
+// do so. The peerID and addrs are those of the advertisement publisher, since
+// an announce message announces the availability of an advertisement and where
+// to retrieve it from.
 func (s *Subscriber) Announce(ctx context.Context, nextCid cid.Cid, peerID peer.ID, peerAddrs []multiaddr.Multiaddr) error {
 	return s.receiver.Direct(ctx, nextCid, peerID, peerAddrs)
 }

@@ -63,8 +63,6 @@ type adProcessedEvent struct {
 	err error
 }
 
-type providerID peer.ID
-
 // pendingAnnounce captures an announcement received from a provider that await processing.
 type pendingAnnounce struct {
 	addrInfo peer.AddrInfo
@@ -87,6 +85,23 @@ type workerAssignment struct {
 }
 
 // Ingester is a type that uses dagsync for the ingestion protocol.
+//
+// ## Advertisement Ingestion Constraints
+//
+// 1. If an Ad is processed, all older ads referenced by this ad (towards the
+// start of the ad chain), have also been processes. For example, given some
+// chain A <- B <- C, the indexer will never be in the state that it indexed A
+// & C but not B.
+//
+// 2. An indexer will index an Ad chain, but will not make any gaurantees about
+// consistency in the presence of multiple ad chains for a given provider. For
+// example if a provider publishes two ad chains at the same time chain1 and
+// chain2 the indexer will apply whichever chain it learns about first first,
+// then apply the other chain.
+//
+// 3. An indexer will not index the same Ad twice. An indexer will be resilient
+// to restarts. If the indexer goes down and comes back up it should not break
+// constraint 1.
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
@@ -126,8 +141,6 @@ type Ingester struct {
 	providerAdChainStaging    map[peer.ID]*atomic.Value
 
 	closeWorkers chan struct{}
-	// toStaging receives sync finished events used to call to runIngestStep.
-	toStaging <-chan dagsync.SyncFinished
 	// toWorkers is used to ask the worker pool to start processing the ad
 	// chain for a given provider.
 	toWorkers      *Queue
@@ -162,6 +175,10 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	}
 	if opts.dsAds == nil {
 		opts.dsAds = ds
+	}
+
+	if cfg.IngestWorkerCount == 0 {
+		return nil, errors.New("ingester worker count must be > 0")
 	}
 
 	ing := &Ingester{
@@ -239,15 +256,12 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	}
 	ing.sub = sub
 
-	ing.toStaging, ing.cancelOnSyncFinished = ing.sub.OnSyncFinished()
-
-	if cfg.IngestWorkerCount == 0 {
-		return nil, errors.New("ingester worker count must be > 0")
-	}
-
 	ing.RunWorkers(cfg.IngestWorkerCount)
 
-	go ing.runIngesterLoop()
+	var syncFinishedEvents <-chan dagsync.SyncFinished
+	syncFinishedEvents, ing.cancelOnSyncFinished = ing.sub.OnSyncFinished()
+
+	go ing.runIngesterLoop(syncFinishedEvents)
 
 	// Start distributor to send SyncFinished messages to interested parties.
 	go ing.distributeEvents()
@@ -517,29 +531,33 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 
 // Announce send an announce message to directly to dagsync, instead of through
 // pubsub.
-func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, addrInfo peer.AddrInfo) error {
-	provider := addrInfo.ID
-	log := log.With("provider", provider, "cid", nextCid, "addrs", addrInfo.Addrs)
+func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, pubAddrInfo peer.AddrInfo) error {
+	publisher := pubAddrInfo.ID
+	log := log.With("publisher", publisher, "cid", nextCid, "addrs", pubAddrInfo.Addrs)
 
+	// If the publisher is not the same as the provider, then this will not
+	// wait for the provider to be done processing the ad chain it is working
+	// on.
 	ing.providersBeingProcessedMu.Lock()
-	pc, ok := ing.providersBeingProcessed[provider]
-	if !ok {
-		pc = make(chan struct{}, 1)
-		ing.providersBeingProcessed[provider] = pc
-	}
+	pc, ok := ing.providersBeingProcessed[publisher]
 	ing.providersBeingProcessedMu.Unlock()
+	if !ok {
+		return ing.sub.Announce(ctx, nextCid, publisher, pubAddrInfo.Addrs)
+	}
 
+	// The publisher in the announce message has the same ID as a known
+	// provider, so defer handling the announce if that provider is busy.
 	select {
 	case pc <- struct{}{}:
 		log.Info("Handling direct announce request")
-		err := ing.sub.Announce(ctx, nextCid, provider, addrInfo.Addrs)
+		err := ing.sub.Announce(ctx, nextCid, publisher, pubAddrInfo.Addrs)
 		<-pc
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
-		ing.providersPendingAnnounce.Store(provider, pendingAnnounce{
-			addrInfo: addrInfo,
+		ing.providersPendingAnnounce.Store(publisher, pendingAnnounce{
+			addrInfo: pubAddrInfo,
 			nextCid:  nextCid,
 		})
 		log.Info("Deferred handling direct announce request")
@@ -813,7 +831,11 @@ func (ing *Ingester) autoSync() {
 				autoSyncMutex.Unlock()
 				ing.waitForPendingSyncs.Done()
 			}()
-			log := log.With("provider", provID, "publisher", pubID, "addr", pubAddr)
+			log := log.With("publisher", pubID, "addr", pubAddr)
+			// Log provider ID if not the same as publisher ID.
+			if provID != pubID {
+				log = log.With("provider", provID)
+			}
 			log.Info("Auto-syncing the latest advertisement with publisher")
 
 			_, err := ing.sub.Sync(ctx, pubID, cid.Undef, nil, pubAddr)
@@ -877,15 +899,29 @@ func (ing *Ingester) RunWorkers(n int) {
 	}
 }
 
-func (ing *Ingester) runIngesterLoop() {
-	for syncFinishedEvent := range ing.toStaging {
-		ing.runIngestStep(syncFinishedEvent)
+// Handle events from dagsync.Subscriber signaling an chain has been synced.
+func (ing *Ingester) runIngesterLoop(syncFinishedEvents <-chan dagsync.SyncFinished) {
+	for event := range syncFinishedEvents {
+		ing.runIngestStep(event)
 	}
 }
 
 func (ing *Ingester) runIngestStep(syncFinishedEvent dagsync.SyncFinished) {
-	log := log.With("publisher", syncFinishedEvent.PeerID)
+	publisher := syncFinishedEvent.PeerID
+	log := log.With("publisher", publisher)
 	// 1. Group the incoming CIDs by provider.
+	//
+	// Serializing on the provider prevents concurrent processing of ads for
+	// the same provider from different chains. This allows the indexer to do
+	// the following:
+	//
+	// - Detect and skip ads that have come from a different chain. Concurrent
+	// processing may result in double processing. That would cause unnecessary
+	// work and inaccuracy of metrics.
+	//
+	// - When an already-processed ad is seen, the indexer can abandon the
+	// remainder of the chain being processed, instead of skipping ads for
+	// specific providers on a mixed provider chain.
 	adsGroupedByProvider := map[peer.ID][]adInfo{}
 	for _, c := range syncFinishedEvent.SyncedCids {
 		// Group the CIDs by the provider. Most of the time a publisher will
@@ -918,7 +954,8 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent dagsync.SyncFinished) {
 		})
 	}
 
-	// 2. For each provider put the ad stack to the worker msg channel.
+	// 2. For each provider put the ad stack to the worker msg channel. Each ad
+	// stack contains ads for a single provider, from a single publisher.
 	for p, adInfos := range adsGroupedByProvider {
 		ing.providersBeingProcessedMu.Lock()
 		if _, ok := ing.providersBeingProcessed[p]; !ok {
@@ -933,19 +970,24 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent dagsync.SyncFinished) {
 
 		oldAssignment := wa.Swap(workerAssignment{
 			adInfos:   adInfos,
-			publisher: syncFinishedEvent.PeerID,
+			publisher: publisher,
 			provider:  p,
 		})
-
 		if oldAssignment == nil || oldAssignment.(workerAssignment).none {
 			// No previous run scheduled a worker to handle this provider, so
 			// schedule one.
 			ing.reg.Saw(p)
-			pushCount := ing.toWorkers.Push(providerID(p))
+			pushCount := ing.toWorkers.Push(p)
 			stats.Record(context.Background(),
 				metrics.AdIngestQueued.M(int64(ing.toWorkers.Length())),
 				metrics.AdIngestBacklog.M(int64(pushCount)))
 		}
+		// If oldAssignment has adInfos, it is not necessary to merge the old
+		// and new assignments because the new assignment will already have all
+		// the adInfos that the old assignment does. If the old assignment was
+		// not processed yet, then the sync that created the new assignment
+		// would have traversed the same chain as the old. In other words, any
+		// existing old assignment is always a subset of a new assignment.
 	}
 }
 
@@ -1004,11 +1046,17 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 
 	frozen := ing.reg.Frozen()
 
+	log := log.With("publisher", assignment.publisher)
+	// Log provider ID if not the same as publisher ID.
+	if provider != assignment.publisher {
+		log = log.With("provider", provider)
+	}
+
 	// Filter out ads that are already processed, and any earlier ads.
 	splitAtIndex := len(assignment.adInfos)
 	for i, ai := range assignment.adInfos {
 		if ctx.Err() != nil {
-			log.Infow("Ingest worker canceled while ingesting ads", "provider", provider, "err", ctx.Err())
+			log.Infow("Ingest worker canceled while ingesting ads", "err", ctx.Err())
 			ing.inEvents <- adProcessedEvent{
 				publisher: assignment.publisher,
 				headAdCid: assignment.adInfos[0].cid,
@@ -1039,14 +1087,12 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			continue
 		}
 		// If this is a remove, do not skip this ad, but skip all earlier
-		// (deeped in chain) ads with the same context ID.
+		// (deeper in chain) ads with the same context ID and provider ID.
 		if ai.ad.IsRm {
 			rmCtxID[ctxIdStr] = struct{}{}
 			continue
 		}
 	}
-
-	log := log.With("publisher", assignment.publisher)
 
 	log.Infow("Running worker on ad stack", "headAdCid", assignment.adInfos[0].cid, "numAdsToProcess", splitAtIndex)
 	var count int
@@ -1056,7 +1102,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		count++
 
 		if ctx.Err() != nil {
-			log.Infow("Ingest worker canceled while processing ads", "provider", provider, "err", ctx.Err())
+			log.Infow("Ingest worker canceled while processing ads", "err", ctx.Err())
 			ing.inEvents <- adProcessedEvent{
 				publisher: assignment.publisher,
 				headAdCid: assignment.adInfos[0].cid,
@@ -1121,7 +1167,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			"progress", fmt.Sprintf("%d of %d", count, splitAtIndex),
 			"lag", lag)
 
-		err := ing.ingestAd(assignment.publisher, ai.cid, ai.ad, ai.resync, frozen, lag)
+		err := ing.ingestAd(ctx, assignment.publisher, ai.cid, ai.ad, ai.resync, frozen, lag)
 		if err == nil {
 			// No error at all, this ad was processed successfully.
 			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))
@@ -1189,16 +1235,16 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 	}
 }
 
-func (ing *Ingester) handlePendingAnnounce(ctx context.Context, pid peer.ID) {
+func (ing *Ingester) handlePendingAnnounce(ctx context.Context, pubID peer.ID) {
 	if ctx.Err() != nil {
 		return
 	}
-	log := log.With("provider", pid)
+	log := log.With("publisher", pubID)
 	// Process pending announce request if any.
-	// Note that the pending announce  is deleted regardless of whether it was successfully
+	// Note that the pending announce is deleted regardless of whether it was successfully
 	// processed or not. Because, the cause of failure may be non-recoverable e.g. address
 	// change and not removing it will block processing of future pending announces.
-	v, found := ing.providersPendingAnnounce.LoadAndDelete(pid)
+	v, found := ing.providersPendingAnnounce.LoadAndDelete(pubID)
 	if !found {
 		return
 	}

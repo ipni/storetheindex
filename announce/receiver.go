@@ -307,9 +307,11 @@ func (r *Receiver) watch(ctx context.Context) {
 	close(r.watchDone)
 }
 
-// Direct handles a direct announce message, that was not arrived over pubsub.
+// Direct handles a direct announce message, that was not received over pubsub.
 // The message is resent over pubsub with the original peerID encoded into the
-// message extra data.
+// message extra data. The peerID and addrs are those of the advertisement
+// publisher, since an announce message announces the availability of an
+// advertisement and where to retrieve it from.
 func (r *Receiver) Direct(ctx context.Context, nextCid cid.Cid, peerID peer.ID, addrs []multiaddr.Multiaddr) error {
 	log.Infow("Handling direct announce", "peer", peerID)
 	amsg := Announce{

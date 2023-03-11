@@ -4,12 +4,13 @@ import (
 	"sync"
 
 	"github.com/gammazero/deque"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type Queue struct {
 	lk     sync.Mutex
-	states map[providerID]uint32
-	order  *deque.Deque[providerID]
+	states map[peer.ID]uint32
+	order  *deque.Deque[peer.ID]
 
 	// used if someone is pulling an empty queue
 	notifyChan chan struct{}
@@ -18,33 +19,34 @@ type Queue struct {
 
 func NewPriorityQueue() *Queue {
 	return &Queue{
-		states:     make(map[providerID]uint32),
-		order:      deque.New[providerID](),
+		states:     make(map[peer.ID]uint32),
+		order:      deque.New[peer.ID](),
 		notifyChan: make(chan struct{}),
 		doneChan:   make(chan struct{}),
 	}
 }
 
-// Push a provider into the set. returns the number of pushes this provider has had since last popped.
-func (q *Queue) Push(p providerID) uint32 {
+// Push a provider into the set. returns the number of pushes this provider has
+// had since last popped.
+func (q *Queue) Push(p peer.ID) uint32 {
 	q.lk.Lock()
 	defer q.lk.Unlock()
 
-	if _, ok := q.states[p]; !ok {
+	n, ok := q.states[p]
+	if !ok {
 		q.order.PushBack(p)
-		q.states[p] = 1
-	} else {
-		q.states[p]++
 	}
+	n++
+	q.states[p] = n
 
 	select {
 	case q.notifyChan <- struct{}{}:
 	default:
 	}
-	return q.states[p]
+	return n
 }
 
-func (q *Queue) Pop() providerID {
+func (q *Queue) Pop() peer.ID {
 	q.lk.Lock()
 
 	for q.order.Len() == 0 {
@@ -65,8 +67,8 @@ func (q *Queue) Pop() providerID {
 
 // Returns a channel yielding the next provider to be pulled
 // with 'at most once' semantics before the channel is closed.
-func (q *Queue) PopChan() chan providerID {
-	ch := make(chan providerID)
+func (q *Queue) PopChan() chan peer.ID {
+	ch := make(chan peer.ID)
 
 	go func() {
 		defer close(ch)
@@ -79,7 +81,7 @@ func (q *Queue) PopChan() chan providerID {
 	return ch
 }
 
-func (q *Queue) Has(p providerID) bool {
+func (q *Queue) Has(p peer.ID) bool {
 	q.lk.Lock()
 	defer q.lk.Unlock()
 	_, ok := q.states[p]
