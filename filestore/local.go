@@ -48,19 +48,14 @@ func (l *Local) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, 
 		return nil, nil, err
 	}
 
-	defer func() {
-		// Close file only on error, otherwise caller must close it.
-		if err != nil {
-			f.Close()
-		}
-	}()
-
 	fi, err := f.Stat()
 	if err != nil {
+		f.Close()
 		return nil, nil, err
 	}
 
 	if fi.IsDir() {
+		f.Close()
 		return nil, nil, ErrNotFound
 	}
 
@@ -93,7 +88,7 @@ func (l *Local) Head(ctx context.Context, relPath string) (*File, error) {
 }
 
 func (l *Local) List(ctx context.Context, relPath string, recursive bool) (<-chan *File, <-chan error) {
-	c := make(chan *File)
+	c := make(chan *File, 1)
 	e := make(chan error, 1)
 
 	go func() {
@@ -166,26 +161,23 @@ func (l *Local) Put(ctx context.Context, relPath string, r io.Reader) (*File, er
 		return nil, err
 	}
 
-	defer func() {
-		f.Close()
-		if err != nil {
-			os.Remove(absPath)
-		}
-	}()
-
 	if r != nil {
-		_, err = io.Copy(f, r)
-		if err != nil {
+		if _, err = io.Copy(f, r); err != nil {
+			f.Close()
+			os.Remove(absPath)
 			return nil, err
 		}
 	}
 
 	fi, err := f.Stat()
 	if err != nil {
+		f.Close()
+		os.Remove(absPath)
 		return nil, err
 	}
 
 	if err = f.Close(); err != nil {
+		os.Remove(absPath)
 		return nil, err
 	}
 
