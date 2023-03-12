@@ -182,8 +182,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		log = log.With("provider", providerID)
 	}
 
-	// Register provider or update existing registration. The provider must be
-	// allowed by policy to be registered.
+	// Get publisher peer.AddrInfo from peerstore.
 	var publisher peer.AddrInfo
 	peerStore := ing.sub.HttpPeerStore()
 	if peerStore != nil {
@@ -253,6 +252,8 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		Addrs: maddrs,
 	}
 
+	// Register provider or update existing registration. The provider must be
+	// allowed by policy to be registered.
 	err = ing.reg.Update(ctx, provider, publisher, adCid, extendedProviders, lag)
 	if err != nil {
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
