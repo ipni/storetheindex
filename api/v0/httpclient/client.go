@@ -49,6 +49,5 @@ func ReadErrorFrom(status int, r io.Reader) error {
 }
 
 func ReadError(status int, body []byte) error {
-	se := v0.NewError(errors.New(strings.TrimSpace(string(body))), status)
-	return errors.New(se.Text())
+	return v0.NewError(errors.New(strings.TrimSpace(string(body))), status)
 }
