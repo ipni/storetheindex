@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/require"
 )
 
 var rng = rand.New(rand.NewSource(1413))
@@ -48,9 +48,7 @@ func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 		PollInterval: config.Duration(time.Minute),
 	}
 	reg, err := registry.New(context.Background(), discoveryCfg, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return reg
 }
 
@@ -58,14 +56,10 @@ func InitIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *i
 	cfg := config.NewIngest()
 	ds := dssync.MutexWrap(datastore.NewMapDatastore())
 	host, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		ing.Close()
 	})
@@ -78,25 +72,17 @@ func RegisterProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, pri
 
 	t.Log("registering provider")
 	err := c.Register(ctx, providerID, privateKey, []string{addr})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if !reg.IsRegistered(providerID) {
-		t.Fatal("provider not registered")
-	}
+	require.True(t, reg.IsRegistered(providerID), "provider not registered")
 
 	// Test signature fail
 	t.Log("registering provider with bad signature")
 	badPeerID, err := peer.Decode("12D3KooWD1XypSuBmhebQcvq7Sf1XJZ1hKSfYCED4w6eyxhzwqnV")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = c.Register(ctx, badPeerID, privateKey, []string{addr})
-	if err == nil {
-		t.Fatal("expected bad signature error")
-	}
+	require.Error(t, err, "expected bad signature error")
 }
 
 func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
@@ -109,20 +95,12 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 	metadata := []byte("test-metadata")
 
 	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	vals, ok, err := ind.Get(mhs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatal("did not find content")
-	}
-	if len(vals) == 0 {
-		t.Fatal("no content values returned")
-	}
+	require.NoError(t, err)
+	require.True(t, ok, "did not find content")
+	require.NotZero(t, len(vals), "no content values returned")
 
 	expectValue := indexer.Value{
 		ProviderID:    providerID,
@@ -136,9 +114,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 			break
 		}
 	}
-	if !ok {
-		t.Fatal("did not get expected content")
-	}
+	require.True(t, ok, "did not get expected content")
 }
 
 func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface, newAddr string, reg *registry.Registry) {
@@ -152,26 +128,16 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 	addrs := []string{newAddr}
 
 	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], ctxID, metadata, addrs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	info, allowed := reg.ProviderInfo(providerID)
-	if info == nil {
-		t.Fatal("did not get infor for provider:", providerID)
-	}
-	if !allowed {
-		t.Fatal("provider not allowed")
-	}
+	require.NotNil(t, info, "did not get infor for provider")
+	require.True(t, allowed, "provider not allowed")
 
 	maddr, err := multiaddr.NewMultiaddr(newAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if !info.AddrInfo.Addrs[0].Equal(maddr) {
-		t.Fatalf("Did not update address.  Have %q, want %q", info.AddrInfo.Addrs[0].String(), maddr.String())
-	}
+	require.True(t, info.AddrInfo.Addrs[0].Equal(maddr), "Did not update address")
 }
 
 func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
@@ -184,44 +150,28 @@ func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privat
 	metadata := []byte("test-metadata")
 
 	err := cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-
-	if !strings.HasSuffix(err.Error(), "context id too long") {
-		t.Fatalf("expected error message: \"context id too long\", got %q", err.Error())
-	}
+	require.Error(t, err)
+	require.ErrorContains(t, err, "context id too long")
 
 	contextID = []byte("test-context-id")
 	metadata = make([]byte, schema.MaxMetadataLen+1)
 	err = cl.IndexContent(ctx, providerID, privateKey, mhs[0], contextID, metadata, nil)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-
-	if !strings.HasSuffix(err.Error(), "metadata too long") {
-		t.Fatalf("expected error message: \"metadata too long\", got %q", err.Error())
-	}
+	require.Error(t, err)
+	require.ErrorContains(t, err, "metadata too long")
 
 	apierr, ok := err.(*v0.Error)
 	if ok {
-		if apierr.Status() != 400 {
-			t.Fatalf("expected status 400, got %d", apierr.Status())
-		}
+		require.Equal(t, 400, apierr.Status())
 	}
 }
 
 func AnnounceTest(t *testing.T, peerID peer.ID, sender announce.Sender) {
 	ai, err := peer.AddrInfoFromString(fmt.Sprintf("/ip4/127.0.0.1/tcp/9999/p2p/%s", peerID))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ai.ID = peerID
 
 	p2pAddrs, err := peer.AddrInfoToP2pAddrs(ai)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	mhs := util.RandomMultihashes(1, rng)
 
@@ -230,7 +180,6 @@ func AnnounceTest(t *testing.T, peerID peer.ID, sender announce.Sender) {
 	}
 	msg.SetAddrs(p2pAddrs)
 
-	if err = sender.Send(context.Background(), msg); err != nil {
-		t.Fatalf("Failed to announce: %s", err)
-	}
+	err = sender.Send(context.Background(), msg)
+	require.NoError(t, err, "Failed to announce")
 }

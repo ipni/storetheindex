@@ -3,6 +3,8 @@ package config
 import (
 	"sort"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 var testBootstrapAddresses = []string{
@@ -19,9 +21,7 @@ func TestBoostrapPeers(t *testing.T) {
 		Peers: testBootstrapAddresses,
 	}
 	addrs, err := b.PeerAddrs()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	var b2 Bootstrap
 	b2.SetPeers(addrs)
@@ -29,8 +29,6 @@ func TestBoostrapPeers(t *testing.T) {
 	sort.Strings(b.Peers)
 
 	for i := range b2.Peers {
-		if b2.Peers[i] != b.Peers[i] {
-			t.Fatalf("expected %s, %s", b.Peers[i], b2.Peers[i])
-		}
+		require.Equal(t, b2.Peers[i], b.Peers[i])
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/ipni/storetheindex/internal/registry"
 	httpserver "github.com/ipni/storetheindex/server/ingest/http"
 	"github.com/ipni/storetheindex/server/ingest/test"
+	"github.com/stretchr/testify/require"
 )
 
 var providerIdent = config.Identity{
@@ -22,35 +23,25 @@ var providerIdent = config.Identity{
 
 func setupServer(ind indexer.Interface, ing *ingest.Ingester, reg *registry.Registry, t *testing.T) *httpserver.Server {
 	s, err := httpserver.New("127.0.0.1:0", ind, ing, reg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return s
 }
 
 func setupClient(host string, t *testing.T) *httpclient.Client {
 	c, err := httpclient.New(host)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return c
 }
 
 func setupSender(t *testing.T, baseURL string) *httpsender.Sender {
 	announceURL, err := url.Parse(baseURL + httpsender.DefaultAnnouncePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	peerID, _, err := providerIdent.Decode()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	httpSender, err := httpsender.New([]*url.URL{announceURL}, peerID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return httpSender
 }
@@ -64,9 +55,7 @@ func TestRegisterProvider(t *testing.T) {
 	httpClient := setupClient(s.URL(), t)
 
 	peerID, privKey, err := providerIdent.Decode()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Start server
 	errChan := make(chan error, 1)
@@ -81,9 +70,7 @@ func TestRegisterProvider(t *testing.T) {
 	test.RegisterProviderTest(t, httpClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
 
 	reg.Close()
-	if err = ind.Close(); err != nil {
-		t.Errorf("Error closing indexer core: %s", err)
-	}
+	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 func TestAnnounce(t *testing.T) {
@@ -94,9 +81,7 @@ func TestAnnounce(t *testing.T) {
 	s := setupServer(ind, ing, reg, t)
 	httpSender := setupSender(t, s.URL())
 	peerID, _, err := providerIdent.Decode()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	errChan := make(chan error, 1)
 	go func() {
 		err := s.Start()
@@ -109,7 +94,5 @@ func TestAnnounce(t *testing.T) {
 	test.AnnounceTest(t, peerID, httpSender)
 
 	reg.Close()
-	if err = ind.Close(); err != nil {
-		t.Errorf("Error closing indexer core: %s", err)
-	}
+	require.NoError(t, ind.Close(), "Error closing indexer core")
 }

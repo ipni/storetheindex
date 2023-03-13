@@ -90,9 +90,7 @@ func TestHandleRegisterProvider(t *testing.T) {
 
 	addrs := []string{"/ip4/127.0.0.1/tcp/9999"}
 	data, err := model.MakeRegisterRequest(peerID, privKey, addrs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	reqBody := bytes.NewBuffer(data)
 
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/providers", reqBody)
@@ -101,15 +99,9 @@ func TestHandleRegisterProvider(t *testing.T) {
 
 	resp := w.Result()
 
-	if resp.StatusCode != http.StatusOK {
-		t.Fatal("expected response to be", http.StatusOK)
-	}
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	pinfo, allowed := reg.ProviderInfo(peerID)
-	if pinfo == nil {
-		t.Fatal("provider was not registered")
-	}
-	if !allowed {
-		t.Fatal("provider not allowed")
-	}
+	require.NotNil(t, pinfo, "provider was not registered")
+	require.True(t, allowed, "provider not allowed")
 }

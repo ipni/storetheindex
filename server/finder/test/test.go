@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/rand"
-	"strings"
 	"testing"
 	"time"
 
@@ -40,9 +39,7 @@ func InitIndex(t *testing.T, withCache bool) indexer.Interface {
 // InitPebbleIndex initialize a new indexer engine using pebbel with cache.
 func InitPebbleIndex(t *testing.T, withCache bool) indexer.Interface {
 	valueStore, err := pebble.New(t.TempDir(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if withCache {
 		return engine.New(radixcache.New(1000), valueStore)
 	}
@@ -71,48 +68,32 @@ func InitRegistryWithRestrictivePolicy(t *testing.T, restrictive bool) *registry
 		}
 	}
 	reg, err := registry.New(context.Background(), discoveryCfg, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return reg
 }
 
 // populateIndex with some multihashes
 func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.Value, t *testing.T) {
 	err := ind.Put(v, mhs...)
-	if err != nil {
-		t.Fatal("Error putting multihashes: ", err)
-	}
+	require.NoError(t, err, "Error putting multihashes")
 	vals, ok, err := ind.Get(mhs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatal("index not found")
-	}
-	if len(vals) == 0 {
-		t.Fatal("no values returned")
-	}
-	if !v.Equal(vals[0]) {
-		t.Fatal("stored and retrieved values are different")
-	}
+	require.NoError(t, err)
+	require.True(t, ok, "index not found")
+	require.NotZero(t, len(vals), "no values returned")
+	require.True(t, v.Equal(vals[0]), "stored and retrieved values are different")
 }
 
 func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Finder, rc *reframeclient.Client, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
 	mhs := util.RandomMultihashes(15, rng)
 	p, err := peer.Decode(providerID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ctxID := []byte("test-context-id")
 
 	// Use a sample metadata with multiple protocols that includes BitSwap
 	// among others to make a stronger test.
 	metadata, err := base64.StdEncoding.DecodeString("gBKQEqNoUGllY2VDSUTYKlgoAAGB4gOSICAYVAKmPqL1mpkiiDhd9iBaXoU/3rXorXxzjiyESP4hB2xWZXJpZmllZERlYWz0bUZhc3RSZXRyaWV2YWz1")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	v := indexer.Value{
 		ProviderID:    p,
 		ContextID:     ctxID,
@@ -126,31 +107,21 @@ func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Finder, rc
 		Addrs: []multiaddr.Multiaddr{a},
 	}
 	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
-	if err != nil {
-		t.Fatal("could not register provider info:", err)
-	}
+	require.NoError(t, err, "could not register provider info")
 
 	// Get single multihash
 	peerAddrs, err := rc.FindProviders(ctx, cid.NewCidV1(cid.Raw, mhs[0]))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if len(peerAddrs) != 1 {
-		t.Fatalf("expecting one peer addr, got %d", len(peerAddrs))
-	}
-	if peerAddrs[0].ID != p {
-		t.Fatalf("expecting %v, got %v", p, peerAddrs[0].ID)
-	}
+	require.Equal(t, 1, len(peerAddrs), "expecting one peer addr")
+	require.Equal(t, p, peerAddrs[0].ID)
 }
 
 func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
 	mhs := util.RandomMultihashes(15, rng)
 	p, err := peer.Decode(providerID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ctxID := []byte("test-context-id")
 	metadata := []byte("test-metadata")
 	v := indexer.Value{
@@ -166,15 +137,11 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 		Addrs: []multiaddr.Multiaddr{a},
 	}
 	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
-	if err != nil {
-		t.Fatal("could not register provider info:", err)
-	}
+	require.NoError(t, err, "could not register provider info")
 
 	// Get single multihash
 	resp, err := c.Find(ctx, mhs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Log("index values in resp:", len(resp.MultihashResults))
 
 	provResult := model.ProviderResult{
@@ -188,49 +155,31 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind index
 
 	expectedResults := []model.ProviderResult{provResult}
 	err = checkResponse(resp, mhs[:1], expectedResults)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Get a batch of multihashes
 	resp, err = c.FindBatch(ctx, mhs[:10])
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	err = checkResponse(resp, mhs[:10], expectedResults)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Get a batch of multihashes where only a subset is in the index
 	resp, err = c.FindBatch(ctx, mhs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	err = checkResponse(resp, mhs[:10], expectedResults)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Get empty batch
 	_, err = c.FindBatch(ctx, []multihash.Multihash{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	err = checkResponse(&model.FindResponse{}, []multihash.Multihash{}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Get batch with no multihashes in request
 	_, err = c.FindBatch(ctx, mhs[10:])
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	err = checkResponse(&model.FindResponse{}, []multihash.Multihash{}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 }
 
 func checkResponse(r *model.FindResponse, mhs []multihash.Multihash, expected []model.ProviderResult) error {
@@ -278,12 +227,8 @@ func ListProvidersTest(t *testing.T, c client.Finder, providerID peer.ID) {
 	defer cancel()
 
 	providers, err := c.ListProviders(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(providers) != 1 {
-		t.Fatalf("should have 1 provider, has %d", len(providers))
-	}
+	require.NoError(t, err)
+	require.Equal(t, 1, len(providers), "should have 1 provider")
 
 	verifyProviderInfo(t, providers[0])
 }
@@ -324,14 +269,10 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 	// Generate some multihashes and populate indexer
 	mhs := util.RandomMultihashes(15, rng)
 	p, err := peer.Decode(providerID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ctxID := []byte("test-context-id")
 	metadata := []byte("test-metadata")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	v := indexer.Value{
 		ProviderID:    p,
 		ContextID:     ctxID,
@@ -345,18 +286,12 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 		Addrs: []multiaddr.Multiaddr{a},
 	}
 	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
-	if err != nil {
-		t.Fatal("could not register provider info:", err)
-	}
+	require.NoError(t, err, "could not register provider info")
 
 	// Get single multihash
 	resp, err := c.Find(ctx, mhs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(resp.MultihashResults) != 1 {
-		t.Fatal("expected 1 value in response")
-	}
+	require.NoError(t, err)
+	require.Equal(t, 1, len(resp.MultihashResults), "expected 1 value in response")
 
 	provResult := model.ProviderResult{
 		ContextID: v.ContextID,
@@ -369,39 +304,27 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 
 	expectedResults := []model.ProviderResult{provResult}
 	err = checkResponse(resp, mhs[:1], expectedResults)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	t.Log("removing provider from registry")
 	err = reg.RemoveProvider(ctx, p)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Get single multihash
 	resp, err = c.Find(ctx, mhs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Log("index values in resp:", len(resp.MultihashResults))
-	if len(resp.MultihashResults) != 0 {
-		t.Fatal("expected 0 multihashes in response")
-	}
+	require.Zero(t, len(resp.MultihashResults), "expected 0 multihashes in response")
 
 	_, err = c.GetProvider(ctx, p)
-	if err == nil || !strings.HasSuffix(err.Error(), "not found") {
-		t.Fatal("expected 'error not found' from GetProvider")
-	}
+	require.ErrorContains(t, err, "not found")
 }
 
 func GetStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refreshStats func(), c client.Finder) {
 	t.Parallel()
 	mhs := util.RandomMultihashes(15, rng)
 	p, err := peer.Decode(providerID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ctxID := []byte("test-context-id")
 	metadata := []byte("test-metadata")
 	v := indexer.Value{
@@ -422,14 +345,10 @@ func GetStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refr
 
 func Register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID {
 	peerID, err := peer.Decode(providerID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ep1, _, _ := util.RandomIdentity(t)
 	ep2, _, _ := util.RandomIdentity(t)
@@ -461,9 +380,7 @@ func Register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID
 	}
 
 	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, extProviders, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return peerID
 }

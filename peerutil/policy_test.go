@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -30,176 +31,100 @@ func init() {
 
 func TestNewPolicy(t *testing.T) {
 	_, err := NewPolicyStrings(false, []string{exceptIDStr, "bad ID"})
-	if err == nil {
-		t.Error("expected error with bad except ID")
-	}
+	require.Error(t, err, "expected error with bad except ID")
 
 	except := []string{exceptIDStr}
 
 	p, err := NewPolicyStrings(false, except)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !p.Any(true) {
-		t.Error("true should be possible")
-	}
+	require.NoError(t, err)
+	require.True(t, p.Any(true), "true should be possible")
 
 	p, err = NewPolicyStrings(true, except)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !p.Any(true) {
-		t.Error("true should be possible")
-	}
+	require.NoError(t, err)
+	require.True(t, p.Any(true), "true should be possible")
 
 	p = NewPolicy(false)
-	if p.Any(true) {
-		t.Error("should not be true for any peers")
-	}
+	require.False(t, p.Any(true), "should not be true for any peers")
 
-	if p.SetPeer(exceptID, false) {
-		t.Fatal("should not have been updated to be false for peer")
-	}
+	require.False(t, p.SetPeer(exceptID, false), "should not have been updated to be false for peer")
 
 	p = NewPolicy(true)
-	if !p.Any(true) {
-		t.Error("should by true for any peers")
-	}
+	require.True(t, p.Any(true), "should by true for any peers")
 
-	if !p.SetPeer(exceptID, false) {
-		t.Fatal("should have been updated to be false for peer")
-	}
-	if p.Eval(exceptID) {
-		t.Fatal("should be false for peer ID")
-	}
+	require.True(t, p.SetPeer(exceptID, false), "should have been updated to be false for peer")
+	require.False(t, p.Eval(exceptID), "should be false for peer ID")
 }
 
 func TestFalseDefault(t *testing.T) {
 	p := NewPolicy(false, exceptID)
 
-	if p.Default() {
-		t.Fatal("expected false default")
-	}
+	require.False(t, p.Default(), "expected false default")
 
-	if p.Eval(otherID) {
-		t.Error("should evaluate false")
-	}
-	if !p.Eval(exceptID) {
-		t.Error("should evaluate true")
-	}
+	require.False(t, p.Eval(otherID))
+	require.True(t, p.Eval(exceptID))
 
 	// Check that disabling otherID does not update.
-	if p.SetPeer(otherID, false) {
-		t.Fatal("should not have been updated")
-	}
-	if p.Eval(otherID) {
-		t.Error("should not evaluate true")
-	}
+	require.False(t, p.SetPeer(otherID, false), "should not have been updated")
+	require.False(t, p.Eval(otherID))
 
 	// Check that setting exceptID true does not update.
-	if p.SetPeer(exceptID, true) {
-		t.Fatal("should not have been updated")
-	}
-	if !p.Eval(exceptID) {
-		t.Error("should evaluate true")
-	}
+	require.False(t, p.SetPeer(exceptID, true), "should not have been updated")
+	require.True(t, p.Eval(exceptID))
 
 	// Check that setting otherID true does update.
-	if !p.SetPeer(otherID, true) {
-		t.Fatal("should have been updated")
-	}
-	if !p.Eval(otherID) {
-		t.Error("should evaluate true")
-	}
+	require.True(t, p.SetPeer(otherID, true), "should have been updated")
+	require.True(t, p.Eval(otherID))
 
 	// Check that setting exceptID false does update.
-	if !p.SetPeer(exceptID, false) {
-		t.Fatal("should have been updated")
-	}
-	if p.Eval(exceptID) {
-		t.Error("peer ID should evaluate false")
-	}
+	require.True(t, p.SetPeer(exceptID, false), "should have been updated")
+	require.False(t, p.Eval(exceptID))
 }
 
 func TestTrueDefault(t *testing.T) {
 	p := NewPolicy(true, exceptID)
 
-	if !p.Default() {
-		t.Fatal("expected true default")
-	}
+	require.True(t, p.Default(), "expected true default")
 
-	if !p.Eval(otherID) {
-		t.Error("should evaluate true")
-	}
-	if p.Eval(exceptID) {
-		t.Error("should evaluate false")
-	}
+	require.True(t, p.Eval(otherID))
+	require.False(t, p.Eval(exceptID))
 
 	// Check that setting exceptID false does not update.
-	if p.SetPeer(exceptID, false) {
-		t.Fatal("should not have been update")
-	}
-	if p.Eval(exceptID) {
-		t.Error("should evaluate false")
-	}
+	require.False(t, p.SetPeer(exceptID, false), "should not have been updated")
+	require.False(t, p.Eval(exceptID))
 
 	// Check that setting otherID true does not update.
-	if p.SetPeer(otherID, true) {
-		t.Fatal("should have been update")
-	}
-	if !p.Eval(otherID) {
-		t.Error("should evaluate true")
-	}
+	require.False(t, p.SetPeer(otherID, true), "should not have been updated")
+	require.True(t, p.Eval(otherID))
 
 	// Check that setting exceptID true does updates.
-	if !p.SetPeer(exceptID, true) {
-		t.Fatal("should have been update")
-	}
-	if !p.Eval(exceptID) {
-		t.Error("should evaluate true")
-	}
+	require.True(t, p.SetPeer(exceptID, true), "should have been updated")
+	require.True(t, p.Eval(exceptID))
 
 	// Check that setting otherID false does updates.
-	if !p.SetPeer(otherID, false) {
-		t.Fatal("should have been updated")
-	}
-	if p.Eval(otherID) {
-		t.Error("should evaluate false")
-	}
+	require.True(t, p.SetPeer(otherID, false), "should have been updated")
+	require.False(t, p.Eval(otherID))
 }
 
 func TestExceptStrings(t *testing.T) {
 	p, err := NewPolicyStrings(false, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(p.ExceptStrings()) != 0 {
-		t.Fatal("should not be any except strings")
-	}
+	require.NoError(t, err)
+	require.Zero(t, len(p.ExceptStrings()), "should not be any except strings")
 
 	except := []string{exceptIDStr, otherIDStr}
 
 	p, err = NewPolicyStrings(false, except)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	exStrs := p.ExceptStrings()
-	if len(exStrs) != 2 {
-		t.Fatal("wrong number of except strings")
-	}
+	require.Equal(t, 2, len(exStrs), "wrong number of except strings")
 
 	for _, exStr := range exStrs {
-		if exStr != except[0] && exStr != except[1] {
-			t.Fatal("except strings does not match original")
-		}
+		require.Contains(t, except, exStr, "except strings does not match original")
 	}
 
 	for exID := range p.except {
 		p.SetPeer(exID, false)
 	}
 
-	if p.ExceptStrings() != nil {
-		t.Fatal("expected nil except strings")
-	}
+	require.Nil(t, p.ExceptStrings())
 }

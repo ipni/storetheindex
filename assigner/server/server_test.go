@@ -41,17 +41,13 @@ const pubsubTopic = "/indexer/ingest/mainnet"
 
 func setupServer(t *testing.T, assigner *core.Assigner) *server.Server {
 	s, err := server.New("127.0.0.1:0", assigner)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return s
 }
 
 func setupClient(t *testing.T, host string) *client.Client {
 	c, err := client.New(host)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return c
 }
 
@@ -176,9 +172,8 @@ func TestAssignOnAnnounce(t *testing.T) {
 	assignChan, cancel := assigner.OnAssignment(peerID)
 	defer cancel()
 
-	if err := cl.Announce(context.Background(), ai, cid.NewCidV1(22, mhs[0])); err != nil {
-		t.Fatalf("Failed to announce to %s: %s", s.URL(), err)
-	}
+	err = cl.Announce(context.Background(), ai, cid.NewCidV1(22, mhs[0]))
+	require.NoErrorf(t, err, "Failed to announce to %s", s.URL())
 
 	select {
 	case indexerNum := <-assignChan:
@@ -231,9 +226,7 @@ func initAssigner(t *testing.T, trustedID string) (*core.Assigner, config.Assign
 		PubSubTopic: pubsubTopic,
 	}
 	assigner, err := core.NewAssigner(context.Background(), cfg, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return assigner, cfg
 }

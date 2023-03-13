@@ -8,83 +8,53 @@ import (
 	"testing"
 
 	crypto_pb "github.com/libp2p/go-libp2p/core/crypto/pb"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateIdentity(t *testing.T) {
 	id, err := CreateIdentity(io.Discard)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	pk, err := id.DecodePrivateKey("")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if pk.Type() != crypto_pb.KeyType_Ed25519 {
-		t.Fatal("unexpected type:", pk.Type())
-	}
+	require.NoError(t, err)
+	require.Equal(t, crypto_pb.KeyType_Ed25519, pk.Type())
 }
 
 func TestMarshalUnmarshal(t *testing.T) {
 	cfg, err := Init(io.Discard)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	b, err := json.MarshalIndent(&cfg, "  ", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	t.Log("default config:\n", string(b))
 
 	cfg2 := Config{}
-	if err = json.Unmarshal(b, &cfg2); err != nil {
-		t.Fatal(err)
-	}
+	err = json.Unmarshal(b, &cfg2)
+	require.NoError(t, err)
 
-	if cfg.Identity.PeerID != cfg2.Identity.PeerID {
-		t.Fatal("identity no same")
-	}
-	if cfg.Identity.PrivKey != cfg2.Identity.PrivKey {
-		t.Fatal("private key not same")
-	}
+	require.Equal(t, cfg.Identity.PeerID, cfg2.Identity.PeerID)
+	require.Equal(t, cfg.Identity.PrivKey, cfg2.Identity.PrivKey)
 }
 
 func TestSaveLoad(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgFile, err := Filename(tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if filepath.Dir(cfgFile) != tmpDir {
-		t.Fatal("wrong root dir", cfgFile)
-	}
+	require.Equal(t, tmpDir, filepath.Dir(cfgFile), "wrong root dir")
 
 	cfg, err := Init(io.Discard)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	cfgBytes, err := Marshal(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = cfg.Save(cfgFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	cfg2, err := Load(cfgFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	cfg2Bytes, err := Marshal(cfg2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if !bytes.Equal(cfgBytes, cfg2Bytes) {
-		t.Fatal("config data different after being loaded")
-	}
+	require.True(t, bytes.Equal(cfgBytes, cfg2Bytes), "config data different after being loaded")
 }

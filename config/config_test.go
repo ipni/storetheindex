@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestPath(t *testing.T) {
@@ -17,32 +19,18 @@ func TestPath(t *testing.T) {
 	}
 
 	path, err := Path("", dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	configRoot, err := PathRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if path != filepath.Join(configRoot, dir) {
-		t.Fatalf("wrong path %s:", path)
-	}
+	require.Equal(t, filepath.Join(configRoot, dir), path)
 
 	path, err = Path("altroot", dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if path != filepath.Join("altroot", dir) {
-		t.Fatalf("wrong path %s:", path)
-	}
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join("altroot", dir), path)
 
 	path, err = Path("altroot", absdir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if path != filepath.Clean(absdir) {
-		t.Fatalf("wrong path %s:", path)
-	}
+	require.NoError(t, err)
+	require.Equal(t, filepath.Clean(absdir), path)
 }
