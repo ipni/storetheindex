@@ -139,8 +139,8 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // source of the indexed content, the provider is where content can be
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement, resync, frozen bool, lag int) error {
-	stats.Record(context.Background(), metrics.IngestChange.M(1))
+func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement, resync, frozen bool, lag int) error {
+	stats.Record(ctx, metrics.IngestChange.M(1))
 	var mhCount int
 	var entsSyncStart time.Time
 	var entsStoreElapsed time.Duration
@@ -154,7 +154,7 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		// Record how long ad sync took.
 		elapsed := now.Sub(ingestStart)
 		elapsedMsec := float64(elapsed.Nanoseconds()) / 1e6
-		stats.Record(context.Background(), metrics.AdIngestLatency.M(elapsedMsec))
+		stats.Record(ctx, metrics.AdIngestLatency.M(elapsedMsec))
 		log.Infow("Finished syncing advertisement", "elapsed", elapsed.String(), "multihashes", mhCount)
 
 		if mhCount == 0 {
@@ -164,12 +164,12 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		// Record how long entries sync took.
 		elapsed = now.Sub(entsSyncStart)
 		elapsedMsec = float64(elapsed.Nanoseconds()) / 1e6
-		stats.Record(context.Background(), metrics.EntriesSyncLatency.M(elapsedMsec))
+		stats.Record(ctx, metrics.EntriesSyncLatency.M(elapsedMsec))
 
 		// Record average time to store one multihash, for all multihahses in
 		// this ad's entries.
 		elapsedPerMh := int64(math.Round(float64(entsStoreElapsed.Nanoseconds()) / float64(mhCount)))
-		stats.Record(context.Background(), metrics.MhStoreNanoseconds.M(elapsedPerMh))
+		stats.Record(ctx, metrics.MhStoreNanoseconds.M(elapsedPerMh))
 	}()
 
 	// Get provider ID from advertisement.
@@ -177,9 +177,12 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	if err != nil {
 		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read provider id: %w", err)}
 	}
+	// Log provider ID if not the same as publisher ID.
+	if providerID != publisherID {
+		log = log.With("provider", providerID)
+	}
 
-	// Register provider or update existing registration. The provider must be
-	// allowed by policy to be registered.
+	// Get publisher peer.AddrInfo from peerstore.
 	var publisher peer.AddrInfo
 	peerStore := ing.sub.HttpPeerStore()
 	if peerStore != nil {
@@ -193,13 +196,6 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 	}
 
 	maddrs := stringsToMultiaddrs(ad.Addresses)
-
-	provider := peer.AddrInfo{
-		ID:    providerID,
-		Addrs: maddrs,
-	}
-
-	ctx := context.Background()
 
 	var extendedProviders *registry.ExtendedProviders
 	if ad.ExtendedProvider != nil {
@@ -251,12 +247,19 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 		}
 	}
 
+	provider := peer.AddrInfo{
+		ID:    providerID,
+		Addrs: maddrs,
+	}
+
+	// Register provider or update existing registration. The provider must be
+	// allowed by policy to be registered.
 	err = ing.reg.Update(ctx, provider, publisher, adCid, extendedProviders, lag)
 	if err != nil {
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
 
-	log = log.With("contextID", base64.StdEncoding.EncodeToString(ad.ContextID), "provider", providerID)
+	log = log.With("contextID", base64.StdEncoding.EncodeToString(ad.ContextID))
 
 	if ad.IsRm {
 		log.Infow("Advertisement is for removal by context id")
@@ -530,27 +533,20 @@ func (ing *Ingester) ingestAd(publisherID peer.ID, adCid cid.Cid, ad schema.Adve
 // operation. This function is used as a scoped block hook, and is called for
 // each block that is received.
 func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertisement, entryChunkCid cid.Cid, chunk schema.EntryChunk, log *zap.SugaredLogger) error {
-	if ing.carWriter == nil && ing.dsAds == ing.ds {
-		defer func() {
-			// Remove the content block from the data store now that processing it
-			// has finished. This prevents storing redundant information in several
-			// datastores.
-			entryChunkKey := datastore.NewKey(entryChunkCid.String())
-			err := ing.dsAds.Delete(ctx, entryChunkKey)
-			if err != nil {
-				log.Errorw("Error deleting index from datastore", "err", err)
-			}
-		}()
-	}
 	err := ing.indexAdMultihashes(ad, chunk.Entries, log)
+	if ing.carWriter == nil && ing.dsAds == ing.ds {
+		// Done processing entries chunk, so remove from datastore.
+		if err := ing.dsAds.Delete(ctx, datastore.NewKey(entryChunkCid.String())); err != nil {
+			log.Errorw("Error deleting index from datastore", "err", err)
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("failed processing entries for advertisement: %w", err)
 	}
-
 	return nil
 }
 
-// indexAdMultihashes indexes filters out invalid multihashed and indexes those
+// indexAdMultihashes filters out invalid multihashes and indexes those
 // remaining in the indexer core.
 func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash.Multihash, log *zap.SugaredLogger) error {
 	// Build indexer.Value from ad data.
