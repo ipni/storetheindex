@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ipni/storetheindex/config"
+	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
 
@@ -34,19 +35,13 @@ func TestInit(t *testing.T) {
 	)
 
 	err := app.RunContext(ctx, []string{"storetheindex", "init", "-listen-admin", badAddr})
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err)
 
 	err = app.RunContext(ctx, []string{"storetheindex", "init", "-listen-finder", badAddr})
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err)
 
 	err = app.RunContext(ctx, []string{"storetheindex", "init", "-listen-ingest", badAddr})
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err)
 
 	args := []string{
 		"storetheindex", "init",
@@ -57,33 +52,17 @@ func TestInit(t *testing.T) {
 		"-store", storeType,
 	}
 	err = app.RunContext(ctx, args)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	cfg, err := config.Load("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if cfg.Addresses.Finder != goodAddr {
-		t.Error("finder listen address was not configured")
-	}
-	if cfg.Addresses.Ingest != goodAddr2 {
-		t.Error("ingest listen address was not configured")
-	}
-	if cfg.Indexer.CacheSize != cacheSize {
-		t.Error("cache size was tno configured")
-	}
-	if cfg.Indexer.ValueStoreType != storeType {
-		t.Error("value store type was not configured")
-	}
-	if cfg.Ingest.PubSubTopic != topicName {
-		t.Errorf("expected %s for pubsub topic, got %s", topicName, cfg.Ingest.PubSubTopic)
-	}
-	if cfg.Version != config.Version {
-		t.Error("did not init config with correct version")
-	}
+	require.Equal(t, goodAddr, cfg.Addresses.Finder, "finder listen address was not configured")
+	require.Equal(t, goodAddr2, cfg.Addresses.Ingest, "ingest listen address was not configured")
+	require.Equal(t, cacheSize, cfg.Indexer.CacheSize, "cache size was tno configured")
+	require.Equal(t, storeType, cfg.Indexer.ValueStoreType, "value store type was not configured")
+	require.Equal(t, topicName, cfg.Ingest.PubSubTopic)
+	require.Equal(t, config.Version, cfg.Version)
 
 	t.Log(cfg.String())
 }

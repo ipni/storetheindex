@@ -7,71 +7,48 @@ import (
 
 	"github.com/ipfs/go-cid"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRoundTripSignedHead(t *testing.T) {
 	privKey, pubKey, err := ic.GenerateEd25519Key(rand.Reader)
-	if err != nil {
-		t.Fatal("Err generarting private key", err)
-	}
+	require.NoError(t, err, "Err generarting private key")
 
 	testCid, err := cid.Parse("bafybeicyhbhhklw3kdwgrxmf67mhkgjbsjauphsvrzywav63kn7bkpmqfa")
-	if err != nil {
-		t.Fatal("Err parsing cid", err)
-	}
+	require.NoError(t, err, "Err parsing cid")
 
 	signed, err := newEncodedSignedHead(testCid, privKey)
-	if err != nil {
-		t.Fatal("Err creating signed envelope", err)
-	}
+	require.NoError(t, err, "Err creating signed envelope")
 
 	cidRT, err := openSignedHead(pubKey, bytes.NewReader(signed))
-	if err != nil {
-		t.Fatal("Err Opening msg envelope", err)
-	}
+	require.NoError(t, err, "Err opening msg envelope")
 
-	if cidRT != testCid {
-		t.Fatal("CidStr mismatch. Failed round trip")
-	}
+	require.Equal(t, testCid, cidRT, "CidStr mismatch. Failed round trip")
 }
 
 func TestRoundTripSignedHeadWithIncludedPubKey(t *testing.T) {
 	privKey, pubKey, err := ic.GenerateECDSAKeyPair(rand.Reader)
-	if err != nil {
-		t.Fatal("Err generarting private key", err)
-	}
+	require.NoError(t, err, "Err generarting private key")
 
 	testCid, err := cid.Parse("bafybeicyhbhhklw3kdwgrxmf67mhkgjbsjauphsvrzywav63kn7bkpmqfa")
-	if err != nil {
-		t.Fatal("Err parsing cid", err)
-	}
+	require.NoError(t, err, "Err parsing cid")
 
 	signed, err := newEncodedSignedHead(testCid, privKey)
-	if err != nil {
-		t.Fatal("Err creating signed envelope", err)
-	}
+	require.NoError(t, err, "Err creating signed envelope")
 
 	includedPubKey, head, err := openSignedHeadWithIncludedPubKey(bytes.NewReader(signed))
-	if err != nil {
-		t.Fatal("Err Opening msg envelope", err)
-	}
+	require.NoError(t, err, "Err opening msg envelope")
 
-	if head != testCid {
-		t.Fatal("CidStr mismatch. Failed round trip")
-	}
+	require.Equal(t, testCid, head, "CidStr mismatch. Failed round trip")
 
-	if !includedPubKey.Equals(pubKey) {
-		t.Fatal("pubkey mismatch. Failed round trip")
-	}
+	require.Equal(t, pubKey, includedPubKey, "pubkey mismatch. Failed round trip")
 
 	// Try with a pubkey that doesn't match
 	_, otherPubKey, err := ic.GenerateECDSAKeyPair(rand.Reader)
-	if err != nil {
-		t.Fatal("Err generarting other key", err)
-	}
+	require.NoError(t, err, "Err generarting other key")
 
 	_, err = openSignedHead(otherPubKey, bytes.NewReader(signed))
-	if err == nil || err.Error() != "invalid signature" {
-		t.Fatal("Expected an error when opening envelope with another pubkey. And the error should be 'invalid signature'")
-	}
+	require.Error(t, err)
+	require.ErrorContains(t, err, "invalid signature",
+		"Expected an error when opening envelope with another pubkey. And the error should be 'invalid signature'")
 }

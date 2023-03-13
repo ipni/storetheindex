@@ -291,9 +291,7 @@ func initRegistry(t *testing.T, trustedID string) *registry.Registry {
 		UseAssigner:  true,
 	}
 	reg, err := registry.New(context.Background(), discoveryCfg, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return reg
 }
 
@@ -305,14 +303,10 @@ func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *i
 	cfg := config.NewIngest()
 	ds := dssync.MutexWrap(datastore.NewMapDatastore())
 	host, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		ing.Close()
 	})

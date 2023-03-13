@@ -78,9 +78,7 @@ func TestAllowPeerReject(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcHost, dstHost, pub, sub, err := initPubSub(t, srcStore, dstStore)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer srcHost.Close()
 	defer dstHost.Close()
 	defer pub.Close()
@@ -99,16 +97,12 @@ func TestAllowPeerReject(t *testing.T) {
 
 	// Update root with item
 	err = pub.UpdateRoot(context.Background(), c)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	select {
 	case <-time.After(3 * time.Second):
 	case _, open := <-watcher:
-		if open {
-			t.Fatal("something was exchanged, and that is wrong")
-		}
+		require.False(t, open, "something was exchanged, and that is wrong")
 	}
 }
 
@@ -118,9 +112,7 @@ func TestAllowPeerAllows(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcHost, dstHost, pub, sub, err := initPubSub(t, srcStore, dstStore)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer srcHost.Close()
 	defer dstHost.Close()
 	defer pub.Close()
@@ -138,9 +130,7 @@ func TestAllowPeerAllows(t *testing.T) {
 
 	// Update root with item
 	err = pub.UpdateRoot(context.Background(), c)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	select {
 	case <-time.After(updateTimeout):
@@ -239,39 +229,28 @@ func TestIdleHandlerCleaner(t *testing.T) {
 	te := setupPublisherSubscriber(t, []dagsync.Option{dagsync.BlockHook(blockHook), dagsync.IdleHandlerTTL(ttl)})
 
 	rootLnk, err := test.Store(te.srcStore, basicnode.NewString("hello world"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := te.pub.UpdateRoot(context.Background(), rootLnk.(cidlink.Link).Cid); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	err = te.pub.UpdateRoot(context.Background(), rootLnk.(cidlink.Link).Cid)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Do a sync to create the handler.
 	_, err = te.sub.Sync(ctx, te.srcHost.ID(), cid.Undef, nil, te.pubAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Check that the handler is preeent by seeing if it can be removed.
-	if !te.sub.RemoveHandler(te.srcHost.ID()) {
-		t.Fatal("Expected handler to be present")
-	}
+	require.True(t, te.sub.RemoveHandler(te.srcHost.ID()), "Expected handler to be present")
 
 	// Do another sync to re-create the handler.
 	_, err = te.sub.Sync(ctx, te.srcHost.ID(), cid.Undef, nil, te.pubAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// For long enough for the idle cleaner to remove the handler, and check
 	// that it was removed.
 	time.Sleep(3 * ttl)
-	if te.sub.RemoveHandler(te.srcHost.ID()) {
-		t.Fatal("Expected handler to already be removed")
-	}
+	require.False(t, te.sub.RemoveHandler(te.srcHost.ID()), "Expected handler to already be removed")
 }
 
 func mkLnk(t *testing.T, srcStore datastore.Batching) cid.Cid {
@@ -279,27 +258,15 @@ func mkLnk(t *testing.T, srcStore datastore.Batching) cid.Cid {
 	np := basicnode.Prototype__Any{}
 	nb := np.NewBuilder()
 	ma, _ := nb.BeginMap(2)
-	err := ma.AssembleKey().AssignString("hey")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = ma.AssembleValue().AssignString("it works!"); err != nil {
-		t.Fatal(err)
-	}
-	if err = ma.AssembleKey().AssignString("yes"); err != nil {
-		t.Fatal(err)
-	}
-	if err = ma.AssembleValue().AssignBool(true); err != nil {
-		t.Fatal(err)
-	}
-	if err = ma.Finish(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, ma.AssembleKey().AssignString("hey"))
+	require.NoError(t, ma.AssembleValue().AssignString("it works!"))
+	require.NoError(t, ma.AssembleKey().AssignString("yes"))
+	require.NoError(t, ma.AssembleValue().AssignBool(true))
+	require.NoError(t, ma.Finish())
+
 	n := nb.Build()
 	lnk, err := test.Store(srcStore, n)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return lnk.(cidlink.Link).Cid
 }

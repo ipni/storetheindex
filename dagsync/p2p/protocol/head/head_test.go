@@ -15,6 +15,7 @@ import (
 	"github.com/ipni/storetheindex/dagsync/p2p/protocol/head"
 	"github.com/ipni/storetheindex/dagsync/test"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFetchLatestHead(t *testing.T) {
@@ -30,9 +31,7 @@ func TestFetchLatestHead(t *testing.T) {
 		if strings.HasPrefix(a.String(), ipPrefix) {
 			addrStr := "/dns4/localhost/tcp/" + a.String()[len(ipPrefix):]
 			addr, err := multiaddr.NewMultiaddr(addrStr)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			addrs = append(addrs, addr)
 			break
 		}
@@ -43,9 +42,7 @@ func TestFetchLatestHead(t *testing.T) {
 
 	publisherStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	rootLnk, err := test.Store(publisherStore, basicnode.NewString("hello world"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	p := head.NewPublisher()
 	go p.Serve(publisher, "test")
@@ -55,20 +52,14 @@ func TestFetchLatestHead(t *testing.T) {
 	defer cancel()
 
 	c, err := head.QueryRootCid(ctx, client, "test", publisher.ID())
-	if err != nil && c != cid.Undef {
-		t.Fatal("Expected to get a nil error and a cid undef because there is no root")
-	}
+	require.NoError(t, err)
+	require.Equal(t, cid.Undef, c, "Expected cid undef because there is no root")
 
-	if err := p.UpdateRoot(context.Background(), rootLnk.(cidlink.Link).Cid); err != nil {
-		t.Fatal(err)
-	}
+	err = p.UpdateRoot(context.Background(), rootLnk.(cidlink.Link).Cid)
+	require.NoError(t, err)
 
 	c, err = head.QueryRootCid(ctx, client, "test", publisher.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if !c.Equals(rootLnk.(cidlink.Link).Cid) {
-		t.Fatalf("didn't get expected cid. expected %s, got %s", rootLnk, c)
-	}
+	require.Equal(t, rootLnk.(cidlink.Link).Cid, c)
 }

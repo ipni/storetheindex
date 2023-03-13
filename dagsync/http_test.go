@@ -3,7 +3,6 @@ package dagsync_test
 import (
 	"context"
 	"crypto/rand"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/require"
 )
 
 type httpTestEnv struct {
@@ -36,17 +36,13 @@ type httpTestEnv struct {
 
 func setupPublisherSubscriber(t *testing.T, subscriberOptions []dagsync.Option) httpTestEnv {
 	srcPrivKey, _, err := ic.GenerateECDSAKeyPair(rand.Reader)
-	if err != nil {
-		t.Fatal("Err generating private key", err)
-	}
+	require.NoError(t, err, "Err generating private key")
 
 	srcHost = test.MkTestHost(libp2p.Identity(srcPrivKey))
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcLinkSys := test.MkLinkSystem(srcStore)
 	httpPub, err := httpsync.NewPublisher("127.0.0.1:0", srcLinkSys, srcPrivKey)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		httpPub.Close()
 	})
@@ -57,9 +53,7 @@ func setupPublisherSubscriber(t *testing.T, subscriberOptions []dagsync.Option) 
 	dstHost := test.MkTestHost()
 
 	sub, err := dagsync.NewSubscriber(dstHost, dstStore, dstLinkSys, testTopic, nil, subscriberOptions...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		sub.Close()
 	})
@@ -86,62 +80,41 @@ func TestManualSync(t *testing.T) {
 	te := setupPublisherSubscriber(t, []dagsync.Option{dagsync.BlockHook(blockHook)})
 
 	rootLnk, err := test.Store(te.srcStore, basicnode.NewString("hello world"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := te.pub.UpdateRoot(context.Background(), rootLnk.(cidlink.Link).Cid); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	err = te.pub.UpdateRoot(context.Background(), rootLnk.(cidlink.Link).Cid)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	syncCid, err := te.sub.Sync(ctx, te.srcHost.ID(), cid.Undef, nil, te.pubAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if !syncCid.Equals(rootLnk.(cidlink.Link).Cid) {
-		t.Fatalf("didn't get expected cid. expected %s, got %s", rootLnk, syncCid)
-	}
+	require.Equal(t, rootLnk.(cidlink.Link).Cid, syncCid)
 
 	_, ok := blocksSeenByHook[syncCid]
-	if !ok {
-		t.Fatal("hook did not get", syncCid)
-	}
+	require.True(t, ok, "hook did not get", syncCid)
 }
 
 func TestSyncHttpFailsUnexpectedPeer(t *testing.T) {
 	te := setupPublisherSubscriber(t, nil)
 
 	rootLnk, err := test.Store(te.srcStore, basicnode.NewString("hello world"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := te.pub.UpdateRoot(context.Background(), rootLnk.(cidlink.Link).Cid); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	err = te.pub.UpdateRoot(context.Background(), rootLnk.(cidlink.Link).Cid)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), updateTimeout)
 
 	defer cancel()
 	_, otherPubKey, err := ic.GenerateECDSAKeyPair(rand.Reader)
-	if err != nil {
-		t.Fatal("failed to make another peerid")
-	}
+	require.NoError(t, err, "failed to make another peerid")
 	otherPeerID, err := peer.IDFromPublicKey(otherPubKey)
-	if err != nil {
-		t.Fatal("failed to make another peerid")
-	}
+	require.NoError(t, err, "failed to make another peerid")
 
 	// This fails because the head msg is signed by srcHost.ID(), but we are asking this to check if it's signed by otherPeerID.
 	_, err = te.sub.Sync(ctx, otherPeerID, cid.Undef, nil, te.pubAddr)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
-	if !strings.Contains(err.Error(), "unexpected peer") {
-		t.Fatalf("expected error to contain the string 'unexpected peer', got %s", err.Error())
-	}
+	require.ErrorContains(t, err, "unexpected peer")
 }
 
 func TestSyncFnHttp(t *testing.T) {
@@ -165,13 +138,8 @@ func TestSyncFnHttp(t *testing.T) {
 	ctx, syncncl := context.WithTimeout(context.Background(), time.Second)
 	defer syncncl()
 
-	var err error
-	if _, err = te.sub.Sync(ctx, te.srcHost.ID(), cids[0], nil, te.pubAddr); err == nil {
-		t.Fatal("expected error when no content to sync")
-	}
-	if !strings.Contains(err.Error(), "failed to traverse requested dag") {
-		t.Fatalf("expected error to contain the string 'failed to traverse requested dag', got %s", err.Error())
-	}
+	_, err := te.sub.Sync(ctx, te.srcHost.ID(), cids[0], nil, te.pubAddr)
+	require.ErrorContains(t, err, "failed to traverse requested dag")
 	syncncl()
 
 	select {
@@ -182,9 +150,8 @@ func TestSyncFnHttp(t *testing.T) {
 
 	// Assert the latestSync is updated by explicit sync when cid and selector are unset.
 	newHead := chainLnks[0].(cidlink.Link).Cid
-	if err = te.pub.UpdateRoot(context.Background(), newHead); err != nil {
-		t.Fatal(err)
-	}
+	err = te.pub.UpdateRoot(context.Background(), newHead)
+	require.NoError(t, err)
 
 	lnk := chainLnks[1]
 
@@ -194,59 +161,41 @@ func TestSyncFnHttp(t *testing.T) {
 	ctx, syncncl = context.WithTimeout(context.Background(), updateTimeout)
 	defer syncncl()
 	syncCid, err := te.sub.Sync(ctx, te.srcHost.ID(), lnk.(cidlink.Link).Cid, nil, te.pubAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if !syncCid.Equals(lnk.(cidlink.Link).Cid) {
-		t.Fatalf("sync'd cid unexpected %s vs %s", syncCid, lnk)
-	}
-	if _, err = te.dstStore.Get(context.Background(), datastore.NewKey(syncCid.String())); err != nil {
-		t.Fatalf("data not in receiver store: %v", err)
-	}
+	require.Equal(t, lnk.(cidlink.Link).Cid, syncCid, "sync'd cid unexpected")
+	_, err = te.dstStore.Get(context.Background(), datastore.NewKey(syncCid.String()))
+	require.NoError(t, err, "data not in receiver store")
 	syncncl()
 
 	_, ok := blocksSeenByHook[lnk.(cidlink.Link).Cid]
-	if !ok {
-		t.Fatal("block hook did not see link cid")
-	}
-	if blockHookCalls != 11 {
-		t.Fatalf("expected 11 block hook calls, got %d", blockHookCalls)
-	}
+	require.True(t, ok, "block hook did not see link cid")
+	require.Equal(t, 11, blockHookCalls)
 
 	// Assert the latestSync is not updated by explicit sync when cid is set
-	if te.sub.GetLatestSync(te.srcHost.ID()) != nil && assertLatestSyncEquals(te.sub, te.srcHost.ID(), curLatestSync.(cidlink.Link).Cid) != nil {
-		t.Fatal("Sync should not update latestSync")
+	if te.sub.GetLatestSync(te.srcHost.ID()) != nil {
+		err = assertLatestSyncEquals(te.sub, te.srcHost.ID(), curLatestSync.(cidlink.Link).Cid)
+		require.NoError(t, err, "Sync should not update latestSync")
 	}
 
 	ctx, syncncl = context.WithTimeout(context.Background(), updateTimeout)
 	defer syncncl()
 	syncCid, err = te.sub.Sync(ctx, te.srcHost.ID(), cid.Undef, nil, te.pubAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !syncCid.Equals(newHead) {
-		t.Fatalf("sync'd cid unexpected %s vs %s", syncCid, lnk)
-	}
-	if _, err = te.dstStore.Get(context.Background(), datastore.NewKey(syncCid.String())); err != nil {
-		t.Fatalf("data not in receiver store: %v", err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, newHead, syncCid, "sync'd cid unexpected")
+	_, err = te.dstStore.Get(context.Background(), datastore.NewKey(syncCid.String()))
+	require.NoError(t, err, "data not in receiver store")
 	syncncl()
 
 	select {
 	case <-time.After(updateTimeout):
 		t.Fatal("timed out waiting for sync from published update")
 	case syncFin, open := <-watcher:
-		if !open {
-			t.Fatal("sync finished channel closed with no event")
-		}
-		if syncFin.Cid != newHead {
-			t.Fatalf("Should have been updated to %s, got %s", newHead, syncFin.Cid)
-		}
+		require.True(t, open, "sync finished channel closed with no event")
+		require.Equal(t, newHead, syncFin.Cid)
 	}
 	cancelWatcher()
 
-	if err = assertLatestSyncEquals(te.sub, te.srcHost.ID(), newHead); err != nil {
-		t.Fatal(err)
-	}
+	err = assertLatestSyncEquals(te.sub, te.srcHost.ID(), newHead)
+	require.NoError(t, err)
 }

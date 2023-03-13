@@ -15,21 +15,18 @@ import (
 	"github.com/ipni/storetheindex/internal/registry"
 	httpserver "github.com/ipni/storetheindex/server/finder/http"
 	"github.com/ipni/storetheindex/server/finder/test"
+	"github.com/stretchr/testify/require"
 )
 
 func setupServer(ind indexer.Interface, reg *registry.Registry, idxCts *counter.IndexCounts, t *testing.T) *httpserver.Server {
 	s, err := httpserver.New("127.0.0.1:0", ind, reg, httpserver.WithIndexCounts(idxCts))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return s
 }
 
 func setupClient(host string, t *testing.T) *httpclient.Client {
 	c, err := httpclient.New(host)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return c
 }
 
@@ -61,14 +58,10 @@ func TestFindIndexData(t *testing.T) {
 		t.Error("shutdown error:", err)
 	}
 	err = <-errChan
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	reg.Close()
-	if err = ind.Close(); err != nil {
-		t.Errorf("Error closing indexer core: %s", err)
-	}
+	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 func TestFindIndexWithExtendedProviders(t *testing.T) {
@@ -101,19 +94,12 @@ func TestFindIndexWithExtendedProviders(t *testing.T) {
 	test.MainProviderChainRecordIsIncludedIfItsMetadataIsDifferentTest(ctx, t, c, ind, reg)
 	test.MainProviderContextRecordIsIncludedIfItsMetadataIsDifferentTest(ctx, t, c, ind, reg)
 
-	err := s.Close()
-	if err != nil {
-		t.Error("shutdown error:", err)
-	}
-	err = <-errChan
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.Close(), "shutdown error")
+	err := <-errChan
+	require.NoError(t, err)
 
 	reg.Close()
-	if err = ind.Close(); err != nil {
-		t.Errorf("Error closing indexer core: %s", err)
-	}
+	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 func TestReframeFindIndexData(t *testing.T) {
@@ -125,13 +111,9 @@ func TestReframeFindIndexData(t *testing.T) {
 
 	// create delegated routing client
 	q, err := proto.New_DelegatedRouting_Client(s.URL() + "/reframe")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	reframeClient, err := client.NewClient(q, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Start server
 	errChan := make(chan error, 1)
@@ -149,19 +131,12 @@ func TestReframeFindIndexData(t *testing.T) {
 
 	test.ReframeFindIndexTest(ctx, t, c, reframeClient, ind, reg)
 
-	err = s.Close()
-	if err != nil {
-		t.Error("shutdown error:", err)
-	}
+	require.NoError(t, s.Close(), "shutdown error")
 	err = <-errChan
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	reg.Close()
-	if err = ind.Close(); err != nil {
-		t.Errorf("Error closing indexer core: %s", err)
-	}
+	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 func TestProviderInfo(t *testing.T) {
@@ -194,19 +169,12 @@ func TestProviderInfo(t *testing.T) {
 
 	test.ListProvidersTest(t, httpClient, peerID)
 
-	err := s.Close()
-	if err != nil {
-		t.Error("shutdown error:", err)
-	}
-	err = <-errChan
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.Close(), "shutdown error")
+	err := <-errChan
+	require.NoError(t, err)
 
 	reg.Close()
-	if err = ind.Close(); err != nil {
-		t.Errorf("Error closing indexer core: %s", err)
-	}
+	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 func TestGetStats(t *testing.T) {
@@ -233,14 +201,9 @@ func TestGetStats(t *testing.T) {
 
 	test.GetStatsTest(ctx, t, ind, s.RefreshStats, httpClient)
 
-	err := s.Close()
-	if err != nil {
-		t.Error("shutdown error:", err)
-	}
-	err = <-errChan
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.Close(), "shutdown error")
+	err := <-errChan
+	require.NoError(t, err)
 }
 
 func TestRemoveProvider(t *testing.T) {
@@ -266,17 +229,10 @@ func TestRemoveProvider(t *testing.T) {
 
 	test.RemoveProviderTest(ctx, t, c, ind, reg)
 
-	err := s.Close()
-	if err != nil {
-		t.Error("shutdown error:", err)
-	}
-	err = <-errChan
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.Close(), "shutdown error")
+	err := <-errChan
+	require.NoError(t, err)
 
 	reg.Close()
-	if err = ind.Close(); err != nil {
-		t.Errorf("Error closing indexer core: %s", err)
-	}
+	require.NoError(t, ind.Close(), "Error closing indexer core")
 }

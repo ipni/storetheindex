@@ -262,11 +262,8 @@ func TestWriteExistingAdsInStore(t *testing.T) {
 	var carFound bool
 	fc, ec := fileStore.List(ctx, "", false)
 	for fileInfo := range fc {
-		if fileInfo.Path == carName {
-			carFound = true
-		} else {
-			t.Fatal("unexpected file")
-		}
+		require.Equal(t, carName, fileInfo.Path, "unexpected file")
+		carFound = true
 	}
 	err = <-ec
 	require.NoError(t, err)

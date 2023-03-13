@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"math/rand"
 	"sync"
@@ -23,6 +22,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multicodec"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -39,9 +39,7 @@ func WaitForMeshWithMessage(t *testing.T, topic string, hosts ...host.Host) []*p
 		}
 		retries--
 		msg := "Mesh failed to startup"
-		if retries == 0 {
-			t.Fatalf(msg)
-		}
+		require.NotZero(t, retries, msg)
 		t.Log(msg + " retrying")
 	}
 }
@@ -69,9 +67,7 @@ func waitForMeshWithMessage(t *testing.T, topic string, hosts ...host.Host) []*p
 			}
 			h.Peerstore().AddAddrs(addrInfo.ID, addrInfo.Addrs, time.Hour)
 			err := h.Connect(context.Background(), addrInfo)
-			if err != nil {
-				t.Fatalf("Failed to connect: %v", err)
-			}
+			require.NoError(t, err, "Failed to connect")
 		}
 	}
 
@@ -86,22 +82,17 @@ func waitForMeshWithMessage(t *testing.T, topic string, hosts ...host.Host) []*p
 		}
 
 		pubsub, err := pubsub.NewGossipSub(context.Background(), h, pubsub.WithDirectPeers(addrInfosWithoutSelf))
-		if err != nil {
-			t.Fatalf("Failed to start gossipsub: %v", err)
-		}
+		require.NoError(t, err, "Failed to start gossipsub")
 
 		tpc, err := pubsub.Join(topic)
-		if err != nil {
-			t.Fatalf("Failed to join topic: %v", err)
-		}
+		require.NoError(t, err, "Failed to join topic")
 
 		pubsubs[i] = pubsub
 		topics[i] = tpc
 	}
 
-	if len(pubsubs) == 1 {
-		t.Fatalf("No point in using this helper if there's only one host. Did you mean to pass in another host?")
-	}
+	require.NotEqual(t, 1, len(pubsubs),
+		"No point in using this helper if there's only one host. Did you mean to pass in another host?")
 
 	restTopics := topics[1:]
 	wg := sync.WaitGroup{}
@@ -110,24 +101,18 @@ func waitForMeshWithMessage(t *testing.T, topic string, hosts ...host.Host) []*p
 		wg.Add(1)
 
 		s, err := restTopics[i].Subscribe()
-		if err != nil {
-			t.Fatalf("Failed to subscribe: %v", err)
-		}
+		require.NoError(t, err, "Failed to subscribe")
 
 		go func(s *pubsub.Subscription) {
 			_, err := s.Next(context.Background())
-			if err != nil {
-				fmt.Println("Failed in waiting for startupCheck msg in goroutine", err)
-			}
+			require.NoError(t, err, "Failed in waiting for startupCheck msg in goroutine")
 			wg.Done()
 
 			// Wait until someone else picks up this topic and sends a message before
 			// we cancel. This way the topic isn't unsubscribed to before we start
 			// the test.
 			_, err = s.Next(context.Background())
-			if err != nil {
-				fmt.Println("error getting next message on subscription:", err)
-			}
+			require.NoError(t, err, "Error getting next message on subscription")
 			s.Cancel()
 		}(s)
 	}
@@ -140,9 +125,7 @@ func waitForMeshWithMessage(t *testing.T, topic string, hosts ...host.Host) []*p
 
 	tpc := topics[0]
 	err := tpc.Publish(context.Background(), []byte("hi"))
-	if err != nil {
-		t.Fatalf("Failed to publish: %v", err)
-	}
+	require.NoError(t, err, "Failed to publish")
 
 	timeout := time.NewTimer(waitForMeshTimeout)
 	defer timeout.Stop()
@@ -160,9 +143,7 @@ func waitForMeshWithMessage(t *testing.T, topic string, hosts ...host.Host) []*p
 			return nil
 		case <-pubTimeout.C:
 			err := tpc.Publish(context.Background(), []byte("hi"))
-			if err != nil {
-				fmt.Println("Failed to publish:", err)
-			}
+			require.NoError(t, err, "Failed to publish")
 			pubTimeout.Reset(publishTimeout)
 		}
 	}

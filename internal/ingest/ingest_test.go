@@ -1211,9 +1211,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	for err == nil && lcid == cid.Undef {
 		// May not have marked ad as processed yet, retry.
 		time.Sleep(time.Second)
-		if ctx.Err() != nil {
-			t.Fatal("sync timeout")
-		}
+		require.NoError(t, ctx.Err(), "sync timeout")
 		lcid, err = ing.GetLatestSync(pubHost.ID())
 	}
 
@@ -1594,9 +1592,7 @@ func mkRegistry(t *testing.T) *registry.Registry {
 		PollInterval: config.Duration(time.Minute),
 	}
 	reg, err := registry.New(context.Background(), discoveryCfg, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return reg
 }
 
@@ -1643,9 +1639,8 @@ func mkIngestWithConfig(t *testing.T, h host.Host, cfg config.Ingest) (*Ingester
 func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 	srcHost.Peerstore().AddAddrs(dstHost.ID(), dstHost.Addrs(), time.Hour)
 	dstHost.Peerstore().AddAddrs(srcHost.ID(), srcHost.Addrs(), time.Hour)
-	if err := srcHost.Connect(context.Background(), dstHost.Peerstore().PeerInfo(dstHost.ID())); err != nil {
-		t.Fatal(err)
-	}
+	err := srcHost.Connect(context.Background(), dstHost.Peerstore().PeerInfo(dstHost.ID()))
+	require.NoError(t, err)
 }
 
 func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash) {

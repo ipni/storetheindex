@@ -78,12 +78,11 @@ func TestScopedBlockHook(t *testing.T) {
 			}))
 			require.NoError(t, err)
 
-			if atomic.LoadInt64(&calledGeneralBlockHookTimes) != 0 {
-				t.Fatalf("General block hook should not have been called when scoped block hook is set")
-			}
-			if atomic.LoadInt64(&calledScopedBlockHookTimes) != int64(ll.Length) {
-				t.Fatalf("Didn't call scoped block hook enough times")
-			}
+			require.Zero(t, atomic.LoadInt64(&calledGeneralBlockHookTimes),
+				"General block hook should not have been called when scoped block hook is set")
+
+			require.Equal(t, int64(ll.Length), atomic.LoadInt64(&calledScopedBlockHookTimes),
+				"Didn't call scoped block hook enough times")
 
 			anotherLL := llBuilder{
 				Length: ll.Length,
@@ -96,10 +95,8 @@ func TestScopedBlockHook(t *testing.T) {
 			_, err = sub.Sync(context.Background(), pubHost.ID(), cid.Undef, nil, pubHost.Addrs()[0])
 			require.NoError(t, err)
 
-			if atomic.LoadInt64(&calledGeneralBlockHookTimes) != int64(ll.Length) {
-				t.Fatalf("General hook should have been called only in secod sync")
-			}
-
+			require.Equal(t, int64(ll.Length), atomic.LoadInt64(&calledGeneralBlockHookTimes),
+				"General hook should have been called only in secod sync")
 		})
 	}, &quick.Config{
 		MaxCount: 3,
@@ -138,13 +135,11 @@ func TestSyncedCidsReturned(t *testing.T) {
 			require.NoError(t, err)
 
 			finishedVal := <-onFinished
-			if len(finishedVal.SyncedCids) != int(ll.Length) {
-				t.Fatalf("The finished value should include %d synced cids, but has %d", ll.Length, len(finishedVal.SyncedCids))
-			}
+			require.Equalf(t, int(ll.Length), len(finishedVal.SyncedCids),
+				"The finished value should include %d synced cids, but has %d", ll.Length, len(finishedVal.SyncedCids))
 
-			if finishedVal.SyncedCids[0] != head.(cidlink.Link).Cid {
-				t.Fatal("The latest synced cid should be the head and first in the list")
-			}
+			require.Equal(t, head.(cidlink.Link).Cid, finishedVal.SyncedCids[0],
+				"The latest synced cid should be the head and first in the list")
 		})
 	}, &quick.Config{
 		MaxCount: 3,
@@ -222,9 +217,8 @@ func TestConcurrentSync(t *testing.T) {
 			case <-doneChan:
 			}
 
-			if atomic.LoadInt64(&calledTimes) != int64(ll.Length)*int64(publisherCount) {
-				t.Fatalf("Didn't call block hook for each publisher. Expected %d saw %d", int(ll.Length)*publisherCount, calledTimes)
-			}
+			require.Equalf(t, int64(ll.Length)*int64(publisherCount), atomic.LoadInt64(&calledTimes),
+				"Didn't call block hook for each publisher. Expected %d saw %d", int(ll.Length)*publisherCount, calledTimes)
 		})
 	}, &quick.Config{
 		MaxCount: 3,
@@ -255,36 +249,24 @@ func TestSync(t *testing.T) {
 			}
 
 			err := pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			_, err = sub.Sync(context.Background(), pubSys.host.ID(), cid.Undef, nil, pubAddr)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			calledTimesFirstSync := calledTimes
 			latestSync := sub.GetLatestSync(pubSys.host.ID())
-			if latestSync != head {
-				t.Fatalf("Subscriber did not persist latest sync")
-			}
+			require.Equal(t, head, latestSync, "Subscriber did not persist latest sync")
 			// Now sync again. We shouldn't call the hook.
 			_, err = sub.Sync(context.Background(), pubSys.host.ID(), cid.Undef, nil, pubAddr)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if calledTimesFirstSync != calledTimes {
-				t.Fatalf("Subscriber called the block hook multiple times for the same sync. Expected %d, got %d", calledTimesFirstSync, calledTimes)
-			}
-
+			require.NoError(t, err)
+			require.Equalf(t, calledTimes, calledTimesFirstSync,
+				"Subscriber called the block hook multiple times for the same sync. Expected %d, got %d", calledTimesFirstSync, calledTimes)
 			require.Equal(t, int(ll.Length), calledTimes, "Subscriber did not call the block hook exactly once for each block")
 		})
 	}, &quick.Config{
 		MaxCount: 5,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 }
 
 // TestSyncWithHydratedDataStore tests what happens if we call sync when the
@@ -326,9 +308,7 @@ func TestSyncWithHydratedDataStore(t *testing.T) {
 			}
 
 			err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			// Sync once to hydrate the datastore
 			// Note we set the cid we are syncing to so we don't update the latestSync.
@@ -341,17 +321,13 @@ func TestSyncWithHydratedDataStore(t *testing.T) {
 
 			// Now sync again. We might call the hook because we don't have the latestSync persisted.
 			_, err = sub.Sync(context.Background(), pubSys.host.ID(), cid.Undef, nil, pubAddr)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			require.GreaterOrEqual(t, calledTimes, calledTimesFirstSync, "Expected to have called block hook twice. Once for each sync.")
 		})
 	}, &quick.Config{
 		MaxCount: 5,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 }
 
 func TestRoundTripSimple(t *testing.T) {
@@ -359,9 +335,7 @@ func TestRoundTripSimple(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcHost, dstHost, pub, sub, err := initPubSub(t, srcStore, dstStore)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer srcHost.Close()
 	defer dstHost.Close()
 	defer pub.Close()
@@ -373,24 +347,19 @@ func TestRoundTripSimple(t *testing.T) {
 	// Update root with item
 	itm := basicnode.NewString("hello world")
 	lnk, err := test.Store(srcStore, itm)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if err := pub.UpdateRoot(context.Background(), lnk.(cidlink.Link).Cid); err != nil {
-		t.Fatal(err)
-	}
+	err = pub.UpdateRoot(context.Background(), lnk.(cidlink.Link).Cid)
+	require.NoError(t, err)
 
 	select {
 	case <-time.After(updateTimeout):
 		t.Fatal("timed out waiting for sync to propagate")
 	case downstream := <-watcher:
-		if !downstream.Cid.Equals(lnk.(cidlink.Link).Cid) {
-			t.Fatalf("sync'd cid unexpected %s vs %s", downstream.Cid, lnk)
-		}
-		if _, err := dstStore.Get(context.Background(), datastore.NewKey(downstream.Cid.String())); err != nil {
-			t.Fatalf("data not in receiver store: %v", err)
-		}
+		require.Equalf(t, lnk.(cidlink.Link).Cid, downstream.Cid,
+			"sync'd cid unexpected %s vs %s", downstream.Cid, lnk)
+		_, err = dstStore.Get(context.Background(), datastore.NewKey(downstream.Cid.String()))
+		require.NoError(t, err, "data not in receiver store")
 	}
 }
 
@@ -463,9 +432,8 @@ func TestRoundTrip(t *testing.T) {
 	waitForSync(t, "Watcher 1", dstStore, lnk2.(cidlink.Link), watcher1)
 	waitForSync(t, "Watcher 2", dstStore, lnk2.(cidlink.Link), watcher2)
 
-	if len(blocksSeenByHook) != 2 {
-		t.Fatal("expected 2 blocks seen by hook, got", len(blocksSeenByHook))
-	}
+	require.Equal(t, 2, len(blocksSeenByHook))
+
 	_, ok := blocksSeenByHook[lnk1.(cidlink.Link).Cid]
 	require.True(t, ok, "hook did not see link1")
 
@@ -498,26 +466,18 @@ func TestHttpPeerAddrPeerstore(t *testing.T) {
 	head := nextLL
 
 	err := pub.UpdateRoot(context.Background(), prevHead.(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Now call sync again with no address. The subscriber should re-use the
 	// previous address and succeeed.
 	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 }
 
 func TestRateLimiter(t *testing.T) {
@@ -561,9 +521,7 @@ func TestRateLimiter(t *testing.T) {
 			ll := llB.Build(t, pubHostSys.lsys)
 
 			err := pub.SetRoot(context.Background(), ll.(cidlink.Link).Cid)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			start := time.Now()
 			_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
@@ -605,24 +563,16 @@ func TestBackpressureDoesntDeadlock(t *testing.T) {
 	defer cncl()
 
 	err := pub.UpdateRoot(context.Background(), prevHead.(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	head = llBuilder{
 		Length: 1,
@@ -630,9 +580,7 @@ func TestBackpressureDoesntDeadlock(t *testing.T) {
 	}.BuildWithPrev(t, pubHostSys.lsys, head)
 
 	err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// This is blocked until we read from onSyncFinishedChan
 	syncDoneCh := make(chan error)
@@ -692,12 +640,9 @@ func waitForSync(t *testing.T, logPrefix string, store *dssync.MutexDatastore, e
 	case <-time.After(updateTimeout):
 		t.Fatal("timed out waiting for sync to propogate")
 	case downstream := <-watcher:
-		if !downstream.Cid.Equals(expectedCid.Cid) {
-			t.Fatalf("sync'd cid unexpected %s vs %s", downstream, expectedCid.Cid)
-		}
-		if _, err := store.Get(context.Background(), datastore.NewKey(downstream.Cid.String())); err != nil {
-			t.Fatalf("data not in receiver store: %v", err)
-		}
+		require.Equal(t, expectedCid.Cid, downstream.Cid, "sync'd cid unexpected")
+		_, err := store.Get(context.Background(), datastore.NewKey(downstream.Cid.String()))
+		require.NoError(t, err, "data not in receiver store")
 		t.Log(logPrefix+" got sync:", downstream.Cid)
 	}
 
@@ -709,31 +654,23 @@ func TestCloseSubscriber(t *testing.T) {
 	lsys := test.MkLinkSystem(st)
 
 	sub, err := dagsync.NewSubscriber(sh, st, lsys, testTopic, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
 
 	err = sub.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	select {
 	case _, open := <-watcher:
-		if open {
-			t.Fatal("Watcher channel should have been closed")
-		}
+		require.False(t, open, "Watcher channel should have been closed")
 	case <-time.After(updateTimeout):
 		t.Fatal("timed out waiting for watcher to close")
 	}
 
 	err = sub.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	done := make(chan struct{})
 	go func() {
@@ -822,43 +759,27 @@ func (b llBuilder) BuildWithPrev(t *testing.T, lsys ipld.LinkSystem, prev datamo
 		p := basicnode.Prototype.Map
 		b := p.NewBuilder()
 		ma, err := b.BeginMap(2)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		eb, err := ma.AssembleEntry("Value")
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		err = eb.AssignInt(int64(rng.Intn(100)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		eb, err = ma.AssembleEntry("Next")
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		if prev != nil {
 			err = eb.AssignLink(prev)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 		} else {
 			err = eb.AssignNull()
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 		}
 		err = ma.Finish()
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		n := b.Build()
 
 		prev, err = lsys.Store(linking.LinkContext{}, linkproto, n)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 
 	return prev

@@ -14,22 +14,19 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 )
 
 func setupServer(ctx context.Context, ind indexer.Interface, reg *registry.Registry, idxCts *counter.IndexCounts, t *testing.T) (*p2pserver.FinderServer, host.Host) {
 	h, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	s := p2pserver.New(ctx, h, ind, reg, idxCts)
 	return s, h
 }
 
 func setupClient(peerID peer.ID, t *testing.T) *p2pclient.Client {
 	c, err := p2pclient.New(nil, peerID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return c
 }
 
@@ -43,15 +40,11 @@ func TestFindIndexData(t *testing.T) {
 	s, sh := setupServer(ctx, ind, reg, nil, t)
 	c := setupClient(s.ID(), t)
 	err := c.ConnectAddrs(ctx, sh.Addrs()...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	test.FindIndexTest(ctx, t, c, ind, reg)
 
 	reg.Close()
-	if err = ind.Close(); err != nil {
-		t.Errorf("Error closing indexer core: %s", err)
-	}
+	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 func TestFindIndexWithExtendedProviders(t *testing.T) {
@@ -64,9 +57,7 @@ func TestFindIndexWithExtendedProviders(t *testing.T) {
 	s, sh := setupServer(ctx, ind, reg, nil, t)
 	c := setupClient(s.ID(), t)
 	err := c.ConnectAddrs(ctx, sh.Addrs()...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	test.ProvidersShouldBeUnaffectedByExtendedProvidersOfEachOtherTest(ctx, t, c, ind, reg)
 	test.ExtendedProviderShouldHaveOwnMetadataTest(ctx, t, c, ind, reg)
 	test.ExtendedProviderShouldInheritMetadataOfMainProviderTest(ctx, t, c, ind, reg)
@@ -76,9 +67,7 @@ func TestFindIndexWithExtendedProviders(t *testing.T) {
 	test.MainProviderContextRecordIsIncludedIfItsMetadataIsDifferentTest(ctx, t, c, ind, reg)
 
 	reg.Close()
-	if err = ind.Close(); err != nil {
-		t.Errorf("Error closing indexer core: %s", err)
-	}
+	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 func TestProviderInfo(t *testing.T) {
@@ -93,9 +82,7 @@ func TestProviderInfo(t *testing.T) {
 	s, sh := setupServer(ctx, ind, reg, idxCts, t)
 	p2pClient := setupClient(s.ID(), t)
 	err := p2pClient.ConnectAddrs(ctx, sh.Addrs()...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	peerID := test.Register(ctx, t, reg)
 
@@ -106,9 +93,7 @@ func TestProviderInfo(t *testing.T) {
 	test.ListProvidersTest(t, p2pClient, peerID)
 
 	reg.Close()
-	if err = ind.Close(); err != nil {
-		t.Errorf("Error closing indexer core: %s", err)
-	}
+	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 func TestGetStats(t *testing.T) {
@@ -123,9 +108,7 @@ func TestGetStats(t *testing.T) {
 	s, sh := setupServer(ctx, ind, reg, nil, t)
 	c := setupClient(s.ID(), t)
 	err := c.ConnectAddrs(ctx, sh.Addrs()...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	test.GetStatsTest(ctx, t, ind, s.RefreshStats, c)
 }
 
@@ -139,14 +122,10 @@ func TestRemoveProvider(t *testing.T) {
 	s, sh := setupServer(ctx, ind, reg, nil, t)
 	c := setupClient(s.ID(), t)
 	err := c.ConnectAddrs(ctx, sh.Addrs()...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	test.RemoveProviderTest(ctx, t, c, ind, reg)
 
 	reg.Close()
-	if err = ind.Close(); err != nil {
-		t.Errorf("Error closing indexer core: %s", err)
-	}
+	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
