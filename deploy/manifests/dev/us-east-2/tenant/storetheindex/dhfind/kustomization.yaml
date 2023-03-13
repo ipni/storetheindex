@@ -14,4 +14,4 @@ patchesStrategicMerge:
 images:
   - name: dhfind
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/dhfind
-    newTag: 20230313101627-9ccefe4014d552fec176129ab30d604220412915
+    newTag: 20230313150559-10cdd7da052b51a30c5ae8285248c001b96838d8
