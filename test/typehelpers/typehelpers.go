@@ -67,6 +67,10 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 			ContextID: ctxID,
 			Metadata:  metadata,
 		}
+		ecbAddrs := ecb.GetAddrs()
+		if ecbAddrs != nil {
+			ad.Addresses = ecbAddrs
+		}
 
 		ad.PreviousID = headLink
 
@@ -112,6 +116,7 @@ func (b RandomAdBuilder) build(t *testing.T, lsys ipld.LinkSystem, signingKey cr
 
 type EntryBuilder interface {
 	Build(t *testing.T, lsys ipld.LinkSystem) datamodel.Link
+	GetAddrs() []string
 }
 
 var _ EntryBuilder = (*RandomEntryChunkBuilder)(nil)
@@ -121,6 +126,11 @@ type RandomEntryChunkBuilder struct {
 	EntriesPerChunk        uint8
 	Seed                   int64
 	WithInvalidMultihashes bool
+	Addrs                  []string
+}
+
+func (b RandomEntryChunkBuilder) GetAddrs() []string {
+	return b.Addrs
 }
 
 func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datamodel.Link {
@@ -162,6 +172,11 @@ type RandomHamtEntryBuilder struct {
 	MultihashCount         uint32
 	Seed                   int64
 	WithInvalidMultihashes bool
+	Addrs                  []string
+}
+
+func (b RandomHamtEntryBuilder) GetAddrs() []string {
+	return b.Addrs
 }
 
 func (b RandomHamtEntryBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datamodel.Link {

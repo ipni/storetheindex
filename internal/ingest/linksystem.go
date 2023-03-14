@@ -139,7 +139,7 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // source of the indexed content, the provider is where content can be
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement, resync, frozen bool, lag int) error {
+func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement, resync, frozen bool, lag int, headProvider peer.AddrInfo) error {
 	stats.Record(ctx, metrics.IngestChange.M(1))
 	var mhCount int
 	var entsSyncStart time.Time
@@ -195,8 +195,6 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 	}
 
-	maddrs := stringsToMultiaddrs(ad.Addresses)
-
 	var extendedProviders *registry.ExtendedProviders
 	if ad.ExtendedProvider != nil {
 		if ad.IsRm {
@@ -248,14 +246,24 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	}
 
 	provider := peer.AddrInfo{
-		ID:    providerID,
-		Addrs: maddrs,
+		ID: providerID,
+	}
+	if len(headProvider.Addrs) != 0 && headProvider.ID == providerID {
+		// Update with addrs from head advertisement, if available.
+		provider.Addrs = headProvider.Addrs
+	} else {
+		// Update with addrs from this advertisemet.
+		provider.Addrs = stringsToMultiaddrs(ad.Addresses)
 	}
 
 	// Register provider or update existing registration. The provider must be
 	// allowed by policy to be registered.
 	err = ing.reg.Update(ctx, provider, publisher, adCid, extendedProviders, lag)
 	if err != nil {
+		if errors.Is(err, registry.ErrMissingProviderAddr) {
+			// Initial adverstisement missing valid provider address.
+			return adIngestError{adIngestMalformedErr, fmt.Errorf("could not register provider info: %w", err)}
+		}
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
 

@@ -956,28 +956,28 @@ func (ing *Ingester) runIngestStep(syncFinishedEvent dagsync.SyncFinished) {
 
 	// 2. For each provider put the ad stack to the worker msg channel. Each ad
 	// stack contains ads for a single provider, from a single publisher.
-	for p, adInfos := range adsGroupedByProvider {
+	for providerID, adInfos := range adsGroupedByProvider {
 		ing.providersBeingProcessedMu.Lock()
-		if _, ok := ing.providersBeingProcessed[p]; !ok {
-			ing.providersBeingProcessed[p] = make(chan struct{}, 1)
+		if _, ok := ing.providersBeingProcessed[providerID]; !ok {
+			ing.providersBeingProcessed[providerID] = make(chan struct{}, 1)
 		}
-		wa, ok := ing.providerAdChainStaging[p]
+		wa, ok := ing.providerAdChainStaging[providerID]
 		if !ok {
 			wa = &atomic.Value{}
-			ing.providerAdChainStaging[p] = wa
+			ing.providerAdChainStaging[providerID] = wa
 		}
 		ing.providersBeingProcessedMu.Unlock()
 
 		oldAssignment := wa.Swap(workerAssignment{
 			adInfos:   adInfos,
 			publisher: publisher,
-			provider:  p,
+			provider:  providerID,
 		})
 		if oldAssignment == nil || oldAssignment.(workerAssignment).none {
 			// No previous run scheduled a worker to handle this provider, so
 			// schedule one.
-			ing.reg.Saw(p)
-			pushCount := ing.toWorkers.Push(p)
+			ing.reg.Saw(providerID)
+			pushCount := ing.toWorkers.Push(providerID)
 			stats.Record(context.Background(),
 				metrics.AdIngestQueued.M(int64(ing.toWorkers.Length())),
 				metrics.AdIngestBacklog.M(int64(pushCount)))
@@ -1094,6 +1094,11 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 		}
 	}
 
+	headProvider := peer.AddrInfo{
+		ID:    provider,
+		Addrs: stringsToMultiaddrs(assignment.adInfos[0].ad.Addresses),
+	}
+
 	log.Infow("Running worker on ad stack", "headAdCid", assignment.adInfos[0].cid, "numAdsToProcess", splitAtIndex)
 	var count int
 	for i := splitAtIndex - 1; i >= 0; i-- {
@@ -1167,7 +1172,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			"progress", fmt.Sprintf("%d of %d", count, splitAtIndex),
 			"lag", lag)
 
-		err := ing.ingestAd(ctx, assignment.publisher, ai.cid, ai.ad, ai.resync, frozen, lag)
+		err := ing.ingestAd(ctx, assignment.publisher, ai.cid, ai.ad, ai.resync, frozen, lag, headProvider)
 		if err == nil {
 			// No error at all, this ad was processed successfully.
 			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))

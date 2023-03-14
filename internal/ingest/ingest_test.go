@@ -269,6 +269,36 @@ func TestFailDuringResync(t *testing.T) {
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs)
 }
 
+func TestFirstAdMissingAddrs(t *testing.T) {
+	te := setupTestEnv(t, true)
+
+	cCid := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 1, Addrs: []string{}},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 2},
+		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	cAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	cAd, err := schema.UnwrapAdvertisement(cAdNode)
+	require.NoError(t, err)
+
+	// Chain of 3 ads, A<-B<-C, here head is C.
+	allAds := typehelpers.AllAds(t, cAd, te.publisherLinkSys)
+	rootAd := allAds[len(allAds)-1]
+	rootAd.Addresses = nil
+
+	ctx := context.Background()
+	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
+	require.NoError(t, err)
+
+	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	require.NoError(t, err)
+
+	allMhs := typehelpers.AllMultihashesFromAdChain(t, cAd, te.publisherLinkSys)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+}
+
 func TestRestartDuringSync(t *testing.T) {
 	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(failBlockedRead)
 

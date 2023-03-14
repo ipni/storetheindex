@@ -7,6 +7,7 @@ var (
 	ErrInProgress          = errors.New("discovery already in progress")
 	ErrCannotPublish       = errors.New("publisher not allowed to publish to other provider")
 	ErrFrozen              = errors.New("indexer frozen")
+	ErrMissingProviderAddr = errors.New("advertisement missing provider address")
 	ErrNotAllowed          = errors.New("peer not allowed by policy")
 	ErrNoDiscovery         = errors.New("discovery not available")
 	ErrNoFreeze            = errors.New("freeze not configured")
