@@ -442,7 +442,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 			// TODO: See how we can refactor code to make batching logic more
 			// flexible in indexContentBlock.
 			if len(mhs) >= int(ing.batchSize) {
-				if err = ing.indexAdMultihashes(ad, mhs, log); err != nil {
+				if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
 					return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 				}
 				mhCount += len(mhs)
@@ -451,7 +451,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 		// Process any remaining multihashes from the batch cut-off.
 		if len(mhs) > 0 {
-			if err = ing.indexAdMultihashes(ad, mhs, log); err != nil {
+			if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
 				return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 			}
 			mhCount += len(mhs)
@@ -467,7 +467,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 		} else {
 			chunkStart := time.Now()
-			err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
+			err = ing.ingestEntryChunk(ctx, ad, providerID, syncedFirstEntryCid, *chunk, log)
 			if err != nil {
 				errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 			}
@@ -490,7 +490,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
 					return
 				}
-				err = ing.ingestEntryChunk(ctx, ad, c, *chunk, log)
+				err = ing.ingestEntryChunk(ctx, ad, providerID, c, *chunk, log)
 				if err != nil {
 					actions.FailSync(err)
 					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
@@ -536,8 +536,8 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 // advertisement's entries are synced in a separate dagsync.Subscriber.Sync
 // operation. This function is used as a scoped block hook, and is called for
 // each block that is received.
-func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertisement, entryChunkCid cid.Cid, chunk schema.EntryChunk, log *zap.SugaredLogger) error {
-	err := ing.indexAdMultihashes(ad, chunk.Entries, log)
+func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertisement, providerID peer.ID, entryChunkCid cid.Cid, chunk schema.EntryChunk, log *zap.SugaredLogger) error {
+	err := ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
 	if ing.carWriter == nil && ing.dsAds == ing.ds {
 		// Done processing entries chunk, so remove from datastore.
 		if err := ing.dsAds.Delete(ctx, datastore.NewKey(entryChunkCid.String())); err != nil {
@@ -552,12 +552,7 @@ func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertiseme
 
 // indexAdMultihashes filters out invalid multihashes and indexes those
 // remaining in the indexer core.
-func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash.Multihash, log *zap.SugaredLogger) error {
-	// Build indexer.Value from ad data.
-	providerID, err := peer.Decode(ad.Provider)
-	if err != nil {
-		return err
-	}
+func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, providerID peer.ID, mhs []multihash.Multihash, log *zap.SugaredLogger) error {
 	value := indexer.Value{
 		ProviderID:    providerID,
 		ContextID:     ad.ContextID,
@@ -602,7 +597,7 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash
 		panic("removing individual multihashes no allowed")
 	}
 
-	if err = ing.indexer.Put(value, mhs...); err != nil {
+	if err := ing.indexer.Put(value, mhs...); err != nil {
 		return fmt.Errorf("cannot put multihashes into indexer: %w", err)
 	}
 	log.Infow("Put multihashes in entry chunk", "count", len(mhs))
