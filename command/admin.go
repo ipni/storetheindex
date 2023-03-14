@@ -1,6 +1,7 @@
 package command
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -46,10 +47,9 @@ var listPendinSyncsCmd = &cli.Command{
 var adminSyncFlags = []cli.Flag{
 	indexerHostFlag,
 	&cli.StringFlag{
-		Name:     "pubid",
-		Usage:    "Publisher peer ID",
-		Aliases:  []string{"p"},
-		Required: true,
+		Name:    "pubid",
+		Usage:   "Publisher peer ID",
+		Aliases: []string{"p"},
 	},
 	&cli.StringFlag{
 		Name:  "addr",
@@ -201,6 +201,9 @@ func syncAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
+	}
+	if cctx.String("pubid") == "" {
+		return errors.New("publisher peer id must be provided")
 	}
 	peerID, err := peer.Decode(cctx.String("pubid"))
 	if err != nil {
