@@ -29,7 +29,7 @@ var AdminCmd = &cli.Command{
 
 var syncCmd = &cli.Command{
 	Name:   "sync",
-	Usage:  "Sync indexer with provider",
+	Usage:  "Sync indexer with provider. If no flags are provided returns a list of currently pending syncs.",
 	Flags:  adminSyncFlags,
 	Action: syncAction,
 }
@@ -37,10 +37,9 @@ var syncCmd = &cli.Command{
 var adminSyncFlags = []cli.Flag{
 	indexerHostFlag,
 	&cli.StringFlag{
-		Name:     "pubid",
-		Usage:    "Publisher peer ID",
-		Aliases:  []string{"p"},
-		Required: true,
+		Name:    "pubid",
+		Usage:   "Publisher peer ID",
+		Aliases: []string{"p"},
 	},
 	&cli.StringFlag{
 		Name:  "addr",
@@ -171,6 +170,31 @@ var unassignFlags = []cli.Flag{
 }
 
 func syncAction(cctx *cli.Context) error {
+	if cctx.String("pubid") == "" {
+		return getPendingSyncs(cctx)
+	}
+	return postSync(cctx)
+}
+
+func getPendingSyncs(cctx *cli.Context) error {
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	peers, err := cl.GetPendingSyncs(cctx.Context)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("\nTotal pending syncs: %d", len(peers))
+	for _, p := range peers {
+		fmt.Printf("\n\t%s", p)
+	}
+	fmt.Println()
+	return nil
+}
+
+func postSync(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
