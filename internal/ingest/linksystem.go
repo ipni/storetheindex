@@ -172,11 +172,11 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		stats.Record(ctx, metrics.MhStoreNanoseconds.M(elapsedPerMh))
 	}()
 
-	// Get provider ID from advertisement.
-	providerID, err := peer.Decode(ad.Provider)
-	if err != nil {
-		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read provider id: %w", err)}
-	}
+	// Since all advertisements in an assignment have the same provider,
+	// the provider can be passed into ingestAd to avoid having to decode
+	// the provider ID from each advertisement.
+	providerID := headProvider.ID
+
 	// Log provider ID if not the same as publisher ID.
 	if providerID != publisherID {
 		log = log.With("provider", providerID)
@@ -245,20 +245,15 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 	}
 
-	provider := peer.AddrInfo{
-		ID: providerID,
-	}
-	if len(headProvider.Addrs) != 0 && headProvider.ID == providerID {
-		// Update with addrs from head advertisement, if available.
-		provider.Addrs = headProvider.Addrs
-	} else {
-		// Update with addrs from this advertisemet.
-		provider.Addrs = stringsToMultiaddrs(ad.Addresses)
+	// If head ad does not have provider addresses, then with addrs from the
+	// current advertisemet.
+	if len(headProvider.Addrs) == 0 {
+		headProvider.Addrs = stringsToMultiaddrs(ad.Addresses)
 	}
 
 	// Register provider or update existing registration. The provider must be
 	// allowed by policy to be registered.
-	err = ing.reg.Update(ctx, provider, publisher, adCid, extendedProviders, lag)
+	err := ing.reg.Update(ctx, headProvider, publisher, adCid, extendedProviders, lag)
 	if err != nil {
 		// A registry.ErrMissingProviderAddr error is not considered a
 		// permanent adIngestMalformedErr error, because an advertisement added
