@@ -115,6 +115,37 @@ func (c *Client) ImportFromCidList(ctx context.Context, fileName string, provID 
 	return nil
 }
 
+func (c *Client) GetPendingSyncs(ctx context.Context) ([]string, error) {
+	u := c.baseURL + path.Join(ingestResource, "sync")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, httpclient.ReadErrorFrom(resp.StatusCode, resp.Body)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var peers []string
+	err = json.Unmarshal(body, &peers)
+	if err != nil {
+		return nil, err
+	}
+
+	return peers, nil
+}
+
 // Sync with a data peer up to the latest ID.
 func (c *Client) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int64, resync bool) error {
 	var data []byte

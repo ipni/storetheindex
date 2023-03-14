@@ -29,9 +29,18 @@ var AdminCmd = &cli.Command{
 
 var syncCmd = &cli.Command{
 	Name:   "sync",
-	Usage:  "Sync indexer with provider",
+	Usage:  "Sync indexer with provider.",
 	Flags:  adminSyncFlags,
 	Action: syncAction,
+	Subcommands: []*cli.Command{
+		listPendinSyncsCmd,
+	},
+}
+
+var listPendinSyncsCmd = &cli.Command{
+	Name:   "list-pending",
+	Usage:  "Returns a list of currently pending syncs.",
+	Action: listPendingSyncsAction,
 }
 
 var adminSyncFlags = []cli.Flag{
@@ -168,6 +177,24 @@ var unassignFlags = []cli.Flag{
 		Required: true,
 	},
 	indexerHostFlag,
+}
+
+func listPendingSyncsAction(cctx *cli.Context) error {
+	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	peers, err := cl.GetPendingSyncs(cctx.Context)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("\nTotal pending syncs: %d", len(peers))
+	for _, p := range peers {
+		fmt.Printf("\n\t%s", p)
+	}
+	fmt.Println()
+	return nil
 }
 
 func syncAction(cctx *cli.Context) error {

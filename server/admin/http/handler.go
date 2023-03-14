@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"sync"
 
@@ -25,23 +26,26 @@ import (
 )
 
 type adminHandler struct {
-	ctx           context.Context
-	id            peer.ID
-	indexer       indexer.Interface
-	ingester      *ingest.Ingester
-	reg           *registry.Registry
-	reloadErrChan chan<- chan error
-	pendingSyncs  sync.WaitGroup
+	ctx                context.Context
+	id                 peer.ID
+	indexer            indexer.Interface
+	ingester           *ingest.Ingester
+	reg                *registry.Registry
+	reloadErrChan      chan<- chan error
+	pendingSyncs       sync.WaitGroup
+	pendingsSyncsPeers map[string]struct{}
+	pendingSyncsLock   sync.Mutex
 }
 
 func newHandler(ctx context.Context, id peer.ID, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error) *adminHandler {
 	return &adminHandler{
-		ctx:           ctx,
-		id:            id,
-		indexer:       indexer,
-		ingester:      ingester,
-		reg:           reg,
-		reloadErrChan: reloadErrChan,
+		ctx:                ctx,
+		id:                 id,
+		indexer:            indexer,
+		ingester:           ingester,
+		reg:                reg,
+		reloadErrChan:      reloadErrChan,
+		pendingsSyncsPeers: make(map[string]struct{}),
 	}
 }
 
@@ -250,7 +254,7 @@ func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
+func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
 	if !httpserver.MethodOK(w, r, http.MethodPost) {
 		return
 	}
@@ -319,9 +323,15 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	log.Info("Syncing with peer")
 
 	// Start the sync, but do not wait for it to complete.
-	//
-	// TODO: Provide some way for the client to see if the indexer has synced.
 	h.pendingSyncs.Add(1)
+	h.pendingSyncsLock.Lock()
+	defer h.pendingSyncsLock.Unlock()
+	if _, ok := h.pendingsSyncsPeers[peerID.String()]; ok {
+		msg := fmt.Sprintf("Peer %s has already a sync in progress", peerID.String())
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+	h.pendingsSyncsPeers[peerID.String()] = struct{}{}
 	go func() {
 		_, err := h.ingester.Sync(h.ctx, peerID, syncAddr, int(depth), resync)
 		if err != nil {
@@ -329,10 +339,40 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 			log.Errorw(msg, "err", err)
 		}
 		h.pendingSyncs.Done()
+		h.pendingSyncsLock.Lock()
+		defer h.pendingSyncsLock.Unlock()
+		delete(h.pendingsSyncsPeers, peerID.String())
 	}()
 
 	// Return (202) Accepted
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (h *adminHandler) handleGetSyncs(w http.ResponseWriter, r *http.Request) {
+	h.pendingSyncsLock.Lock()
+	defer h.pendingSyncsLock.Unlock()
+	peers := make([]string, 0, len(h.pendingsSyncsPeers))
+	for k := range h.pendingsSyncsPeers {
+		peers = append(peers, k)
+	}
+	sort.Strings(peers)
+	marshalled, err := json.Marshal(peers)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	httpserver.WriteJsonResponse(w, http.StatusOK, marshalled)
+}
+
+func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost:
+		h.handlePostSyncs(w, r)
+	case http.MethodGet:
+		h.handleGetSyncs(w, r)
+	default:
+		http.Error(w, "", http.StatusMethodNotAllowed)
+	}
 }
 
 func (h *adminHandler) importProviders(w http.ResponseWriter, r *http.Request) {
