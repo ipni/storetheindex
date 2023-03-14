@@ -46,9 +46,10 @@ var listPendinSyncsCmd = &cli.Command{
 var adminSyncFlags = []cli.Flag{
 	indexerHostFlag,
 	&cli.StringFlag{
-		Name:    "pubid",
-		Usage:   "Publisher peer ID",
-		Aliases: []string{"p"},
+		Name:     "pubid",
+		Usage:    "Publisher peer ID",
+		Aliases:  []string{"p"},
+		Required: true,
 	},
 	&cli.StringFlag{
 		Name:  "addr",
