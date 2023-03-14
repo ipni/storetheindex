@@ -29,9 +29,18 @@ var AdminCmd = &cli.Command{
 
 var syncCmd = &cli.Command{
 	Name:   "sync",
-	Usage:  "Sync indexer with provider. If no flags are provided returns a list of currently pending syncs.",
+	Usage:  "Sync indexer with provider.",
 	Flags:  adminSyncFlags,
 	Action: syncAction,
+	Subcommands: []*cli.Command{
+		listPendinSyncsCmd,
+	},
+}
+
+var listPendinSyncsCmd = &cli.Command{
+	Name:   "list-pending",
+	Usage:  "Returns a list of currently pending syncs.",
+	Action: listPendingSyncsAction,
 }
 
 var adminSyncFlags = []cli.Flag{
@@ -169,14 +178,7 @@ var unassignFlags = []cli.Flag{
 	indexerHostFlag,
 }
 
-func syncAction(cctx *cli.Context) error {
-	if cctx.String("pubid") == "" {
-		return getPendingSyncs(cctx)
-	}
-	return postSync(cctx)
-}
-
-func getPendingSyncs(cctx *cli.Context) error {
+func listPendingSyncsAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
@@ -194,7 +196,7 @@ func getPendingSyncs(cctx *cli.Context) error {
 	return nil
 }
 
-func postSync(cctx *cli.Context) error {
+func syncAction(cctx *cli.Context) error {
 	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
