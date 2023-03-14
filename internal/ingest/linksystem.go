@@ -260,10 +260,11 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	// allowed by policy to be registered.
 	err = ing.reg.Update(ctx, provider, publisher, adCid, extendedProviders, lag)
 	if err != nil {
-		if errors.Is(err, registry.ErrMissingProviderAddr) {
-			// Initial adverstisement missing valid provider address.
-			return adIngestError{adIngestMalformedErr, fmt.Errorf("could not register provider info: %w", err)}
-		}
+		// A registry.ErrMissingProviderAddr error is not considered a
+		// permanent adIngestMalformedErr error, because an advertisement added
+		// to the chain in the future may have a valid address than can be
+		// used, allowing all the previous ads without valid addresses to be
+		// processed.
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
 
