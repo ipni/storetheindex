@@ -323,8 +323,6 @@ func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
 	log.Info("Syncing with peer")
 
 	// Start the sync, but do not wait for it to complete.
-	//
-	// TODO: Provide some way for the client to see if the indexer has synced.
 	h.pendingSyncs.Add(1)
 	h.pendingSyncsLock.Lock()
 	defer h.pendingSyncsLock.Unlock()
