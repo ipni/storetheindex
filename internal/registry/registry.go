@@ -656,7 +656,7 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 			return err
 		}
 		if len(provider.Addrs) == 0 {
-			return errors.New("missing provider address")
+			return ErrMissingProviderAddr
 		}
 		info = &ProviderInfo{
 			AddrInfo: provider,

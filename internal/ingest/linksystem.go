@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"strings"
 	"time"
 
@@ -139,11 +138,10 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // source of the indexed content, the provider is where content can be
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement, resync, frozen bool, lag int) error {
+func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement, resync, frozen bool, lag int, headProvider peer.AddrInfo) error {
 	stats.Record(ctx, metrics.IngestChange.M(1))
 	var mhCount int
 	var entsSyncStart time.Time
-	var entsStoreElapsed time.Duration
 	ingestStart := time.Now()
 
 	log := log.With("publisher", publisherID, "adCid", adCid)
@@ -165,18 +163,13 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		elapsed = now.Sub(entsSyncStart)
 		elapsedMsec = float64(elapsed.Nanoseconds()) / 1e6
 		stats.Record(ctx, metrics.EntriesSyncLatency.M(elapsedMsec))
-
-		// Record average time to store one multihash, for all multihahses in
-		// this ad's entries.
-		elapsedPerMh := int64(math.Round(float64(entsStoreElapsed.Nanoseconds()) / float64(mhCount)))
-		stats.Record(ctx, metrics.MhStoreNanoseconds.M(elapsedPerMh))
 	}()
 
-	// Get provider ID from advertisement.
-	providerID, err := peer.Decode(ad.Provider)
-	if err != nil {
-		return adIngestError{adIngestDecodingErr, fmt.Errorf("failed to read provider id: %w", err)}
-	}
+	// Since all advertisements in an assignment have the same provider,
+	// the provider can be passed into ingestAd to avoid having to decode
+	// the provider ID from each advertisement.
+	providerID := headProvider.ID
+
 	// Log provider ID if not the same as publisher ID.
 	if providerID != publisherID {
 		log = log.With("provider", providerID)
@@ -194,8 +187,6 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 			publisher = peerStore.PeerInfo(publisherID)
 		}
 	}
-
-	maddrs := stringsToMultiaddrs(ad.Addresses)
 
 	var extendedProviders *registry.ExtendedProviders
 	if ad.ExtendedProvider != nil {
@@ -247,15 +238,21 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 	}
 
-	provider := peer.AddrInfo{
-		ID:    providerID,
-		Addrs: maddrs,
+	// If head ad does not have provider addresses, then update using addresses
+	// from the current advertisement.
+	if len(headProvider.Addrs) == 0 {
+		headProvider.Addrs = stringsToMultiaddrs(ad.Addresses)
 	}
 
 	// Register provider or update existing registration. The provider must be
 	// allowed by policy to be registered.
-	err = ing.reg.Update(ctx, provider, publisher, adCid, extendedProviders, lag)
+	err := ing.reg.Update(ctx, headProvider, publisher, adCid, extendedProviders, lag)
 	if err != nil {
+		// A registry.ErrMissingProviderAddr error is not considered a
+		// permanent adIngestMalformedErr error, because an advertisement added
+		// to the chain in the future may have a valid address than can be
+		// used, allowing all the previous ads without valid addresses to be
+		// processed.
 		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
 	}
 
@@ -356,11 +353,10 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load first entry after sync: %w", err)}
 	}
 
-	var errsIngestingEntryChunks []error
 	if isHAMT(node) {
 		log = log.With("entriesKind", "hamt")
 		// Keep track of all CIDs in the HAMT to remove them later when the
-		// processing is done. This is equivalent behaviour to ingestEntryChunk
+		// processing is done. This is equivalent behavior to ingestEntryChunk
 		// which removes an entry chunk right afrer it is processed.
 		hamtCids := []cid.Cid{syncedFirstEntryCid}
 		gatherCids := func(_ peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
@@ -406,8 +402,6 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 			}
 		}
 
-		entsStoreStart := time.Now()
-
 		// Start processing now that the entire HAMT is synced. HAMT is a map,
 		// and we are using the keys in the map to represent multihashes.
 		// Therefore, we only care about the keys.
@@ -438,7 +432,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 			// TODO: See how we can refactor code to make batching logic more
 			// flexible in indexContentBlock.
 			if len(mhs) >= int(ing.batchSize) {
-				if err = ing.indexAdMultihashes(ad, mhs, log); err != nil {
+				if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
 					return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 				}
 				mhCount += len(mhs)
@@ -447,12 +441,11 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 		// Process any remaining multihashes from the batch cut-off.
 		if len(mhs) > 0 {
-			if err = ing.indexAdMultihashes(ad, mhs, log); err != nil {
+			if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
 				return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 			}
 			mhCount += len(mhs)
 		}
-		entsStoreElapsed = time.Since(entsStoreStart)
 	} else {
 		log = log.With("entriesKind", "EntryChunk")
 
@@ -460,48 +453,51 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		// the entries type, so process that first.
 		chunk, err := ing.loadEntryChunk(syncedFirstEntryCid)
 		if err != nil {
-			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
-		} else {
-			chunkStart := time.Now()
-			err = ing.ingestEntryChunk(ctx, ad, syncedFirstEntryCid, *chunk, log)
-			if err != nil {
-				errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
-			}
-			mhCount += len(chunk.Entries)
-			entsStoreElapsed += time.Since(chunkStart)
+			// Node was loaded previously, so must be a permanent data error.
+			return adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to load first entry chunk: %w", err)}
 		}
 
-		if chunk != nil && chunk.Next != nil {
-			nextChunkCid := chunk.Next.(cidlink.Link).Cid
-			// Traverse remaining entry chunks based on the entries selector
-			// that limits recursion depth.
-			_, err = ing.sub.Sync(ctx, publisherID, nextChunkCid, ing.entriesSel, nil, dagsync.ScopedBlockHook(func(p peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
-				chunkStart := time.Now()
+		err = ing.ingestEntryChunk(ctx, ad, providerID, syncedFirstEntryCid, *chunk, log)
+		if err != nil {
+			// There was an error storing the multihashes.
+			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest first entry chunk: %w", err)}
+		}
 
+		mhCount += len(chunk.Entries)
+
+		// Sync all remaining entry chunks.
+		if chunk.Next != nil {
+			blockHook := func(p peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
 				// Load CID as entry chunk since the selector should only
 				// select entry chunk nodes.
 				chunk, err := ing.loadEntryChunk(c)
 				if err != nil {
-					actions.FailSync(err)
-					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+					actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entry chunk: %w", err)})
 					return
 				}
-				err = ing.ingestEntryChunk(ctx, ad, c, *chunk, log)
+				err = ing.ingestEntryChunk(ctx, ad, providerID, c, *chunk, log)
 				if err != nil {
-					actions.FailSync(err)
-					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+					actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)})
 					return
 				}
 				mhCount += len(chunk.Entries)
-				entsStoreElapsed += time.Since(chunkStart)
 
-				if chunk.Next != nil {
-					actions.SetNextSyncCid(chunk.Next.(cidlink.Link).Cid)
-				} else {
+				if chunk.Next == nil {
 					actions.SetNextSyncCid(cid.Undef)
+					return
 				}
-			}))
+				actions.SetNextSyncCid(chunk.Next.(cidlink.Link).Cid)
+			}
+
+			// Traverse remaining entry chunks based on the entries selector
+			// that limits recursion depth.
+			_, err = ing.sub.Sync(ctx, publisherID, chunk.Next.(cidlink.Link).Cid, ing.entriesSel, nil,
+				dagsync.ScopedBlockHook(blockHook))
 			if err != nil {
+				var adIngestErr adIngestError
+				if errors.As(err, &adIngestErr) {
+					return err
+				}
 				wrappedErr := fmt.Errorf("failed to sync entries: %w", err)
 				if strings.Contains(err.Error(), "content not found") {
 					return adIngestError{adIngestContentNotFound, wrappedErr}
@@ -519,9 +515,6 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 	}
 
-	if len(errsIngestingEntryChunks) > 0 {
-		return adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to ingest entry chunks: %v", errsIngestingEntryChunks)}
-	}
 	return nil
 }
 
@@ -532,8 +525,8 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 // advertisement's entries are synced in a separate dagsync.Subscriber.Sync
 // operation. This function is used as a scoped block hook, and is called for
 // each block that is received.
-func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertisement, entryChunkCid cid.Cid, chunk schema.EntryChunk, log *zap.SugaredLogger) error {
-	err := ing.indexAdMultihashes(ad, chunk.Entries, log)
+func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertisement, providerID peer.ID, entryChunkCid cid.Cid, chunk schema.EntryChunk, log *zap.SugaredLogger) error {
+	err := ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
 	if ing.carWriter == nil && ing.dsAds == ing.ds {
 		// Done processing entries chunk, so remove from datastore.
 		if err := ing.dsAds.Delete(ctx, datastore.NewKey(entryChunkCid.String())); err != nil {
@@ -548,12 +541,7 @@ func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertiseme
 
 // indexAdMultihashes filters out invalid multihashes and indexes those
 // remaining in the indexer core.
-func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash.Multihash, log *zap.SugaredLogger) error {
-	// Build indexer.Value from ad data.
-	providerID, err := peer.Decode(ad.Provider)
-	if err != nil {
-		return err
-	}
+func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, providerID peer.ID, mhs []multihash.Multihash, log *zap.SugaredLogger) error {
 	value := indexer.Value{
 		ProviderID:    providerID,
 		ContextID:     ad.ContextID,
@@ -598,7 +586,7 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, mhs []multihash
 		panic("removing individual multihashes no allowed")
 	}
 
-	if err = ing.indexer.Put(value, mhs...); err != nil {
+	if err := ing.indexer.Put(value, mhs...); err != nil {
 		return fmt.Errorf("cannot put multihashes into indexer: %w", err)
 	}
 	log.Infow("Put multihashes in entry chunk", "count", len(mhs))
