@@ -238,8 +238,8 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 	}
 
-	// If head ad does not have provider addresses, then with addrs from the
-	// current advertisemet.
+	// If head ad does not have provider addresses, then update using addresses
+	// from the current advertisement.
 	if len(headProvider.Addrs) == 0 {
 		headProvider.Addrs = stringsToMultiaddrs(ad.Addresses)
 	}
@@ -356,7 +356,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	if isHAMT(node) {
 		log = log.With("entriesKind", "hamt")
 		// Keep track of all CIDs in the HAMT to remove them later when the
-		// processing is done. This is equivalent behaviour to ingestEntryChunk
+		// processing is done. This is equivalent behavior to ingestEntryChunk
 		// which removes an entry chunk right afrer it is processed.
 		hamtCids := []cid.Cid{syncedFirstEntryCid}
 		gatherCids := func(_ peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
