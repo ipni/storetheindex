@@ -12,7 +12,7 @@ resources:
 namePrefix: inga-
 
 commonLabels:
-  name: ago
+  name: inga
 
 secretGenerator:
   - name: identity
