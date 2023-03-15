@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"strings"
 	"time"
 
@@ -143,7 +142,6 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	stats.Record(ctx, metrics.IngestChange.M(1))
 	var mhCount int
 	var entsSyncStart time.Time
-	var entsStoreElapsed time.Duration
 	ingestStart := time.Now()
 
 	log := log.With("publisher", publisherID, "adCid", adCid)
@@ -165,11 +163,6 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		elapsed = now.Sub(entsSyncStart)
 		elapsedMsec = float64(elapsed.Nanoseconds()) / 1e6
 		stats.Record(ctx, metrics.EntriesSyncLatency.M(elapsedMsec))
-
-		// Record average time to store one multihash, for all multihahses in
-		// this ad's entries.
-		elapsedPerMh := int64(math.Round(float64(entsStoreElapsed.Nanoseconds()) / float64(mhCount)))
-		stats.Record(ctx, metrics.MhStoreNanoseconds.M(elapsedPerMh))
 	}()
 
 	// Since all advertisements in an assignment have the same provider,
@@ -360,7 +353,6 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load first entry after sync: %w", err)}
 	}
 
-	var errsIngestingEntryChunks []error
 	if isHAMT(node) {
 		log = log.With("entriesKind", "hamt")
 		// Keep track of all CIDs in the HAMT to remove them later when the
@@ -410,8 +402,6 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 			}
 		}
 
-		entsStoreStart := time.Now()
-
 		// Start processing now that the entire HAMT is synced. HAMT is a map,
 		// and we are using the keys in the map to represent multihashes.
 		// Therefore, we only care about the keys.
@@ -456,7 +446,6 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 			}
 			mhCount += len(mhs)
 		}
-		entsStoreElapsed = time.Since(entsStoreStart)
 	} else {
 		log = log.With("entriesKind", "EntryChunk")
 
@@ -464,48 +453,51 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		// the entries type, so process that first.
 		chunk, err := ing.loadEntryChunk(syncedFirstEntryCid)
 		if err != nil {
-			errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
-		} else {
-			chunkStart := time.Now()
-			err = ing.ingestEntryChunk(ctx, ad, providerID, syncedFirstEntryCid, *chunk, log)
-			if err != nil {
-				errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
-			}
-			mhCount += len(chunk.Entries)
-			entsStoreElapsed += time.Since(chunkStart)
+			// Node was loaded previously, so must be a permanent data error.
+			return adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to load first entry chunk: %w", err)}
 		}
 
-		if chunk != nil && chunk.Next != nil {
-			nextChunkCid := chunk.Next.(cidlink.Link).Cid
-			// Traverse remaining entry chunks based on the entries selector
-			// that limits recursion depth.
-			_, err = ing.sub.Sync(ctx, publisherID, nextChunkCid, ing.entriesSel, nil, dagsync.ScopedBlockHook(func(p peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
-				chunkStart := time.Now()
+		err = ing.ingestEntryChunk(ctx, ad, providerID, syncedFirstEntryCid, *chunk, log)
+		if err != nil {
+			// There was an error storing the multihashes.
+			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest first entry chunk: %w", err)}
+		}
 
+		mhCount += len(chunk.Entries)
+
+		// Sync all remaining entry chunks.
+		if chunk.Next != nil {
+			blockHook := func(p peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
 				// Load CID as entry chunk since the selector should only
 				// select entry chunk nodes.
 				chunk, err := ing.loadEntryChunk(c)
 				if err != nil {
-					actions.FailSync(err)
-					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+					actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entry chunk: %w", err)})
 					return
 				}
 				err = ing.ingestEntryChunk(ctx, ad, providerID, c, *chunk, log)
 				if err != nil {
-					actions.FailSync(err)
-					errsIngestingEntryChunks = append(errsIngestingEntryChunks, err)
+					actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)})
 					return
 				}
 				mhCount += len(chunk.Entries)
-				entsStoreElapsed += time.Since(chunkStart)
 
-				if chunk.Next != nil {
-					actions.SetNextSyncCid(chunk.Next.(cidlink.Link).Cid)
-				} else {
+				if chunk.Next == nil {
 					actions.SetNextSyncCid(cid.Undef)
+					return
 				}
-			}))
+				actions.SetNextSyncCid(chunk.Next.(cidlink.Link).Cid)
+			}
+
+			// Traverse remaining entry chunks based on the entries selector
+			// that limits recursion depth.
+			_, err = ing.sub.Sync(ctx, publisherID, chunk.Next.(cidlink.Link).Cid, ing.entriesSel, nil,
+				dagsync.ScopedBlockHook(blockHook))
 			if err != nil {
+				var adIngestErr adIngestError
+				if errors.As(err, &adIngestErr) {
+					return err
+				}
 				wrappedErr := fmt.Errorf("failed to sync entries: %w", err)
 				if strings.Contains(err.Error(), "content not found") {
 					return adIngestError{adIngestContentNotFound, wrappedErr}
@@ -523,9 +515,6 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 	}
 
-	if len(errsIngestingEntryChunks) > 0 {
-		return adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to ingest entry chunks: %v", errsIngestingEntryChunks)}
-	}
 	return nil
 }
 
