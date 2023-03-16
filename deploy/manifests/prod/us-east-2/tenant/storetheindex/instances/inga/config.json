@@ -97,5 +97,10 @@
       "dt_graphsync": "warn",
       "graphsync": "warn"
     }
+  },
+  "Peering": {
+    "Peers": [
+      "/dns4/assigner/tcp/3003/p2p/12D3KooWQAymjDKMivbkUNiJP7ChRsvsDuazerHW4wERRvQMWNor"
+    ]
   }
 }
