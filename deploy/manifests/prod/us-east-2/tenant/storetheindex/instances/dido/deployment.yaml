@@ -13,11 +13,11 @@ spec:
               name: data
           resources:
             limits:
-              cpu: "10"
-              memory: 120Gi
+              cpu: "30"
+              memory: 58Gi
             requests:
-              cpu: "10"
-              memory: 120Gi
+              cpu: "30"
+              memory: 58Gi
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -26,7 +26,7 @@ spec:
                   - key: node.kubernetes.io/instance-type
                     operator: In
                     values:
-                      - r5b.4xlarge
+                      - c6a.8xlarge
                   - key: topology.kubernetes.io/zone
                     operator: In
                     values:
@@ -38,5 +38,5 @@ spec:
       tolerations:
         - key: dedicated
           operator: Equal
-          value: r5b-4xl
+          value: c6a-8xl
           effect: NoSchedule
