@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dhfind
+spec:
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+      containers:
+        - name: dhfind
+          args:
+            - '--dhstoreAddr=http://dhstore.internal.prod.cid.contact/'
+            - '--stiAddr=http://inga-indexer:3000/'
+            - '--simulation=true'
+          resources:
+            limits:
+              cpu: "0.5"
+              memory: 1Gi
+            requests:
+              cpu: "0.5"
+              memory: 1Gi
