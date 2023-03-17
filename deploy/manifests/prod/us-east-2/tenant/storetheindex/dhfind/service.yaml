@@ -14,6 +14,14 @@ metadata:
     service.beta.kubernetes.io/aws-load-balancer-subnets: subnet-042a0fcb8ae88f355
     external-dns.alpha.kubernetes.io/access: private
     external-dns.alpha.kubernetes.io/hostname: dhfind.internal.prod.cid.contact
+  labels:
+    app: dhfind
 spec:
   externalTrafficPolicy: Cluster
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  selector:
+    app: dhfind
   type: LoadBalancer
