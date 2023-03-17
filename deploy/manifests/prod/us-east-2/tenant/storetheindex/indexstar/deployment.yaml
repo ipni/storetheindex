@@ -20,6 +20,7 @@ spec:
             - '--backends=http://oden-indexer:3000/'
             - '--backends=http://kepa-indexer:3000/'
             - '--backends=http://dhstore.internal.prod.cid.contact/'
+            - '--backends=http://dhfind.internal.prod.cid.contact/'
             - '--cascadeBackends=http://caskadht.internal.prod.cid.contact/'
           env:
             # Increase maximum accepted request body to 1 MiB in order to allow batch finds requests
