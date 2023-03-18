@@ -16,6 +16,7 @@ import (
 	"github.com/ipni/storetheindex/announce/message"
 	"github.com/ipni/storetheindex/dagsync/p2p/protocol/head"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 )
 
@@ -91,6 +92,14 @@ func NewPublisherFromExisting(dtManager dt.Manager, host host.Host, topicName st
 
 func (p *publisher) Addrs() []multiaddr.Multiaddr {
 	return p.host.Addrs()
+}
+
+func (p *publisher) ID() peer.ID {
+	return p.host.ID()
+}
+
+func (p *publisher) Protocol() int {
+	return multiaddr.P_P2P
 }
 
 func (p *publisher) AnnounceHead(ctx context.Context) error {

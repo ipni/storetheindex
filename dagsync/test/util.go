@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand"
+	"net/http"
+	"path"
 	"sync"
 	"testing"
 	"time"
@@ -16,11 +19,13 @@ import (
 	"github.com/ipld/go-ipld-prime/fluent"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
+	"github.com/ipni/storetheindex/dagsync/httpsync/maconv"
 	"github.com/ipni/storetheindex/dagsync/p2p/protocol/head"
 	"github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multicodec"
 	"github.com/stretchr/testify/require"
 )
@@ -269,12 +274,28 @@ func MkChain(lsys ipld.LinkSystem, full bool) []ipld.Link {
 	return out
 }
 
-func WaitForPublisher(host host.Host, topic string, peerID peer.ID) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+type TestPublisher interface {
+	// Addrs returns the addresses that the publisher is listening on.
+	Addrs() []multiaddr.Multiaddr
+	// ID returns the peer ID associated with the publisher.
+	ID() peer.ID
+}
+
+func WaitForP2PPublisher(publisher TestPublisher, clientHost host.Host, topic string) error {
+	const timeout = 10 * time.Second
+	const addrTTL = 5*time.Second + timeout
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	// Put the publisher's addresses into the client's peerstore so that the
+	// client knows how to connect to the publisher.
+	peerStore := clientHost.Peerstore()
+	if peerStore != nil {
+		peerStore.AddAddrs(publisher.ID(), publisher.Addrs(), addrTTL)
+	}
+
 	for ctx.Err() == nil {
-		_, err := head.QueryRootCid(ctx, host, topic, peerID)
+		_, err := head.QueryRootCid(ctx, clientHost, topic, publisher.ID())
 		if err == nil {
 			// Publisher ready
 			return nil
@@ -282,4 +303,38 @@ func WaitForPublisher(host host.Host, topic string, peerID peer.ID) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 	return errors.New("timeout waiting for publilsher")
+}
+
+func WaitForHttpPublisher(publisher TestPublisher) error {
+	const timeout = 10 * time.Second
+	headURL, err := maconv.ToURL(publisher.Addrs()[0])
+	if err != nil {
+		return err
+	}
+	headURL.Path = path.Join(headURL.Path, "head")
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	client := &http.Client{}
+	for ctx.Err() == nil {
+		req, err := http.NewRequestWithContext(ctx, "GET", headURL.String(), nil)
+		if err != nil {
+			return err
+		}
+
+		resp, err := client.Do(req)
+		if err == nil {
+			body, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				return fmt.Errorf("cannot read response body: %s", err)
+			}
+			if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("publisher responded with error: %d %s", resp.StatusCode, body)
+			}
+			return nil
+		}
+	}
+	return errors.New("timeout waiting for http publilsher")
 }

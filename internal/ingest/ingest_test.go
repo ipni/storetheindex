@@ -850,7 +850,7 @@ func testSyncWithExtendedProviders(t *testing.T,
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	err = dstest.WaitForPublisher(h, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
+	err = dstest.WaitForP2PPublisher(pub, h, defaultTestIngestConfig.PubSubTopic)
 	require.NoError(t, err)
 
 	testFunc(privKey, pubKey, providerID, reg, lsys, pubHost, ingester, pub)
@@ -1053,7 +1053,7 @@ func TestSyncTooLargeMetadata(t *testing.T) {
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	err := dstest.WaitForPublisher(h, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
+	err := dstest.WaitForP2PPublisher(pub, h, defaultTestIngestConfig.PubSubTopic)
 	require.NoError(t, err)
 
 	metadata := make([]byte, schema.MaxMetadataLen*2)
@@ -1092,7 +1092,7 @@ func TestSyncSkipNoMetadata(t *testing.T) {
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	err := dstest.WaitForPublisher(h, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
+	err := dstest.WaitForP2PPublisher(pub, h, defaultTestIngestConfig.PubSubTopic)
 	require.NoError(t, err)
 
 	// Test ad that has no entries and no metadata.
@@ -1978,7 +1978,7 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 	if shouldConnectHosts {
 		connectHosts(t, ingesterHost, pubHost)
 
-		err = dstest.WaitForPublisher(ingesterHost, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
+		err = dstest.WaitForP2PPublisher(pub, ingesterHost, defaultTestIngestConfig.PubSubTopic)
 		require.NoError(t, err)
 	}
 

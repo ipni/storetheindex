@@ -3,6 +3,7 @@ package httpsync
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/ipni/storetheindex/announce"
 	"github.com/ipni/storetheindex/announce/message"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 )
@@ -26,6 +28,7 @@ type publisher struct {
 	addr      multiaddr.Multiaddr
 	closer    io.Closer
 	lsys      ipld.LinkSystem
+	peerID    peer.ID
 	privKey   ic.PrivKey
 	rl        sync.RWMutex
 	root      cid.Cid
@@ -46,6 +49,10 @@ func NewPublisher(address string, lsys ipld.LinkSystem, privKey ic.PrivKey, opti
 	if privKey == nil {
 		return nil, errors.New("private key required to sign head requests")
 	}
+	peerID, err := peer.IDFromPrivateKey(privKey)
+	if err != nil {
+		return nil, fmt.Errorf("could not get peer if from private key: %w", err)
+	}
 
 	l, err := net.Listen("tcp", address)
 	if err != nil {
@@ -63,6 +70,7 @@ func NewPublisher(address string, lsys ipld.LinkSystem, privKey ic.PrivKey, opti
 		addr:      multiaddr.Join(maddr, proto),
 		closer:    l,
 		lsys:      lsys,
+		peerID:    peerID,
 		privKey:   privKey,
 		senders:   opts.senders,
 		extraData: opts.extraData,
@@ -82,6 +90,14 @@ func NewPublisher(address string, lsys ipld.LinkSystem, privKey ic.PrivKey, opti
 // listening on.
 func (p *publisher) Addrs() []multiaddr.Multiaddr {
 	return []multiaddr.Multiaddr{p.addr}
+}
+
+func (p *publisher) ID() peer.ID {
+	return p.peerID
+}
+
+func (p *publisher) Protocol() int {
+	return multiaddr.P_HTTP
 }
 
 func (p *publisher) AnnounceHead(ctx context.Context) error {
@@ -160,6 +176,10 @@ func (p *publisher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.rl.RLock()
 		defer p.rl.RUnlock()
 
+		if p.root == cid.Undef {
+			http.Error(w, "", http.StatusNoContent)
+			return
+		}
 		marshalledMsg, err := newEncodedSignedHead(p.root, p.privKey)
 		if err != nil {
 			http.Error(w, "Failed to encode", http.StatusInternalServerError)

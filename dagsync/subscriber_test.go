@@ -66,6 +66,8 @@ func TestScopedBlockHook(t *testing.T) {
 			subDS := dssync.MutexWrap(datastore.NewMapDatastore())
 			subLsys := test.MkLinkSystem(subDS)
 
+			require.NoError(t, test.WaitForP2PPublisher(pub, subHost, testTopic))
+
 			var calledGeneralBlockHookTimes int64
 			sub, err := dagsync.NewSubscriber(subHost, subDS, subLsys, testTopic, nil, dagsync.BlockHook(func(i peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 				atomic.AddInt64(&calledGeneralBlockHookTimes, 1)
@@ -126,6 +128,8 @@ func TestSyncedCidsReturned(t *testing.T) {
 			subDS := dssync.MutexWrap(datastore.NewMapDatastore())
 			subLsys := test.MkLinkSystem(subDS)
 
+			require.NoError(t, test.WaitForP2PPublisher(pub, subHost, testTopic))
+
 			sub, err := dagsync.NewSubscriber(subHost, subDS, subLsys, testTopic, nil)
 			require.NoError(t, err)
 
@@ -168,6 +172,8 @@ func TestConcurrentSync(t *testing.T) {
 				lsys := test.MkLinkSystem(ds)
 				pub, err := dtsync.NewPublisher(pubHost, ds, lsys, testTopic)
 				require.NoError(t, err)
+				require.NoError(t, test.WaitForP2PPublisher(pub, subHost, testTopic))
+
 				publishers = append(publishers, pubMeta{pub, pubHost})
 
 				head := ll.Build(t, lsys)
@@ -334,8 +340,7 @@ func TestRoundTripSimple(t *testing.T) {
 	// Init dagsync publisher and subscriber
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
-	srcHost, dstHost, pub, sub, err := initPubSub(t, srcStore, dstStore)
-	require.NoError(t, err)
+	srcHost, dstHost, pub, sub := initPubSub(t, srcStore, dstStore)
 	defer srcHost.Close()
 	defer dstHost.Close()
 	defer pub.Close()
@@ -380,21 +385,23 @@ func TestRoundTrip(t *testing.T) {
 	defer dstHost.Close()
 	dstLnkS := test.MkLinkSystem(dstStore)
 
-	topics := test.WaitForMeshWithMessage(t, "testTopic", srcHost1, srcHost2, dstHost)
+	topics := test.WaitForMeshWithMessage(t, testTopic, srcHost1, srcHost2, dstHost)
 
 	p2pSender, err := p2psender.New(nil, "", p2psender.WithTopic(topics[0]))
 	require.NoError(t, err)
 
-	pub1, err := dtsync.NewPublisher(srcHost1, srcStore1, srcLnkS1, "", dtsync.WithAnnounceSenders(p2pSender))
+	pub1, err := dtsync.NewPublisher(srcHost1, srcStore1, srcLnkS1, testTopic, dtsync.WithAnnounceSenders(p2pSender))
 	require.NoError(t, err)
 	defer pub1.Close()
+	require.NoError(t, test.WaitForP2PPublisher(pub1, dstHost, testTopic))
 
 	p2pSender, err = p2psender.New(nil, "", p2psender.WithTopic(topics[1]))
 	require.NoError(t, err)
 
-	pub2, err := dtsync.NewPublisher(srcHost2, srcStore2, srcLnkS2, "", dtsync.WithAnnounceSenders(p2pSender))
+	pub2, err := dtsync.NewPublisher(srcHost2, srcStore2, srcLnkS2, testTopic, dtsync.WithAnnounceSenders(p2pSender))
 	require.NoError(t, err)
 	defer pub2.Close()
+	require.NoError(t, test.WaitForP2PPublisher(pub2, dstHost, testTopic))
 
 	blocksSeenByHook := make(map[cid.Cid]struct{})
 	blockHook := func(p peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
@@ -712,27 +719,24 @@ func (h *hostSystem) close() {
 }
 
 func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostSystem, subSys hostSystem, subOpts []dagsync.Option) (multiaddr.Multiaddr, dagsync.Publisher, *dagsync.Subscriber) {
-	var pubAddr multiaddr.Multiaddr
 	var pub dagsync.Publisher
 	var err error
 	if b.IsHttp {
-		httpPub, err := httpsync.NewPublisher("127.0.0.1:0", pubSys.lsys, pubSys.privKey)
+		pub, err = httpsync.NewPublisher("127.0.0.1:0", pubSys.lsys, pubSys.privKey)
 		require.NoError(t, err)
-		pubAddr = httpPub.Addrs()[0]
-		pub = httpPub
+		require.NoError(t, test.WaitForHttpPublisher(pub))
 	} else {
 		p2pSender, err := p2psender.New(pubSys.host, topicName)
 		require.NoError(t, err)
 		pub, err = dtsync.NewPublisher(pubSys.host, pubSys.ds, pubSys.lsys, topicName, dtsync.WithAnnounceSenders(p2pSender))
 		require.NoError(t, err)
-		pubAddr = pubSys.host.Addrs()[0]
+		require.NoError(t, test.WaitForP2PPublisher(pub, subSys.host, testTopic))
 	}
-	require.NoError(t, err)
+
 	sub, err := dagsync.NewSubscriber(subSys.host, subSys.ds, subSys.lsys, topicName, nil, subOpts...)
 	require.NoError(t, err)
 
-	return pubAddr, pub, sub
-
+	return pub.Addrs()[0], pub, sub
 }
 
 type llBuilder struct {

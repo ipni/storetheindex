@@ -42,13 +42,11 @@ func TestLatestSyncSuccess(t *testing.T) {
 	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic, dtsync.WithAnnounceSenders(p2pSender))
 	require.NoError(t, err)
 	defer pub.Close()
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 
 	sub, err := dagsync.NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil, dagsync.Topic(topics[1]))
 	require.NoError(t, err)
 	defer sub.Close()
-
-	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
-	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
@@ -86,6 +84,7 @@ func TestSyncFn(t *testing.T) {
 	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic, dtsync.WithAnnounceSenders(p2pSender))
 	require.NoError(t, err)
 	defer pub.Close()
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 
 	var blockHookCalls int
 	blocksSeenByHook := make(map[cid.Cid]struct{})
@@ -103,9 +102,6 @@ func TestSyncFn(t *testing.T) {
 
 	// Store the whole chain in source node
 	chainLnks := test.MkChain(srcLnkS, true)
-
-	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
-	require.NoError(t, err)
 
 	watcher, cancelWatcher := sub.OnSyncFinished()
 	defer cancelWatcher()
@@ -203,6 +199,7 @@ func TestPartialSync(t *testing.T) {
 	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic, dtsync.WithAnnounceSenders(p2pSender))
 	require.NoError(t, err)
 	defer pub.Close()
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 	test.MkChain(srcLnkS, true)
 
 	sub, err := dagsync.NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil, dagsync.Topic(topics[1]))
@@ -213,9 +210,6 @@ func TestPartialSync(t *testing.T) {
 	require.NoError(t, err)
 
 	err = srcHost.Connect(context.Background(), dstHost.Peerstore().PeerInfo(dstHost.ID()))
-	require.NoError(t, err)
-
-	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
 	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
@@ -264,13 +258,11 @@ func TestStepByStepSync(t *testing.T) {
 	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic, dtsync.WithAnnounceSenders(p2pSender))
 	require.NoError(t, err)
 	defer pub.Close()
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 
 	sub, err := dagsync.NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil, dagsync.Topic(topics[1]))
 	require.NoError(t, err)
 	defer sub.Close()
-
-	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
-	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
@@ -307,6 +299,7 @@ func TestLatestSyncFailure(t *testing.T) {
 	srcHost.Peerstore().AddAddrs(dstHost.ID(), dstHost.Addrs(), time.Hour)
 	dstHost.Peerstore().AddAddrs(srcHost.ID(), srcHost.Addrs(), time.Hour)
 	dstLnkS := test.MkLinkSystem(dstStore)
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 
 	t.Log("source host:", srcHost.ID())
 	t.Log("targer host:", dstHost.ID())
@@ -319,9 +312,6 @@ func TestLatestSyncFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	err = sub.SetLatestSync(srcHost.ID(), chainLnks[3].(cidlink.Link).Cid)
-	require.NoError(t, err)
-
-	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
 	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
@@ -363,13 +353,11 @@ func TestAnnounce(t *testing.T) {
 	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic)
 	require.NoError(t, err)
 	defer pub.Close()
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 
 	sub, err := dagsync.NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil)
 	require.NoError(t, err)
 	defer sub.Close()
-
-	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
-	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()

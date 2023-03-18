@@ -39,12 +39,12 @@ func TestAnnounceReplace(t *testing.T) {
 	require.NoError(t, err)
 	defer pub.Close()
 
+	err = test.WaitForP2PPublisher(pub, dstHost, testTopic)
+	require.NoError(t, err)
+
 	sub, err := NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil)
 	require.NoError(t, err)
 	defer sub.Close()
-
-	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
-	require.NoError(t, err)
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
@@ -222,6 +222,9 @@ func TestAnnounceRepublish(t *testing.T) {
 	require.NoError(t, err)
 	defer pub.Close()
 
+	err = test.WaitForP2PPublisher(pub, dstHost, testTopic)
+	require.NoError(t, err)
+
 	sub1, err := NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil, Topic(topics[0]), ResendAnnounce(true))
 	require.NoError(t, err)
 	defer sub1.Close()
@@ -229,9 +232,6 @@ func TestAnnounceRepublish(t *testing.T) {
 	sub2, err := NewSubscriber(dstHost2, dstStore2, dstLnkS2, testTopic, nil, Topic(topics[1]))
 	require.NoError(t, err)
 	defer sub2.Close()
-
-	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
-	require.NoError(t, err)
 
 	watcher2, cncl := sub2.OnSyncFinished()
 	defer cncl()
