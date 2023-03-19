@@ -38,9 +38,7 @@ func TestAnnounceReplace(t *testing.T) {
 	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic)
 	require.NoError(t, err)
 	defer pub.Close()
-
-	err = test.WaitForP2PPublisher(pub, dstHost, testTopic)
-	require.NoError(t, err)
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 
 	sub, err := NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil)
 	require.NoError(t, err)
@@ -221,9 +219,7 @@ func TestAnnounceRepublish(t *testing.T) {
 	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic)
 	require.NoError(t, err)
 	defer pub.Close()
-
-	err = test.WaitForP2PPublisher(pub, dstHost, testTopic)
-	require.NoError(t, err)
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 
 	sub1, err := NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil, Topic(topics[0]), ResendAnnounce(true))
 	require.NoError(t, err)

@@ -2,7 +2,6 @@ package head
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -17,7 +16,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
-	multistream "github.com/multiformats/go-multistream"
 )
 
 const closeTimeout = 30 * time.Second
@@ -57,24 +55,7 @@ func QueryRootCid(ctx context.Context, host host.Host, topic string, peerID peer
 	client := http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				conn, err := gostream.Dial(ctx, host, peerID, deriveProtocolID(topic))
-				if err != nil {
-					// If protocol ID is wrong, then try the old "double-slashed" protocol ID.
-					//
-					// TODO: remove this code when all providers have upgraded.
-					if !errors.Is(err, multistream.ErrNotSupported[protocol.ID]{
-						Protos: []protocol.ID{deriveProtocolID(topic)},
-					}) {
-						return nil, err
-					}
-					oldProtoID := protocol.ID("/legs/head/" + topic + "/0.0.1")
-					conn, err = gostream.Dial(ctx, host, peerID, oldProtoID)
-					if err != nil {
-						return nil, err
-					}
-					log.Infow("Peer head CID server uses old protocol ID", "peer", peerID, "proto", oldProtoID)
-				}
-				return conn, err
+				return gostream.Dial(ctx, host, peerID, deriveProtocolID(topic))
 			},
 		},
 	}
