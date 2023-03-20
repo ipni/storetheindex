@@ -16,7 +16,8 @@ module "vpc" {
   cidr            = "20.10.0.0/16"
   private_subnets = [
     "20.10.1.0/24", "20.10.2.0/24", "20.10.3.0/24",
-    "20.10.4.0/24", "20.10.5.0/24", "20.10.6.0/24"
+    "20.10.4.0/24", "20.10.5.0/24", "20.10.6.0/24",
+    "20.10.7.0/24", "20.10.8.0/24", "20.10.9.0/24"
   ]
   public_subnets   = ["20.10.11.0/24", "20.10.12.0/24", "20.10.13.0/24"]
   database_subnets = ["20.10.101.0/24", "20.10.102.0/24", "20.10.103.0/24"]
@@ -75,6 +76,23 @@ data "aws_subnet" "ue2a2" {
   }
 }
 
+data "aws_subnet" "ue2a3" {
+  vpc_id = module.vpc.vpc_id
+
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-2a"]
+  }
+  filter {
+    name   = "subnet-id"
+    values = module.vpc.private_subnets
+  }
+  filter {
+    name   = "cidr-block"
+    values = ["20.10.7.0/24"]
+  }
+}
+
 data "aws_subnet" "ue2b1" {
   vpc_id = module.vpc.vpc_id
 
@@ -109,6 +127,23 @@ data "aws_subnet" "ue2b2" {
   }
 }
 
+data "aws_subnet" "ue2b3" {
+  vpc_id = module.vpc.vpc_id
+
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-2b"]
+  }
+  filter {
+    name   = "subnet-id"
+    values = module.vpc.private_subnets
+  }
+  filter {
+    name   = "cidr-block"
+    values = ["20.10.8.0/24"]
+  }
+}
+
 data "aws_subnet" "ue2c1" {
   vpc_id = module.vpc.vpc_id
 
@@ -140,5 +175,22 @@ data "aws_subnet" "ue2c2" {
   filter {
     name   = "cidr-block"
     values = ["20.10.6.0/24"]
+  }
+}
+
+data "aws_subnet" "ue2c3" {
+  vpc_id = module.vpc.vpc_id
+
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-2c"]
+  }
+  filter {
+    name   = "subnet-id"
+    values = module.vpc.private_subnets
+  }
+  filter {
+    name   = "cidr-block"
+    values = ["20.10.9.0/24"]
   }
 }
