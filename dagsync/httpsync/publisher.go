@@ -160,6 +160,10 @@ func (p *publisher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.rl.RLock()
 		defer p.rl.RUnlock()
 
+		if p.root == cid.Undef {
+			http.Error(w, "", http.StatusNoContent)
+			return
+		}
 		marshalledMsg, err := newEncodedSignedHead(p.root, p.privKey)
 		if err != nil {
 			http.Error(w, "Failed to encode", http.StatusInternalServerError)
