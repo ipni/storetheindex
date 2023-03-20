@@ -51,13 +51,6 @@ module "eks" {
     }
 
     # General purpose node-group.
-    prod-ue2-m4-xl-2 = {
-      min_size       = 3
-      max_size       = 15
-      desired_size   = 3
-      subnet_ids     = local.secondary_private_subnet_ids
-      instance_types = ["m4.xlarge"]
-    }
     prod-ue2a-m4-xl = {
       min_size       = 0
       max_size       = 10
@@ -108,48 +101,6 @@ module "eks" {
         dedicated = {
           key    = "dedicated"
           value  = "r5b-4xl"
-          effect = "NO_SCHEDULE"
-        }
-      }
-    }
-    prod-ue2a-c6a-8xl = {
-      min_size       = 0
-      max_size       = 5
-      desired_size   = 1
-      instance_types = ["c6a.8xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2a2.id]
-      taints         = {
-        dedicated = {
-          key    = "dedicated"
-          value  = "c6a-8xl"
-          effect = "NO_SCHEDULE"
-        }
-      }
-    }
-    prod-ue2b-c6a-8xl = {
-      min_size       = 0
-      max_size       = 5
-      desired_size   = 1
-      instance_types = ["c6a.8xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2b2.id]
-      taints         = {
-        dedicated = {
-          key    = "dedicated"
-          value  = "c6a-8xl"
-          effect = "NO_SCHEDULE"
-        }
-      }
-    }
-    prod-ue2c-c6a-8xl = {
-      min_size       = 0
-      max_size       = 5
-      desired_size   = 1
-      instance_types = ["c6a.8xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2c2.id]
-      taints         = {
-        dedicated = {
-          key    = "dedicated"
-          value  = "c6a-8xl"
           effect = "NO_SCHEDULE"
         }
       }
