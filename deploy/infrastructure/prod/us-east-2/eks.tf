@@ -58,6 +58,27 @@ module "eks" {
       subnet_ids     = local.secondary_private_subnet_ids
       instance_types = ["m4.xlarge"]
     }
+    prod-ue2a-m4-xl = {
+      min_size       = 0
+      max_size       = 10
+      desired_size   = 0
+      subnet_ids     = [data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
+      instance_types = ["m4.xlarge"]
+    }
+    prod-ue2b-m4-xl = {
+      min_size       = 0
+      max_size       = 10
+      desired_size   = 0
+      subnet_ids     = [data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
+      instance_types = ["m4.xlarge"]
+    }
+    prod-ue2c-m4-xl = {
+      min_size       = 0
+      max_size       = 10
+      desired_size   = 0
+      subnet_ids     = [data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
+      instance_types = ["m4.xlarge"]
+    }
 
     # Supports high IOPS via io2 Block Express EBS volume types with specific taint.
     # See:
@@ -69,7 +90,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["r5b.4xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a1.id]
-      taints = {
+      taints         = {
         dedicated = {
           key    = "dedicated"
           value  = "r5b-4xl"
@@ -83,7 +104,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["r5b.4xlarge"]
       subnet_ids     = [data.aws_subnet.ue2b1.id]
-      taints = {
+      taints         = {
         dedicated = {
           key    = "dedicated"
           value  = "r5b-4xl"
@@ -97,7 +118,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["c6a.8xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a2.id]
-      taints = {
+      taints         = {
         dedicated = {
           key    = "dedicated"
           value  = "c6a-8xl"
@@ -111,7 +132,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["c6a.8xlarge"]
       subnet_ids     = [data.aws_subnet.ue2b2.id]
-      taints = {
+      taints         = {
         dedicated = {
           key    = "dedicated"
           value  = "c6a-8xl"
@@ -125,7 +146,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["c6a.8xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id]
-      taints = {
+      taints         = {
         dedicated = {
           key    = "dedicated"
           value  = "c6a-8xl"

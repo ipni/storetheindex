@@ -13,6 +13,21 @@ data:
     - groups:
       - system:bootstrappers
       - system:nodes
+      rolearn: arn:aws:iam::407967248065:role/prod-ue2a-m4-xl-eks-node-group
+      username: system:node:{{EC2PrivateDNSName}}
+    - groups:
+      - system:bootstrappers
+      - system:nodes
+      rolearn: arn:aws:iam::407967248065:role/prod-ue2b-m4-xl-eks-node-group
+      username: system:node:{{EC2PrivateDNSName}}
+    - groups:
+      - system:bootstrappers
+      - system:nodes
+      rolearn: arn:aws:iam::407967248065:role/prod-ue2c-m4-xl-eks-node-group
+      username: system:node:{{EC2PrivateDNSName}}
+    - groups:
+      - system:bootstrappers
+      - system:nodes
       rolearn: arn:aws:iam::407967248065:role/prod-ue2a-r5b-4xl-eks-node-group
       username: system:node:{{EC2PrivateDNSName}}
     - groups:
