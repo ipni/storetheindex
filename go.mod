@@ -13,7 +13,7 @@ require (
 	github.com/cockroachdb/pebble v0.0.0-20220726144858-a78491c0086f
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.3.0
-	github.com/filecoin-project/go-data-transfer/v2 v2.0.0-rc4
+	github.com/filecoin-project/go-data-transfer/v2 v2.0.0-rc5
 	github.com/gammazero/deque v0.2.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-retryablehttp v0.7.1
