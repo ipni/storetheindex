@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - ../../../../../base/cassette
+  - service-external.yaml
+
+patchesStrategicMerge:
+  - deployment.yaml
+  - service.yaml
+
+secretGenerator:
+  - name: cassette-identity
+    files:
+      - identity.key=identity.key.encrypted # 12D3KooWGTmdmxG1CJSt8PS7B5H1wh9SmPqSTdGS2296V2EcMX6S
+
+configMapGenerator:
+  - name: cassette-env-vars
+    behavior: merge
+    literals:
+      - GOLOG_LOG_LEVEL="info,net/identify=error"
+
+images:
+  - name: cassette
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/cassette
+    newTag: 20230321143401-366df7565d6cfedc22d8280e146212d1995bfe3e
