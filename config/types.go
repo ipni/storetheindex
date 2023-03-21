@@ -15,13 +15,21 @@ import (
 type ByteSize uint64
 
 const (
-	giSize = 1 << 30
-	mbSize = 1 << 20
+	giSuffix = "Gi"
+	giSize   = 1 << 30
+	miSuffix = "Mi"
+	miSize   = 1 << 20
 )
 
 func (d *ByteSize) UnmarshalText(text []byte) error {
 	str := strings.TrimSpace(string(text))
-	if len(str) <= 1 {
+	// If the value is emoty - defaulting to zero
+	if len(str) == 0 {
+		*d = ByteSize(0)
+		return nil
+	}
+	// If there is less than two bytes - treating it as a number
+	if len(str) <= 2 {
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			return err
@@ -29,19 +37,19 @@ func (d *ByteSize) UnmarshalText(text []byte) error {
 		*d = ByteSize(n)
 		return nil
 	}
-	suffix := strings.ToLower(str[len(str)-1:])
+	suffix := strings.ToLower(str[len(str)-2:])
 	multiplier := 1
 	var n int
 	var err error
 	switch suffix {
-	case "m":
-		n, err = strconv.Atoi(str[:len(str)-1])
+	case strings.ToLower(miSuffix):
+		n, err = strconv.Atoi(str[:len(str)-2])
 		if err != nil {
 			return err
 		}
-		multiplier = mbSize
-	case "g":
-		n, err = strconv.Atoi(str[:len(str)-1])
+		multiplier = miSize
+	case strings.ToLower(giSuffix):
+		n, err = strconv.Atoi(str[:len(str)-2])
 		if err != nil {
 			return err
 		}
@@ -59,9 +67,9 @@ func (d ByteSize) MarshalText() ([]byte, error) {
 
 func (d ByteSize) String() string {
 	if d%giSize == 0 {
-		return fmt.Sprintf("%dG", d/giSize)
-	} else if d%mbSize == 0 {
-		return fmt.Sprintf("%dM", d/mbSize)
+		return fmt.Sprintf("%d%s", d/giSize, giSuffix)
+	} else if d%miSize == 0 {
+		return fmt.Sprintf("%d%s", d/miSize, miSuffix)
 	} else {
 		return fmt.Sprintf("%d", d)
 	}
