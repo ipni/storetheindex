@@ -586,7 +586,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 			l.EnsureDefaults()
 		}
 		pebbleOpts.Levels[numLevels-1].FilterPolicy = nil
-		pebbleOpts.Cache = pbl.NewCache(1 << 30) // 1 GiB
+		pebbleOpts.Cache = pbl.NewCache(int64(cfgIndexer.PebbleBlockCacheSize))
 
 		vs, err = pebble.New(dir, pebbleOpts)
 	default:
