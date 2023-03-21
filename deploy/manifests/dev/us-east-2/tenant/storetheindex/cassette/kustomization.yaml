@@ -6,6 +6,7 @@ namespace: storetheindex
 resources:
   - ../../../../../base/cassette
   - service-external.yaml
+  - pod-monitor.yaml
 
 patchesStrategicMerge:
   - deployment.yaml
