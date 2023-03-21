@@ -65,6 +65,8 @@ type Indexer struct {
 	// can offer better performance in specific cases. Enabled by default. This
 	// option only applies when ValueStoreType is set to "pebble".
 	PebbleDisableWAL bool
+	// PebbleBlockCacheSize is a size of pebble block cache in bytes
+	PebbleBlockCacheSize ByteSize
 	// UnfreezeOnStart tells that indexer to unfreeze itself on startup if it
 	// is frozen. This reverts the indexer to the state it was in before it was
 	// frozen. It only retains the most recent provider and publisher
@@ -84,19 +86,20 @@ type Indexer struct {
 // NewIndexer returns Indexer with values set to their defaults.
 func NewIndexer() Indexer {
 	return Indexer{
-		CacheSize:           300000,
-		ConfigCheckInterval: Duration(30 * time.Second),
-		CorePutConcurrency:  64,
-		FreezeAtPercent:     90.0,
-		GCInterval:          Duration(30 * time.Minute),
-		GCTimeLimit:         Duration(5 * time.Minute),
-		ShutdownTimeout:     0,
-		ValueStoreDir:       "valuestore",
-		ValueStoreType:      "pebble",
-		STHBits:             24,
-		STHBurstRate:        8 * 1024 * 1024,
-		STHFileCacheSize:    512,
-		STHSyncInterval:     Duration(time.Second),
+		CacheSize:            300000,
+		PebbleBlockCacheSize: 1 << 30, // 1 Gi
+		ConfigCheckInterval:  Duration(30 * time.Second),
+		CorePutConcurrency:   64,
+		FreezeAtPercent:      90.0,
+		GCInterval:           Duration(30 * time.Minute),
+		GCTimeLimit:          Duration(5 * time.Minute),
+		ShutdownTimeout:      0,
+		ValueStoreDir:        "valuestore",
+		ValueStoreType:       "pebble",
+		STHBits:              24,
+		STHBurstRate:         8 * 1024 * 1024,
+		STHFileCacheSize:     512,
+		STHSyncInterval:      Duration(time.Second),
 		// defaulting http timeout to 10 seconds to survive over occasional spikes caused by compaction
 		DHStoreHttpClientTimeout: Duration(10 * time.Second),
 	}
@@ -144,5 +147,8 @@ func (c *Indexer) populateUnset() {
 	}
 	if c.DHStoreHttpClientTimeout == 0 {
 		c.DHStoreHttpClientTimeout = def.DHStoreHttpClientTimeout
+	}
+	if c.PebbleBlockCacheSize == 0 {
+		c.PebbleBlockCacheSize = def.PebbleBlockCacheSize
 	}
 }
