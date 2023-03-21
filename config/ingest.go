@@ -17,9 +17,11 @@ type Ingest struct {
 	// size set by SyncSegmentDepthLimit. AdvertisementDepthLimit sets the
 	// limit on the total number of advertisements across all segments.
 	AdvertisementDepthLimit int
-	// CarMirrorDestination configures if, how, and where to store ingested
-	// advertisements and entries in CAR files.
-	CarMirrorDestination FileStore
+	// AdvertisementMirror configures if, how, and where to store content
+	// advertisements data in CAR files. The mirror may be readable, writable,
+	// both, or neither. If the mirror is neither readable or writable, or a
+	// storage type is not specified, then the mirror is not used.
+	AdvertisementMirror Mirror
 	// EntriesDepthLimit is the total maximum recursion depth limit when
 	// syncing advertisement entries. The value -1 means no limit and zero
 	// means use the default value. The purpose is to prevent overload from
@@ -76,11 +78,20 @@ type Ingest struct {
 	SyncTimeout Duration
 }
 
-// FileStore configures a particular file store implementation.
-type FileStore struct {
+type Mirror struct {
+	// Read specifies to read advertisement content from the mirror.
+	Read bool
+	// Write specified to write advertisement content to the mirrir.
+	Write bool
 	// Compress specifies how to compress files. One of: "gzip", "none".
 	// Defaults to "gzip" if unspecified.
 	Compress string
+	// Storage configures the backing file store for the mirror.
+	Storage FileStore
+}
+
+// FileStore configures a particular file store implementation.
+type FileStore struct {
 	// Type of file store to use: "", "local", "s3"
 	Type string
 	// Configuration for storing files in local filesystem.
@@ -112,7 +123,7 @@ type S3FileStore struct {
 func NewIngest() Ingest {
 	return Ingest{
 		AdvertisementDepthLimit: 33554432,
-		CarMirrorDestination: FileStore{
+		AdvertisementMirror: Mirror{
 			Compress: "gzip",
 		},
 		EntriesDepthLimit:     65536,
@@ -136,8 +147,8 @@ func (c *Ingest) populateUnset() {
 	if c.AdvertisementDepthLimit == 0 {
 		c.AdvertisementDepthLimit = def.AdvertisementDepthLimit
 	}
-	if c.CarMirrorDestination.Compress == "" {
-		c.CarMirrorDestination.Compress = def.CarMirrorDestination.Compress
+	if c.AdvertisementMirror.Compress == "" {
+		c.AdvertisementMirror.Compress = def.AdvertisementMirror.Compress
 	}
 	if c.EntriesDepthLimit == 0 {
 		c.EntriesDepthLimit = def.EntriesDepthLimit

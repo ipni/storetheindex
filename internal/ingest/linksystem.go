@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -20,6 +22,7 @@ import (
 	"github.com/ipld/go-ipld-prime/node/bindnode"
 	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/storetheindex/api/v0/ingest/schema"
+	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/dagsync"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
@@ -319,6 +322,25 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 
 	entsSyncStart = time.Now()
 
+	// If using a CAR reader, then try to get the advertisement CAR file first.
+	if ing.mirror.canRead() {
+		mhCount, err = ing.ingestEntriesFromCar(ctx, ad, providerID, adCid, entriesCid, log)
+		// If entries data successfully read from CAR file.
+		if err == nil {
+			ing.updateIndexCounts(mhCount, providerID, ad.ContextID, resync)
+			atomic.AddUint64(&ing.mhsFromMirror, uint64(mhCount))
+			return nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			var adIngestErr adIngestError
+			if errors.As(err, &adIngestErr) && adIngestErr.state == adIngestIndexerErr {
+				// Could not store multihashes in core, so stop trying to index ad.
+				return err
+			}
+			log.Errorw("Cannot get advertisement from car store", "err", err)
+		}
+	}
+
 	// The ad.Entries link can point to either a chain of EntryChunks or a
 	// HAMT. Sync the very first entry so that we can check which type it is.
 	// This means the maximum depth of entries traversal will be 1 plus the
@@ -354,168 +376,242 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	}
 
 	if isHAMT(node) {
-		log = log.With("entriesKind", "hamt")
-		// Keep track of all CIDs in the HAMT to remove them later when the
-		// processing is done. This is equivalent behavior to ingestEntryChunk
-		// which removes an entry chunk right afrer it is processed.
-		hamtCids := []cid.Cid{syncedFirstEntryCid}
-		gatherCids := func(_ peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
-			hamtCids = append(hamtCids, c)
-		}
-		if ing.carWriter == nil && ing.dsAds == ing.ds {
-			defer func() {
-				for _, c := range hamtCids {
-					err := ing.dsAds.Delete(ctx, datastore.NewKey(c.String()))
-					if err != nil {
-						log.Errorw("Error deleting HAMT cid from datastore", "cid", c, "err", err)
-					}
-				}
-			}()
-		}
-
-		// Load the CID as HAMT root node.
-		hn, err := ing.loadHamt(syncedFirstEntryCid)
-		if err != nil {
-			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entries as HAMT root node: %w", err)}
-		}
-
-		// Sync all the links in the hamt, since so far we have only synced the root.
-		for _, e := range hn.Hamt.Data {
-			if e.HashMapNode != nil {
-				nodeCid := (*e.HashMapNode).(cidlink.Link).Cid
-				_, err = ing.sub.Sync(ctx, publisherID, nodeCid, Selectors.All, nil,
-					// Gather all the HAMT Cids so that we can remove them from
-					// datastore once finished processing.
-					dagsync.ScopedBlockHook(gatherCids),
-					// Disable segmented sync.
-					//
-					// TODO: see if segmented sync for HAMT makes sense and if
-					// so modify block hook action above appropriately.
-					dagsync.ScopedSegmentDepthLimit(-1))
-				if err != nil {
-					wrappedErr := fmt.Errorf("failed to sync remaining HAMT: %w", err)
-					if strings.Contains(err.Error(), "content not found") {
-						return adIngestError{adIngestContentNotFound, wrappedErr}
-					}
-					return adIngestError{adIngestSyncEntriesErr, wrappedErr}
-				}
-			}
-		}
-
-		// Start processing now that the entire HAMT is synced. HAMT is a map,
-		// and we are using the keys in the map to represent multihashes.
-		// Therefore, we only care about the keys.
-		//
-		// Group the mutlihashes in StoreBatchSize batches and process as usual.
-		mhs := make([]multihash.Multihash, 0, ing.batchSize)
-		mi := hn.MapIterator()
-		for !mi.Done() {
-			k, _, err := mi.Next()
-			if err != nil {
-				return adIngestError{adIngestIndexerErr, fmt.Errorf("faild to iterate through HAMT: %w", err)}
-			}
-			ks, err := k.AsString()
-			if err != nil {
-				return adIngestError{adIngestMalformedErr, fmt.Errorf("HAMT key must be of type string: %w", err)}
-			}
-			mhs = append(mhs, multihash.Multihash(ks))
-			// The reason we need batching here is because here we are
-			// iterating over the _entire_ HAMT keys, whereas indexContentBlock
-			// is meant to be given multihashes in a single EntryChunk which
-			// could be far fewer multihashes.
-			//
-			// Batching here allows us to only load into memory one batch worth
-			// of multihashes from the HAMT, instead of loading all the
-			// multihashes in the HAMT then batch them later in
-			// indexContentBlock.
-			//
-			// TODO: See how we can refactor code to make batching logic more
-			// flexible in indexContentBlock.
-			if len(mhs) >= int(ing.batchSize) {
-				if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
-					return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
-				}
-				mhCount += len(mhs)
-				mhs = mhs[:0]
-			}
-		}
-		// Process any remaining multihashes from the batch cut-off.
-		if len(mhs) > 0 {
-			if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
-				return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
-			}
-			mhCount += len(mhs)
-		}
+		mhCount, err = ing.ingestHamtFromPublisher(ctx, ad, publisherID, providerID, syncedFirstEntryCid, log)
 	} else {
-		log = log.With("entriesKind", "EntryChunk")
-
-		// We have already peeked at the first EntryChunk as part of probing
-		// the entries type, so process that first.
-		chunk, err := ing.loadEntryChunk(syncedFirstEntryCid)
-		if err != nil {
-			// Node was loaded previously, so must be a permanent data error.
-			return adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to load first entry chunk: %w", err)}
-		}
-
-		err = ing.ingestEntryChunk(ctx, ad, providerID, syncedFirstEntryCid, *chunk, log)
-		if err != nil {
-			// There was an error storing the multihashes.
-			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest first entry chunk: %w", err)}
-		}
-
-		mhCount += len(chunk.Entries)
-
-		// Sync all remaining entry chunks.
-		if chunk.Next != nil {
-			blockHook := func(p peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
-				// Load CID as entry chunk since the selector should only
-				// select entry chunk nodes.
-				chunk, err := ing.loadEntryChunk(c)
-				if err != nil {
-					actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entry chunk: %w", err)})
-					return
-				}
-				err = ing.ingestEntryChunk(ctx, ad, providerID, c, *chunk, log)
-				if err != nil {
-					actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)})
-					return
-				}
-				mhCount += len(chunk.Entries)
-
-				if chunk.Next == nil {
-					actions.SetNextSyncCid(cid.Undef)
-					return
-				}
-				actions.SetNextSyncCid(chunk.Next.(cidlink.Link).Cid)
-			}
-
-			// Traverse remaining entry chunks based on the entries selector
-			// that limits recursion depth.
-			_, err = ing.sub.Sync(ctx, publisherID, chunk.Next.(cidlink.Link).Cid, ing.entriesSel, nil,
-				dagsync.ScopedBlockHook(blockHook))
-			if err != nil {
-				var adIngestErr adIngestError
-				if errors.As(err, &adIngestErr) {
-					return err
-				}
-				wrappedErr := fmt.Errorf("failed to sync entries: %w", err)
-				if strings.Contains(err.Error(), "content not found") {
-					return adIngestError{adIngestContentNotFound, wrappedErr}
-				}
-				return adIngestError{adIngestSyncEntriesErr, wrappedErr}
-			}
-		}
+		mhCount, err = ing.ingestEntriesFromPublisher(ctx, ad, publisherID, providerID, syncedFirstEntryCid, log)
 	}
-	if ing.indexCounts != nil {
+	if err != nil {
+		return err
+	}
+	// Update index counts only if no error, since ad usually reindexed if error.
+	ing.updateIndexCounts(mhCount, providerID, ad.ContextID, resync)
+	return nil
+}
+
+func (ing *Ingester) updateIndexCounts(mhCount int, providerID peer.ID, contextID []byte, resync bool) {
+	if ing.indexCounts != nil && mhCount != 0 {
 		if resync {
 			// If resyncing, only add missing values so that counts are not duplicated.
-			ing.indexCounts.AddMissingCount(providerID, ad.ContextID, uint64(mhCount))
+			ing.indexCounts.AddMissingCount(providerID, contextID, uint64(mhCount))
 		} else {
-			ing.indexCounts.AddCount(providerID, ad.ContextID, uint64(mhCount))
+			ing.indexCounts.AddCount(providerID, contextID, uint64(mhCount))
+		}
+	}
+}
+
+func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, entsCid cid.Cid, log *zap.SugaredLogger) (int, error) {
+	log = log.With("entriesKind", "hamt")
+	// Keep track of all CIDs in the HAMT to remove them later when the
+	// processing is done. This is equivalent behavior to ingestEntryChunk
+	// which removes an entry chunk right afrer it is processed.
+	hamtCids := []cid.Cid{entsCid}
+	gatherCids := func(_ peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
+		hamtCids = append(hamtCids, c)
+	}
+	if !ing.mirror.canWrite() && ing.dsAds == ing.ds {
+		defer func() {
+			for _, c := range hamtCids {
+				err := ing.dsAds.Delete(ctx, datastore.NewKey(c.String()))
+				if err != nil {
+					log.Errorw("Error deleting HAMT cid from datastore", "cid", c, "err", err)
+				}
+			}
+		}()
+	}
+
+	// Load the CID as HAMT root node.
+	hn, err := ing.loadHamt(entsCid)
+	if err != nil {
+		return 0, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entries as HAMT root node: %w", err)}
+	}
+
+	// Sync all the links in the hamt, since so far we have only synced the root.
+	for _, e := range hn.Hamt.Data {
+		if e.HashMapNode != nil {
+			nodeCid := (*e.HashMapNode).(cidlink.Link).Cid
+			_, err = ing.sub.Sync(ctx, publisherID, nodeCid, Selectors.All, nil,
+				// Gather all the HAMT Cids so that we can remove them from
+				// datastore once finished processing.
+				dagsync.ScopedBlockHook(gatherCids),
+				// Disable segmented sync.
+				//
+				// TODO: see if segmented sync for HAMT makes sense and if
+				// so modify block hook action above appropriately.
+				dagsync.ScopedSegmentDepthLimit(-1))
+			if err != nil {
+				wrappedErr := fmt.Errorf("failed to sync remaining HAMT: %w", err)
+				if strings.Contains(err.Error(), "content not found") {
+					return 0, adIngestError{adIngestContentNotFound, wrappedErr}
+				}
+				return 0, adIngestError{adIngestSyncEntriesErr, wrappedErr}
+			}
 		}
 	}
 
-	return nil
+	var mhCount int
+
+	// Start processing now that the entire HAMT is synced. HAMT is a map,
+	// and we are using the keys in the map to represent multihashes.
+	// Therefore, we only care about the keys.
+	//
+	// Group the mutlihashes in StoreBatchSize batches and process as usual.
+	mhs := make([]multihash.Multihash, 0, ing.batchSize)
+	mi := hn.MapIterator()
+	for !mi.Done() {
+		k, _, err := mi.Next()
+		if err != nil {
+			return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("faild to iterate through HAMT: %w", err)}
+		}
+		ks, err := k.AsString()
+		if err != nil {
+			return mhCount, adIngestError{adIngestMalformedErr, fmt.Errorf("HAMT key must be of type string: %w", err)}
+		}
+		mhs = append(mhs, multihash.Multihash(ks))
+		// The reason we need batching here is because here we are
+		// iterating over the _entire_ HAMT keys, whereas indexContentBlock
+		// is meant to be given multihashes in a single EntryChunk which
+		// could be far fewer multihashes.
+		//
+		// Batching here allows us to only load into memory one batch worth
+		// of multihashes from the HAMT, instead of loading all the
+		// multihashes in the HAMT then batch them later in
+		// indexContentBlock.
+		//
+		// TODO: See how we can refactor code to make batching logic more
+		// flexible in indexContentBlock.
+		if len(mhs) >= int(ing.batchSize) {
+			if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
+				return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
+			}
+			mhCount += len(mhs)
+			mhs = mhs[:0]
+		}
+	}
+	// Process any remaining multihashes from the batch cut-off.
+	if len(mhs) > 0 {
+		if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
+			return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
+		}
+		mhCount += len(mhs)
+	}
+
+	return mhCount, nil
+}
+
+func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, entsCid cid.Cid, log *zap.SugaredLogger) (int, error) {
+	log = log.With("entriesKind", "EntryChunk")
+
+	// We have already peeked at the first EntryChunk as part of probing
+	// the entries type, so process that first.
+	chunk, err := ing.loadEntryChunk(entsCid)
+	if err != nil {
+		// Node was loaded previously, so must be a permanent data error.
+		return 0, adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to load first entry chunk: %w", err)}
+	}
+
+	err = ing.ingestEntryChunk(ctx, ad, providerID, entsCid, *chunk, log)
+	if err != nil {
+		// There was an error storing the multihashes.
+		return 0, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest first entry chunk: %w", err)}
+	}
+
+	mhCount := len(chunk.Entries)
+
+	// Sync all remaining entry chunks.
+	if chunk.Next != nil {
+		blockHook := func(p peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
+			// Load CID as entry chunk since the selector should only
+			// select entry chunk nodes.
+			chunk, err := ing.loadEntryChunk(c)
+			if err != nil {
+				actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entry chunk: %w", err)})
+				return
+			}
+			err = ing.ingestEntryChunk(ctx, ad, providerID, c, *chunk, log)
+			if err != nil {
+				actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)})
+				return
+			}
+			mhCount += len(chunk.Entries)
+
+			if chunk.Next == nil {
+				actions.SetNextSyncCid(cid.Undef)
+				return
+			}
+			actions.SetNextSyncCid(chunk.Next.(cidlink.Link).Cid)
+		}
+
+		// Traverse remaining entry chunks based on the entries selector
+		// that limits recursion depth.
+		_, err = ing.sub.Sync(ctx, publisherID, chunk.Next.(cidlink.Link).Cid, ing.entriesSel, nil,
+			dagsync.ScopedBlockHook(blockHook))
+		if err != nil {
+			var adIngestErr adIngestError
+			if errors.As(err, &adIngestErr) {
+				return mhCount, err
+			}
+			wrappedErr := fmt.Errorf("failed to sync entries: %w", err)
+			if strings.Contains(err.Error(), "content not found") {
+				return mhCount, adIngestError{adIngestContentNotFound, wrappedErr}
+			}
+			return mhCount, adIngestError{adIngestSyncEntriesErr, wrappedErr}
+		}
+	}
+
+	return mhCount, nil
+}
+
+func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Advertisement, providerID peer.ID, adCid, entsCid cid.Cid, log *zap.SugaredLogger) (int, error) {
+	// Create a context to cancel reading entries.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	adBlock, err := ing.mirror.read(ctx, adCid, false)
+	if err != nil {
+		return 0, err
+	}
+
+	var firstEntryBlock carstore.EntryBlock
+	var ok bool
+	if adBlock.Entries != nil {
+		firstEntryBlock, ok = <-adBlock.Entries
+	}
+	if !ok {
+		return 0, errors.New("expected advertisement to have entries")
+	}
+	if firstEntryBlock.Cid != entsCid {
+		return 0, fmt.Errorf("advertisement entries cid does not match first entry chunk cid in car file")
+	}
+
+	chunk, err := firstEntryBlock.EntryChunk()
+	if err != nil {
+		return 0, err
+	}
+
+	log = log.With("entriesKind", "CarEntryChunk")
+
+	err = ing.ingestEntryChunk(ctx, ad, providerID, entsCid, *chunk, log)
+	if err != nil {
+		return 0, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
+	}
+	mhCount := len(chunk.Entries)
+
+	for entryBlock := range adBlock.Entries {
+		if entryBlock.Err != nil {
+			return mhCount, err
+		}
+		chunk, err = entryBlock.EntryChunk()
+		if err != nil {
+			return mhCount, fmt.Errorf("failed to decode entry chunk from car file data: %w", err)
+		}
+		err = ing.ingestEntryChunk(ctx, ad, providerID, entryBlock.Cid, *chunk, log)
+		if err != nil {
+			return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
+		}
+		mhCount += len(chunk.Entries)
+	}
+
+	return mhCount, nil
 }
 
 // ingestEntryChunk ingests a block of entries as that block is received
@@ -527,7 +623,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 // each block that is received.
 func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertisement, providerID peer.ID, entryChunkCid cid.Cid, chunk schema.EntryChunk, log *zap.SugaredLogger) error {
 	err := ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
-	if ing.carWriter == nil && ing.dsAds == ing.ds {
+	if !ing.mirror.canWrite() && ing.dsAds == ing.ds {
 		// Done processing entries chunk, so remove from datastore.
 		if err := ing.dsAds.Delete(ctx, datastore.NewKey(entryChunkCid.String())); err != nil {
 			log.Errorw("Error deleting index from datastore", "err", err)

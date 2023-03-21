@@ -85,14 +85,14 @@ func NewReader(fileStore filestore.Interface, options ...Option) (*CarReader, er
 	}, nil
 }
 
-func (cr *CarReader) Compression() string {
+func (cr CarReader) Compression() string {
 	return cr.compAlg
 }
 
 // Read reads an advertisement CAR file, identitfied by the advertisement CID
 // and returns the advertisement data and a channel to read blocks of multihash
-// entries.
-func (cr *CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) (*AdBlock, error) {
+// entries. Returns fs.ErrNotExist if file is not found.
+func (cr CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) (*AdBlock, error) {
 	carPath := adCid.String() + CarFileSuffix
 	if cr.compAlg == Gzip {
 		carPath += GzipFileSuffix
@@ -148,7 +148,10 @@ func (cr *CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) 
 	return &adBlock, nil
 }
 
-func (cr *CarReader) ReadHead(ctx context.Context, publisher peer.ID) (cid.Cid, error) {
+// ReadHead reads the advertisement CID from the publisher's head file. The
+// head file contains the CID of the latest advertisement for an advertisement
+// publisher. Retruns fs.ErrNotExist if head file is not found.
+func (cr CarReader) ReadHead(ctx context.Context, publisher peer.ID) (cid.Cid, error) {
 	err := publisher.Validate()
 	if err != nil {
 		return cid.Undef, err
@@ -173,27 +176,39 @@ func readEntries(ctx context.Context, cbr *car.BlockReader, r io.ReadCloser, ent
 	defer r.Close()
 	defer close(entsCh)
 
+	if ctx.Err() != nil {
+		entsCh <- EntryBlock{
+			Err: ctx.Err(),
+		}
+		return
+	}
+
 	for {
-		if ctx.Err() != nil {
+		var entBlock EntryBlock
+
+		blk, err := cbr.Next()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			entBlock.Err = err
+		} else {
+			entBlock.Cid = blk.Cid()
+			entBlock.Data = blk.RawData()
+		}
+
+		select {
+		case entsCh <- entBlock:
+		case <-ctx.Done():
+			// Clear entsCh and write error.
+			select {
+			case <-entsCh:
+			default:
+			}
 			entsCh <- EntryBlock{
 				Err: ctx.Err(),
 			}
 			return
-		}
-
-		blk, err := cbr.Next()
-		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				entsCh <- EntryBlock{
-					Err: ctx.Err(),
-				}
-			}
-			return
-		}
-
-		entsCh <- EntryBlock{
-			Cid:  blk.Cid(),
-			Data: blk.RawData(),
 		}
 	}
 }

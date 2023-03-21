@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"path"
 	"strings"
 
@@ -95,12 +96,12 @@ func (s *S3) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, err
 	if err != nil {
 		var nsk *types.NoSuchKey
 		if errors.As(err, &nsk) {
-			return nil, nil, ErrNotFound
+			return nil, nil, fs.ErrNotExist
 		}
 		var apiErr smithy.APIError
 		if errors.As(err, &apiErr) {
 			if apiErr.ErrorCode() == "NotFound" {
-				return nil, nil, ErrNotFound
+				return nil, nil, fs.ErrNotExist
 			}
 		}
 		return nil, nil, err
@@ -127,16 +128,16 @@ func (s *S3) Head(ctx context.Context, relPath string) (*File, error) {
 		var apiErr smithy.APIError
 		if errors.As(err, &apiErr) {
 			if apiErr.ErrorCode() == "NotFound" {
-				return nil, ErrNotFound
+				return nil, fs.ErrNotExist
 			}
 		}
 		var nsk *types.NoSuchKey
 		if errors.As(err, &nsk) {
-			return nil, ErrNotFound
+			return nil, fs.ErrNotExist
 		}
 		var nf *types.NotFound
 		if errors.As(err, &nf) {
-			return nil, ErrNotFound
+			return nil, fs.ErrNotExist
 		}
 		return nil, err
 	}

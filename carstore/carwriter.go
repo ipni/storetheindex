@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,6 +77,10 @@ func (cw *CarWriter) Compression() string {
 // directory specified when the CarWriter was created, and is named with the
 // advertisement CID.
 //
+// If the car file already exists, it is not overwritten and fs.ErrExist is
+// returned. When this happens the filestore.File information describing the
+// existing file is also returned.
+//
 // The CAR file is written without entries if skipEntries is true. The purpose
 // of this to create a car file, to maintain the link in the advertisement
 // chain, when it is know that a later advertisement deletes this
@@ -90,7 +95,10 @@ func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries bool)
 
 func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Advertisement, data []byte, skipEntries bool) (*filestore.File, error) {
 	fileName := adCid.String() + CarFileSuffix
-	carTmpName := filepath.Join(os.TempDir(), fileName)
+	carPath := fileName
+	if cw.compAlg == Gzip {
+		carPath += GzipFileSuffix
+	}
 	roots := make([]cid.Cid, 1, 2)
 	roots[0] = adCid
 
@@ -101,14 +109,20 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 	}
 
 	// If the destination file already exists, do not rewrite it.
-	fileInfo, err := cw.fileStore.Head(ctx, fileName)
-	if err == nil {
+	fileInfo, err := cw.fileStore.Head(ctx, carPath)
+	if err != nil {
+		if err != fs.ErrNotExist {
+			return nil, err
+		}
+		// OK, car file does not exist.
+	} else {
 		if err = cw.removeAdData(roots); err != nil {
 			log.Errorw("Cannot remove advertisement data from datastore", "err", err)
 		}
-		return fileInfo, nil
+		return fileInfo, fs.ErrExist
 	}
 
+	carTmpName := filepath.Join(os.TempDir(), fileName)
 	carFile, err := os.Create(carTmpName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create car file: %w", err)
@@ -174,7 +188,6 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 	}
 
 	if cw.compAlg == Gzip {
-		fileName += GzipFileSuffix
 		gzTmpName := carTmpName + GzipFileSuffix
 		gzFile, err := os.Create(gzTmpName)
 		if err != nil {
@@ -209,7 +222,7 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 		carFile = gzFile
 	}
 
-	carInfo, err := cw.fileStore.Put(ctx, fileName, carFile)
+	carInfo, err := cw.fileStore.Put(ctx, carPath, carFile)
 	if err != nil {
 		return nil, &WriteError{err}
 	}
