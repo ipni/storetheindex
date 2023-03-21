@@ -20,6 +20,8 @@ spec:
           ports:
             - containerPort: 40080
               name: http
+            - containerPort: 40081
+              name: metrics
           readinessProbe:
             httpGet:
               port: http
