@@ -3,30 +3,39 @@ checkers:
   cid_contact:
     type: ipni-non-streaming
     ipniEndpoint: https://dev.cid.contact
-    Timeout: 30s
-    ipfsDhtCascade: false
+    timeout: 30s
     parallelism: 10
   # Check dev endpoint behind cache with cascade over IPFS DHT enabled
   cid_contact_with_cascade:
     type: ipni-non-streaming
     ipniEndpoint: https://dev.cid.contact
-    Timeout: 30s
-    ipfsDhtCascade: true
+    timeout: 30s
+    cascadeLabels:
+      - ipfs-dht
+      - legacy
     parallelism: 10
   # Check dev endpoint without cache
   indexstar:
     type: ipni-non-streaming
     ipniEndpoint: https://indexstar.dev.cid.contact
-    Timeout: 30s
-    ipfsDhtCascade: false
+    timeout: 30s
     parallelism: 10
   # Check dev endpoint without cache with cascade over IPFS DHT enabled
   indexstar_with_cascade:
     type: ipni-non-streaming
     ipniEndpoint: https://indexstar.dev.cid.contact
-    Timeout: 30s
-    ipfsDhtCascade: true
+    timeout: 30s
+    cascadeLabels:
+      - ipfs-dht
+      - legacy
     parallelism: 10
+  cassette_internal:
+    type: ipni-non-streaming
+    ipniEndpoint: http://cassette.internal.dev.cid.contact
+    timeout: 30s
+    cascadeLabels:
+      - legacy
+    parallelism: 50
 samplers:
   # List of root CIDs of well known IPFS datasets.
   # See: 
