@@ -305,6 +305,8 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		return nil
 	})
 
+	e.run("sync")
+
 	// Check that ad was saved as CAR file.
 	dir, err := os.Open(e.dir)
 	require.NoError(t, err)

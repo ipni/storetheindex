@@ -2078,10 +2078,8 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 
 	if shouldConnectHosts {
 		connectHosts(t, ingesterHost, pubHost)
-
-		err = dstest.WaitForPublisher(ingesterHost, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
-		require.NoError(t, err)
 	}
+	require.NoError(t, dstest.WaitForP2PPublisher(pub, ingesterHost, defaultTestIngestConfig.PubSubTopic))
 
 	te := &testEnv{
 		publisher:        pub,
