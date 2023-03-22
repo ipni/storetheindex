@@ -22,8 +22,12 @@ configMapGenerator:
     behavior: merge
     literals:
       - GOLOG_LOG_LEVEL="info,net/identify=error"
+  - name: cassette-config
+    behavior: create
+    files:
+      - config.yaml
 
 images:
   - name: cassette
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/cassette
-    newTag: 20230321143401-366df7565d6cfedc22d8280e146212d1995bfe3e
+    newTag: 20230322114325-d9365377d4ca9e96610a630ff9b5b2e4780321c7

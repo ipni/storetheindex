@@ -1,0 +1,51 @@
+libp2p:
+  # Peer ID: 12D3KooWGTmdmxG1CJSt8PS7B5H1wh9SmPqSTdGS2296V2EcMX6S
+  identityPath: '/identity/identity.key'
+  listenAddr:
+    - /ip4/0.0.0.0/tcp/40090
+    - /ip4/0.0.0.0/udp/40090/quic
+    - /ip4/0.0.0.0/udp/40090/quic-v1
+  userAgent: ipni/cassette
+  # To disable the connection manger set `connManager` to `null`.
+  connManager:
+    lowWater: 500
+    highWater: 50000
+    gracePeriod: 30s
+    silencePeriod: 20s
+    emergencyTrim: true
+  # Resource manager is disabled
+  resourceManager: null
+ipni:
+  httpListenAddr: 0.0.0.0:40080
+  httpAllowOrigin: '*'
+  preferJsonResponse: true
+  cascadeLabel: legacy
+  # Respond with 404 if `?cascade=legacy` is not specified as URL query parameter.
+  requireCascadeQueryParam: true
+  responseTimeout: 10s
+  findByMultihash: true
+  disableAddrFilter: false
+metrics:
+  listenAddr: 0.0.0.0:40081
+  enablePprofDebug: true
+bitswap:
+  peers:
+    # Kubo bootstrap nodes
+    - '/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN'
+    - '/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa'
+    - '/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb'
+    - '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
+    - '/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ'
+    - '/ip4/104.131.131.82/udp/4001/quic/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ'
+    # Infura
+    - '/ip4/54.88.122.141/tcp/4001/p2p/QmNcmkK7eZLW3CpQbeS1Udu8CcJ7rEVZf7X2roPNMXYunG'
+    - '/ip4/54.88.122.141/udp/4001/quic/p2p/QmNcmkK7eZLW3CpQbeS1Udu8CcJ7rEVZf7X2roPNMXYunG'
+    - '/ip4/18.209.30.79/tcp/4001/p2p/QmWGE2K726P7jyg9Xya1CTSG2w9MmSykneQj9wfVpxZZX9'
+    - '/ip4/18.209.30.79/udp/4001/quic/p2p/QmWGE2K726P7jyg9Xya1CTSG2w9MmSykneQj9wfVpxZZX9'
+    - '/ip4/3.88.156.226/tcp/4001/p2p/QmPyjm9Gn2xD5otDxAf7VcJktipdbTFrWu53kBhPvFddpL'
+    - '/ip4/3.88.156.226/udp/4001/quic/p2p/QmPyjm9Gn2xD5otDxAf7VcJktipdbTFrWu53kBhPvFddpL'
+  maxBroadcastBatchSize: 100
+  maxBroadcastBatchWait: 100ms
+  fallbackOnWantBlock: true
+  recipientsRefreshInterval: 10s
+  sendChannelBuffer: 100

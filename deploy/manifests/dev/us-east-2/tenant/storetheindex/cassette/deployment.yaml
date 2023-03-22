@@ -12,19 +12,15 @@ spec:
       containers:
         - name: cassette
           args:
-            - '--libp2pIdentityPath=/identity/identity.key'
-            - '--libp2pListenAddrs=/ip4/0.0.0.0/tcp/40090,/ip4/0.0.0.0/udp/40090/quic,/ip4/0.0.0.0/udp/40090/quic-v1'
-            - '--useResourceManager=false'
-            # Respond with 404 if `?cascade=legacy` is not specified as URL query parameter.
-            - '--ipniRequireQueryParam'
-            - '--libp2pConMgrLow=200'
-            - '--libp2pConMgrHigh=5000'
+            - '--config=/config/config.yaml'
           ports:
             - containerPort: 40090
               name: libp2p
           volumeMounts:
             - name: identity
               mountPath: /identity
+            - name: config
+              mountPath: /config
           resources:
             limits:
               cpu: "3"
@@ -36,3 +32,6 @@ spec:
         - name: identity
           secret:
             secretName: cassette-identity
+        - name: config
+          configMap:
+            name: cassette-config
