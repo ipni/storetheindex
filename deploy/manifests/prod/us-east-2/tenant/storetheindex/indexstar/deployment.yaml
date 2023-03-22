@@ -20,6 +20,7 @@ spec:
             - '--backends=http://oden-indexer:3000/'
             - '--backends=http://kepa-indexer:3000/'
             - '--cascadeBackends=http://caskadht.internal.prod.cid.contact/'
+            - '--cascadeBackends=http://cassette.internal.prod.cid.contact/'
           env:
             # Increase maximum accepted request body to 1 MiB in order to allow batch finds requests
             # by the `provider verify-ingest` CLI command. 
@@ -27,7 +28,7 @@ spec:
               value: '1048576'
             # The service provided by caskadht.
             - name: SERVER_CASCADE_LABELS
-              value: 'ipfs-dht'
+              value: 'ipfs-dht,legacy'
             - name: SERVER_HTTP_CLIENT_TIMEOUT
               value: '30s'
             - name: SERVER_RESULT_MAX_WAIT
