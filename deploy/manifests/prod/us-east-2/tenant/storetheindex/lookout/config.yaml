@@ -12,6 +12,7 @@ checkers:
     timeout: 30s
     cascadeLabels:
       - ipfs-dht
+      - legacy
     parallelism: 10
   # Check production endpoint without cache
   indexstar:
@@ -26,7 +27,15 @@ checkers:
     timeout: 30s
     cascadeLabels:
       - ipfs-dht
+      - legacy
     parallelism: 10
+  cassette_internal:
+    type: ipni-non-streaming
+    ipniEndpoint: http://cassette.internal.prod.cid.contact
+    timeout: 30s
+    cascadeLabels:
+      - legacy
+    parallelism: 50
 samplers:
   # List of root CIDs of well known IPFS datasets.
   # See: 
