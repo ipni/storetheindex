@@ -61,7 +61,8 @@
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
     "ValueStoreType": "pebble",
-    "DisableWAL": true
+    "DisableWAL": true,
+    "PebbleBlockCacheSize": "2Gi"
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
