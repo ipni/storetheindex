@@ -19,6 +19,7 @@ import (
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
+	"github.com/ipni/storetheindex/announce"
 	"github.com/ipni/storetheindex/announce/p2psender"
 	"github.com/ipni/storetheindex/dagsync"
 	"github.com/ipni/storetheindex/dagsync/dtsync"
@@ -59,7 +60,7 @@ func TestScopedBlockHook(t *testing.T) {
 				return
 			}
 
-			err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
+			err = pub.SetRoot(context.Background(), head.(cidlink.Link).Cid)
 			require.NoError(t, err)
 
 			subHost := test.MkTestHost()
@@ -89,7 +90,7 @@ func TestScopedBlockHook(t *testing.T) {
 				Seed:   ll.Seed + 1,
 			}.Build(t, lsys)
 
-			err = pub.UpdateRoot(context.Background(), anotherLL.(cidlink.Link).Cid)
+			err = pub.SetRoot(context.Background(), anotherLL.(cidlink.Link).Cid)
 			require.NoError(t, err)
 
 			_, err = sub.Sync(context.Background(), pubHost.ID(), cid.Undef, nil, pubHost.Addrs()[0])
@@ -119,7 +120,7 @@ func TestSyncedCidsReturned(t *testing.T) {
 				return
 			}
 
-			err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
+			err = pub.SetRoot(context.Background(), head.(cidlink.Link).Cid)
 			require.NoError(t, err)
 
 			subHost := test.MkTestHost()
@@ -176,7 +177,7 @@ func TestConcurrentSync(t *testing.T) {
 					return
 				}
 
-				err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
+				err = pub.SetRoot(context.Background(), head.(cidlink.Link).Cid)
 				require.NoError(t, err)
 			}
 
@@ -248,7 +249,7 @@ func TestSync(t *testing.T) {
 				return
 			}
 
-			err := pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
+			err := pub.SetRoot(context.Background(), head.(cidlink.Link).Cid)
 			require.NoError(t, err)
 
 			_, err = sub.Sync(context.Background(), pubSys.host.ID(), cid.Undef, nil, pubAddr)
@@ -307,7 +308,7 @@ func TestSyncWithHydratedDataStore(t *testing.T) {
 				return
 			}
 
-			err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
+			err = pub.SetRoot(context.Background(), head.(cidlink.Link).Cid)
 			require.NoError(t, err)
 
 			// Sync once to hydrate the datastore
@@ -465,13 +466,13 @@ func TestHttpPeerAddrPeerstore(t *testing.T) {
 	prevHead := ll
 	head := nextLL
 
-	err := pub.UpdateRoot(context.Background(), prevHead.(cidlink.Link).Cid)
+	err := pub.SetRoot(context.Background(), prevHead.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
 	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
 	require.NoError(t, err)
 
-	err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
+	err = pub.SetRoot(context.Background(), head.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
 	// Now call sync again with no address. The subscriber should re-use the
@@ -555,31 +556,39 @@ func TestBackpressureDoesntDeadlock(t *testing.T) {
 		Seed:   2,
 	}.BuildWithPrev(t, pubHostSys.lsys, ll)
 
-	prevHead := ll
-	head := nextLL
+	headLL := llBuilder{
+		Length: 1,
+		Seed:   2,
+	}.BuildWithPrev(t, pubHostSys.lsys, nextLL)
 
 	// Purposefully not pulling from this channel yet to create backpressure
 	onSyncFinishedChan, cncl := sub.OnSyncFinished()
 	defer cncl()
 
-	err := pub.UpdateRoot(context.Background(), prevHead.(cidlink.Link).Cid)
+	err := pub.SetRoot(context.Background(), ll.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
 	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
 	require.NoError(t, err)
 
-	err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
+	err = pub.SetRoot(context.Background(), nextLL.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
 	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
 	require.NoError(t, err)
 
-	head = llBuilder{
+	err = pub.SetRoot(context.Background(), headLL.(cidlink.Link).Cid)
+	require.NoError(t, err)
+
+	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
+	require.NoError(t, err)
+
+	head := llBuilder{
 		Length: 1,
 		Seed:   2,
-	}.BuildWithPrev(t, pubHostSys.lsys, head)
+	}.BuildWithPrev(t, pubHostSys.lsys, headLL)
 
-	err = pub.UpdateRoot(context.Background(), head.(cidlink.Link).Cid)
+	err = pub.SetRoot(context.Background(), head.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
 	// This is blocked until we read from onSyncFinishedChan
@@ -594,7 +603,7 @@ func TestBackpressureDoesntDeadlock(t *testing.T) {
 		// A sleep so that the upper sync starts first
 		time.Sleep(time.Second)
 		sel := dagsync.ExploreRecursiveWithStopNode(selector.RecursionLimitDepth(1), nil, nil)
-		_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), prevHead.(cidlink.Link).Cid, sel, pubAddr)
+		_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), nextLL.(cidlink.Link).Cid, sel, pubAddr)
 		specificSyncDoneCh <- err
 	}()
 
@@ -685,7 +694,8 @@ func TestCloseSubscriber(t *testing.T) {
 }
 
 type dagsyncPubSubBuilder struct {
-	IsHttp bool
+	IsHttp      bool
+	P2PAnnounce bool
 }
 
 type hostSystem struct {
@@ -714,16 +724,21 @@ func (h *hostSystem) close() {
 func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostSystem, subSys hostSystem, subOpts []dagsync.Option) (multiaddr.Multiaddr, dagsync.Publisher, *dagsync.Subscriber) {
 	var pubAddr multiaddr.Multiaddr
 	var pub dagsync.Publisher
+	var senders []announce.Sender
+
+	if !b.P2PAnnounce {
+		p2pSender, err := p2psender.New(pubSys.host, topicName)
+		require.NoError(t, err)
+		senders = append(senders, p2pSender)
+	}
 	var err error
 	if b.IsHttp {
-		httpPub, err := httpsync.NewPublisher("127.0.0.1:0", pubSys.lsys, pubSys.privKey)
+		httpPub, err := httpsync.NewPublisher("127.0.0.1:0", pubSys.lsys, pubSys.privKey, httpsync.WithAnnounceSenders(senders...))
 		require.NoError(t, err)
 		pubAddr = httpPub.Addrs()[0]
 		pub = httpPub
 	} else {
-		p2pSender, err := p2psender.New(pubSys.host, topicName)
-		require.NoError(t, err)
-		pub, err = dtsync.NewPublisher(pubSys.host, pubSys.ds, pubSys.lsys, topicName, dtsync.WithAnnounceSenders(p2pSender))
+		pub, err = dtsync.NewPublisher(pubSys.host, pubSys.ds, pubSys.lsys, topicName, dtsync.WithAnnounceSenders(senders...))
 		require.NoError(t, err)
 		pubAddr = pubSys.host.Addrs()[0]
 	}
