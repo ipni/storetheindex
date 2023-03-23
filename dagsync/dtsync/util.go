@@ -132,14 +132,14 @@ func makeDataTransfer(host host.Host, ds datastore.Batching, lsys ipld.LinkSyste
 		var err error
 		select {
 		case err = <-errCh:
+			if err != nil {
+				err = fmt.Errorf("failed to stop datatransfer manager: %w", err)
+			}
 		case <-stopCtx.Done():
-			err = stopCtx.Err()
+			log.Errorw("Timeout waiting to stop datatransfer manager", "timeout", datatransferStopTimeout.String())
 		}
 		stopCancel()
 		cancel()
-		if err != nil {
-			err = fmt.Errorf("failed to stop datatransfer manager: %w", err)
-		}
 		return err
 	}
 

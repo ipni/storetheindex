@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
@@ -301,10 +300,7 @@ func (s *Subscriber) doClose() error {
 	// Wait for any syncs to complete.
 	s.asyncWG.Wait()
 
-	var err, errs error
-	if err = s.dtSync.Close(); err != nil {
-		errs = multierror.Append(errs, err)
-	}
+	err := s.dtSync.Close()
 
 	// Dismiss any event readers.
 	s.outEventsMutex.Lock()
@@ -319,7 +315,7 @@ func (s *Subscriber) doClose() error {
 
 	s.httpPeerstore.Close()
 
-	return errs
+	return err
 }
 
 // OnSyncFinished creates a channel that receives change notifications, and
