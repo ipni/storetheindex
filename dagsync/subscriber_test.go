@@ -341,8 +341,7 @@ func TestRoundTripSimple(t *testing.T) {
 	// Init dagsync publisher and subscriber
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
-	srcHost, dstHost, pub, sub, err := initPubSub(t, srcStore, dstStore)
-	require.NoError(t, err)
+	srcHost, dstHost, pub, sub := initPubSub(t, srcStore, dstStore)
 	defer srcHost.Close()
 	defer dstHost.Close()
 	defer pub.Close()

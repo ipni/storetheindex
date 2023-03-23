@@ -43,8 +43,7 @@ func TestAnnounceReplace(t *testing.T) {
 	require.NoError(t, err)
 	defer sub.Close()
 
-	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
-	require.NoError(t, err)
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()

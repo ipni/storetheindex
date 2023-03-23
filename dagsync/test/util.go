@@ -274,21 +274,6 @@ func MkChain(lsys ipld.LinkSystem, full bool) []ipld.Link {
 	return out
 }
 
-func WaitForPublisher(host host.Host, topic string, peerID peer.ID) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	for ctx.Err() == nil {
-		_, err := head.QueryRootCid(ctx, host, topic, peerID)
-		if err == nil {
-			// Publisher ready
-			return nil
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return errors.New("timeout waiting for publilsher")
-}
-
 type TestPublisher interface {
 	// Addrs returns the addresses that the publisher is listening on.
 	Addrs() []multiaddr.Multiaddr
