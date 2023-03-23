@@ -763,7 +763,7 @@ func TestSync(t *testing.T) {
 	i, core, _, indexCounts := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
-	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
@@ -844,11 +844,9 @@ func testSyncWithExtendedProviders(t *testing.T,
 	ingester, core, reg, _ := mkIngest(t, h)
 	defer core.Close()
 	defer ingester.Close()
-	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
-
-	require.NoError(t, dstest.WaitForP2PPublisher(pub, h, defaultTestIngestConfig.PubSubTopic))
 
 	testFunc(privKey, pubKey, providerID, reg, lsys, pubHost, ingester, pub)
 }
@@ -1046,11 +1044,9 @@ func TestSyncTooLargeMetadata(t *testing.T) {
 	i, core, _, _ := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
-	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
-
-	require.NoError(t, dstest.WaitForP2PPublisher(pub, h, defaultTestIngestConfig.PubSubTopic))
 
 	metadata := make([]byte, schema.MaxMetadataLen*2)
 	copy(metadata, []byte("too-long"))
@@ -1084,11 +1080,9 @@ func TestSyncSkipNoMetadata(t *testing.T) {
 	i, core, reg, _ := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
-	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
-
-	require.NoError(t, dstest.WaitForP2PPublisher(pub, h, defaultTestIngestConfig.PubSubTopic))
 
 	// Test ad that has no entries and no metadata.
 	adCid, _, providerID, _ := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, 0, []byte{})
@@ -1196,7 +1190,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	ing, core, _, _ := mkIngest(t, h)
 	defer core.Close()
 	defer ing.Close()
-	pub, lsys := mkMockPublisher(t, pubHost, srcStore)
+	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
@@ -1314,9 +1308,9 @@ func TestMultiplePublishers(t *testing.T) {
 	i, core, _, _ := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
-	pub1, lsys1 := mkMockPublisher(t, pubHost1, srcStore1)
+	pub1, lsys1 := mkMockPublisher(t, pubHost1, h, srcStore1)
 	defer pub1.Close()
-	pub2, lsys2 := mkMockPublisher(t, pubHost2, srcStore2)
+	pub2, lsys2 := mkMockPublisher(t, pubHost2, h, srcStore2)
 	defer pub2.Close()
 
 	// connect both providers
@@ -1741,11 +1735,12 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 	}
 	return lsys
 }
-func mkMockPublisher(t *testing.T, h host.Host, store datastore.Batching) (dagsync.Publisher, ipld.LinkSystem) {
+func mkMockPublisher(t *testing.T, pubHost, testHost host.Host, store datastore.Batching) (dagsync.Publisher, ipld.LinkSystem) {
 	lsys := mkProvLinkSystem(store)
-	ls, err := dtsync.NewPublisher(h, store, lsys, defaultTestIngestConfig.PubSubTopic)
+	pub, err := dtsync.NewPublisher(pubHost, store, lsys, defaultTestIngestConfig.PubSubTopic)
 	require.NoError(t, err)
-	return ls, lsys
+	require.NoError(t, dstest.WaitForP2PPublisher(pub, testHost, defaultTestIngestConfig.PubSubTopic))
+	return pub, lsys
 }
 
 func mkIngest(t *testing.T, h host.Host) (*Ingester, *engine.Engine, *registry.Registry, *counter.IndexCounts) {
