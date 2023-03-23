@@ -56,11 +56,11 @@ func TestFetchLatestHead(t *testing.T) {
 	defer cancel()
 
 	// Check for expected error when querying with bad topic.
-	c, err := head.QueryRootCid(ctx, client, "/badtopic", publisher.ID())
+	_, err = head.QueryRootCid(ctx, client, "/badtopic", publisher.ID())
 	var errNoSupport multistream.ErrNotSupported[protocol.ID]
 	require.ErrorAs(t, err, &errNoSupport)
 
-	c, err = head.QueryRootCid(ctx, client, testTopic, publisher.ID())
+	c, err := head.QueryRootCid(ctx, client, testTopic, publisher.ID())
 	require.NoError(t, err)
 	require.Equal(t, cid.Undef, c, "Expected cid undef because there is no root")
 
