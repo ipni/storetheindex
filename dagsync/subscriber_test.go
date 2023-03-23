@@ -67,6 +67,8 @@ func TestScopedBlockHook(t *testing.T) {
 			subDS := dssync.MutexWrap(datastore.NewMapDatastore())
 			subLsys := test.MkLinkSystem(subDS)
 
+			require.NoError(t, test.WaitForP2PPublisher(pub, subHost, testTopic))
+
 			var calledGeneralBlockHookTimes int64
 			sub, err := dagsync.NewSubscriber(subHost, subDS, subLsys, testTopic, nil, dagsync.BlockHook(func(i peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 				atomic.AddInt64(&calledGeneralBlockHookTimes, 1)
