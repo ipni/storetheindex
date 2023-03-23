@@ -129,6 +129,8 @@ func TestSyncedCidsReturned(t *testing.T) {
 			subDS := dssync.MutexWrap(datastore.NewMapDatastore())
 			subLsys := test.MkLinkSystem(subDS)
 
+			require.NoError(t, test.WaitForP2PPublisher(pub, subHost, testTopic))
+
 			sub, err := dagsync.NewSubscriber(subHost, subDS, subLsys, testTopic, nil)
 			require.NoError(t, err)
 
@@ -171,6 +173,8 @@ func TestConcurrentSync(t *testing.T) {
 				lsys := test.MkLinkSystem(ds)
 				pub, err := dtsync.NewPublisher(pubHost, ds, lsys, testTopic)
 				require.NoError(t, err)
+				require.NoError(t, test.WaitForP2PPublisher(pub, subHost, testTopic))
+
 				publishers = append(publishers, pubMeta{pub, pubHost})
 
 				head := ll.Build(t, lsys)
@@ -724,7 +728,6 @@ func (h *hostSystem) close() {
 }
 
 func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostSystem, subSys hostSystem, subOpts []dagsync.Option) (multiaddr.Multiaddr, dagsync.Publisher, *dagsync.Subscriber) {
-	var pubAddr multiaddr.Multiaddr
 	var pub dagsync.Publisher
 	var senders []announce.Sender
 
@@ -735,21 +738,19 @@ func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostS
 	}
 	var err error
 	if b.IsHttp {
-		httpPub, err := httpsync.NewPublisher("127.0.0.1:0", pubSys.lsys, pubSys.privKey, httpsync.WithAnnounceSenders(senders...))
+		pub, err = httpsync.NewPublisher("127.0.0.1:0", pubSys.lsys, pubSys.privKey, httpsync.WithAnnounceSenders(senders...))
 		require.NoError(t, err)
-		pubAddr = httpPub.Addrs()[0]
-		pub = httpPub
+		require.NoError(t, test.WaitForHttpPublisher(pub))
 	} else {
 		pub, err = dtsync.NewPublisher(pubSys.host, pubSys.ds, pubSys.lsys, topicName, dtsync.WithAnnounceSenders(senders...))
 		require.NoError(t, err)
-		pubAddr = pubSys.host.Addrs()[0]
+		require.NoError(t, test.WaitForP2PPublisher(pub, subSys.host, topicName))
 	}
-	require.NoError(t, err)
+
 	sub, err := dagsync.NewSubscriber(subSys.host, subSys.ds, subSys.lsys, topicName, nil, subOpts...)
 	require.NoError(t, err)
 
-	return pubAddr, pub, sub
-
+	return pub.Addrs()[0], pub, sub
 }
 
 type llBuilder struct {
