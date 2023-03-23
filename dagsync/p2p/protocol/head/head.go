@@ -30,6 +30,7 @@ type Publisher struct {
 	server *http.Server
 }
 
+// NewPublisher creates a new head publisher.
 func NewPublisher() *Publisher {
 	p := &Publisher{
 		server: &http.Server{},
@@ -38,12 +39,28 @@ func NewPublisher() *Publisher {
 	return p
 }
 
-func deriveProtocolID(topic string) protocol.ID {
+func protocolID(topic string) protocol.ID {
 	return protocol.ID(path.Join("/legs/head", topic, "0.0.1"))
 }
 
+func previousProtocolID(topic string) protocol.ID {
+	return protocol.ID("/legs/head/" + topic + "/0.0.1")
+}
+
+// Serve starts the server using the protocol ID derived from the topic name.
 func (p *Publisher) Serve(host host.Host, topic string) error {
-	pid := deriveProtocolID(topic)
+	return p.serveProtocolID(protocolID(topic), host)
+}
+
+// ServePrevious starts the server using the previous protocol ID derived from
+// the topic name. This is used for testing, or for cases where it is necessary
+// to support clients that do not surrort the current protocol ID>
+func (p *Publisher) ServePrevious(host host.Host, topic string) error {
+	return p.serveProtocolID(previousProtocolID(topic), host)
+}
+
+// serveProtocolID starts the server using the given protocol ID.
+func (p *Publisher) serveProtocolID(pid protocol.ID, host host.Host) error {
 	l, err := gostream.Listen(host, pid)
 	if err != nil {
 		log.Errorw("Failed to listen to gostream with protocol", "host", host.ID(), "protocolID", pid)
@@ -53,26 +70,27 @@ func (p *Publisher) Serve(host host.Host, topic string) error {
 	return p.server.Serve(l)
 }
 
+// QueryRootCid queries a server, identified by peerID, for the root (most
+// recent) CID. If the server does not support the current protocol ID, then an
+// attempt is made to connect to the server using the previous protocol ID.
 func QueryRootCid(ctx context.Context, host host.Host, topic string, peerID peer.ID) (cid.Cid, error) {
 	client := http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				conn, err := gostream.Dial(ctx, host, peerID, deriveProtocolID(topic))
+				conn, err := gostream.Dial(ctx, host, peerID, protocolID(topic))
 				if err != nil {
-					// If protocol ID is wrong, then try the old "double-slashed" protocol ID.
-					//
-					// TODO: remove this code when all providers have upgraded.
-					if !errors.Is(err, multistream.ErrNotSupported[protocol.ID]{
-						Protos: []protocol.ID{deriveProtocolID(topic)},
-					}) {
+					// If protocol ID is wrong, then try the previous protocol ID.
+					var errNoSupport multistream.ErrNotSupported[protocol.ID]
+					if errors.As(err, &errNoSupport) {
+						oldProtoID := previousProtocolID(topic)
+						conn, err = gostream.Dial(ctx, host, peerID, oldProtoID)
+						if err != nil {
+							return nil, err
+						}
+						log.Infow("Peer head CID server uses old protocol ID", "peer", peerID, "proto", oldProtoID)
+					} else {
 						return nil, err
 					}
-					oldProtoID := protocol.ID("/legs/head/" + topic + "/0.0.1")
-					conn, err = gostream.Dial(ctx, host, peerID, oldProtoID)
-					if err != nil {
-						return nil, err
-					}
-					log.Infow("Peer head CID server uses old protocol ID", "peer", peerID, "proto", oldProtoID)
 				}
 				return conn, err
 			},
@@ -107,6 +125,7 @@ func QueryRootCid(ctx context.Context, host host.Host, topic string, peerID peer
 	return decode, nil
 }
 
+// ServeHTTP satisfies the http.Handler interface.
 func (p *Publisher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	base := path.Base(r.URL.Path)
 	if base != "head" {
@@ -132,6 +151,7 @@ func (p *Publisher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// UpdateRoot sets the CID being published.
 func (p *Publisher) UpdateRoot(_ context.Context, c cid.Cid) error {
 	p.rl.Lock()
 	defer p.rl.Unlock()
@@ -139,12 +159,14 @@ func (p *Publisher) UpdateRoot(_ context.Context, c cid.Cid) error {
 	return nil
 }
 
+// Close stops the server.
 func (p *Publisher) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
 	defer cancel()
 	return p.server.Shutdown(ctx)
 }
 
+// Root returns the current root being publisher.
 func (p *Publisher) Root() cid.Cid {
 	p.rl.Lock()
 	defer p.rl.Unlock()
