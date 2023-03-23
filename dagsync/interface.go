@@ -5,6 +5,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 )
 
@@ -12,6 +13,10 @@ import (
 type Publisher interface {
 	// Addrs returns the addresses that the publisher is listening on.
 	Addrs() []multiaddr.Multiaddr
+	// ID returns the peer ID associated with the publisher.
+	ID() peer.ID
+	// Protocol returns multiaddr protocol code (P_P2P or P_HTTP).
+	Protocol() int
 	// AnnounceHead sends an announce messag, via all senders, to announce the
 	// current head advertisement CID. If there is no head, then does nothing.
 	AnnounceHead(context.Context) error

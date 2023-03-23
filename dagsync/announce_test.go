@@ -43,8 +43,7 @@ func TestAnnounceReplace(t *testing.T) {
 	require.NoError(t, err)
 	defer sub.Close()
 
-	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
-	require.NoError(t, err)
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
@@ -218,20 +217,18 @@ func TestAnnounceRepublish(t *testing.T) {
 
 	topics := test.WaitForMeshWithMessage(t, testTopic, dstHost, dstHost2)
 
-	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic)
+	sub2, err := NewSubscriber(dstHost2, dstStore2, dstLnkS2, testTopic, nil, Topic(topics[1]))
 	require.NoError(t, err)
-	defer pub.Close()
+	defer sub2.Close()
 
 	sub1, err := NewSubscriber(dstHost, dstStore, dstLnkS, testTopic, nil, Topic(topics[0]), ResendAnnounce(true))
 	require.NoError(t, err)
 	defer sub1.Close()
 
-	sub2, err := NewSubscriber(dstHost2, dstStore2, dstLnkS2, testTopic, nil, Topic(topics[1]))
+	pub, err := dtsync.NewPublisher(srcHost, srcStore, srcLnkS, testTopic)
 	require.NoError(t, err)
-	defer sub2.Close()
-
-	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
-	require.NoError(t, err)
+	defer pub.Close()
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 
 	watcher2, cncl := sub2.OnSyncFinished()
 	defer cncl()

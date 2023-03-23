@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
@@ -70,7 +69,7 @@ type Subscriber struct {
 
 	// outEventsChans is a slice of channels, where each channel delivers a
 	// copy of a SyncFinished to an OnSyncFinished reader.
-	outEventsChans []chan SyncFinished
+	outEventsChans []chan<- SyncFinished
 	outEventsMutex sync.Mutex
 
 	// closing signals that the Subscriber is closing.
@@ -265,10 +264,11 @@ func (s *Subscriber) SetLatestSync(peerID peer.ID, latestSync cid.Cid) error {
 	if err != nil {
 		return err
 	}
-	hnd.latestSyncMu.Lock()
-	defer hnd.latestSyncMu.Unlock()
 
+	hnd.latestSyncMu.Lock()
 	s.latestSyncHander.SetLatestSync(peerID, latestSync)
+	hnd.latestSyncMu.Unlock()
+
 	return nil
 }
 
@@ -300,10 +300,7 @@ func (s *Subscriber) doClose() error {
 	// Wait for any syncs to complete.
 	s.asyncWG.Wait()
 
-	var err, errs error
-	if err = s.dtSync.Close(); err != nil {
-		errs = multierror.Append(errs, err)
-	}
+	err := s.dtSync.Close()
 
 	// Dismiss any event readers.
 	s.outEventsMutex.Lock()
@@ -318,7 +315,7 @@ func (s *Subscriber) doClose() error {
 
 	s.httpPeerstore.Close()
 
-	return errs
+	return err
 }
 
 // OnSyncFinished creates a channel that receives change notifications, and
@@ -332,13 +329,11 @@ func (s *Subscriber) OnSyncFinished() (<-chan SyncFinished, context.CancelFunc) 
 	// not reading the channel immediately.
 	log.Info("Configuring subscriber OnSyncFinished...")
 	ch := make(chan SyncFinished, 1)
-	s.outEventsMutex.Lock()
-	defer func() {
-		s.outEventsMutex.Unlock()
-		log.Info("Subscriber OnSyncFinished configured.")
-	}()
 
+	s.outEventsMutex.Lock()
 	s.outEventsChans = append(s.outEventsChans, ch)
+	s.outEventsMutex.Unlock()
+
 	cncl := func() {
 		s.outEventsMutex.Lock()
 		defer s.outEventsMutex.Unlock()
@@ -352,6 +347,7 @@ func (s *Subscriber) OnSyncFinished() (<-chan SyncFinished, context.CancelFunc) 
 			}
 		}
 	}
+	log.Info("Subscriber OnSyncFinished configured.")
 	return ch, cncl
 }
 
@@ -480,23 +476,17 @@ func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, 
 		defer hnd.latestSyncMu.Unlock()
 	}
 
+	hnd.syncMutex.Lock()
 	syncedCids, err := hnd.handle(ctx, nextCid, sel, wrapSel, syncer, opts.scopedBlockHook, opts.segDepthLimit)
+	hnd.syncMutex.Unlock()
 	if err != nil {
 		return cid.Undef, fmt.Errorf("sync handler failed: %w", err)
 	}
 
-	if updateLatest {
-		hnd.subscriber.latestSyncHander.SetLatestSync(hnd.peerID, nextCid)
-		hnd.subscriber.inEvents <- SyncFinished{
-			Cid:        nextCid,
-			PeerID:     hnd.peerID,
-			SyncedCids: syncedCids,
-		}
-	}
-
-	// The sync succeeded, so let's remember this address in the appropriate
+	// The sync succeeded, so remember this address in the appropriate
 	// peerstore. If the address was already in the peerstore, this will extend
-	// its ttl.
+	// its ttl. Add to peerstore before sending the SyncFinished event so that
+	// the address is present before anything triggered by the event is run.
 	if peerAddr != nil {
 		if isHttp {
 			// Store this http address so that future calls to sync will work
@@ -508,6 +498,15 @@ func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, 
 			if peerStore != nil {
 				peerStore.AddAddr(peerID, peerAddr, s.addrTTL)
 			}
+		}
+	}
+
+	if updateLatest {
+		s.latestSyncHander.SetLatestSync(peerID, nextCid)
+		s.inEvents <- SyncFinished{
+			Cid:        nextCid,
+			PeerID:     peerID,
+			SyncedCids: syncedCids,
 		}
 	}
 
@@ -533,25 +532,23 @@ func (s *Subscriber) distributeEvents() {
 
 // getOrCreateHandler creates a handler for a specific peer
 func (s *Subscriber) getOrCreateHandler(peerID peer.ID) (*handler, error) {
+	expires := time.Now().Add(s.idleHandlerTTL)
+
 	s.handlersMutex.Lock()
 	defer s.handlersMutex.Unlock()
-
-	expires := time.Now().Add(s.idleHandlerTTL)
 
 	// Check for existing handler, return if found.
 	hnd, ok := s.handlers[peerID]
 	if ok {
 		hnd.expires = expires
-		return hnd, nil
+	} else {
+		hnd = &handler{
+			subscriber: s,
+			peerID:     peerID,
+			expires:    expires,
+		}
+		s.handlers[peerID] = hnd
 	}
-
-	log.Debugw("Creating new handler for publisher", "peer", peerID)
-	hnd = &handler{
-		subscriber: s,
-		peerID:     peerID,
-		expires:    expires,
-	}
-	s.handlers[peerID] = hnd
 
 	return hnd, nil
 }
@@ -695,10 +692,12 @@ func (h *handler) handleAsync(ctx context.Context, nextCid cid.Cid, syncer Synce
 	if h.pendingCid == cid.Undef {
 		h.subscriber.asyncWG.Add(1)
 		go func() {
-			// Wait for any previous handler goroutine to finish.
+			defer h.subscriber.asyncWG.Done()
+
+			// Wait for any other goroutine, for this handler, to finish
+			// updating the latest sync.
 			h.latestSyncMu.Lock()
 			defer h.latestSyncMu.Unlock()
-			defer h.subscriber.asyncWG.Done()
 
 			if ctx.Err() != nil {
 				log.Warnw("Abandoned pending sync", "err", ctx.Err(), "publisher", h.peerID)
@@ -713,14 +712,12 @@ func (h *handler) handleAsync(ctx context.Context, nextCid cid.Cid, syncer Synce
 			h.pendingSyncer = nil
 			h.qlock.Unlock()
 
-			// Wait for this handler to become available. This only wraps the
-			// handler. This is to free up the handler in case someone else
-			// needs it while we wait to send on the events chan.
+			h.syncMutex.Lock()
 			syncedCids, err := h.handle(ctx, c, h.subscriber.dss, true, syncer, h.subscriber.generalBlockHook, h.subscriber.segDepthLimit)
+			h.syncMutex.Unlock()
 			if err != nil {
 				// Failed to handle the sync, so allow another announce for the same CID.
 				h.subscriber.receiver.UncacheCid(c)
-				// Log error for now.
 				log.Errorw("Cannot process message", "err", err, "publisher", h.peerID)
 				return
 			}
@@ -796,9 +793,22 @@ func (ss *segmentedSync) reset() {
 
 // handle processes a message from the peer that the handler is responsible for.
 func (h *handler) handle(ctx context.Context, nextCid cid.Cid, sel ipld.Node, wrapSel bool, syncer Syncer, bh BlockHookFunc, segdl int64) ([]cid.Cid, error) {
-	h.syncMutex.Lock()
-	defer h.syncMutex.Unlock()
 	log := log.With("cid", nextCid, "peer", h.peerID)
+
+	if wrapSel {
+		var latestSyncLink ipld.Link
+		latestSync, ok := h.subscriber.latestSyncHander.GetLatestSync(h.peerID)
+		if ok && latestSync != cid.Undef {
+			latestSyncLink = cidlink.Link{Cid: latestSync}
+		}
+		sel = ExploreRecursiveWithStopNode(h.subscriber.syncRecLimit, sel, latestSyncLink)
+	}
+
+	stopNode, stopNodeOK := getStopNode(sel)
+	if stopNodeOK && stopNode.(cidlink.Link).Cid == nextCid {
+		log.Infow("cid to sync to is the stop node. Nothing to do")
+		return nil, nil
+	}
 
 	segSync := &segmentedSync{
 		nextSyncCid: &nextCid,
@@ -819,21 +829,6 @@ func (h *handler) handle(ctx context.Context, nextCid cid.Cid, sel ipld.Node, wr
 		delete(h.subscriber.scopedBlockHook, h.peerID)
 		h.subscriber.scopedBlockHookMutex.Unlock()
 	}()
-
-	if wrapSel {
-		var latestSyncLink ipld.Link
-		latestSync, ok := h.subscriber.latestSyncHander.GetLatestSync(h.peerID)
-		if ok && latestSync != cid.Undef {
-			latestSyncLink = cidlink.Link{Cid: latestSync}
-		}
-		sel = ExploreRecursiveWithStopNode(h.subscriber.syncRecLimit, sel, latestSyncLink)
-	}
-
-	stopNode, stopNodeOK := getStopNode(sel)
-	if stopNodeOK && stopNode.(cidlink.Link).Cid == nextCid {
-		log.Infow("cid to sync to is the stop node. Nothing to do")
-		return nil, nil
-	}
 
 	var syncBySegment bool
 	var origLimit selector.RecursionLimit
@@ -862,12 +857,11 @@ func (h *handler) handle(ctx context.Context, nextCid cid.Cid, sel ipld.Node, wr
 	// - tje original selector has a recursion depth limit that is already less than the maximum
 	//   segment depth limit.
 	if !syncBySegment {
-		log.Debugw("Falling back on sync in one go", "segDepthLimit", segdl)
 		err := syncer.Sync(ctx, nextCid, sel)
 		if err != nil {
 			return nil, err
 		}
-		log.Infow("Sync completed")
+		log.Infow("Non-segmented sync completed", "syncedCidCount", len(syncedCids))
 		return syncedCids, nil
 	}
 

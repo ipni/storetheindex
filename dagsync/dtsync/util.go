@@ -11,7 +11,6 @@ import (
 	datatransfer "github.com/filecoin-project/go-data-transfer/v2/impl"
 	dtnetwork "github.com/filecoin-project/go-data-transfer/v2/network"
 	gstransport "github.com/filecoin-project/go-data-transfer/v2/transport/graphsync"
-	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-graphsync"
 	gsimpl "github.com/ipfs/go-graphsync/impl"
@@ -125,16 +124,23 @@ func makeDataTransfer(host host.Host, ds datastore.Batching, lsys ipld.LinkSyste
 	log.Info("Data transfer manager is ready.")
 
 	closeFunc := func() error {
-		var err, errs error
+		errCh := make(chan error)
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), datatransferStopTimeout)
-		err = dtManager.Stop(stopCtx)
-		if err != nil {
-			log.Errorw("Failed to stop datatransfer manager", "err", err)
-			errs = multierror.Append(errs, err)
+		go func() {
+			errCh <- dtManager.Stop(stopCtx)
+		}()
+		var err error
+		select {
+		case err = <-errCh:
+			if err != nil {
+				err = fmt.Errorf("failed to stop datatransfer manager: %w", err)
+			}
+		case <-stopCtx.Done():
+			log.Errorw("Timeout waiting to stop datatransfer manager", "timeout", datatransferStopTimeout.String())
 		}
 		stopCancel()
 		cancel()
-		return errs
+		return err
 	}
 
 	return dtManager, gs, closeFunc, nil

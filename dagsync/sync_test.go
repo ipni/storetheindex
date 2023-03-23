@@ -47,8 +47,7 @@ func TestLatestSyncSuccess(t *testing.T) {
 	require.NoError(t, err)
 	defer sub.Close()
 
-	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
-	require.NoError(t, err)
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, topics[0].String()))
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
@@ -104,8 +103,7 @@ func TestSyncFn(t *testing.T) {
 	// Store the whole chain in source node
 	chainLnks := test.MkChain(srcLnkS, true)
 
-	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
-	require.NoError(t, err)
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, topics[0].String()))
 
 	watcher, cancelWatcher := sub.OnSyncFinished()
 	defer cancelWatcher()
@@ -215,8 +213,7 @@ func TestPartialSync(t *testing.T) {
 	err = srcHost.Connect(context.Background(), dstHost.Peerstore().PeerInfo(dstHost.ID()))
 	require.NoError(t, err)
 
-	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
-	require.NoError(t, err)
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, topics[0].String()))
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
@@ -269,8 +266,7 @@ func TestStepByStepSync(t *testing.T) {
 	require.NoError(t, err)
 	defer sub.Close()
 
-	err = test.WaitForPublisher(dstHost, topics[0].String(), srcHost.ID())
-	require.NoError(t, err)
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, topics[0].String()))
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
@@ -321,8 +317,7 @@ func TestLatestSyncFailure(t *testing.T) {
 	err = sub.SetLatestSync(srcHost.ID(), chainLnks[3].(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
-	require.NoError(t, err)
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 
 	watcher, cncl := sub.OnSyncFinished()
 
@@ -368,8 +363,7 @@ func TestAnnounce(t *testing.T) {
 	require.NoError(t, err)
 	defer sub.Close()
 
-	err = test.WaitForPublisher(dstHost, testTopic, srcHost.ID())
-	require.NoError(t, err)
+	require.NoError(t, test.WaitForP2PPublisher(pub, dstHost, testTopic))
 
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()

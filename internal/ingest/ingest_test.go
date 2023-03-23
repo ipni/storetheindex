@@ -848,8 +848,7 @@ func testSyncWithExtendedProviders(t *testing.T,
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	err = dstest.WaitForPublisher(h, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
-	require.NoError(t, err)
+	require.NoError(t, dstest.WaitForP2PPublisher(pub, h, defaultTestIngestConfig.PubSubTopic))
 
 	testFunc(privKey, pubKey, providerID, reg, lsys, pubHost, ingester, pub)
 }
@@ -1051,8 +1050,7 @@ func TestSyncTooLargeMetadata(t *testing.T) {
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	err := dstest.WaitForPublisher(h, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
-	require.NoError(t, err)
+	require.NoError(t, dstest.WaitForP2PPublisher(pub, h, defaultTestIngestConfig.PubSubTopic))
 
 	metadata := make([]byte, schema.MaxMetadataLen*2)
 	copy(metadata, []byte("too-long"))
@@ -1090,8 +1088,7 @@ func TestSyncSkipNoMetadata(t *testing.T) {
 	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
-	err := dstest.WaitForPublisher(h, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
-	require.NoError(t, err)
+	require.NoError(t, dstest.WaitForP2PPublisher(pub, h, defaultTestIngestConfig.PubSubTopic))
 
 	// Test ad that has no entries and no metadata.
 	adCid, _, providerID, _ := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, 0, []byte{})
@@ -1113,7 +1110,6 @@ func TestSyncSkipNoMetadata(t *testing.T) {
 	require.Equal(t, adCid, lcid)
 
 	pInfo, found := reg.ProviderInfo(providerID)
-	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, adCid, pInfo.LastAdvertisement)
 
@@ -1127,7 +1123,6 @@ func TestSyncSkipNoMetadata(t *testing.T) {
 	// can continue processing later ads in the chain. Check that the ad was
 	// processed.
 	pInfo, found = reg.ProviderInfo(providerID)
-	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, adCid, pInfo.LastAdvertisement)
 }
@@ -2078,10 +2073,8 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 
 	if shouldConnectHosts {
 		connectHosts(t, ingesterHost, pubHost)
-
-		err = dstest.WaitForPublisher(ingesterHost, defaultTestIngestConfig.PubSubTopic, pubHost.ID())
-		require.NoError(t, err)
 	}
+	require.NoError(t, dstest.WaitForP2PPublisher(pub, ingesterHost, defaultTestIngestConfig.PubSubTopic))
 
 	te := &testEnv{
 		publisher:        pub,
