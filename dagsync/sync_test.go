@@ -113,7 +113,10 @@ func TestSyncFn(t *testing.T) {
 	cids, _ := test.RandomCids(1)
 	ctx, syncncl := context.WithTimeout(context.Background(), updateTimeout)
 	defer syncncl()
-	_, err = sub.Sync(ctx, srcHost.ID(), cids[0], nil, nil)
+	peerInfo := peer.AddrInfo{
+		ID: srcHost.ID(),
+	}
+	_, err = sub.Sync(ctx, peerInfo, cids[0], nil)
 	require.Error(t, err, "expected error when no content to sync")
 	syncncl()
 
@@ -128,7 +131,7 @@ func TestSyncFn(t *testing.T) {
 	// Sync with publisher without publisher publishing to gossipsub channel.
 	ctx, syncncl = context.WithTimeout(context.Background(), updateTimeout)
 	defer syncncl()
-	syncCid, err := sub.Sync(ctx, srcHost.ID(), lnk.(cidlink.Link).Cid, nil, nil)
+	syncCid, err := sub.Sync(ctx, peerInfo, lnk.(cidlink.Link).Cid, nil)
 	require.NoError(t, err)
 
 	if !syncCid.Equals(lnk.(cidlink.Link).Cid) {
@@ -161,7 +164,7 @@ func TestSyncFn(t *testing.T) {
 
 	ctx, syncncl = context.WithTimeout(context.Background(), updateTimeout)
 	defer syncncl()
-	syncCid, err = sub.Sync(ctx, srcHost.ID(), cid.Undef, nil, nil)
+	syncCid, err = sub.Sync(ctx, peerInfo, cid.Undef, nil)
 	require.NoError(t, err)
 
 	if !syncCid.Equals(newHead) {

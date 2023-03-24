@@ -14,6 +14,7 @@ import (
 	"github.com/ipni/storetheindex/dagsync/dtsync"
 	"github.com/ipni/storetheindex/dagsync/httpsync"
 	"github.com/ipni/storetheindex/dagsync/test"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -189,7 +190,10 @@ func TestAnnounce_LearnsHttpPublisherAddr(t *testing.T) {
 
 	// Now assert that we can sync another CID because, the subscriber should have learned the
 	// address of publisher via earlier announce.
-	gotc, err := sub.Sync(ctx, pubh.ID(), anotherC, nil, nil)
+	peerInfo := peer.AddrInfo{
+		ID: pubh.ID(),
+	}
+	gotc, err := sub.Sync(ctx, peerInfo, anotherC, nil)
 	require.NoError(t, err)
 	require.Equal(t, anotherC, gotc)
 	gotNode, err := subls.Load(ipld.LinkContext{Ctx: ctx}, anotherLink, basicnode.Prototype.String)

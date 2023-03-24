@@ -35,6 +35,19 @@ func FilterPrivateIPs(maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
 	return filtered
 }
 
+func FindHTTPAddrs(maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
+	return multiaddr.FilterAddrs(maddrs, func(target multiaddr.Multiaddr) bool {
+		if target != nil {
+			for _, p := range target.Protocols() {
+				if p.Code == multiaddr.P_HTTP || p.Code == multiaddr.P_HTTPS {
+					return true
+				}
+			}
+		}
+		return false
+	})
+}
+
 func MultiaddrStringToNetAddr(maddrStr string) (net.Addr, error) {
 	maddr, err := multiaddr.NewMultiaddr(maddrStr)
 	if err != nil {
@@ -45,16 +58,26 @@ func MultiaddrStringToNetAddr(maddrStr string) (net.Addr, error) {
 
 // ParsePeers parses a list of multiaddr strings into a list of AddrInfo.
 func ParsePeers(addrs []string) ([]peer.AddrInfo, error) {
+	maddrs, err := StringsToMultiaddrs(addrs)
+	if err != nil {
+		return nil, err
+	}
+	return peer.AddrInfosFromP2pAddrs(maddrs...)
+}
+
+func StringsToMultiaddrs(addrs []string) ([]multiaddr.Multiaddr, error) {
 	if len(addrs) == 0 {
 		return nil, nil
 	}
-	maddrs := make([]multiaddr.Multiaddr, len(addrs))
-	for i, addr := range addrs {
-		var err error
-		maddrs[i], err = multiaddr.NewMultiaddr(addr)
+	var lastErr error
+	maddrs := make([]multiaddr.Multiaddr, 0, len(addrs))
+	for i := range addrs {
+		maddr, err := multiaddr.NewMultiaddr(addrs[i])
 		if err != nil {
-			return nil, err
+			lastErr = err
+			continue
 		}
+		maddrs = append(maddrs, maddr)
 	}
-	return peer.AddrInfosFromP2pAddrs(maddrs...)
+	return maddrs, lastErr
 }

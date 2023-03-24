@@ -84,7 +84,11 @@ func TestSubscribe(t *testing.T) {
 	ctx := context.Background()
 	err := te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
@@ -100,7 +104,7 @@ func TestSubscribe(t *testing.T) {
 	err = te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	someOtherProvider, err := peer.IDFromPrivateKey(someOtherProviderPriv)
@@ -144,7 +148,7 @@ func TestSubscribe(t *testing.T) {
 
 	// We are manually syncing here to not rely on the pubsub mechanism inside a test.
 	// This will fetch the add and put it into our datastore, but will not process it.
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	var aiErr adIngestError
 	require.ErrorAs(t, err, &aiErr)
 	require.ErrorIs(t, err, registry.ErrNotAllowed)
@@ -237,7 +241,11 @@ func TestFailDuringResync(t *testing.T) {
 	prevAd := allAds[1]
 	blockedReads.add(prevAd.Entries.(cidlink.Link).Cid)
 
-	c, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 1, false)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+	c, err := te.ingester.Sync(ctx, peerInfo, 1, false)
 	require.NoError(t, err)
 	require.Equal(t, adHead.(cidlink.Link).Cid, c)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs[1:])
@@ -247,7 +255,7 @@ func TestFailDuringResync(t *testing.T) {
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
-		_, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 2, true)
+		_, err := te.ingester.Sync(ctx, peerInfo, 2, true)
 		require.Error(t, err)
 	}()
 	<-hitBlockedRead
@@ -267,7 +275,7 @@ func TestFailDuringResync(t *testing.T) {
 
 	// Now we'll resync again and we should succeed.
 	blockedReads.rm(prevAd.Entries.(cidlink.Link).Cid)
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 2, true)
+	_, err = te.ingester.Sync(ctx, peerInfo, 2, true)
 	require.NoError(t, err)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs)
 }
@@ -290,7 +298,11 @@ func TestFirstAdMissingAddrs(t *testing.T) {
 	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	allMhs := typehelpers.AllMultihashesFromAdChain(t, cAd, te.publisherLinkSys)
@@ -336,8 +348,13 @@ func TestRestartDuringSync(t *testing.T) {
 	sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+
 	go func() {
-		_, err := te.ingester.Sync(sctx, te.pubHost.ID(), nil, 0, false)
+		_, err := te.ingester.Sync(sctx, peerInfo, 0, false)
 		// Error may be a number of different errors depending on where in the
 		// sync process the service is closed. So, just check that there is an
 		// error.
@@ -373,7 +390,7 @@ func TestRestartDuringSync(t *testing.T) {
 	err = te.publisher.UpdateRoot(ctx, cCid.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	allMhs := typehelpers.AllMultihashesFromAdChain(t, cAd, te.publisherLinkSys)
@@ -423,8 +440,13 @@ func TestFailDuringSync(t *testing.T) {
 	sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+
 	go func() {
-		_, err = te.ingester.Sync(sctx, te.pubHost.ID(), nil, 0, false)
+		_, err = te.ingester.Sync(sctx, peerInfo, 0, false)
 		require.Error(t, err)
 	}()
 	// The ingester tried to sync B, but it was blocked. Now let's stop the ingester.
@@ -441,7 +463,7 @@ func TestFailDuringSync(t *testing.T) {
 	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	endCid, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	endCid, err := te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 	require.Equal(t, cCid.(cidlink.Link).Cid, endCid)
 
@@ -501,9 +523,14 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	syncFinishedCh, cncl := te.ingester.sub.OnSyncFinished()
 	defer cncl()
 
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+
 	// Note that this doesn't start an ingest on the indexer because we removed
 	// the OnSyncFinished hook above.
-	_, err = te.ingester.sub.Sync(ctx, te.pubHost.ID(), cid.Undef, nil, nil)
+	_, err = te.ingester.sub.Sync(ctx, peerInfo, cid.Undef, nil)
 	require.NoError(t, err)
 	syncFinishedEvent := <-syncFinishedCh
 
@@ -575,7 +602,12 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 	err = te.publisher.SetRoot(ctx, chainHead.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	c, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+
+	c, err := te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	lcid, err := te.ingester.GetLatestSync(te.pubHost.ID())
@@ -608,7 +640,12 @@ func TestSyncWithDepth(t *testing.T) {
 	err = te.publisher.SetRoot(ctx, chainHead.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	c, err := te.ingester.Sync(ctx, te.pubHost.ID(), nil, 1, false)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+
+	c, err := te.ingester.Sync(ctx, peerInfo, 1, false)
 	require.NoError(t, err)
 
 	lcid, err := te.ingester.GetLatestSync(te.pubHost.ID())
@@ -636,7 +673,11 @@ func TestFreeze(t *testing.T) {
 	ctx := context.Background()
 	err := te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
@@ -659,7 +700,7 @@ func TestFreeze(t *testing.T) {
 
 	err = te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	provs = te.reg.AllProviderInfo()
@@ -677,7 +718,7 @@ func TestFreeze(t *testing.T) {
 	}
 
 	rmAdCid := publishRemovalAd(t, te.publisher, te.publisherLinkSys, false, te.pubHost.ID(), te.publisherPriv)
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	// Check that last advertisement matches last removal.
@@ -728,7 +769,11 @@ func TestRmWithNoEntries(t *testing.T) {
 	err = te.publisher.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 	var lcid cid.Cid
 	requireTrueEventually(t, func() bool {
@@ -774,7 +819,11 @@ func TestSync(t *testing.T) {
 	// The explicit sync will happen concurrently with the sycn triggered by
 	// the published advertisement. These will be serialized in the dagsync
 	// handler for the provider.
-	endCid, err := i.Sync(ctx, pubHost.ID(), nil, 0, false)
+	peerInfo := peer.AddrInfo{
+		ID:    pub.ID(),
+		Addrs: pub.Addrs(),
+	}
+	endCid, err := i.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	// We receive the CID that we synced.
@@ -794,12 +843,12 @@ func TestSync(t *testing.T) {
 	requireIndexedEventually(t, i.indexer, providerID, mhs)
 
 	// Test that we finish this sync even if we're already at the latest
-	_, err = i.Sync(ctx, pubHost.ID(), nil, 0, false)
+	_, err = i.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	fmt.Println("Testing final resync")
 	// Test that we finish this sync even if we have a limit
-	_, err = i.Sync(ctx, pubHost.ID(), nil, 1, true)
+	_, err = i.Sync(ctx, peerInfo, 1, true)
 	require.NoError(t, err)
 
 	// Check that the total number of indexes is correct.
@@ -819,7 +868,7 @@ func TestSync(t *testing.T) {
 	require.Equal(t, expectCount, count)
 
 	publishRemovalAd(t, pub, lsys, false, providerID, privKey)
-	_, err = i.Sync(ctx, pubHost.ID(), nil, 0, false)
+	_, err = i.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	count, err = indexCounts.Provider(providerID)
@@ -981,7 +1030,11 @@ func TestSyncWithExtendedProvidersContextualInsert(t *testing.T) {
 }
 
 func syncIngester(t *testing.T, ctx context.Context, ingester *Ingester, providerID peer.ID, pubHost host.Host, mhs ...[]multihash.Multihash) {
-	_, err := ingester.Sync(ctx, pubHost.ID(), nil, -1, false)
+	peerInfo := peer.AddrInfo{
+		ID:    pubHost.ID(),
+		Addrs: pubHost.Addrs(),
+	}
+	_, err := ingester.Sync(ctx, peerInfo, -1, false)
 	require.NoError(t, err)
 	for _, mms := range mhs {
 		requireIndexedEventually(t, ingester.indexer, providerID, mms)
@@ -1058,7 +1111,11 @@ func TestSyncTooLargeMetadata(t *testing.T) {
 	// The explicit sync will happen concurrently with the sycn triggered by
 	// the published advertisement. These will be serialized in the dagsync
 	// handler for the provider.
-	endCid, err := i.Sync(ctx, pubHost.ID(), nil, 0, false)
+	peerInfo := peer.AddrInfo{
+		ID:    pub.ID(),
+		Addrs: pub.Addrs(),
+	}
+	endCid, err := i.Sync(ctx, peerInfo, 0, false)
 	require.ErrorContains(t, err, errBadAdvert.Error())
 
 	// We receive the CID that we synced.
@@ -1089,7 +1146,11 @@ func TestSyncSkipNoMetadata(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	endCid, err := i.Sync(ctx, pubHost.ID(), nil, 0, false)
+	peerInfo := peer.AddrInfo{
+		ID:    pub.ID(),
+		Addrs: pub.Addrs(),
+	}
+	endCid, err := i.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	// We receive the CID that we synced.
@@ -1109,7 +1170,7 @@ func TestSyncSkipNoMetadata(t *testing.T) {
 
 	// Test ad that has entries and no metadata.
 	adCid, _, providerID, _ = publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, 10, []byte{})
-	endCid, err = i.Sync(ctx, pubHost.ID(), nil, 0, false)
+	endCid, err = i.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 	require.Equal(t, adCid, endCid)
 
@@ -1132,20 +1193,24 @@ func TestReSyncWithDepth(t *testing.T) {
 
 	err := te.publisher.SetRoot(context.Background(), adHead.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	_, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 1, false)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+	_, err = te.ingester.Sync(context.Background(), peerInfo, 1, false)
 	require.NoError(t, err)
 	allMHs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs[1:])
 	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), allMHs[0:1])
 
 	// When not resync, check that nothing beyond the latest is synced.
-	_, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 0, false)
+	_, err = te.ingester.Sync(context.Background(), peerInfo, 0, false)
 	require.NoError(t, err)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs[1:])
 	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), allMHs[0:1])
 
 	// When resync with greater depth, check that everything in synced.
-	_, err = te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 0, true)
+	_, err = te.ingester.Sync(context.Background(), peerInfo, 0, true)
 	require.NoError(t, err)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs)
 }
@@ -1167,7 +1232,11 @@ func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 	ctx := context.Background()
 	err := te.publisher.SetRoot(ctx, bLink.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), te.pubHost.Addrs()[0], 0, false)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs[0:2])
@@ -1177,7 +1246,7 @@ func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 	require.NoError(t, err)
 	err = te.publisher.SetRoot(ctx, cLink.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), te.pubHost.Addrs()[0], 0, false)
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs)
@@ -1206,7 +1275,11 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	endCid, err := ing.Sync(ctx, pubHost.ID(), nil, 0, false)
+	peerInfo := peer.AddrInfo{
+		ID:    pub.ID(),
+		Addrs: pub.Addrs(),
+	}
+	endCid, err := ing.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	// We receive the CID that we synced.
@@ -1331,7 +1404,11 @@ func TestMultiplePublishers(t *testing.T) {
 	err := pub1.UpdateRoot(ctx, headAd1Cid)
 	require.NoError(t, err)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, headAd1, lsys1)
-	gotC1, err := i.Sync(ctx, pubHost1.ID(), nil, 0, false)
+	peerInfo1 := peer.AddrInfo{
+		ID:    pub1.ID(),
+		Addrs: pub1.Addrs(),
+	}
+	gotC1, err := i.Sync(ctx, peerInfo1, 0, false)
 	require.NoError(t, err)
 	require.Equal(t, headAd1Cid, gotC1, "expected latest synced cid to match head of ad chain")
 
@@ -1349,7 +1426,11 @@ func TestMultiplePublishers(t *testing.T) {
 	require.NoError(t, err)
 	mhs = typehelpers.AllMultihashesFromAdLink(t, headAd2, lsys2)
 
-	gotC2, err := i.Sync(ctx, pubHost2.ID(), nil, 0, false)
+	peerInfo2 := peer.AddrInfo{
+		ID:    pub2.ID(),
+		Addrs: pub2.Addrs(),
+	}
+	gotC2, err := i.Sync(ctx, peerInfo2, 0, false)
 	require.NoError(t, err)
 	require.Equal(t, headAd2Cid, gotC2, "expected latest synced cid to match head of ad chain")
 
@@ -1455,10 +1536,14 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 	headAd := typehelpers.AdFromLink(t, headLink, te.publisherLinkSys)
 	blockedReads.add(headAd.Entries.(cidlink.Link).Cid)
 
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
 	// Instantiate a sync
 	wait := make(chan cid.Cid, 1)
 	go func() {
-		syncCid, err := te.ingester.Sync(context.Background(), te.pubHost.ID(), te.pubHost.Addrs()[0], 0, false)
+		syncCid, err := te.ingester.Sync(context.Background(), peerInfo, 0, false)
 		require.NoError(t, err)
 		wait <- syncCid
 	}()
@@ -1628,7 +1713,11 @@ func TestGetEntryDataFromCar(t *testing.T) {
 	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, false)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	allMhs := typehelpers.AllMultihashesFromAdChain(t, cAd, te.publisherLinkSys)
@@ -1689,7 +1778,7 @@ func TestGetEntryDataFromCar(t *testing.T) {
 	require.Equal(t, 5, count)
 
 	// Do a resync and see that multihashes are pulled from CAR files.
-	_, err = te.ingester.Sync(ctx, te.pubHost.ID(), nil, 0, true)
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, true)
 	require.NoError(t, err)
 
 	allMhs = typehelpers.AllMultihashesFromAdChain(t, cAd, te.publisherLinkSys)

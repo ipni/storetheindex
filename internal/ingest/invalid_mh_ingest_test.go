@@ -6,6 +6,7 @@ import (
 
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/storetheindex/test/typehelpers"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 )
@@ -33,20 +34,22 @@ func TestInvalidMultihashesAreNotIngested(t *testing.T) {
 	validMhs := []multihash.Multihash{mhs[1], mhs[3], mhs[5]}
 	invalidMhs := []multihash.Multihash{mhs[0], mhs[2], mhs[4]}
 
-	providerID := te.pubHost.ID()
 	subject := te.ingester
 
-	gotHeadAd, err := subject.Sync(ctx, providerID, nil, 0, false)
+	pubInfo := peer.AddrInfo{
+		ID: te.publisher.ID(),
+	}
+	gotHeadAd, err := subject.Sync(ctx, pubInfo, 0, false)
 	require.NoError(t, err)
 
 	require.Equal(t, headAdCid, gotHeadAd, "Expected latest synced cid to match head of ad chain")
 
 	requireTrueEventually(t, func() bool {
-		return checkAllIndexed(subject.indexer, providerID, validMhs) == nil
+		return checkAllIndexed(subject.indexer, pubInfo.ID, validMhs) == nil
 	}, testRetryInterval, testRetryTimeout, "Expected only valid multihashes to be indexed")
 
 	requireTrueEventually(t, func() bool {
-		latestSync, err := subject.GetLatestSync(providerID)
+		latestSync, err := subject.GetLatestSync(pubInfo.ID)
 		require.NoError(t, err)
 		return latestSync.Equals(headAdCid)
 	}, testRetryInterval, testRetryTimeout, "Expected all ads from publisher to have been indexed")
@@ -57,7 +60,7 @@ func TestInvalidMultihashesAreNotIngested(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, b)
 		require.Equal(t, 1, len(gotIdx))
-		require.Equal(t, providerID, gotIdx[0].ProviderID)
+		require.Equal(t, pubInfo.ID, gotIdx[0].ProviderID)
 	}
 
 	// Assert invalid multihashes are not indexed.

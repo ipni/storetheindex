@@ -333,7 +333,11 @@ func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
 	}
 	h.pendingsSyncsPeers[peerID.String()] = struct{}{}
 	go func() {
-		_, err := h.ingester.Sync(h.ctx, peerID, syncAddr, int(depth), resync)
+		peerInfo := peer.AddrInfo{
+			ID:    peerID,
+			Addrs: []multiaddr.Multiaddr{syncAddr},
+		}
+		_, err := h.ingester.Sync(h.ctx, peerInfo, int(depth), resync)
 		if err != nil {
 			msg := "Cannot sync with peer"
 			log.Errorw(msg, "err", err)

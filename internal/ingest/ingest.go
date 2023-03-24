@@ -432,29 +432,29 @@ func removeProcessedFrozen(ctx context.Context, dstore datastore.Datastore) erro
 //
 // The Context argument controls the lifetime of the sync. Canceling it cancels
 // the sync and causes the multihash channel to close without any data.
-func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiaddr.Multiaddr, depth int, resync bool) (cid.Cid, error) {
-	err := peerID.Validate()
+func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int, resync bool) (cid.Cid, error) {
+	err := peerInfo.ID.Validate()
 	if err != nil {
 		return cid.Undef, errors.New("invalid provider id")
 	}
 
-	log := log.With("publisher", peerID, "address", peerAddr, "depth", depth, "resync", resync)
+	log := log.With("publisher", peerInfo.ID, "addrs", peerInfo.Addrs, "depth", depth, "resync", resync)
 	log.Info("Explicitly syncing the latest advertisement from peer")
 
 	var sel ipld.Node
 	// If depth is non-zero or traversal should not stop at the latest synced,
 	// then construct a selector to behave accordingly.
 	if depth != 0 || resync {
-		sel, err = ing.makeLimitedDepthSelector(peerID, depth, resync)
+		sel, err = ing.makeLimitedDepthSelector(peerInfo.ID, depth, resync)
 		if err != nil {
 			return cid.Undef, fmt.Errorf("failed to construct selector for explicit sync: %w", err)
 		}
 	}
 
-	syncDone, cancel := ing.onAdProcessed(peerID)
+	syncDone, cancel := ing.onAdProcessed(peerInfo.ID)
 	defer cancel()
 
-	latest, err := ing.GetLatestSync(peerID)
+	latest, err := ing.GetLatestSync(peerInfo.ID)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("failed to get latest sync: %w", err)
 	}
@@ -485,7 +485,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerID peer.ID, peerAddr multiadd
 			ing.generalDagsyncBlockHook(i, c, actions)
 		}))
 	}
-	c, err := ing.sub.Sync(ctx, peerID, cid.Undef, sel, peerAddr, opts...)
+	c, err := ing.sub.Sync(ctx, peerInfo, cid.Undef, sel, opts...)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("failed to sync: %w", err)
 	}
@@ -843,7 +843,11 @@ func (ing *Ingester) autoSync() {
 			}
 			log.Info("Auto-syncing the latest advertisement with publisher")
 
-			_, err := ing.sub.Sync(ctx, pubID, cid.Undef, nil, pubAddr)
+			peerInfo := peer.AddrInfo{
+				ID:    pubID,
+				Addrs: []multiaddr.Multiaddr{pubAddr},
+			}
+			_, err := ing.sub.Sync(ctx, peerInfo, cid.Undef, nil)
 			if err != nil {
 				log.Errorw("Failed to auto-sync with publisher", "err", err)
 				return

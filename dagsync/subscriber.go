@@ -17,6 +17,7 @@ import (
 	"github.com/ipni/storetheindex/announce"
 	"github.com/ipni/storetheindex/dagsync/dtsync"
 	"github.com/ipni/storetheindex/dagsync/httpsync"
+	"github.com/ipni/storetheindex/mautil"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -396,29 +397,32 @@ func (s *Subscriber) RemoveHandler(peerID peer.ID) bool {
 // only specify the selection sequence itself.
 //
 // See: ExploreRecursiveWithStopNode.
-func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, sel ipld.Node, peerAddr multiaddr.Multiaddr, options ...SyncOption) (cid.Cid, error) {
+func (s *Subscriber) Sync(ctx context.Context, peerInfo peer.AddrInfo, nextCid cid.Cid, sel ipld.Node, options ...SyncOption) (cid.Cid, error) {
 	defaultOptions := []SyncOption{
 		ScopedBlockHook(s.generalBlockHook),
 		ScopedSegmentDepthLimit(s.segDepthLimit)}
 	opts := getSyncOpts(append(defaultOptions, options...))
 
-	var peerAddrs []multiaddr.Multiaddr
-	if peerAddr != nil {
-		var pid peer.ID
-		peerAddr, pid = peer.SplitAddr(peerAddr)
-		peerAddrs = []multiaddr.Multiaddr{peerAddr}
-		if peerID == "" {
-			peerID = pid
+	if len(peerInfo.Addrs) != 0 {
+		// Chop off the p2p ID from any of the addresses.
+		for i, peerAddr := range peerInfo.Addrs {
+			peerAddr, pid := peer.SplitAddr(peerAddr)
+			if pid != "" {
+				peerInfo.Addrs[i] = peerAddr
+				if peerInfo.ID == "" {
+					peerInfo.ID = pid
+				}
+			}
 		}
 	}
 
-	if peerID == "" {
+	if peerInfo.ID == "" {
 		return cid.Undef, errors.New("empty peer id")
 	}
 
-	log := log.With("peer", peerID)
+	log := log.With("peer", peerInfo.ID)
 
-	syncer, isHttp, err := s.makeSyncer(peerID, peerAddrs, tempAddrTTL, opts.rateLimiter)
+	syncer, isHttp, err := s.makeSyncer(peerInfo, tempAddrTTL, opts.rateLimiter)
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -463,7 +467,7 @@ func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, 
 
 	// Check for an existing handler for the specified peer (publisher). If
 	// none, create one if allowed.
-	hnd, err := s.getOrCreateHandler(peerID)
+	hnd, err := s.getOrCreateHandler(peerInfo.ID)
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -487,25 +491,25 @@ func (s *Subscriber) Sync(ctx context.Context, peerID peer.ID, nextCid cid.Cid, 
 	// peerstore. If the address was already in the peerstore, this will extend
 	// its ttl. Add to peerstore before sending the SyncFinished event so that
 	// the address is present before anything triggered by the event is run.
-	if peerAddr != nil {
+	if len(peerInfo.Addrs) != 0 {
 		if isHttp {
 			// Store this http address so that future calls to sync will work
 			// without a peerAddr (given that it happens within the TTL)
-			s.httpPeerstore.AddAddr(peerID, peerAddr, s.addrTTL)
+			s.httpPeerstore.AddAddrs(peerInfo.ID, peerInfo.Addrs, s.addrTTL)
 		} else {
 			// Not an http address, so add to the host's libp2p peerstore.
 			peerStore := s.host.Peerstore()
 			if peerStore != nil {
-				peerStore.AddAddr(peerID, peerAddr, s.addrTTL)
+				peerStore.AddAddrs(peerInfo.ID, peerInfo.Addrs, s.addrTTL)
 			}
 		}
 	}
 
 	if updateLatest {
-		s.latestSyncHander.SetLatestSync(peerID, nextCid)
+		s.latestSyncHander.SetLatestSync(peerInfo.ID, nextCid)
 		s.inEvents <- SyncFinished{
 			Cid:        nextCid,
-			PeerID:     peerID,
+			PeerID:     peerInfo.ID,
 			SyncedCids: syncedCids,
 		}
 	}
@@ -600,7 +604,11 @@ func (s *Subscriber) watch() {
 			continue
 		}
 
-		syncer, _, err := s.makeSyncer(amsg.PeerID, amsg.Addrs, s.addrTTL, nil)
+		peerInfo := peer.AddrInfo{
+			ID:    amsg.PeerID,
+			Addrs: amsg.Addrs,
+		}
+		syncer, _, err := s.makeSyncer(peerInfo, s.addrTTL, nil)
 		if err != nil {
 			log.Errorw("Cannot make syncer for announce", "err", err)
 			continue
@@ -621,31 +629,28 @@ func (s *Subscriber) Announce(ctx context.Context, nextCid cid.Cid, peerID peer.
 	return s.receiver.Direct(ctx, nextCid, peerID, peerAddrs)
 }
 
-func (s *Subscriber) makeSyncer(peerID peer.ID, peerAddrs []multiaddr.Multiaddr, addrTTL time.Duration, rateLimiter *rate.Limiter) (Syncer, bool, error) {
+func (s *Subscriber) makeSyncer(peerInfo peer.AddrInfo, addrTTL time.Duration, rateLimiter *rate.Limiter) (Syncer, bool, error) {
 	// Check for an HTTP address in peerAddrs, or if not given, in the http
 	// peerstore. This gives a preference to use httpsync over dtsync.
-	var httpAddr multiaddr.Multiaddr
-	if len(peerAddrs) == 0 {
-		possibleAddrs := s.httpPeerstore.Addrs(peerID)
-		if len(possibleAddrs) > 0 {
-			httpAddr = possibleAddrs[0]
-		}
+	var httpAddrs []multiaddr.Multiaddr
+	if len(peerInfo.Addrs) == 0 {
+		httpAddrs = s.httpPeerstore.Addrs(peerInfo.ID)
 	} else {
-		httpAddr = firstHTTPAddr(peerAddrs)
+		httpAddrs = mautil.FindHTTPAddrs(peerInfo.Addrs)
 	}
 
 	// If there was no rate limiter for this sync, then use the normal rate
 	// limiter for the peer.
 	if rateLimiter == nil && s.rateLimiterFor != nil {
-		rateLimiter = s.rateLimiterFor(peerID)
+		rateLimiter = s.rateLimiterFor(peerInfo.ID)
 	}
 
-	if httpAddr != nil {
+	if len(httpAddrs) != 0 {
 		// Store this http address so that future calls to sync will work without a
 		// peerAddr (given that it happens within the TTL)
-		s.httpPeerstore.AddAddr(peerID, httpAddr, addrTTL)
+		s.httpPeerstore.AddAddrs(peerInfo.ID, httpAddrs, addrTTL)
 
-		syncer, err := s.httpSync.NewSyncer(peerID, httpAddr, rateLimiter)
+		syncer, err := s.httpSync.NewSyncer(peerInfo.ID, httpAddrs, rateLimiter)
 		if err != nil {
 			return nil, false, fmt.Errorf("cannot create http sync handler: %w", err)
 		}
@@ -658,25 +663,11 @@ func (s *Subscriber) makeSyncer(peerID peer.ID, peerAddrs []multiaddr.Multiaddr,
 	// this temp one, this is a no-op. In other words, the TTL is never
 	// decreased here.
 	peerStore := s.host.Peerstore()
-	if peerStore != nil && len(peerAddrs) != 0 {
-		peerStore.AddAddrs(peerID, peerAddrs, addrTTL)
+	if peerStore != nil && len(peerInfo.Addrs) != 0 {
+		peerStore.AddAddrs(peerInfo.ID, peerInfo.Addrs, addrTTL)
 	}
 
-	return s.dtSync.NewSyncer(peerID, s.receiver.TopicName(), rateLimiter), false, nil
-}
-
-func firstHTTPAddr(peerAddrs []multiaddr.Multiaddr) multiaddr.Multiaddr {
-	for _, addr := range peerAddrs {
-		if addr == nil {
-			continue
-		}
-		for _, p := range addr.Protocols() {
-			if p.Code == multiaddr.P_HTTP || p.Code == multiaddr.P_HTTPS {
-				return addr
-			}
-		}
-	}
-	return nil
+	return s.dtSync.NewSyncer(peerInfo.ID, s.receiver.TopicName(), rateLimiter), false, nil
 }
 
 // handleAsync starts a goroutine to process the latest announce message

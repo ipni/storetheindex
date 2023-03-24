@@ -6,6 +6,7 @@ import (
 
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/storetheindex/test/typehelpers"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,22 +36,24 @@ func TestIngester_IngestsMixedEntriesTypeSuccessfully(t *testing.T) {
 	mhs := typehelpers.AllMultihashesFromAdLink(t, headAd, te.publisherLinkSys)
 	require.Len(t, mhs, 500+500+13*100+810+1+1) // Sanity check the total expected number of multihashes.
 
-	providerID := te.pubHost.ID()
 	subject := te.ingester
 
+	pubInfo := peer.AddrInfo{
+		ID: te.publisher.ID(),
+	}
 	// Trigger a sync.
-	gotHeadAd, err := subject.Sync(ctx, providerID, nil, 0, false)
+	gotHeadAd, err := subject.Sync(ctx, pubInfo, 0, false)
 	require.NoError(t, err)
 	require.Equal(t, headAdCid, gotHeadAd, "Expected latest synced cid to match head of ad chain")
 
 	// Assert all indices are processed eventually
 	requireTrueEventually(t, func() bool {
-		return checkAllIndexed(subject.indexer, providerID, mhs) == nil
+		return checkAllIndexed(subject.indexer, pubInfo.ID, mhs) == nil
 	}, testRetryInterval, testRetryTimeout, "Expected all multihashes to have been indexed eventually")
 
 	// Assert All ads are processed eventually
 	requireTrueEventually(t, func() bool {
-		latestSync, err := subject.GetLatestSync(providerID)
+		latestSync, err := subject.GetLatestSync(pubInfo.ID)
 		require.NoError(t, err)
 		return latestSync.Equals(headAdCid)
 	}, testRetryInterval, testRetryTimeout, "Expected all ads from publisher to have been indexed eventually")
@@ -61,6 +64,6 @@ func TestIngester_IngestsMixedEntriesTypeSuccessfully(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, b)
 		require.Equal(t, 1, len(gotIdx))
-		require.Equal(t, providerID, gotIdx[0].ProviderID)
+		require.Equal(t, pubInfo.ID, gotIdx[0].ProviderID)
 	}
 }

@@ -52,16 +52,21 @@ func NewSync(lsys ipld.LinkSystem, client *http.Client, blockHook func(peer.ID, 
 }
 
 // NewSyncer creates a new Syncer to use for a single sync operation against a peer.
-func (s *Sync) NewSyncer(peerID peer.ID, peerAddr multiaddr.Multiaddr, rateLimiter *rate.Limiter) (*Syncer, error) {
-	rootURL, err := maconv.ToURL(peerAddr)
-	if err != nil {
-		return nil, err
+func (s *Sync) NewSyncer(peerID peer.ID, peerAddrs []multiaddr.Multiaddr, rateLimiter *rate.Limiter) (*Syncer, error) {
+	urls := make([]*url.URL, len(peerAddrs))
+	for i := range peerAddrs {
+		var err error
+		urls[i], err = maconv.ToURL(peerAddrs[i])
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &Syncer{
 		peerID:      peerID,
 		rateLimiter: rateLimiter,
-		rootURL:     *rootURL,
+		rootURL:     *urls[0],
+		urls:        urls[1:],
 		sync:        s,
 	}, nil
 }
@@ -76,18 +81,19 @@ type Syncer struct {
 	peerID      peer.ID
 	rateLimiter *rate.Limiter
 	rootURL     url.URL
+	urls        []*url.URL
 	sync        *Sync
 }
 
 func (s *Syncer) GetHead(ctx context.Context) (cid.Cid, error) {
 	var head cid.Cid
 	var pubKey ic.PubKey
+
 	err := s.fetch(ctx, "head", func(msg io.Reader) error {
 		var err error
 		pubKey, head, err = openSignedHeadWithIncludedPubKey(msg)
 		return err
 	})
-
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -107,14 +113,11 @@ func (s *Syncer) GetHead(ctx context.Context) (cid.Cid, error) {
 func (s *Syncer) Sync(ctx context.Context, nextCid cid.Cid, sel ipld.Node) error {
 	xsel, err := selector.CompileSelector(sel)
 	if err != nil {
-		msg := "failed to compile selector"
-		log.Errorw(msg, "err", err, "selector", sel)
-		return errors.New(msg)
+		return fmt.Errorf("failed to compile selector: %w", err)
 	}
 
 	cids, err := s.walkFetch(ctx, nextCid, xsel)
 	if err != nil {
-		log.Errorw("failed to traverse requested dag", "err", err, "root", nextCid)
 		return fmt.Errorf("failed to traverse requested dag: %w", err)
 	}
 
@@ -164,12 +167,13 @@ func (s *Syncer) walkFetch(ctx context.Context, rootCid cid.Cid, sel selector.Se
 		// reached.
 		for {
 			if err = s.fetchBlock(ctx, c); err != nil {
-				log.Errorw("Failed to fetch block", "err", err, "cid", c)
-				if _, ok := err.(rateLimitErr); ok {
+				var errRateLimit rateLimitErr
+				if errors.As(err, &errRateLimit) {
 					// TODO: implement backoff to avoid potentially exhausting the HTTP source.
+					log.Info("Fetch request was rate-limited")
 					continue
 				}
-				return nil, err
+				return nil, fmt.Errorf("failed to fetch block for cid %s: %w", c, err)
 			}
 			break
 		}
@@ -192,12 +196,12 @@ func (s *Syncer) walkFetch(ctx context.Context, rootCid cid.Cid, sel selector.Se
 	// get the direct node.
 	rootNode, err := getMissingLs.Load(ipld.LinkContext{Ctx: ctx}, cidlink.Link{Cid: rootCid}, basicnode.Prototype.Any)
 	if err != nil {
-		log.Errorw("Failed to load node", "root", rootCid)
-		return nil, err
+		return nil, fmt.Errorf("failed to load node for root cid %s: %w", rootCid, err)
 	}
-	if err := progress.WalkMatching(rootNode, sel, func(p traversal.Progress, n datamodel.Node) error {
+	err = progress.WalkMatching(rootNode, sel, func(p traversal.Progress, n datamodel.Node) error {
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 	return traversalOrder, nil
@@ -214,9 +218,6 @@ func (r rateLimitErr) Error() string {
 }
 
 func (s *Syncer) fetch(ctx context.Context, rsrc string, cb func(io.Reader) error) error {
-	localURL := s.rootURL
-	localURL.Path = path.Join(s.rootURL.Path, rsrc)
-
 	if s.rateLimiter != nil {
 		err := s.rateLimiter.Wait(ctx)
 		if err != nil {
@@ -228,6 +229,10 @@ func (s *Syncer) fetch(ctx context.Context, rsrc string, cb func(io.Reader) erro
 		}
 	}
 
+nextURL:
+	localURL := s.rootURL
+	localURL.Path = path.Join(s.rootURL.Path, rsrc)
+
 	req, err := http.NewRequestWithContext(ctx, "GET", localURL.String(), nil)
 	if err != nil {
 		return err
@@ -235,16 +240,19 @@ func (s *Syncer) fetch(ctx context.Context, rsrc string, cb func(io.Reader) erro
 
 	resp, err := s.sync.client.Do(req)
 	if err != nil {
-		log.Errorw("Failed to execute fetch request", "err", err)
-		return err
+		if len(s.urls) != 0 {
+			s.rootURL = *s.urls[0]
+			s.urls = s.urls[1:]
+			goto nextURL
+		}
+		return fmt.Errorf("fetch request failed: %w", err)
 	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
-		err := fmt.Errorf("non success http code at %s: %d", localURL.String(), resp.StatusCode)
-		log.Errorw("Fetch was not successful", "err", err)
-		return err
+		return fmt.Errorf("non success http fetch response at %s: %d", localURL.String(), resp.StatusCode)
 	}
 
-	defer resp.Body.Close()
 	return cb(resp.Body)
 }
 
