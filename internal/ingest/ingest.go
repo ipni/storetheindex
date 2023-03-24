@@ -1132,11 +1132,11 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 				"adCid", ai.cid,
 				"progress", fmt.Sprintf("%d of %d", count, splitAtIndex))
 
-			keep := ing.mirror.canWrite() || ing.dsAds != ing.ds
+			keep := ing.mirror.canWrite()
 			if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, keep); markErr != nil {
 				log.Errorw("Failed to mark ad as processed", "err", markErr)
 			}
-			if !frozen && ing.mirror.canWrite() {
+			if !frozen && keep {
 				// Write the advertisement to a CAR file, but omit the entries.
 				carInfo, err := ing.mirror.write(ctx, ai.cid, true)
 				if err != nil {
@@ -1218,12 +1218,12 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID) {
 			return
 		}
 
-		keep := ing.mirror.canWrite() || ing.dsAds != ing.ds
+		keep := ing.mirror.canWrite()
 		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, keep); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
 
-		if !frozen && ing.mirror.canWrite() {
+		if !frozen && keep {
 			carInfo, err := ing.mirror.write(ctx, ai.cid, false)
 			if err != nil {
 				if !errors.Is(err, fs.ErrExist) {
