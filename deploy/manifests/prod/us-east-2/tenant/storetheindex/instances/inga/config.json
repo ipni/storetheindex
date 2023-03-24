@@ -65,7 +65,7 @@
     "VSNoNewMH": true,
     "DHBatchSize": 5000,
     "DHStoreURL": "http://dhstore.internal.prod.cid.contact",
-    "DHStoreHttpClientTimeout": "30s"
+    "DHStoreHttpClientTimeout": "60s"
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
