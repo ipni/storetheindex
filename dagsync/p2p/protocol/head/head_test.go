@@ -74,8 +74,6 @@ func TestFetchLatestHead(t *testing.T) {
 }
 
 func TestOldProtocolID(t *testing.T) {
-	const ipPrefix = "/ip4/127.0.0.1/tcp/"
-
 	publisher := test.MkTestHost()
 	client := test.MkTestHost()
 
