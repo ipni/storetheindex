@@ -408,7 +408,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	gatherCids := func(_ peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 		hamtCids = append(hamtCids, c)
 	}
-	if !ing.mirror.canWrite() && ing.dsAds == ing.ds {
+	if !ing.mirror.canWrite() {
 		defer func() {
 			for _, c := range hamtCids {
 				err := ing.dsAds.Delete(ctx, datastore.NewKey(c.String()))
@@ -623,7 +623,7 @@ func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Adverti
 // each block that is received.
 func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertisement, providerID peer.ID, entryChunkCid cid.Cid, chunk schema.EntryChunk, log *zap.SugaredLogger) error {
 	err := ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
-	if !ing.mirror.canWrite() && ing.dsAds == ing.ds {
+	if !ing.mirror.canWrite() {
 		// Done processing entries chunk, so remove from datastore.
 		if err := ing.dsAds.Delete(ctx, datastore.NewKey(entryChunkCid.String())); err != nil {
 			log.Errorw("Error deleting index from datastore", "err", err)
@@ -679,7 +679,7 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, providerID peer
 	// No code path should ever allow this, so it is a programming error if
 	// this ever happens.
 	if ad.IsRm {
-		panic("removing individual multihashes no allowed")
+		panic("removing individual multihashes not allowed")
 	}
 
 	if err := ing.indexer.Put(value, mhs...); err != nil {
