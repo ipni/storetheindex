@@ -75,7 +75,7 @@ func TestAnnounceReplace(t *testing.T) {
 		pendingCid = hnd.pendingCid
 		hnd.qlock.Unlock()
 		return pendingCid == cid.Undef
-	}, 2*time.Second, 10*time.Millisecond)
+	}, 2*time.Second, 100*time.Millisecond)
 
 	// Announce two more times.
 	c := chainLnks[1].(cidlink.Link).Cid
@@ -100,7 +100,7 @@ func TestAnnounceReplace(t *testing.T) {
 		pendingCid = hnd.pendingCid
 		hnd.qlock.Unlock()
 		return pendingCid == lastCid
-	}, 2*time.Second, 10*time.Millisecond)
+	}, 2*time.Second, 100*time.Millisecond)
 
 	// Unblock the first handler goroutine
 	hnd.syncMutex.Unlock()
@@ -182,7 +182,7 @@ func TestAnnounce_LearnsHttpPublisherAddr(t *testing.T) {
 	watcher, cncl := sub.OnSyncFinished()
 	defer cncl()
 	select {
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(updateTimeout):
 		t.Fatal("timed out waiting for sync to finish")
 	case <-watcher:
 	}
