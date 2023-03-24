@@ -29,8 +29,8 @@ require (
 	github.com/ipld/go-ipld-prime v0.20.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
 	github.com/ipld/go-storethehash v0.3.13
-	github.com/ipni/dhstore v0.0.2-0.20230120184057-c54e9d7c72f7
-	github.com/ipni/go-indexer-core v0.7.4
+	github.com/ipni/dhstore v0.0.2-0.20230324212407-ceb5f50e3bad
+	github.com/ipni/go-indexer-core v0.7.5
 	github.com/libp2p/go-libp2p v0.26.0
 	github.com/libp2p/go-libp2p-gostream v0.6.0
 	github.com/libp2p/go-libp2p-pubsub v0.9.0
@@ -105,7 +105,7 @@ require (
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/gammazero/keymutex v0.1.0 // indirect
-	github.com/gammazero/radixtree v0.3.0 // indirect
+	github.com/gammazero/radixtree v0.3.1 // indirect
 	github.com/gammazero/workerpool v1.1.3 // indirect
 	github.com/go-kit/log v0.2.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
@@ -213,6 +213,10 @@ require (
 	github.com/whyrusleeping/chunker v0.0.0-20181014151217-fe64bd25879f // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	go.opentelemetry.io/otel v1.13.0 // indirect
+	go.opentelemetry.io/otel/exporters/prometheus v0.33.0 // indirect
+	go.opentelemetry.io/otel/metric v0.33.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.11.1 // indirect
+	go.opentelemetry.io/otel/sdk/metric v0.33.0 // indirect
 	go.opentelemetry.io/otel/trace v1.13.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/dig v1.15.0 // indirect
