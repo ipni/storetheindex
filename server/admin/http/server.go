@@ -83,8 +83,8 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	mux.HandleFunc("/ingest/preferred", h.listPreferredPeers)
 
 	// Metrics routes
-	mux.Handle("/metrics", metrics.Start(append(coremetrics.DefaultViews, coremetrics.PebbleViews...)))
-	mux.Handle("/debug/pprof", pprof.WithProfile())
+	mux.Handle("/metrics/", metrics.Start(append(coremetrics.DefaultViews, coremetrics.PebbleViews...)))
+	mux.Handle("/debug/pprof/", pprof.WithProfile())
 
 	// Config routes
 	mux.HandleFunc("/config/log/level", setLogLevel)
