@@ -3,14 +3,12 @@ package ingest
 import (
 	"fmt"
 
-	"github.com/ipfs/go-datastore"
 	"github.com/ipni/storetheindex/internal/counter"
 )
 
 // configIngest contains all options for the ingester.
 type configIngest struct {
 	idxCounts *counter.IndexCounts
-	dsAds     datastore.Batching
 }
 
 // Option is a function that sets a value in a config.
@@ -25,14 +23,6 @@ func getOpts(opts []Option) (configIngest, error) {
 		}
 	}
 	return cfg, nil
-}
-
-// WithAdsDatastore configures a separate datastore for advertizements.
-func WithAdsDatastore(ds datastore.Batching) Option {
-	return func(c *configIngest) error {
-		c.dsAds = ds
-		return nil
-	}
 }
 
 // WithIndexCounts configures counting indexes using an IndexCounts instance.
