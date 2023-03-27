@@ -69,6 +69,17 @@
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
+    "AdvertisementMirror": {
+      "Read": true,
+      "Write": false,
+      "Compress": "gzip",
+      "Storage": {
+        "Type": "s3",
+        "S3": {
+          "BucketName": "prod-sti-adstore"
+        }
+      }
+    },
     "EntriesDepthLimit": 65536,
     "HttpSyncRetryMax": 4,
     "HttpSyncRetryWaitMax": "30s",
