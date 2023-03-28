@@ -83,7 +83,7 @@ func TestHttpSync_NFTStorage_DigestCheck(t *testing.T) {
 			require.NoError(t, err)
 
 			sync := httpsync.NewSync(ls, http.DefaultClient, nil)
-			syncer, err := sync.NewSyncer(pubid, pubmaddr, nil)
+			syncer, err := sync.NewSyncer(pubid, []multiaddr.Multiaddr{pubmaddr}, nil)
 			require.NoError(t, err)
 
 			head, err := syncer.GetHead(ctx)
@@ -121,39 +121,35 @@ func TestHttpsync_AcceptsSpecCompliantDagJson(t *testing.T) {
 	require.NoError(t, err)
 	pubID, err := peer.IDFromPrivateKey(pubPrK)
 	require.NoError(t, err)
-	var pubAddr multiaddr.Multiaddr
 
 	// Instantiate a dagsync publisher.
-	{
-		publs := cidlink.DefaultLinkSystem()
-		pubstore := &memstore.Store{}
-		publs.SetWriteStorage(pubstore)
-		publs.SetReadStorage(pubstore)
+	publs := cidlink.DefaultLinkSystem()
+	pubstore := &memstore.Store{}
+	publs.SetWriteStorage(pubstore)
+	publs.SetReadStorage(pubstore)
 
-		pub, err := httpsync.NewPublisher("0.0.0.0:0", publs, pubPrK)
-		require.NoError(t, err)
-		pubAddr = pub.Addrs()[0]
-		t.Cleanup(func() { require.NoError(t, pub.Close()) })
+	pub, err := httpsync.NewPublisher("0.0.0.0:0", publs, pubPrK)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, pub.Close()) })
 
-		link, err := publs.Store(
-			ipld.LinkContext{Ctx: ctx},
-			cidlink.LinkPrototype{
-				Prefix: cid.Prefix{
-					Version:  1,
-					Codec:    uint64(multicodec.DagJson),
-					MhType:   uint64(multicodec.Sha2_256),
-					MhLength: -1,
-				},
+	link, err := publs.Store(
+		ipld.LinkContext{Ctx: ctx},
+		cidlink.LinkPrototype{
+			Prefix: cid.Prefix{
+				Version:  1,
+				Codec:    uint64(multicodec.DagJson),
+				MhType:   uint64(multicodec.Sha2_256),
+				MhLength: -1,
 			},
-			fluent.MustBuildMap(basicnode.Prototype.Map, 4, func(na fluent.MapAssembler) {
-				na.AssembleEntry("fish").AssignString("lobster")
-				na.AssembleEntry("fish1").AssignString("lobster1")
-				na.AssembleEntry("fish2").AssignString("lobster2")
-				na.AssembleEntry("fish0").AssignString("lobster0")
-			}))
-		require.NoError(t, err)
-		require.NoError(t, pub.SetRoot(ctx, link.(cidlink.Link).Cid))
-	}
+		},
+		fluent.MustBuildMap(basicnode.Prototype.Map, 4, func(na fluent.MapAssembler) {
+			na.AssembleEntry("fish").AssignString("lobster")
+			na.AssembleEntry("fish1").AssignString("lobster1")
+			na.AssembleEntry("fish2").AssignString("lobster2")
+			na.AssembleEntry("fish0").AssignString("lobster0")
+		}))
+	require.NoError(t, err)
+	require.NoError(t, pub.SetRoot(ctx, link.(cidlink.Link).Cid))
 
 	ls := cidlink.DefaultLinkSystem()
 	store := &memstore.Store{}
@@ -161,7 +157,7 @@ func TestHttpsync_AcceptsSpecCompliantDagJson(t *testing.T) {
 	ls.SetReadStorage(store)
 
 	sync := httpsync.NewSync(ls, http.DefaultClient, nil)
-	syncer, err := sync.NewSyncer(pubID, pubAddr, nil)
+	syncer, err := sync.NewSyncer(pubID, pub.Addrs(), nil)
 	require.NoError(t, err)
 
 	head, err := syncer.GetHead(ctx)

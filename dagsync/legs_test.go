@@ -226,14 +226,18 @@ func TestIdleHandlerCleaner(t *testing.T) {
 	defer cancel()
 
 	// Do a sync to create the handler.
-	_, err = te.sub.Sync(ctx, te.srcHost.ID(), cid.Undef, nil, te.pubAddr)
+	peerInfo := peer.AddrInfo{
+		ID:    te.srcHost.ID(),
+		Addrs: te.pub.Addrs(),
+	}
+	_, err = te.sub.Sync(ctx, peerInfo, cid.Undef, nil)
 	require.NoError(t, err)
 
 	// Check that the handler is preeent by seeing if it can be removed.
 	require.True(t, te.sub.RemoveHandler(te.srcHost.ID()), "Expected handler to be present")
 
 	// Do another sync to re-create the handler.
-	_, err = te.sub.Sync(ctx, te.srcHost.ID(), cid.Undef, nil, te.pubAddr)
+	_, err = te.sub.Sync(ctx, peerInfo, cid.Undef, nil)
 	require.NoError(t, err)
 
 	// For long enough for the idle cleaner to remove the handler, and check

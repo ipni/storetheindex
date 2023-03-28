@@ -26,6 +26,7 @@ import (
 	"github.com/ipni/storetheindex/dagsync"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
+	"github.com/ipni/storetheindex/mautil"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -179,7 +180,9 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	}
 
 	// Get publisher peer.AddrInfo from peerstore.
-	var publisher peer.AddrInfo
+	publisher := peer.AddrInfo{
+		ID: publisherID,
+	}
 	peerStore := ing.sub.HttpPeerStore()
 	if peerStore != nil {
 		publisher = peerStore.PeerInfo(publisherID)
@@ -348,7 +351,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	//
 	// TODO: See if it is worth detecting and reducing depth the depth in
 	// entries selectors by one.
-	syncedFirstEntryCid, err := ing.sub.Sync(ctx, publisherID, entriesCid, Selectors.One, nil)
+	syncedFirstEntryCid, err := ing.sub.Sync(ctx, publisher, entriesCid, Selectors.One)
 	if err != nil {
 		// TODO: A "content not found" error from graphsync does not have a
 		// graphsync.RequestFailedContentNotFoundErr in the error chain. Need
@@ -425,11 +428,14 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 		return 0, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entries as HAMT root node: %w", err)}
 	}
 
+	pubInfo := peer.AddrInfo{
+		ID: publisherID,
+	}
 	// Sync all the links in the hamt, since so far we have only synced the root.
 	for _, e := range hn.Hamt.Data {
 		if e.HashMapNode != nil {
 			nodeCid := (*e.HashMapNode).(cidlink.Link).Cid
-			_, err = ing.sub.Sync(ctx, publisherID, nodeCid, Selectors.All, nil,
+			_, err = ing.sub.Sync(ctx, pubInfo, nodeCid, Selectors.All,
 				// Gather all the HAMT Cids so that we can remove them from
 				// datastore once finished processing.
 				dagsync.ScopedBlockHook(gatherCids),
@@ -541,9 +547,12 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 			actions.SetNextSyncCid(chunk.Next.(cidlink.Link).Cid)
 		}
 
+		pubInfo := peer.AddrInfo{
+			ID: publisherID,
+		}
 		// Traverse remaining entry chunks based on the entries selector
 		// that limits recursion depth.
-		_, err = ing.sub.Sync(ctx, publisherID, chunk.Next.(cidlink.Link).Cid, ing.entriesSel, nil,
+		_, err = ing.sub.Sync(ctx, pubInfo, chunk.Next.(cidlink.Link).Cid, ing.entriesSel,
 			dagsync.ScopedBlockHook(blockHook))
 		if err != nil {
 			var adIngestErr adIngestError
@@ -775,17 +784,9 @@ func isHAMT(n ipld.Node) bool {
 }
 
 func stringsToMultiaddrs(addrs []string) []multiaddr.Multiaddr {
-	var maddrs []multiaddr.Multiaddr
-	if len(addrs) != 0 {
-		maddrs = make([]multiaddr.Multiaddr, 0, len(addrs))
-		for _, addr := range addrs {
-			maddr, err := multiaddr.NewMultiaddr(addr)
-			if err != nil {
-				log.Warnw("Bad address in advertisement", "address", addr)
-				continue
-			}
-			maddrs = append(maddrs, maddr)
-		}
+	maddrs, err := mautil.StringsToMultiaddrs(addrs)
+	if err != nil {
+		log.Warnw("Bad address in advertisement", "err", err)
 	}
 	return maddrs
 }

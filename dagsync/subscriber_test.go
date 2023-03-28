@@ -29,7 +29,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multicodec"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
@@ -76,7 +75,11 @@ func TestScopedBlockHook(t *testing.T) {
 			require.NoError(t, err)
 
 			var calledScopedBlockHookTimes int64
-			_, err = sub.Sync(context.Background(), pubHost.ID(), cid.Undef, nil, pubHost.Addrs()[0], dagsync.ScopedBlockHook(func(i peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
+			peerInfo := peer.AddrInfo{
+				ID:    pubHost.ID(),
+				Addrs: pubHost.Addrs(),
+			}
+			_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil, dagsync.ScopedBlockHook(func(i peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 				atomic.AddInt64(&calledScopedBlockHookTimes, 1)
 			}))
 			require.NoError(t, err)
@@ -95,7 +98,7 @@ func TestScopedBlockHook(t *testing.T) {
 			err = pub.SetRoot(context.Background(), anotherLL.(cidlink.Link).Cid)
 			require.NoError(t, err)
 
-			_, err = sub.Sync(context.Background(), pubHost.ID(), cid.Undef, nil, pubHost.Addrs()[0])
+			_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 			require.NoError(t, err)
 
 			require.Equal(t, int64(ll.Length), atomic.LoadInt64(&calledGeneralBlockHookTimes),
@@ -136,7 +139,11 @@ func TestSyncedCidsReturned(t *testing.T) {
 
 			onFinished, cancel := sub.OnSyncFinished()
 			defer cancel()
-			_, err = sub.Sync(context.Background(), pubHost.ID(), cid.Undef, nil, pubHost.Addrs()[0])
+			peerInfo := peer.AddrInfo{
+				ID:    pubHost.ID(),
+				Addrs: pubHost.Addrs(),
+			}
+			_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 			require.NoError(t, err)
 
 			finishedVal := <-onFinished
@@ -203,7 +210,11 @@ func TestConcurrentSync(t *testing.T) {
 
 				go func(pub pubMeta) {
 					defer wg.Done()
-					_, err := sub.Sync(context.Background(), pub.h.ID(), cid.Undef, nil, pub.h.Addrs()[0])
+					peerInfo := peer.AddrInfo{
+						ID:    pub.h.ID(),
+						Addrs: pub.h.Addrs(),
+					}
+					_, err := sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 					if err != nil {
 						panic("sync failed")
 					}
@@ -243,7 +254,7 @@ func TestSync(t *testing.T) {
 			defer subSys.close()
 
 			calledTimes := 0
-			pubAddr, pub, sub := dpsb.Build(t, testTopic, pubSys, subSys,
+			pub, sub := dpsb.Build(t, testTopic, pubSys, subSys,
 				[]dagsync.Option{dagsync.BlockHook(func(i peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 					calledTimes++
 				})},
@@ -258,13 +269,17 @@ func TestSync(t *testing.T) {
 			err := pub.SetRoot(context.Background(), head.(cidlink.Link).Cid)
 			require.NoError(t, err)
 
-			_, err = sub.Sync(context.Background(), pubSys.host.ID(), cid.Undef, nil, pubAddr)
+			peerInfo := peer.AddrInfo{
+				ID:    pub.ID(),
+				Addrs: pub.Addrs(),
+			}
+			_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 			require.NoError(t, err)
 			calledTimesFirstSync := calledTimes
 			latestSync := sub.GetLatestSync(pubSys.host.ID())
 			require.Equal(t, head, latestSync, "Subscriber did not persist latest sync")
 			// Now sync again. We shouldn't call the hook.
-			_, err = sub.Sync(context.Background(), pubSys.host.ID(), cid.Undef, nil, pubAddr)
+			_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 			require.NoError(t, err)
 			require.Equalf(t, calledTimes, calledTimesFirstSync,
 				"Subscriber called the block hook multiple times for the same sync. Expected %d, got %d", calledTimesFirstSync, calledTimes)
@@ -301,7 +316,7 @@ func TestSyncWithHydratedDataStore(t *testing.T) {
 
 			calledTimes := 0
 			var calledWith []cid.Cid
-			pubAddr, pub, sub := dpsb.Build(t, testTopic, pubSys, subSys,
+			pub, sub := dpsb.Build(t, testTopic, pubSys, subSys,
 				[]dagsync.Option{dagsync.BlockHook(func(i peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 					calledWith = append(calledWith, c)
 					calledTimes++
@@ -319,7 +334,11 @@ func TestSyncWithHydratedDataStore(t *testing.T) {
 
 			// Sync once to hydrate the datastore
 			// Note we set the cid we are syncing to so we don't update the latestSync.
-			_, err = sub.Sync(context.Background(), pubSys.host.ID(), head.(cidlink.Link).Cid, nil, pubAddr)
+			peerInfo := peer.AddrInfo{
+				ID:    pub.ID(),
+				Addrs: pub.Addrs(),
+			}
+			_, err = sub.Sync(context.Background(), peerInfo, head.(cidlink.Link).Cid, nil)
 			require.NoError(t, err)
 			require.Equal(t, int(ll.Length), calledTimes, "Subscriber did not call the block hook exactly once for each block")
 			require.Equal(t, head.(cidlink.Link).Cid, calledWith[0], "Subscriber did not call the block hook in the correct order")
@@ -327,7 +346,7 @@ func TestSyncWithHydratedDataStore(t *testing.T) {
 			calledTimesFirstSync := calledTimes
 
 			// Now sync again. We might call the hook because we don't have the latestSync persisted.
-			_, err = sub.Sync(context.Background(), pubSys.host.ID(), cid.Undef, nil, pubAddr)
+			_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 			require.NoError(t, err)
 			require.GreaterOrEqual(t, calledTimes, calledTimesFirstSync, "Expected to have called block hook twice. Once for each sync.")
 		})
@@ -453,7 +472,7 @@ func TestHttpPeerAddrPeerstore(t *testing.T) {
 	defer pubHostSys.close()
 	defer subHostSys.close()
 
-	pubAddr, pub, sub := dagsyncPubSubBuilder{
+	pub, sub := dagsyncPubSubBuilder{
 		IsHttp: true,
 	}.Build(t, testTopic, pubHostSys, subHostSys, nil)
 
@@ -474,7 +493,11 @@ func TestHttpPeerAddrPeerstore(t *testing.T) {
 	err := pub.SetRoot(context.Background(), prevHead.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
+	peerInfo := peer.AddrInfo{
+		ID:    pub.ID(),
+		Addrs: pub.Addrs(),
+	}
+	_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 	require.NoError(t, err)
 
 	err = pub.SetRoot(context.Background(), head.(cidlink.Link).Cid)
@@ -482,7 +505,8 @@ func TestHttpPeerAddrPeerstore(t *testing.T) {
 
 	// Now call sync again with no address. The subscriber should re-use the
 	// previous address and succeeed.
-	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, nil)
+	peerInfo.Addrs = nil
+	_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 	require.NoError(t, err)
 }
 
@@ -510,7 +534,7 @@ func TestRateLimiter(t *testing.T) {
 			tokenEvery := 100 * time.Millisecond
 			limiter := rate.NewLimiter(rate.Every(tokenEvery), 1)
 			var calledTimes int64
-			pubAddr, pub, sub := dagsyncPubSubBuilder{
+			pub, sub := dagsyncPubSubBuilder{
 				IsHttp: isHttp,
 			}.Build(t, testTopic, pubHostSys, subHostSys, []dagsync.Option{
 				dagsync.BlockHook(func(i peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
@@ -530,7 +554,11 @@ func TestRateLimiter(t *testing.T) {
 			require.NoError(t, err)
 
 			start := time.Now()
-			_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
+			peerInfo := peer.AddrInfo{
+				ID:    pub.ID(),
+				Addrs: pub.Addrs(),
+			}
+			_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 			require.NoError(t, err)
 			// Minus 1 because we start with a full bucket.
 			require.GreaterOrEqual(t, time.Since(start), tokenEvery*time.Duration(llB.Length-1))
@@ -548,7 +576,7 @@ func TestBackpressureDoesntDeadlock(t *testing.T) {
 	defer pubHostSys.close()
 	defer subHostSys.close()
 
-	pubAddr, pub, sub := dagsyncPubSubBuilder{}.Build(t, testTopic, pubHostSys, subHostSys, nil)
+	pub, sub := dagsyncPubSubBuilder{}.Build(t, testTopic, pubHostSys, subHostSys, nil)
 
 	ll := llBuilder{
 		Length: 1,
@@ -573,19 +601,23 @@ func TestBackpressureDoesntDeadlock(t *testing.T) {
 	err := pub.SetRoot(context.Background(), ll.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
+	peerInfo := peer.AddrInfo{
+		ID:    pub.ID(),
+		Addrs: pub.Addrs(),
+	}
+	_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 	require.NoError(t, err)
 
 	err = pub.SetRoot(context.Background(), nextLL.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
+	_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 	require.NoError(t, err)
 
 	err = pub.SetRoot(context.Background(), headLL.(cidlink.Link).Cid)
 	require.NoError(t, err)
 
-	_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
+	_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 	require.NoError(t, err)
 
 	head := llBuilder{
@@ -599,7 +631,7 @@ func TestBackpressureDoesntDeadlock(t *testing.T) {
 	// This is blocked until we read from onSyncFinishedChan
 	syncDoneCh := make(chan error)
 	go func() {
-		_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), cid.Undef, nil, pubAddr)
+		_, err = sub.Sync(context.Background(), peerInfo, cid.Undef, nil)
 		syncDoneCh <- err
 	}()
 
@@ -608,7 +640,7 @@ func TestBackpressureDoesntDeadlock(t *testing.T) {
 		// A sleep so that the upper sync starts first
 		time.Sleep(time.Second)
 		sel := dagsync.ExploreRecursiveWithStopNode(selector.RecursionLimitDepth(1), nil, nil)
-		_, err = sub.Sync(context.Background(), pubHostSys.host.ID(), nextLL.(cidlink.Link).Cid, sel, pubAddr)
+		_, err = sub.Sync(context.Background(), peerInfo, nextLL.(cidlink.Link).Cid, sel)
 		specificSyncDoneCh <- err
 	}()
 
@@ -726,7 +758,7 @@ func (h *hostSystem) close() {
 	h.host.Close()
 }
 
-func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostSystem, subSys hostSystem, subOpts []dagsync.Option) (multiaddr.Multiaddr, dagsync.Publisher, *dagsync.Subscriber) {
+func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostSystem, subSys hostSystem, subOpts []dagsync.Option) (dagsync.Publisher, *dagsync.Subscriber) {
 	var pub dagsync.Publisher
 	var senders []announce.Sender
 
@@ -749,7 +781,7 @@ func (b dagsyncPubSubBuilder) Build(t *testing.T, topicName string, pubSys hostS
 	sub, err := dagsync.NewSubscriber(subSys.host, subSys.ds, subSys.lsys, topicName, nil, subOpts...)
 	require.NoError(t, err)
 
-	return pub.Addrs()[0], pub, sub
+	return pub, sub
 }
 
 type llBuilder struct {

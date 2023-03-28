@@ -19,7 +19,6 @@ import (
 	ic "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +30,6 @@ type httpTestEnv struct {
 	srcStore   *dssync.MutexDatastore
 	srcLinkSys linking.LinkSystem
 	dstStore   *dssync.MutexDatastore
-	pubAddr    multiaddr.Multiaddr
 }
 
 func setupPublisherSubscriber(t *testing.T, subscriberOptions []dagsync.Option) httpTestEnv {
@@ -41,12 +39,11 @@ func setupPublisherSubscriber(t *testing.T, subscriberOptions []dagsync.Option) 
 	srcHost = test.MkTestHost(libp2p.Identity(srcPrivKey))
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcLinkSys := test.MkLinkSystem(srcStore)
-	httpPub, err := httpsync.NewPublisher("127.0.0.1:0", srcLinkSys, srcPrivKey)
+	pub, err := httpsync.NewPublisher("127.0.0.1:0", srcLinkSys, srcPrivKey)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		httpPub.Close()
+		pub.Close()
 	})
-	pub := httpPub
 
 	dstStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	dstLinkSys := test.MkLinkSystem(dstStore)
@@ -66,7 +63,6 @@ func setupPublisherSubscriber(t *testing.T, subscriberOptions []dagsync.Option) 
 		srcStore:   srcStore,
 		srcLinkSys: srcLinkSys,
 		dstStore:   dstStore,
-		pubAddr:    httpPub.Addrs()[0],
 	}
 }
 
@@ -87,7 +83,11 @@ func TestManualSync(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	syncCid, err := te.sub.Sync(ctx, te.srcHost.ID(), cid.Undef, nil, te.pubAddr)
+	peerInfo := peer.AddrInfo{
+		ID:    te.srcHost.ID(),
+		Addrs: te.pub.Addrs(),
+	}
+	syncCid, err := te.sub.Sync(ctx, peerInfo, cid.Undef, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, rootLnk.(cidlink.Link).Cid, syncCid)
@@ -113,7 +113,11 @@ func TestSyncHttpFailsUnexpectedPeer(t *testing.T) {
 	require.NoError(t, err, "failed to make another peerid")
 
 	// This fails because the head msg is signed by srcHost.ID(), but we are asking this to check if it's signed by otherPeerID.
-	_, err = te.sub.Sync(ctx, otherPeerID, cid.Undef, nil, te.pubAddr)
+	peerInfo := peer.AddrInfo{
+		ID:    otherPeerID,
+		Addrs: te.pub.Addrs(),
+	}
+	_, err = te.sub.Sync(ctx, peerInfo, cid.Undef, nil)
 	require.ErrorContains(t, err, "unexpected peer")
 }
 
@@ -138,7 +142,11 @@ func TestSyncFnHttp(t *testing.T) {
 	ctx, syncncl := context.WithTimeout(context.Background(), time.Second)
 	defer syncncl()
 
-	_, err := te.sub.Sync(ctx, te.srcHost.ID(), cids[0], nil, te.pubAddr)
+	peerInfo := peer.AddrInfo{
+		ID:    te.srcHost.ID(),
+		Addrs: te.pub.Addrs(),
+	}
+	_, err := te.sub.Sync(ctx, peerInfo, cids[0], nil)
 	require.ErrorContains(t, err, "failed to traverse requested dag")
 	syncncl()
 
@@ -160,7 +168,8 @@ func TestSyncFnHttp(t *testing.T) {
 	// Sync with publisher via HTTP.
 	ctx, syncncl = context.WithTimeout(context.Background(), updateTimeout)
 	defer syncncl()
-	syncCid, err := te.sub.Sync(ctx, te.srcHost.ID(), lnk.(cidlink.Link).Cid, nil, te.pubAddr)
+
+	syncCid, err := te.sub.Sync(ctx, peerInfo, lnk.(cidlink.Link).Cid, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, lnk.(cidlink.Link).Cid, syncCid, "sync'd cid unexpected")
@@ -180,7 +189,7 @@ func TestSyncFnHttp(t *testing.T) {
 
 	ctx, syncncl = context.WithTimeout(context.Background(), updateTimeout)
 	defer syncncl()
-	syncCid, err = te.sub.Sync(ctx, te.srcHost.ID(), cid.Undef, nil, te.pubAddr)
+	syncCid, err = te.sub.Sync(ctx, peerInfo, cid.Undef, nil)
 	require.NoError(t, err)
 	require.Equal(t, newHead, syncCid, "sync'd cid unexpected")
 	_, err = te.dstStore.Get(context.Background(), datastore.NewKey(syncCid.String()))
