@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: dhfind
 spec:
+  replicas: 5
   template:
     spec:
       topologySpreadConstraints:
