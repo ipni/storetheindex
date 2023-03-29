@@ -6,7 +6,6 @@ namespace: storetheindex
 resources:
   - ../../../../../base/dhfind
   - pod-monitor.yaml
-  - service-cluster-ip.yaml
 
 patchesStrategicMerge:
   - deployment.yaml
