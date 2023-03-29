@@ -1,7 +1,7 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: dhfind
+  name: dhfind-finder
 spec:
   ports:
     - name: http
