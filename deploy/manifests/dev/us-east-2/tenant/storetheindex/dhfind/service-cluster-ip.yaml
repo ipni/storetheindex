@@ -1,0 +1,13 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: dhfind
+spec:
+  ports:
+    - name: http
+      port: 40080
+      targetPort: http
+  selector:
+    app: dhfind
+  type: ClusterIP
+  clusterIP: None
