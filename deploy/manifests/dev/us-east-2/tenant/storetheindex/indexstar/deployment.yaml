@@ -20,7 +20,7 @@ spec:
             - '--backends=http://cali-indexer:3000/'
             - '--backends=http://ago-indexer:3000/'
             - '--backends=http://dhstore.internal.dev.cid.contact/'
-            - '--backends=http://dhfind-finder:40080/'
+            - '--backends=http://dhfind-cluster-ip:40080/'
             - '--cascadeBackends=http://caskadht.internal.dev.cid.contact/'
             - '--cascadeBackends=http://cassette.internal.dev.cid.contact/'
           env:
