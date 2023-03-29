@@ -17,6 +17,7 @@ spec:
             - '--stiAddr=http://inga-indexer:3000/'
             - '--simulation=true'
             - '--simulationChannelSize=2000'
+            - '--simulationWorkerCount=200'
           resources:
             limits:
               cpu: "1.5"
