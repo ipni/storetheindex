@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: dhfind
 spec:
-  replicas: 4
+  replicas: 5
   template:
     spec:
       topologySpreadConstraints:
@@ -16,6 +16,7 @@ spec:
             - '--dhstoreAddr=http://dhstore.internal.prod.cid.contact/'
             - '--stiAddr=http://inga-indexer:3000/'
             - '--simulation=true'
+            - '--simulationChannelSize=2000'
           resources:
             limits:
               cpu: "1.5"
