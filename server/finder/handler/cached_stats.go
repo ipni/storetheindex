@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/ipni/go-indexer-core"
-	"github.com/ipni/storetheindex/api/v0/finder/model"
+	"github.com/ipni/go-libipni/find/model"
 )
 
 type (

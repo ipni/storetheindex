@@ -16,7 +16,7 @@ The Index Provider serves as the interface between the storage provider and the
 indexer. It can be used from within `Lotus` so that the publishing of new data
 happens automatically. But it can also happen separately.
 
-The Index Provider sends updates to the Indexer via a series of [Advertisement](https://github.com/ipni/storetheindex/blob/main/api/v0/ingest/schema/schema.ipldsch)
+The Index Provider sends updates to the Indexer via a series of [Advertisement](https://github.com/ipni/go-libipni/blob/main/ingest/schema/schema.ipldsch)
 messages. Each message references a previous advertisement so that as a whole it
 forms an advertisement chain. The state of the indexer is basically a function
 of consuming this chain from the initial Advertisement to the latest one.

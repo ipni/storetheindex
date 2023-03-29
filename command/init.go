@@ -20,7 +20,7 @@ var InitCmd = &cli.Command{
 var initFlags = []cli.Flag{
 	cacheSizeFlag,
 	listenAdminFlag,
-	listenFinderFlag,
+	listenFindFlag,
 	listenIngestFlag,
 	listenP2PFlag,
 	&cli.StringFlag{
@@ -129,15 +129,15 @@ func initAction(cctx *cli.Context) error {
 		cfg.Addresses.Admin = adminAddr
 	}
 
-	finderAddr := cctx.String("listen-finder")
-	if finderAddr != "" {
-		if finderAddr != "none" {
-			_, err := multiaddr.NewMultiaddr(finderAddr)
+	findAddr := cctx.String("listen-finder")
+	if findAddr != "" {
+		if findAddr != "none" {
+			_, err := multiaddr.NewMultiaddr(findAddr)
 			if err != nil {
 				return fmt.Errorf("bad listen-finder: %s", err)
 			}
 		}
-		cfg.Addresses.Finder = finderAddr
+		cfg.Addresses.Finder = findAddr
 	}
 
 	ingestAddr := cctx.String("listen-ingest")

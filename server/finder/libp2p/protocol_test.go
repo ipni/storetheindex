@@ -1,4 +1,4 @@
-package p2pfinderserver_test
+package p2pfindserver_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/ipfs/go-datastore"
 	indexer "github.com/ipni/go-indexer-core"
-	p2pclient "github.com/ipni/storetheindex/api/v0/finder/client/libp2p"
+	p2pclient "github.com/ipni/go-libipni/find/client/p2p"
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
 	p2pserver "github.com/ipni/storetheindex/server/finder/libp2p"
@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupServer(ctx context.Context, ind indexer.Interface, reg *registry.Registry, idxCts *counter.IndexCounts, t *testing.T) (*p2pserver.FinderServer, host.Host) {
+func setupServer(ctx context.Context, ind indexer.Interface, reg *registry.Registry, idxCts *counter.IndexCounts, t *testing.T) (*p2pserver.FindServer, host.Host) {
 	h, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
 	require.NoError(t, err)
 	s := p2pserver.New(ctx, h, ind, reg, idxCts)

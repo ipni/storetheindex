@@ -15,15 +15,15 @@ import (
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
-	v0 "github.com/ipni/storetheindex/api/v0"
-	httpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
-	"github.com/ipni/storetheindex/api/v0/finder/model"
+	"github.com/ipni/go-libipni/apierror"
+	httpclient "github.com/ipni/go-libipni/find/client/http"
+	"github.com/ipni/go-libipni/find/model"
+	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/fsutil/disk"
 	"github.com/ipni/storetheindex/internal/freeze"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry/policy"
-	"github.com/ipni/storetheindex/mautil"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"go.opencensus.io/stats"
@@ -678,10 +678,10 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 	if newPublisher {
 		// Check if new publisher is allowed.
 		if !r.policy.Allowed(publisher.ID) {
-			return v0.NewError(ErrPublisherNotAllowed, http.StatusForbidden)
+			return apierror.New(ErrPublisherNotAllowed, http.StatusForbidden)
 		}
 		if !r.policy.PublishAllowed(publisher.ID, info.AddrInfo.ID) {
-			return v0.NewError(ErrCannotPublish, http.StatusForbidden)
+			return apierror.New(ErrCannotPublish, http.StatusForbidden)
 		}
 		info.Publisher = publisher.ID
 	}
@@ -1065,7 +1065,7 @@ func (r *Registry) syncRegister(ctx context.Context, info *ProviderInfo) error {
 	err := r.syncPersistProvider(ctx, info)
 	if err != nil {
 		err = fmt.Errorf("could not persist provider: %s", err)
-		return v0.NewError(err, http.StatusInternalServerError)
+		return apierror.New(err, http.StatusInternalServerError)
 	}
 	return nil
 }

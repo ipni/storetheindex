@@ -1,83 +1,38 @@
-// Package mautil provides multiaddr utility functions.
+// Deprecated: The same functionality is provided by package
+// github.com/ipni/go-libipni/mautil, and those implementations should be
+// preferred in new code.
+// See the specific function documentation for details.
 package mautil
 
 import (
 	"net"
 
+	"github.com/ipni/go-libipni/mautil"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
-	manet "github.com/multiformats/go-multiaddr/net"
 )
 
-// FilterPrivateIPs returns a new slice of multiaddrs with any private,
-// loopback, or unspecified IP multiaddrs removed. If no multiaddrs are
-// removed, then returns the original slice.
+// Depricated: Use github.com/ipni/go-libipni/mautil.FilterPrivateIPs
 func FilterPrivateIPs(maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-	filtered := multiaddr.FilterAddrs(maddrs, func(target multiaddr.Multiaddr) bool {
-		if target == nil {
-			return true
-		}
-		c, _ := multiaddr.SplitFirst(target)
-		if c == nil {
-			return false
-		}
-		switch c.Protocol().Code {
-		case multiaddr.P_IP4, multiaddr.P_IP6, multiaddr.P_IP6ZONE, multiaddr.P_IPCIDR:
-			return manet.IsPublicAddr(target)
-		case multiaddr.P_DNS, multiaddr.P_DNS4, multiaddr.P_DNS6, multiaddr.P_DNSADDR:
-			return c.Value() != "localhost"
-		}
-		return true
-	})
-	if len(filtered) == 0 {
-		return nil
-	}
-	return filtered
+	return mautil.FilterPrivateIPs(maddrs)
 }
 
+// Depricated: Use github.com/ipni/go-libipni/mautil.FindHTTPAddrs
 func FindHTTPAddrs(maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-	return multiaddr.FilterAddrs(maddrs, func(target multiaddr.Multiaddr) bool {
-		if target != nil {
-			for _, p := range target.Protocols() {
-				if p.Code == multiaddr.P_HTTP || p.Code == multiaddr.P_HTTPS {
-					return true
-				}
-			}
-		}
-		return false
-	})
+	return mautil.FindHTTPAddrs(maddrs)
 }
 
+// Depricated: Use github.com/ipni/go-libipni/mautil.MultiaddrStringToNetAddr
 func MultiaddrStringToNetAddr(maddrStr string) (net.Addr, error) {
-	maddr, err := multiaddr.NewMultiaddr(maddrStr)
-	if err != nil {
-		return nil, err
-	}
-	return manet.ToNetAddr(maddr)
+	return mautil.MultiaddrStringToNetAddr(maddrStr)
 }
 
-// ParsePeers parses a list of multiaddr strings into a list of AddrInfo.
+// Depricated: Use github.com/ipni/go-libipni/mautil.ParsePeers
 func ParsePeers(addrs []string) ([]peer.AddrInfo, error) {
-	maddrs, err := StringsToMultiaddrs(addrs)
-	if err != nil {
-		return nil, err
-	}
-	return peer.AddrInfosFromP2pAddrs(maddrs...)
+	return mautil.ParsePeers(addrs)
 }
 
+// Depricated: Use github.com/ipni/go-libipni/mautil.StringsToMultiaddrs
 func StringsToMultiaddrs(addrs []string) ([]multiaddr.Multiaddr, error) {
-	if len(addrs) == 0 {
-		return nil, nil
-	}
-	var lastErr error
-	maddrs := make([]multiaddr.Multiaddr, 0, len(addrs))
-	for i := range addrs {
-		maddr, err := multiaddr.NewMultiaddr(addrs[i])
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		maddrs = append(maddrs, maddr)
-	}
-	return maddrs, lastErr
+	return mautil.StringsToMultiaddrs(addrs)
 }

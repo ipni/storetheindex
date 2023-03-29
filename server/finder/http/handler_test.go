@@ -14,7 +14,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-indexer-core"
-	"github.com/ipni/storetheindex/api/v0/finder/model"
+	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/storetheindex/server/finder/test"
 	"github.com/ipni/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p/core/peer"

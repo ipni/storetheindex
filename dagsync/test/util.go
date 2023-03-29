@@ -19,7 +19,7 @@ import (
 	"github.com/ipld/go-ipld-prime/fluent"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
-	"github.com/ipni/storetheindex/dagsync/httpsync/maconv"
+	"github.com/ipni/go-libipni/maurl"
 	"github.com/ipni/storetheindex/dagsync/p2p/protocol/head"
 	"github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -308,7 +308,7 @@ func WaitForP2PPublisher(publisher TestPublisher, clientHost host.Host, topic st
 func WaitForHttpPublisher(publisher TestPublisher) error {
 	const timeout = 10 * time.Second
 
-	headURL, err := maconv.ToURL(publisher.Addrs()[0])
+	headURL, err := maurl.ToURL(publisher.Addrs()[0])
 	if err != nil {
 		return err
 	}

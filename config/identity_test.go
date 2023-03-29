@@ -50,7 +50,7 @@ func TestIdentity_Decode(t *testing.T) {
 				PeerID:  "invalid peer ID",
 				PrivKey: testB64PrivKey,
 			},
-			wantErr: "could not decode peer id: failed to parse peer ID: selected encoding not supported",
+			wantErr: "could not decode peer id: failed to parse peer ID:",
 		},
 		{
 			name:        "Invalid path via env var is error",

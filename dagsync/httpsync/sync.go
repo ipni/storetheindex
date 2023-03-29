@@ -19,7 +19,7 @@ import (
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 	"github.com/ipld/go-ipld-prime/traversal"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
-	"github.com/ipni/storetheindex/dagsync/httpsync/maconv"
+	"github.com/ipni/go-libipni/maurl"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -56,7 +56,7 @@ func (s *Sync) NewSyncer(peerID peer.ID, peerAddrs []multiaddr.Multiaddr, rateLi
 	urls := make([]*url.URL, len(peerAddrs))
 	for i := range peerAddrs {
 		var err error
-		urls[i], err = maconv.ToURL(peerAddrs[i])
+		urls[i], err = maurl.ToURL(peerAddrs[i])
 		if err != nil {
 			return nil, err
 		}

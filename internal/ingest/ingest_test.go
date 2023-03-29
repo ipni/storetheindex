@@ -25,7 +25,7 @@ import (
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
-	schema "github.com/ipni/storetheindex/api/v0/ingest/schema"
+	schema "github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/dagsync"

@@ -15,7 +15,7 @@ import (
 	carindex "github.com/ipld/go-car/v2/index"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
-	"github.com/ipni/storetheindex/api/v0/ingest/schema"
+	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/filestore"
 	"github.com/ipni/storetheindex/test/util"

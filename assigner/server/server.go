@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/ipni/storetheindex/announce/message"
+	"github.com/ipni/go-libipni/announce/message"
 	"github.com/ipni/storetheindex/assigner/core"
 	"github.com/ipni/storetheindex/version"
 	"github.com/libp2p/go-libp2p/core/peer"

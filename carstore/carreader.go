@@ -11,7 +11,7 @@ import (
 	"github.com/ipfs/go-cid"
 	car "github.com/ipld/go-car/v2"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
-	"github.com/ipni/storetheindex/api/v0/ingest/schema"
+	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/storetheindex/filestore"
 	"github.com/libp2p/go-libp2p/core/peer"
 )

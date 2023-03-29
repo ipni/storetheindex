@@ -3,7 +3,7 @@ package httpsync
 import (
 	"fmt"
 
-	"github.com/ipni/storetheindex/announce"
+	"github.com/ipni/go-libipni/announce"
 )
 
 // config contains all options for configuring dtsync.publisher.

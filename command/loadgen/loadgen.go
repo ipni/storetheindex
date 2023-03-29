@@ -16,8 +16,8 @@ import (
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/storage/dsadapter"
-	ingesthttpclient "github.com/ipni/storetheindex/api/v0/ingest/client/http"
-	"github.com/ipni/storetheindex/api/v0/ingest/schema"
+	ingestclient "github.com/ipni/go-libipni/ingest/client"
+	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/storetheindex/dagsync"
 	"github.com/ipni/storetheindex/dagsync/dtsync"
 	"github.com/ipni/storetheindex/dagsync/httpsync"
@@ -175,7 +175,7 @@ type providerLoadGen struct {
 }
 
 func (p *providerLoadGen) announce() error {
-	client, err := ingesthttpclient.New(p.indexerHttpAddr)
+	client, err := ingestclient.New(p.indexerHttpAddr)
 	if err != nil {
 		return err
 	}

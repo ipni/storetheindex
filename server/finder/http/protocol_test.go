@@ -10,7 +10,7 @@ import (
 	"github.com/ipfs/go-delegated-routing/client"
 	"github.com/ipfs/go-delegated-routing/gen/proto"
 	indexer "github.com/ipni/go-indexer-core"
-	httpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
+	httpclient "github.com/ipni/go-libipni/find/client/http"
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
 	httpserver "github.com/ipni/storetheindex/server/finder/http"

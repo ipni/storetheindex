@@ -17,7 +17,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	indexer "github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
-	"github.com/ipni/storetheindex/api/v0/finder/model"
+	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
@@ -32,7 +32,7 @@ import (
 )
 
 var (
-	log         = logging.Logger("indexer/finder")
+	log         = logging.Logger("indexer/find")
 	newline     = []byte("\n")
 	versionData []byte
 )
@@ -42,9 +42,9 @@ func init() {
 }
 
 type Server struct {
-	server        *http.Server
-	listener      net.Listener
-	finderHandler *handler.FinderHandler
+	server      *http.Server
+	listener    net.Listener
+	findHandler *handler.FindHandler
 }
 
 func (s *Server) URL() string {
@@ -92,9 +92,9 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 		ReadTimeout:  opts.readTimeout,
 	}
 	s := &Server{
-		server:        server,
-		listener:      l,
-		finderHandler: handler.NewFinderHandler(indexer, registry, opts.indexCounts),
+		server:      server,
+		listener:    l,
+		findHandler: handler.NewFindHandler(indexer, registry, opts.indexCounts),
 	}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -127,17 +127,17 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 }
 
 func (s *Server) Start() error {
-	log.Infow("finder http server listening", "listen_addr", s.listener.Addr())
+	log.Infow("find http server listening", "listen_addr", s.listener.Addr())
 	return s.server.Serve(s.listener)
 }
 
 func (s *Server) RefreshStats() {
-	s.finderHandler.RefreshStats()
+	s.findHandler.RefreshStats()
 }
 
 func (s *Server) Close() error {
-	log.Info("finder http server shutdown")
-	s.finderHandler.Close()
+	log.Info("find http server shutdown")
+	s.findHandler.Close()
 	return s.server.Shutdown(context.Background())
 }
 
@@ -230,7 +230,7 @@ func (s *Server) listProviders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := s.finderHandler.ListProviders()
+	data, err := s.findHandler.ListProviders()
 	if err != nil {
 		log.Errorw("cannot list providers", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
@@ -257,7 +257,7 @@ func (s *Server) getProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := s.finderHandler.GetProvider(providerID)
+	data, err := s.findHandler.GetProvider(providerID)
 	if err != nil {
 		log.Error("cannot get provider", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
@@ -283,7 +283,7 @@ func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := s.finderHandler.GetStats()
+	data, err := s.findHandler.GetStats()
 	switch {
 	case err != nil:
 		log.Errorw("cannot get stats", "err", err)
@@ -322,7 +322,7 @@ func (s *Server) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, st
 			stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
 	}()
 
-	response, err := s.finderHandler.Find(mhs)
+	response, err := s.findHandler.Find(mhs)
 	if err != nil {
 		httpserver.HandleError(w, err, "get")
 		return

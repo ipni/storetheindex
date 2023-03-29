@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -13,11 +14,11 @@ import (
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
-	"github.com/ipni/storetheindex/announce"
-	"github.com/ipni/storetheindex/announce/message"
-	v0 "github.com/ipni/storetheindex/api/v0"
-	"github.com/ipni/storetheindex/api/v0/ingest/client"
-	"github.com/ipni/storetheindex/api/v0/ingest/schema"
+	"github.com/ipni/go-libipni/announce"
+	"github.com/ipni/go-libipni/announce/message"
+	"github.com/ipni/go-libipni/apierror"
+	"github.com/ipni/go-libipni/ingest/client"
+	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
@@ -66,12 +67,12 @@ func InitIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *i
 	return ing
 }
 
-func RegisterProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {
+func RegisterProviderTest(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	t.Log("registering provider")
-	err := c.Register(ctx, providerID, privateKey, []string{addr})
+	err := cl.Register(ctx, providerID, privateKey, []string{addr})
 	require.NoError(t, err)
 
 	require.True(t, reg.IsRegistered(providerID), "provider not registered")
@@ -81,11 +82,11 @@ func RegisterProviderTest(t *testing.T, c client.Ingest, providerID peer.ID, pri
 	badPeerID, err := peer.Decode("12D3KooWD1XypSuBmhebQcvq7Sf1XJZ1hKSfYCED4w6eyxhzwqnV")
 	require.NoError(t, err)
 
-	err = c.Register(ctx, badPeerID, privateKey, []string{addr})
+	err = cl.Register(ctx, badPeerID, privateKey, []string{addr})
 	require.Error(t, err, "expected bad signature error")
 }
 
-func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
+func IndexContent(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -117,7 +118,7 @@ func IndexContent(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey
 	require.True(t, ok, "did not get expected content")
 }
 
-func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface, newAddr string, reg *registry.Registry) {
+func IndexContentNewAddr(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface, newAddr string, reg *registry.Registry) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -140,7 +141,7 @@ func IndexContentNewAddr(t *testing.T, cl client.Ingest, providerID peer.ID, pri
 	require.True(t, info.AddrInfo.Addrs[0].Equal(maddr), "Did not update address")
 }
 
-func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
+func IndexContentFail(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -159,8 +160,8 @@ func IndexContentFail(t *testing.T, cl client.Ingest, providerID peer.ID, privat
 	require.Error(t, err)
 	require.ErrorContains(t, err, "metadata too long")
 
-	apierr, ok := err.(*v0.Error)
-	if ok {
+	var apierr *apierror.Error
+	if errors.As(err, &apierr) {
 		require.Equal(t, 400, apierr.Status())
 	}
 }

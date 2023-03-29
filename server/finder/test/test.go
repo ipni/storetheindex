@@ -16,8 +16,8 @@ import (
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
-	"github.com/ipni/storetheindex/api/v0/finder/client"
-	"github.com/ipni/storetheindex/api/v0/finder/model"
+	"github.com/ipni/go-libipni/find/client"
+	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/test/util"
@@ -83,7 +83,7 @@ func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 	require.True(t, v.Equal(vals[0]), "stored and retrieved values are different")
 }
 
-func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Finder, rc *reframeclient.Client, ind indexer.Interface, reg *registry.Registry) {
+func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Interface, rc *reframeclient.Client, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
 	mhs := util.RandomMultihashes(15, rng)
 	p, err := peer.Decode(providerID)
@@ -117,7 +117,7 @@ func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Finder, rc
 	require.Equal(t, p, peerAddrs[0].ID)
 }
 
-func FindIndexTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
+func FindIndexTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
 	mhs := util.RandomMultihashes(15, rng)
 	p, err := peer.Decode(providerID)
@@ -212,7 +212,7 @@ func hasMultihash(mhs []multihash.Multihash, m multihash.Multihash) bool {
 	return false
 }
 
-func GetProviderTest(t *testing.T, c client.Finder, providerID peer.ID) {
+func GetProviderTest(t *testing.T, c client.Interface, providerID peer.ID) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -222,7 +222,7 @@ func GetProviderTest(t *testing.T, c client.Finder, providerID peer.ID) {
 	verifyProviderInfo(t, provInfo)
 }
 
-func ListProvidersTest(t *testing.T, c client.Finder, providerID peer.ID) {
+func ListProvidersTest(t *testing.T, c client.Interface, providerID peer.ID) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -265,7 +265,7 @@ func verifyProviderInfo(t *testing.T, provInfo *model.ProviderInfo) {
 	})
 }
 
-func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind indexer.Interface, reg *registry.Registry) {
+func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
 	mhs := util.RandomMultihashes(15, rng)
 	p, err := peer.Decode(providerID)
@@ -320,7 +320,7 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Finder, ind 
 	require.ErrorContains(t, err, "not found")
 }
 
-func GetStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refreshStats func(), c client.Finder) {
+func GetStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refreshStats func(), c client.Interface) {
 	t.Parallel()
 	mhs := util.RandomMultihashes(15, rng)
 	p, err := peer.Decode(providerID)

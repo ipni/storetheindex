@@ -10,7 +10,7 @@ import (
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipni/go-indexer-core"
-	"github.com/ipni/storetheindex/api/v0/ingest/model"
+	"github.com/ipni/go-libipni/ingest/model"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"

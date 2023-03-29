@@ -15,7 +15,7 @@ Index content is an IPLD graph. The indexer reads the advertisement chain starti
 
 Multihash data is “paginated” by downloading blocks (chunks) of multihashes. These chunks are linked together using IPLD links.
 
-An individual advertisement is an [IPLD](https://ipld.io/docs/data-model/) object with the following [schema](https://github.com/ipni/storetheindex/blob/main/api/v0/ingest/schema/schema.ipldsch):
+An individual advertisement is an [IPLD](https://ipld.io/docs/data-model/) object with the following [schema](https://github.com/ipni/go-libipni/blob/main/ingest/schema/schema.ipldsch):
 ```
 type Advertisement struct {
     PreviousID optional Link

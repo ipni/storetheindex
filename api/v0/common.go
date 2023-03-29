@@ -1,62 +1,18 @@
 package v0
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
+	"github.com/ipni/go-libipni/apierror"
 )
 
-type ErrorMessage struct {
-	Message string `json:",omitempty"`
-	Status  int    `json:",omitempty"`
-}
+// Deprecated: Use github.com/ipni/go-libipni/apierror.ErrorMessage instead.
+type ErrorMessage = apierror.ErrorMessage
 
-var serverError []byte
-
-func init() {
-	// Make sure there is always an error to return in case encoding fails
-	e := ErrorMessage{
-		Message: http.StatusText(http.StatusInternalServerError),
-	}
-
-	eb, err := json.Marshal(&e)
-	if err != nil {
-		panic(err)
-	}
-	serverError = eb
-}
-
+// Deprecated: Use github.com/ipni/go-libipni/apierror.EncodeError instead.
 func EncodeError(err error) []byte {
-	if err == nil {
-		return nil
-	}
-
-	e := ErrorMessage{
-		Message: err.Error(),
-	}
-	var apierr *Error
-	if errors.As(err, &apierr) {
-		e.Status = apierr.Status()
-	}
-
-	data, err := json.Marshal(&e)
-	if err != nil {
-		return serverError
-	}
-	return data
+	return apierror.EncodeError(err)
 }
 
+// Deprecated: Use github.com/ipni/go-libipni/apierror.DecodeError instead.
 func DecodeError(data []byte) error {
-	if len(data) == 0 {
-		return nil
-	}
-	var e ErrorMessage
-	err := json.Unmarshal(data, &e)
-	if err != nil {
-		return fmt.Errorf("cannot decode error message: %s", err)
-	}
-
-	apierr := NewError(errors.New(e.Message), e.Status)
-	return errors.New(apierr.Text())
+	return apierror.DecodeError(data)
 }

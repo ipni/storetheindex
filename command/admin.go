@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
-	httpclient "github.com/ipni/storetheindex/api/v0/admin/client/http"
+	"github.com/ipni/storetheindex/admin/client"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
@@ -180,7 +181,7 @@ var unassignFlags = []cli.Flag{
 }
 
 func listPendingSyncsAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -198,7 +199,7 @@ func listPendingSyncsAction(cctx *cli.Context) error {
 }
 
 func syncAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -226,7 +227,7 @@ func syncAction(cctx *cli.Context) error {
 }
 
 func allowAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -243,7 +244,7 @@ func allowAction(cctx *cli.Context) error {
 }
 
 func listAssignedAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -262,7 +263,7 @@ func listAssignedAction(cctx *cli.Context) error {
 }
 
 func listPreferredAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -277,7 +278,7 @@ func listPreferredAction(cctx *cli.Context) error {
 }
 
 func blockAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -294,7 +295,7 @@ func blockAction(cctx *cli.Context) error {
 }
 
 func freezeAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -306,17 +307,21 @@ func freezeAction(cctx *cli.Context) error {
 }
 
 func importProvidersAction(cctx *cli.Context) error {
-	fromURL := &url.URL{
-		Scheme: "http",
-		Host:   cctx.String("from"),
-		Path:   "/providers",
+	fromHost := cctx.String("from")
+	if !strings.HasPrefix(fromHost, "http://") && !strings.HasPrefix(fromHost, "https://") {
+		fromHost = "http://" + fromHost
 	}
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	fromURL, err := url.Parse(fromHost)
 	if err != nil {
 		return err
 	}
-	err = cl.ImportProviders(cctx.Context, fromURL)
+	fromURL.Path = ""
+
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
+		return err
+	}
+	if err = cl.ImportProviders(cctx.Context, fromURL); err != nil {
 		return err
 	}
 	fmt.Println("Imported providers from indexer", fromURL.String())
@@ -324,7 +329,7 @@ func importProvidersAction(cctx *cli.Context) error {
 }
 
 func reloadConfigAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -337,7 +342,7 @@ func reloadConfigAction(cctx *cli.Context) error {
 }
 
 func statusAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -358,7 +363,7 @@ func statusAction(cctx *cli.Context) error {
 }
 
 func unassignAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}

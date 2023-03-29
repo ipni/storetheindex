@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -14,10 +13,9 @@ import (
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/ipni/storetheindex/announce"
-	adminclient "github.com/ipni/storetheindex/api/v0/admin/client/http"
-	httpclient "github.com/ipni/storetheindex/api/v0/httpclient"
-	ingestclient "github.com/ipni/storetheindex/api/v0/ingest/client/http"
+	"github.com/ipni/go-libipni/announce"
+	ingestclient "github.com/ipni/go-libipni/ingest/client"
+	adminclient "github.com/ipni/storetheindex/admin/client"
 	"github.com/ipni/storetheindex/assigner/config"
 	"github.com/ipni/storetheindex/peerutil"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -32,8 +30,6 @@ const pollFrozenTimeout = 2 * time.Minute
 type Assigner struct {
 	// assigned maps a publisher to a set of indexers.
 	assigned map[peer.ID]*assignment
-	// httpClient is the client used to talk to indexers in the pool.
-	httpClient *http.Client
 	// indexerPool is the set of indexers to assign publishers to.
 	indexerPool []indexerInfo
 	// initDone is true when assignments have been read from all indexers.
@@ -171,7 +167,6 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 	a := &Assigner{
 		assigned:    make(map[peer.ID]*assignment),
 		indexerPool: indexerPool,
-		httpClient:  &http.Client{},
 		p2pHost:     p2pHost,
 		policy:      policy,
 		pollDone:    make(chan struct{}),
@@ -359,7 +354,7 @@ func (a *Assigner) initAssignments(ctx context.Context) int {
 
 func (a *Assigner) handoffPublisher(ctx context.Context, publisher peer.ID, fromIndexer, toIndexer int) error {
 	toURL := a.indexerPool[toIndexer].adminURL
-	cl, err := adminclient.New(toURL, httpclient.WithClient(a.httpClient))
+	cl, err := adminclient.New(toURL)
 	if err != nil {
 		return err
 	}
@@ -767,7 +762,7 @@ func (a *Assigner) pollFrozen(ctx context.Context) {
 
 func (a *Assigner) checkFrozen(ctx context.Context, indexerNum int) (bool, error) {
 	adminURL := a.indexerPool[indexerNum].adminURL
-	cl, err := adminclient.New(adminURL, httpclient.WithClient(a.httpClient))
+	cl, err := adminclient.New(adminURL)
 	if err != nil {
 		return false, fmt.Errorf("cannot create admin client: %w", err)
 	}
@@ -925,7 +920,7 @@ func (a *Assigner) orderCandidates(indexers []int, preferred []int) {
 func (a *Assigner) assignIndexer(ctx context.Context, indexerNum int, amsg announce.Announce) error {
 	indexer := a.indexerPool[indexerNum]
 
-	cl, err := adminclient.New(indexer.adminURL, httpclient.WithClient(a.httpClient))
+	cl, err := adminclient.New(indexer.adminURL)
 	if err != nil {
 		return err
 	}
@@ -958,7 +953,7 @@ func (a *Assigner) assignIndexer(ctx context.Context, indexerNum int, amsg annou
 func (a *Assigner) getAssignments(ctx context.Context, indexerNum int) (peer.ID, bool, map[peer.ID]peer.ID, []peer.ID, error) {
 	adminURL := a.indexerPool[indexerNum].adminURL
 
-	cl, err := adminclient.New(adminURL, httpclient.WithClient(a.httpClient))
+	cl, err := adminclient.New(adminURL)
 	if err != nil {
 		return peer.ID(""), false, nil, nil, fmt.Errorf("cannot create admin client: %w", err)
 	}

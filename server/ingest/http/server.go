@@ -10,7 +10,7 @@ import (
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/go-indexer-core"
-	"github.com/ipni/storetheindex/announce/message"
+	"github.com/ipni/go-libipni/announce/message"
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"

@@ -3,8 +3,8 @@ package command
 import (
 	"fmt"
 
-	httpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
-	"github.com/ipni/storetheindex/api/v0/finder/model"
+	client "github.com/ipni/go-libipni/find/client/http"
+	"github.com/ipni/go-libipni/find/model"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/urfave/cli/v2"
 )
@@ -38,7 +38,7 @@ var listProvidersCmd = &cli.Command{
 }
 
 func getProvidersAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "finder"))
+	cl, err := client.New(cliIndexer(cctx, "finder"))
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func getProvidersAction(cctx *cli.Context) error {
 }
 
 func listProvidersAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "finder"))
+	cl, err := client.New(cliIndexer(cctx, "finder"))
 	if err != nil {
 		return err
 	}

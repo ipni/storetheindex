@@ -9,8 +9,8 @@ import (
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/go-indexer-core"
-	v0 "github.com/ipni/storetheindex/api/v0"
-	"github.com/ipni/storetheindex/api/v0/finder/model"
+	"github.com/ipni/go-libipni/apierror"
+	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -18,23 +18,23 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
-var log = logging.Logger("indexer/finder")
+var log = logging.Logger("indexer/find")
 
 // avg_mh_size is a slight overcount over the expected size of a multihash as a
 // way of estimating the number of entries in the primary value store.
 const avg_mh_size = 40
 
-// FinderHandler provides request handling functionality for the finder server
+// FindHandler provides request handling functionality for the find server
 // that is common to all protocols.
-type FinderHandler struct {
+type FindHandler struct {
 	indexer     indexer.Interface
 	registry    *registry.Registry
 	indexCounts *counter.IndexCounts
 	stats       *cachedStats
 }
 
-func NewFinderHandler(indexer indexer.Interface, registry *registry.Registry, indexCounts *counter.IndexCounts) *FinderHandler {
-	return &FinderHandler{
+func NewFindHandler(indexer indexer.Interface, registry *registry.Registry, indexCounts *counter.IndexCounts) *FindHandler {
+	return &FindHandler{
 		indexer:     indexer,
 		registry:    registry,
 		indexCounts: indexCounts,
@@ -44,7 +44,7 @@ func NewFinderHandler(indexer indexer.Interface, registry *registry.Registry, in
 
 // Find reads from indexer core to populate a response from a list of
 // multihashes.
-func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse, error) {
+func (h *FindHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse, error) {
 	results := make([]model.MultihashResult, 0, len(mhashes))
 	provInfos := map[peer.ID]*registry.ProviderInfo{}
 
@@ -52,7 +52,7 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 		values, found, err := h.indexer.Get(mhashes[i])
 		if err != nil {
 			err = fmt.Errorf("failed to query multihash %s: %s", mhashes[i].B58String(), err)
-			return nil, v0.NewError(err, http.StatusInternalServerError)
+			return nil, apierror.New(err, http.StatusInternalServerError)
 		}
 		if !found {
 			continue
@@ -137,7 +137,7 @@ func (h *FinderHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse
 	}, nil
 }
 
-func (h *FinderHandler) fetchProviderInfo(provID peer.ID,
+func (h *FindHandler) fetchProviderInfo(provID peer.ID,
 	contextID []byte,
 	provAddrs map[peer.ID]*registry.ProviderInfo,
 	removeProviderContext bool) *registry.ProviderInfo {
@@ -171,7 +171,7 @@ func (h *FinderHandler) fetchProviderInfo(provID peer.ID,
 	return pinfo
 }
 
-func (h *FinderHandler) ListProviders() ([]byte, error) {
+func (h *FindHandler) ListProviders() ([]byte, error) {
 	infos := h.registry.AllProviderInfo()
 
 	responses := make([]model.ProviderInfo, len(infos))
@@ -190,7 +190,7 @@ func (h *FinderHandler) ListProviders() ([]byte, error) {
 	return json.Marshal(responses)
 }
 
-func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
+func (h *FindHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 	info, allowed := h.registry.ProviderInfo(providerID)
 	if info == nil || !allowed || info.Inactive() {
 		return nil, nil
@@ -208,11 +208,11 @@ func (h *FinderHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 	return json.Marshal(rsp)
 }
 
-func (h *FinderHandler) RefreshStats() {
+func (h *FindHandler) RefreshStats() {
 	h.stats.refresh()
 }
 
-func (h *FinderHandler) GetStats() ([]byte, error) {
+func (h *FindHandler) GetStats() ([]byte, error) {
 	stats, err := h.stats.get()
 	if err != nil {
 		return nil, err
@@ -220,7 +220,7 @@ func (h *FinderHandler) GetStats() ([]byte, error) {
 	return model.MarshalStats(&stats)
 }
 
-func (h *FinderHandler) Close() {
+func (h *FindHandler) Close() {
 	h.stats.close()
 }
 

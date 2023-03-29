@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	httpclient "github.com/ipni/storetheindex/api/v0/admin/client/http"
+	client "github.com/ipni/storetheindex/admin/client"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/urfave/cli/v2"
 )
@@ -61,7 +61,7 @@ var ImportCmd = &cli.Command{
 func importListAction(cctx *cli.Context) error {
 	// NOTE: Importing manually from CLI only supported for http protocol
 	// for now. This feature is mainly for testing purposes
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func importCarAction(c *cli.Context) error {
 }
 
 func importManifestAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}

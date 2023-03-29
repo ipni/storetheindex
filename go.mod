@@ -17,7 +17,7 @@ require (
 	github.com/gammazero/deque v0.2.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-retryablehttp v0.7.1
-	github.com/ipfs/go-cid v0.3.2
+	github.com/ipfs/go-cid v0.4.0
 	github.com/ipfs/go-datastore v0.6.0
 	github.com/ipfs/go-delegated-routing v0.7.0
 	github.com/ipfs/go-ds-leveldb v0.5.0
@@ -31,7 +31,8 @@ require (
 	github.com/ipld/go-storethehash v0.3.13
 	github.com/ipni/dhstore v0.0.2-0.20230324212407-ceb5f50e3bad
 	github.com/ipni/go-indexer-core v0.7.5
-	github.com/libp2p/go-libp2p v0.26.0
+	github.com/ipni/go-libipni v0.0.0-20230329213136-11312f5a4287
+	github.com/libp2p/go-libp2p v0.26.4
 	github.com/libp2p/go-libp2p-gostream v0.6.0
 	github.com/libp2p/go-libp2p-pubsub v0.9.0
 	github.com/libp2p/go-msgio v0.3.0
@@ -201,7 +202,7 @@ require (
 	github.com/quic-go/qtls-go1-19 v0.2.1 // indirect
 	github.com/quic-go/qtls-go1-20 v0.1.1 // indirect
 	github.com/quic-go/quic-go v0.33.0 // indirect
-	github.com/quic-go/webtransport-go v0.5.1 // indirect
+	github.com/quic-go/webtransport-go v0.5.2 // indirect
 	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect

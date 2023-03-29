@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipni/storetheindex/api/v0/finder/model"
+	"github.com/ipni/go-libipni/find/model"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 )

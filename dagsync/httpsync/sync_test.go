@@ -18,8 +18,8 @@ import (
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
+	"github.com/ipni/go-libipni/maurl"
 	"github.com/ipni/storetheindex/dagsync/httpsync"
-	"github.com/ipni/storetheindex/dagsync/httpsync/maconv"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -79,7 +79,7 @@ func TestHttpSync_NFTStorage_DigestCheck(t *testing.T) {
 
 			puburl, err := url.Parse(pub.URL)
 			require.NoError(t, err)
-			pubmaddr, err := maconv.ToMultiaddr(puburl)
+			pubmaddr, err := maurl.FromURL(puburl)
 			require.NoError(t, err)
 
 			sync := httpsync.NewSync(ls, http.DefaultClient, nil)

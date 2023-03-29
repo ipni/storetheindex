@@ -22,7 +22,7 @@ import (
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	indexer "github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
-	"github.com/ipni/storetheindex/api/v0/ingest/schema"
+	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/dagsync"
 	"github.com/ipni/storetheindex/internal/counter"

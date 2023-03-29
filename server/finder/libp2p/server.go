@@ -1,4 +1,4 @@
-package p2pfinderserver
+package p2pfindserver
 
 import (
 	"context"
@@ -10,21 +10,21 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 )
 
-type FinderServer struct {
+type FindServer struct {
 	libp2pserver.Server
 	p2pHandler *libp2pHandler
 }
 
 // New creates a new libp2p server
-func New(ctx context.Context, h host.Host, indexer indexer.Interface, registry *registry.Registry, indexCounts *counter.IndexCounts) *FinderServer {
+func New(ctx context.Context, h host.Host, indexer indexer.Interface, registry *registry.Registry, indexCounts *counter.IndexCounts) *FindServer {
 	p2ph := newHandler(indexer, registry, indexCounts)
-	s := &FinderServer{
+	s := &FindServer{
 		p2pHandler: p2ph,
 	}
 	s.Server = *libp2pserver.New(ctx, h, p2ph)
 	return s
 }
 
-func (s *FinderServer) RefreshStats() {
-	s.p2pHandler.finderHandler.RefreshStats()
+func (s *FindServer) RefreshStats() {
+	s.p2pHandler.findHandler.RefreshStats()
 }

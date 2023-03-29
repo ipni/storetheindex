@@ -3,7 +3,7 @@ package dtsync
 import (
 	"fmt"
 
-	"github.com/ipni/storetheindex/announce"
+	"github.com/ipni/go-libipni/announce"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 

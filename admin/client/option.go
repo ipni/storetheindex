@@ -1,14 +1,12 @@
-package p2psender
+package client
 
 import (
 	"fmt"
-
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"net/http"
 )
 
-// config contains all options for configuring dtsync.publisher.
 type config struct {
-	topic *pubsub.Topic
+	httpClient *http.Client
 }
 
 // Option is a function that sets a value in a config.
@@ -16,7 +14,9 @@ type Option func(*config) error
 
 // getOpts creates a config and applies Options to it.
 func getOpts(opts []Option) (config, error) {
-	var cfg config
+	cfg := config{
+		httpClient: http.DefaultClient,
+	}
 	for i, opt := range opts {
 		if err := opt(&cfg); err != nil {
 			return config{}, fmt.Errorf("option %d failed: %s", i, err)
@@ -25,10 +25,11 @@ func getOpts(opts []Option) (config, error) {
 	return cfg, nil
 }
 
-// WithTopic provides an existing pubsub topic.
-func WithTopic(topic *pubsub.Topic) Option {
-	return func(c *config) error {
-		c.topic = topic
+// WithClient allows creation of the http client using an underlying network
+// round tripper / client.
+func WithClient(c *http.Client) Option {
+	return func(cfg *config) error {
+		cfg.httpClient = c
 		return nil
 	}
 }
