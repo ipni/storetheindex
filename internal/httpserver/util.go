@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	logging "github.com/ipfs/go-log/v2"
-	v0 "github.com/ipni/storetheindex/api/v0"
+	apierror "github.com/ipni/go-libipni/apierror"
 )
 
 var log = logging.Logger("indexer/http")
@@ -34,7 +34,7 @@ func WriteJsonResponse(w http.ResponseWriter, status int, body []byte) {
 
 func HandleError(w http.ResponseWriter, err error, reqType string) {
 	status := http.StatusBadRequest
-	var apierr *v0.Error
+	var apierr *apierror.Error
 	if errors.As(err, &apierr) {
 		if apierr.Status() >= 500 {
 			msg := fmt.Sprintf("Cannot handle %s request", strings.ToUpper(reqType))

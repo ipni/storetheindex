@@ -15,7 +15,7 @@ import (
 	"sync"
 
 	"github.com/ipni/go-indexer-core"
-	"github.com/ipni/storetheindex/api/v0/admin/model"
+	"github.com/ipni/storetheindex/admin/model"
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/importer"
 	"github.com/ipni/storetheindex/internal/ingest"
@@ -546,10 +546,6 @@ func (h *adminHandler) importCidList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	fmt.Println("file:", fileName)
-	fmt.Println("contextID:", contextID)
-	fmt.Println("metadata:", metadata)
 
 	file, err := os.Open(fileName)
 	if err != nil {

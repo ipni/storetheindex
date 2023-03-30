@@ -42,9 +42,9 @@ var listenAdminFlag = &cli.StringFlag{
 	EnvVars:  []string{"STORETHEINDEX_LISTEN_ADMIN"},
 	Required: false,
 }
-var listenFinderFlag = &cli.StringFlag{
+var listenFindFlag = &cli.StringFlag{
 	Name:     "listen-finder",
-	Usage:    "Finder HTTP API listen address or 'none' to disable, overrides config",
+	Usage:    "HTTP listen address or 'none' to disable, overrides config",
 	EnvVars:  []string{"STORETHEINDEX_LISTEN_FINDER"},
 	Required: false,
 }
@@ -87,7 +87,7 @@ func indexerHost(addrType string) string {
 	}
 	var maddr multiaddr.Multiaddr
 	switch addrType {
-	case "finder":
+	case "find":
 		maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Finder)
 	case "admin":
 		maddr, err = multiaddr.NewMultiaddr(cfg.Addresses.Admin)

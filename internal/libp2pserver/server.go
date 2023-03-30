@@ -9,7 +9,7 @@ import (
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
-	v0 "github.com/ipni/storetheindex/api/v0"
+	"github.com/ipni/go-libipni/apierror"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -54,16 +54,16 @@ func New(ctx context.Context, h host.Host, messageHandler Handler) *Server {
 	return s
 }
 
-func HandleError(err error, reqType string) *v0.Error {
-	var apierr *v0.Error
+func HandleError(err error, reqType string) *apierror.Error {
+	var apierr *apierror.Error
 	if errors.As(err, &apierr) {
 		if apierr.Status() >= 500 {
 			log.Errorw(fmt.Sprint("cannot handle", reqType, "request"), "err", apierr.Error(), "status", apierr.Status())
 			// Log the error and return only the 5xx status.
-			return v0.NewError(nil, apierr.Status())
+			return apierror.New(nil, apierr.Status())
 		}
 	} else {
-		apierr = v0.NewError(err, http.StatusBadRequest)
+		apierr = apierror.New(err, http.StatusBadRequest)
 	}
 	log.Infow(fmt.Sprint("bad", reqType, "request"), "err", apierr.Error(), "status", apierr.Status())
 	return apierr

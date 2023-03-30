@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipni/storetheindex/api/v0/finder/client"
-	httpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
-	p2pclient "github.com/ipni/storetheindex/api/v0/finder/client/libp2p"
+	"github.com/ipni/go-libipni/find/client"
+	httpclient "github.com/ipni/go-libipni/find/client/http"
+	p2pclient "github.com/ipni/go-libipni/find/client/p2p"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
 	"github.com/urfave/cli/v2"
@@ -68,12 +68,12 @@ func findAction(cctx *cli.Context) error {
 		mhs = append(mhs, c.Hash())
 	}
 
-	var cl client.Finder
+	var cl client.Interface
 	var err error
 
 	switch protocol {
 	case "http":
-		cl, err = httpclient.New(cliIndexer(cctx, "finder"))
+		cl, err = httpclient.New(cliIndexer(cctx, "find"))
 		if err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ func findAction(cctx *cli.Context) error {
 			return err
 		}
 
-		err = c.Connect(cctx.Context, cliIndexer(cctx, "finder"))
+		err = c.Connect(cctx.Context, cliIndexer(cctx, "find"))
 		if err != nil {
 			return err
 		}

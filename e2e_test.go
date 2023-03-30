@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	finderhttpclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
+	finderhttpclient "github.com/ipni/go-libipni/find/client/http"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/multiformats/go-multihash"

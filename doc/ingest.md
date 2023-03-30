@@ -15,7 +15,7 @@ Index content is an IPLD graph. The indexer reads the advertisement chain starti
 
 Multihash data is “paginated” by downloading blocks (chunks) of multihashes. These chunks are linked together using IPLD links.
 
-An individual advertisement is an [IPLD](https://ipld.io/docs/data-model/) object with the following [schema](https://github.com/ipni/storetheindex/blob/main/api/v0/ingest/schema/schema.ipldsch):
+An individual advertisement is an [IPLD](https://ipld.io/docs/data-model/) object with the following [schema](https://github.com/ipni/go-libipni/blob/main/ingest/schema/schema.ipldsch):
 ```
 type Advertisement struct {
     PreviousID optional Link
@@ -167,7 +167,7 @@ There are two ways that a provider may pro-actively alert indexer(s) of new cont
 
 ### Gossipsub
 
-The announcement contains the CID of the head and the multiaddr (either the libp2p host or the HTTP host) where it should be fetched from. The format is [here](https://pkg.go.dev/github.com/ipni/storetheindex/dagsync/dtsync#Message).
+The announcement contains the CID of the head and the multiaddr (either the libp2p host or the HTTP host) where it should be fetched from. The format is [here](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Message).
 
 It is sent over a gossip sub topic, that defaults to `/indexer/ingest/<network>`. For our production network, this is `/indexer/ingest/mainnet`.
 

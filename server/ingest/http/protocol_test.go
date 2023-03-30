@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	indexer "github.com/ipni/go-indexer-core"
-	"github.com/ipni/storetheindex/announce/httpsender"
-	httpclient "github.com/ipni/storetheindex/api/v0/ingest/client/http"
+	"github.com/ipni/go-libipni/announce/httpsender"
+	httpclient "github.com/ipni/go-libipni/ingest/client"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"

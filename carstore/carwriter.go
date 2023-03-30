@@ -22,7 +22,7 @@ import (
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/multicodec"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
-	"github.com/ipni/storetheindex/api/v0/ingest/schema"
+	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/storetheindex/filestore"
 	"github.com/libp2p/go-libp2p/core/peer"
 )

@@ -14,7 +14,7 @@ import (
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
-	"github.com/ipni/storetheindex/server/finder/handler"
+	"github.com/ipni/storetheindex/server/find/handler"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/multiformats/go-multicodec"
@@ -25,15 +25,15 @@ import (
 )
 
 func NewReframeHTTPHandler(indexer indexer.Interface, registry *registry.Registry) http.HandlerFunc {
-	return server.DelegatedRoutingAsyncHandler(NewReframeService(handler.NewFinderHandler(indexer, registry, nil)))
+	return server.DelegatedRoutingAsyncHandler(NewReframeService(handler.NewFindHandler(indexer, registry, nil)))
 }
 
-func NewReframeService(fh *handler.FinderHandler) *ReframeService {
-	return &ReframeService{finderHandler: fh}
+func NewReframeService(fh *handler.FindHandler) *ReframeService {
+	return &ReframeService{findHandler: fh}
 }
 
 type ReframeService struct {
-	finderHandler *handler.FinderHandler
+	findHandler *handler.FindHandler
 }
 
 func (x *ReframeService) FindProviders(ctx context.Context, key cid.Cid) (<-chan client.FindProvidersAsyncResult, error) {
@@ -47,7 +47,7 @@ func (x *ReframeService) FindProviders(ctx context.Context, key cid.Cid) (<-chan
 	}()
 
 	mh := key.Hash()
-	fr, err := x.finderHandler.Find([]multihash.Multihash{mh})
+	fr, err := x.findHandler.Find([]multihash.Multihash{mh})
 	if err != nil {
 		return nil, err
 	}

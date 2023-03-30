@@ -8,11 +8,10 @@ import (
 	"strings"
 	"time"
 
+	client "github.com/ipni/go-libipni/find/client/http"
+	"github.com/ipni/storetheindex/command/loadgen"
 	"github.com/multiformats/go-multihash"
 	"github.com/urfave/cli/v2"
-
-	httpfinderclient "github.com/ipni/storetheindex/api/v0/finder/client/http"
-	"github.com/ipni/storetheindex/command/loadgen"
 )
 
 var loadGenCmd = &cli.Command{
@@ -115,7 +114,7 @@ var loadGenVerifyFlags = []cli.Flag{
 }
 
 func loadGenVerifyAction(cctx *cli.Context) error {
-	client, err := httpfinderclient.New(cctx.String("indexerFind"))
+	client, err := client.New(cctx.String("indexerFind"))
 	if err != nil {
 		return err
 	}

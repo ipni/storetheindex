@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	httpclient "github.com/ipni/storetheindex/api/v0/admin/client/http"
+	"github.com/ipni/storetheindex/admin/client"
 	"github.com/urfave/cli/v2"
 )
 
@@ -37,7 +37,7 @@ var LogCmd = &cli.Command{
 }
 
 func setLogLevelAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func setLogLevelAction(cctx *cli.Context) error {
 }
 
 func listLogSubsystemsAction(cctx *cli.Context) error {
-	cl, err := httpclient.New(cliIndexer(cctx, "admin"))
+	cl, err := client.New(cliIndexer(cctx, "admin"))
 	if err != nil {
 		return err
 	}

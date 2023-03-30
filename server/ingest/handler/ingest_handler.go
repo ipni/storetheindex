@@ -8,10 +8,10 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-indexer-core"
-	"github.com/ipni/storetheindex/announce/message"
-	v0 "github.com/ipni/storetheindex/api/v0"
-	"github.com/ipni/storetheindex/api/v0/ingest/model"
-	"github.com/ipni/storetheindex/api/v0/ingest/schema"
+	"github.com/ipni/go-libipni/announce/message"
+	"github.com/ipni/go-libipni/apierror"
+	"github.com/ipni/go-libipni/ingest/model"
+	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -59,7 +59,7 @@ func (h *IngestHandler) RegisterProvider(ctx context.Context, data []byte) error
 
 // IndexContent handles an IngestRequest
 //
-// Returning error is the same as return v0.NewError(err, http.StatusBadRequest)
+// Returning error is the same as return apierror.New(err, http.StatusBadRequest)
 func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 	ingReq, err := model.ReadIngestRequest(data)
 	if err != nil {
@@ -102,7 +102,7 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 	err = h.indexer.Put(value, ingReq.Multihash)
 	if err != nil {
 		err = fmt.Errorf("cannot index content: %s", err)
-		return v0.NewError(err, http.StatusInternalServerError)
+		return apierror.New(err, http.StatusInternalServerError)
 	}
 
 	// TODO: update last update time for provider
@@ -133,7 +133,7 @@ func (h *IngestHandler) Announce(an message.Message) error {
 
 	if !h.registry.Allowed(addrInfo.ID) {
 		err = fmt.Errorf("announce requests not allowed from peer %s", addrInfo.ID)
-		return v0.NewError(err, http.StatusForbidden)
+		return apierror.New(err, http.StatusForbidden)
 	}
 	cur, err := h.ingester.GetLatestSync(addrInfo.ID)
 	if err == nil {

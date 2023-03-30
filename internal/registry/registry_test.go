@@ -12,7 +12,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
-	"github.com/ipni/storetheindex/api/v0/finder/model"
+	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p/core/peer"

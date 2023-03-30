@@ -25,15 +25,15 @@ import (
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/go-indexer-core/store/pogreb"
 	"github.com/ipni/go-indexer-core/store/storethehash"
+	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/fsutil"
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
-	"github.com/ipni/storetheindex/mautil"
 	httpadminserver "github.com/ipni/storetheindex/server/admin/http"
-	httpfinderserver "github.com/ipni/storetheindex/server/finder/http"
-	p2pfinderserver "github.com/ipni/storetheindex/server/finder/libp2p"
+	httpfindserver "github.com/ipni/storetheindex/server/find/http"
+	p2pfindserver "github.com/ipni/storetheindex/server/find/p2p"
 	httpingestserver "github.com/ipni/storetheindex/server/ingest/http"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -67,7 +67,7 @@ var DaemonCmd = &cli.Command{
 var daemonFlags = []cli.Flag{
 	cacheSizeFlag,
 	listenAdminFlag,
-	listenFinderFlag,
+	listenFindFlag,
 	listenIngestFlag,
 	listenP2PFlag,
 	&cli.BoolFlag{
@@ -162,23 +162,23 @@ func daemonAction(cctx *cli.Context) error {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}
 
-	// Create finder HTTP server
-	var finderSvr *httpfinderserver.Server
-	finderAddr := cfg.Addresses.Finder
+	// Create find HTTP server
+	var findSvr *httpfindserver.Server
+	findAddr := cfg.Addresses.Finder
 	if cctx.String("listen-finder") != "" {
-		finderAddr = cctx.String("listen-finder")
+		findAddr = cctx.String("listen-finder")
 	}
-	if finderAddr != "" && finderAddr != "none" {
-		finderNetAddr, err := mautil.MultiaddrStringToNetAddr(finderAddr)
+	if findAddr != "" && findAddr != "none" {
+		findNetAddr, err := mautil.MultiaddrStringToNetAddr(findAddr)
 		if err != nil {
-			return fmt.Errorf("bad finder address %s: %s", finderAddr, err)
+			return fmt.Errorf("bad find address %s: %s", findAddr, err)
 		}
-		finderSvr, err = httpfinderserver.New(finderNetAddr.String(), indexerCore, reg,
-			httpfinderserver.WithReadTimeout(time.Duration(cfg.Finder.ApiReadTimeout)),
-			httpfinderserver.WithWriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
-			httpfinderserver.WithMaxConnections(cfg.Finder.MaxConnections),
-			httpfinderserver.WithHomepage(cfg.Finder.Webpage),
-			httpfinderserver.WithIndexCounts(indexCounts),
+		findSvr, err = httpfindserver.New(findNetAddr.String(), indexerCore, reg,
+			httpfindserver.WithReadTimeout(time.Duration(cfg.Finder.ApiReadTimeout)),
+			httpfindserver.WithWriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
+			httpfindserver.WithMaxConnections(cfg.Finder.MaxConnections),
+			httpfindserver.WithHomepage(cfg.Finder.Webpage),
+			httpfindserver.WithIndexCounts(indexCounts),
 		)
 		if err != nil {
 			return err
@@ -228,8 +228,8 @@ func daemonAction(cctx *cli.Context) error {
 			return err
 		}
 
-		if finderSvr != nil {
-			p2pfinderserver.New(ctx, p2pHost, indexerCore, reg, indexCounts)
+		if findSvr != nil {
+			p2pfindserver.New(ctx, p2pHost, indexerCore, reg, indexCounts)
 		}
 
 		// Do not resend direct announce messages if using an assigner service.
@@ -311,13 +311,13 @@ func daemonAction(cctx *cli.Context) error {
 	svrErrChan := make(chan error, 3)
 
 	log.Info("Starting http servers")
-	if finderSvr != nil {
+	if findSvr != nil {
 		go func() {
-			svrErrChan <- finderSvr.Start()
+			svrErrChan <- findSvr.Start()
 		}()
-		fmt.Println("Finder server:\t", cfg.Addresses.Finder)
+		fmt.Println("Find server:\t", cfg.Addresses.Finder)
 	} else {
-		fmt.Println("Finder server:\t disabled")
+		fmt.Println("Find server:\t disabled")
 	}
 	if ingestSvr != nil {
 		go func() {
@@ -475,9 +475,9 @@ func daemonAction(cctx *cli.Context) error {
 			finalErr = ErrDaemonStop
 		}
 	}
-	if finderSvr != nil {
-		if err = finderSvr.Close(); err != nil {
-			log.Errorw("Error shutting down finder server", "err", err)
+	if findSvr != nil {
+		if err = findSvr.Close(); err != nil {
+			log.Errorw("Error shutting down find server", "err", err)
 			finalErr = ErrDaemonStop
 		}
 	}

@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
-	adminclient "github.com/ipni/storetheindex/api/v0/admin/client/http"
-	client "github.com/ipni/storetheindex/api/v0/ingest/client/http"
+	client "github.com/ipni/go-libipni/ingest/client"
+	adminclient "github.com/ipni/storetheindex/admin/client"
 	"github.com/ipni/storetheindex/assigner/config"
 	"github.com/ipni/storetheindex/assigner/core"
 	server "github.com/ipni/storetheindex/assigner/server"
