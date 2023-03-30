@@ -9,7 +9,7 @@ import (
 	p2pclient "github.com/ipni/go-libipni/find/client/p2p"
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
-	p2pserver "github.com/ipni/storetheindex/server/find/libp2p"
+	p2pserver "github.com/ipni/storetheindex/server/find/p2p"
 	"github.com/ipni/storetheindex/server/find/test"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"

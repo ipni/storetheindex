@@ -33,7 +33,7 @@ import (
 	"github.com/ipni/storetheindex/internal/registry"
 	httpadminserver "github.com/ipni/storetheindex/server/admin/http"
 	httpfindserver "github.com/ipni/storetheindex/server/find/http"
-	p2pfindserver "github.com/ipni/storetheindex/server/find/libp2p"
+	p2pfindserver "github.com/ipni/storetheindex/server/find/p2p"
 	httpingestserver "github.com/ipni/storetheindex/server/ingest/http"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
