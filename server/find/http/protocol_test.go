@@ -1,4 +1,4 @@
-package httpfinderserver_test
+package httpfindserver_test
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 	httpclient "github.com/ipni/go-libipni/find/client/http"
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
-	httpserver "github.com/ipni/storetheindex/server/finder/http"
-	"github.com/ipni/storetheindex/server/finder/test"
+	httpserver "github.com/ipni/storetheindex/server/find/http"
+	"github.com/ipni/storetheindex/server/find/test"
 	"github.com/stretchr/testify/require"
 )
 

@@ -1,4 +1,4 @@
-package httpfinderserver
+package httpfindserver
 
 import (
 	"fmt"

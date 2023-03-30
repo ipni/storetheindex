@@ -1,4 +1,4 @@
-package httpfinderserver
+package httpfindserver
 
 import (
 	"bytes"
@@ -21,7 +21,7 @@ import (
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
-	"github.com/ipni/storetheindex/server/finder/handler"
+	"github.com/ipni/storetheindex/server/find/handler"
 	"github.com/ipni/storetheindex/server/reframe"
 	"github.com/ipni/storetheindex/version"
 	"github.com/libp2p/go-libp2p/core/peer"
