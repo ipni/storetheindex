@@ -31,12 +31,12 @@ metrics:
 bitswap:
   peers:
     # Infura
-    - '/ip4/54.88.122.141/tcp/4001/p2p/QmNcmkK7eZLW3CpQbeS1Udu8CcJ7rEVZf7X2roPNMXYunG'
-    - '/ip4/54.88.122.141/udp/4001/quic/p2p/QmNcmkK7eZLW3CpQbeS1Udu8CcJ7rEVZf7X2roPNMXYunG'
-    - '/ip4/18.209.30.79/tcp/4001/p2p/QmWGE2K726P7jyg9Xya1CTSG2w9MmSykneQj9wfVpxZZX9'
-    - '/ip4/18.209.30.79/udp/4001/quic/p2p/QmWGE2K726P7jyg9Xya1CTSG2w9MmSykneQj9wfVpxZZX9'
-    - '/ip4/3.88.156.226/tcp/4001/p2p/QmPyjm9Gn2xD5otDxAf7VcJktipdbTFrWu53kBhPvFddpL'
-    - '/ip4/3.88.156.226/udp/4001/quic/p2p/QmPyjm9Gn2xD5otDxAf7VcJktipdbTFrWu53kBhPvFddpL'
+    - '/ip4/54.88.122.141/tcp/4001/p2p/QmWboxuLjnFvZMErSbuGLZ3VLxZgWKDBX75AV8sZYacQTV'
+    - '/ip4/54.88.122.141/udp/4001/quic/p2p/QmWboxuLjnFvZMErSbuGLZ3VLxZgWKDBX75AV8sZYacQTV'
+    - '/ip4/18.209.30.79/tcp/4001/p2p/QmUeUGaK7Bs8jgJ55R1rB2nDcsaTLaop7PiZLiYS4so69r'
+    - '/ip4/18.209.30.79/udp/4001/quic/p2p/QmUeUGaK7Bs8jgJ55R1rB2nDcsaTLaop7PiZLiYS4so69r'
+    - '/ip4/3.88.156.226/tcp/4001/p2p/QmY6Fnvi2w5dS6uFQP62GWwPb7S4VQqehx3vZeKTZFHSGh'
+    - '/ip4/3.88.156.226/udp/4001/quic/p2p/QmY6Fnvi2w5dS6uFQP62GWwPb7S4VQqehx3vZeKTZFHSGh'
   maxBroadcastBatchSize: 100
   maxBroadcastBatchWait: 100ms
   fallbackOnWantBlock: true
