@@ -34,8 +34,7 @@
   },
   "Datastore": {
     "Type": "levelds",
-    "Dir": "/data/datastore",
-    "DirAdvertisements": "/addata"
+    "Dir": "/data/datastore"
   },
   "Discovery": {
     "FilterIPs": true,
@@ -78,13 +77,6 @@
         "S3": {
           "BucketName": "dev-sti-adstore"
         }
-      }
-    },
-    "CarMirrorDestination": {
-      "Compress": "gzip",
-      "Type": "s3",
-      "S3": {
-        "BucketName": "dev-sti-adstore"
       }
     },
     "EntriesDepthLimit": 65536,
