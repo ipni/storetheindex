@@ -621,8 +621,6 @@ github.com/ipni/dhstore v0.0.2-0.20230324212407-ceb5f50e3bad h1:nS2Zq9bHG0eFzRjz
 github.com/ipni/dhstore v0.0.2-0.20230324212407-ceb5f50e3bad/go.mod h1:XI6XW5Eu97zY5PEK2ZRuESh8mYkxIZYRTMcknPVbbrc=
 github.com/ipni/go-indexer-core v0.7.5 h1:NJDp7SJwZr7QMtz207IvI9+WXAHvVeQmbfZwDWsjFY4=
 github.com/ipni/go-indexer-core v0.7.5/go.mod h1:oOXgBf2YU8vC9pPf8YeGOkvQYU4/ND+vo+Hff0hd56Q=
-github.com/ipni/go-libipni v0.0.0-20230329193443-ff8364a14069 h1:2hNw1EMMkoNBF2l9zWkxkJ6rlqTZ7phOX3yoGg2x+Xo=
-github.com/ipni/go-libipni v0.0.0-20230329193443-ff8364a14069/go.mod h1:OOSvIEhkp1czQ4Fomg1ZfdfP8sCQR+hk6dSrVJdkyeo=
 github.com/ipni/go-libipni v0.0.0-20230329213136-11312f5a4287 h1:kIG0UeCkjQB1w9HSozkjJKDJ+GTYhBMc1YU2k0YbqqI=
 github.com/ipni/go-libipni v0.0.0-20230329213136-11312f5a4287/go.mod h1:OOSvIEhkp1czQ4Fomg1ZfdfP8sCQR+hk6dSrVJdkyeo=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52 h1:QG4CGBqCeuBo6aZlGAamSkxWdgWfZGeE49eUOWJPA4c=
