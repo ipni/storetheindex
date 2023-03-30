@@ -94,10 +94,14 @@ func showProviderInfo(pinfo *model.ProviderInfo) {
 	if adCidStr != "" {
 		fmt.Println("    Lag:", pinfo.Lag)
 	}
-	fmt.Println("    Publisher:", pinfo.Publisher.ID)
-	fmt.Println("        Publisher Addrs:", pinfo.Publisher.Addrs)
-	if pinfo.FrozenAt.Defined() {
-		fmt.Println("    FrozenAt:", pinfo.FrozenAt.String())
+	if pinfo.Publisher != nil {
+		fmt.Println("    Publisher:", pinfo.Publisher.ID)
+		fmt.Println("        Publisher Addrs:", pinfo.Publisher.Addrs)
+		if pinfo.FrozenAt.Defined() {
+			fmt.Println("    FrozenAt:", pinfo.FrozenAt.String())
+		}
+	} else {
+		fmt.Println("    Publisher: none")
 	}
 	// Provider is still frozen even if there is no FrozenAt CID.
 	if pinfo.FrozenAtTime != "" {
