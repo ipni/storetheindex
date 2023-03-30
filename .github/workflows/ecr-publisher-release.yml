@@ -7,7 +7,10 @@ name: ECR
 on:
   workflow_dispatch: { }
   push:
-    paths: [ 'version.json' ]
+    paths:
+      - 'version.json'
+    branches:
+      - main
 
 jobs:
   publisher:
@@ -25,7 +28,8 @@ jobs:
       - id: version
         name: Determine Container Tag
         run: |
-          IMAGE_TAG="${$(jq -r .version version.json)#v}"
+          VERSION="$(jq -r .version version.json)"
+          IMAGE_TAG="${VERSION#v}"
           echo "Using image tag: ${IMAGE_TAG}"
           echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
       - name: AWS Login
