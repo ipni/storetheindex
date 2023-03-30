@@ -62,7 +62,7 @@ The dagsync publisher will also handle the datatransfer requests from the indexe
 
 After you finish building your index provider, you probably want to test it. You can run the indexer locally and tell it about your index provider. That should cause the indexer to sync from your index provider. Then you can query the indexer to see if it has some content that your index provider provided.
 
-1. Make sure your index provider has actual content it is providing. You can do this by checking the `/head` endpoint if implementing an HTTP provider or by using [https://pkg.go.dev/github.com/ipni/storetheindex/dagsync/dtsync#Syncer.GetHead](https://pkg.go.dev/github.com/ipni/storetheindex/dagsync/dtsync#Syncer.GetHead) with dagsync.
+1. Make sure your index provider has actual content it is providing. You can do this by checking the `/head` endpoint if implementing an HTTP provider or by using [https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Syncer.GetHead](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Syncer.GetHead) with dagsync.
     - HTTP:
         
         ```bash
@@ -70,7 +70,7 @@ After you finish building your index provider, you probably want to test it. You
         {"head":{"/":"bafy2bzaceaceibjf5pottpm4ghfnu7jo7sjcqjom4vhzm5jmq7domxun5vor4"},"sig":{"/":{"bytes":"nPm4HNlVZxOuNZ0ujKbP7YT7eGpenOHfSzrhRid0dTyz1HHKalLZwIHWL+sArsEVuMvKrL0hVqKkBwz/9aMvAA=="}},"pubkey":{"/":{"bytes":"CAESIGNJlqCl/NPKn3FCWNtWmWCjzJ7qb7ClJZQJg3tHDDk2"}}}
         ```
         
-2. Make sure you can also fetch that block. For an HTTP provider you should get the block back when hitting `/<cid>`. For a libp2p provider you should be able to call [https://pkg.go.dev/github.com/ipni/storetheindex/dagsync/dtsync#Syncer.Sync](https://pkg.go.dev/github.com/ipni/storetheindex/dagsync/dtsync#Syncer.Sync). 
+2. Make sure you can also fetch that block. For an HTTP provider you should get the block back when hitting `/<cid>`. For a libp2p provider you should be able to call [https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Syncer.Sync](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Syncer.Sync). 
     - HTTP: (using [dagconv](https://github.com/marcopolo/dagconv) to convert the dagcbor into readable dagjson)
         
         ```bash

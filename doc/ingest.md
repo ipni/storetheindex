@@ -167,7 +167,7 @@ There are two ways that a provider may pro-actively alert indexer(s) of new cont
 
 ### Gossipsub
 
-The announcement contains the CID of the head and the multiaddr (either the libp2p host or the HTTP host) where it should be fetched from. The format is [here](https://pkg.go.dev/github.com/ipni/storetheindex/dagsync/dtsync#Message).
+The announcement contains the CID of the head and the multiaddr (either the libp2p host or the HTTP host) where it should be fetched from. The format is [here](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Message).
 
 It is sent over a gossip sub topic, that defaults to `/indexer/ingest/<network>`. For our production network, this is `/indexer/ingest/mainnet`.
 
