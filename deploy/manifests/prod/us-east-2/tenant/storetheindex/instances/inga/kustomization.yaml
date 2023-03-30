@@ -28,3 +28,8 @@ configMapGenerator:
 
 patchesStrategicMerge:
   - deployment.yaml
+  
+images:
+  - name: storetheindex
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+    newTag: 20230329213257-0e0aa94f8b72c67c1e6255f5572931c2a00f3926
