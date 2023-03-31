@@ -87,7 +87,6 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
-	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/filecoin-project/go-cbor-util v0.0.1 // indirect
 	github.com/filecoin-project/go-data-transfer/v2 v2.0.0-rc5 // indirect
 	github.com/filecoin-project/go-ds-versioning v0.1.2 // indirect
@@ -160,7 +159,7 @@ require (
 	github.com/libp2p/go-flow-metrics v0.1.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.2.0 // indirect
 	github.com/libp2p/go-libp2p-gostream v0.6.0 // indirect
-	github.com/libp2p/go-libp2p-pubsub v0.9.0 // indirect
+	github.com/libp2p/go-libp2p-pubsub v0.9.3 // indirect
 	github.com/libp2p/go-libp2p-record v0.2.0 // indirect
 	github.com/libp2p/go-nat v0.1.0 // indirect
 	github.com/libp2p/go-netroute v0.2.1 // indirect
