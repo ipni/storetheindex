@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - ../../../../../base/heyfil
+  - monitor.yaml
+
+patchesStrategicMerge:
+  - deployment.yaml
+
+images:
+  - name: heyfil
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/heyfil
+    newTag: 20230331144202-35c74b9b22d1c8f6d23e0533a62083f6bdf911ec
