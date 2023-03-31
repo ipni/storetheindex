@@ -23,4 +23,4 @@ metadata:
 spec:
   volumeSnapshotClassName: csi-aws-vsc
   source:
-    persistentVolumeClaimName: dido-data
+    persistentVolumeClaimName: dido-data-gp3
