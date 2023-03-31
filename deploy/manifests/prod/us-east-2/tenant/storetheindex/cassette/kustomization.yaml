@@ -34,4 +34,4 @@ replicas:
 images:
   - name: cassette
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/cassette
-    newTag: 20230330121126-71e6d63119db0cc5c8341966e63989b0b204a29a
+    newTag: 20230331092239-353774f51e5a5a39972977dcf74249af1aacaca4
