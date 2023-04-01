@@ -126,6 +126,7 @@ type Ingester struct {
 	outEventsMutex sync.Mutex
 
 	waitForPendingSyncs sync.WaitGroup
+	autoSyncDone        chan struct{}
 	closePendingSyncs   chan struct{}
 	cancelWorkers       context.CancelFunc
 	workersCtx          context.Context
@@ -188,6 +189,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		reg:         reg,
 		inEvents:    make(chan adProcessedEvent, 1),
 
+		autoSyncDone:      make(chan struct{}),
 		closePendingSyncs: make(chan struct{}),
 
 		providersBeingProcessed: make(map[peer.ID]chan struct{}),
@@ -319,6 +321,7 @@ func (ing *Ingester) Close() error {
 	ing.outEventsMutex.Unlock()
 
 	ing.closeOnce.Do(func() {
+		<-ing.autoSyncDone
 		ing.cancelOnSyncFinished()
 		close(ing.closeWorkers)
 		ing.waitForWorkers.Wait()
@@ -779,13 +782,26 @@ func (ing *Ingester) removePublisher(ctx context.Context, publisherID peer.ID) e
 }
 
 func (ing *Ingester) autoSync() {
+	defer close(ing.autoSyncDone)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	var autoSyncMutex sync.Mutex
 	autoSyncInProgress := map[peer.ID]struct{}{}
 
-	for provInfo := range ing.reg.SyncChan() {
+	for {
+		var provInfo *registry.ProviderInfo
+		var ok bool
+		select {
+		case provInfo, ok = <-ing.reg.SyncChan():
+			if !ok {
+				return
+			}
+		case <-ing.workersCtx.Done():
+			return
+		}
+
 		if provInfo.Deleted() {
 			if err := ing.removePublisher(ctx, provInfo.Publisher); err != nil {
 				log.Errorw("Error removing provider", "err", err, "provider", provInfo.AddrInfo.ID)
@@ -1015,8 +1031,7 @@ func (ing *Ingester) ingestWorker(ctx context.Context) {
 				metrics.AdIngestActive.M(int64(activeWorkers)))
 			select {
 			case pc <- struct{}{}:
-			case <-ing.closeWorkers:
-				log.Debug("stopped ingest worker")
+			case <-ctx.Done():
 				return
 			}
 			ing.ingestWorkerLogic(ctx, pid)
