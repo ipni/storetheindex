@@ -930,7 +930,11 @@ func (r *Registry) RemoveProvider(ctx context.Context, providerID peer.ID) error
 	if pinfo != nil {
 		// Tell ingester to delete its provider data.
 		pinfo.deleted = true
-		r.syncChan <- pinfo
+		select {
+		case r.syncChan <- pinfo:
+		case <-r.closing:
+			return errors.New("shutdown")
+		}
 	}
 	return nil
 }
