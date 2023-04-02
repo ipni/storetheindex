@@ -34,8 +34,7 @@
   },
   "Datastore": {
     "Type": "levelds",
-    "Dir": "/data/datastore",
-    "DirAdvertisements": "/addata"
+    "Dir": "/data/datastore"
   },
   "Discovery": {
     "FilterIPs": true,
