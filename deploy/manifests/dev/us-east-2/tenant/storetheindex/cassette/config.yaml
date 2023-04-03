@@ -31,12 +31,9 @@ metrics:
 bitswap:
   peers:
     # Infura
-    - '/ip4/3.85.133.70/tcp/4001/p2p/QmWboxuLjnFvZMErSbuGLZ3VLxZgWKDBX75AV8sZYacQTV'
-    - '/ip4/3.85.133.70/udp/4001/quic/p2p/QmWboxuLjnFvZMErSbuGLZ3VLxZgWKDBX75AV8sZYacQTV'
-    - '/ip4/54.81.70.99/tcp/4001/p2p/QmUeUGaK7Bs8jgJ55R1rB2nDcsaTLaop7PiZLiYS4so69r'
-    - '/ip4/54.81.70.99/udp/4001/quic/p2p/QmUeUGaK7Bs8jgJ55R1rB2nDcsaTLaop7PiZLiYS4so69r'
-    - '/ip4/35.173.255.127/tcp/4001/p2p/QmY6Fnvi2w5dS6uFQP62GWwPb7S4VQqehx3vZeKTZFHSGh'
-    - '/ip4/35.173.255.127/udp/4001/quic/p2p/QmY6Fnvi2w5dS6uFQP62GWwPb7S4VQqehx3vZeKTZFHSGh'
+    - '/p2p/QmWboxuLjnFvZMErSbuGLZ3VLxZgWKDBX75AV8sZYacQTV'
+    - '/p2p/QmUeUGaK7Bs8jgJ55R1rB2nDcsaTLaop7PiZLiYS4so69r'
+    - '/p2p/QmY6Fnvi2w5dS6uFQP62GWwPb7S4VQqehx3vZeKTZFHSGh'
   maxBroadcastBatchSize: 100
   maxBroadcastBatchWait: 100ms
   fallbackOnWantBlock: true
