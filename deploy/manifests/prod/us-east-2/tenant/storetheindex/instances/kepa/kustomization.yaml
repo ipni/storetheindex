@@ -8,6 +8,7 @@ resources:
   - ingress.yaml
   - dido-snapshot.yaml
   - pvc.yaml
+  - pvc-gp3.yaml
 
 namePrefix: kepa-
 
