@@ -5,6 +5,7 @@ namespace: storetheindex
 
 resources:
   - ../../../../../base/caskadht
+  - pod-monitor.yaml
 
 patchesStrategicMerge:
   - deployment.yaml
@@ -28,4 +29,4 @@ replicas:
 images:
   - name: caskadht
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/caskadht
-    newTag: 20230321141253-e9d4c3feeff161010a03c8fabefd98db3879b87f
+    newTag: 20230404114739-a011dbc65023bfa0a2464fe0b72dc923272224ca
