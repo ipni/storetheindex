@@ -34,7 +34,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: kepa-data
+            claimName: kepa-data-gp3
       tolerations:
         - key: dedicated
           operator: Equal
