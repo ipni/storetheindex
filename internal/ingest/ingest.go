@@ -818,12 +818,13 @@ func (ing *Ingester) autoSync() {
 
 		autoSyncMutex.Lock()
 		_, already := autoSyncInProgress[provInfo.AddrInfo.ID]
-		autoSyncMutex.Unlock()
 		if already {
 			log.Infow("Auto-sync already in progress", "provider", provInfo.AddrInfo.ID)
+			autoSyncMutex.Unlock()
 			continue
 		}
 		autoSyncInProgress[provInfo.AddrInfo.ID] = struct{}{}
+		autoSyncMutex.Unlock()
 
 		if stopCid := provInfo.StopCid(); stopCid != cid.Undef {
 			err := ing.markAdProcessed(provInfo.Publisher, stopCid, false, false)
