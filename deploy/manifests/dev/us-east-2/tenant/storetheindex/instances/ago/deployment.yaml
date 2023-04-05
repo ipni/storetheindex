@@ -12,8 +12,6 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
-            - name: addata
-              mountPath: /addata
           resources:
             limits:
               cpu: "3"
@@ -38,7 +36,4 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: ago-data
-        - name: addata
-          persistentVolumeClaim:
-            claimName: ago-addata
 
