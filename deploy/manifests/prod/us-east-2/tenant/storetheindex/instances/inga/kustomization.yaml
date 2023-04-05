@@ -6,7 +6,6 @@ namespace: storetheindex
 resources:
   - ../../../../../../base/storetheindex-single
   - ingress.yaml
-  - pvc_addata.yaml
   - pvc_data.yaml
 
 namePrefix: inga-
