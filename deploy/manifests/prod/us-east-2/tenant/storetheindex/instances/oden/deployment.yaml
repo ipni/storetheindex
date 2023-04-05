@@ -33,7 +33,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: oden-data
+            claimName: oden-data-gp3
       tolerations:
         - key: dedicated
           operator: Equal

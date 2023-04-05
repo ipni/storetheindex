@@ -5,7 +5,7 @@ metadata:
     app: indexer-single
     app.kubernetes.io/managed-by: kustomization
     app.kubernetes.io/part-of: storetheindex
-  name: data
+  name: data-gp3
 spec:
   accessModes:
     - ReadWriteOnce
@@ -13,8 +13,7 @@ spec:
     requests:
       storage: 10Ti
   dataSource:
-    name: kepa-dido-021122
+    name: oden-20230404
     kind: VolumeSnapshot
     apiGroup: snapshot.storage.k8s.io
-  storageClassName: io2
-
+  storageClassName: gp3-iops5k-t300
