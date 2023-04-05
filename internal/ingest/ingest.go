@@ -125,11 +125,10 @@ type Ingester struct {
 	outEventsChans map[peer.ID][]chan adProcessedEvent
 	outEventsMutex sync.Mutex
 
-	waitForPendingSyncs sync.WaitGroup
-	autoSyncDone        chan struct{}
-	closePendingSyncs   chan struct{}
-	cancelWorkers       context.CancelFunc
-	workersCtx          context.Context
+	autoSyncDone      chan struct{}
+	closePendingSyncs chan struct{}
+	cancelWorkers     context.CancelFunc
+	workersCtx        context.Context
 
 	cancelOnSyncFinished context.CancelFunc
 
@@ -328,7 +327,6 @@ func (ing *Ingester) Close() error {
 		ing.toWorkers.Close()
 		log.Info("Workers stopped")
 		close(ing.closePendingSyncs)
-		ing.waitForPendingSyncs.Wait()
 		log.Info("Pending sync processing stopped")
 
 		// Stop the distribution goroutine.
@@ -449,9 +447,6 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 		}
 	}
 
-	syncDone, cancel := ing.onAdProcessed(peerInfo.ID)
-	defer cancel()
-
 	latest, err := ing.GetLatestSync(peerInfo.ID)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("failed to get latest sync: %w", err)
@@ -483,6 +478,10 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 			ing.generalDagsyncBlockHook(i, c, actions)
 		}))
 	}
+
+	syncDone, cancel := ing.onAdProcessed(peerInfo.ID)
+	defer cancel()
+
 	c, err := ing.sub.Sync(ctx, peerInfo, cid.Undef, sel, opts...)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("failed to sync: %w", err)
@@ -649,9 +648,9 @@ func (ing *Ingester) distributeEvents() {
 	for event := range ing.inEvents {
 		// Send update to all change notification channels.
 		ing.outEventsMutex.Lock()
-		outEventsChans, ok := ing.outEventsChans[event.publisher]
+		pubEventsChans, ok := ing.outEventsChans[event.publisher]
 		if ok {
-			for _, ch := range outEventsChans {
+			for _, ch := range pubEventsChans {
 				ch <- event
 			}
 		}
@@ -671,46 +670,46 @@ func (ing *Ingester) distributeEvents() {
 func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, context.CancelFunc) {
 	// Channel is buffered to prevent distribute() from blocking if a reader is
 	// not reading the channel immediately.
-	ch := make(chan adProcessedEvent, 1)
-	ing.outEventsMutex.Lock()
-	defer ing.outEventsMutex.Unlock()
-
-	var outEventsChans []chan adProcessedEvent
-	if ing.outEventsChans == nil {
-		ing.outEventsChans = make(map[peer.ID][]chan adProcessedEvent)
-	} else {
-		outEventsChans = ing.outEventsChans[peerID]
-	}
-	ing.outEventsChans[peerID] = append(outEventsChans, ch)
-
-	cncl := func() {
+	events := make(chan adProcessedEvent, 1)
+	cancel := func() {
 		ing.outEventsMutex.Lock()
 		defer ing.outEventsMutex.Unlock()
-		outEventsChans, ok := ing.outEventsChans[peerID]
+		pubEventsChans, ok := ing.outEventsChans[peerID]
 		if !ok {
 			return
 		}
 
-		for i, ca := range outEventsChans {
-			if ca == ch {
-				if len(outEventsChans) == 1 {
+		for i, ca := range pubEventsChans {
+			if ca == events {
+				if len(pubEventsChans) == 1 {
 					if len(ing.outEventsChans) == 1 {
 						ing.outEventsChans = nil
 					} else {
 						delete(ing.outEventsChans, peerID)
 					}
-				} else {
-					outEventsChans[i] = outEventsChans[len(outEventsChans)-1]
-					outEventsChans[len(outEventsChans)-1] = nil
-					outEventsChans = outEventsChans[:len(outEventsChans)-1]
-					close(ch)
-					ing.outEventsChans[peerID] = outEventsChans
+					break
 				}
+				pubEventsChans[i] = pubEventsChans[len(pubEventsChans)-1]
+				pubEventsChans[len(pubEventsChans)-1] = nil
+				ing.outEventsChans[peerID] = pubEventsChans[:len(pubEventsChans)-1]
+				close(events)
 				break
 			}
 		}
 	}
-	return ch, cncl
+
+	ing.outEventsMutex.Lock()
+	defer ing.outEventsMutex.Unlock()
+
+	var pubEventsChans []chan adProcessedEvent
+	if ing.outEventsChans == nil {
+		ing.outEventsChans = make(map[peer.ID][]chan adProcessedEvent)
+	} else {
+		pubEventsChans = ing.outEventsChans[peerID]
+	}
+	ing.outEventsChans[peerID] = append(pubEventsChans, events)
+
+	return events, cancel
 }
 
 // metricsUpdate periodically updates metrics. This goroutine exits when
@@ -782,10 +781,15 @@ func (ing *Ingester) removePublisher(ctx context.Context, publisherID peer.ID) e
 }
 
 func (ing *Ingester) autoSync() {
-	defer close(ing.autoSyncDone)
-
+	var waitSyncs sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	defer func() {
+		// Cancel in-progress syncs started by autoSync, wait for them to
+		// finish, and then signal that autoSync is done.
+		cancel()
+		waitSyncs.Wait()
+		close(ing.autoSyncDone)
+	}()
 
 	var autoSyncMutex sync.Mutex
 	autoSyncInProgress := map[peer.ID]struct{}{}
@@ -816,16 +820,9 @@ func (ing *Ingester) autoSync() {
 			continue
 		}
 
-		autoSyncMutex.Lock()
-		_, already := autoSyncInProgress[provInfo.AddrInfo.ID]
-		if already {
-			log.Infow("Auto-sync already in progress", "provider", provInfo.AddrInfo.ID)
-			autoSyncMutex.Unlock()
-			continue
-		}
-		autoSyncInProgress[provInfo.AddrInfo.ID] = struct{}{}
-		autoSyncMutex.Unlock()
-
+		// If the provider has a stop cid, then that is the point to resume
+		// handoff from. Mark that advertisement as processed so that future
+		// indexing will proceed from that point forward.
 		if stopCid := provInfo.StopCid(); stopCid != cid.Undef {
 			err := ing.markAdProcessed(provInfo.Publisher, stopCid, false, false)
 			if err != nil {
@@ -838,15 +835,25 @@ func (ing *Ingester) autoSync() {
 			}
 		}
 
+		autoSyncMutex.Lock()
+		_, already := autoSyncInProgress[provInfo.AddrInfo.ID]
+		if already {
+			log.Infow("Auto-sync already in progress", "provider", provInfo.AddrInfo.ID)
+			autoSyncMutex.Unlock()
+			continue
+		}
+		autoSyncInProgress[provInfo.AddrInfo.ID] = struct{}{}
+		autoSyncMutex.Unlock()
+
 		// Attempt to sync the provider at its last know publisher, in a
 		// separate goroutine.
-		ing.waitForPendingSyncs.Add(1)
+		waitSyncs.Add(1)
 		go func(pubID peer.ID, pubAddr multiaddr.Multiaddr, provID peer.ID) {
 			defer func() {
 				autoSyncMutex.Lock()
 				delete(autoSyncInProgress, provID)
 				autoSyncMutex.Unlock()
-				ing.waitForPendingSyncs.Done()
+				waitSyncs.Done()
 			}()
 			log := log.With("publisher", pubID, "addr", pubAddr)
 			// Log provider ID if not the same as publisher ID.

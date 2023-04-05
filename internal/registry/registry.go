@@ -100,7 +100,7 @@ type ProviderInfo struct {
 	deleted bool
 	// inactive means polling the publisher with no response yet.
 	inactive bool
-	// handoffCid is used to tell the autosync goroutine to set the latest CID
+	// stopCid is used to tell the autosync goroutine to set the latest CID
 	// to stop the sync at.
 	stopCid cid.Cid
 }
@@ -157,6 +157,8 @@ func (p *ProviderInfo) Inactive() bool {
 	return p.inactive
 }
 
+// StopCid returns the CID of the advertisement to stop at when handling
+// handoff from another indexer that is frozen.
 func (p *ProviderInfo) StopCid() cid.Cid {
 	return p.stopCid
 }
