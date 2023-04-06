@@ -6,3 +6,4 @@ namespace: storetheindex
 resources:
   - ber-snapshot.yaml
   - cali-snapshot.yaml
+  - dhstore-snapshot.yaml
