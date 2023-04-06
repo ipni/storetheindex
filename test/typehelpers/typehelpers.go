@@ -16,7 +16,7 @@ import (
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	"github.com/ipni/go-libipni/ingest/schema"
-	"github.com/ipni/storetheindex/test/util"
+	"github.com/ipni/go-libipni/test"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
@@ -147,7 +147,7 @@ func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datam
 				mhs = append(mhs, badmh)
 			}
 		} else {
-			mhs = util.RandomMultihashes(int(b.EntriesPerChunk), prng)
+			mhs = test.RandomMultihashes(int(b.EntriesPerChunk))
 		}
 
 		var err error
