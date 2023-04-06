@@ -5,13 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
-	"time"
 
 	agg "github.com/filecoin-project/go-dagaggregator-unixfs"
 	"github.com/ipfs/go-cid"
-	"github.com/multiformats/go-multihash"
+	"github.com/ipni/go-libipni/test"
 	"github.com/urfave/cli/v2"
 )
 
@@ -133,7 +131,7 @@ func writeCidFile(fileName string, num int) error {
 	for curr < num {
 		if i == len(cids) {
 			// Refil cids
-			cids, _ = randomCids(100)
+			cids = test.RandomCids(100)
 			i = 0
 		}
 		if _, err = w.WriteString(cids[i].String()); err != nil {
@@ -173,7 +171,7 @@ func writeCidFileOfSize(fileName string, size int) error {
 	for curr < size {
 		if i == len(cids) {
 			// Refil cids
-			cids, _ = randomCids(100)
+			cids = test.RandomCids(100)
 			i = 0
 		}
 		c := cids[i]
@@ -214,7 +212,7 @@ func writeManifest(fileName string, num int) error {
 	for curr < num {
 		if i == len(cids) {
 			// Refil cids
-			cids, _ = randomCids(100)
+			cids = test.RandomCids(100)
 			i = 0
 		}
 
@@ -259,7 +257,7 @@ func writeManifestOfSize(fileName string, size int) error {
 	for curr < size {
 		if i == len(cids) {
 			// Refil cids
-			cids, _ = randomCids(100)
+			cids = test.RandomCids(100)
 			i = 0
 		}
 		c := cids[i]
@@ -306,27 +304,4 @@ func manifestEntry(c cid.Cid) ([]byte, error) {
 	}
 
 	return json.Marshal(e)
-}
-
-func randomCids(n int) ([]cid.Cid, error) {
-	prefix := cid.Prefix{
-		Version:  1,
-		Codec:    cid.Raw,
-		MhType:   multihash.SHA2_256,
-		MhLength: -1, // default length
-	}
-
-	prng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	res := make([]cid.Cid, n)
-	for i := 0; i < n; i++ {
-		b := make([]byte, 10*n)
-		prng.Read(b)
-		c, err := prefix.Sum(b)
-		if err != nil {
-			return nil, err
-		}
-		res[i] = c
-	}
-	return res, nil
 }
