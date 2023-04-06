@@ -6,7 +6,6 @@ namespace: storetheindex
 resources:
   - ../../../../../../base/storetheindex-single
   - ingress.yaml
-  - pvc.yaml
   - pvc-gp3.yaml
 
 namePrefix: oden-
