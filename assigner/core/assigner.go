@@ -424,8 +424,8 @@ func configURL(urlStr, name string, indexerNum int, seen map[string]struct{}) (s
 	return urlStr, nil
 }
 
-// Allowed determines whether or not the assigner is accepting announce
-// messages from the specified publisher.
+// Allowed determines whether the assigner is accepting announce messages from
+// the specified publisher.
 func (a *Assigner) Allowed(peerID peer.ID) bool {
 	return a.policy.Eval(peerID)
 }
@@ -884,8 +884,10 @@ type indexerSlice struct {
 	prefs    map[int]bool
 }
 
+// Len is part of sort.Interface.
 func (x indexerSlice) Len() int { return len(x.indexers) }
 
+// Less is part of sort.Interface.
 func (x indexerSlice) Less(i, j int) bool {
 	ni := x.indexers[i]
 	nj := x.indexers[j]
@@ -897,6 +899,7 @@ func (x indexerSlice) Less(i, j int) bool {
 	return pi
 }
 
+// Swap is part of sort.Interface.
 func (x indexerSlice) Swap(i, j int) { x.indexers[i], x.indexers[j] = x.indexers[j], x.indexers[i] }
 
 func (a *Assigner) orderCandidates(indexers []int, preferred []int) {
@@ -955,17 +958,17 @@ func (a *Assigner) getAssignments(ctx context.Context, indexerNum int) (peer.ID,
 
 	cl, err := adminclient.New(adminURL)
 	if err != nil {
-		return peer.ID(""), false, nil, nil, fmt.Errorf("cannot create admin client: %w", err)
+		return "", false, nil, nil, fmt.Errorf("cannot create admin client: %w", err)
 	}
 
 	assigned, err := cl.ListAssignedPeers(ctx)
 	if err != nil {
-		return peer.ID(""), false, nil, nil, fmt.Errorf("cannot get assignments: %w", err)
+		return "", false, nil, nil, fmt.Errorf("cannot get assignments: %w", err)
 	}
 
 	status, err := cl.Status(ctx)
 	if err != nil {
-		return peer.ID(""), false, nil, nil, fmt.Errorf("cannot get indexer status: %w", err)
+		return "", false, nil, nil, fmt.Errorf("cannot get indexer status: %w", err)
 	}
 	if status.Frozen {
 		return status.ID, true, assigned, nil, nil

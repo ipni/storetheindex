@@ -3,7 +3,7 @@ package typehelpers
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"sync/atomic"
 	"testing"
 
 	hamt "github.com/ipld/go-ipld-adl-hamt"
@@ -16,12 +16,14 @@ import (
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	"github.com/ipni/go-libipni/ingest/schema"
-	"github.com/ipni/storetheindex/test/util"
+	"github.com/ipni/go-libipni/test"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 )
+
+var globalSeed atomic.Int64
 
 type RandomAdBuilder struct {
 	EntryBuilders      []EntryBuilder
@@ -135,19 +137,15 @@ func (b RandomEntryChunkBuilder) GetAddrs() []string {
 
 func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datamodel.Link {
 	var headLink ipld.Link
-	prng := rand.New(rand.NewSource(b.Seed))
-
 	for i := 0; i < int(b.ChunkCount); i++ {
-
 		var mhs []multihash.Multihash
-
 		if b.WithInvalidMultihashes {
-			for i := uint8(0); i < b.EntriesPerChunk; i++ {
-				badmh := multihash.Multihash(fmt.Sprintf("invalid mh %d", prng.Int63()))
+			for j := uint8(0); j < b.EntriesPerChunk; j++ {
+				badmh := multihash.Multihash(fmt.Sprintf("invalid mh %d", globalSeed.Add(1)))
 				mhs = append(mhs, badmh)
 			}
 		} else {
-			mhs = util.RandomMultihashes(int(b.EntriesPerChunk), prng)
+			mhs = test.RandomMultihashes(int(b.EntriesPerChunk))
 		}
 
 		var err error
@@ -180,7 +178,6 @@ func (b RandomHamtEntryBuilder) GetAddrs() []string {
 }
 
 func (b RandomHamtEntryBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datamodel.Link {
-	prng := rand.New(rand.NewSource(b.Seed))
 	hb := hamt.NewBuilder(hamt.Prototype{
 		BitWidth:   b.BitWidth,
 		BucketSize: b.BucketSize,
@@ -189,12 +186,11 @@ func (b RandomHamtEntryBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datamo
 	ma, err := hb.BeginMap(0)
 	require.NoError(t, err)
 	for i := 0; i < int(b.MultihashCount); i++ {
-		data := fmt.Sprintf("invalid mh %d", prng.Int63())
+		data := fmt.Sprintf("invalid mh %d", globalSeed.Add(1))
 		var mh multihash.Multihash
 		if b.WithInvalidMultihashes {
 			mh = multihash.Multihash(data)
 		} else {
-			var err error
 			mh, err = multihash.Sum([]byte(data), multihash.SHA2_256, -1)
 			require.NoError(t, err)
 		}
@@ -306,7 +302,8 @@ func multihashCollector(lsys ipld.LinkSystem, out *[]multihash.Multihash) func(p
 					*out = append(*out, []byte(s))
 				}
 				return nil
-			} else if e, _ := n.LookupByString("Entries"); e != nil {
+			}
+			if e, _ := n.LookupByString("Entries"); e != nil {
 				// Ignore selector matching Entries link in an ad or Entries field in EntryChunk.
 				return nil
 			}

@@ -48,7 +48,7 @@ const (
 	// adProcessedFrozenPrefix identifies all advertisements processed while in
 	// frozen mode. Used for unfreezing.
 	adProcessedFrozenPrefix = "/adF/"
-	// metricsUpdateInterva determines how ofter to update ingestion metrics.
+	// metricsUpdateInterval determines how ofter to update ingestion metrics.
 	metricsUpdateInterval = time.Minute
 )
 
@@ -92,11 +92,11 @@ type workerAssignment struct {
 // chain A <- B <- C, the indexer will never be in the state that it indexed A
 // & C but not B.
 //
-// 2. An indexer will index an Ad chain, but will not make any gaurantees about
+// 2. An indexer will index an Ad chain, but will not make any guarantees about
 // consistency in the presence of multiple ad chains for a given provider. For
 // example if a provider publishes two ad chains at the same time chain1 and
-// chain2 the indexer will apply whichever chain it learns about first first,
-// then apply the other chain.
+// chain2 the indexer will apply whichever chain it learns about first, then
+// apply the other chain.
 //
 // 3. An indexer will not index the same Ad twice. An indexer will be resilient
 // to restarts. If the indexer goes down and comes back up it should not break
@@ -116,8 +116,8 @@ type Ingester struct {
 	entriesSel datamodel.Node
 	reg        *registry.Registry
 
-	// inEvents is used to send a adProcessedEvent to the distributeEvents
-	// goroutine, when an advertisement in marked complete or err'd.
+	// inEvents is used to send an adProcessedEvent to the distributeEvents
+	// goroutine, when an advertisement in marked complete or having an error.
 	inEvents chan adProcessedEvent
 
 	// outEventsChans is a slice of channels, where each channel delivers a
@@ -150,8 +150,8 @@ type Ingester struct {
 	rateApply peerutil.Policy
 	rateBurst int
 
-	// providersPendingAnnounce maps the provider ID to the latest announcement received from the
-	// provider that is waiting to be processed.
+	// providersPendingAnnounce maps the provider ID to the latest announcement
+	// received from the provider that is waiting to be processed.
 	providersPendingAnnounce sync.Map
 
 	rateLimit rate.Limit
@@ -269,16 +269,18 @@ func (ing *Ingester) MultihashesFromMirror() uint64 {
 }
 
 func (ing *Ingester) generalDagsyncBlockHook(_ peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
-	// The only kind of block we should get by loading CIDs here should be Advertisement.
+	// The only kind of block we should get by loading CIDs here should be
+	// Advertisement.
+	//
 	// Because:
 	//  - the default subscription selector only selects advertisements.
 	//  - explicit Ingester.Sync only selects advertisement.
-	//  - entries are synced with an explicit selector separate from advertisement syncs and
-	//    should use dagsync.ScopedBlockHook to override this hook and decode chunks
-	//    instead.
+	//  - entries are synced with an explicit selector separate from
+	//    advertisement syncs and should use dagsync.ScopedBlockHook to
+	//    override this hook and decode chunks instead.
 	//
-	// Therefore, we only attempt to load advertisements here and signal failure if the
-	// load fails.
+	// Therefore, we only attempt to load advertisements here and signal
+	// failure if the load fails.
 	if ad, err := ing.loadAd(c); err != nil {
 		actions.FailSync(err)
 	} else if ad.PreviousID != nil {
@@ -301,6 +303,7 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
 }
 
+// Close stops the ingester and all its workers.
 func (ing *Ingester) Close() error {
 	// Tell workers to stop ingestion in progress.
 	ing.cancelWorkers()
@@ -399,9 +402,8 @@ func removeProcessedFrozen(ctx context.Context, dstore datastore.Datastore) erro
 	return nil
 }
 
-// Sync syncs advertisements, up to the the latest advertisement, from a
-// publisher. This channel returns the final CID that was synced by the call to
-// Sync.
+// Sync syncs advertisements, up to the latest advertisement, from a publisher.
+// Sync returns the final CID that was synced by the call to Sync.
 //
 // Sync works by first fetching each advertisement from the specified peer
 // starting at the most recent and traversing to the advertisement last seen by
@@ -504,7 +506,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 			if adProcessedEvent.err != nil {
 				// If an error occurred then the adProcessedEvent.adCid will be
 				// the cid that caused the error, and there will not be any
-				// future adProcessedEvents. Therefore check the headAdCid to
+				// future adProcessedEvents. Therefore, check the headAdCid to
 				// see if this was the sync that was started.
 				if adProcessedEvent.headAdCid == c {
 					return cid.Undef, adProcessedEvent.err
@@ -587,12 +589,13 @@ func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int, resync 
 // indexer re-ingests the later ones in the context of the earlier ads, and
 // thus become consistent.
 //
-// During a sync, this should be called be in order from newest to oldest
-// ad. This is so that if an something fails to get marked as unprocessed the
-// constraint is maintained that if an ad is processed, all older ads are also
-// processed.
+// During a sync, this should be called be in order from newest to oldest ad.
+// This is so that if something fails to get marked as unprocessed, the
+// constraint is maintained that if an ad is processed then all older ads are
+// also processed.
 //
-// When forResync is true, index counts will not be added to the existing index count.
+// When forResync is true, index counts are not added to the existing index
+// count.
 func (ing *Ingester) markAdUnprocessed(adCid cid.Cid, forResync bool) error {
 	data := []byte{0}
 	if forResync {
@@ -876,7 +879,7 @@ func (ing *Ingester) autoSync() {
 	}
 }
 
-// Get the latest CID synced for the peer.
+// GetLatestSync gets the latest CID synced for the peer.
 func (ing *Ingester) GetLatestSync(publisherID peer.ID) (cid.Cid, error) {
 	b, err := ing.ds.Get(context.Background(), datastore.NewKey(syncPrefix+publisherID.String()))
 	if err != nil {
@@ -889,14 +892,17 @@ func (ing *Ingester) GetLatestSync(publisherID peer.ID) (cid.Cid, error) {
 	return c, err
 }
 
+// BatchSize returns the current batch size.
 func (ing *Ingester) BatchSize() int {
 	return int(atomic.LoadUint32(&ing.batchSize))
 }
 
+// SetBatchSize sets the batch size.
 func (ing *Ingester) SetBatchSize(batchSize int) {
 	atomic.StoreUint32(&ing.batchSize, uint32(batchSize))
 }
 
+// SetRateLimit sets the rate limit.
 func (ing *Ingester) SetRateLimit(cfgRateLimit config.RateLimit) error {
 	apply, burst, limit, err := configRateLimit(cfgRateLimit)
 	if err != nil {
@@ -927,7 +933,8 @@ func (ing *Ingester) RunWorkers(n int) {
 	}
 }
 
-// Handle events from dagsync.Subscriber signaling an chain has been synced.
+// Handle events from dagsync.Subscriber signaling that an advertisement chain
+// has been synced.
 func (ing *Ingester) runIngesterLoop(syncFinishedEvents <-chan dagsync.SyncFinished) {
 	for event := range syncFinishedEvents {
 		ing.runIngestStep(event)
@@ -1029,9 +1036,8 @@ func (ing *Ingester) ingestWorker(ctx context.Context) {
 			log.Debug("stopped ingest worker")
 			return
 		case provider := <-ing.toWorkers.PopChan():
-			pid := peer.ID(provider)
 			ing.providersBeingProcessedMu.Lock()
-			pc := ing.providersBeingProcessed[pid]
+			pc := ing.providersBeingProcessed[provider]
 			ing.providersBeingProcessedMu.Unlock()
 			activeWorkers := atomic.AddInt32(&ing.activeWorkers, 1)
 			stats.Record(context.Background(),
@@ -1042,8 +1048,8 @@ func (ing *Ingester) ingestWorker(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			}
-			ing.ingestWorkerLogic(ctx, pid)
-			ing.handlePendingAnnounce(ctx, pid)
+			ing.ingestWorkerLogic(ctx, provider)
+			ing.handlePendingAnnounce(ctx, provider)
 			<-pc
 			activeWorkers = atomic.AddInt32(&ing.activeWorkers, -1)
 			stats.Record(context.Background(), metrics.AdIngestActive.M(int64(activeWorkers)))

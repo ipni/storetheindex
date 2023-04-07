@@ -282,7 +282,7 @@ func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid) (int, error)
 // then writes these and their entries to CAR files. Advertisements and entries
 // that are written to CAR files are removed from the datastore.
 //
-// An error writing to a CAR file, or context concellation, stops processing
+// An error writing to a CAR file, or context cancellation, stops processing
 // the advertisements from the datastore.
 func (cw *CarWriter) WriteExisting(ctx context.Context) error {
 	var q query.Query

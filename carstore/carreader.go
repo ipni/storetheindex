@@ -150,7 +150,7 @@ func (cr CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) (
 
 // ReadHead reads the advertisement CID from the publisher's head file. The
 // head file contains the CID of the latest advertisement for an advertisement
-// publisher. Retruns fs.ErrNotExist if head file is not found.
+// publisher. Returns fs.ErrNotExist if head file is not found.
 func (cr CarReader) ReadHead(ctx context.Context, publisher peer.ID) (cid.Cid, error) {
 	err := publisher.Validate()
 	if err != nil {

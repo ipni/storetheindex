@@ -29,17 +29,18 @@ import (
 	"github.com/ipni/go-libipni/dagsync/dtsync"
 	dstest "github.com/ipni/go-libipni/dagsync/test"
 	schema "github.com/ipni/go-libipni/ingest/schema"
+	"github.com/ipni/go-libipni/mautil"
+	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/test/typehelpers"
-	"github.com/ipni/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/test"
+	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
@@ -94,7 +95,7 @@ func TestSubscribe(t *testing.T) {
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
 
 	// Check that we sync if the publisher gives us another provider instead.
-	someOtherProviderPriv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	someOtherProviderPriv, _, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	adHead = typehelpers.RandomAdBuilder{
 		EntryBuilders: []typehelpers.EntryBuilder{
@@ -113,7 +114,7 @@ func TestSubscribe(t *testing.T) {
 	requireIndexedEventually(t, te.ingester.indexer, someOtherProvider, mhs)
 
 	// Check that we don't ingest from ads that aren't signed.
-	someOtherProviderPriv, _, err = test.RandTestKeyPair(crypto.Ed25519, 256)
+	someOtherProviderPriv, _, err = p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	adHead = typehelpers.RandomAdBuilder{
 		EntryBuilders: []typehelpers.EntryBuilder{
@@ -129,7 +130,7 @@ func TestSubscribe(t *testing.T) {
 	}
 
 	// Check that we don't ingest from blocked peers
-	someOtherProviderPriv, _, err = test.RandTestKeyPair(crypto.Ed25519, 256)
+	someOtherProviderPriv, _, err = p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	adHead = typehelpers.RandomAdBuilder{
 		EntryBuilders: []typehelpers.EntryBuilder{
@@ -881,7 +882,7 @@ func TestSync(t *testing.T) {
 
 func testSyncWithExtendedProviders(t *testing.T,
 	testFunc func(crypto.PrivKey, crypto.PubKey, peer.ID, *registry.Registry, linking.LinkSystem, host.Host, *Ingester, dagsync.Publisher)) {
-	privKey, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	privKey, pubKey, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 
 	providerID, err := peer.IDFromPublicKey(pubKey)
@@ -1085,7 +1086,9 @@ func verifyExtendedProviders(t *testing.T,
 		require.Equal(t, peerID, epInfo.PeerID)
 		addr := epInfo.Addrs[0].String()
 		fmt.Println(addr)
-		require.Equal(t, util.StringToMultiaddrs(t, ep.Addresses), epInfo.Addrs)
+		maddrs, err := mautil.StringsToMultiaddrs(ep.Addresses)
+		require.NoError(t, err)
+		require.Equal(t, maddrs, epInfo.Addrs)
 		require.Equal(t, ep.Metadata, epInfo.Metadata)
 	}
 }
@@ -1496,7 +1499,7 @@ func mkTestHost(opts ...libp2p.Option) host.Host {
 	// 10x Faster than the default identity option in libp2p.New
 	var defaultIdentity libp2p.Option = func(cfg *libp2p.Config) error {
 		if cfg.PeerKey == nil {
-			priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+			priv, _, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
 			if err != nil {
 				return err
 			}
@@ -1857,7 +1860,7 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 	var out []multihash.Multihash
 	var nextLnk ipld.Link
 	for i := 0; i < size; i++ {
-		mhs := util.RandomMultihashes(testEntriesChunkSize, rng)
+		mhs := test.RandomMultihashes(testEntriesChunkSize)
 		chunk := &schema.EntryChunk{
 			Entries: mhs,
 			Next:    nextLnk,
@@ -1878,7 +1881,7 @@ func publishRandomIndexAndAdv(t *testing.T, pub dagsync.Publisher, lsys ipld.Lin
 
 func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub dagsync.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int, metadata []byte) (cid.Cid, []multihash.Multihash, peer.ID, crypto.PrivKey) {
 
-	priv, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	priv, pubKey, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 
 	p, err := peer.IDFromPublicKey(pubKey)
@@ -1956,7 +1959,7 @@ func publishAdvWithExtendedProviders(t *testing.T,
 	// Generating extended providers
 	epKeys := map[string]crypto.PrivKey{}
 	for i := 0; i < extProvsNum; i++ {
-		epPriv, epPub, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+		epPriv, epPub, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
 		require.NoError(t, err)
 		epID, err := peer.IDFromPublicKey(epPub)
 		require.NoError(t, err)
@@ -1964,7 +1967,7 @@ func publishAdvWithExtendedProviders(t *testing.T,
 		epKeys[epID.String()] = epPriv
 		adv.ExtendedProvider.Providers = append(adv.ExtendedProvider.Providers, schema.Provider{
 			ID:        epID.String(),
-			Addresses: []string{fmt.Sprintf("/ip4/%d.%d.%d.%d/tcp/%d", rng.Int()%255, rng.Int()%255, rng.Int()%255, rng.Int()%255, rng.Int()%10000)},
+			Addresses: test.RandomAddrs(1),
 			Metadata:  []byte(fmt.Sprintf("test-metadata-%d", i)),
 		})
 	}
@@ -2136,10 +2139,10 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 
-	ingesterPriv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	ingesterPriv, _, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	ingesterHost := mkTestHost(libp2p.Identity(ingesterPriv))
-	priv, _, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	priv, _, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 	pubHost := mkTestHost(libp2p.Identity(priv))
 

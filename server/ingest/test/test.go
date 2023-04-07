@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -19,18 +18,16 @@ import (
 	"github.com/ipni/go-libipni/apierror"
 	"github.com/ipni/go-libipni/ingest/client"
 	"github.com/ipni/go-libipni/ingest/schema"
+	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
-	"github.com/ipni/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
-
-var rng = rand.New(rand.NewSource(1413))
 
 // InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
@@ -90,7 +87,7 @@ func IndexContent(t *testing.T, cl client.Interface, providerID peer.ID, private
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs := util.RandomMultihashes(1, rng)
+	mhs := test.RandomMultihashes(1)
 
 	contextID := []byte("test-context-id")
 	metadata := []byte("test-metadata")
@@ -122,7 +119,7 @@ func IndexContentNewAddr(t *testing.T, cl client.Interface, providerID peer.ID, 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs := util.RandomMultihashes(1, rng)
+	mhs := test.RandomMultihashes(1)
 
 	ctxID := []byte("test-context-id")
 	metadata := []byte("test-metadata")
@@ -145,7 +142,7 @@ func IndexContentFail(t *testing.T, cl client.Interface, providerID peer.ID, pri
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs := util.RandomMultihashes(1, rng)
+	mhs := test.RandomMultihashes(1)
 
 	contextID := make([]byte, schema.MaxContextIDLen+1)
 	metadata := []byte("test-metadata")
@@ -174,7 +171,7 @@ func AnnounceTest(t *testing.T, peerID peer.ID, sender announce.Sender) {
 	p2pAddrs, err := peer.AddrInfoToP2pAddrs(ai)
 	require.NoError(t, err)
 
-	mhs := util.RandomMultihashes(1, rng)
+	mhs := test.RandomMultihashes(1)
 
 	msg := message.Message{
 		Cid: cid.NewCidV1(22, mhs[0]),

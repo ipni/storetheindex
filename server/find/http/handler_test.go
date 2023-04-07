@@ -3,9 +3,9 @@ package httpfindserver
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
@@ -15,8 +15,8 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-libipni/find/model"
-	"github.com/ipni/storetheindex/server/find/test"
-	"github.com/ipni/storetheindex/test/util"
+	"github.com/ipni/go-libipni/test"
+	findtest "github.com/ipni/storetheindex/server/find/test"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -60,8 +60,7 @@ iframe {
 </html>`
 
 func TestServer_CORSWithExpectedContentType(t *testing.T) {
-	rng := rand.New(rand.NewSource(1413))
-	mhs := util.RandomMultihashes(10, rng)
+	mhs := test.RandomMultihashes(10)
 	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	require.NoError(t, err)
 	findBatchRequest, err := model.MarshalFindRequest(&model.FindRequest{Multihashes: mhs})
@@ -158,8 +157,7 @@ func TestServer_StreamingResponse(t *testing.T) {
 		landing = strings.ReplaceAll(landingRendered, "\n", "\r\n")
 	}
 
-	rng := rand.New(rand.NewSource(1413))
-	mhs := util.RandomMultihashes(10, rng)
+	mhs := test.RandomMultihashes(10)
 	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	require.NoError(t, err)
 
@@ -169,6 +167,8 @@ func TestServer_StreamingResponse(t *testing.T) {
 		MetadataBytes: []byte("lobster"),
 	}, mhs)
 
+	jsonmhs0, _ := json.Marshal(mhs[0])
+	jsonmhs3, _ := json.Marshal(mhs[3])
 	tests := []struct {
 		name               string
 		reqURI             string
@@ -182,7 +182,7 @@ func TestServer_StreamingResponse(t *testing.T) {
 			reqURI:             "/multihash/" + mhs[3].B58String(),
 			reqAccept:          "ext/html,  application/json",
 			wantContentType:    "application/json; charset=utf-8",
-			wantResponseBody:   `{"MultihashResults":[{"Multihash":"EiCtVzjVYlU7UrB20GmR2mqk59dl7fk+Ann4CmsLfQfT+g==","ProviderResults":[{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}]}]}`,
+			wantResponseBody:   `{"MultihashResults":[{"Multihash":` + string(jsonmhs3) + `,"ProviderResults":[{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}]}]}`,
 			wantResponseStatus: http.StatusOK,
 		},
 		{
@@ -200,7 +200,7 @@ func TestServer_StreamingResponse(t *testing.T) {
 			reqURI:             "/cid/" + cid.NewCidV1(cid.Raw, mhs[0]).String(),
 			reqAccept:          "application/json,ext/html,  application/xhtml+xml,application/xml;q=0.9",
 			wantContentType:    "application/json; charset=utf-8",
-			wantResponseBody:   `{"MultihashResults":[{"Multihash":"EiC44Rthii367t9Nb5PD6C0XT49Ub14+f0iF7gA4Xgr/6A==","ProviderResults":[{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}]}]}`,
+			wantResponseBody:   `{"MultihashResults":[{"Multihash":` + string(jsonmhs0) + `,"ProviderResults":[{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}]}]}`,
 			wantResponseStatus: http.StatusOK,
 		},
 		{
@@ -261,8 +261,8 @@ func TestServer_StreamingResponse(t *testing.T) {
 }
 
 func TestServer_Landing(t *testing.T) {
-	ind := test.InitIndex(t, false)
-	reg := test.InitRegistry(t)
+	ind := findtest.InitIndex(t, false)
+	reg := findtest.InitRegistry(t)
 	s, err := New("127.0.0.1:0", ind, reg)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -283,8 +283,8 @@ func TestServer_Landing(t *testing.T) {
 }
 
 func setupTestServerHander(t *testing.T, iv indexer.Value, mhs []multihash.Multihash) http.HandlerFunc {
-	ind := test.InitIndex(t, false)
-	reg := test.InitRegistry(t)
+	ind := findtest.InitIndex(t, false)
+	reg := findtest.InitRegistry(t)
 	s, err := New("127.0.0.1:0", ind, reg)
 	require.NoError(t, err)
 	t.Cleanup(func() {

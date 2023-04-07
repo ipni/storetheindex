@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipni/storetheindex/test/util"
+	"github.com/ipni/go-libipni/test"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -37,12 +37,14 @@ func TestRegToApiProviderInfo(t *testing.T) {
 	frozenAtCid := cid.NewCidV1(cid.Raw, mh)
 	frozenAtTime := lastAdTime.Add(-time.Hour)
 
+	maddrs := test.RandomMultiaddrs(2)
+	ep1Addrs := maddrs[:1]
+	ep2Addrs := maddrs[1:]
+
 	epContextId := []byte("ep-context-id")
-	ep1, _, _ := util.RandomIdentity(t)
-	ep1Addrs := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9999"})
+	ep1, _, _ := test.RandomIdentity()
 	ep1Metadata := []byte("ep1-metadata")
-	ep2, _, _ := util.RandomIdentity(t)
-	ep2Addrs := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9998"})
+	ep2, _, _ := test.RandomIdentity()
 	ep2Metadata := []byte("ep2-metadata")
 
 	indexCount := uint64(1809246)

@@ -13,8 +13,8 @@ import (
 	"github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/ipni/go-libipni/find/model"
+	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -104,12 +104,13 @@ func TestDatastore(t *testing.T) {
 	pubAddr, err := multiaddr.NewMultiaddr(publisherAddr)
 	require.NoError(t, err)
 
+	maddrs := test.RandomMultiaddrs(2)
+	ep1Addrs := maddrs[:1]
+	ep2Addrs := maddrs[1:]
 	epContextId := []byte("ep-context-id")
-	ep1, _, _ := util.RandomIdentity(t)
-	ep1Addrs := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9999"})
+	ep1, _, _ := test.RandomIdentity()
 	ep1Metadata := []byte("ep1-metadata")
-	ep2, _, _ := util.RandomIdentity(t)
-	ep2Addrs := util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9998"})
+	ep2, _, _ := test.RandomIdentity()
 	ep2Metadata := []byte("ep2-metadata")
 	provider2 := peer.AddrInfo{
 		ID:    provID2,

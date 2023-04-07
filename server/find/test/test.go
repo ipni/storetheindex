@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -18,9 +17,9 @@ import (
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/go-libipni/find/model"
+	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/registry"
-	"github.com/ipni/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -28,8 +27,6 @@ import (
 )
 
 const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
-
-var rng = rand.New(rand.NewSource(1413))
 
 // InitIndex initialize a new indexer engine.
 func InitIndex(t *testing.T, withCache bool) indexer.Interface {
@@ -85,7 +82,7 @@ func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 
 func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Interface, rc *reframeclient.Client, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
-	mhs := util.RandomMultihashes(15, rng)
+	mhs := test.RandomMultihashes(15)
 	p, err := peer.Decode(providerID)
 	require.NoError(t, err)
 	ctxID := []byte("test-context-id")
@@ -119,7 +116,7 @@ func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Interface,
 
 func FindIndexTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
-	mhs := util.RandomMultihashes(15, rng)
+	mhs := test.RandomMultihashes(15)
 	p, err := peer.Decode(providerID)
 	require.NoError(t, err)
 	ctxID := []byte("test-context-id")
@@ -267,7 +264,7 @@ func verifyProviderInfo(t *testing.T, provInfo *model.ProviderInfo) {
 
 func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
-	mhs := util.RandomMultihashes(15, rng)
+	mhs := test.RandomMultihashes(15)
 	p, err := peer.Decode(providerID)
 	require.NoError(t, err)
 	ctxID := []byte("test-context-id")
@@ -322,7 +319,7 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Interface, i
 
 func GetStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refreshStats func(), c client.Interface) {
 	t.Parallel()
-	mhs := util.RandomMultihashes(15, rng)
+	mhs := test.RandomMultihashes(15)
 	p, err := peer.Decode(providerID)
 	require.NoError(t, err)
 	ctxID := []byte("test-context-id")
@@ -350,19 +347,23 @@ func Register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID
 	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	require.NoError(t, err)
 
-	ep1, _, _ := util.RandomIdentity(t)
-	ep2, _, _ := util.RandomIdentity(t)
+	ep1, _, _ := test.RandomIdentity()
+	ep2, _, _ := test.RandomIdentity()
 
 	provider := peer.AddrInfo{
 		ID:    peerID,
 		Addrs: []multiaddr.Multiaddr{maddr},
 	}
 
+	maddrs := test.RandomMultiaddrs(2)
+	provAddrs := maddrs[:1]
+	ctxAddrs := maddrs[1:]
+
 	extProviders := &registry.ExtendedProviders{
 		Providers: []registry.ExtendedProviderInfo{
 			{
 				PeerID: ep1,
-				Addrs:  util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9998"}),
+				Addrs:  provAddrs,
 			},
 		},
 		ContextualProviders: map[string]registry.ContextualExtendedProviders{
@@ -372,7 +373,7 @@ func Register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID
 				Providers: []registry.ExtendedProviderInfo{
 					{
 						PeerID: ep2,
-						Addrs:  util.StringToMultiaddrs(t, []string{"/ip4/127.0.0.1/tcp/9997"}),
+						Addrs:  ctxAddrs,
 					},
 				},
 			},

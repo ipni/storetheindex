@@ -6,7 +6,6 @@ import (
 	"context"
 	"io"
 	"io/fs"
-	"math/rand"
 	"testing"
 
 	"github.com/ipfs/go-datastore"
@@ -16,12 +15,12 @@ import (
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/go-libipni/ingest/schema"
+	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/filestore"
-	"github.com/ipni/storetheindex/test/util"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/test"
+	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
@@ -33,8 +32,6 @@ const (
 	testEntriesChunkCount = 3
 	testEntriesChunkSize  = 15
 )
-
-var rng = rand.New(rand.NewSource(1413))
 
 func TestWrite(t *testing.T) {
 	const entBlockCount = 5
@@ -288,7 +285,7 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 	var out []multihash.Multihash
 	var nextLnk ipld.Link
 	for i := 0; i < size; i++ {
-		mhs := util.RandomMultihashes(testEntriesChunkSize, rng)
+		mhs := test.RandomMultihashes(testEntriesChunkSize)
 		chunk := &schema.EntryChunk{
 			Entries: mhs,
 			Next:    nextLnk,
@@ -326,7 +323,7 @@ func mkProvLinkSystem(ds datastore.Datastore) ipld.LinkSystem {
 func storeRandomIndexAndAd(t *testing.T, eChunkCount int, metadata []byte, prevLink ipld.Link, dstore datastore.Datastore) (ipld.Link, *schema.Advertisement, []multihash.Multihash, peer.ID, crypto.PrivKey) {
 	lsys := mkProvLinkSystem(dstore)
 
-	priv, pubKey, err := test.RandTestKeyPair(crypto.Ed25519, 256)
+	priv, pubKey, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 
 	p, err := peer.IDFromPublicKey(pubKey)

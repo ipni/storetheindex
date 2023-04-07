@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -17,12 +16,12 @@ import (
 
 	"github.com/ipfs/go-cid"
 	client "github.com/ipni/go-libipni/ingest/client"
+	"github.com/ipni/go-libipni/test"
 	adminclient "github.com/ipni/storetheindex/admin/client"
 	"github.com/ipni/storetheindex/assigner/config"
 	"github.com/ipni/storetheindex/assigner/core"
 	server "github.com/ipni/storetheindex/assigner/server"
 	sticfg "github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/test/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -166,8 +165,7 @@ func TestAssignOnAnnounce(t *testing.T) {
 	require.NoError(t, err)
 	ai.ID = peerID
 
-	rng := rand.New(rand.NewSource(1413))
-	mhs := util.RandomMultihashes(1, rng)
+	mhs := test.RandomMultihashes(1)
 
 	assignChan, cancel := assigner.OnAssignment(peerID)
 	defer cancel()
