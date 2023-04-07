@@ -1,0 +1,27 @@
+# The cheapest gp3 volume config with 3000 IOPS and 125 MiB/s throughput.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  type: gp3
+---
+# gp3 volume config with 5000 IOPS and 300 MiB/s throughput.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3-iops5k-t300
+provisioner: ebs.csi.aws.com
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  # See: https://github.com/kubernetes-sigs/aws-ebs-csi-driver/blob/master/docs/parameters.md
+  type: gp3
+  iops: '5000'
+  throughput: '300'
+  allowAutoIOPSPerGBIncrease: 'true'

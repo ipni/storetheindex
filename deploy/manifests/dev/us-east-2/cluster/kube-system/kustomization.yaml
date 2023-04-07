@@ -6,4 +6,5 @@ namespace: kube-system
 resources:
   - aws-auth.yaml
   - io2-storage-class.yaml
+  - gp3-storage-class.yaml
   - volume-snapshot-class.yaml
