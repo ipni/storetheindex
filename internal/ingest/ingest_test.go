@@ -539,13 +539,13 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	defer cnclIngesterSyncFin()
 
 	go func() {
-		te.ingester.runIngestStep(syncFinishedEvent)
+		te.ingester.chainQueue <- syncFinishedEvent
 	}()
 
 	<-hitBlockedRead
 
 	go func() {
-		te.ingester.runIngestStep(syncFinishedEvent)
+		te.ingester.chainQueue <- syncFinishedEvent
 	}()
 
 	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
