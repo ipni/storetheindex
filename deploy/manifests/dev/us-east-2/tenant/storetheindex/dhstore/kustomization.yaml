@@ -8,6 +8,7 @@ resources:
   - pvc.yaml
   - internal-service.yaml
   - pod-monitor.yaml
+  - pvc-gp3.yaml
 
 patchesStrategicMerge:
   - deployment.yaml
