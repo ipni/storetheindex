@@ -5,6 +5,7 @@ metadata:
 spec:
   template:
     spec:
+      serviceAccountName: storetheindex
       terminationGracePeriodSeconds: 600
       containers:
         - name: indexer
