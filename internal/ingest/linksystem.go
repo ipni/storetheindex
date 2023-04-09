@@ -64,8 +64,6 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 			codec := lnk.(cidlink.Link).Prefix().Codec
 			origBuf := buf.Bytes()
 
-			log := log.With("cid", c)
-
 			// Decode the node to check its type.
 			n, err := decodeIPLDNode(codec, buf, basicnode.Prototype.Any)
 			if err != nil {
@@ -80,10 +78,7 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 				if err != nil {
 					return err
 				}
-
-				log.Infow("Received advertisement", "provider", provID)
-			} else {
-				log.Debug("Received IPLD node")
+				log.Debugw("Received advertisement", "provider", provID, "cid", c)
 			}
 			// Any other type of node (like entries) are stored right away.
 			return ds.Put(lctx.Ctx, datastore.NewKey(c.String()), origBuf)
