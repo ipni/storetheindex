@@ -84,7 +84,7 @@
     "HttpSyncRetryWaitMax": "30s",
     "HttpSyncRetryWaitMin": "1s",
     "HttpSyncTimeout": "10s",
-    "IngestWorkerCount": 10,
+    "IngestWorkerCount": 15,
     "KeepAdvertisements":true,
     "PubSubTopic": "/indexer/ingest/mainnet",
     "RateLimit": {
