@@ -1171,6 +1171,14 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			return
 		}
 
+		processed, _ := ing.adAlreadyProcessed(ai.cid)
+		if processed {
+			log.Infow("Skipping advertisement that has already been processed",
+				"adCid", ai.cid,
+				"progress", fmt.Sprintf("%d of %d", count, total))
+			continue
+		}
+
 		// If this ad is skipped because it gets deleted later in the chain,
 		// then mark this ad as processed.
 		if ai.skip {
