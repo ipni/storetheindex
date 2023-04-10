@@ -17,5 +17,5 @@ spec:
     spec:
       tolerations:
         # Override default tolerations to allow all tains. Otherwise, the daemonset pods will not
-        # run on nodes with specific taints; more specifically, r5b nodegroup with "dedicated" taint.
+        # run on nodes with specific taints; more specifically, nodegroups with "dedicated" taint.
         - operator: Exists
