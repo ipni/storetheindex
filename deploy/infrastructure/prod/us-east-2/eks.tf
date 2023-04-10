@@ -73,38 +73,6 @@ module "eks" {
       instance_types = ["m4.xlarge"]
     }
 
-    # Supports high IOPS via io2 Block Express EBS volume types with specific taint.
-    # See:
-    #  - https://aws.amazon.com/ec2/instance-types/#Memory_Optimized
-    #  - https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html#solid-state-drives
-    prod-ue2a-r5b-4xl = {
-      min_size       = 1
-      max_size       = 4
-      desired_size   = 1
-      instance_types = ["r5b.4xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2a1.id]
-      taints         = {
-        dedicated = {
-          key    = "dedicated"
-          value  = "r5b-4xl"
-          effect = "NO_SCHEDULE"
-        }
-      }
-    }
-    prod-ue2b-r5b-4xl = {
-      min_size       = 1
-      max_size       = 5
-      desired_size   = 1
-      instance_types = ["r5b.4xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2b1.id]
-      taints         = {
-        dedicated = {
-          key    = "dedicated"
-          value  = "r5b-4xl"
-          effect = "NO_SCHEDULE"
-        }
-      }
-    }
     prod-ue2a-c6a-8xl-2 = {
       min_size       = 0
       max_size       = 5
