@@ -137,13 +137,22 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // source of the indexed content, the provider is where content can be
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid cid.Cid, ad schema.Advertisement, resync, frozen bool, lag int, headProvider peer.AddrInfo) error {
+func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid cid.Cid, resync, frozen bool, lag int, headProvider peer.AddrInfo) error {
+	log := log.With("publisher", publisherID, "adCid", adCid)
+
+	ad, err := ing.loadAd(adCid)
+	if err != nil {
+		stats.Record(context.Background(), metrics.AdLoadError.M(1))
+		log.Errorw("Failed to load advertisement, skipping", "err", err)
+		// The ad cannot be loaded, so we cannot process it. Return nil so that
+		// the ad is marked as processed and is removed from the datastore.
+		return nil
+	}
+
 	stats.Record(ctx, metrics.IngestChange.M(1))
 	var mhCount int
 	var entsSyncStart time.Time
 	ingestStart := time.Now()
-
-	log := log.With("publisher", publisherID, "adCid", adCid)
 
 	defer func() {
 		now := time.Now()
@@ -247,7 +256,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 
 	// Register provider or update existing registration. The provider must be
 	// allowed by policy to be registered.
-	err := ing.reg.Update(ctx, headProvider, publisher, adCid, extendedProviders, lag)
+	err = ing.reg.Update(ctx, headProvider, publisher, adCid, extendedProviders, lag)
 	if err != nil {
 		// A registry.ErrMissingProviderAddr error is not considered a
 		// permanent adIngestMalformedErr error, because an advertisement added

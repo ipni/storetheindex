@@ -23,7 +23,6 @@ import (
 	indexer "github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/go-libipni/dagsync"
-	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/metrics"
@@ -70,7 +69,6 @@ type pendingAnnounce struct {
 
 type adInfo struct {
 	cid    cid.Cid
-	ad     schema.Advertisement
 	resync bool
 	skip   bool
 }
@@ -79,6 +77,7 @@ type workerAssignment struct {
 	// none represents a nil assignment. Used because a nil in atomic.Value
 	// cannot be stored.
 	none      bool
+	addresses []string
 	adInfos   []adInfo
 	publisher peer.ID
 	provider  peer.ID
@@ -1014,6 +1013,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 	// remainder of the chain being processed, instead of skipping ads for
 	// specific providers on a mixed provider chain.
 	adsGroupedByProvider := map[peer.ID][]adInfo{}
+	provAddrs := map[peer.ID][]string{}
 	for _, c := range syncFinishedEvent.SyncedCids {
 		// Group the CIDs by the provider. Most of the time a publisher will
 		// only publish Ads for one provider, but it's possible that an ad
@@ -1037,18 +1037,23 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 			log.Errorf("Failed to get provider from ad CID: %s skipping", err)
 			continue
 		}
+		// If this is the first ad for this provider, then save the provider
+		// addresses.
+		_, ok := provAddrs[providerID]
+		if !ok {
+			provAddrs[providerID] = ad.Addresses
+		}
 
 		ai := adInfo{
 			cid:    c,
-			ad:     ad,
 			resync: resync,
 		}
 
-		ctxIdStr := string(ai.ad.ContextID)
+		ctxIdStr := string(ad.ContextID)
 		// This ad was deleted by a later remove.
 		if _, ok := rmCtxID[ctxIdStr]; ok {
 			ai.skip = true
-		} else if ai.ad.IsRm {
+		} else if ad.IsRm {
 			rmCtxID[ctxIdStr] = struct{}{}
 		}
 
@@ -1071,6 +1076,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 
 		oldAssignment := wa.Swap(workerAssignment{
 			adInfos:   adInfos,
+			addresses: provAddrs[providerID],
 			publisher: publisher,
 			provider:  providerID,
 		})
@@ -1149,22 +1155,24 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 
 	headProvider := peer.AddrInfo{
 		ID:    provider,
-		Addrs: stringsToMultiaddrs(assignment.adInfos[0].ad.Addresses),
+		Addrs: stringsToMultiaddrs(assignment.addresses),
 	}
+	headAdCid := assignment.adInfos[0].cid
 
 	total := len(assignment.adInfos)
-	log.Infow("Running worker on ad stack", "headAdCid", assignment.adInfos[0].cid, "numAdsToProcess", total)
+	log.Infow("Running worker on ad stack", "headAdCid", headAdCid, "numAdsToProcess", total)
 	var count int
 	for i := len(assignment.adInfos) - 1; i >= 0; i-- {
 		// Note that iteration proceeds backwards here. Earliest to newest.
 		ai := assignment.adInfos[i]
+		assignment.adInfos[i] = adInfo{} // Clear the adInfo to free memory.
 		count++
 
 		if ctx.Err() != nil {
 			log.Infow("Ingest worker canceled while processing ads", "err", ctx.Err())
 			ing.inEvents <- adProcessedEvent{
 				publisher: assignment.publisher,
-				headAdCid: assignment.adInfos[0].cid,
+				headAdCid: headAdCid,
 				adCid:     ai.cid,
 				err:       ctx.Err(),
 			}
@@ -1212,29 +1220,19 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			// Distribute the atProcessedEvent notices to waiting Sync calls.
 			ing.inEvents <- adProcessedEvent{
 				publisher: assignment.publisher,
-				headAdCid: assignment.adInfos[0].cid,
+				headAdCid: headAdCid,
 				adCid:     ai.cid,
 			}
 			continue
 		}
 
-		var entsCid string
-		if ai.ad.Entries == nil || ai.ad.Entries == schema.NoEntries {
-			entsCid = "NoEntries"
-		} else if frozen {
-			entsCid = "N/A frozen"
-		} else {
-			entsCid = ai.ad.Entries.(cidlink.Link).Cid.String()
-		}
-
 		lag := total - count
 		log.Infow("Processing advertisement",
 			"adCid", ai.cid,
-			"entriesCid", entsCid,
 			"progress", fmt.Sprintf("%d of %d", count, total),
 			"lag", lag)
 
-		err := ing.ingestAd(ctx, assignment.publisher, ai.cid, ai.ad, ai.resync, frozen, lag, headProvider)
+		err := ing.ingestAd(ctx, assignment.publisher, ai.cid, ai.resync, frozen, lag, headProvider)
 		if err == nil {
 			// No error at all, this ad was processed successfully.
 			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))
@@ -1265,7 +1263,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			// of error.  TODO(mm) would be better to propagate the error.
 			ing.inEvents <- adProcessedEvent{
 				publisher: assignment.publisher,
-				headAdCid: assignment.adInfos[0].cid,
+				headAdCid: headAdCid,
 				adCid:     ai.cid,
 				err:       err,
 			}
@@ -1298,7 +1296,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 		// Distribute the atProcessedEvent notices to waiting Sync calls.
 		ing.inEvents <- adProcessedEvent{
 			publisher: assignment.publisher,
-			headAdCid: assignment.adInfos[0].cid,
+			headAdCid: headAdCid,
 			adCid:     ai.cid,
 		}
 	}
