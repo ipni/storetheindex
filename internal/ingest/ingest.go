@@ -1157,20 +1157,22 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 		ID:    provider,
 		Addrs: stringsToMultiaddrs(assignment.addresses),
 	}
+	headAdCid := assignment.adInfos[0].cid
 
 	total := len(assignment.adInfos)
-	log.Infow("Running worker on ad stack", "headAdCid", assignment.adInfos[0].cid, "numAdsToProcess", total)
+	log.Infow("Running worker on ad stack", "headAdCid", headAdCid, "numAdsToProcess", total)
 	var count int
 	for i := len(assignment.adInfos) - 1; i >= 0; i-- {
 		// Note that iteration proceeds backwards here. Earliest to newest.
 		ai := assignment.adInfos[i]
+		assignment.adInfos[i] = adInfo{} // Clear the adInfo to free memory.
 		count++
 
 		if ctx.Err() != nil {
 			log.Infow("Ingest worker canceled while processing ads", "err", ctx.Err())
 			ing.inEvents <- adProcessedEvent{
 				publisher: assignment.publisher,
-				headAdCid: assignment.adInfos[0].cid,
+				headAdCid: headAdCid,
 				adCid:     ai.cid,
 				err:       ctx.Err(),
 			}
@@ -1218,7 +1220,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			// Distribute the atProcessedEvent notices to waiting Sync calls.
 			ing.inEvents <- adProcessedEvent{
 				publisher: assignment.publisher,
-				headAdCid: assignment.adInfos[0].cid,
+				headAdCid: headAdCid,
 				adCid:     ai.cid,
 			}
 			continue
@@ -1261,7 +1263,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			// of error.  TODO(mm) would be better to propagate the error.
 			ing.inEvents <- adProcessedEvent{
 				publisher: assignment.publisher,
-				headAdCid: assignment.adInfos[0].cid,
+				headAdCid: headAdCid,
 				adCid:     ai.cid,
 				err:       err,
 			}
@@ -1294,7 +1296,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 		// Distribute the atProcessedEvent notices to waiting Sync calls.
 		ing.inEvents <- adProcessedEvent{
 			publisher: assignment.publisher,
-			headAdCid: assignment.adInfos[0].cid,
+			headAdCid: headAdCid,
 			adCid:     ai.cid,
 		}
 	}
