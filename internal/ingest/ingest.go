@@ -333,8 +333,8 @@ func (ing *Ingester) Close() error {
 	ing.outEventsMutex.Unlock()
 
 	ing.closeOnce.Do(func() {
-		<-ing.autoSyncDone
 		ing.cancelOnSyncFinished()
+		<-ing.autoSyncDone
 		<-ing.syncWatcherDone
 		close(ing.closeWorkers)
 		ing.waitForWorkers.Wait()
@@ -685,6 +685,12 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 	// not reading the channel immediately.
 	events := make(chan adProcessedEvent, 1)
 	cancel := func() {
+		// Drain channel to prevent deadlock if there are writes waiting to
+		// write to the channel.
+		go func() {
+			for range events {
+			}
+		}()
 		ing.outEventsMutex.Lock()
 		defer ing.outEventsMutex.Unlock()
 		pubEventsChans, ok := ing.outEventsChans[peerID]
@@ -700,11 +706,11 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 					} else {
 						delete(ing.outEventsChans, peerID)
 					}
-					break
+				} else {
+					pubEventsChans[i] = pubEventsChans[len(pubEventsChans)-1]
+					pubEventsChans[len(pubEventsChans)-1] = nil
+					ing.outEventsChans[peerID] = pubEventsChans[:len(pubEventsChans)-1]
 				}
-				pubEventsChans[i] = pubEventsChans[len(pubEventsChans)-1]
-				pubEventsChans[len(pubEventsChans)-1] = nil
-				ing.outEventsChans[peerID] = pubEventsChans[:len(pubEventsChans)-1]
 				close(events)
 				break
 			}
