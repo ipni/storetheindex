@@ -21,7 +21,7 @@ var setLevelCmd = &cli.Command{
 Subsystem may be specified as a regular expression. For example the 
 following command will set the level for all subsystems to debug:
 
-	storetheindex config set log-level '.*' debug`,
+	storetheindex log setlevel '.*' debug`,
 	ArgsUsage: "<sub-system> <level> [<sub-system> <level>]...",
 	Action:    setLogLevelAction,
 }

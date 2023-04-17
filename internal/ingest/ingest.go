@@ -333,8 +333,8 @@ func (ing *Ingester) Close() error {
 	ing.outEventsMutex.Unlock()
 
 	ing.closeOnce.Do(func() {
-		<-ing.autoSyncDone
 		ing.cancelOnSyncFinished()
+		<-ing.autoSyncDone
 		<-ing.syncWatcherDone
 		close(ing.closeWorkers)
 		ing.waitForWorkers.Wait()
@@ -685,6 +685,12 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 	// not reading the channel immediately.
 	events := make(chan adProcessedEvent, 1)
 	cancel := func() {
+		// Drain channel to prevent deadlock if blocked writes are preventing
+		// the mutex from being unlocked.
+		go func() {
+			for range events {
+			}
+		}()
 		ing.outEventsMutex.Lock()
 		defer ing.outEventsMutex.Unlock()
 		pubEventsChans, ok := ing.outEventsChans[peerID]
@@ -700,11 +706,11 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 					} else {
 						delete(ing.outEventsChans, peerID)
 					}
-					break
+				} else {
+					pubEventsChans[i] = pubEventsChans[len(pubEventsChans)-1]
+					pubEventsChans[len(pubEventsChans)-1] = nil
+					ing.outEventsChans[peerID] = pubEventsChans[:len(pubEventsChans)-1]
 				}
-				pubEventsChans[i] = pubEventsChans[len(pubEventsChans)-1]
-				pubEventsChans[len(pubEventsChans)-1] = nil
-				ing.outEventsChans[peerID] = pubEventsChans[:len(pubEventsChans)-1]
 				close(events)
 				break
 			}
@@ -943,7 +949,7 @@ func (ing *Ingester) RunWorkers(n int) {
 	}
 }
 
-// syncWatcher handle events from dagsync.Subscriber signaling that an
+// syncWatcher handles events from dagsync.Subscriber signaling that an
 // advertisement chain has been synced. These events are passed to the
 // chainQueue for processing by a wokrer.
 func (ing *Ingester) syncWatcher(syncFinishedEvents <-chan dagsync.SyncFinished) {
@@ -993,6 +999,10 @@ func (ing *Ingester) ingestWorker(ctx context.Context) {
 // assignment for a provider, then workers are given the next work assignment
 // for that provider.
 func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent dagsync.SyncFinished) {
+	if len(syncFinishedEvent.SyncedCids) == 0 {
+		// Attempted sync, but already up to data. Nothing to do.
+		return
+	}
 	publisher := syncFinishedEvent.PeerID
 	log := log.With("publisher", publisher)
 	log.Infow("Advertisement chain synced", "length", len(syncFinishedEvent.SyncedCids))

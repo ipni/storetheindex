@@ -340,9 +340,17 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
 			var adIngestErr adIngestError
-			if errors.As(err, &adIngestErr) && adIngestErr.state == adIngestIndexerErr {
-				// Could not store multihashes in core, so stop trying to index ad.
-				return err
+			if errors.As(err, &adIngestErr) {
+				switch adIngestErr.state {
+				case adIngestIndexerErr:
+					// Could not store multihashes in core, so stop trying to index ad.
+					return err
+				case adIngestContentNotFound:
+					// No entries data in CAR file. Entries data deleted later
+					// in chain unknown to this indexer, or publisher not
+					// serving entries data.
+					return err
+				}
 			}
 			log.Errorw("Cannot get advertisement from car store", "err", err)
 		}
@@ -590,7 +598,11 @@ func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Adverti
 		firstEntryBlock, ok = <-adBlock.Entries
 	}
 	if !ok {
-		return 0, errors.New("expected advertisement to have entries")
+		// This advertisement has no entries because they were removed later in
+		// the chain and the indexer ingesting this advertisement does not know
+		// that yet, or the publisher was not serving content for the
+		// advertisement's entries CID when this CAR file was created.
+		return 0, adIngestError{adIngestContentNotFound, errors.New("advertisement has no entries")}
 	}
 	if firstEntryBlock.Cid != entsCid {
 		return 0, fmt.Errorf("advertisement entries cid does not match first entry chunk cid in car file")
