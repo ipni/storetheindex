@@ -685,8 +685,8 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 	// not reading the channel immediately.
 	events := make(chan adProcessedEvent, 1)
 	cancel := func() {
-		// Drain channel to prevent deadlock if there are writes waiting to
-		// write to the channel.
+		// Drain channel to prevent deadlock if blocked writes are preventing
+		// the mutex from being unlocked.
 		go func() {
 			for range events {
 			}
@@ -949,7 +949,7 @@ func (ing *Ingester) RunWorkers(n int) {
 	}
 }
 
-// syncWatcher handle events from dagsync.Subscriber signaling that an
+// syncWatcher handles events from dagsync.Subscriber signaling that an
 // advertisement chain has been synced. These events are passed to the
 // chainQueue for processing by a wokrer.
 func (ing *Ingester) syncWatcher(syncFinishedEvents <-chan dagsync.SyncFinished) {
@@ -999,6 +999,10 @@ func (ing *Ingester) ingestWorker(ctx context.Context) {
 // assignment for a provider, then workers are given the next work assignment
 // for that provider.
 func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent dagsync.SyncFinished) {
+	if len(syncFinishedEvent.SyncedCids) == 0 {
+		// Attempted sync, but already up to data. Nothing to do.
+		return
+	}
 	publisher := syncFinishedEvent.PeerID
 	log := log.With("publisher", publisher)
 	log.Infow("Advertisement chain synced", "length", len(syncFinishedEvent.SyncedCids))
