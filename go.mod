@@ -13,6 +13,7 @@ require (
 	github.com/cockroachdb/pebble v0.0.0-20220726144858-a78491c0086f
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.3.0
+	github.com/gammazero/channelqueue v0.2.1
 	github.com/hashicorp/go-retryablehttp v0.7.1
 	github.com/ipfs/go-cid v0.4.1
 	github.com/ipfs/go-datastore v0.6.0
