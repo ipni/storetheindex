@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gammazero/channelqueue"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -122,7 +123,7 @@ type Ingester struct {
 
 	// outEventsChans is a slice of channels, where each channel delivers a
 	// copy of an adProcessedEvent to an onAdProcessed reader.
-	outEventsChans map[peer.ID][]chan adProcessedEvent
+	outEventsChans map[peer.ID][]chan<- adProcessedEvent
 	outEventsMutex sync.Mutex
 
 	autoSyncDone      chan struct{}
@@ -681,14 +682,17 @@ func (ing *Ingester) distributeEvents() {
 // the list of channels to be notified on changes, and closes the channel to
 // allow any reading goroutines to stop waiting on the channel.
 func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, context.CancelFunc) {
-	// Channel is buffered to prevent distribute() from blocking if a reader is
-	// not reading the channel immediately.
-	events := make(chan adProcessedEvent, 1)
+	// Use an infinite size channel so that it is impossible for it to fill
+	// before being read. If this channel blocked and then caused
+	// distributeEvents to block, that could prevent this channel from being
+	// read, causing deadlock.
+	cq := channelqueue.New[adProcessedEvent](-1)
+	events := cq.In()
 	cancel := func() {
 		// Drain channel to prevent deadlock if blocked writes are preventing
 		// the mutex from being unlocked.
 		go func() {
-			for range events {
+			for range cq.Out() {
 			}
 		}()
 		ing.outEventsMutex.Lock()
@@ -720,15 +724,15 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 	ing.outEventsMutex.Lock()
 	defer ing.outEventsMutex.Unlock()
 
-	var pubEventsChans []chan adProcessedEvent
+	var pubEventsChans []chan<- adProcessedEvent
 	if ing.outEventsChans == nil {
-		ing.outEventsChans = make(map[peer.ID][]chan adProcessedEvent)
+		ing.outEventsChans = make(map[peer.ID][]chan<- adProcessedEvent)
 	} else {
 		pubEventsChans = ing.outEventsChans[peerID]
 	}
 	ing.outEventsChans[peerID] = append(pubEventsChans, events)
 
-	return events, cancel
+	return cq.Out(), cancel
 }
 
 // metricsUpdate periodically updates metrics. This goroutine exits when
