@@ -495,7 +495,14 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 	syncDone, cancel := ing.onAdProcessed(peerInfo.ID)
 	defer cancel()
 
-	c, err := ing.sub.Sync(ctx, peerInfo, cid.Undef, sel, opts...)
+	syncCtx := ctx
+	if ing.syncTimeout != 0 {
+		var cancel context.CancelFunc
+		syncCtx, cancel = context.WithTimeout(ctx, ing.syncTimeout)
+		defer cancel()
+	}
+
+	c, err := ing.sub.Sync(syncCtx, peerInfo, cid.Undef, sel, opts...)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("failed to sync: %w", err)
 	}
