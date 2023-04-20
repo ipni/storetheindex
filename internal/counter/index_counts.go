@@ -55,8 +55,8 @@ func (c *IndexCounts) SetTotalAddend(totalAddend uint64) {
 	c.mutex.Unlock()
 }
 
-// AddCount adds the index count to the existing count for the for the
-// provider's context iD, and updates in-memory totals.
+// AddCount adds the index count to the existing count for the
+// provider's context ID, and updates in-memory totals.
 func (c *IndexCounts) AddCount(providerID peer.ID, contextID []byte, count uint64) {
 	if count == 0 {
 		return

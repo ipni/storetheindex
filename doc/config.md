@@ -111,7 +111,6 @@ config file at runtime.
       "BurstSize": 500
     },
     "ResendDirectAnnounce": true,
-    "StoreBatchSize": 4096,
     "SyncSegmentDepthLimit": 2000,
     "SyncTimeout": "2h0m0s"
   },
@@ -275,7 +274,6 @@ Default:
   "PubSubTopic": "/indexer/ingest/mainnet",
   "RateLimit": {},
   "ResendDirectAnnounce": false,
-  "StoreBatchSize": 4096,
   "SyncSegmentDepthLimit": 2000,
   "SyncTimeout": "2h0m0s"
 }
@@ -329,6 +327,5 @@ The storetheindex daemon can reload some portions of its config without restarti
 - [`Indexer.ShutdownTimeout`](#indexer)
 - [`Ingest.IngestWorkerCount`](#ingest)
 - [`Ingest.RateLimit`](#ingestratelimit)
-- [`Ingest.StoreBatchSize`](#ingest)
 - [`Logging`](#logging)
 - [`Peering`](#peering)

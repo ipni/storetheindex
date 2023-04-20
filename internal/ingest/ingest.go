@@ -52,6 +52,15 @@ const (
 	metricsUpdateInterval = time.Minute
 )
 
+// Metrics
+var (
+	totalBacklog  atomic.Int32
+	totalNonRmAds atomic.Int64
+	totalRmAds    atomic.Int64
+	workersActive atomic.Int32
+	workersQueued atomic.Int32
+)
+
 type adProcessedEvent struct {
 	publisher peer.ID
 	// Head of the chain being processed.
@@ -108,7 +117,6 @@ type Ingester struct {
 	lsys    ipld.LinkSystem
 	indexer indexer.Interface
 
-	batchSize uint32
 	closeOnce sync.Once
 
 	sub         *dagsync.Subscriber
@@ -166,14 +174,11 @@ type Ingester struct {
 	minKeyLen int
 
 	mirror        adMirror
-	mhsFromMirror uint64
+	mhsFromMirror atomic.Uint64
 
 	// Metrics
-	activeWorkers int32
-	queuedWorkers int32
-	backlogs      map[peer.ID]int32
-	totalBacklog  int32
-	indexCounts   *counter.IndexCounts
+	backlogs    map[peer.ID]int32
+	indexCounts *counter.IndexCounts
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
@@ -193,7 +198,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		ds:          ds,
 		lsys:        mkLinkSystem(ds, reg),
 		indexer:     idxr,
-		batchSize:   uint32(cfg.StoreBatchSize),
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		entriesSel:  Selectors.EntriesWithLimit(recursionLimit(cfg.EntriesDepthLimit)),
 		reg:         reg,
@@ -275,7 +279,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 }
 
 func (ing *Ingester) MultihashesFromMirror() uint64 {
-	return atomic.LoadUint64(&ing.mhsFromMirror)
+	return ing.mhsFromMirror.Load()
 }
 
 func (ing *Ingester) generalDagsyncBlockHook(_ peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
@@ -918,16 +922,6 @@ func (ing *Ingester) GetLatestSync(publisherID peer.ID) (cid.Cid, error) {
 	return c, err
 }
 
-// BatchSize returns the current batch size.
-func (ing *Ingester) BatchSize() int {
-	return int(atomic.LoadUint32(&ing.batchSize))
-}
-
-// SetBatchSize sets the batch size.
-func (ing *Ingester) SetBatchSize(batchSize int) {
-	atomic.StoreUint32(&ing.batchSize, uint32(batchSize))
-}
-
 // SetRateLimit sets the rate limit.
 func (ing *Ingester) SetRateLimit(cfgRateLimit config.RateLimit) error {
 	apply, burst, limit, err := configRateLimit(cfgRateLimit)
@@ -1014,6 +1008,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 	log := log.With("publisher", publisher)
 	log.Infow("Advertisement chain synced", "length", len(syncFinishedEvent.SyncedCids))
 
+	var rmCount int64
 	rmCtxID := make(map[string]struct{})
 
 	// 1. Group the incoming CIDs by provider.
@@ -1077,6 +1072,12 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 		adsGroupedByProvider[providerID] = append(adsGroupedByProvider[providerID], ai)
 	}
 
+	nonRmCount := int64(len(syncFinishedEvent.SyncedCids)) - rmCount
+
+	stats.Record(ctx,
+		metrics.RemoveAdCount.M(totalRmAds.Add(rmCount)),
+		metrics.NonRemoveAdCount.M(totalNonRmAds.Add(nonRmCount)))
+
 	// 2. For each provider put the ad stack to the worker msg channel. Each ad
 	// stack contains ads for a single provider, from a single publisher.
 	for providerID, adInfos := range adsGroupedByProvider {
@@ -1109,8 +1110,8 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 				ing.providersBeingProcessedMu.Unlock()
 
 				stats.Record(ctx,
-					metrics.AdIngestBacklog.M(int64(atomic.AddInt32(&ing.totalBacklog, 1))),
-					metrics.AdIngestQueued.M(int64(atomic.AddInt32(&ing.queuedWorkers, 1))))
+					metrics.AdIngestBacklog.M(int64(totalBacklog.Add(1))),
+					metrics.AdIngestQueued.M(int64(workersQueued.Add(1))))
 				// Wait until the no workers are doing work for the provider
 				// before notifying that another work assignment is available.
 				select {
@@ -1144,9 +1145,9 @@ func (ing *Ingester) handleWorkReady(ctx context.Context, provider peer.ID) {
 	ing.providersBeingProcessedMu.Unlock()
 
 	stats.Record(context.Background(),
-		metrics.AdIngestBacklog.M(int64(atomic.AddInt32(&ing.totalBacklog, -n))),
-		metrics.AdIngestQueued.M(int64(atomic.AddInt32(&ing.queuedWorkers, -1))),
-		metrics.AdIngestActive.M(int64(atomic.AddInt32(&ing.activeWorkers, 1))))
+		metrics.AdIngestBacklog.M(int64(totalBacklog.Add(-n))),
+		metrics.AdIngestQueued.M(int64(workersQueued.Add(-1))),
+		metrics.AdIngestActive.M(int64(workersActive.Add(1))))
 
 	assignmentInterface := wa.Swap(workerAssignment{none: true})
 	if assignmentInterface != nil {
@@ -1158,7 +1159,7 @@ func (ing *Ingester) handleWorkReady(ctx context.Context, provider peer.ID) {
 	// Signal that the worker is done with the provider.
 	<-provBusy
 
-	stats.Record(context.Background(), metrics.AdIngestActive.M(int64(atomic.AddInt32(&ing.activeWorkers, -1))))
+	stats.Record(ctx, metrics.AdIngestActive.M(int64(workersActive.Add(-1))))
 }
 
 func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, assignment workerAssignment) {
