@@ -52,6 +52,8 @@ const (
 	metricsUpdateInterval = time.Minute
 )
 
+var workCount atomic.Uint64
+
 type adProcessedEvent struct {
 	publisher peer.ID
 	// Head of the chain being processed.
@@ -697,6 +699,7 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 		defer ing.outEventsMutex.Unlock()
 		pubEventsChans, ok := ing.outEventsChans[peerID]
 		if !ok {
+			log.Warnw("Advertisement processed notification already cancelled", "peerID", peerID)
 			return
 		}
 
@@ -960,12 +963,17 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 	defer ing.waitForWorkers.Done()
 
 	for {
+		wc := workCount.Add(1)
+
 		// Wait for work only. Work assignments take priority over new
 		// advertisement chains.
 		select {
 		case provider := <-ing.workReady:
+			log.Debugw("handling work ready", "workCount", wc)
 			ing.handleWorkReady(ctx, provider)
+			log.Debugw("done handling work ready", "workCount", wc)
 		case <-ctx.Done():
+			log.Info("ingest worker canceled")
 			return
 		case <-ing.stopWorker:
 			log.Debug("stopped ingest worker")
@@ -974,13 +982,19 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 			// No work assignments, so also check for new advertisement chains.
 			select {
 			case provider := <-ing.workReady:
+				log.Debugw("handling work ready", "workCount", wc)
 				ing.handleWorkReady(ctx, provider)
+				log.Debugw("done handling work ready", "workCount", wc)
 			case event, ok := <-syncFinishedEvents:
 				if !ok {
+					log.Info("ingest worker exiting, sync finished events closed")
 					return
 				}
+				log.Debugw("processing raw ad chain", "workCount", wc)
 				ing.processRawAdChain(ctx, event)
+				log.Debugw("done processing raw ad chain", "workCount", wc)
 			case <-ctx.Done():
+				log.Info("ingest worker canceled")
 				return
 			case <-ing.stopWorker:
 				log.Debug("stopped ingest worker")
@@ -1107,7 +1121,11 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 				case <-ctx.Done():
 					return
 				}
-				ing.workReady <- provID
+				select {
+				case ing.workReady <- provID:
+				case <-ctx.Done():
+					return
+				}
 			}(providerID)
 		}
 		// If oldAssignment has adInfos, it is not necessary to merge the old
