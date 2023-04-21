@@ -128,10 +128,6 @@ type Ingester struct {
 
 	autoSyncDone      chan struct{}
 	closePendingSyncs chan struct{}
-	cancelWorkers     context.CancelFunc
-	workersCtx        context.Context
-
-	cancelOnSyncFinished context.CancelFunc
 
 	// A map of providers currently being processed. A worker holds the lock of
 	// a provider while ingesting ads for that provider.
@@ -139,9 +135,19 @@ type Ingester struct {
 	providersBeingProcessedMu sync.Mutex
 	providerWorkAssignment    map[peer.ID]*atomic.Value
 
-	closeWorkers    chan struct{}
-	syncWatcherDone chan struct{}
+	// Used to stop watching for sync finished events from dagsync.
+	cancelOnSyncFinished context.CancelFunc
 
+	// Channels that workers read from.
+	syncFinishedEvents <-chan dagsync.SyncFinished
+	workReady          chan peer.ID
+
+	// Context and cancel function used to cancel all workers.
+	cancelWorkers context.CancelFunc
+	workersCtx    context.Context
+
+	// Worker pool resizing.
+	stopWorker     chan struct{}
 	waitForWorkers sync.WaitGroup
 	workerPoolSize int
 
@@ -159,7 +165,6 @@ type Ingester struct {
 	// Multihash minimum length
 	minKeyLen int
 
-	indexCounts   *counter.IndexCounts
 	mirror        adMirror
 	mhsFromMirror uint64
 
@@ -168,9 +173,7 @@ type Ingester struct {
 	queuedWorkers int32
 	backlogs      map[peer.ID]int32
 	totalBacklog  int32
-
-	chainQueue chan dagsync.SyncFinished
-	workReady  chan peer.ID
+	indexCounts   *counter.IndexCounts
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
@@ -201,14 +204,13 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		providersBeingProcessed: make(map[peer.ID]chan struct{}),
 		providerWorkAssignment:  make(map[peer.ID]*atomic.Value),
-		closeWorkers:            make(chan struct{}),
-		syncWatcherDone:         make(chan struct{}),
+		stopWorker:              make(chan struct{}),
+
+		workReady: make(chan peer.ID, 1),
 
 		minKeyLen: cfg.MinimumKeyLength,
 
 		indexCounts: opts.idxCounts,
-		chainQueue:  make(chan dagsync.SyncFinished, cfg.IngestWorkerCount*2),
-		workReady:   make(chan peer.ID, 1),
 		backlogs:    make(map[peer.ID]int32),
 	}
 
@@ -256,12 +258,9 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	}
 	ing.sub = sub
 
+	ing.syncFinishedEvents, ing.cancelOnSyncFinished = ing.sub.OnSyncFinished()
+
 	ing.RunWorkers(cfg.IngestWorkerCount)
-
-	var syncFinishedEvents <-chan dagsync.SyncFinished
-	syncFinishedEvents, ing.cancelOnSyncFinished = ing.sub.OnSyncFinished()
-
-	go ing.syncWatcher(syncFinishedEvents)
 
 	// Start distributor to send SyncFinished messages to interested parties.
 	go ing.distributeEvents()
@@ -316,6 +315,8 @@ func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
 
 // Close stops the ingester and all its workers.
 func (ing *Ingester) Close() error {
+	ing.cancelOnSyncFinished()
+
 	// Tell workers to stop ingestion in progress.
 	ing.cancelWorkers()
 
@@ -334,10 +335,7 @@ func (ing *Ingester) Close() error {
 	ing.outEventsMutex.Unlock()
 
 	ing.closeOnce.Do(func() {
-		ing.cancelOnSyncFinished()
 		<-ing.autoSyncDone
-		<-ing.syncWatcherDone
-		close(ing.closeWorkers)
 		ing.waitForWorkers.Wait()
 		log.Info("Workers stopped")
 		close(ing.closePendingSyncs)
@@ -495,7 +493,14 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 	syncDone, cancel := ing.onAdProcessed(peerInfo.ID)
 	defer cancel()
 
-	c, err := ing.sub.Sync(ctx, peerInfo, cid.Undef, sel, opts...)
+	syncCtx := ctx
+	if ing.syncTimeout != 0 {
+		var syncCancel context.CancelFunc
+		syncCtx, syncCancel = context.WithTimeout(ctx, ing.syncTimeout)
+		defer syncCancel()
+	}
+
+	c, err := ing.sub.Sync(syncCtx, peerInfo, cid.Undef, sel, opts...)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("failed to sync: %w", err)
 	}
@@ -699,6 +704,7 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 		defer ing.outEventsMutex.Unlock()
 		pubEventsChans, ok := ing.outEventsChans[peerID]
 		if !ok {
+			log.Warnw("Advertisement processed notification already cancelled", "peerID", peerID)
 			return
 		}
 
@@ -943,30 +949,21 @@ func (ing *Ingester) RunWorkers(n int) {
 	for n > ing.workerPoolSize {
 		// Start worker.
 		ing.waitForWorkers.Add(1)
-		go ing.ingestWorker(ing.workersCtx)
+		go ing.ingestWorker(ing.workersCtx, ing.syncFinishedEvents)
 		ing.workerPoolSize++
 	}
 	for n < ing.workerPoolSize {
 		// Stop worker.
-		ing.closeWorkers <- struct{}{}
+		ing.stopWorker <- struct{}{}
 		ing.workerPoolSize--
 	}
 }
 
-// syncWatcher handles events from dagsync.Subscriber signaling that an
-// advertisement chain has been synced. These events are passed to the
-// chainQueue for processing by a wokrer.
-func (ing *Ingester) syncWatcher(syncFinishedEvents <-chan dagsync.SyncFinished) {
-	for event := range syncFinishedEvents {
-		ing.chainQueue <- event
-	}
-	close(ing.syncWatcherDone)
-}
-
-// ingestWorker processes events from the chainQueue to create provider work
-// assignments from a raw advertisement chain, and processes those provider
-// work assignments.
-func (ing *Ingester) ingestWorker(ctx context.Context) {
+// ingestWorker processes events from dagsync.Subscriber, signaling that an
+// advertisement chain has been synced. Provider work assignments are created
+// from raw advertisement chains, and processed by ingestWorker. Work
+// assignments are processed preferentially over new advertisement chains.
+func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan dagsync.SyncFinished) {
 	log.Debug("started ingest worker")
 	defer ing.waitForWorkers.Done()
 
@@ -977,8 +974,9 @@ func (ing *Ingester) ingestWorker(ctx context.Context) {
 		case provider := <-ing.workReady:
 			ing.handleWorkReady(ctx, provider)
 		case <-ctx.Done():
+			log.Info("ingest worker canceled")
 			return
-		case <-ing.closeWorkers:
+		case <-ing.stopWorker:
 			log.Debug("stopped ingest worker")
 			return
 		default:
@@ -986,11 +984,16 @@ func (ing *Ingester) ingestWorker(ctx context.Context) {
 			select {
 			case provider := <-ing.workReady:
 				ing.handleWorkReady(ctx, provider)
-			case event := <-ing.chainQueue:
+			case event, ok := <-syncFinishedEvents:
+				if !ok {
+					log.Info("ingest worker exiting, sync finished events closed")
+					return
+				}
 				ing.processRawAdChain(ctx, event)
 			case <-ctx.Done():
+				log.Info("ingest worker canceled")
 				return
-			case <-ing.closeWorkers:
+			case <-ing.stopWorker:
 				log.Debug("stopped ingest worker")
 				return
 			}
@@ -1115,7 +1118,11 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 				case <-ctx.Done():
 					return
 				}
-				ing.workReady <- provID
+				select {
+				case ing.workReady <- provID:
+				case <-ctx.Done():
+					return
+				}
 			}(providerID)
 		}
 		// If oldAssignment has adInfos, it is not necessary to merge the old

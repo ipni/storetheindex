@@ -487,6 +487,10 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	// ingest loop for ease of testing
 	te.ingester.cancelOnSyncFinished()
 	te.ingester.cancelOnSyncFinished = func() {}
+	chainQueue := make(chan dagsync.SyncFinished, 1)
+	te.ingester.syncFinishedEvents = chainQueue
+	te.ingester.workerPoolSize = 0
+	te.ingester.RunWorkers(1)
 
 	cAdBuilder := typehelpers.RandomAdBuilder{
 		EntryBuilders: []typehelpers.EntryBuilder{
@@ -539,13 +543,13 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	defer cnclIngesterSyncFin()
 
 	go func() {
-		te.ingester.chainQueue <- syncFinishedEvent
+		chainQueue <- syncFinishedEvent
 	}()
 
 	<-hitBlockedRead
 
 	go func() {
-		te.ingester.chainQueue <- syncFinishedEvent
+		chainQueue <- syncFinishedEvent
 	}()
 
 	blockedReads.rm(bEntChunk.(cidlink.Link).Cid)
