@@ -14,7 +14,6 @@ on:
       - 'doc/**'
     branches:
       - main
-      - remove-extra-goroutine
 
 jobs:
   publisher:
