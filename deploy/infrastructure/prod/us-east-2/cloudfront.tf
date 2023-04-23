@@ -2,6 +2,16 @@ locals {
   indexstar_origin_id     = "${local.environment_name}_${local.region}_indexstar"
   http_announce_origin_id = "${local.environment_name}_${local.region}_assigner"
   cdn_subdomain           = "cdn"
+  cf_log_bucket = "${local.environment_name}-${local.region}-cf-log"
+}
+
+resource "aws_s3_bucket" "cf_logs" {
+  bucket = local.cf_log_bucket
+}
+
+resource "aws_s3_bucket_acl" "cf_logs_acl" {
+  bucket = aws_s3_bucket.cf_logs.id
+  acl    = "private"
 }
 
 resource "aws_cloudfront_distribution" "cdn" {
@@ -14,6 +24,12 @@ resource "aws_cloudfront_distribution" "cdn" {
   ]
   price_class = "PriceClass_All"
 
+  logging_config {
+    include_cookies = false
+    bucket          = aws_s3_bucket.cf_logs.bucket_domain_name
+    prefix          = "${local.environment_name}_${local.region}"
+  }
+  
   # storetheindex/indexstar ingress.
   origin {
     domain_name = "indexstar.${aws_route53_zone.prod_external.name}"
