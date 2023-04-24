@@ -7,13 +7,20 @@ resources:
   - ../../../../../base/indexstar
   - ingress.yaml
   - pod-monitor.yaml
+  - canary-deployment.yaml
+  - canary-ingress.yaml
+  - canary-pdb.yaml
+  - canary-pod-monitor.yaml
+  - canary-service.yaml
 
 patchesStrategicMerge:
   - deployment.yaml
 
 replicas:
   - name: indexstar
-    count: 3
+    count: 2
+  - name: indexstar-canary
+    count: 1
 
 images:
   - name: indexstar

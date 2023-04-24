@@ -1,16 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: indexstar
+  name: indexstar-canary
 spec:
+  selector:
+    matchLabels:
+      app: indexstar-canary
   template:
+    metadata:
+      labels:
+        app: indexstar-canary
     spec:
+      securityContext:
+        runAsUser: 10001
+        fsGroup: 532
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
           whenUnsatisfiable: ScheduleAnyway
       containers:
         - name: indexstar
+          image: indexstar
           args:
             - '--translateReframe'
             - '--translateNonStreaming'
@@ -19,6 +29,8 @@ spec:
             - '--backends=http://ber-indexer:3000/'
             - '--backends=http://cali-indexer:3000/'
             - '--backends=http://ago-indexer:3000/'
+            - '--backends=http://dhstore.internal.dev.cid.contact/'
+            - '--backends=http://dhfind-cluster-ip:40080/'
             - '--cascadeBackends=http://caskadht.internal.dev.cid.contact/'
             - '--cascadeBackends=http://cassette.internal.dev.cid.contact/'
           env:
@@ -35,6 +47,24 @@ spec:
               value: '2s'
             - name: SERVER_RESULT_STREAM_MAX_WAIT
               value: '30s'
+            - name: GOLOG_LOG_LEVEL
+              value: INFO
+            - name: GOLOG_LOG_FMT
+              value: json
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 8081
+              name: metrics
+          readinessProbe:
+            httpGet:
+              port: http
+              path: /health
+            initialDelaySeconds: 10
+            failureThreshold: 3
+            successThreshold: 1
+            timeoutSeconds: 5
+            periodSeconds: 10
           resources:
             limits:
               cpu: "3"
