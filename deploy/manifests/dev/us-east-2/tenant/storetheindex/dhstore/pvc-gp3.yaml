@@ -7,7 +7,7 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Ti
+      storage: 15Ti
   dataSource:
     name: dhstore-20230406
     kind: VolumeSnapshot
