@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/fs"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -335,7 +334,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		// If entries data successfully read from CAR file.
 		if err == nil {
 			ing.updateIndexCounts(mhCount, providerID, ad.ContextID, resync)
-			atomic.AddUint64(&ing.mhsFromMirror, uint64(mhCount))
+			ing.mhsFromMirror.Add(uint64(mhCount))
 			return nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
@@ -415,6 +414,9 @@ func (ing *Ingester) updateIndexCounts(mhCount int, providerID peer.ID, contextI
 }
 
 func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, entsCid cid.Cid, log *zap.SugaredLogger) (int, error) {
+	// Split HAMP into batches of 4096 entries.
+	const batchSize = 4096
+
 	log = log.With("entriesKind", "hamt")
 	// Keep track of all CIDs in the HAMT to remove them later when the
 	// processing is done. This is equivalent behavior to ingestEntryChunk
@@ -473,7 +475,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	// Therefore, we only care about the keys.
 	//
 	// Group the mutlihashes in StoreBatchSize batches and process as usual.
-	mhs := make([]multihash.Multihash, 0, ing.batchSize)
+	mhs := make([]multihash.Multihash, 0, batchSize)
 	mi := hn.MapIterator()
 	for !mi.Done() {
 		k, _, err := mi.Next()
@@ -497,7 +499,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 		//
 		// TODO: See how we can refactor code to make batching logic more
 		// flexible in indexContentBlock.
-		if len(mhs) >= int(ing.batchSize) {
+		if len(mhs) >= batchSize {
 			if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
 				return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 			}

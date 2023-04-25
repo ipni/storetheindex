@@ -65,7 +65,6 @@ var (
 			BlocksPerSecond: 100,
 			BurstSize:       1000,
 		},
-		StoreBatchSize:        256,
 		SyncTimeout:           config.Duration(time.Minute),
 		SyncSegmentDepthLimit: 1, // By default run all tests using segmented sync.
 	}

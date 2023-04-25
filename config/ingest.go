@@ -61,11 +61,6 @@ type Ingest struct {
 	// the announce so that other indexers can also receive it. This is always
 	// false if configured to use an assigner.
 	ResendDirectAnnounce bool
-	// StoreBatchSize is the number of entries in each write to the value
-	// store. Specifying a value less than 2 disables batching. This should be
-	// smaller than the maximum number of multihashes in an entry block to
-	// write concurrently to the value store.
-	StoreBatchSize int
 	// SyncSegmentDepthLimit is the depth limit of a single sync in a series of
 	// calls that collectively sync advertisements or their entries. The value
 	// -1 disables the segmentation where the sync will be done in a single call
@@ -134,7 +129,6 @@ func NewIngest() Ingest {
 		IngestWorkerCount:     10,
 		PubSubTopic:           "/indexer/ingest/mainnet",
 		RateLimit:             NewRateLimit(),
-		StoreBatchSize:        4096,
 		SyncSegmentDepthLimit: 2_000,
 		SyncTimeout:           Duration(2 * time.Hour),
 	}
@@ -172,9 +166,6 @@ func (c *Ingest) populateUnset() {
 		c.PubSubTopic = def.PubSubTopic
 	}
 	c.RateLimit.populateUnset()
-	if c.StoreBatchSize == 0 {
-		c.StoreBatchSize = def.StoreBatchSize
-	}
 	if c.SyncSegmentDepthLimit == 0 {
 		c.SyncSegmentDepthLimit = def.SyncSegmentDepthLimit
 	}

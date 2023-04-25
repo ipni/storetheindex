@@ -36,6 +36,8 @@ var (
 	EntriesSyncLatency   = stats.Float64("ingest/entriessynclatency", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
 	IndexCount           = stats.Int64("provider/indexCount", "Number of indexes stored for all providers", stats.UnitDimensionless)
 	PercentUsage         = stats.Float64("ingest/percentusage", "Percent usage of storage available in value store", stats.UnitDimensionless)
+	NonRemoveAdCount     = stats.Int64("ingest/nonremoveadcount", "Number of non-removal advertisements", stats.UnitDimensionless)
+	RemoveAdCount        = stats.Int64("ingest/removeadcount", "Number of removal advertisements", stats.UnitDimensionless)
 )
 
 // Views
@@ -99,6 +101,14 @@ var (
 		Measure:     PercentUsage,
 		Aggregation: view.LastValue(),
 	}
+	nonRemoveAdCountView = &view.View{
+		Measure:     NonRemoveAdCount,
+		Aggregation: view.LastValue(),
+	}
+	removeAdCountView = &view.View{
+		Measure:     RemoveAdCount,
+		Aggregation: view.LastValue(),
+	}
 )
 
 var log = logging.Logger("indexer/metrics")
@@ -121,6 +131,8 @@ func Start(views []*view.View) http.Handler {
 		adLoadError,
 		indexCountView,
 		percentUsageView,
+		nonRemoveAdCountView,
+		removeAdCountView,
 	)
 	if err != nil {
 		log.Errorf("cannot register metrics default views: %s", err)

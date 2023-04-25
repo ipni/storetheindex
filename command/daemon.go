@@ -644,7 +644,6 @@ func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Regis
 		if err != nil {
 			return nil, fmt.Errorf("failed to set rate limit config: %w", err)
 		}
-		ingester.SetBatchSize(cfg.Ingest.StoreBatchSize)
 		ingester.RunWorkers(cfg.Ingest.IngestWorkerCount)
 	}
 
