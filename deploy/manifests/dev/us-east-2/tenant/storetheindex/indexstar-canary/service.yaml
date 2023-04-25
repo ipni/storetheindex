@@ -1,7 +1,8 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: indexstar-canary
+  name: indexstar
 spec:
   selector:
     app: indexstar-canary
+  

@@ -6,6 +6,7 @@ resources:
 - assigner
 - instances
 - indexstar
+- indexstar-canary
 - dhstore
 - dhfind
 - caskadht

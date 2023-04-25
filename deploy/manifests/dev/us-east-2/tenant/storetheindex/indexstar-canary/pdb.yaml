@@ -1,7 +1,7 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: indexstar-canary
+  name: indexstar
 spec:
   selector:
     matchLabels:
