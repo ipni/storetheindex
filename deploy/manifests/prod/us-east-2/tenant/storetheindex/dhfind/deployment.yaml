@@ -20,8 +20,8 @@ spec:
             - '--simulationWorkerCount=200'
           resources:
             limits:
-              cpu: "1.5"
-              memory: 1Gi
+              cpu: "2"
+              memory: 1.5Gi
             requests:
-              cpu: "1.5"
-              memory: 1Gi
+              cpu: "2"
+              memory: 1.5Gi
