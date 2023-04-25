@@ -29,6 +29,6 @@ replicas:
     count: 1
 
 images:
-  - name: indexstar-canary
+  - name: indexstar
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/indexstar/indexstar
     newTag: 20230306193717-e2fe71f95193dd46d6ebcd2fe5373d9962bc4b38
