@@ -2,7 +2,7 @@ locals {
   indexstar_origin_id     = "${local.environment_name}_${local.region}_indexstar"
   http_announce_origin_id = "${local.environment_name}_${local.region}_assigner"
   cdn_subdomain           = "cdn"
-  cf_log_bucket = "${local.environment_name}-${local.region}-cf-log"
+  cf_log_bucket           = "${local.environment_name}-${local.region}-cf-log"
 }
 
 resource "aws_s3_bucket" "cf_logs" {
@@ -24,12 +24,18 @@ resource "aws_cloudfront_distribution" "cdn" {
   ]
   price_class = "PriceClass_All"
 
-  logging_config {
-    include_cookies = false
-    bucket          = aws_s3_bucket.cf_logs.bucket_domain_name
-    prefix          = "${local.environment_name}_${local.region}"
-  }
-  
+  # Disable Event logs on CloudFront. 
+  # The commented out HCL below is left to re-enable logs as needed. The S3 bucket with data is left
+  # to store the logs in the time-being as it is being used for diagnostics and cross team collaboration.
+  #
+  # TODO: Remove logging_config entirely and delete the associated S3 once no longer needed.
+  #
+  #  logging_config {
+  #    include_cookies = false
+  #    bucket          = aws_s3_bucket.cf_logs.bucket_domain_name
+  #    prefix          = "${local.environment_name}_${local.region}"
+  #  }
+
   # storetheindex/indexstar ingress.
   origin {
     domain_name = "indexstar.${aws_route53_zone.prod_external.name}"
