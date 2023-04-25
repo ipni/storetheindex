@@ -3,7 +3,13 @@ kind: Deployment
 metadata:
   name: indexstar
 spec:
+  selector:
+    matchLabels:
+      app: indexstar-canary
   template:
+    metadata:
+      labels:
+        app: indexstar-canary
     spec:
       topologySpreadConstraints:
         - maxSkew: 1
@@ -19,6 +25,8 @@ spec:
             - '--backends=http://ber-indexer:3000/'
             - '--backends=http://cali-indexer:3000/'
             - '--backends=http://ago-indexer:3000/'
+            - '--backends=http://dhstore.internal.dev.cid.contact/'
+            - '--backends=http://dhfind-cluster-ip:40080/'
             - '--cascadeBackends=http://caskadht.internal.dev.cid.contact/'
             - '--cascadeBackends=http://cassette.internal.dev.cid.contact/'
           env:
