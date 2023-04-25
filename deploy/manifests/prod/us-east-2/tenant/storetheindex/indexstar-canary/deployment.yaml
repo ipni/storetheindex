@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexstar
+spec:
+  selector:
+    matchLabels:
+      app: indexstar-canary
+  template:
+    metadata:
+      labels:
+        app: indexstar-canary
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+      containers:
+        - name: indexstar
+          args:
+            - '--translateReframe'
+            - '--translateNonStreaming'
+            # Use service names local to the namespace over HTTP to avoid
+            # TLS handshake overhead.
+            - '--backends=http://dido-indexer:3000/'
+            - '--backends=http://oden-indexer:3000/'
+            - '--backends=http://kepa-indexer:3000/'
+            - '--backends=http://dhfind.internal.prod.cid.contact/'
+            - '--cascadeBackends=http://caskadht.internal.prod.cid.contact/'
+            - '--cascadeBackends=http://cassette.internal.prod.cid.contact/'
+          env:
+            # Increase maximum accepted request body to 1 MiB in order to allow batch finds requests
+            # by the `provider verify-ingest` CLI command. 
+            - name: SERVER_MAX_REQUEST_BODY_SIZE
+              value: '1048576'
+            # The service provided by caskadht.
+            - name: SERVER_CASCADE_LABELS
+              value: 'ipfs-dht,legacy'
+            - name: SERVER_HTTP_CLIENT_TIMEOUT
+              value: '30s'
+            - name: SERVER_RESULT_MAX_WAIT
+              value: '2s'
+            - name: SERVER_RESULT_STREAM_MAX_WAIT
+              value: '30s'
+          resources:
+            limits:
+              cpu: "3"
+              memory: 2Gi
+            requests:
+              cpu: "3"
+              memory: 2Gi
