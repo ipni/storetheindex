@@ -6,14 +6,27 @@ namespace: storetheindex
 resources:
   - ../../../../../base/indexstar
   - ingress.yaml
-  - pod-monitor.yaml
+
+nameSuffix: -canary
 
 patchesStrategicMerge:
   - deployment.yaml
+  - service.yaml
+  - pdb.yaml
+
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /metadata/labels/app
+        value: indexstar-canary
+  
+    target:
+      labelSelector: app=indexstar
 
 replicas:
   - name: indexstar
-    count: 2
+    count: 1
 
 images:
   - name: indexstar
