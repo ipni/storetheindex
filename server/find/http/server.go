@@ -170,6 +170,10 @@ func (s *Server) findCid(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) findMultihash(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		s.findBatch(w, r)
+		return
+	}
 	enableCors(w)
 
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
