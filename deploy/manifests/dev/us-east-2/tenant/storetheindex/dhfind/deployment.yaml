@@ -14,7 +14,6 @@ spec:
           args:
             - '--dhstoreAddr=http://dhstore.internal.dev.cid.contact/'
             - '--stiAddr=http://ago-indexer:3000/'
-            - '--simulation=true'
           resources:
             limits:
               cpu: "0.5"
