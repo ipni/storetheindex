@@ -29,8 +29,8 @@ func (m adMirror) read(ctx context.Context, adCid cid.Cid, skipEntries bool) (*c
 	return m.carReader.Read(ctx, adCid, skipEntries)
 }
 
-func (m adMirror) write(ctx context.Context, adCid cid.Cid, skipEntries bool) (*filestore.File, error) {
-	return m.carWriter.Write(ctx, adCid, skipEntries)
+func (m adMirror) write(ctx context.Context, adCid cid.Cid, skipEntries, overWrite bool) (*filestore.File, error) {
+	return m.carWriter.Write(ctx, adCid, skipEntries, overWrite)
 }
 
 func (m adMirror) writeHead(ctx context.Context, adCid cid.Cid, publisher peer.ID) (*filestore.File, error) {

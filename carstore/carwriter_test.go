@@ -60,7 +60,7 @@ func TestWrite(t *testing.T) {
 	require.True(t, ok)
 
 	// Test that car file is created.
-	carInfo, err := carw.Write(ctx, adCid, false)
+	carInfo, err := carw.Write(ctx, adCid, false, false)
 	require.NoError(t, err)
 	require.NotNil(t, carInfo)
 	headInfo, err := fileStore.Head(ctx, carInfo.Path)
@@ -178,7 +178,7 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
 	require.NoError(t, err)
 
-	carInfo, err := carw.Write(ctx, adCid, false)
+	carInfo, err := carw.Write(ctx, adCid, false, false)
 	require.ErrorIs(t, err, fs.ErrExist)
 	require.Zero(t, carInfo.Size)
 
@@ -214,7 +214,7 @@ func TestWriteChain(t *testing.T) {
 
 	ctx := context.Background()
 
-	count, err := carw.WriteChain(ctx, adCid2)
+	count, err := carw.WriteChain(ctx, adCid2, false)
 	require.NoError(t, err)
 	require.Equal(t, 2, count)
 

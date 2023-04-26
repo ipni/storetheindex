@@ -85,15 +85,15 @@ func (cw *CarWriter) Compression() string {
 // of this to create a car file, to maintain the link in the advertisement
 // chain, when it is know that a later advertisement deletes this
 // advertisement's entries.
-func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries bool) (*filestore.File, error) {
+func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries, overWrite bool) (*filestore.File, error) {
 	ad, data, err := cw.loadAd(ctx, adCid)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load advertisement: %w", err)
 	}
-	return cw.write(ctx, adCid, ad, data, skipEntries)
+	return cw.write(ctx, adCid, ad, data, skipEntries, overWrite)
 }
 
-func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Advertisement, data []byte, skipEntries bool) (*filestore.File, error) {
+func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Advertisement, data []byte, skipEntries, overWrite bool) (*filestore.File, error) {
 	fileName := adCid.String() + CarFileSuffix
 	carPath := fileName
 	if cw.compAlg == Gzip {
@@ -115,7 +115,7 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 			return nil, err
 		}
 		// OK, car file does not exist.
-	} else {
+	} else if !overWrite {
 		if err = cw.removeAdData(roots); err != nil {
 			log.Errorw("Cannot remove advertisement data from datastore", "err", err)
 		}
@@ -242,7 +242,7 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 // previous advertisement, then it is written also. This continues until there
 // are no more previous advertisements in the datastore or until an
 // advertisement does not have a previous.
-func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid) (int, error) {
+func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid, overWrite bool) (int, error) {
 	rmCtxID := make(map[string]struct{})
 	var count int
 
@@ -258,7 +258,7 @@ func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid) (int, error)
 		ctxIdStr := string(ad.ContextID)
 		_, skipEnts := rmCtxID[ctxIdStr]
 
-		_, err = cw.write(ctx, adCid, ad, data, skipEnts)
+		_, err = cw.write(ctx, adCid, ad, data, skipEnts, overWrite)
 		if err != nil {
 			return 0, err
 		}
@@ -316,7 +316,7 @@ func (cw *CarWriter) WriteExisting(ctx context.Context) error {
 			continue
 		}
 		if isAdvertisement(node) {
-			_, err = cw.Write(ctx, adCid, false)
+			_, err = cw.Write(ctx, adCid, false, false)
 			if err != nil {
 				log.Errorw("Cannot write saved advertisement to CAR file", "err", err, "adCid", adCid)
 				var werr *WriteError
