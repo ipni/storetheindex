@@ -15,9 +15,6 @@ spec:
           args:
             - '--dhstoreAddr=http://dhstore.internal.prod.cid.contact/'
             - '--stiAddr=http://inga-indexer:3000/'
-            - '--simulation=true'
-            - '--simulationChannelSize=2000'
-            - '--simulationWorkerCount=100'
           resources:
             limits:
               cpu: "2"
