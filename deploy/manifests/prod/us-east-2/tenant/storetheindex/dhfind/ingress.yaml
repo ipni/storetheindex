@@ -20,4 +20,4 @@ spec:
               service:
                 name: dhfind
                 port:
-                  number: 40080
+                  number: 80
