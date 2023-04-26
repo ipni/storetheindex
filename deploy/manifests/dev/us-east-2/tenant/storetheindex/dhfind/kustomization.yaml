@@ -7,6 +7,7 @@ resources:
   - ../../../../../base/dhfind
   - pod-monitor.yaml
   - service-cluster-ip.yaml
+  - ingress.yaml
 
 patchesStrategicMerge:
   - deployment.yaml
