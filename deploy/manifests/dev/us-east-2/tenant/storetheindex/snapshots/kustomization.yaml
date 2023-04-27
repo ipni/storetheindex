@@ -7,4 +7,3 @@ resources:
   - ber-snapshot.yaml
   - cali-snapshot.yaml
   - dhstore-snapshot.yaml
-  - dhstore-snapshot-20230427.yaml
