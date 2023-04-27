@@ -12,6 +12,7 @@ resources:
 - caskadht
 - lookout
 - dhstore
+- dhstore-helga
 - dhfind
 - cassette
 images:
