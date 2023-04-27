@@ -59,7 +59,7 @@ var (
 
 var DaemonCmd = &cli.Command{
 	Name:   "daemon",
-	Usage:  "Start an indexer daemon, accepting http requests",
+	Usage:  "Start a network indexer daemon",
 	Flags:  daemonFlags,
 	Action: daemonAction,
 }

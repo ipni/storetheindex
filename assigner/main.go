@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/ipni/storetheindex/assigner/command"
-	"github.com/ipni/storetheindex/version"
+	"github.com/ipni/storetheindex/revision"
 	"github.com/urfave/cli/v2"
 )
 
@@ -33,9 +33,10 @@ func main() {
 	}()
 
 	app := &cli.App{
-		Name:    "assigner",
-		Usage:   "Assigner Service: assign publishers to indexers",
-		Version: version.String(),
+		Name:        "assigner",
+		Usage:       "IPNI indexer assigner service",
+		Description: "The assigner service is responsible for assigning content advertisement publishers to indexers.",
+		Version:     revision.Revision,
 		Commands: []*cli.Command{
 			command.DaemonCmd,
 			command.InitCmd,
