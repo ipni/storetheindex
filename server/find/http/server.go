@@ -21,9 +21,9 @@ import (
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
+	"github.com/ipni/storetheindex/revision"
 	"github.com/ipni/storetheindex/server/find/handler"
 	"github.com/ipni/storetheindex/server/reframe"
-	"github.com/ipni/storetheindex/version"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
@@ -32,14 +32,9 @@ import (
 )
 
 var (
-	log         = logging.Logger("indexer/find")
-	newline     = []byte("\n")
-	versionData []byte
+	log     = logging.Logger("indexer/find")
+	newline = []byte("\n")
 )
-
-func init() {
-	versionData, _ = json.Marshal(version.String())
-}
 
 type Server struct {
 	server      *http.Server
@@ -304,7 +299,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Cache-Control", "no-cache")
-	httpserver.WriteJsonResponse(w, http.StatusOK, versionData)
+	httpserver.WriteJsonResponse(w, http.StatusOK, revision.RevisionJSON)
 }
 
 func (s *Server) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, stream bool) {

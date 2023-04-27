@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -10,17 +9,11 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/go-libipni/announce/message"
 	"github.com/ipni/storetheindex/assigner/core"
-	"github.com/ipni/storetheindex/version"
+	"github.com/ipni/storetheindex/revision"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 var log = logging.Logger("assigner/server")
-
-var versionData []byte
-
-func init() {
-	versionData, _ = json.Marshal(version.String())
-}
 
 type Server struct {
 	assigner *core.Assigner
@@ -129,7 +122,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-cache")
-	writeJsonResponse(w, http.StatusOK, versionData)
+	writeJsonResponse(w, http.StatusOK, revision.RevisionJSON)
 }
 
 func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {

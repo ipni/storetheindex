@@ -8,7 +8,6 @@ import (
 	"syscall"
 
 	"github.com/ipni/storetheindex/command"
-	"github.com/ipni/storetheindex/version"
 	"github.com/urfave/cli/v2"
 )
 
@@ -33,9 +32,9 @@ func main() {
 	}()
 
 	app := &cli.App{
-		Name:    "indexer",
-		Usage:   "Indexer Node: Filecoin's data indexer",
-		Version: version.String(),
+		Name:    "storetheindex",
+		Usage:   "IPNI indexer implementation",
+		Version: version,
 		Commands: []*cli.Command{
 			command.AdminCmd,
 			command.AssignerCmd,
