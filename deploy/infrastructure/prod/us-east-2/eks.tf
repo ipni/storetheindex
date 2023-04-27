@@ -26,7 +26,7 @@ module "eks" {
   }
 
   eks_managed_node_groups = {
-    # Node group for running dhstore nodes
+    # Node groups for running dhstore nodes
     prod-ue2c-r5n-2xl = {
       min_size       = 1
       max_size       = 3
@@ -41,6 +41,22 @@ module "eks" {
         }
       }
     }
+    prod-ue2a-r5n-2xl = {
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 1
+      instance_types = ["r5n.2xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2a1.id]
+      taints         = {
+        dedicated = {
+          key    = "dedicated"
+          value  = "r5n-2xl"
+          effect = "NO_SCHEDULE"
+        }
+      }
+    }
+
+
     # Node group for running double hashed indexer nodes
     prod-ue2c-r6a-xl = {
       min_size       = 0
