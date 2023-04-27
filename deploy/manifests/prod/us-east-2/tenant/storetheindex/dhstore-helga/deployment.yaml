@@ -16,7 +16,7 @@ spec:
           topologyKey: topology.kubernetes.io/zone
           whenUnsatisfiable: ScheduleAnyway
       containers:
-        - name: dhstore-helga
+        - name: dhstore
           args:
             - '--storePath=/data'
             - '--disableWAL'
