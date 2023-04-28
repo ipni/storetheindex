@@ -184,5 +184,11 @@ func initAction(cctx *cli.Context) error {
 		cfg.Indexer.DHBatchSize = -1
 	}
 
+	dhstoreClusterUrls := cctx.StringSlice("dhstore-cluster")
+	if len(dhstoreClusterUrls) > 0 {
+		log.Infow("dhstoreClusterUrls", dhstoreClusterUrls)
+		cfg.Indexer.DHStoreClusterURLs = dhstoreClusterUrls
+	}
+
 	return cfg.Save(configFile)
 }

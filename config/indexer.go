@@ -23,6 +23,10 @@ type Indexer struct {
 	// DHStoreURL is the base URL for the DHStore service. This option value
 	// tells the indexer core to use a DHStore service, if configured.
 	DHStoreURL string
+	// DHStoreClusterURLs provide addional URLs that the core will send delete requests to.
+	// Deletes will be send to the dhstoreURL as well as to all dhstoreClusterURLs. This is required as deletes need to be applied to all nodes until
+	// consistent hashing is implemented. dhstoreURL shouldn't be included in this list.
+	DHStoreClusterURLs []string
 	// DHStoreHttpClientTimeout is a timeout for the DHStore http client
 	DHStoreHttpClientTimeout Duration
 	// FreezeAtPercent is the percent used, of the file system that
