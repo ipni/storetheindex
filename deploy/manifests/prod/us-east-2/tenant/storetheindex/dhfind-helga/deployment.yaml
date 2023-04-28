@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dhfind
+spec:
+  # increase replicas as dhstore-helga grows, while also reducing replicas for dhfind
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dhfind-helga
+  template:
+    metadata:
+      labels:
+        app: dhfind-helga
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+      containers:
+        - name: dhfind
+          args:
+            - '--dhstoreAddr=http://dhstore-helga.internal.prod.cid.contact/'
+            - '--stiAddr=http://inga-indexer:3000/'
+          resources:
+            limits:
+              cpu: "2"
+              memory: 3Gi
+            requests:
+              cpu: "2"
+              memory: 3Gi
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - us-east-2a # should be the same as the zone of the dhstore-helga

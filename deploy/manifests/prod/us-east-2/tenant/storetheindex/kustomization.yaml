@@ -14,6 +14,7 @@ resources:
 - dhstore
 - dhstore-helga
 - dhfind
+- dhfind-helga
 - cassette
 images:
 - name: storetheindex
