@@ -6,6 +6,7 @@ namespace: storetheindex
 resources:
   - ../../../../../base/indexstar
   - ingress.yaml
+  - pod-monitor.yaml
 
 nameSuffix: -canary
 
