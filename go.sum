@@ -618,8 +618,8 @@ github.com/ipld/go-storethehash v0.3.13 h1:1T6kX5K57lAgxbsGitZEaZMAR3RdWch2kO8ok
 github.com/ipld/go-storethehash v0.3.13/go.mod h1:KCYpzmamubnSwm7fvWcCkm0aIwQh4WRNtzrKK4pVhAQ=
 github.com/ipni/dhstore v0.0.2-0.20230324212407-ceb5f50e3bad h1:nS2Zq9bHG0eFzRjz1naWKl6I1YYPGWI1yWJK+zX3UGM=
 github.com/ipni/dhstore v0.0.2-0.20230324212407-ceb5f50e3bad/go.mod h1:XI6XW5Eu97zY5PEK2ZRuESh8mYkxIZYRTMcknPVbbrc=
-github.com/ipni/go-indexer-core v0.7.7-0.20230428105441-32af01a52225 h1:pqgUvHIPFI+SxCbkHmSRF1SqmD4PGJmVyH7rs/cVpdc=
-github.com/ipni/go-indexer-core v0.7.7-0.20230428105441-32af01a52225/go.mod h1:03SY41l6ZC2gPRvDBuO8QMSpBSvd+P8NtUJEWgJxbNc=
+github.com/ipni/go-indexer-core v0.7.7-0.20230428144442-edaa85d323d1 h1:2GPoDYss/uu1KVxjdS3AWWD2RvO60gNBVvMcDUDRe8Q=
+github.com/ipni/go-indexer-core v0.7.7-0.20230428144442-edaa85d323d1/go.mod h1:03SY41l6ZC2gPRvDBuO8QMSpBSvd+P8NtUJEWgJxbNc=
 github.com/ipni/go-libipni v0.0.7 h1:L0AnFQagedfJU5mJ7kz0H8P1452brJveOQeS6p3MmbA=
 github.com/ipni/go-libipni v0.0.7/go.mod h1:TlGZaGMGIVpeb6fiwttfY1JgaMnH+HDVPzxgRJJPaQY=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52 h1:QG4CGBqCeuBo6aZlGAamSkxWdgWfZGeE49eUOWJPA4c=
