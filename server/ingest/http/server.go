@@ -14,8 +14,8 @@ import (
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
+	"github.com/ipni/storetheindex/internal/revision"
 	"github.com/ipni/storetheindex/server/ingest/handler"
-	"github.com/ipni/storetheindex/version"
 )
 
 var log = logging.Logger("indexer/ingest")
@@ -107,9 +107,7 @@ func (s *Server) getHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Cache-Control", "no-cache")
-	v := version.String()
-	b, _ := json.Marshal(v)
-	httpserver.WriteJsonResponse(w, http.StatusOK, b)
+	httpserver.WriteJsonResponse(w, http.StatusOK, revision.RevisionJSON)
 }
 
 func (s *Server) postRegisterProvider(w http.ResponseWriter, r *http.Request) {
