@@ -14,7 +14,7 @@ import (
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
-	"github.com/ipni/storetheindex/revision"
+	"github.com/ipni/storetheindex/internal/revision"
 	"github.com/ipni/storetheindex/server/ingest/handler"
 )
 

@@ -9,7 +9,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/go-libipni/announce/message"
 	"github.com/ipni/storetheindex/assigner/core"
-	"github.com/ipni/storetheindex/revision"
+	"github.com/ipni/storetheindex/internal/revision"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 

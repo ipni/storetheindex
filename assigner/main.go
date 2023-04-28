@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/ipni/storetheindex/assigner/command"
-	"github.com/ipni/storetheindex/revision"
+	"github.com/ipni/storetheindex/internal/revision"
 	"github.com/urfave/cli/v2"
 )
 

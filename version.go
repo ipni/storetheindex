@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ipni/storetheindex/revision"
+	"github.com/ipni/storetheindex/internal/revision"
 )
 
 var version string

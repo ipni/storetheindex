@@ -21,7 +21,7 @@ import (
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
-	"github.com/ipni/storetheindex/revision"
+	"github.com/ipni/storetheindex/internal/revision"
 	"github.com/ipni/storetheindex/server/find/handler"
 	"github.com/ipni/storetheindex/server/reframe"
 	"github.com/libp2p/go-libp2p/core/peer"
