@@ -363,6 +363,7 @@ func (s *Server) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, st
 			http.Error(w, "no results for query", http.StatusNotFound)
 			return
 		}
+		found = true
 		return
 	}
 
