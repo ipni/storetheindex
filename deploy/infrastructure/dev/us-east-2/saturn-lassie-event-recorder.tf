@@ -20,7 +20,7 @@ module "saturn_lassie_events_db" {
   major_engine_version = "14"
   instance_class       = "db.m5.large"
 
-  allocated_storage   = 1500
+  allocated_storage   = 2000
   skip_final_snapshot = true
   db_name             = "SaturnLassieEvents"
   username            = "postgres"
