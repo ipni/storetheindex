@@ -116,6 +116,8 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 		}
 		// OK, car file does not exist.
 	} else if !overWrite {
+		// If overWrite is false then only do datastore cleanup without
+		// overwriting car file.
 		if err = cw.removeAdData(roots); err != nil {
 			log.Errorw("Cannot remove advertisement data from datastore", "err", err)
 		}
