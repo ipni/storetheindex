@@ -24,8 +24,8 @@ spec:
             - '--stiAddr=http://inga-indexer:3000/'
           resources:
             limits:
-              cpu: "2"
-              memory: 3Gi
+              cpu: "1.5"
+              memory: 1Gi
             requests:
-              cpu: "2"
-              memory: 3Gi
+              cpu: "1.5"
+              memory: 1Gi
