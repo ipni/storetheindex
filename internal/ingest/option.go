@@ -9,6 +9,7 @@ import (
 // configIngest contains all options for the ingester.
 type configIngest struct {
 	idxCounts *counter.IndexCounts
+	rmOnly    bool
 }
 
 // Option is a function that sets a value in a config.
@@ -29,6 +30,14 @@ func getOpts(opts []Option) (configIngest, error) {
 func WithIndexCounts(ic *counter.IndexCounts) Option {
 	return func(c *configIngest) error {
 		c.idxCounts = ic
+		return nil
+	}
+}
+
+// WithRmOnly causes ingester to only process removal advertisemetns if true.
+func WithRmOnly(rmOnly bool) Option {
+	return func(c *configIngest) error {
+		c.rmOnly = rmOnly
 		return nil
 	}
 }

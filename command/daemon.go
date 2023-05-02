@@ -137,7 +137,7 @@ func daemonAction(cctx *cli.Context) error {
 	if cacheSize == 0 {
 		cacheSize = cfg.Indexer.CacheSize
 	}
-	if cacheSize > 0 {
+	if cacheSize > 0 && !cfg.Ingest.RmOnly {
 		resultCache = radixcache.New(cacheSize)
 		log.Infow("Result cache enabled", "size", cacheSize)
 	} else {
@@ -240,7 +240,7 @@ func daemonAction(cctx *cli.Context) error {
 
 		// Initialize ingester.
 		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore,
-			ingest.WithIndexCounts(indexCounts))
+			ingest.WithIndexCounts(indexCounts), ingest.WithRmOnly(cfg.Ingest.RmOnly))
 		if err != nil {
 			return err
 		}

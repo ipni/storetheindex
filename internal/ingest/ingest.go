@@ -179,6 +179,8 @@ type Ingester struct {
 	// Metrics
 	backlogs    map[peer.ID]int32
 	indexCounts *counter.IndexCounts
+
+	rmOnly bool
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
@@ -216,6 +218,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		indexCounts: opts.idxCounts,
 		backlogs:    make(map[peer.ID]int32),
+
+		rmOnly: opts.rmOnly,
 	}
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
@@ -260,6 +264,11 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		log.Errorw("Failed to start pubsub subscriber", "err", err)
 		return nil, errors.New("ingester subscriber failed")
 	}
+
+	if ing.rmOnly {
+		log.Warnw("Ingester only processing removal advertisements")
+	}
+
 	ing.sub = sub
 
 	ing.syncFinishedEvents, ing.cancelOnSyncFinished = ing.sub.OnSyncFinished()
@@ -1011,6 +1020,8 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 	var rmCount int64
 	rmCtxID := make(map[string]struct{})
 
+	rmOnly := ing.rmOnly
+
 	// 1. Group the incoming CIDs by provider.
 	//
 	// Serializing on the provider prevents concurrent processing of ads for
@@ -1044,6 +1055,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 			log.Errorw("Failed to load advertisement CID, skipping", "cid", c, "err", err)
 			continue
 		}
+
 		providerID, err := peer.Decode(ad.Provider)
 		if err != nil {
 			log.Errorf("Failed to get provider from ad CID: %s skipping", err)
@@ -1054,6 +1066,9 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 		_, ok := provAddrs[providerID]
 		if !ok {
 			provAddrs[providerID] = ad.Addresses
+		} else if rmOnly && !ad.IsRm {
+			// Skip all non-rm ads except the first for this provider.
+			continue
 		}
 
 		ai := adInfo{
@@ -1062,11 +1077,18 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 		}
 
 		ctxIdStr := string(ad.ContextID)
-		// This ad was deleted by a later remove.
-		if _, ok := rmCtxID[ctxIdStr]; ok {
-			ai.skip = true
-		} else if ad.IsRm {
+		if ad.IsRm {
 			rmCtxID[ctxIdStr] = struct{}{}
+			rmCount++
+		} else if _, ok := rmCtxID[ctxIdStr]; ok {
+			// This ad was deleted by a later remove.
+			ai.skip = true
+			if rmOnly {
+				continue
+			}
+		} else if rmOnly {
+			// Non-rm ad, so must be first for this provider, skip it.
+			ai.skip = true
 		}
 
 		adsGroupedByProvider[providerID] = append(adsGroupedByProvider[providerID], ai)

@@ -55,6 +55,8 @@ type Ingest struct {
 	PubSubTopic string
 	// RateLimit contains rate-limiting configuration.
 	RateLimit RateLimit
+	// RmOnly causes the ingester to only process delete messages if true.
+	RmOnly bool
 	// ResendDirectAnnounce determines whether or not to re-publish direct
 	// announce messages over gossip pubsub. When a single indexer receives an
 	// announce message via HTTP, enabling this lets the indexers re-publish
