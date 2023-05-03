@@ -1062,11 +1062,12 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 		}
 
 		ctxIdStr := string(ad.ContextID)
-		// This ad was deleted by a later remove.
-		if _, ok := rmCtxID[ctxIdStr]; ok {
-			ai.skip = true
-		} else if ad.IsRm {
+		if ad.IsRm {
 			rmCtxID[ctxIdStr] = struct{}{}
+			rmCount++
+		} else if _, ok := rmCtxID[ctxIdStr]; ok {
+			// This ad was deleted by a later remove.
+			ai.skip = true
 		}
 
 		adsGroupedByProvider[providerID] = append(adsGroupedByProvider[providerID], ai)
