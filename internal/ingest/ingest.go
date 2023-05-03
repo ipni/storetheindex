@@ -1059,6 +1059,9 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 		providerID, err := peer.Decode(ad.Provider)
 		if err != nil {
 			log.Errorf("Failed to get provider from ad CID: %s skipping", err)
+			if err = ing.ds.Delete(ctx, datastore.NewKey(c.String())); err != nil {
+				log.Errorw("Cannot remove advertisement from datastore", "err", err)
+			}
 			continue
 		}
 		// If this is the first ad for this provider, then save the provider
@@ -1067,6 +1070,9 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 		if !ok && len(ad.Addresses) != 0 {
 			provAddrs[providerID] = ad.Addresses
 		} else if rmOnly && !ad.IsRm {
+			if err = ing.ds.Delete(ctx, datastore.NewKey(c.String())); err != nil {
+				log.Errorw("Cannot remove advertisement from datastore", "err", err)
+			}
 			// Skip all non-rm ads except the first for this provider.
 			continue
 		}
@@ -1082,10 +1088,13 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 			rmCount++
 		} else if _, ok := rmCtxID[ctxIdStr]; ok {
 			// This ad was deleted by a later remove.
-			ai.skip = true
 			if rmOnly {
+				if err = ing.ds.Delete(ctx, datastore.NewKey(c.String())); err != nil {
+					log.Errorw("Cannot remove advertisement from datastore", "err", err)
+				}
 				continue
 			}
+			ai.skip = true
 		} else if rmOnly {
 			// Non-rm ad, so must be first for this provider, skip it.
 			ai.skip = true
