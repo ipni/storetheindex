@@ -455,7 +455,7 @@ func createProviderAndPopulateIndexer(t *testing.T, ctx context.Context, ind ind
 		Addrs: addrs,
 	}
 
-	err := reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, extendedProviders, 0, true)
+	err := reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, extendedProviders, 0)
 	require.NoError(t, err, "could not register provider info: %v", err)
 
 	return providerID, mhs

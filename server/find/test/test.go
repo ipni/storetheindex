@@ -103,7 +103,7 @@ func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Interface,
 		ID:    p,
 		Addrs: []multiaddr.Multiaddr{a},
 	}
-	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0, true)
+	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err, "could not register provider info")
 
 	// Get single multihash
@@ -133,7 +133,7 @@ func FindIndexTest(ctx context.Context, t *testing.T, c client.Interface, ind in
 		ID:    p,
 		Addrs: []multiaddr.Multiaddr{a},
 	}
-	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0, true)
+	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err, "could not register provider info")
 
 	// Get single multihash
@@ -282,7 +282,7 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Interface, i
 		ID:    p,
 		Addrs: []multiaddr.Multiaddr{a},
 	}
-	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0, true)
+	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err, "could not register provider info")
 
 	// Get single multihash
@@ -380,7 +380,7 @@ func Register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID
 		},
 	}
 
-	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, extProviders, 0, true)
+	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, extProviders, 0)
 	require.NoError(t, err)
 
 	return peerID

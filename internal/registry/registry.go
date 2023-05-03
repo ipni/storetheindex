@@ -605,7 +605,7 @@ func validateExtProviders(extendedProviders *ExtendedProviders) error {
 // Update attempts to update the registry's provider information. If publisher
 // has a valid ID, then the supplied publisher data replaces the provider's
 // previous publisher information.
-func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo, adCid cid.Cid, extendedProviders *ExtendedProviders, lag int, needProviderAddr bool) error {
+func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo, adCid cid.Cid, extendedProviders *ExtendedProviders, lag int) error {
 	// Do not accept update if provider is not allowed.
 	if !r.policy.Allowed(provider.ID) {
 		return ErrNotAllowed
@@ -657,7 +657,7 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 		if err != nil {
 			return err
 		}
-		if len(provider.Addrs) == 0 && needProviderAddr {
+		if len(provider.Addrs) == 0 {
 			return ErrMissingProviderAddr
 		}
 		info = &ProviderInfo{

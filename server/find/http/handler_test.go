@@ -306,7 +306,7 @@ func setupTestServerHander(t *testing.T, iv indexer.Value, mhs []multihash.Multi
 		Addrs: []multiaddr.Multiaddr{a},
 	}
 
-	err = reg.Update(context.Background(), provider, peer.AddrInfo{}, cid.Undef, nil, 0, true)
+	err = reg.Update(context.Background(), provider, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err)
 	return s.server.Handler.ServeHTTP
 }

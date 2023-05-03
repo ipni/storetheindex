@@ -1064,7 +1064,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 		// If this is the first ad for this provider, then save the provider
 		// addresses.
 		_, ok := provAddrs[providerID]
-		if !ok {
+		if !ok && len(ad.Addresses) != 0 {
 			provAddrs[providerID] = ad.Addresses
 		} else if rmOnly && !ad.IsRm {
 			// Skip all non-rm ads except the first for this provider.

@@ -255,7 +255,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 
 	// Register provider or update existing registration. The provider must be
 	// allowed by policy to be registered.
-	err = ing.reg.Update(ctx, headProvider, publisher, adCid, extendedProviders, lag, !ad.IsRm)
+	err = ing.reg.Update(ctx, headProvider, publisher, adCid, extendedProviders, lag)
 	if err != nil {
 		// A registry.ErrMissingProviderAddr error is not considered a
 		// permanent adIngestMalformedErr error, because an advertisement added
