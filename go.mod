@@ -20,19 +20,19 @@ require (
 	github.com/ipfs/go-delegated-routing v0.7.0
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/ipfs/go-log/v2 v2.5.1
-	github.com/ipfs/kubo v0.19.1
+	github.com/ipfs/kubo v0.19.2
 	github.com/ipld/go-car/v2 v2.10.0
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
 	github.com/ipld/go-ipld-prime v0.20.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
 	github.com/ipld/go-storethehash v0.3.13
-	github.com/ipni/go-indexer-core v0.7.7-0.20230428152942-a76704184567
-	github.com/ipni/go-libipni v0.0.7
+	github.com/ipni/go-indexer-core v0.7.7
+	github.com/ipni/go-libipni v0.0.8
 	github.com/libp2p/go-libp2p v0.27.1
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-multiaddr v0.9.0
-	github.com/multiformats/go-multicodec v0.8.1
+	github.com/multiformats/go-multicodec v0.9.0
 	github.com/multiformats/go-multihash v0.2.1
 	github.com/multiformats/go-varint v0.0.7
 	github.com/orlangure/gnomock v0.24.0
@@ -88,7 +88,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
 	github.com/filecoin-project/go-cbor-util v0.0.1 // indirect
-	github.com/filecoin-project/go-data-transfer/v2 v2.0.0-rc6 // indirect
+	github.com/filecoin-project/go-data-transfer/v2 v2.0.0-rc7 // indirect
 	github.com/filecoin-project/go-ds-versioning v0.1.2 // indirect
 	github.com/filecoin-project/go-statemachine v1.0.2 // indirect
 	github.com/filecoin-project/go-statestore v0.2.0 // indirect
@@ -123,7 +123,7 @@ require (
 	github.com/ipfs/bbloom v0.0.4 // indirect
 	github.com/ipfs/go-block-format v0.1.2 // indirect
 	github.com/ipfs/go-blockservice v0.5.1 // indirect
-	github.com/ipfs/go-graphsync v0.14.5 // indirect
+	github.com/ipfs/go-graphsync v0.14.6 // indirect
 	github.com/ipfs/go-ipfs-blockstore v1.3.0 // indirect
 	github.com/ipfs/go-ipfs-chunker v0.0.5 // indirect
 	github.com/ipfs/go-ipfs-ds-help v1.1.0 // indirect
