@@ -1004,6 +1004,13 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 	}
 }
 
+func (ing *Ingester) rmAd(ctx context.Context, c cid.Cid) {
+	err := ing.ds.Delete(ctx, datastore.NewKey(c.String()))
+	if err != nil {
+		log.Errorw("Cannot remove advertisement from datastore", "err", err)
+	}
+}
+
 // processRawAdChain processes a raw advertisement chain from a publisher to
 // create provider work assignments. When not workers are working on a work
 // assignment for a provider, then workers are given the next work assignment
@@ -1055,13 +1062,10 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 			log.Errorw("Failed to load advertisement CID, skipping", "cid", c, "err", err)
 			continue
 		}
-
 		providerID, err := peer.Decode(ad.Provider)
 		if err != nil {
 			log.Errorf("Failed to get provider from ad CID: %s skipping", err)
-			if err = ing.ds.Delete(ctx, datastore.NewKey(c.String())); err != nil {
-				log.Errorw("Cannot remove advertisement from datastore", "err", err)
-			}
+			ing.rmAd(ctx, c)
 			continue
 		}
 		// If this is the first ad for this provider, then save the provider
@@ -1069,12 +1073,6 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 		_, ok := provAddrs[providerID]
 		if !ok && len(ad.Addresses) != 0 {
 			provAddrs[providerID] = ad.Addresses
-		} else if rmOnly && !ad.IsRm {
-			if err = ing.ds.Delete(ctx, datastore.NewKey(c.String())); err != nil {
-				log.Errorw("Cannot remove advertisement from datastore", "err", err)
-			}
-			// Skip all non-rm ads except the first for this provider.
-			continue
 		}
 
 		ai := adInfo{
@@ -1089,18 +1087,46 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 		} else if _, ok := rmCtxID[ctxIdStr]; ok {
 			// This ad was deleted by a later remove.
 			if rmOnly {
-				if err = ing.ds.Delete(ctx, datastore.NewKey(c.String())); err != nil {
-					log.Errorw("Cannot remove advertisement from datastore", "err", err)
-				}
+				// Completely discard ads with deleted context ID.
+				ing.rmAd(ctx, c)
 				continue
 			}
-			ai.skip = true
-		} else if rmOnly {
-			// Non-rm ad, so must be first for this provider, skip it.
 			ai.skip = true
 		}
 
 		adsGroupedByProvider[providerID] = append(adsGroupedByProvider[providerID], ai)
+	}
+
+	if rmOnly {
+		// Only keep ads that do not have their context IDs removed. If an ad's
+		// context ID is removed, this means that the ads in the ad info list
+		// happened after the removal, so we need to process them.
+		for providerID, adInfos := range adsGroupedByProvider {
+			var finalAdInfos []adInfo
+			for i, ai := range adInfos {
+				ad, err := ing.loadAd(ai.cid)
+				if err == nil && !ad.IsRm {
+					if _, ok := rmCtxID[string(ad.ContextID)]; !ok {
+						// If this is the head ad, then only skip its entries,
+						// but still process it so that indexer remembers last
+						// ad processed.
+						if i == 0 {
+							ai.skip = true
+						} else {
+							// Discard ad since there was no remove for its context ID.
+							ing.rmAd(ctx, ai.cid)
+							continue
+						}
+					}
+				}
+				finalAdInfos = append(finalAdInfos, ai)
+			}
+			if len(finalAdInfos) != 0 {
+				adsGroupedByProvider[providerID] = finalAdInfos
+			} else {
+				delete(adsGroupedByProvider, providerID)
+			}
+		}
 	}
 
 	nonRmCount := int64(len(syncFinishedEvent.SyncedCids)) - rmCount
