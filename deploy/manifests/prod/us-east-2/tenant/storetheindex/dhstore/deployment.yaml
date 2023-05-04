@@ -44,7 +44,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: dhstore-data
+            claimName: dhstore-data-gp3
       tolerations:
         - key: dedicated
           operator: Equal
