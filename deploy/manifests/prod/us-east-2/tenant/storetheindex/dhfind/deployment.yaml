@@ -14,7 +14,7 @@ spec:
         - name: dhfind
           args:
             - '--dhstoreAddr=http://dhstore.internal.prod.cid.contact/'
-            - '--stiAddr=http://inga-indexer:3000/'
+            - '--stiAddr=http://indexstar:8080/'
           resources:
             limits:
               cpu: "1.5"
