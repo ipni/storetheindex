@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	pbl "github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/query"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipfs/kubo/core/bootstrap"
@@ -38,6 +41,12 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
+)
+
+const (
+	dsInfoPrefix = "/dsInfo/"
+	dsVersionKey = "version"
+	dsVersion    = "001"
 )
 
 // Recognized valuestore type names.
@@ -114,7 +123,7 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	// Create datastore
-	dstore, dsDir, err := createDatastore(cfg.Datastore)
+	dstore, dsDir, err := createDatastore(cctx.Context, cfg.Datastore)
 	if err != nil {
 		return err
 	}
@@ -709,7 +718,7 @@ func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p
 	return peeringService, nil
 }
 
-func createDatastore(cfg config.Datastore) (datastore.Batching, string, error) {
+func createDatastore(ctx context.Context, cfg config.Datastore) (datastore.Batching, string, error) {
 	if cfg.Type != "levelds" {
 		return nil, "", fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Type)
 	}
@@ -724,5 +733,89 @@ func createDatastore(cfg config.Datastore) (datastore.Batching, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	err = updateDatastore(ctx, ds)
+	if err != nil {
+		return nil, fmt.Errorf("cannot update datastore: %w", err)
+	}
 	return ds, dataStorePath, nil
+}
+
+func updateDatastore(ctx context.Context, ds datastore.Batching) error {
+	dsVerKey := datastore.NewKey(dsInfoPrefix + dsVersionKey)
+	curVerData, err := ds.Get(ctx, dsVerKey)
+	if err != nil && !errors.Is(err, datastore.ErrNotFound) {
+		return fmt.Errorf("cannot check datastore: %w", err)
+	}
+	var curVer string
+	if len(curVerData) != 0 {
+		curVer = string(curVerData)
+	}
+	if curVer == dsVersion {
+		return nil
+	}
+	if curVer > dsVersion {
+		return fmt.Errorf("unknown datastore verssion: %s", curVer)
+	}
+
+	log.Infof("Updating datastore to version %s", dsVersion)
+
+	q := query.Query{
+		KeysOnly: true,
+	}
+	results, err := ds.Query(ctx, q)
+	if err != nil {
+		return fmt.Errorf("cannot query datastore: %w", err)
+	}
+	defer results.Close()
+
+	batch, err := ds.Batch(ctx)
+	if err != nil {
+		return fmt.Errorf("cannot create datastore batch: %w", err)
+	}
+
+	var cidCount, dtKeyCount, writeCount int
+	for result := range results.Next() {
+		if writeCount >= 500000 {
+			writeCount = 0
+			if err = batch.Commit(ctx); err != nil {
+				return fmt.Errorf("cannot commit to datastore: %w", err)
+			}
+			log.Infow("Datastore update removed data", "dtSessions", dtKeyCount, "cids", cidCount)
+		}
+		if result.Error != nil {
+			return fmt.Errorf("cannot read query result from datastore: %w", result.Error)
+		}
+		ent := result.Entry
+		key := ent.Key[1:]
+
+		before, after, found := strings.Cut(key, "/")
+		if found {
+			if before[0] >= '0' && before[0] <= '9' && len(after) > 22 {
+				if err = batch.Delete(ctx, datastore.NewKey(key)); err != nil {
+					return fmt.Errorf("cannot delete dt session key from datastore: %w", err)
+				}
+				writeCount++
+				dtKeyCount++
+			}
+			continue
+		}
+
+		if _, err := cid.Decode(key); err != nil {
+			log.Warnf("Unknown key: %s", key)
+			continue
+		}
+		if err = batch.Delete(ctx, datastore.NewKey(key)); err != nil {
+			return fmt.Errorf("cannot delete CID from datastore: %w", err)
+		}
+		writeCount++
+		cidCount++
+	}
+
+	ctx = context.Background() // do not cancel now
+	batch.Put(ctx, dsVerKey, []byte(dsVersion))
+	batch.Commit(ctx)
+	ds.Sync(ctx, datastore.NewKey(""))
+
+	log.Infow("Datastore update finished, removed old data", "dtSessions", dtKeyCount, "cids", cidCount)
+	return nil
 }

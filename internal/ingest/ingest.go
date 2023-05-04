@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/namespace"
 	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
@@ -39,6 +40,8 @@ var log = logging.Logger("indexer/ingest")
 
 // prefix used to track latest sync in datastore.
 const (
+	// adTmpNS is a datastore namespace for temporary advertisement data.
+	adTmpNS = "adTmp"
 	// syncPrefix identifies the latest sync for each provider.
 	syncPrefix = "/sync/"
 	// adProcessedPrefix identifies all processed advertisements.
@@ -112,6 +115,7 @@ type workerAssignment struct {
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
+	dsAdTmp datastore.Batching
 	lsys    ipld.LinkSystem
 	indexer indexer.Interface
 
@@ -183,11 +187,13 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	if cfg.IngestWorkerCount == 0 {
 		return nil, errors.New("ingester worker count must be > 0")
 	}
+	dsAdTmp := namespace.Wrap(ds, datastore.NewKey(adTmpNS))
 
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
-		lsys:        mkLinkSystem(ds, reg),
+		dsAdTmp:     dsAdTmp,
+		lsys:        mkLinkSystem(dsAdTmp, reg),
 		indexer:     idxr,
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		entriesSel:  Selectors.EntriesWithLimit(recursionLimit(cfg.EntriesDepthLimit)),
@@ -211,7 +217,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 
-	ing.mirror, err = newMirror(cfg.AdvertisementMirror, ds)
+	ing.mirror, err = newMirror(cfg.AdvertisementMirror, ing.dsAdTmp)
 	if err != nil {
 		return nil, err
 	}
@@ -627,7 +633,7 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, k
 
 	if !keep || frozen {
 		// This ad is processed, so remove it from the datastore.
-		err = ing.ds.Delete(ctx, datastore.NewKey(cidStr))
+		err = ing.dsAdTmp.Delete(ctx, datastore.NewKey(cidStr))
 		if err != nil {
 			// Log the error, but do not return. Continue on to save the procesed ad.
 			log.Errorw("Cannot remove advertisement from datastore", "err", err)
