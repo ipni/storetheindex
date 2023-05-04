@@ -405,14 +405,6 @@ func decodeIPLDNode(r io.Reader, codec uint64, prototype ipld.NodePrototype) (ip
 	return nb.Build(), nil
 }
 
-// isAdvertisement checks if an IPLD node is an advertisement, by looking to
-// see if it has a "Signature" field. Additional checks may be needed if the
-// schema is extended with new types that are traversable.
-func isAdvertisement(node ipld.Node) bool {
-	indexID, _ := node.LookupByString("Signature")
-	return indexID != nil
-}
-
 // isHAMT checks if the given IPLD node is a HAMT root node by looking for a
 // field named "hamt".
 //
