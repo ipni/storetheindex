@@ -37,13 +37,13 @@ var log = logging.Logger("carwriter")
 // car files from a location that is not completely trusted.
 type CarWriter struct {
 	compAlg   string
-	dstore    datastore.Datastore
+	dstore    datastore.Batching
 	fileStore filestore.Interface
 }
 
 // NewWriter create a new CarWriter that reads advertisement data from the
 // given datastore and writes car files to the specified directory.
-func NewWriter(dstore datastore.Datastore, fileStore filestore.Interface, options ...Option) (*CarWriter, error) {
+func NewWriter(dstore datastore.Batching, fileStore filestore.Interface, options ...Option) (*CarWriter, error) {
 	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
@@ -286,11 +286,20 @@ func (cw *CarWriter) WriteHead(ctx context.Context, adCid cid.Cid, publisher pee
 }
 
 func (cw *CarWriter) deleteCids(delCids []cid.Cid) {
+	ctx := context.Background()
+	b, err := cw.dstore.Batch(ctx)
+	if err != nil {
+		log.Errorw("Cannot create batch", "err", err)
+		return
+	}
 	for i := len(delCids) - 1; i >= 0; i-- {
-		err := cw.dstore.Delete(context.Background(), datastore.NewKey(delCids[i].String()))
+		err = b.Delete(ctx, datastore.NewKey(delCids[i].String()))
 		if err != nil {
 			log.Errorw("Error deleting advertisement data from datastore", "err", err)
 		}
+	}
+	if err = b.Commit(ctx); err != nil {
+		log.Errorw("Error deleting advertisement data from datastore", "err", err)
 	}
 }
 
