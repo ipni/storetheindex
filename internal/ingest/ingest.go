@@ -1223,7 +1223,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			}
 			if !frozen && keep {
 				// Write the advertisement to a CAR file, but omit the entries.
-				carInfo, err := ing.mirror.write(ctx, ai.cid, true)
+				carInfo, err := ing.mirror.write(ctx, ai.cid, true, ai.resync)
 				if err != nil {
 					if !errors.Is(err, fs.ErrExist) {
 						// Log the error, but do not return. Continue on to save the procesed ad.
@@ -1299,7 +1299,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 		}
 
 		if !frozen && keep {
-			carInfo, err := ing.mirror.write(ctx, ai.cid, false)
+			carInfo, err := ing.mirror.write(ctx, ai.cid, false, ai.resync)
 			if err != nil {
 				if !errors.Is(err, fs.ErrExist) {
 					// Log the error, but do not return. Continue on to save the procesed ad.

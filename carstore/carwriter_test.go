@@ -60,7 +60,7 @@ func TestWrite(t *testing.T) {
 	require.True(t, ok)
 
 	// Test that car file is created.
-	carInfo, err := carw.Write(ctx, adCid, false)
+	carInfo, err := carw.Write(ctx, adCid, false, false)
 	require.NoError(t, err)
 	require.NotNil(t, carInfo)
 	headInfo, err := fileStore.Head(ctx, carInfo.Path)
@@ -178,7 +178,7 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
 	require.NoError(t, err)
 
-	carInfo, err := carw.Write(ctx, adCid, false)
+	carInfo, err := carw.Write(ctx, adCid, false, false)
 	require.ErrorIs(t, err, fs.ErrExist)
 	require.Zero(t, carInfo.Size)
 
@@ -214,7 +214,7 @@ func TestWriteChain(t *testing.T) {
 
 	ctx := context.Background()
 
-	count, err := carw.WriteChain(ctx, adCid2)
+	count, err := carw.WriteChain(ctx, adCid2, false)
 	require.NoError(t, err)
 	require.Equal(t, 2, count)
 
@@ -227,58 +227,6 @@ func TestWriteChain(t *testing.T) {
 	err = <-errCh
 	require.NoError(t, err)
 	require.Equal(t, 2, len(infos))
-}
-
-func TestWriteExistingAdsInStore(t *testing.T) {
-	const entBlockCount = 5
-
-	dstore := datastore.NewMapDatastore()
-	metadata := []byte("car-test-metadata")
-
-	adCid, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, nil, dstore)
-	entriesCid := ad.Entries.(cidlink.Link).Cid
-
-	ctx := context.Background()
-
-	// Check that datastore has ad and entries CID before reading to car.
-	ok, err := dstore.Has(ctx, datastore.NewKey(adCid.String()))
-	require.NoError(t, err)
-	require.True(t, ok)
-	ok, err = dstore.Has(ctx, datastore.NewKey(entriesCid.String()))
-	require.NoError(t, err)
-	require.True(t, ok)
-
-	carDir := t.TempDir()
-	fileStore, err := filestore.NewLocal(carDir)
-	require.NoError(t, err)
-
-	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
-	require.NoError(t, err)
-
-	err = carw.WriteExisting(ctx)
-	require.NoError(t, err)
-
-	carName := adCid.String() + carstore.CarFileSuffix
-	if carw.Compression() == carstore.Gzip {
-		carName += carstore.GzipFileSuffix
-	}
-	var carFound bool
-	fc, ec := fileStore.List(ctx, "", false)
-	for fileInfo := range fc {
-		require.Equal(t, carName, fileInfo.Path, "unexpected file")
-		carFound = true
-	}
-	err = <-ec
-	require.NoError(t, err)
-	require.True(t, carFound)
-
-	// Check that ad and entries block are no longer in datastore.
-	ok, err = dstore.Has(ctx, datastore.NewKey(adCid.String()))
-	require.NoError(t, err)
-	require.False(t, ok)
-	ok, err = dstore.Has(ctx, datastore.NewKey(entriesCid.String()))
-	require.NoError(t, err)
-	require.False(t, ok)
 }
 
 func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash) {
