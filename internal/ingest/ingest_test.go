@@ -1804,7 +1804,6 @@ func mkRegistry(t *testing.T) *registry.Registry {
 			Allow:   true,
 			Publish: true,
 		},
-		PollInterval: config.Duration(time.Minute),
 	}
 	reg, err := registry.New(context.Background(), discoveryCfg, nil)
 	require.NoError(t, err)

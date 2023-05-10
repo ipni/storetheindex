@@ -42,7 +42,6 @@ var discoveryCfg = config.Discovery{
 		Publish:       false,
 		PublishExcept: []string{publisherID},
 	},
-	PollInterval: config.Duration(time.Minute),
 }
 
 func TestUpdateNewProvider(t *testing.T) {
@@ -51,7 +50,6 @@ func TestUpdateNewProvider(t *testing.T) {
 
 	r, err := New(ctx, discoveryCfg, nil)
 	require.NoError(t, err)
-	t.Log("created new registry")
 
 	peerID, err := peer.Decode(limitedID)
 	require.NoError(t, err)
@@ -352,6 +350,9 @@ func TestPollProvider(t *testing.T) {
 			Allow:   true,
 			Publish: true,
 		},
+		PollInterval:   config.Duration(time.Hour),
+		PollRetryAfter: config.Duration(time.Millisecond),
+		PollStopAfter:  config.Duration(time.Millisecond),
 	}
 
 	ctx := context.Background()

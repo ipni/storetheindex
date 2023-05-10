@@ -9,11 +9,13 @@ import (
 )
 
 const defaultMaxAge = 48 * time.Hour
+const seqRetireInterval = time.Hour
 
 type sequences struct {
-	maxAge time.Duration
-	mutex  sync.Mutex
-	seqs   map[peer.ID]uint64
+	lastRetire time.Time
+	maxAge     time.Duration
+	mutex      sync.Mutex
+	seqs       map[peer.ID]uint64
 }
 
 func newSequences(maxAge time.Duration) *sequences {
@@ -40,6 +42,10 @@ func (s *sequences) check(id peer.ID, sequence uint64) error {
 		return errors.New("sequence less than or equal to last seen")
 	}
 	s.seqs[id] = sequence
+
+	if time.Since(s.lastRetire) > seqRetireInterval {
+		go s.retire()
+	}
 	return nil
 }
 
@@ -56,4 +62,5 @@ func (s *sequences) retire() {
 		}
 	}
 	s.seqs = active
+	s.lastRetire = time.Now()
 }

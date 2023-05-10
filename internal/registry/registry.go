@@ -47,6 +47,7 @@ type Registry struct {
 	dstore    datastore.Datastore
 	filterIPs bool
 	freezer   *freeze.Freezer
+	pollDone  chan struct{}
 	providers map[peer.ID]*ProviderInfo
 	sequences *sequences
 
@@ -292,19 +293,6 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		r.preferred = loadPreferredAssignments(r.providers, r.assigned)
 	}
 
-	pollOverrides, err := makePollOverrideMap(cfg.PollOverrides)
-	if err != nil {
-		return nil, err
-	}
-	poll := polling{
-		interval:        time.Duration(cfg.PollInterval),
-		retryAfter:      time.Duration(cfg.PollRetryAfter),
-		stopAfter:       time.Duration(cfg.PollStopAfter),
-		deactivateAfter: time.Duration(cfg.DeactivateAfter),
-	}
-
-	go r.run()
-
 	if opts.freezeAtPercent >= 0 {
 		r.freezer, err = freeze.New(opts.valueStoreDir, opts.freezeAtPercent, dstore, r.freeze)
 		if err != nil {
@@ -312,28 +300,79 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		}
 	}
 
-	go r.runPollCheck(poll, pollOverrides)
+	if cfg.PollInterval != 0 {
+		poll := polling{
+			interval:        time.Duration(cfg.PollInterval),
+			retryAfter:      time.Duration(cfg.PollRetryAfter),
+			stopAfter:       time.Duration(cfg.PollStopAfter),
+			deactivateAfter: time.Duration(cfg.DeactivateAfter),
+		}
+		if poll.deactivateAfter == 0 {
+			poll.deactivateAfter = poll.stopAfter
+		}
+		if err = validatePolling(poll); err != nil {
+			return nil, fmt.Errorf("invalid polling config: %s", err)
+		}
+
+		pollOverrides, err := makePollOverrideMap(poll, cfg.PollOverrides)
+		if err != nil {
+			return nil, err
+		}
+		r.pollDone = make(chan struct{})
+		go r.runPollCheck(poll, pollOverrides)
+	}
+
+	go r.run()
 
 	return r, nil
 }
 
-func makePollOverrideMap(cfgPollOverrides []config.Polling) (map[peer.ID]polling, error) {
+func validatePolling(poll polling) error {
+	if poll.interval == 0 {
+		return errors.New("zero value for PollInterval")
+	}
+	if poll.retryAfter == 0 {
+		return errors.New("zero value for PollRetryAfter")
+	}
+	if poll.stopAfter == 0 {
+		return errors.New("zero value for PollStopAfter")
+	}
+	if poll.deactivateAfter == 0 {
+		return errors.New("zero value for DeactivateAfter")
+	}
+	return nil
+}
+
+func makePollOverrideMap(poll polling, cfgPollOverrides []config.Polling) (map[peer.ID]polling, error) {
 	if len(cfgPollOverrides) == 0 {
 		return nil, nil
 	}
 
 	pollOverrides := make(map[peer.ID]polling, len(cfgPollOverrides))
-	for _, poll := range cfgPollOverrides {
-		peerID, err := peer.Decode(poll.ProviderID)
+	for _, ovCfg := range cfgPollOverrides {
+		peerID, err := peer.Decode(ovCfg.ProviderID)
 		if err != nil {
-			return nil, fmt.Errorf("cannot decode provider ID %q in PollOverrides: %s", poll.ProviderID, err)
+			return nil, fmt.Errorf("cannot decode provider ID %q in PollOverrides: %s", ovCfg.ProviderID, err)
 		}
-		pollOverrides[peerID] = polling{
-			interval:        time.Duration(poll.Interval),
-			retryAfter:      time.Duration(poll.RetryAfter),
-			stopAfter:       time.Duration(poll.StopAfter),
-			deactivateAfter: time.Duration(poll.DeactivateAfter),
+		override := polling{
+			interval:        time.Duration(ovCfg.Interval),
+			retryAfter:      time.Duration(ovCfg.RetryAfter),
+			stopAfter:       time.Duration(ovCfg.StopAfter),
+			deactivateAfter: time.Duration(ovCfg.DeactivateAfter),
 		}
+		if override.interval == 0 {
+			override.interval = poll.interval
+		}
+		if override.retryAfter == 0 {
+			override.retryAfter = poll.retryAfter
+		}
+		if override.stopAfter == 0 {
+			override.stopAfter = poll.stopAfter
+		}
+		if override.deactivateAfter == 0 {
+			override.deactivateAfter = poll.deactivateAfter
+		}
+		pollOverrides[peerID] = override
 	}
 	return pollOverrides, nil
 }
@@ -345,6 +384,11 @@ func (r *Registry) Close() {
 			r.freezer.Close()
 		}
 		close(r.closing)
+		if r.pollDone != nil {
+			<-r.pollDone
+		}
+		// Stop the main run goroutine.
+		close(r.actions)
 	})
 	<-r.closed
 }
@@ -384,7 +428,6 @@ running:
 	for {
 		select {
 		case <-timer.C:
-			r.cleanup()
 			r.pollProviders(poll, pollOverrides)
 			timer.Reset(retryAfter)
 		case <-r.closing:
@@ -398,10 +441,9 @@ running:
 		close(done)
 	}
 	<-done
-	close(r.syncChan)
 
-	// Stop the main run goroutine.
-	close(r.actions)
+	close(r.syncChan)
+	close(r.pollDone)
 }
 
 // Saw indicates that a provider was seen.
@@ -1094,14 +1136,12 @@ func (r *Registry) syncPersistProvider(ctx context.Context, info *ProviderInfo) 
 	return r.dstore.Sync(ctx, dsKey)
 }
 
-func (r *Registry) cleanup() {
-	r.sequences.retire()
-}
-
-func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling) {
+func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]polling) {
 	r.actions <- func() {
 		now := time.Now()
 		for peerID, info := range r.providers {
+			// Reset poll in case previously overridden.
+			poll := normalPoll
 			// If the provider is not allowed, then do not poll or de-list.
 			if !r.policy.Allowed(peerID) {
 				continue
