@@ -287,8 +287,7 @@ func initRegistry(t *testing.T, trustedID string) *registry.Registry {
 			Publish:       false,
 			PublishExcept: []string{trustedID},
 		},
-		PollInterval: config.Duration(time.Minute),
-		UseAssigner:  true,
+		UseAssigner: true,
 	}
 	reg, err := registry.New(context.Background(), discoveryCfg, nil)
 	require.NoError(t, err)

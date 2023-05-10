@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -43,7 +42,6 @@ func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 			Publish:       false,
 			PublishExcept: []string{trustedID},
 		},
-		PollInterval: config.Duration(time.Minute),
 	}
 	reg, err := registry.New(context.Background(), discoveryCfg, nil)
 	require.NoError(t, err)

@@ -47,6 +47,7 @@ type Registry struct {
 	dstore    datastore.Datastore
 	filterIPs bool
 	freezer   *freeze.Freezer
+	pollDone  chan struct{}
 	providers map[peer.ID]*ProviderInfo
 	sequences *sequences
 
@@ -292,19 +293,6 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		r.preferred = loadPreferredAssignments(r.providers, r.assigned)
 	}
 
-	poll := polling{
-		interval:        time.Duration(cfg.PollInterval),
-		retryAfter:      time.Duration(cfg.PollRetryAfter),
-		stopAfter:       time.Duration(cfg.PollStopAfter),
-		deactivateAfter: time.Duration(cfg.DeactivateAfter),
-	}
-	pollOverrides, err := makePollOverrideMap(poll, cfg.PollOverrides)
-	if err != nil {
-		return nil, err
-	}
-
-	go r.run()
-
 	if opts.freezeAtPercent >= 0 {
 		r.freezer, err = freeze.New(opts.valueStoreDir, opts.freezeAtPercent, dstore, r.freeze)
 		if err != nil {
@@ -312,9 +300,47 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		}
 	}
 
-	go r.runPollCheck(poll, pollOverrides)
+	if cfg.PollInterval != 0 {
+		poll := polling{
+			interval:        time.Duration(cfg.PollInterval),
+			retryAfter:      time.Duration(cfg.PollRetryAfter),
+			stopAfter:       time.Duration(cfg.PollStopAfter),
+			deactivateAfter: time.Duration(cfg.DeactivateAfter),
+		}
+		if poll.deactivateAfter == 0 {
+			poll.deactivateAfter = poll.stopAfter
+		}
+		if err = validatePolling(poll); err != nil {
+			return nil, fmt.Errorf("invalid polling config: %s", err)
+		}
+
+		pollOverrides, err := makePollOverrideMap(poll, cfg.PollOverrides)
+		if err != nil {
+			return nil, err
+		}
+		r.pollDone = make(chan struct{})
+		go r.runPollCheck(poll, pollOverrides)
+	}
+
+	go r.run()
 
 	return r, nil
+}
+
+func validatePolling(poll polling) error {
+	if poll.interval == 0 {
+		return errors.New("zero value for PollInterval")
+	}
+	if poll.retryAfter == 0 {
+		return errors.New("zero value for PollRetryAfter")
+	}
+	if poll.stopAfter == 0 {
+		return errors.New("zero value for PollStopAfter")
+	}
+	if poll.deactivateAfter == 0 {
+		return errors.New("zero value for DeactivateAfter")
+	}
+	return nil
 }
 
 func makePollOverrideMap(poll polling, cfgPollOverrides []config.Polling) (map[peer.ID]polling, error) {
@@ -358,6 +384,11 @@ func (r *Registry) Close() {
 			r.freezer.Close()
 		}
 		close(r.closing)
+		if r.pollDone != nil {
+			<-r.pollDone
+		}
+		// Stop the main run goroutine.
+		close(r.actions)
 	})
 	<-r.closed
 }
@@ -397,7 +428,6 @@ running:
 	for {
 		select {
 		case <-timer.C:
-			r.cleanup()
 			r.pollProviders(poll, pollOverrides)
 			timer.Reset(retryAfter)
 		case <-r.closing:
@@ -411,10 +441,9 @@ running:
 		close(done)
 	}
 	<-done
-	close(r.syncChan)
 
-	// Stop the main run goroutine.
-	close(r.actions)
+	close(r.syncChan)
+	close(r.pollDone)
 }
 
 // Saw indicates that a provider was seen.
@@ -1105,10 +1134,6 @@ func (r *Registry) syncPersistProvider(ctx context.Context, info *ProviderInfo) 
 		return err
 	}
 	return r.dstore.Sync(ctx, dsKey)
-}
-
-func (r *Registry) cleanup() {
-	r.sequences.retire()
 }
 
 func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]polling) {
