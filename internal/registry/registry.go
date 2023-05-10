@@ -1144,7 +1144,9 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 				log.Warnw("Lost contact with provider, too long with no updates",
 					"publisher", info.Publisher,
 					"provider", info.AddrInfo.ID,
-					"since", info.lastContactTime)
+					"since", info.lastContactTime,
+					"sincePollingStarted", sincePollingStarted,
+					"stopAfter", poll.stopAfter)
 				// Remove the dead provider from the registry.
 				if err := r.syncRemoveProvider(context.Background(), peerID); err != nil {
 					log.Errorw("Failed to update deleted provider info", "err", err)
@@ -1157,7 +1159,9 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 				log.Infow("Deactivating provider, too long with no updates",
 					"publisher", info.Publisher,
 					"provider", info.AddrInfo.ID,
-					"since", info.lastContactTime)
+					"since", info.lastContactTime,
+					"sincePollingStarted", sincePollingStarted,
+					"stopAfter", poll.stopAfter)
 				info.inactive = true
 			}
 			select {
