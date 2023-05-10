@@ -412,7 +412,8 @@ func (r *Registry) Saw(provider peer.ID) {
 			pinfo := r.providers[provider]
 			pinfo.lastContactTime = time.Now()
 			pinfo.inactive = false
-			log.Infow("Saw provider", "provider", provider, "time", pinfo.lastContactTime)
+			log.Infow("Saw provider", "provider", provider, "publisher", pinfo.Publisher, "time", pinfo.lastContactTime)
+
 		}
 		close(done)
 	}
