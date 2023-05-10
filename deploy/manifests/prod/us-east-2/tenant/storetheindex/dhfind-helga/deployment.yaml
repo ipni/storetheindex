@@ -4,7 +4,7 @@ metadata:
   name: dhfind
 spec:
   # increase replicas as dhstore-helga grows, while also reducing replicas for dhfind
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: dhfind-helga
