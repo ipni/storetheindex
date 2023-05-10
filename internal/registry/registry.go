@@ -1161,7 +1161,7 @@ func (r *Registry) pollProviders(poll polling, pollOverrides map[peer.ID]polling
 					"provider", info.AddrInfo.ID,
 					"since", info.lastContactTime,
 					"sincePollingStarted", sincePollingStarted,
-					"stopAfter", poll.stopAfter)
+					"deactivateAfter", poll.deactivateAfter)
 				info.inactive = true
 			}
 			select {
