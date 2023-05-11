@@ -6,7 +6,6 @@ resources:
 - assigner
 - instances
 - indexstar
-- indexstar-canary
 - heyfil
 - snapshots
 - caskadht
