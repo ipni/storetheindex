@@ -47,6 +47,11 @@ samplers:
   #  - https://orchestrator.strn.pl/top-cids
   'orchestrator.strn.pl/top-cids':
     type: saturn-orch-top-cids
+  # List of top 300 CIDs belonging to Internet Archive.
+  # See:
+  #  - https://github.com/ipni/lookout/blob/main/sample/internet_archive_sampler.go
+  'archive.org/top-cids':
+    type: internet-archive-top-cids
 checkInterval: 10m
 checkersParallelism: 10
 samplersParallelism: 10

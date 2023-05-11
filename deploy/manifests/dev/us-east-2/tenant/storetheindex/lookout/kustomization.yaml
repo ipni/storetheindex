@@ -19,4 +19,4 @@ configMapGenerator:
 images:
   - name: lookout
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/lookout
-    newTag: 20230321141406-50c647a272a92601ddc7818c180319a31d64b625
+    newTag: 20230511104023-2cb718182431d507d5ee33defde11dedad466bd1
