@@ -254,6 +254,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		dagsync.HttpClient(rclient.StandardClient()),
 		dagsync.BlockHook(ing.generalDagsyncBlockHook),
 		dagsync.ResendAnnounce(cfg.ResendDirectAnnounce),
+		dagsync.WithMaxGraphsyncRequests(cfg.GsMaxInRequests, cfg.GsMaxOutRequests),
 	)
 
 	if err != nil {
