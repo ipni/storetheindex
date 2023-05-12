@@ -17,8 +17,8 @@ spec:
             - '--stiAddr=http://indexstar:8080/'
           resources:
             limits:
-              cpu: "1.5"
+              cpu: "2"
               memory: 2Gi
             requests:
-              cpu: "1.5"
+              cpu: "2"
               memory: 2Gi
