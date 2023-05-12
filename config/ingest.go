@@ -32,6 +32,12 @@ type Ingest struct {
 	// (segments) of size set by SyncSegmentDepthLimit. EntriesDepthLimit sets
 	// the limit on the total number of entries chunks across all segments.
 	EntriesDepthLimit int
+	// GsMaxInRequests is the maximum number of incoming in-progress graphsync
+	// requests. Default is 1024.
+	GsMaxInRequests uint64
+	// GsMaxOutRequests is the maximum number of outgoing in-progress graphsync
+	// requests. Default is 1024.
+	GsMaxOutRequests uint64
 	// HttpSyncRetryMax sets the maximum number of times HTTP sync requests
 	// should be retried.
 	HttpSyncRetryMax int
@@ -122,6 +128,8 @@ func NewIngest() Ingest {
 			Compress: "gzip",
 		},
 		EntriesDepthLimit:     65536,
+		GsMaxInRequests:       1024,
+		GsMaxOutRequests:      1024,
 		HttpSyncRetryMax:      4,
 		HttpSyncRetryWaitMax:  Duration(30 * time.Second),
 		HttpSyncRetryWaitMin:  Duration(1 * time.Second),
@@ -146,6 +154,12 @@ func (c *Ingest) populateUnset() {
 	}
 	if c.EntriesDepthLimit == 0 {
 		c.EntriesDepthLimit = def.EntriesDepthLimit
+	}
+	if c.GsMaxInRequests == 0 {
+		c.GsMaxInRequests = def.GsMaxInRequests
+	}
+	if c.GsMaxOutRequests == 0 {
+		c.GsMaxOutRequests = def.GsMaxOutRequests
 	}
 	if c.HttpSyncRetryMax == 0 {
 		c.HttpSyncRetryMax = def.HttpSyncRetryMax

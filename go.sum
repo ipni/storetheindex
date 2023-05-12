@@ -620,8 +620,8 @@ github.com/ipni/dhstore v0.0.2-0.20230324212407-ceb5f50e3bad h1:nS2Zq9bHG0eFzRjz
 github.com/ipni/dhstore v0.0.2-0.20230324212407-ceb5f50e3bad/go.mod h1:XI6XW5Eu97zY5PEK2ZRuESh8mYkxIZYRTMcknPVbbrc=
 github.com/ipni/go-indexer-core v0.7.7 h1:eHkC+HZkcFDC7uEayYkAMsRpMC8MbQ9ZQ1uQJy261dk=
 github.com/ipni/go-indexer-core v0.7.7/go.mod h1:03SY41l6ZC2gPRvDBuO8QMSpBSvd+P8NtUJEWgJxbNc=
-github.com/ipni/go-libipni v0.0.9-0.20230512194825-a15b6d1ee69b h1:8dCyc8N/yF9koMOCKQCxMp2YkTY/k7XPpB/xOrQv9es=
-github.com/ipni/go-libipni v0.0.9-0.20230512194825-a15b6d1ee69b/go.mod h1:paYP9U4N3/vOzGCuN9kU972vtvw9JUcQjOKyiCFGwRk=
+github.com/ipni/go-libipni v0.0.9 h1:u0R5dXUR+jNdbY5G0vtIf3/+z7G9Tv1QM6lq3ZVsdZA=
+github.com/ipni/go-libipni v0.0.9/go.mod h1:paYP9U4N3/vOzGCuN9kU972vtvw9JUcQjOKyiCFGwRk=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52 h1:QG4CGBqCeuBo6aZlGAamSkxWdgWfZGeE49eUOWJPA4c=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52/go.mod h1:fdg+/X9Gg4AsAIzWpEHwnqd+QY3b7lajxyjE1m4hkq4=
 github.com/iris-contrib/blackfriday v2.0.0+incompatible/go.mod h1:UzZ2bDEoaSGPbkg6SAB4att1aAwTmVIx/5gCVqeyUdI=
@@ -737,8 +737,8 @@ github.com/libp2p/go-libp2p v0.7.4/go.mod h1:oXsBlTLF1q7pxr+9w6lqzS1ILpyHsaBPniV
 github.com/libp2p/go-libp2p v0.8.1/go.mod h1:QRNH9pwdbEBpx5DTJYg+qxcVaDMAz3Ee/qDKwXujH5o=
 github.com/libp2p/go-libp2p v0.13.0/go.mod h1:pM0beYdACRfHO1WcJlp65WXyG2A6NqYM+t2DTVAJxMo=
 github.com/libp2p/go-libp2p v0.14.0/go.mod h1:dsQrWLAoIn+GkHPN/U+yypizkHiB9tnv79Os+kSgQ4Q=
-github.com/libp2p/go-libp2p v0.27.1 h1:k1u6RHsX3hqKnslDjsSgLNURxJ3O1atIZCY4gpMbbus=
-github.com/libp2p/go-libp2p v0.27.1/go.mod h1:FAvvfQa/YOShUYdiSS03IR9OXzkcJXwcNA2FUCh9ImE=
+github.com/libp2p/go-libp2p v0.27.3 h1:tkV/zm3KCZ4R5er9Xcs2pt0YNB4JH0iBfGAtHJdLHRs=
+github.com/libp2p/go-libp2p v0.27.3/go.mod h1:FAvvfQa/YOShUYdiSS03IR9OXzkcJXwcNA2FUCh9ImE=
 github.com/libp2p/go-libp2p-asn-util v0.3.0 h1:gMDcMyYiZKkocGXDQ5nsUQyquC9+H+iLEQHwOCZ7s8s=
 github.com/libp2p/go-libp2p-asn-util v0.3.0/go.mod h1:B1mcOrKUE35Xq/ASTmQ4tN3LNzVVaMNmq2NACuqyB9w=
 github.com/libp2p/go-libp2p-autonat v0.1.0/go.mod h1:1tLf2yXxiE/oKGtDwPYWTSYG3PtvYlJmg7NeVtPRqH8=
