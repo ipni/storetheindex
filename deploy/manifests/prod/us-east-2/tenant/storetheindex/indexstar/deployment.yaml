@@ -19,8 +19,6 @@ spec:
             - '--backends=http://dido-indexer:3000/'
             - '--backends=http://kepa-indexer:3000/'
             - '--backends=http://oden-indexer:3000/'
-            - '--backends=http://dhfind.internal.prod.cid.contact/'
-            - '--backends=http://dhfind-helga.internal.prod.cid.contact/'
             - '--cascadeBackends=http://caskadht.internal.prod.cid.contact/'
             - '--cascadeBackends=http://cassette.internal.prod.cid.contact/'
           env:
