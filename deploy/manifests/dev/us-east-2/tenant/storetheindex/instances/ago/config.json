@@ -62,7 +62,7 @@
     "ValueStoreType": "pebble",
     "DisableWAL": true,
     "VSNoNewMH": true,
-    "DHBatchSize": 5000,
+    "DHBatchSize": 1,
     "DHStoreURL": "http://dhstore.internal.dev.cid.contact",
     "DHStoreHttpClientTimeout": "30s"
   },
