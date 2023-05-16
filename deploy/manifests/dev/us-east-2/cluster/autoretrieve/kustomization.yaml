@@ -11,3 +11,4 @@ resources:
   - flux-cd.yaml
   - flux-rbac.yaml
   - github-auth.yaml
+  - event-recorder-cd.yaml
