@@ -373,7 +373,7 @@ func TestRestartDuringSync(t *testing.T) {
 	// Now we bring up the ingester again.
 	ingesterHost := mkTestHost(libp2p.Identity(te.ingesterPriv))
 	connectHosts(t, te.pubHost, ingesterHost)
-	ingester, err := NewIngester(defaultTestIngestConfig, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds)
+	ingester, err := NewIngester(defaultTestIngestConfig, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds, te.ingester.dsAdTmp)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ingester.Close()
@@ -1801,10 +1801,11 @@ func mkIngest(t *testing.T, h host.Host) (*Ingester, *engine.Engine, *registry.R
 
 func mkIngestWithConfig(t *testing.T, h host.Host, cfg config.Ingest) (*Ingester, *engine.Engine, *registry.Registry, *counter.IndexCounts) {
 	store := dssync.MutexWrap(datastore.NewMapDatastore())
+	adTmpStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	reg := mkRegistry(t)
 	core := mkIndexer(t, true)
 	indexCounts := counter.NewIndexCounts(store)
-	ing, err := NewIngester(cfg, h, core, reg, store, WithIndexCounts(indexCounts))
+	ing, err := NewIngester(cfg, h, core, reg, store, adTmpStore, WithIndexCounts(indexCounts))
 	require.NoError(t, err)
 	return ing, core, reg, indexCounts
 }

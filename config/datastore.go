@@ -8,13 +8,21 @@ type Datastore struct {
 	Dir string
 	// Type is the type of datastore.
 	Type string
+	// TempAdDir is the directory where the datastore for temporaty ad data is
+	// kept. If this is not an absolute path then the location is relative to
+	// the indexer repo.
+	TempAdDir string
+	// TempAdType is the type of datastore for temporary ad data.
+	TempAdType string
 }
 
 // NewDatastore returns Datastore with values set to their defaults.
 func NewDatastore() Datastore {
 	return Datastore{
-		Dir:  "datastore",
-		Type: "levelds",
+		Dir:        "datastore",
+		Type:       "levelds",
+		TempAdDir:  "tempadstore",
+		TempAdType: "levelds",
 	}
 }
 
@@ -27,5 +35,11 @@ func (c *Datastore) populateUnset() {
 	}
 	if c.Type == "" {
 		c.Type = def.Type
+	}
+	if c.TempAdDir == "" {
+		c.TempAdDir = def.TempAdDir
+	}
+	if c.TempAdType == "" {
+		c.TempAdType = def.TempAdType
 	}
 }

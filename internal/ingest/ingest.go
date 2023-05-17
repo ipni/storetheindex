@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-datastore/namespace"
 	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
@@ -40,8 +39,6 @@ var log = logging.Logger("indexer/ingest")
 
 // prefix used to track latest sync in datastore.
 const (
-	// adTmpNS is a datastore namespace for temporary advertisement data.
-	adTmpNS = "adTmp"
 	// syncPrefix identifies the latest sync for each provider.
 	syncPrefix = "/sync/"
 	// adProcessedPrefix identifies all processed advertisements.
@@ -178,7 +175,7 @@ type Ingester struct {
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
 // communication with providers.
-func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching, options ...Option) (*Ingester, error) {
+func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds, dsAdTmp datastore.Batching, options ...Option) (*Ingester, error) {
 	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
@@ -187,7 +184,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	if cfg.IngestWorkerCount == 0 {
 		return nil, errors.New("ingester worker count must be > 0")
 	}
-	dsAdTmp := namespace.Wrap(ds, datastore.NewKey(adTmpNS))
 
 	ing := &Ingester{
 		host:        h,

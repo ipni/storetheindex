@@ -122,14 +122,31 @@ func daemonAction(cctx *cli.Context) error {
 		freezeDirs = append(freezeDirs, vsDir)
 	}
 
+	if cfg.Datastore.Dir == cfg.Datastore.TempAdDir {
+		return fmt.Errorf("datastore directory cannot be the same as the temporary ads directory")
+	}
+
 	// Create datastore
-	dstore, dsDir, err := createDatastore(cctx.Context, cfg.Datastore)
+	dstore, dsDir, err := createDatastore(cctx.Context, cfg.Datastore.Dir, cfg.Datastore.Type)
 	if err != nil {
 		return err
 	}
 	defer dstore.Close()
 
+	err = updateDatastore(cctx.Context, dstore)
+	if err != nil {
+		return fmt.Errorf("cannot update datastore: %w", err)
+	}
 	freezeDirs = append(freezeDirs, dsDir)
+
+	// Create datastore for temporary ad data.
+	tmpAdDS, dsAdDir, err := createDatastore(cctx.Context, cfg.Datastore.TempAdDir, cfg.Datastore.TempAdType)
+	if err != nil {
+		return err
+	}
+	defer tmpAdDS.Close()
+
+	freezeDirs = append(freezeDirs, dsAdDir)
 
 	if cfg.Indexer.UnfreezeOnStart {
 		unfrozen, err := registry.Unfreeze(cctx.Context, freezeDirs, cfg.Indexer.FreezeAtPercent, dstore)
@@ -174,6 +191,7 @@ func daemonAction(cctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}
+	defer reg.Close()
 
 	// Create find HTTP server
 	var findSvr *httpfind.Server
@@ -242,7 +260,7 @@ func daemonAction(cctx *cli.Context) error {
 		}
 
 		// Initialize ingester.
-		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore,
+		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, tmpAdDS,
 			ingest.WithIndexCounts(indexCounts))
 		if err != nil {
 			return err
@@ -505,6 +523,7 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	reg.Close()
+	tmpAdDS.Close()
 	dstore.Close()
 
 	log.Info("Indexer stopped")
@@ -718,11 +737,11 @@ func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p
 	return peeringService, nil
 }
 
-func createDatastore(ctx context.Context, cfg config.Datastore) (datastore.Batching, string, error) {
-	if cfg.Type != "levelds" {
+func createDatastore(ctx context.Context, dir, dsType string) (datastore.Batching, string, error) {
+	if dsType != "levelds" {
 		return nil, "", fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Type)
 	}
-	dataStorePath, err := config.Path("", cfg.Dir)
+	dataStorePath, err := config.Path("", dir)
 	if err != nil {
 		return nil, "", err
 	}
@@ -732,10 +751,6 @@ func createDatastore(ctx context.Context, cfg config.Datastore) (datastore.Batch
 	ds, err := leveldb.NewDatastore(dataStorePath, nil)
 	if err != nil {
 		return nil, "", err
-	}
-	err = updateDatastore(ctx, ds)
-	if err != nil {
-		return nil, fmt.Errorf("cannot update datastore: %w", err)
 	}
 	return ds, dataStorePath, nil
 }
@@ -792,7 +807,7 @@ func updateDatastore(ctx context.Context, ds datastore.Batching) error {
 		if found {
 			if before[0] >= '0' && before[0] <= '9' && len(after) > 22 {
 				if err = batch.Delete(ctx, datastore.NewKey(key)); err != nil {
-					return fmt.Errorf("cannot delete dt session key from datastore: %w", err)
+					return fmt.Errorf("cannot delete dt state key from datastore: %w", err)
 				}
 				writeCount++
 				dtKeyCount++
