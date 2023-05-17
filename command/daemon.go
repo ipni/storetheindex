@@ -122,8 +122,8 @@ func daemonAction(cctx *cli.Context) error {
 		freezeDirs = append(freezeDirs, vsDir)
 	}
 
-	if cfg.Datastore.Dir == cfg.Datastore.TempAdDir {
-		return fmt.Errorf("datastore directory cannot be the same as the temporary ads directory")
+	if cfg.Datastore.Dir == cfg.Datastore.AdTmpDir {
+		return fmt.Errorf("configuration cannot have same value for Datastore.Dir and Datastore.AdTmpDir")
 	}
 
 	// Create datastore
@@ -140,11 +140,11 @@ func daemonAction(cctx *cli.Context) error {
 	freezeDirs = append(freezeDirs, dsDir)
 
 	// Create datastore for temporary ad data.
-	tmpAdDS, dsAdDir, err := createDatastore(cctx.Context, cfg.Datastore.TempAdDir, cfg.Datastore.TempAdType)
+	dsAdTmp, dsAdDir, err := createDatastore(cctx.Context, cfg.Datastore.AdTmpDir, cfg.Datastore.AdTmpType)
 	if err != nil {
 		return err
 	}
-	defer tmpAdDS.Close()
+	defer dsAdTmp.Close()
 
 	freezeDirs = append(freezeDirs, dsAdDir)
 
@@ -260,7 +260,7 @@ func daemonAction(cctx *cli.Context) error {
 		}
 
 		// Initialize ingester.
-		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, tmpAdDS,
+		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, dsAdTmp,
 			ingest.WithIndexCounts(indexCounts))
 		if err != nil {
 			return err
@@ -521,10 +521,6 @@ func daemonAction(cctx *cli.Context) error {
 			finalErr = ErrDaemonStop
 		}
 	}
-
-	reg.Close()
-	tmpAdDS.Close()
-	dstore.Close()
 
 	log.Info("Indexer stopped")
 	return finalErr
