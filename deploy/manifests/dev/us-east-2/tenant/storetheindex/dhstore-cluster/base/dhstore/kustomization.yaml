@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - github.com/ipni/dhstore/deploy/kubernetes?ref=58dfcad7aae9c172c68237dad25494625d8ac160
+  - pvc.yaml
+
+patchesStrategicMerge:
+  - deployment.yaml
+
+commonLabels:
+  app: dhstore-cluster
+
+images:
+  - name: dhstore
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/dhstore
+    newTag: 20230428094200-7bb69332d69590cafcda40d26988cc0489374380
