@@ -11,3 +11,6 @@ configMapGenerator:
     behavior: replace
     files:
       - envoy-config.yaml
+
+patchesStrategicMerge:
+  - envoy-deployment.yaml
