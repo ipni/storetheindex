@@ -25,14 +25,14 @@ module "eks" {
     # lighter duty work.
     dev-ue2a-r6a-xl = {
       min_size       = 0
-      max_size       = 3
+      max_size       = 5
       desired_size   = 1
       instance_types = ["r6a.xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a2.id]
     }
     dev-ue2c-r6a-xl = {
       min_size       = 0
-      max_size       = 3
+      max_size       = 5
       desired_size   = 1
       instance_types = ["r6a.xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id]
