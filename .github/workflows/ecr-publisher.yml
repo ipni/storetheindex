@@ -15,6 +15,8 @@ on:
     branches:
       - main
       - hack-process-deletes-only
+      # Testing https://github.com/ipni/storetheindex/pull/1759 in dev
+      - dh-key-sharding
 
 jobs:
   publisher:
