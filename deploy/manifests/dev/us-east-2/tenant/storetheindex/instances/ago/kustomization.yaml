@@ -19,10 +19,6 @@ secretGenerator:
     files:
       - identity.key=identity.key.encrypted # 12D3KooWCSqbkKKKYW8RkqwRTt2M6xihv4LgmX5U1qDe3va7FR9Q
 
-replicas:
-  - name: ago-indexer
-    count: 0
-
 configMapGenerator:
   - name: config
     behavior: replace
