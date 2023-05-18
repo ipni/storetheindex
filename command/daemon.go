@@ -752,6 +752,9 @@ func createDatastore(ctx context.Context, dir, dsType string) (datastore.Batchin
 }
 
 func updateDatastore(ctx context.Context, ds datastore.Batching) error {
+	// updateBatchSize is the number of records to update at a time.
+	const updateBatchSize = 500000
+
 	dsVerKey := datastore.NewKey(dsInfoPrefix + dsVersionKey)
 	curVerData, err := ds.Get(ctx, dsVerKey)
 	if err != nil && !errors.Is(err, datastore.ErrNotFound) {
@@ -783,21 +786,37 @@ func updateDatastore(ctx context.Context, ds datastore.Batching) error {
 	if err != nil {
 		return fmt.Errorf("cannot create datastore batch: %w", err)
 	}
+	defer func() {
+		batch.Commit(context.Background())
+		ds.Sync(context.Background(), datastore.NewKey(""))
+	}()
 
 	var cidCount, dtKeyCount, writeCount int
 	for result := range results.Next() {
-		if writeCount >= 500000 {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if writeCount >= updateBatchSize {
 			writeCount = 0
 			if err = batch.Commit(ctx); err != nil {
 				return fmt.Errorf("cannot commit to datastore: %w", err)
 			}
-			log.Infow("Datastore update removed data", "dtSessions", dtKeyCount, "cids", cidCount)
+			log.Infow("Datastore update removed old records", "dtState", dtKeyCount, "adData", cidCount)
 		}
 		if result.Error != nil {
 			return fmt.Errorf("cannot read query result from datastore: %w", result.Error)
 		}
 		ent := result.Entry
-		key := ent.Key[1:]
+		if len(ent.Key) == 0 {
+			log.Warnf("result entry has empty key")
+			continue
+		}
+		var key string
+		if ent.Key[0] == '/' {
+			key = ent.Key[1:]
+		} else {
+			key = ent.Key
+		}
 
 		before, after, found := strings.Cut(key, "/")
 		if found {
@@ -822,11 +841,8 @@ func updateDatastore(ctx context.Context, ds datastore.Batching) error {
 		cidCount++
 	}
 
-	ctx = context.Background() // do not cancel now
-	batch.Put(ctx, dsVerKey, []byte(dsVersion))
-	batch.Commit(ctx)
-	ds.Sync(ctx, datastore.NewKey(""))
+	batch.Put(context.Background(), dsVerKey, []byte(dsVersion))
 
-	log.Infow("Datastore update finished, removed old data", "dtSessions", dtKeyCount, "cids", cidCount)
+	log.Infow("Datastore update finished, removed old records", "dtState", dtKeyCount, "adData", cidCount)
 	return nil
 }
