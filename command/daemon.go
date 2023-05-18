@@ -147,6 +147,7 @@ func daemonAction(cctx *cli.Context) error {
 	// Create indexer core
 	indexerCore := engine.New(resultCache, valueStore,
 		engine.WithDHBatchSize(cfg.Indexer.DHBatchSize),
+		engine.WithDHKeyShard(!cfg.Indexer.DHDisableKeySharding),
 		engine.WithDHStore(cfg.Indexer.DHStoreURL),
 		engine.WithDHStoreCluster(cfg.Indexer.DHStoreClusterURLs),
 		engine.WithVSNoNewMH(cfg.Indexer.VSNoNewMH),
