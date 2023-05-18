@@ -45,9 +45,12 @@ func New(listen string, assigner *core.Assigner, options ...Option) (*Server, er
 	}
 
 	// Direct announce.
-	mux.HandleFunc("/ingest/announce", s.announce)
+	mux.HandleFunc("/announce", s.announce)
 	// Health check.
 	mux.HandleFunc("/health", s.health)
+
+	// Depricated
+	mux.HandleFunc("/ingest/announce", s.announce)
 
 	return s, nil
 }
@@ -66,7 +69,7 @@ func (s *Server) Close() error {
 	return s.server.Shutdown(context.Background())
 }
 
-// PUT /ingest/announce
+// PUT /announce
 func (s *Server) announce(w http.ResponseWriter, r *http.Request) {
 	if !methodOK(w, r, http.MethodPut) {
 		return
