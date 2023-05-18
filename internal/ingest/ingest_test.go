@@ -904,7 +904,7 @@ func testSyncWithExtendedProviders(t *testing.T,
 	testFunc(privKey, pubKey, providerID, reg, lsys, pubHost, ingester, pub)
 }
 
-func TestSyncWithExtendedProviders(t *testing.T) {
+func TestSyncWithContextualExtendedProviders(t *testing.T) {
 	testSyncWithExtendedProviders(t, func(privKey crypto.PrivKey,
 		pubKey crypto.PubKey,
 		providerID peer.ID,
@@ -913,122 +913,70 @@ func TestSyncWithExtendedProviders(t *testing.T) {
 		pubHost host.Host,
 		ingester *Ingester, pub dagsync.Publisher) {
 
-		adv1, adv1Cid, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id", nil, false)
-		adv2, _, mhs2 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv1Cid, "", nil, false)
+		adv1, _, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id", nil, false)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1, mhs2)
+		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1)
 
-		// Verifying that EPs from the first advertisement have been registered as contextual while EPs from the second advertisement as chain-level
 		pInfo, _ := reg.ProviderInfo(providerID)
 		extendedProviders := pInfo.ExtendedProviders
 		require.NotNil(t, extendedProviders)
-		require.Equal(t, len(adv2.ExtendedProvider.Providers), len(extendedProviders.Providers))
+		require.Equal(t, 0, len(extendedProviders.Providers))
 		require.Equal(t, 1, len(extendedProviders.ContextualProviders))
-
 		verifyContextualProviders(t, extendedProviders, adv1, reg)
-		verifyChainLevelProviders(t, extendedProviders, adv2, reg)
 	})
 }
 
-func TestSyncWithExtendedProvidersContextualUpdate(t *testing.T) {
+func TestSyncWithChainLevelExtendedProviders(t *testing.T) {
 	testSyncWithExtendedProviders(t, func(privKey crypto.PrivKey,
 		pubKey crypto.PubKey,
 		providerID peer.ID,
 		reg *registry.Registry,
 		lsys linking.LinkSystem,
 		pubHost host.Host,
-		ingester *Ingester,
-		pub dagsync.Publisher) {
+		ingester *Ingester, pub dagsync.Publisher) {
 
-		adv1, adv1Cid, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id", nil, false)
-		adv2, adv2Cid, mhs2 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv1Cid, "", nil, false)
+		adv1, _, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "", nil, false)
+
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1, mhs2)
+		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1)
 
-		// Publishing an update to contextual extended providers with changed providers and override flag
-		adv3, _, mhs3 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv2Cid, string(adv1.ContextID), nil, true)
-		syncIngester(t, ctx, ingester, providerID, pubHost, mhs3)
-
-		// Verifying that EPs from the first advertisement have been overwritten by third advertisement. EPs from second advertisement should still be chain-level.
 		pInfo, _ := reg.ProviderInfo(providerID)
 		extendedProviders := pInfo.ExtendedProviders
 		require.NotNil(t, extendedProviders)
-		require.Equal(t, len(adv2.ExtendedProvider.Providers), len(extendedProviders.Providers))
-		require.Equal(t, 1, len(extendedProviders.ContextualProviders))
-
-		verifyContextualProviders(t, extendedProviders, adv3, reg)
-		verifyChainLevelProviders(t, extendedProviders, adv2, reg)
+		require.Equal(t, len(extendedProviders.Providers), len(extendedProviders.Providers))
+		require.Equal(t, 0, len(extendedProviders.ContextualProviders))
+		verifyChainLevelProviders(t, extendedProviders, adv1, reg)
 	})
 }
 
-func TestSyncWithExtendedProvidersChainLevelUpdate(t *testing.T) {
+func TestSyncExtendedProvidersShouldBeOverridednOnEachAd(t *testing.T) {
 	testSyncWithExtendedProviders(t, func(privKey crypto.PrivKey,
 		pubKey crypto.PubKey,
 		providerID peer.ID,
 		reg *registry.Registry,
 		lsys linking.LinkSystem,
 		pubHost host.Host,
-		ingester *Ingester,
-		pub dagsync.Publisher) {
+		ingester *Ingester, pub dagsync.Publisher) {
 
-		adv1, adv1Cid, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id", nil, false)
-		_, adv2Cid, mhs2 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv1Cid, "", nil, false)
+		_, ad1Cid, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id", nil, false)
+		adv2, _, mhs2 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, ad1Cid, "", nil, false)
+
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1, mhs2)
 
-		// Publishing an update to chain-levek extended providers with changed providers
-		adv3, _, mhs3 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv2Cid, "", nil, false)
-		syncIngester(t, ctx, ingester, providerID, pubHost, mhs3)
-
-		// Verifying that EPs from the first advertisement have been registered as contextual while chain-level EPs from the second advertisement have been overwritten by the one from the third
+		// there should be no extended providers from ad1, only from ad2
 		pInfo, _ := reg.ProviderInfo(providerID)
 		extendedProviders := pInfo.ExtendedProviders
 		require.NotNil(t, extendedProviders)
-		require.Equal(t, len(adv3.ExtendedProvider.Providers), len(extendedProviders.Providers))
-		require.Equal(t, 1, len(extendedProviders.ContextualProviders))
-
-		verifyContextualProviders(t, extendedProviders, adv1, reg)
-		verifyChainLevelProviders(t, extendedProviders, adv3, reg)
-	})
-}
-
-func TestSyncWithExtendedProvidersContextualInsert(t *testing.T) {
-	testSyncWithExtendedProviders(t, func(privKey crypto.PrivKey,
-		pubKey crypto.PubKey,
-		providerID peer.ID,
-		reg *registry.Registry,
-		lsys linking.LinkSystem,
-		pubHost host.Host,
-		ingester *Ingester,
-		pub dagsync.Publisher) {
-
-		adv1, adv1Cid, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id-1", nil, false)
-		adv2, adv2Cid, mhs2 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv1Cid, "", nil, false)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1, mhs2)
-
-		// Publishing a new set of context-level providers for a different context
-		adv3, _, mhs3 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, adv2Cid, "test-context-id-2", nil, true)
-		syncIngester(t, ctx, ingester, providerID, pubHost, mhs3)
-
-		// Verifying that EPs from the first and third advertisements have been registered as contextual for different contexts, while EPs from the second advertisement as chain-level
-		pInfo, _ := reg.ProviderInfo(providerID)
-		extendedProviders := pInfo.ExtendedProviders
-		require.NotNil(t, extendedProviders)
-		require.Equal(t, len(adv2.ExtendedProvider.Providers), len(extendedProviders.Providers))
-		require.Equal(t, 2, len(extendedProviders.ContextualProviders))
-
-		verifyContextualProviders(t, extendedProviders, adv1, reg)
-		verifyContextualProviders(t, extendedProviders, adv3, reg)
+		require.Equal(t, len(extendedProviders.Providers), len(extendedProviders.Providers))
+		require.Equal(t, 0, len(extendedProviders.ContextualProviders))
 		verifyChainLevelProviders(t, extendedProviders, adv2, reg)
 	})
 }
