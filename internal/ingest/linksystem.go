@@ -207,16 +207,8 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 			return adIngestError{adIngestIndexerErr, fmt.Errorf("override can not be set on extended provider without context id")}
 		}
 
-		// Fetching the existing ExtendedProvider record or creating a new one
-		existingPInfo, _ := ing.reg.ProviderInfo(providerID)
-		if existingPInfo != nil {
-			extendedProviders = existingPInfo.ExtendedProviders
-		}
-
-		if extendedProviders == nil {
-			extendedProviders = &registry.ExtendedProviders{
-				ContextualProviders: make(map[string]registry.ContextualExtendedProviders),
-			}
+		extendedProviders = &registry.ExtendedProviders{
+			ContextualProviders: make(map[string]registry.ContextualExtendedProviders),
 		}
 
 		// Creating ExtendedProviderInfo record for each of the providers.
