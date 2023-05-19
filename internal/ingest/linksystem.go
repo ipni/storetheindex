@@ -368,6 +368,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		msg := err.Error()
 		switch {
 		case
+			errors.Is(err, ipld.ErrNotExists{}),
 			strings.Contains(msg, "content not found"),
 			strings.Contains(msg, "graphsync request failed to complete: skip"):
 			return adIngestError{adIngestContentNotFound, wrappedErr}
@@ -452,7 +453,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 				dagsync.ScopedSegmentDepthLimit(-1))
 			if err != nil {
 				wrappedErr := fmt.Errorf("failed to sync remaining HAMT: %w", err)
-				if strings.Contains(err.Error(), "content not found") {
+				if errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found") {
 					return 0, adIngestError{adIngestContentNotFound, wrappedErr}
 				}
 				return 0, adIngestError{adIngestSyncEntriesErr, wrappedErr}
@@ -566,7 +567,7 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 				return mhCount, err
 			}
 			wrappedErr := fmt.Errorf("failed to sync entries: %w", err)
-			if strings.Contains(err.Error(), "content not found") {
+			if errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found") {
 				return mhCount, adIngestError{adIngestContentNotFound, wrappedErr}
 			}
 			return mhCount, adIngestError{adIngestSyncEntriesErr, wrappedErr}
