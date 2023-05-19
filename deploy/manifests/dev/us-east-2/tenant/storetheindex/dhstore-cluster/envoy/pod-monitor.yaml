@@ -12,5 +12,5 @@ spec:
     matchNames:
       - storetheindex
   podMetricsEndpoints:
-    - path: /metrics
-      port: metrics
+    - path: "/stats/prometheus"
+      port: admin
