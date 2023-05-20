@@ -99,12 +99,22 @@ func daemonAction(cctx *cli.Context) error {
 		log.Warn("Configuration file out-of-date. Upgrade by running: ./storetheindex init --upgrade")
 	}
 
+	var freezeDirs []string
+
 	// Create a valuestore of the configured type.
 	valueStore, minKeyLen, vsDir, err := createValueStore(cctx.Context, cfg.Indexer)
 	if err != nil {
 		return err
 	}
-	log.Info("Valuestore initialized")
+	if valueStore != nil {
+		log.Info("Valuestore initialized")
+		// If the value store requires a minimum key length, make sure the
+		// ingester is configured with at least the minimum.
+		if minKeyLen > cfg.Ingest.MinimumKeyLength {
+			cfg.Ingest.MinimumKeyLength = minKeyLen
+		}
+		freezeDirs = append(freezeDirs, vsDir)
+	}
 
 	// Create datastore
 	dstore, err := createDatastore(cfg.Datastore)
@@ -113,8 +123,10 @@ func daemonAction(cctx *cli.Context) error {
 	}
 	defer dstore.Close()
 
+	freezeDirs = append(freezeDirs, cfg.Datastore.Dir)
+
 	if cfg.Indexer.UnfreezeOnStart {
-		unfrozen, err := registry.Unfreeze(cctx.Context, vsDir, cfg.Indexer.FreezeAtPercent, dstore)
+		unfrozen, err := registry.Unfreeze(cctx.Context, freezeDirs[0], cfg.Indexer.FreezeAtPercent, dstore)
 		if err != nil {
 			return fmt.Errorf("cannot unfreeze registry: %w", err)
 		}
@@ -123,12 +135,6 @@ func daemonAction(cctx *cli.Context) error {
 			return fmt.Errorf("cannot unfreeze ingester: %w", err)
 		}
 		log.Info("Indexer reverted to unfrozen state")
-	}
-
-	// If the value store requires a minimum key length, make sure the ingester
-	// if configured with at least the minimum.
-	if minKeyLen > cfg.Ingest.MinimumKeyLength {
-		cfg.Ingest.MinimumKeyLength = minKeyLen
 	}
 
 	// Create result cache
@@ -159,7 +165,7 @@ func daemonAction(cctx *cli.Context) error {
 
 	// Create registry
 	reg, err := registry.New(cctx.Context, cfg.Discovery, dstore,
-		registry.WithFreezer(vsDir, cfg.Indexer.FreezeAtPercent))
+		registry.WithFreezer(freezeDirs[0], cfg.Indexer.FreezeAtPercent))
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}
@@ -498,9 +504,11 @@ func daemonAction(cctx *cli.Context) error {
 		}
 	}
 
-	if err = valueStore.Close(); err != nil {
-		log.Errorw("Error closing value store", "err", err)
-		finalErr = ErrDaemonStop
+	if valueStore != nil {
+		if err = valueStore.Close(); err != nil {
+			log.Errorw("Error closing value store", "err", err)
+			finalErr = ErrDaemonStop
+		}
 	}
 
 	reg.Close()
@@ -512,6 +520,10 @@ func daemonAction(cctx *cli.Context) error {
 
 func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.Interface, int, string, error) {
 	const sthMinKeyLen = 4
+
+	if cfgIndexer.ValueStoreType == "" || cfgIndexer.ValueStoreType == "none" {
+		return nil, 0, "", nil
+	}
 
 	dir, err := config.Path("", cfgIndexer.ValueStoreDir)
 	if err != nil {
@@ -654,10 +666,12 @@ func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Regis
 		return nil, fmt.Errorf("failed to configure logging: %w", err)
 	}
 
-	sthStore, ok := valueStore.(*storethehash.SthStorage)
-	if ok {
-		sthStore.SetPutConcurrency(cfg.Indexer.CorePutConcurrency)
-		sthStore.SetFileCacheSize(cfg.Indexer.STHFileCacheSize)
+	if valueStore != nil {
+		sthStore, ok := valueStore.(*storethehash.SthStorage)
+		if ok {
+			sthStore.SetPutConcurrency(cfg.Indexer.CorePutConcurrency)
+			sthStore.SetFileCacheSize(cfg.Indexer.STHFileCacheSize)
+		}
 	}
 
 	log.Info("Reloaded reloadable values from configuration")

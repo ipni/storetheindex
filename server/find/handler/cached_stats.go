@@ -60,7 +60,7 @@ func (c *cachedStats) refresh() {
 	// point checking it at every cycle.
 	if lastResult.errEntriesCount != indexer.ErrStatsNotSupported {
 		s, newResult.errEntriesCount = c.indexer.Stats()
-		if newResult.errEntriesCount == nil {
+		if newResult.errEntriesCount == nil && s != nil {
 			newResult.entriesCount = int64(s.MultihashCount)
 		}
 	}
