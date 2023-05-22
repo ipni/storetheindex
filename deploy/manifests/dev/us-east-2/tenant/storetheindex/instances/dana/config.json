@@ -62,7 +62,7 @@
     "DisableWAL": true,
     "VSNoNewMH": true,
     "DHBatchSize": 8192,
-    "DHShardConcurrency": 200,
+    "DHShardConcurrency": 300,
     "DHStoreURL": "http://dhstore-cluster-envoy",
     "DHStoreHttpClientTimeout": "30s"
   },
@@ -70,7 +70,7 @@
     "AdvertisementDepthLimit": 33554432,
     "AdvertisementMirror": {
       "Read": true,
-      "Write": false,
+      "Write": true,
       "Compress": "gzip",
       "Storage": {
         "Type": "s3",
