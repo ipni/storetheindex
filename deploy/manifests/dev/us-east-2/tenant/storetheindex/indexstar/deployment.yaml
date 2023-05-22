@@ -23,6 +23,7 @@ spec:
             - '--backends=http://dhfind-cluster-ip:40080/'
             - '--cascadeBackends=http://caskadht.internal.dev.cid.contact/'
             - '--cascadeBackends=http://cassette.internal.dev.cid.contact/'
+            - '--fallbackBackend=http://ber-indexer:3000/'
           env:
             # Increase maximum accepted request body to 1 MiB in order to allow batch finds requests
             # by the `provider verify-ingest` CLI command. 
