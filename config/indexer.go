@@ -23,6 +23,9 @@ type Indexer struct {
 	// DHDisableKeySharding disables key-sharded writes to DHStore, which are
 	// enabled by default.
 	DHDisableKeySharding bool
+	// DHShardConcurrency configures the number of goroutines used to send
+	// requests to dhstore for each multihash. A value of 0 uses the default.
+	DHShardConcurrency int
 	// DHStoreURL is the base URL for the DHStore service. This option value
 	// tells the indexer core to use a DHStore service, if configured.
 	DHStoreURL string
