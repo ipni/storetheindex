@@ -5,6 +5,7 @@ resources:
   - ../../../../../../base/envoy
   - envoy-monitor.yaml
   - envoy-service.yaml
+  - pod-monitor.yaml
 
 configMapGenerator:
   - name: envoy-config

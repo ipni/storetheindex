@@ -5,6 +5,7 @@ resources:
   - zone-a
   - zone-b
   - zone-c
+  - pod-monitor.yaml
   - service-monitor.yaml
 
 images:
