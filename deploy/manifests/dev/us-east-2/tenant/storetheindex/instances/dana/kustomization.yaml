@@ -32,4 +32,4 @@ images:
   - name: storetheindex
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
     # Testing https://github.com/ipni/storetheindex/pull/1759
-    newTag: 20230518143801-9c524d2ae68bcba40e307d7284102d4830f071de
+    newTag: 20230522183340-2f955a3456dd13ba6b04219e4d95fdf432d73c54
