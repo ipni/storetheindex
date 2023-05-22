@@ -53,6 +53,7 @@ func (x *ReframeService) FindProviders(ctx context.Context, key cid.Cid) (<-chan
 	}
 	ch := make(chan client.FindProvidersAsyncResult, 1)
 	var peerAddrs []peer.AddrInfo
+	uniqueProviders := map[string]struct{}{}
 	for _, mhr := range fr.MultihashResults {
 		if !bytes.Equal(mhr.Multihash, mh) {
 			continue
@@ -61,6 +62,14 @@ func (x *ReframeService) FindProviders(ctx context.Context, key cid.Cid) (<-chan
 			if !containsTransportBitswap(pr.Metadata) {
 				continue
 			}
+			// Records returned from IPNI via Delegated Routing don't have ContextID and Metadata in them. Becuase of that,
+			// records that are valid from the IPNI point of view might look like duplicates from the Delegated Routing point of view.
+			// To make Delegated Routing output nicer, deduplicate here on ProviderAddrs.
+			ps := pr.Provider.String()
+			if _, ok := uniqueProviders[ps]; ok {
+				continue
+			}
+			uniqueProviders[ps] = struct{}{}
 			peerAddrs = append(peerAddrs, *pr.Provider)
 		}
 	}
