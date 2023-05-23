@@ -12,8 +12,10 @@ resources:
 - lookout
 - dhstore
 - dhstore-helga
+- dhstore-porvy
 - dhfind
 - dhfind-helga
+- dhfind-porvy
 - cassette
 images:
 - name: storetheindex

@@ -63,8 +63,8 @@
     "DisableWAL": true,
     "VSNoNewMH": true,
     "DHBatchSize": 5000,
-    "DHStoreURL": "http://dhstore-helga.internal.prod.cid.contact",
-    "DHStoreClusterURLs": ["http://dhstore.internal.prod.cid.contact"],
+    "DHStoreURL": "http://dhstore-porvy.internal.prod.cid.contact",
+    "DHStoreClusterURLs": ["http://dhstore.internal.prod.cid.contact", "http://dhstore-helga.internal.prod.cid.contact"],
     "DHStoreHttpClientTimeout": "60s"
   },
   "Ingest": {
