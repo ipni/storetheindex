@@ -11,6 +11,7 @@ import (
 
 func TestCheckFreeze(t *testing.T) {
 	tempDir := t.TempDir()
+	tempDir2 := t.TempDir()
 
 	du, err := disk.Usage(tempDir)
 	require.NoError(t, err)
@@ -22,10 +23,11 @@ func TestCheckFreeze(t *testing.T) {
 		freezeCount++
 		return nil
 	}
-
-	f, err := freeze.New(tempDir, du.Percent*2.0, dstore, freezeFunc)
+	dirs := []string{tempDir, tempDir2}
+	f, err := freeze.New(dirs, du.Percent*2.0, dstore, freezeFunc)
 	require.NoError(t, err)
 	require.False(t, f.Frozen())
+	require.Equal(t, 1, len(f.Dirs()))
 	checkChan := make(chan bool, 5)
 	for i := 0; i < cap(checkChan); i++ {
 		go func() {
@@ -38,14 +40,14 @@ func TestCheckFreeze(t *testing.T) {
 	}
 	f.Close()
 
-	f, err = freeze.New(tempDir, du.Percent*2.0, dstore, freezeFunc)
+	f, err = freeze.New(dirs, du.Percent*2.0, dstore, freezeFunc)
 	require.NoError(t, err)
 	require.False(t, f.Frozen())
 	f.Close()
 
 	require.Zero(t, freezeCount)
 
-	f, err = freeze.New(tempDir, du.Percent/2.0, dstore, freezeFunc)
+	f, err = freeze.New(dirs, du.Percent/2.0, dstore, freezeFunc)
 	require.NoError(t, err)
 	require.True(t, f.Frozen())
 	require.True(t, f.CheckNow())
@@ -53,7 +55,7 @@ func TestCheckFreeze(t *testing.T) {
 
 	require.Equal(t, 1, freezeCount)
 
-	f, err = freeze.New(tempDir, du.Percent/2.0, dstore, freezeFunc)
+	f, err = freeze.New(dirs, du.Percent/2.0, dstore, freezeFunc)
 	require.NoError(t, err)
 	require.True(t, f.Frozen())
 	f.Close()
@@ -75,7 +77,8 @@ func TestManualFreeze(t *testing.T) {
 		return nil
 	}
 
-	f, err := freeze.New(tempDir, du.Percent*2.0, dstore, freezeFunc)
+	dirs := []string{tempDir}
+	f, err := freeze.New(dirs, du.Percent*2.0, dstore, freezeFunc)
 	require.NoError(t, err)
 	require.NoError(t, f.Freeze())
 	require.Equal(t, 1, freezeCount)
@@ -84,7 +87,7 @@ func TestManualFreeze(t *testing.T) {
 	require.Equal(t, 1, freezeCount)
 	f.Close()
 
-	f, err = freeze.New(tempDir, du.Percent*2.0, dstore, freezeFunc)
+	f, err = freeze.New(dirs, du.Percent*2.0, dstore, freezeFunc)
 	require.NoError(t, err)
 	require.NoError(t, f.Freeze())
 	f.Close()

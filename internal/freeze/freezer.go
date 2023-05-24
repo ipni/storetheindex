@@ -3,7 +3,9 @@ package freeze
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/ipfs/go-datastore"
@@ -27,6 +29,8 @@ const (
 	logCriticalRemaining = 2.0
 )
 
+// Freezer monitors disk usage and triggers a freeze if the usage reaches a
+// specified threshold.
 type Freezer struct {
 	checkNow    chan chan struct{}
 	done        chan struct{}
@@ -37,18 +41,22 @@ type Freezer struct {
 	frozen      chan struct{}
 	trigger     chan struct{}
 	triggerErr  chan error
-	path        string
+	paths       []string
 }
 
 // New creates a new Freezer that checks the usage of the file system at dirPath.
-func New(dirPath string, freezeAtPercent float64, dstore datastore.Datastore, freezeFunc func() error) (*Freezer, error) {
+func New(dirPaths []string, freezeAtPercent float64, dstore datastore.Datastore, freezeFunc func() error) (*Freezer, error) {
+	dirPaths, err := uniqFsDirs(dirPaths)
+	if err != nil {
+		return nil, err
+	}
 	f := &Freezer{
 		dstore:      dstore,
 		freezeAt:    freezeAtPercent,
 		freezeAtStr: fmt.Sprintf("%s%%", strconv.FormatFloat(freezeAtPercent, 'f', -1, 64)),
 		freezeFunc:  freezeFunc,
 		frozen:      make(chan struct{}),
-		path:        dirPath,
+		paths:       dirPaths,
 	}
 	frozen, err := f.loadFrozenState()
 	if err != nil {
@@ -122,16 +130,36 @@ func (f *Freezer) Close() {
 	f.checkNow = nil
 }
 
-func (f *Freezer) Usage() (*disk.UsageStats, error) {
-	du, err := disk.Usage(f.path)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get disk usage at path %q: %w", f.path, err)
-	}
-	return du, nil
+// Dirs returns the directories being monitored.
+func (f *Freezer) Dirs() []string {
+	return f.paths
 }
 
-func Unfreeze(ctx context.Context, dirPath string, freezeAtPercent float64, dstore datastore.Datastore) error {
-	if dirPath == "" || dstore == nil {
+// Usage returns the disk usage of the most used directory.
+func (f *Freezer) Usage() (*disk.UsageStats, error) {
+	var mostUsed *disk.UsageStats
+	for _, dir := range f.paths {
+		du, err := disk.Usage(dir)
+		if err != nil {
+			return nil, fmt.Errorf("cannot get disk usage at path %q: %w", dir, err)
+		}
+		if mostUsed == nil || du.Percent > mostUsed.Percent {
+			mostUsed = du
+		}
+	}
+	return mostUsed, nil
+}
+
+// Unfreeze explicitly triggers the indexer to exit frozen mode.
+func Unfreeze(ctx context.Context, dirPaths []string, freezeAtPercent float64, dstore datastore.Datastore) error {
+	if dstore == nil {
+		return nil
+	}
+	dirPaths, err := uniqFsDirs(dirPaths)
+	if err != nil {
+		return nil
+	}
+	if len(dirPaths) == 0 {
 		return nil
 	}
 	frozen, err := dstore.Has(ctx, datastore.NewKey(frozenKey))
@@ -142,12 +170,14 @@ func Unfreeze(ctx context.Context, dirPath string, freezeAtPercent float64, dsto
 		return nil
 	}
 
-	du, err := disk.Usage(dirPath)
-	if err != nil {
-		return fmt.Errorf("cannot get disk usage for freeze check at path %q: %w", dirPath, err)
-	}
-	if du.Percent >= freezeAtPercent {
-		return fmt.Errorf("cannot unfreeze: disk usage above %f", freezeAtPercent)
+	for _, dirPath := range dirPaths {
+		du, err := disk.Usage(dirPath)
+		if err != nil {
+			return fmt.Errorf("cannot get disk usage for freeze check at path %q: %w", dirPath, err)
+		}
+		if du.Percent >= freezeAtPercent {
+			return fmt.Errorf("cannot unfreeze: disk usage above %f", freezeAtPercent)
+		}
 	}
 
 	dsKey := datastore.NewKey(frozenKey)
@@ -204,25 +234,31 @@ func (f *Freezer) run(nextCheck time.Duration) {
 // point. If the freeze-at point is reached, then the frozen state becomes
 // true. The frozen state is persisted so a new Freezer will start frozen.
 func (f *Freezer) check() (time.Duration, bool, error) {
-	if f.path == "" {
+	if len(f.paths) == 0 {
 		return 0, false, nil
 	}
 
-	du, err := disk.Usage(f.path)
-	if err != nil {
-		return 0, false, fmt.Errorf("cannot get disk usage for freeze check at path %q: %w", f.path, err)
-	}
-	if du.Percent >= f.freezeAt {
-		err = f.freeze()
+	var mostUsed float64
+	for _, dir := range f.paths {
+		du, err := disk.Usage(dir)
 		if err != nil {
-			return 0, false, err
+			return 0, false, fmt.Errorf("cannot get disk usage for freeze check at path %q: %w", dir, err)
 		}
-		return 0, true, nil
+		if du.Percent >= f.freezeAt {
+			err = f.freeze()
+			if err != nil {
+				return 0, false, err
+			}
+			return 0, true, nil
+		}
+		if du.Percent > mostUsed {
+			mostUsed = du.Percent
+		}
 	}
 
-	log := log.With("usage", fmt.Sprintf("%.2f%%", du.Percent), "freezeAt", f.freezeAtStr)
-	if du.Percent >= f.freezeAt-logAlertRemaining {
-		if du.Percent >= f.freezeAt-logCriticalRemaining {
+	log := log.With("usage", fmt.Sprintf("%.2f%%", mostUsed), "freezeAt", f.freezeAtStr)
+	if mostUsed >= f.freezeAt-logAlertRemaining {
+		if mostUsed >= f.freezeAt-logCriticalRemaining {
 			log.Warnw("Disk usage CRITICAL")
 		} else {
 			log.Warnw("Disk usage ALERT")
@@ -233,7 +269,7 @@ func (f *Freezer) check() (time.Duration, bool, error) {
 
 	// Next check interval is proportional to the storage remaining until
 	// reaching the freeze-at point.
-	nextCheck := time.Duration(float64(maxCheckInterval) * (f.freezeAt - du.Percent) / 100.0)
+	nextCheck := time.Duration(float64(maxCheckInterval) * (f.freezeAt - mostUsed) / 100.0)
 	if nextCheck < minCheckInterval {
 		nextCheck = minCheckInterval
 	}
@@ -277,4 +313,35 @@ func (f *Freezer) loadFrozenState() (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func uniqFsDirs(dirPaths []string) ([]string, error) {
+	var uniqDirs []string
+	seen := make(map[string]struct{})
+	devs := make(map[int32]struct{})
+	for _, dir := range dirPaths {
+		if dir == "" {
+			continue
+		}
+		_, ok := seen[dir]
+		if ok {
+			continue
+		}
+		seen[dir] = struct{}{}
+
+		fi, err := os.Stat(dir)
+		if err != nil {
+			return nil, fmt.Errorf("cannot stat %q: %w", dir, err)
+		}
+		sysStat, ok := fi.Sys().(*syscall.Stat_t)
+		if ok {
+			devNo := sysStat.Dev
+			if _, ok = devs[devNo]; ok {
+				continue
+			}
+			devs[devNo] = struct{}{}
+		}
+		uniqDirs = append(uniqDirs, dir)
+	}
+	return uniqDirs, nil
 }

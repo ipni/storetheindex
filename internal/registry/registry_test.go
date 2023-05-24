@@ -685,7 +685,8 @@ func TestFreezeUnfreeze(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	dstore := datastore.NewMapDatastore()
-	r, err := New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
+	freezeDirs := []string{tempDir}
+	r, err := New(ctx, cfg, dstore, WithFreezer(freezeDirs, 90.0))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
@@ -752,7 +753,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 
 	// Stop and restart registry and check providers are still frozen.
 	r.Close()
-	r, err = New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
+	r, err = New(ctx, cfg, dstore, WithFreezer(freezeDirs, 90.0))
 	require.NoError(t, err)
 	require.True(t, r.Frozen())
 	infos = r.AllProviderInfo()
@@ -762,7 +763,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 	}
 	r.Close()
 
-	unfrozen, err := Unfreeze(ctx, tempDir, 90.0, dstore)
+	unfrozen, err := Unfreeze(ctx, freezeDirs, 90.0, dstore)
 	require.NoError(t, err)
 	require.Equal(t, len(infos), len(unfrozen))
 	for i := range infos {
@@ -771,7 +772,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 		require.Equal(t, infos[i].FrozenAt, frozenAt)
 	}
 
-	r, err = New(ctx, cfg, dstore, WithFreezer(tempDir, 90.0))
+	r, err = New(ctx, cfg, dstore, WithFreezer(freezeDirs, 90.0))
 	require.NoError(t, err)
 	require.False(t, r.Frozen())
 	infos = r.AllProviderInfo()
@@ -781,7 +782,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 	}
 	r.Close()
 
-	unfrozen, err = Unfreeze(ctx, tempDir, 90.0, dstore)
+	unfrozen, err = Unfreeze(ctx, freezeDirs, 90.0, dstore)
 	require.NoError(t, err)
 	require.Zero(t, len(unfrozen))
 }
@@ -797,7 +798,7 @@ func TestHandoff(t *testing.T) {
 
 	ctx := context.Background()
 	tempDir := t.TempDir()
-	r, err := New(ctx, cfg, datastore.NewMapDatastore(), WithFreezer(tempDir, 90.0))
+	r, err := New(ctx, cfg, datastore.NewMapDatastore(), WithFreezer([]string{tempDir}, 90.0))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
