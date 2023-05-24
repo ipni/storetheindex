@@ -33,3 +33,7 @@ images:
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
     # Testing https://github.com/ipni/storetheindex/pull/1759
     newTag: 20230523001525-30cfdb9b5d86f54d7b73d50f004be42e72230d85
+
+replicas:
+  - name: dana-indexer
+    count: 0
