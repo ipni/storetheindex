@@ -20,11 +20,11 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "30"
-              memory: 58Gi
+              cpu: "3"
+              memory: 32Gi
             requests:
-              cpu: "30"
-              memory: 58Gi
+              cpu: "3"
+              memory: 32Gi
           ports:
             - containerPort: 40081
               name: metrics
