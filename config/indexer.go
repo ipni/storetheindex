@@ -20,9 +20,8 @@ type Indexer struct {
 	// requests to the DHStore service. A value < 1 results in the default
 	// size.
 	DHBatchSize int
-	// DHDisableKeySharding disables key-sharded writes to DHStore, which are
-	// enabled by default.
-	DHDisableKeySharding bool
+	// DHEnableKeySharding enables key-sharded writes to DHStore.
+	DHEnableKeySharding bool
 	// DHShardConcurrency configures the number of goroutines used to send
 	// requests to dhstore for each multihash. A value of 0 uses the default.
 	DHShardConcurrency int
