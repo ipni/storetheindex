@@ -115,13 +115,13 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	// Create datastore
-	dstore, err := createDatastore(cfg.Datastore)
+	dstore, dsDir, err := createDatastore(cfg.Datastore)
 	if err != nil {
 		return err
 	}
 	defer dstore.Close()
 
-	freezeDirs = append(freezeDirs, cfg.Datastore.Dir)
+	freezeDirs = append(freezeDirs, dsDir)
 
 	if cfg.Indexer.UnfreezeOnStart {
 		unfrozen, err := registry.Unfreeze(cctx.Context, freezeDirs[0], cfg.Indexer.FreezeAtPercent, dstore)
@@ -728,16 +728,20 @@ func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p
 	return peeringService, nil
 }
 
-func createDatastore(cfg config.Datastore) (datastore.Batching, error) {
+func createDatastore(cfg config.Datastore) (datastore.Batching, string, error) {
 	if cfg.Type != "levelds" {
-		return nil, fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Type)
+		return nil, "", fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Type)
 	}
 	dataStorePath, err := config.Path("", cfg.Dir)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if err = fsutil.DirWritable(dataStorePath); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return leveldb.NewDatastore(dataStorePath, nil)
+	ds, err := leveldb.NewDatastore(dataStorePath, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	return ds, dataStorePath, nil
 }
