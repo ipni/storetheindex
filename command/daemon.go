@@ -23,7 +23,6 @@ import (
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
-	"github.com/ipni/go-indexer-core/store/pogreb"
 	"github.com/ipni/go-indexer-core/store/storethehash"
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/config"
@@ -46,7 +45,6 @@ import (
 const (
 	vstoreMemory       = "memory"
 	vstorePebble       = "pebble"
-	vstorePogreb       = "pogreb"
 	vstoreStorethehash = "sth"
 )
 
@@ -543,8 +541,6 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 			sth.FileCacheSize(cfgIndexer.STHFileCacheSize),
 		)
 		minKeyLen = sthMinKeyLen
-	case vstorePogreb:
-		vs, err = pogreb.New(dir)
 	case vstoreMemory:
 		vs, err = memory.New(), nil
 	case vstorePebble:

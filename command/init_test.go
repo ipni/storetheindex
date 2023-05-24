@@ -30,7 +30,7 @@ func TestInit(t *testing.T) {
 		cacheSize = 2701
 		goodAddr  = "/ip4/127.0.0.1/tcp/7777"
 		goodAddr2 = "/ip4/127.0.0.1/tcp/17171"
-		storeType = "pogreb"
+		storeType = "pebble"
 		topicName = "index/mytopic"
 	)
 

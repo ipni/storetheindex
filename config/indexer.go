@@ -51,7 +51,7 @@ type Indexer struct {
 	// an absolute path then the location is relative to the indexer repo
 	// directory.
 	ValueStoreDir string
-	// ValueStoreType specifies type of valuestore to use, such as "sth" or "pogreb".
+	// ValueStoreType specifies type of valuestore to use, such as "pebble" or "sth".
 	ValueStoreType string
 	// STHBits is bits for bucket size in store the hash. Note: this should not be changed
 	// from its value at initialization or the datastore will be corrupted.
