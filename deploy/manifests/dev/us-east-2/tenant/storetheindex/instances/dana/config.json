@@ -62,6 +62,7 @@
     "DisableWAL": true,
     "VSNoNewMH": true,
     "DHBatchSize": 4096,
+    "DHEnableKeySharding": true,
     "DHShardConcurrency": 500,
     "DHStoreURL": "http://dhstore-cluster-envoy",
     "DHStoreHttpClientTimeout": "30s"

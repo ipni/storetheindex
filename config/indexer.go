@@ -20,12 +20,19 @@ type Indexer struct {
 	// requests to the DHStore service. A value < 1 results in the default
 	// size.
 	DHBatchSize int
+	// DHEnableKeySharding enables key-sharded writes to DHStore.
+	DHEnableKeySharding bool
+	// DHShardConcurrency configures the number of goroutines used to send
+	// requests to dhstore for each multihash. A value of 0 uses the default.
+	DHShardConcurrency int
 	// DHStoreURL is the base URL for the DHStore service. This option value
 	// tells the indexer core to use a DHStore service, if configured.
 	DHStoreURL string
-	// DHStoreClusterURLs provide addional URLs that the core will send delete requests to.
-	// Deletes will be send to the dhstoreURL as well as to all dhstoreClusterURLs. This is required as deletes need to be applied to all nodes until
-	// consistent hashing is implemented. dhstoreURL shouldn't be included in this list.
+	// DHStoreClusterURLs provide addional URLs that the core will send delete
+	// requests to. Deletes will be send to the dhstoreURL as well as to all
+	// dhstoreClusterURLs. This is required as deletes need to be applied to
+	// all nodes until consistent hashing is implemented. dhstoreURL shouldn't
+	// be included in this list.
 	DHStoreClusterURLs []string
 	// DHStoreHttpClientTimeout is a timeout for the DHStore http client
 	DHStoreHttpClientTimeout Duration
