@@ -26,7 +26,7 @@ require (
 	github.com/ipld/go-ipld-prime v0.20.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
 	github.com/ipld/go-storethehash v0.3.13
-	github.com/ipni/go-indexer-core v0.7.7
+	github.com/ipni/go-indexer-core v0.7.8
 	github.com/ipni/go-libipni v0.1.1
 	github.com/libp2p/go-libp2p v0.27.3
 	github.com/libp2p/go-msgio v0.3.0
@@ -52,7 +52,6 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/DataDog/zstd v1.4.5 // indirect
 	github.com/Microsoft/go-winio v0.5.2 // indirect
-	github.com/akrylysov/pogreb v0.10.1 // indirect
 	github.com/aws/aws-sdk-go v1.44.130 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.22 // indirect

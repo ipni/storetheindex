@@ -111,7 +111,7 @@ func initAction(cctx *cli.Context) error {
 	switch storeType {
 	case "":
 		// Use config default
-	case vstoreMemory, vstorePebble, vstorePogreb, vstoreStorethehash:
+	case vstoreMemory, vstorePebble, vstoreStorethehash:
 		// These are good
 		cfg.Indexer.ValueStoreType = storeType
 	default:
