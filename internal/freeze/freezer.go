@@ -3,9 +3,7 @@ package freeze
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/ipfs/go-datastore"
@@ -318,7 +316,7 @@ func (f *Freezer) loadFrozenState() (bool, error) {
 func uniqFsDirs(dirPaths []string) ([]string, error) {
 	var uniqDirs []string
 	seen := make(map[string]struct{})
-	devs := make(map[int32]struct{})
+	devs := make(map[int]struct{})
 	for _, dir := range dirPaths {
 		if dir == "" {
 			continue
@@ -329,13 +327,11 @@ func uniqFsDirs(dirPaths []string) ([]string, error) {
 		}
 		seen[dir] = struct{}{}
 
-		fi, err := os.Stat(dir)
+		devNo, err := deviceNumber(dir)
 		if err != nil {
-			return nil, fmt.Errorf("cannot stat %q: %w", dir, err)
+			return nil, err
 		}
-		sysStat, ok := fi.Sys().(*syscall.Stat_t)
-		if ok {
-			devNo := sysStat.Dev
+		if devNo != -1 {
 			if _, ok = devs[devNo]; ok {
 				continue
 			}
