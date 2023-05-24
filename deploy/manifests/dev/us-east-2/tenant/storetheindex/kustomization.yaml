@@ -7,7 +7,9 @@ resources:
 - instances
 - indexstar
 - dhstore
+- dhstore-ago2
 - dhfind
+- dhfind-ago2
 - caskadht
 - snapshots
 - lookout
