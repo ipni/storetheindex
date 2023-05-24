@@ -14,16 +14,17 @@ var volNums = map[string]int{}
 var procGetVolumePathNameW = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetVolumePathNameW")
 
 func deviceNumber(path string) (int, error) {
-	fi, err := os.Stat(path)
+	_, err := os.Stat(path)
 	if err != nil {
 		return 0, fmt.Errorf("cannot stat %q: %w", path, err)
 	}
 	buf := make([]uint16, 200)
-	if procGetVolumePathNameW.Call(
+	r1, _, _ := procGetVolumePathNameW.Call(
 		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(path))),
 		uintptr(unsafe.Pointer(&buf[0])),
 		uintptr(len(buf)),
-	) == 0 {
+	)
+	if r1 == 0 {
 		return -1, nil
 	}
 	vol := syscall.UTF16ToString(buf)
