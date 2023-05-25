@@ -186,6 +186,7 @@ func daemonAction(cctx *cli.Context) error {
 			httpfindserver.WithMaxConnections(cfg.Finder.MaxConnections),
 			httpfindserver.WithHomepage(cfg.Finder.Webpage),
 			httpfindserver.WithIndexCounts(indexCounts),
+			httpfindserver.WithVersion(cctx.App.Version),
 		)
 		if err != nil {
 			return err

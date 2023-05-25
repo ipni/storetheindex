@@ -139,7 +139,8 @@ func daemonAction(cctx *cli.Context) error {
 			return fmt.Errorf("bad http address %s: %w", httpAddr, err)
 		}
 
-		httpServer, err = server.New(httpNetAddr.String(), assigner)
+		httpServer, err = server.New(httpNetAddr.String(), assigner,
+			server.WithVersion(cctx.App.Version))
 		if err != nil {
 			return err
 		}

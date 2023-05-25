@@ -21,7 +21,6 @@ import (
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
-	"github.com/ipni/storetheindex/internal/revision"
 	"github.com/ipni/storetheindex/server/find/handler"
 	"github.com/ipni/storetheindex/server/reframe"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -40,6 +39,7 @@ type Server struct {
 	server      *http.Server
 	listener    net.Listener
 	findHandler *handler.FindHandler
+	healthMsg   string
 }
 
 func (s *Server) URL() string {
@@ -90,6 +90,11 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 		server:      server,
 		listener:    l,
 		findHandler: handler.NewFindHandler(indexer, registry, opts.indexCounts),
+	}
+
+	s.healthMsg = "ready"
+	if opts.version != "" {
+		s.healthMsg += " " + opts.version
 	}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -299,7 +304,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Cache-Control", "no-cache")
-	httpserver.WriteJsonResponse(w, http.StatusOK, revision.RevisionJSON)
+	http.Error(w, s.healthMsg, http.StatusOK)
 }
 
 func (s *Server) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, stream bool) {
