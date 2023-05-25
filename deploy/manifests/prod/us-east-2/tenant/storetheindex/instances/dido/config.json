@@ -50,9 +50,6 @@
     "PollRetryAfter": "5m0s",
     "PollStopAfter": "168h0m0s",
     "PollOverrides": null,
-    "RediscoverWait": "5m0s",
-    "Timeout": "2m0s",
-    "RemoveOldAssignments": true,
     "UseAssigner": true
   },
   "Indexer": {
