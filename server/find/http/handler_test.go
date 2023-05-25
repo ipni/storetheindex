@@ -87,7 +87,7 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 		{
 			reqMethod:       http.MethodGet,
 			reqUrl:          "/health",
-			wantContentType: "application/json",
+			wantContentType: "text/plain",
 		},
 		{
 			reqMethod:       http.MethodGet,
@@ -138,7 +138,7 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 			require.Equal(t, "*", rr.Header().Get("Access-Control-Allow-Origin"))
 
 			gotContentType := rr.Header().Get("Content-Type")
-			require.True(t, strings.HasPrefix(gotContentType, tt.wantContentType), rr.Body.String())
+			require.True(t, strings.HasPrefix(gotContentType, tt.wantContentType), "expected "+tt.wantContentType)
 
 			// Assert the endpoint supports OPTIONS as required by CORS.
 			optReq, err := http.NewRequest(http.MethodOptions, tt.reqUrl, nil)

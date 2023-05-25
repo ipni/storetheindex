@@ -14,7 +14,6 @@ import (
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
-	"github.com/ipni/storetheindex/internal/revision"
 	"github.com/ipni/storetheindex/server/ingest/handler"
 )
 
@@ -24,6 +23,7 @@ type Server struct {
 	server        *http.Server
 	listener      net.Listener
 	ingestHandler *handler.IngestHandler
+	healthMsg     string
 }
 
 func (s *Server) URL() string {
@@ -51,6 +51,11 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 		server:        server,
 		listener:      l,
 		ingestHandler: handler.NewIngestHandler(indexer, ingester, registry),
+	}
+
+	s.healthMsg = "ready"
+	if opts.version != "" {
+		s.healthMsg += " " + opts.version
 	}
 
 	mux.HandleFunc("/announce", s.putAnnounce)
@@ -107,7 +112,7 @@ func (s *Server) getHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Cache-Control", "no-cache")
-	httpserver.WriteJsonResponse(w, http.StatusOK, revision.RevisionJSON)
+	http.Error(w, s.healthMsg, http.StatusOK)
 }
 
 func (s *Server) postRegisterProvider(w http.ResponseWriter, r *http.Request) {

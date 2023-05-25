@@ -14,6 +14,7 @@ const (
 type serverConfig struct {
 	readTimeout  time.Duration
 	writeTimeout time.Duration
+	version      string
 }
 
 // Option is a function that sets a value in a serverConfig.
@@ -46,6 +47,14 @@ func WithReadTimeout(t time.Duration) Option {
 func WithWriteTimeout(t time.Duration) Option {
 	return func(c *serverConfig) error {
 		c.writeTimeout = t
+		return nil
+	}
+}
+
+// WithVersion sets the version string used in /health output.
+func WithVersion(ver string) Option {
+	return func(c *serverConfig) error {
+		c.version = ver
 		return nil
 	}
 }

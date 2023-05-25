@@ -133,15 +133,6 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, s.healthMsg, http.StatusOK)
 }
 
-func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	if _, err := w.Write(body); err != nil {
-		log.Errorw("cannot write response", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-	}
-}
-
 func methodOK(w http.ResponseWriter, r *http.Request, method string) bool {
 	if r.Method != method {
 		w.Header().Set("Allow", method)
