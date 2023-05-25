@@ -50,8 +50,6 @@
     "PollRetryAfter": "5m0s",
     "PollStopAfter": "168h0m0s",
     "PollOverrides": null,
-    "RediscoverWait": "5m0s",
-    "Timeout": "2m0s",
     "UseAssigner": false
   },
   "Indexer": {
@@ -86,7 +84,6 @@
     "HttpSyncRetryWaitMin": "1s",
     "HttpSyncTimeout": "10s",
     "IngestWorkerCount": 3,
-    "KeepAdvertisements":true,
     "PubSubTopic": "/indexer/ingest/mainnet",
     "RateLimit": {
       "Apply": false,
