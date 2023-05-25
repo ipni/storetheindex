@@ -16,37 +16,37 @@
         "AdminURL": "http://cadi-indexer:3002",
         "FindURL": "http://cadi-indexer:3000",
         "IngestURL": "http://cadi-indexer:3001"
-      }
+      },
       {
         "AdminURL": "http://saar-indexer:3002",
         "FindURL": "http://saar-indexer:3000",
         "IngestURL": "http://saar-indexer:3001"
-      }
+      },
       {
         "AdminURL": "http://aviv-indexer:3002",
         "FindURL": "http://aviv-indexer:3000",
         "IngestURL": "http://aviv-indexer:3001"
-      }
+      },
       {
         "AdminURL": "http://dina-indexer:3002",
         "FindURL": "http://dina-indexer:3000",
         "IngestURL": "http://dina-indexer:3001"
-      }
+      },
       {
         "AdminURL": "http://vesa-indexer:3002",
         "FindURL": "http://vesa-indexer:3000",
         "IngestURL": "http://vesa-indexer:3001"
-      }
+      },
       {
         "AdminURL": "http://bala-indexer:3002",
         "FindURL": "http://bala-indexer:3000",
         "IngestURL": "http://bala-indexer:3001"
-      }
+      },
       {
         "AdminURL": "http://maja-indexer:3002",
         "FindURL": "http://maja-indexer:3000",
         "IngestURL": "http://maja-indexer:3001"
-      }
+      },
       {
         "AdminURL": "http://zora-indexer:3002",
         "FindURL": "http://zora-indexer:3000",
