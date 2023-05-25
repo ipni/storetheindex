@@ -221,7 +221,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	t.Logf("Initialized provider ID: %s", providerID)
 
 	// initialize indexer
-	e.run(indexer, "init", "--store", "sth", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap", "--dhstore", "http://127.0.0.1:40080")
+	e.run(indexer, "init", "--store", "pebble", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap", "--dhstore", "http://127.0.0.1:40080")
 	stiCfgPath := filepath.Join(e.dir, ".storetheindex", "config")
 	cfg, err = config.Load(stiCfgPath)
 	require.NoError(t, err)
