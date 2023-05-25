@@ -18,7 +18,6 @@ spec:
             # TLS handshake overhead.
             - '--backends=http://ber-indexer:3000/'
             - '--backends=http://cali-indexer:3000/'
-            - '--backends=http://ago-indexer:3000/'
             - '--backends=http://dhfind.internal.dev.cid.contact/'
             - '--backends=http://dhfind-ago2.internal.dev.cid.contact/'
             - '--cascadeBackends=http://caskadht.internal.dev.cid.contact/'
