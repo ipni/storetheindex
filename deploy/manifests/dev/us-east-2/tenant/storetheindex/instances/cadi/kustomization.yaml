@@ -17,7 +17,7 @@ secretGenerator:
   - name: identity
     behavior: replace
     files:
-      - identity.key=identity.key.encrypted # 12D3KooWCSqbkKKKYW8RkqwRTt2M6xihv4LgmX5U1qDe3va7FR9Q
+      - identity.key=identity.key.encrypted # 12D3KooWBYVX8aSiS8butwauzJvg5Ka8J339PHkn3WjhLZJAdDM8
 
 configMapGenerator:
   - name: config

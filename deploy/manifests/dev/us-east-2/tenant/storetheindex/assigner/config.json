@@ -8,14 +8,49 @@
     "FilterIPs": false,
     "IndexerPool": [
       {
-        "AdminURL": "http://ber-indexer:3002",
-        "FindURL": "http://ber-indexer:3000",
-        "IngestURL": "http://ber-indexer:3001"
+        "AdminURL": "http://aada-indexer:3002",
+        "FindURL": "http://aada-indexer:3000",
+        "IngestURL": "http://aada-indexer:3001"
       },
       {
-        "AdminURL": "http://cali-indexer:3002",
-        "FindURL": "http://cali-indexer:3000",
-        "IngestURL": "http://cali-indexer:3001"
+        "AdminURL": "http://cadi-indexer:3002",
+        "FindURL": "http://cadi-indexer:3000",
+        "IngestURL": "http://cadi-indexer:3001"
+      }
+      {
+        "AdminURL": "http://saar-indexer:3002",
+        "FindURL": "http://saar-indexer:3000",
+        "IngestURL": "http://saar-indexer:3001"
+      }
+      {
+        "AdminURL": "http://aviv-indexer:3002",
+        "FindURL": "http://aviv-indexer:3000",
+        "IngestURL": "http://aviv-indexer:3001"
+      }
+      {
+        "AdminURL": "http://dina-indexer:3002",
+        "FindURL": "http://dina-indexer:3000",
+        "IngestURL": "http://dina-indexer:3001"
+      }
+      {
+        "AdminURL": "http://vesa-indexer:3002",
+        "FindURL": "http://vesa-indexer:3000",
+        "IngestURL": "http://vesa-indexer:3001"
+      }
+      {
+        "AdminURL": "http://bala-indexer:3002",
+        "FindURL": "http://bala-indexer:3000",
+        "IngestURL": "http://bala-indexer:3001"
+      }
+      {
+        "AdminURL": "http://maja-indexer:3002",
+        "FindURL": "http://maja-indexer:3000",
+        "IngestURL": "http://maja-indexer:3001"
+      }
+      {
+        "AdminURL": "http://zora-indexer:3002",
+        "FindURL": "http://zora-indexer:3000",
+        "IngestURL": "http://zora-indexer:3001"
       }
     ],
     "Policy": {
@@ -59,8 +94,15 @@
   },
   "Peering": {
     "Peers": [
-      "/dns4/ber-indexer/tcp/3003/p2p/12D3KooWSQpUgBZwbNuMN3ctZjMesnoH9UDhwEXroxParXQCgurN",
-      "/dns4/cali-indexer/tcp/3003/p2p/12D3KooWHGHu3jVjya9sDSAYRmAVtUnQGTwnWeqan1smfJdjzscB"
+      "/dns4/aada-indexer/tcp/3003/p2p/12D3KooWSrUNEvYeHKL74mFaY6oayTJBNTfBFd1u8TBsD4ZwxRMC",
+      "/dns4/cadi-indexer/tcp/3003/p2p/12D3KooWBYVX8aSiS8butwauzJvg5Ka8J339PHkn3WjhLZJAdDM8",
+      "/dns4/saar-indexer/tcp/3003/p2p/12D3KooWEkZMB3XQTDYgAxhMd9jfZhfD9zHjKPTyyi6jzM5u7bgv",
+      "/dns4/aviv-indexer/tcp/3003/p2p/12D3KooWCG6k2XyEWDhTwD4NcbjymgD87K8mRGwb6Q9SuSqRiJat",
+      "/dns4/dina-indexer/tcp/3003/p2p/12D3KooWD1EGeWaBSbiamSs8GBq2Gq3XxJuVxWoE2hYwcJwjy4dx",
+      "/dns4/vesa-indexer/tcp/3003/p2p/12D3KooWDySvKVc1noQKKht43cWHcmG5F8bB5dPb9RFh37nZFWhe",
+      "/dns4/bala-indexer/tcp/3003/p2p/12D3KooWKJVLK4drLyY6CaEcFScgLi4cfkzdT41gjASGzk2JQw4m",
+      "/dns4/maja-indexer/tcp/3003/p2p/12D3KooWBg2RcbeepbYbJMc8MuHEsGDdhGrC2XiQmWXW2VUpDcJH",
+      "/dns4/zora-indexer/tcp/3003/p2p/12D3KooWFirgnjaE4fBfs6jSGpWGdLxeUCb289Xvf7gCZxdqGDbT"
     ]
   }
 }
