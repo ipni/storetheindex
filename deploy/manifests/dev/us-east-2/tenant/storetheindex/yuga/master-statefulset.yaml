@@ -1,0 +1,224 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: "yb-master"
+  namespace: "default"
+  labels:
+    app: "yb-master"
+    release: "release-name"
+    chart: "yugabyte"
+    component: "yugabytedb"
+spec:
+  serviceName: "yb-masters"
+  podManagementPolicy: Parallel
+
+  replicas: 3
+
+  volumeClaimTemplates:
+    - metadata:
+        name: datadir0
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: 10Gi
+    - metadata:
+        name: datadir1
+        labels:
+          release: "release-name"
+          chart: "yugabyte"
+          component: "yugabytedb"
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: 10Gi
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+
+      partition: 0
+
+  selector:
+    matchLabels:
+      app: "yb-master"
+  template:
+    metadata:
+      labels:
+        app: "yb-master"
+    spec: # yb-masters
+      terminationGracePeriodSeconds: 300
+      affinity:
+        # Set the anti-affinity selector scope to YB masters.
+
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - "yb-master"
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: "yb-master"
+        image: "yugabytedb/yugabyte:2.18.0.0-b65"
+        imagePullPolicy: IfNotPresent
+        lifecycle:
+          postStart:
+            exec:
+              command:
+                - "bash"
+                - "-c"
+                - >
+                  mkdir -p /mnt/disk0/cores;
+                  mkdir -p /mnt/disk0/yb-data/scripts;
+                  if [ ! -f /mnt/disk0/yb-data/scripts/log_cleanup.sh ]; then
+                    if [ -f /home/yugabyte/bin/log_cleanup.sh ]; then
+                      cp /home/yugabyte/bin/log_cleanup.sh /mnt/disk0/yb-data/scripts;
+                    fi;
+                  fi
+        livenessProbe:
+          exec:
+            command:
+            - bash
+            - -c
+            - touch "/mnt/disk0/disk.check" "/mnt/disk1/disk.check"
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: YBDEVOPS_CORECOPY_DIR
+          value: "/mnt/disk0/cores"
+
+        resources:
+          limits:
+            cpu: "2"
+            memory: 2Gi
+          requests:
+            cpu: "2"
+            memory: 2Gi
+
+        # core dumps are collected to workingDir if
+        # kernel.core_pattern is set to a relative path like
+        # core.%e.%p.%t ref:
+        # https://github.com/yugabyte/charts/issues/11
+        workingDir: "/mnt/disk0/cores"
+        command:
+          - "/sbin/tini"
+          - "--"
+        args:
+          - "/bin/bash"
+          - "-c"
+          - |
+            if [ -f /home/yugabyte/tools/k8s_preflight.py ]; then
+              /home/yugabyte/tools/k8s_preflight.py all
+            fi && \
+            touch "/mnt/disk0/disk.check" "/mnt/disk1/disk.check" && \
+            if [ -f /home/yugabyte/tools/k8s_preflight.py ]; then
+              PYTHONUNBUFFERED="true" /home/yugabyte/tools/k8s_preflight.py \
+                dnscheck \
+                --addr="$(HOSTNAME).yb-masters.$(NAMESPACE).svc.cluster.local" \
+                --port="7100"
+            fi && \
+
+            if [ -f /home/yugabyte/tools/k8s_preflight.py ]; then
+              PYTHONUNBUFFERED="true" /home/yugabyte/tools/k8s_preflight.py \
+                dnscheck \
+                --addr="$(HOSTNAME).yb-masters.$(NAMESPACE).svc.cluster.local:7100" \
+                --port="7100"
+            fi && \
+
+            if [ -f /home/yugabyte/tools/k8s_preflight.py ]; then
+              PYTHONUNBUFFERED="true" /home/yugabyte/tools/k8s_preflight.py \
+                dnscheck \
+                --addr="0.0.0.0" \
+                --port="7000"
+            fi && \
+
+            if [[ -f /home/yugabyte/tools/k8s_parent.py ]]; then
+              k8s_parent="/home/yugabyte/tools/k8s_parent.py"
+            else
+              k8s_parent=""
+            fi && \
+            exec ${k8s_parent} /home/yugabyte/bin/yb-master \
+              --fs_data_dirs=/mnt/disk0,/mnt/disk1 \
+              --master_addresses=yb-master-0.yb-masters.$(NAMESPACE).svc.cluster.local:7100,yb-master-1.yb-masters.$(NAMESPACE).svc.cluster.local:7100,yb-master-2.yb-masters.$(NAMESPACE).svc.cluster.local:7100 \
+              --replication_factor=3 \
+              --enable_ysql=true \
+              --metric_node_name=$(HOSTNAME) \
+              --memory_limit_hard_bytes=1824522240 \
+              --stderrthreshold=0 \
+              --num_cpus=2 \
+              --undefok=num_cpus,enable_ysql \
+              --default_memory_limit_to_ram_ratio="0.85" \
+              --rpc_bind_addresses=$(HOSTNAME).yb-masters.$(NAMESPACE).svc.cluster.local \
+              --server_broadcast_addresses=$(HOSTNAME).yb-masters.$(NAMESPACE).svc.cluster.local:7100 \
+              --webserver_interface=0.0.0.0
+        ports:
+          - containerPort: 7000
+            name: "http-ui"
+          - containerPort: 7100
+            name: "tcp-rpc-port"
+        volumeMounts:
+          - name: debug-hooks-volume
+            mountPath: /opt/debug_hooks_config
+
+          - name: datadir0
+            mountPath: /mnt/disk0
+          - name: datadir1
+            mountPath: /mnt/disk1
+      - name: yb-cleanup
+        image: "yugabytedb/yugabyte:2.18.0.0-b65"
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: USER
+          value: "yugabyte"
+        command:
+          - "/sbin/tini"
+          - "--"
+        args:
+          - "/bin/bash"
+          - "-c"
+          - >
+            while true; do
+              sleep 3600;
+              /home/yugabyte/scripts/log_cleanup.sh;
+            done
+        volumeMounts:
+          - name: datadir0
+            mountPath: /home/yugabyte/
+            subPath: yb-data
+          - name: datadir0
+            mountPath: /var/yugabyte/cores
+            subPath: cores
+
+      volumes:
+        - name: debug-hooks-volume
+          configMap:
+            name: release-name-yugabyte-master-hooks
+            defaultMode: 0755
+
+        - name: datadir0
+          hostPath:
+            path: /mnt/disks/ssd0
+        - name: datadir1
+          hostPath:
+            path: /mnt/disks/ssd1

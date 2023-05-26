@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: release-name-yugabyte-tserver-hooks
+  namespace: "default"
+data:
+  yb-tserver-0-pre_debug_hook.sh: "echo 'hello-from-pre' "
+  yb-tserver-0-post_debug_hook.sh: "echo 'hello-from-post' "
+  yb-tserver-1-pre_debug_hook.sh: "echo 'hello-from-pre' "
+  yb-tserver-1-post_debug_hook.sh: "echo 'hello-from-post' "
+  yb-tserver-2-pre_debug_hook.sh: "echo 'hello-from-pre' "
+  yb-tserver-2-post_debug_hook.sh: "echo 'hello-from-post' "

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: release-name-yugabyte-master-hooks
+  namespace: "default"
+data:
+  yb-master-0-pre_debug_hook.sh: "echo 'hello-from-pre' "
+  yb-master-0-post_debug_hook.sh: "echo 'hello-from-post' "
+  yb-master-1-pre_debug_hook.sh: "echo 'hello-from-pre' "
+  yb-master-1-post_debug_hook.sh: "echo 'hello-from-post' "
+  yb-master-2-pre_debug_hook.sh: "echo 'hello-from-pre' "
+  yb-master-2-post_debug_hook.sh: "echo 'hello-from-post' "

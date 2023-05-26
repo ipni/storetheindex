@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: "yb-tservers"
+  labels:
+    app: "yb-tserver"
+    service-type: "headless"
+spec:
+  clusterIP: None
+  ports:
+    - name: "http-ui"
+      port: 9000
+    - name: "http-ycql-met"
+      port: 12000
+    - name: "http-yedis-met"
+      port: 11000
+    - name: "http-ysql-met"
+      port: 13000
+    - name: "tcp-rpc-port"
+      port: 9100
+    - name: "tcp-yedis-port"
+      port: 6379
+    - name: "tcp-yql-port"
+      port: 9042
+    - name: "tcp-ysql-port"
+      port: 5433
+  selector:
+    app: "yb-tserver"

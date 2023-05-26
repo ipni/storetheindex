@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: "yb-master-ui"
+  annotations:
+    {}
+  labels:
+    app: "yb-master"
+    service-type: "endpoint"
+spec:
+  ports:
+    - name: "http-ui"
+      port: 7000
+  selector:
+    app: "yb-master"
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster

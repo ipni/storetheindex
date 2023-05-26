@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - master-configmap.yaml
+  - master-pdb.yaml
+  - master-service.yaml
+  - master-statefulset.yaml
+  - master-ui-lb.yaml
+  - tserver-configmap.yaml
+  - tserver-lb.yaml
+  - tserver-pdb.yaml
+  - tserver-service.yaml
+  - tserver-statefulset.yaml
