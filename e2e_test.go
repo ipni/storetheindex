@@ -190,6 +190,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 	provider := filepath.Join(e.dir, "provider")
 	dhstore := filepath.Join(e.dir, "dhstore")
+	ipni := filepath.Join(e.dir, "ipni")
 
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
@@ -209,6 +210,11 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	err = os.Chdir("dhstore_repo/cmd/dhstore")
 	require.NoError(t, err)
 	e.run("go", "install")
+
+	// install ipni-cli
+	err = os.Chdir(e.dir)
+	require.NoError(t, err)
+	e.run("go", "install", "github.com/ipni/ipni-cli/cmd/ipni@latest")
 
 	err = os.Chdir(cwd)
 	require.NoError(t, err)
@@ -291,7 +297,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
-			findOutput := e.run(provider, "find", "-i", "localhost:3000", "-mh", mh)
+			findOutput := e.run(ipni, "find", "-i", "localhost:3000", "-mh", mh)
 			t.Logf("import output:\n%s\n", findOutput)
 
 			if bytes.Contains(findOutput, []byte("not found")) {
@@ -360,7 +366,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
-			findOutput := e.run(provider, "find", "-i", "localhost:3000", "-mh", mh)
+			findOutput := e.run(ipni, "find", "-i", "localhost:3000", "-mh", mh)
 			t.Logf("import output:\n%s\n", findOutput)
 
 			if !bytes.Contains(findOutput, []byte("not found")) {
