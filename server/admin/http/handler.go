@@ -648,7 +648,7 @@ func (h *adminHandler) status(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error(err)
 		usage = -1.0
-	} else {
+	} else if du != nil {
 		usage = du.Percent
 	}
 

@@ -763,7 +763,7 @@ func (ing *Ingester) metricsUpdater() {
 			usageStats, err := ing.reg.ValueStoreUsage()
 			if err != nil {
 				log.Errorw("Error getting disk usage", "err", err)
-			} else {
+			} else if usageStats != nil {
 				usage = usageStats.Percent
 			}
 

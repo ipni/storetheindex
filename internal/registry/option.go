@@ -8,7 +8,7 @@ import (
 // regConfig contains all options for the server.
 type regConfig struct {
 	freezeAtPercent float64
-	valueStoreDir   string
+	freezeDirs      []string
 }
 
 // Option is a function that sets a value in a regConfig.
@@ -25,13 +25,13 @@ func getOpts(opts []Option) (regConfig, error) {
 	return cfg, nil
 }
 
-func WithFreezer(valueStoreDir string, freezeAtPercent float64) Option {
+func WithFreezer(freezeDirs []string, freezeAtPercent float64) Option {
 	return func(c *regConfig) error {
-		if valueStoreDir != "" && freezeAtPercent == 0 {
+		if len(freezeDirs) != 0 && freezeAtPercent == 0 {
 			return errors.New("cannot freeze at 0 percent usage")
 		}
 		c.freezeAtPercent = freezeAtPercent
-		c.valueStoreDir = valueStoreDir
+		c.freezeDirs = freezeDirs
 		return nil
 	}
 }

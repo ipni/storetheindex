@@ -124,7 +124,7 @@ func daemonAction(cctx *cli.Context) error {
 	freezeDirs = append(freezeDirs, dsDir)
 
 	if cfg.Indexer.UnfreezeOnStart {
-		unfrozen, err := registry.Unfreeze(cctx.Context, freezeDirs[0], cfg.Indexer.FreezeAtPercent, dstore)
+		unfrozen, err := registry.Unfreeze(cctx.Context, freezeDirs, cfg.Indexer.FreezeAtPercent, dstore)
 		if err != nil {
 			return fmt.Errorf("cannot unfreeze registry: %w", err)
 		}
@@ -164,7 +164,7 @@ func daemonAction(cctx *cli.Context) error {
 
 	// Create registry
 	reg, err := registry.New(cctx.Context, cfg.Discovery, dstore,
-		registry.WithFreezer(freezeDirs[0], cfg.Indexer.FreezeAtPercent))
+		registry.WithFreezer(freezeDirs, cfg.Indexer.FreezeAtPercent))
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}

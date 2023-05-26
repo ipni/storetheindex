@@ -294,7 +294,7 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 	}
 
 	if opts.freezeAtPercent >= 0 {
-		r.freezer, err = freeze.New(opts.valueStoreDir, opts.freezeAtPercent, dstore, r.freeze)
+		r.freezer, err = freeze.New(opts.freezeDirs, opts.freezeAtPercent, dstore, r.freeze)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create freezer: %s", err)
 		}
@@ -1031,12 +1031,12 @@ func (r *Registry) ValueStoreUsage() (*disk.UsageStats, error) {
 
 // Unfreeze reverts the freezer and provider information back to its unfrozen
 // state. This must only be called when the registry is not running.
-func Unfreeze(ctx context.Context, vstoreDir string, freezeAtPercent float64, dstore datastore.Datastore) (map[peer.ID]cid.Cid, error) {
+func Unfreeze(ctx context.Context, freezeDirs []string, freezeAtPercent float64, dstore datastore.Datastore) (map[peer.ID]cid.Cid, error) {
 	if dstore == nil {
 		return nil, nil
 	}
 
-	err := freeze.Unfreeze(ctx, vstoreDir, freezeAtPercent, dstore)
+	err := freeze.Unfreeze(ctx, freezeDirs, freezeAtPercent, dstore)
 	if err != nil {
 		return nil, fmt.Errorf("cannot unfreeze freezer: %w", err)
 	}
