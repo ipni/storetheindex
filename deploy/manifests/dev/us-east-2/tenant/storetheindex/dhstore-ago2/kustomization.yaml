@@ -9,7 +9,7 @@ resources:
   - internal-service.yaml
   - pod-monitor.yaml
 
-nameSuffix: -porvy
+nameSuffix: -ago2
 
 patchesStrategicMerge:
   - deployment.yaml
