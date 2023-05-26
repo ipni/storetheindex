@@ -195,25 +195,15 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 
-	// install index-provider
 	err = os.Chdir(e.dir)
-	require.NoError(t, err)
-	e.run("git", "clone", "https://github.com/ipni/index-provider.git")
-	err = os.Chdir("index-provider/cmd/provider")
-	require.NoError(t, err)
-	e.run("go", "install")
+
+	// install index-provider
+	e.run("go", "install", "github.com/ipni/index-provider/cmd/provider@latest")
 
 	// install dhstore
-	err = os.Chdir(e.dir)
-	require.NoError(t, err)
-	e.run("git", "clone", "https://github.com/ipni/dhstore.git", "dhstore_repo")
-	err = os.Chdir("dhstore_repo/cmd/dhstore")
-	require.NoError(t, err)
-	e.run("go", "install")
+	e.run("go", "install", "github.com/ipni/dhstore/cmd/dhstore@latest")
 
 	// install ipni-cli
-	err = os.Chdir(e.dir)
-	require.NoError(t, err)
 	e.run("go", "install", "github.com/ipni/ipni-cli/cmd/ipni@latest")
 
 	err = os.Chdir(cwd)
