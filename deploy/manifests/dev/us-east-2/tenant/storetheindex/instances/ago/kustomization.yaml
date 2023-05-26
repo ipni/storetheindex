@@ -32,7 +32,3 @@ images:
   - name: storetheindex
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
     newTag: 20230512195327-cf757c4b07fb5685ccccd964a16284dd6348295f
-
-replicas:
-  - name: ago-indexer
-    count: 0
