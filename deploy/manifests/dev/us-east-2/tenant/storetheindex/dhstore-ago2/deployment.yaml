@@ -3,7 +3,13 @@ kind: Deployment
 metadata:
   name: dhstore
 spec:
+  selector:
+    matchLabels:
+      app: dhstore-ago2
   template:
+    metadata:
+      labels:
+        app: dhstore-ago2
     spec:
       topologySpreadConstraints:
         - maxSkew: 1
@@ -14,16 +20,17 @@ spec:
           args:
             - '--storePath=/data'
             - '--disableWAL'
+            - '--blockCacheSize=2Gi'
           volumeMounts:
             - name: data
               mountPath: /data
           resources:
             limits:
-              cpu: "2"
-              memory: 16Gi
+              cpu: "7"
+              memory: 60Gi
             requests:
-              cpu: "2"
-              memory: 16Gi
+              cpu: "7"
+              memory: 60Gi
           ports:
             - containerPort: 40081
               name: metrics
@@ -43,7 +50,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: dhstore-data-gp3
+            claimName: dhstore-data-ago2
       tolerations:
         - key: dedicated
           operator: Equal
