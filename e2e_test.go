@@ -206,10 +206,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	// install dhstore
 	err = os.Chdir(e.dir)
 	require.NoError(t, err)
-	e.run("git", "clone", "https://github.com/ipni/dhstore.git", "dhstore_repo")
-	err = os.Chdir("dhstore_repo/cmd/dhstore")
-	require.NoError(t, err)
-	e.run("go", "install")
+	e.run("go", "install", "github.com/ipni/dhstore/cmd/dhstore@latest")
 
 	// install ipni-cli
 	err = os.Chdir(e.dir)
