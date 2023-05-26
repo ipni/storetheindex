@@ -196,6 +196,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	require.NoError(t, err)
 
 	err = os.Chdir(e.dir)
+	require.NoError(t, err)
 
 	// install index-provider
 	e.run("go", "install", "github.com/ipni/index-provider/cmd/provider@latest")
