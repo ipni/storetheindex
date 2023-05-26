@@ -186,6 +186,7 @@ func daemonAction(cctx *cli.Context) error {
 			httpfindserver.WithMaxConnections(cfg.Finder.MaxConnections),
 			httpfindserver.WithHomepage(cfg.Finder.Webpage),
 			httpfindserver.WithIndexCounts(indexCounts),
+			httpfindserver.WithVersion(cctx.App.Version),
 		)
 		if err != nil {
 			return err
@@ -290,7 +291,8 @@ func daemonAction(cctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("bad ingest address %s: %s", ingestAddr, err)
 		}
-		ingestSvr, err = httpingestserver.New(ingestNetAddr.String(), indexerCore, ingester, reg)
+		ingestSvr, err = httpingestserver.New(ingestNetAddr.String(), indexerCore, ingester, reg,
+			httpingestserver.WithVersion(cctx.App.Version))
 		if err != nil {
 			return err
 		}

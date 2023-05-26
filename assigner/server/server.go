@@ -9,16 +9,16 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/go-libipni/announce/message"
 	"github.com/ipni/storetheindex/assigner/core"
-	"github.com/ipni/storetheindex/internal/revision"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 var log = logging.Logger("assigner/server")
 
 type Server struct {
-	assigner *core.Assigner
-	server   *http.Server
-	listener net.Listener
+	assigner  *core.Assigner
+	server    *http.Server
+	listener  net.Listener
+	healthMsg string
 }
 
 func New(listen string, assigner *core.Assigner, options ...Option) (*Server, error) {
@@ -42,6 +42,11 @@ func New(listen string, assigner *core.Assigner, options ...Option) (*Server, er
 		assigner: assigner,
 		server:   server,
 		listener: l,
+	}
+
+	s.healthMsg = "assigner ready"
+	if opts.version != "" {
+		s.healthMsg += " " + opts.version
 	}
 
 	// Direct announce.
@@ -125,16 +130,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-cache")
-	writeJsonResponse(w, http.StatusOK, revision.RevisionJSON)
-}
-
-func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	if _, err := w.Write(body); err != nil {
-		log.Errorw("cannot write response", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-	}
+	http.Error(w, s.healthMsg, http.StatusOK)
 }
 
 func methodOK(w http.ResponseWriter, r *http.Request, method string) bool {
