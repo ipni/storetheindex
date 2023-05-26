@@ -132,7 +132,6 @@ func daemonAction(cctx *cli.Context) error {
 		return err
 	}
 	defer dstore.Close()
-
 	err = updateDatastore(cctx.Context, dstore)
 	if err != nil {
 		return fmt.Errorf("cannot update datastore: %w", err)
@@ -145,7 +144,6 @@ func daemonAction(cctx *cli.Context) error {
 		return err
 	}
 	defer dsAdTmp.Close()
-
 	freezeDirs = append(freezeDirs, dsAdDir)
 
 	if cfg.Indexer.UnfreezeOnStart {
@@ -735,7 +733,7 @@ func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p
 
 func createDatastore(ctx context.Context, dir, dsType string) (datastore.Batching, string, error) {
 	if dsType != "levelds" {
-		return nil, "", fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Type)
+		return nil, "", fmt.Errorf("only levelds datastore type supported, %q not supported", dsType)
 	}
 	dataStorePath, err := config.Path("", dir)
 	if err != nil {
