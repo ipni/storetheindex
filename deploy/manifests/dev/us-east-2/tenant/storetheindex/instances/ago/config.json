@@ -57,7 +57,7 @@
     "ConfigCheckInterval": "30s",
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
-    "ValueStoreType": "pebble",
+    "ValueStoreType": "none",
     "DisableWAL": true,
     "VSNoNewMH": true,
     "DHBatchSize": 4096,
