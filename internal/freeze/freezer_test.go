@@ -1,6 +1,9 @@
 package freeze_test
 
 import (
+	"context"
+	"io/fs"
+	"path/filepath"
 	"testing"
 
 	"github.com/ipfs/go-datastore"
@@ -28,6 +31,11 @@ func TestCheckFreeze(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, f.Frozen())
 	require.Equal(t, 1, len(f.Dirs()))
+
+	du2, err := f.Usage()
+	require.NoError(t, err)
+	require.Equal(t, du.Path, du2.Path)
+
 	checkChan := make(chan bool, 5)
 	for i := 0; i < cap(checkChan); i++ {
 		go func() {
@@ -61,6 +69,27 @@ func TestCheckFreeze(t *testing.T) {
 	f.Close()
 
 	require.Equal(t, 1, freezeCount)
+
+	// Unfreeze no directories.
+	err = freeze.Unfreeze(context.Background(), nil, du.Percent/2.0, dstore)
+	require.NoError(t, err)
+
+	// Unfreeze with insufficient storage.
+	err = freeze.Unfreeze(context.Background(), dirs, du.Percent/2.0, dstore)
+	require.ErrorContains(t, err, "cannot unfreeze")
+
+	// Unfreeze with bad directory.
+	badDir := filepath.Join(tempDir, "baddir")
+	err = freeze.Unfreeze(context.Background(), []string{badDir}, du.Percent*2.0, dstore)
+	require.ErrorIs(t, err, fs.ErrNotExist)
+
+	// Unfreze should work here.
+	err = freeze.Unfreeze(context.Background(), dirs, du.Percent*2.0, dstore)
+	require.NoError(t, err)
+
+	// Unfreeze already unfrozen.
+	err = freeze.Unfreeze(context.Background(), dirs, du.Percent*2.0, dstore)
+	require.NoError(t, err)
 }
 
 func TestManualFreeze(t *testing.T) {

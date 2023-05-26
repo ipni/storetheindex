@@ -150,15 +150,12 @@ func (f *Freezer) Usage() (*disk.UsageStats, error) {
 
 // Unfreeze explicitly triggers the indexer to exit frozen mode.
 func Unfreeze(ctx context.Context, dirPaths []string, freezeAtPercent float64, dstore datastore.Datastore) error {
-	if dstore == nil {
+	if len(dirPaths) == 0 || dstore == nil {
 		return nil
 	}
 	dirPaths, err := uniqFsDirs(dirPaths)
 	if err != nil {
-		return nil
-	}
-	if len(dirPaths) == 0 {
-		return nil
+		return err
 	}
 	frozen, err := dstore.Has(ctx, datastore.NewKey(frozenKey))
 	if err != nil {
