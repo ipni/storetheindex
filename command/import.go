@@ -31,7 +31,12 @@ var importManifestCmd = &cli.Command{
 }
 
 var importFlags = []cli.Flag{
-	providerFlag,
+	&cli.StringFlag{
+		Name:     "provider",
+		Usage:    "Provider's peer ID",
+		Aliases:  []string{"p"},
+		Required: true,
+	},
 	&cli.StringFlag{
 		Name:     "ctxid",
 		Usage:    "Context ID of data imported",

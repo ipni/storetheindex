@@ -39,13 +39,10 @@ func main() {
 			command.AdminCmd,
 			command.AssignerCmd,
 			command.DaemonCmd,
-			command.FindCmd,
 			command.ImportCmd,
 			command.InitCmd,
 			command.LoadtestCmd,
 			command.LogCmd,
-			command.ProvidersCmd,
-			command.SPAddrCmd,
 		},
 	}
 

@@ -322,7 +322,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	require.Equal(t, 1, carCount)
 	require.Equal(t, 1, headCount)
 
-	outProvider := e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
+	outProvider := e.run(ipni, "provider", "-pid", providerID, "--indexer", "localhost:3000")
 	// Check that IndexCount with correct value appears in providers output.
 	require.Contains(t, string(outProvider), "IndexCount: 1043")
 
@@ -368,7 +368,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		return nil
 	})
 
-	outProvider = e.run(indexer, "providers", "get", "-p", providerID, "--indexer", "localhost:3000")
+	outProvider = e.run(ipni, "provider", "-pid", providerID, "--indexer", "localhost:3000")
 	// Check that IndexCount is back to zero after removing car.
 	require.Contains(t, string(outProvider), "IndexCount: 0")
 
@@ -384,17 +384,15 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		t.Fatal("timed out waiting for indexer2 to start")
 	}
 
-	outProviders := e.run(indexer, "providers", "list", "--indexer", "localhost:3200")
-	if !strings.HasPrefix(string(outProviders), "No providers registered with indexer") {
-		t.Errorf("expected no providers message, got %q", string(outProviders))
-	}
+	outProviders := e.run(ipni, "provider", "--all", "--indexer", "localhost:3200")
+	require.Contains(t, string(outProviders), "No providers registered with indexer",
+		"expected no providers message")
 
 	// import providers from first indexer.
 	e.run(indexer, "admin", "import-providers", "--indexer", "localhost:3202", "--from", "localhost:3000")
 
-	outProviders = e.run(indexer, "providers", "list", "--indexer", "localhost:3200")
-
 	// Check that provider ID now appears in providers output.
+	outProviders = e.run(ipni, "provider", "--all", "--indexer", "localhost:3200", "--id-only")
 	require.Contains(t, string(outProviders), providerID, "expected provider id in providers output after import-providers")
 
 	// Check that status is not frozen.
@@ -402,7 +400,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	require.Contains(t, string(outStatus), "Frozen: false", "expected indexer to be frozen")
 
 	e.run(indexer, "admin", "freeze", "--indexer", "localhost:3202")
-	outProviders = e.run(indexer, "providers", "list", "--indexer", "localhost:3200")
+	outProviders = e.run(ipni, "provider", "--all", "--indexer", "localhost:3200")
 
 	// Check that provider ID now appears as frozen in providers output.
 	require.Contains(t, string(outProviders), "FrozenAtTime", "expected provider to be frozen")

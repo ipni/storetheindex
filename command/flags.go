@@ -29,13 +29,6 @@ var fileFlag = &cli.StringFlag{
 	Required: true,
 }
 
-var providerFlag = &cli.StringFlag{
-	Name:     "provider",
-	Usage:    "Provider's peer ID",
-	Aliases:  []string{"p"},
-	Required: true,
-}
-
 var listenAdminFlag = &cli.StringFlag{
 	Name:     "listen-admin",
 	Usage:    "Admin HTTP API listen address or 'none' to disable, overrides config",
