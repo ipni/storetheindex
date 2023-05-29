@@ -11,7 +11,3 @@ resources:
 
 patchesStrategicMerge:
   - pvc.yaml
-
-replicas:
-  - name: cadi-dhstore
-    count: 0
