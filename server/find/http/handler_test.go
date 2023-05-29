@@ -231,14 +231,14 @@ func TestServer_StreamingResponse(t *testing.T) {
 			name:               "unknown metadata",
 			reqURI:             "/metadata/fish",
 			wantContentType:    "text/plain; charset=utf-8",
-			wantResponseBody:   "\n",
+			wantResponseBody:   "Not Found\n",
 			wantResponseStatus: http.StatusNotFound,
 		},
 		{
 			name:               "unknwon any",
 			reqURI:             "/lobster",
 			wantContentType:    "text/plain; charset=utf-8",
-			wantResponseBody:   "\n",
+			wantResponseBody:   "Not Found\n",
 			wantResponseStatus: http.StatusNotFound,
 		},
 	}
