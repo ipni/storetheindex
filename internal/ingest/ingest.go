@@ -28,13 +28,11 @@ import (
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
-	"github.com/ipni/storetheindex/peerutil"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
-	"golang.org/x/time/rate"
 )
 
 var log = logging.Logger("indexer/ingest")
@@ -159,16 +157,9 @@ type Ingester struct {
 	waitForWorkers sync.WaitGroup
 	workerPoolSize int
 
-	// RateLimiting
-	rateApply peerutil.Policy
-	rateBurst int
-
 	// providersPendingAnnounce maps the provider ID to the latest announcement
 	// received from the provider that is waiting to be processed.
 	providersPendingAnnounce sync.Map
-
-	rateLimit rate.Limit
-	rateMutex sync.Mutex
 
 	// Multihash minimum length
 	minKeyLen int
@@ -225,11 +216,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		return nil, err
 	}
 
-	ing.rateApply, ing.rateBurst, ing.rateLimit, err = configRateLimit(cfg.RateLimit)
-	if err != nil {
-		log.Error(err.Error())
-	}
-
 	// Instantiate retryable HTTP client used by dagsync httpsync.
 	rclient := &retryablehttp.Client{
 		HTTPClient: &http.Client{
@@ -249,7 +235,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		dagsync.FilterIPs(reg.FilterIPsEnabled()),
 		dagsync.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)),
 		dagsync.UseLatestSyncHandler(&syncHandler{ing}),
-		dagsync.RateLimiter(ing.getRateLimiter),
 		dagsync.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
 		dagsync.HttpClient(rclient.StandardClient()),
 		dagsync.BlockHook(ing.generalDagsyncBlockHook),
@@ -303,19 +288,6 @@ func (ing *Ingester) generalDagsyncBlockHook(_ peer.ID, c cid.Cid, actions dagsy
 	} else {
 		actions.SetNextSyncCid(cid.Undef)
 	}
-}
-
-func (ing *Ingester) getRateLimiter(publisher peer.ID) *rate.Limiter {
-	ing.rateMutex.Lock()
-	defer ing.rateMutex.Unlock()
-
-	// If rateLimiting disabled or publisher is not rate-limited, then return
-	// infinite rate limiter.
-	if ing.rateLimit == 0 || !ing.rateApply.Eval(publisher) {
-		return rate.NewLimiter(rate.Inf, 0)
-	}
-	// Return rate limiter with rate setting from config.
-	return rate.NewLimiter(ing.rateLimit, ing.rateBurst)
 }
 
 // Close stops the ingester and all its workers.
@@ -923,23 +895,6 @@ func (ing *Ingester) GetLatestSync(publisherID peer.ID) (cid.Cid, error) {
 	return c, err
 }
 
-// SetRateLimit sets the rate limit.
-func (ing *Ingester) SetRateLimit(cfgRateLimit config.RateLimit) error {
-	apply, burst, limit, err := configRateLimit(cfgRateLimit)
-	if err != nil {
-		return err
-	}
-
-	ing.rateMutex.Lock()
-
-	ing.rateApply = apply
-	ing.rateBurst = burst
-	ing.rateLimit = limit
-
-	ing.rateMutex.Unlock()
-	return nil
-}
-
 func (ing *Ingester) RunWorkers(n int) {
 	for n > ing.workerPoolSize {
 		// Start worker.
@@ -1359,30 +1314,4 @@ func recursionLimit(depth int) selector.RecursionLimit {
 		return selector.RecursionLimitNone()
 	}
 	return selector.RecursionLimitDepth(int64(depth))
-}
-
-func configRateLimit(cfgRateLimit config.RateLimit) (apply peerutil.Policy, burst int, limit rate.Limit, err error) {
-	if cfgRateLimit.BlocksPerSecond == 0 {
-		log.Info("rate limiting disabled")
-		return
-	}
-	if cfgRateLimit.BlocksPerSecond < 0 {
-		err = errors.New("BlocksPerSecond must be greater than or equal to 0")
-		return
-	}
-	if cfgRateLimit.BurstSize < 0 {
-		err = errors.New("BurstSize must be greater than or equal to 0")
-		return
-	}
-
-	apply, err = peerutil.NewPolicyStrings(cfgRateLimit.Apply, cfgRateLimit.Except)
-	if err != nil {
-		err = fmt.Errorf("error setting rate limit for peers: %w", err)
-		return
-	}
-	burst = cfgRateLimit.BurstSize
-	limit = rate.Limit(cfgRateLimit.BlocksPerSecond)
-
-	log.Info("rate limiting enabled")
-	return
 }
