@@ -11,3 +11,7 @@ resources:
 
 patchesStrategicMerge:
   - pvc.yaml
+
+replicas:
+  - name: saar-dhstore
+    count: 0
