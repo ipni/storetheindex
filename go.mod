@@ -27,7 +27,7 @@ require (
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
 	github.com/ipld/go-storethehash v0.3.13
 	github.com/ipni/go-indexer-core v0.7.8
-	github.com/ipni/go-libipni v0.1.2-0.20230530005430-fa61d07c139d
+	github.com/ipni/go-libipni v0.1.2-0.20230530010009-268854279c12
 	github.com/libp2p/go-libp2p v0.27.3
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
