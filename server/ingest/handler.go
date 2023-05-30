@@ -1,4 +1,4 @@
-package handler
+package ingest
 
 import (
 	"context"
@@ -18,23 +18,14 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-// IngestHandler provides request handling functionality for the ingest server
-// that is common to all protocols
-type IngestHandler struct {
+// handler provides request handling functionality for the ingest server.
+type handler struct {
 	indexer  indexer.Interface
 	ingester *ingest.Ingester
 	registry *registry.Registry
 }
 
-func NewIngestHandler(indexer indexer.Interface, ingester *ingest.Ingester, registry *registry.Registry) *IngestHandler {
-	return &IngestHandler{
-		indexer:  indexer,
-		ingester: ingester,
-		registry: registry,
-	}
-}
-
-func (h *IngestHandler) RegisterProvider(ctx context.Context, data []byte) error {
+func (h handler) registerProvider(ctx context.Context, data []byte) error {
 	peerRec, err := model.ReadRegisterRequest(data)
 	if err != nil {
 		return fmt.Errorf("cannot read register request: %s", err)
@@ -57,10 +48,10 @@ func (h *IngestHandler) RegisterProvider(ctx context.Context, data []byte) error
 	return h.registry.Update(ctx, provider, publisher, cid.Undef, nil, 0)
 }
 
-// IndexContent handles an IngestRequest
+// indexContent handles an IngestRequest
 //
 // Returning error is the same as return apierror.New(err, http.StatusBadRequest)
-func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
+func (h handler) indexContent(ctx context.Context, data []byte) error {
 	ingReq, err := model.ReadIngestRequest(data)
 	if err != nil {
 		return fmt.Errorf("cannot read ingest request: %s", err)
@@ -110,7 +101,7 @@ func (h *IngestHandler) IndexContent(ctx context.Context, data []byte) error {
 	return nil
 }
 
-func (h *IngestHandler) Announce(an message.Message) error {
+func (h handler) announce(an message.Message) error {
 	if len(an.Addrs) == 0 {
 		return fmt.Errorf("must specify location to fetch on direct announcments")
 	}

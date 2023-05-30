@@ -1,4 +1,4 @@
-package adminserver_test
+package admin_test
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
-	server "github.com/ipni/storetheindex/server/admin/http"
+	"github.com/ipni/storetheindex/server/admin"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -39,7 +39,7 @@ type testenv struct {
 	ingester *ingest.Ingester
 	registry *registry.Registry
 	client   *client.Client
-	server   *server.Server
+	server   *admin.Server
 	errChan  chan error
 }
 
@@ -266,9 +266,9 @@ func (te *testenv) close(t *testing.T) {
 	te.registry.Close()
 }
 
-func setupServer(t *testing.T, ind indexer.Interface, ing *ingest.Ingester, reg *registry.Registry, idxCts *counter.IndexCounts) *server.Server {
+func setupServer(t *testing.T, ind indexer.Interface, ing *ingest.Ingester, reg *registry.Registry, idxCts *counter.IndexCounts) *admin.Server {
 	reloadErrChan := make(chan chan error)
-	s, err := server.New("127.0.0.1:0", serverID, ind, ing, reg, reloadErrChan)
+	s, err := admin.New("127.0.0.1:0", serverID, ind, ing, reg, reloadErrChan)
 	require.NoError(t, err)
 	return s
 }
