@@ -38,7 +38,6 @@
   },
   "Discovery": {
     "FilterIPs": true,
-    "LotusGateway": "wss://api.chain.love",
     "Policy": {
       "Allow": true,
       "Except": [
@@ -50,7 +49,7 @@
     "PollRetryAfter": "5m0s",
     "PollStopAfter": "168h0m0s",
     "PollOverrides": null,
-    "UseAssigner": false
+    "UseAssigner": true
   },
   "Indexer": {
     "CacheSize": -1,
