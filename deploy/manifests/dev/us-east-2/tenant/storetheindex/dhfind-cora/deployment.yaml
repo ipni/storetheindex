@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dhfind
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dhfind-cora
+  template:
+    metadata:
+      labels:
+        app: dhfind-cora
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+      containers:
+        - name: dhfind
+          args:
+            - '--dhstoreAddr=http://dhstore-cora.internal.dev.cid.contact/'
+            - '--stiAddr=http://cora-indexer:3000/'
+          resources:
+            limits:
+              cpu: "1"
+              memory: 2Gi
+            requests:
+              cpu: "1"
+              memory: 2Gi

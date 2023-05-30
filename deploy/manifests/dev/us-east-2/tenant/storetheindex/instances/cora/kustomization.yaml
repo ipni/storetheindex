@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - ../../../../../../base/storetheindex-single
+  - ingress.yaml
+  - pvc_data.yaml
+
+namePrefix: cora-
+
+commonLabels:
+  name: cora
+
+secretGenerator:
+  - name: identity
+    behavior: replace
+    files:
+      - identity.key=identity.key.encrypted # 12D3KooWEkZMB3XQTDYgAxhMd9jfZhfD9zHjKPTyyi6jzM5u7bgv
+
+configMapGenerator:
+  - name: config
+    behavior: replace
+    files:
+      - config=config.json
+
+patchesStrategicMerge:
+  - deployment.yaml
+  
+images:
+  - name: storetheindex
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+    newTag: 20230524230046-affbc59c1e05c033fd39c53302aa45e7247a51e7

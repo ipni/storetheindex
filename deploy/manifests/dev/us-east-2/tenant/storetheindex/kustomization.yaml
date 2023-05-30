@@ -10,6 +10,12 @@ resources:
 - dhstore-ago2
 - dhfind
 - dhfind-ago2
+- dhstore-alva
+- dhfind-alva
+- dhstore-bria
+- dhfind-bria
+- dhstore-cora
+- dhfind-cora
 - caskadht
 - snapshots
 - lookout

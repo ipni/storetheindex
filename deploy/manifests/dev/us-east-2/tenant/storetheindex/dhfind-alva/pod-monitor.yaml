@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: dhfind
+  labels:
+    app: dhfind-alva
+spec:
+  selector:
+    matchLabels:
+      app: dhfind-alva
+  namespaceSelector:
+    matchNames:
+      - storetheindex
+  podMetricsEndpoints:
+    - path: /metrics
+      port: metrics

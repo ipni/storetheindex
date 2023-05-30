@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+nameSuffix: -cora
+
+resources:
+  - ../../../../../base/dhfind
+  - pod-monitor.yaml
+  - ingress.yaml
+
+patchesStrategicMerge:
+  - deployment.yaml
+  - service.yaml
+
+images:
+  - name: dhfind
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/dhfind
+    newTag: 20230502091517-df512c0ce986752aaf81aea4dfbea7e00a98df8b

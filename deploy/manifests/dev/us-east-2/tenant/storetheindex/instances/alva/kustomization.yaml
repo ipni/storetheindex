@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - ../../../../../../base/storetheindex-single
+  - ingress.yaml
+  - pvc_data.yaml
+
+namePrefix: alva-
+
+commonLabels:
+  name: alva
+
+secretGenerator:
+  - name: identity
+    behavior: replace
+    files:
+      - identity.key=identity.key.encrypted # 12D3KooWSrUNEvYeHKL74mFaY6oayTJBNTfBFd1u8TBsD4ZwxRMC
+
+configMapGenerator:
+  - name: config
+    behavior: replace
+    files:
+      - config=config.json
+
+patchesStrategicMerge:
+  - deployment.yaml
+  
+images:
+  - name: storetheindex
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+    newTag: 20230524230046-affbc59c1e05c033fd39c53302aa45e7247a51e7
