@@ -30,10 +30,10 @@ import (
 	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
-	httpadminserver "github.com/ipni/storetheindex/server/admin/http"
-	httpfindserver "github.com/ipni/storetheindex/server/find/http"
-	p2pfindserver "github.com/ipni/storetheindex/server/find/p2p"
-	httpingestserver "github.com/ipni/storetheindex/server/ingest/http"
+	httpadmin "github.com/ipni/storetheindex/server/admin"
+	httpfind "github.com/ipni/storetheindex/server/find/http"
+	p2pfind "github.com/ipni/storetheindex/server/find/p2p"
+	httpingest "github.com/ipni/storetheindex/server/ingest"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -170,7 +170,7 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	// Create find HTTP server
-	var findSvr *httpfindserver.Server
+	var findSvr *httpfind.Server
 	findAddr := cfg.Addresses.Finder
 	if cctx.String("listen-finder") != "" {
 		findAddr = cctx.String("listen-finder")
@@ -180,13 +180,13 @@ func daemonAction(cctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("bad find address %s: %s", findAddr, err)
 		}
-		findSvr, err = httpfindserver.New(findNetAddr.String(), indexerCore, reg,
-			httpfindserver.WithReadTimeout(time.Duration(cfg.Finder.ApiReadTimeout)),
-			httpfindserver.WithWriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
-			httpfindserver.WithMaxConnections(cfg.Finder.MaxConnections),
-			httpfindserver.WithHomepage(cfg.Finder.Webpage),
-			httpfindserver.WithIndexCounts(indexCounts),
-			httpfindserver.WithVersion(cctx.App.Version),
+		findSvr, err = httpfind.New(findNetAddr.String(), indexerCore, reg,
+			httpfind.WithReadTimeout(time.Duration(cfg.Finder.ApiReadTimeout)),
+			httpfind.WithWriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
+			httpfind.WithMaxConnections(cfg.Finder.MaxConnections),
+			httpfind.WithHomepage(cfg.Finder.Webpage),
+			httpfind.WithIndexCounts(indexCounts),
+			httpfind.WithVersion(cctx.App.Version),
 		)
 		if err != nil {
 			return err
@@ -237,7 +237,7 @@ func daemonAction(cctx *cli.Context) error {
 		}
 
 		if findSvr != nil {
-			p2pfindserver.New(ctx, p2pHost, indexerCore, reg, indexCounts)
+			p2pfind.New(ctx, p2pHost, indexerCore, reg, indexCounts)
 		}
 
 		// Do not resend direct announce messages if using an assigner service.
@@ -281,7 +281,7 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	// Create ingest HTTP server
-	var ingestSvr *httpingestserver.Server
+	var ingestSvr *httpingest.Server
 	ingestAddr := cfg.Addresses.Ingest
 	if cctx.String("listen-ingest") != "" {
 		ingestAddr = cctx.String("listen-ingest")
@@ -291,8 +291,8 @@ func daemonAction(cctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("bad ingest address %s: %s", ingestAddr, err)
 		}
-		ingestSvr, err = httpingestserver.New(ingestNetAddr.String(), indexerCore, ingester, reg,
-			httpingestserver.WithVersion(cctx.App.Version))
+		ingestSvr, err = httpingest.New(ingestNetAddr.String(), indexerCore, ingester, reg,
+			httpingest.WithVersion(cctx.App.Version))
 		if err != nil {
 			return err
 		}
@@ -301,7 +301,7 @@ func daemonAction(cctx *cli.Context) error {
 	reloadErrsChan := make(chan chan error, 1)
 
 	// Create admin HTTP server
-	var adminSvr *httpadminserver.Server
+	var adminSvr *httpadmin.Server
 	adminAddr := cfg.Addresses.Admin
 	if cctx.String("listen-admin") != "" {
 		adminAddr = cctx.String("listen-admin")
@@ -311,7 +311,7 @@ func daemonAction(cctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("bad admin address %s: %s", adminAddr, err)
 		}
-		adminSvr, err = httpadminserver.New(adminNetAddr.String(), peerID, indexerCore, ingester, reg, reloadErrsChan)
+		adminSvr, err = httpadmin.New(adminNetAddr.String(), peerID, indexerCore, ingester, reg, reloadErrsChan)
 		if err != nil {
 			return err
 		}

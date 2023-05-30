@@ -1,4 +1,4 @@
-package httpingestserver
+package ingest
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
-	"github.com/ipni/storetheindex/server/ingest/handler"
 )
 
 var log = logging.Logger("indexer/ingest")
@@ -22,7 +21,7 @@ var log = logging.Logger("indexer/ingest")
 type Server struct {
 	server        *http.Server
 	listener      net.Listener
-	ingestHandler *handler.IngestHandler
+	ingestHandler handler
 	healthMsg     string
 }
 
@@ -48,9 +47,13 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 		ReadTimeout:  opts.readTimeout,
 	}
 	s := &Server{
-		server:        server,
-		listener:      l,
-		ingestHandler: handler.NewIngestHandler(indexer, ingester, registry),
+		server:   server,
+		listener: l,
+		ingestHandler: handler{
+			indexer:  indexer,
+			ingester: ingester,
+			registry: registry,
+		},
 	}
 
 	s.healthMsg = "ready"
@@ -99,7 +102,7 @@ func (s *Server) putAnnounce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = s.ingestHandler.Announce(an); err != nil {
+	if err = s.ingestHandler.announce(an); err != nil {
 		httpserver.HandleError(w, err, "announce")
 		return
 	}
@@ -127,7 +130,7 @@ func (s *Server) postRegisterProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.ingestHandler.RegisterProvider(r.Context(), body)
+	err = s.ingestHandler.registerProvider(r.Context(), body)
 	if err != nil {
 		httpserver.HandleError(w, err, "register")
 		return
