@@ -2,7 +2,6 @@ package ingest_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -17,10 +16,7 @@ import (
 	"github.com/ipni/go-libipni/announce"
 	"github.com/ipni/go-libipni/announce/httpsender"
 	"github.com/ipni/go-libipni/announce/message"
-	"github.com/ipni/go-libipni/apierror"
 	"github.com/ipni/go-libipni/ingest/client"
-	httpclient "github.com/ipni/go-libipni/ingest/client"
-	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/ingest"
@@ -29,7 +25,6 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,8 +39,8 @@ func setupServer(ind indexer.Interface, ing *ingest.Ingester, reg *registry.Regi
 	return s
 }
 
-func setupClient(host string, t *testing.T) *httpclient.Client {
-	c, err := httpclient.New(host)
+func setupClient(host string, t *testing.T) *client.Client {
+	c, err := client.New(host)
 	require.NoError(t, err)
 	return c
 }
@@ -69,7 +64,7 @@ func TestRegisterProvider(t *testing.T) {
 	reg := initRegistry(t, providerIdent.PeerID)
 	ing := initIngest(t, ind, reg)
 	s := setupServer(ind, ing, reg, t)
-	httpClient := setupClient(s.URL(), t)
+	cl := setupClient(s.URL(), t)
 
 	peerID, privKey, err := providerIdent.Decode()
 	require.NoError(t, err)
@@ -84,7 +79,7 @@ func TestRegisterProvider(t *testing.T) {
 		close(errChan)
 	}()
 
-	registerProviderTest(t, httpClient, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
+	registerProviderTest(t, cl, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
 
 	reg.Close()
 	require.NoError(t, ind.Close(), "Error closing indexer core")
@@ -148,6 +143,25 @@ func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *i
 	return ing
 }
 
+func announceTest(t *testing.T, peerID peer.ID, sender announce.Sender) {
+	ai, err := peer.AddrInfoFromString(fmt.Sprintf("/ip4/127.0.0.1/tcp/9999/p2p/%s", peerID))
+	require.NoError(t, err)
+	ai.ID = peerID
+
+	p2pAddrs, err := peer.AddrInfoToP2pAddrs(ai)
+	require.NoError(t, err)
+
+	mhs := test.RandomMultihashes(1)
+
+	msg := message.Message{
+		Cid: cid.NewCidV1(22, mhs[0]),
+	}
+	msg.SetAddrs(p2pAddrs)
+
+	err = sender.Send(context.Background(), msg)
+	require.NoError(t, err, "Failed to announce")
+}
+
 func registerProviderTest(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -167,6 +181,8 @@ func registerProviderTest(t *testing.T, cl client.Interface, providerID peer.ID,
 	require.Error(t, err, "expected bad signature error")
 }
 
+// TODO: Uncomment when supporting puts directly to indexer.
+/*
 func indexContent(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -197,7 +213,7 @@ func indexContent(t *testing.T, cl client.Interface, providerID peer.ID, private
 		}
 	}
 	require.True(t, ok, "did not get expected content")
-}
+    }
 
 func indexContentNewAddr(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface, newAddr string, reg *registry.Registry) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -246,22 +262,4 @@ func indexContentFail(t *testing.T, cl client.Interface, providerID peer.ID, pri
 		require.Equal(t, 400, apierr.Status())
 	}
 }
-
-func announceTest(t *testing.T, peerID peer.ID, sender announce.Sender) {
-	ai, err := peer.AddrInfoFromString(fmt.Sprintf("/ip4/127.0.0.1/tcp/9999/p2p/%s", peerID))
-	require.NoError(t, err)
-	ai.ID = peerID
-
-	p2pAddrs, err := peer.AddrInfoToP2pAddrs(ai)
-	require.NoError(t, err)
-
-	mhs := test.RandomMultihashes(1)
-
-	msg := message.Message{
-		Cid: cid.NewCidV1(22, mhs[0]),
-	}
-	msg.SetAddrs(p2pAddrs)
-
-	err = sender.Send(context.Background(), msg)
-	require.NoError(t, err, "Failed to announce")
-}
+*/
