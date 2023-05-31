@@ -32,12 +32,11 @@ data "aws_iam_policy_document" "kms_autoretrieve" {
 
       identifiers = [
         "arn:aws:iam::407967248065:user/masih",
-        "arn:aws:iam::407967248065:user/marco",
         "arn:aws:iam::407967248065:user/gammazero",
         "arn:aws:iam::407967248065:user/will.scott",
         "arn:aws:iam::407967248065:user/kylehuntsman",
-        "arn:aws:iam::407967248065:user/steveFraser",
-        "arn:aws:iam::407967248065:user/cmharden",
+        "arn:aws:iam::407967248065:user/ischasny",
+        "arn:aws:iam::407967248065:user/hannahhoward",
       ]
     }
 
