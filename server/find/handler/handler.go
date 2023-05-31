@@ -24,19 +24,19 @@ var log = logging.Logger("indexer/find")
 // way of estimating the number of entries in the primary value store.
 const avg_mh_size = 40
 
-// FindHandler provides request handling functionality for the find server
+// handler provides request handling functionality for the find server
 // that is common to all protocols.
-type FindHandler struct {
+type Handler struct {
 	indexer     indexer.Interface
 	registry    *registry.Registry
 	indexCounts *counter.IndexCounts
 	stats       *cachedStats
 }
 
-func NewFindHandler(indexer indexer.Interface, registry *registry.Registry, indexCounts *counter.IndexCounts) *FindHandler {
-	return &FindHandler{
+func New(indexer indexer.Interface, reg *registry.Registry, indexCounts *counter.IndexCounts) *Handler {
+	return &Handler{
 		indexer:     indexer,
-		registry:    registry,
+		registry:    reg,
 		indexCounts: indexCounts,
 		stats:       newCachedStats(indexer, time.Hour),
 	}
@@ -44,7 +44,7 @@ func NewFindHandler(indexer indexer.Interface, registry *registry.Registry, inde
 
 // Find reads from indexer core to populate a response from a list of
 // multihashes.
-func (h *FindHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse, error) {
+func (h *Handler) Find(mhashes []multihash.Multihash) (*model.FindResponse, error) {
 	results := make([]model.MultihashResult, 0, len(mhashes))
 	provInfos := map[peer.ID]*registry.ProviderInfo{}
 
@@ -137,10 +137,7 @@ func (h *FindHandler) Find(mhashes []multihash.Multihash) (*model.FindResponse, 
 	}, nil
 }
 
-func (h *FindHandler) fetchProviderInfo(provID peer.ID,
-	contextID []byte,
-	provAddrs map[peer.ID]*registry.ProviderInfo,
-	removeProviderContext bool) *registry.ProviderInfo {
+func (h *Handler) fetchProviderInfo(provID peer.ID, contextID []byte, provAddrs map[peer.ID]*registry.ProviderInfo, removeProviderContext bool) *registry.ProviderInfo {
 	// Lookup provider info for each unique provider, look in local map
 	// before going to registry.
 	pinfo, ok := provAddrs[provID]
@@ -171,7 +168,7 @@ func (h *FindHandler) fetchProviderInfo(provID peer.ID,
 	return pinfo
 }
 
-func (h *FindHandler) ListProviders() ([]byte, error) {
+func (h *Handler) ListProviders() ([]byte, error) {
 	infos := h.registry.AllProviderInfo()
 
 	responses := make([]model.ProviderInfo, len(infos))
@@ -190,7 +187,7 @@ func (h *FindHandler) ListProviders() ([]byte, error) {
 	return json.Marshal(responses)
 }
 
-func (h *FindHandler) GetProvider(providerID peer.ID) ([]byte, error) {
+func (h *Handler) GetProvider(providerID peer.ID) ([]byte, error) {
 	info, allowed := h.registry.ProviderInfo(providerID)
 	if info == nil || !allowed || info.Inactive() {
 		return nil, nil
@@ -208,11 +205,11 @@ func (h *FindHandler) GetProvider(providerID peer.ID) ([]byte, error) {
 	return json.Marshal(rsp)
 }
 
-func (h *FindHandler) RefreshStats() {
+func (h *Handler) RefreshStats() {
 	h.stats.refresh()
 }
 
-func (h *FindHandler) GetStats() ([]byte, error) {
+func (h *Handler) GetStats() ([]byte, error) {
 	stats, err := h.stats.get()
 	if err != nil {
 		return nil, err
@@ -220,7 +217,7 @@ func (h *FindHandler) GetStats() ([]byte, error) {
 	return model.MarshalStats(&stats)
 }
 
-func (h *FindHandler) Close() {
+func (h *Handler) Close() {
 	h.stats.close()
 }
 

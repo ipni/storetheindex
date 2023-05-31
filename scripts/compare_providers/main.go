@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	findhttpclient "github.com/ipni/go-libipni/find/client/http"
+	findclient "github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -39,12 +39,12 @@ func main() {
 		log.Fatal("both indexer instances must be specified")
 	}
 
-	sourceClient, err := findhttpclient.New(*source)
+	sourceClient, err := findclient.New(*source)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	targetClient, err := findhttpclient.New(*target)
+	targetClient, err := findclient.New(*target)
 	if err != nil {
 		log.Fatal(err)
 	}

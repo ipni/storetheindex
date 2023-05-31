@@ -6,9 +6,6 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-libipni/find/client"
-	httpclient "github.com/ipni/go-libipni/find/client/http"
-	p2pclient "github.com/ipni/go-libipni/find/client/p2p"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
 	"github.com/urfave/cli/v2"
 )
@@ -32,24 +29,9 @@ var findFlags = []cli.Flag{
 		Required: false,
 	},
 	indexerHostFlag,
-	&cli.StringFlag{
-		Name:     "indexerid",
-		Usage:    "Indexer peer ID to use when protocol=libp2p",
-		Aliases:  []string{"iid"},
-		EnvVars:  []string{"INDEXER_ID"},
-		Required: false,
-	},
-	&cli.StringFlag{
-		Name:     "protocol",
-		Usage:    "Protocol to query the indexer (http, libp2p currently supported)",
-		Value:    "http",
-		Required: false,
-	},
 }
 
 func findAction(cctx *cli.Context) error {
-	protocol := cctx.String("protocol")
-
 	mhArgs := cctx.StringSlice("mh")
 	cidArgs := cctx.StringSlice("cid")
 	mhs := make([]multihash.Multihash, 0, len(mhArgs)+len(cidArgs))
@@ -68,33 +50,9 @@ func findAction(cctx *cli.Context) error {
 		mhs = append(mhs, c.Hash())
 	}
 
-	var cl client.Interface
-	var err error
-
-	switch protocol {
-	case "http":
-		cl, err = httpclient.New(cliIndexer(cctx, "find"))
-		if err != nil {
-			return err
-		}
-	case "libp2p":
-		peerID, err := peer.Decode(cctx.String("peerid"))
-		if err != nil {
-			return err
-		}
-
-		c, err := p2pclient.New(nil, peerID)
-		if err != nil {
-			return err
-		}
-
-		err = c.Connect(cctx.Context, cliIndexer(cctx, "find"))
-		if err != nil {
-			return err
-		}
-		cl = c
-	default:
-		return fmt.Errorf("unrecognized protocol type for client interaction: %s", protocol)
+	cl, err := client.New(cliIndexer(cctx, "find"))
+	if err != nil {
+		return err
 	}
 
 	resp, err := cl.FindBatch(cctx.Context, mhs)

@@ -31,8 +31,7 @@ import (
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
 	httpadmin "github.com/ipni/storetheindex/server/admin"
-	httpfind "github.com/ipni/storetheindex/server/find/http"
-	p2pfind "github.com/ipni/storetheindex/server/find/p2p"
+	httpfind "github.com/ipni/storetheindex/server/find"
 	httpingest "github.com/ipni/storetheindex/server/ingest"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -194,10 +193,9 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	var (
-		cancelP2pServers context.CancelFunc
-		ingester         *ingest.Ingester
-		p2pHost          host.Host
-		peeringService   *peering.PeeringService
+		ingester       *ingest.Ingester
+		p2pHost        host.Host
+		peeringService *peering.PeeringService
 	)
 
 	peerID, privKey, err := cfg.Identity.Decode()
@@ -205,17 +203,12 @@ func daemonAction(cctx *cli.Context) error {
 		return err
 	}
 
-	// Create libp2p host and servers
-	ctx, cancel := context.WithCancel(cctx.Context)
-	defer cancel()
-
+	// Create libp2p host and servers.
 	p2pAddr := cfg.Addresses.P2PAddr
 	if cctx.String("listen-p2p") != "" {
 		p2pAddr = cctx.String("listen-p2p")
 	}
 	if p2pAddr != "" && p2pAddr != "none" {
-		cancelP2pServers = cancel
-
 		p2pmaddr, err := multiaddr.NewMultiaddr(p2pAddr)
 		if err != nil {
 			return fmt.Errorf("bad p2p address %s: %s", p2pAddr, err)
@@ -234,10 +227,6 @@ func daemonAction(cctx *cli.Context) error {
 		p2pHost, err = libp2p.New(p2pOpts...)
 		if err != nil {
 			return err
-		}
-
-		if findSvr != nil {
-			p2pfind.New(ctx, p2pHost, indexerCore, reg, indexCounts)
 		}
 
 		// Do not resend direct announce messages if using an assigner service.
@@ -472,10 +461,6 @@ func daemonAction(cctx *cli.Context) error {
 		if err != nil {
 			log.Errorw("Error stopping peering service", "err", err)
 		}
-	}
-
-	if cancelP2pServers != nil {
-		cancelP2pServers()
 	}
 
 	if ingestSvr != nil {

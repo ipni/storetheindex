@@ -1,4 +1,4 @@
-package httpfindserver
+package find
 
 import (
 	"bytes"
@@ -36,10 +36,10 @@ var (
 )
 
 type Server struct {
-	server      *http.Server
-	listener    net.Listener
-	findHandler *handler.FindHandler
-	healthMsg   string
+	server    *http.Server
+	listener  net.Listener
+	handler   *handler.Handler
+	healthMsg string
 }
 
 func (s *Server) URL() string {
@@ -87,9 +87,9 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 		ReadTimeout:  opts.readTimeout,
 	}
 	s := &Server{
-		server:      server,
-		listener:    l,
-		findHandler: handler.NewFindHandler(indexer, registry, opts.indexCounts),
+		server:   server,
+		listener: l,
+		handler:  handler.New(indexer, registry, opts.indexCounts),
 	}
 
 	s.healthMsg = "ready"
@@ -132,12 +132,12 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) RefreshStats() {
-	s.findHandler.RefreshStats()
+	s.handler.RefreshStats()
 }
 
 func (s *Server) Close() error {
 	log.Info("find http server shutdown")
-	s.findHandler.Close()
+	s.handler.Close()
 	return s.server.Shutdown(context.Background())
 }
 
@@ -230,7 +230,7 @@ func (s *Server) listProviders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := s.findHandler.ListProviders()
+	data, err := s.handler.ListProviders()
 	if err != nil {
 		log.Errorw("cannot list providers", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
@@ -257,7 +257,7 @@ func (s *Server) getProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := s.findHandler.GetProvider(providerID)
+	data, err := s.handler.GetProvider(providerID)
 	if err != nil {
 		log.Error("cannot get provider", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
@@ -283,7 +283,7 @@ func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := s.findHandler.GetStats()
+	data, err := s.handler.GetStats()
 	switch {
 	case err != nil:
 		log.Errorw("cannot get stats", "err", err)
@@ -322,7 +322,7 @@ func (s *Server) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, st
 			stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
 	}()
 
-	response, err := s.findHandler.Find(mhs)
+	response, err := s.handler.Find(mhs)
 	if err != nil {
 		httpserver.HandleError(w, err, "get")
 		return

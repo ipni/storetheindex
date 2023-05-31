@@ -1,4 +1,4 @@
-package test
+package find_test
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func ProvidersShouldBeUnaffectedByExtendedProvidersOfEachOtherTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
+func providersShouldBeUnaffectedByExtendedProvidersOfEachOtherTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	provider1Id, _, _ := test.RandomIdentity()
 	ctxId1 := []byte("test-context-id-1")
 	metadata1 := []byte("test-metadata-1")
@@ -54,7 +54,7 @@ func ProvidersShouldBeUnaffectedByExtendedProvidersOfEachOtherTest(ctx context.C
 	require.NoError(t, err)
 }
 
-func ExtendedProviderShouldHaveOwnMetadataTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
+func extendedProviderShouldHaveOwnMetadataTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	provider1Id, _, _ := test.RandomIdentity()
 	ctxId1 := []byte("test-context-id-1")
 	metadata1 := []byte("test-metadata-1")
@@ -121,7 +121,7 @@ func ExtendedProviderShouldHaveOwnMetadataTest(ctx context.Context, t *testing.T
 	require.NoError(t, err)
 }
 
-func ExtendedProviderShouldInheritMetadataOfMainProviderTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
+func extendedProviderShouldInheritMetadataOfMainProviderTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	provider1Id, _, _ := test.RandomIdentity()
 	ctxId1 := []byte("test-context-id-1")
 	metadata1 := []byte("test-metadata-1")
@@ -184,7 +184,7 @@ func ExtendedProviderShouldInheritMetadataOfMainProviderTest(ctx context.Context
 	require.NoError(t, err)
 }
 
-func ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
+func contextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	provider1Id, _, _ := test.RandomIdentity()
 	ctxId1 := []byte("test-context-id-1")
 	metadata1 := []byte("test-metadata-1")
@@ -280,7 +280,7 @@ func ContextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx context.
 	require.NoError(t, err)
 }
 
-func ContextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
+func contextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	provider1Id, _, _ := test.RandomIdentity()
 	ctxId1 := []byte("test-context-id-1")
 	metadata1 := []byte("test-metadata-1")
@@ -335,7 +335,7 @@ func ContextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx context.Con
 	require.NoError(t, err)
 }
 
-func MainProviderChainRecordIsIncludedIfItsMetadataIsDifferentTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
+func mainProviderChainRecordIsIncludedIfItsMetadataIsDifferentTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	providerId, _, _ := test.RandomIdentity()
 	ctxId1 := []byte("test-context-id-1")
 	providerMetadata := []byte("provider metadata")
@@ -387,7 +387,7 @@ func MainProviderChainRecordIsIncludedIfItsMetadataIsDifferentTest(ctx context.C
 	require.NoError(t, err)
 }
 
-func MainProviderContextRecordIsIncludedIfItsMetadataIsDifferentTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
+func mainProviderContextRecordIsIncludedIfItsMetadataIsDifferentTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	providerId, _, _ := test.RandomIdentity()
 	ctxId1 := []byte("test-context-id-1")
 	providerMetadata := []byte("provider metadata")

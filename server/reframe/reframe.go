@@ -25,15 +25,15 @@ import (
 )
 
 func NewReframeHTTPHandler(indexer indexer.Interface, registry *registry.Registry) http.HandlerFunc {
-	return server.DelegatedRoutingAsyncHandler(NewReframeService(handler.NewFindHandler(indexer, registry, nil)))
+	return server.DelegatedRoutingAsyncHandler(NewReframeService(handler.New(indexer, registry, nil)))
 }
 
-func NewReframeService(fh *handler.FindHandler) *ReframeService {
+func NewReframeService(fh *handler.Handler) *ReframeService {
 	return &ReframeService{findHandler: fh}
 }
 
 type ReframeService struct {
-	findHandler *handler.FindHandler
+	findHandler *handler.Handler
 }
 
 func (x *ReframeService) FindProviders(ctx context.Context, key cid.Cid) (<-chan client.FindProvidersAsyncResult, error) {
