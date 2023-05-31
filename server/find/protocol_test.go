@@ -1,25 +1,31 @@
-package test
+package find_test
 
 import (
 	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
 	reframeclient "github.com/ipfs/go-delegated-routing/client"
-	"github.com/ipni/go-indexer-core"
+	"github.com/ipfs/go-delegated-routing/gen/proto"
+	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/cache/radixcache"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/go-libipni/find/client"
+	httpclient "github.com/ipni/go-libipni/find/client/http"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
+	httpserver "github.com/ipni/storetheindex/server/find"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -28,13 +34,231 @@ import (
 
 const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
 
+func setupServer(ind indexer.Interface, reg *registry.Registry, idxCts *counter.IndexCounts, t *testing.T) *httpserver.Server {
+	s, err := httpserver.New("127.0.0.1:0", ind, reg, httpserver.WithIndexCounts(idxCts))
+	require.NoError(t, err)
+	return s
+}
+
+func setupClient(host string, t *testing.T) *httpclient.Client {
+	c, err := httpclient.New(host)
+	require.NoError(t, err)
+	return c
+}
+
+func TestFindIndexData(t *testing.T) {
+	// Initialize everything
+	ind := initIndex(t, true)
+	reg := initRegistry(t)
+	s := setupServer(ind, reg, nil, t)
+	c := setupClient(s.URL(), t)
+
+	// Start server
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	// Test must complete in 5 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	findIndexTest(ctx, t, c, ind, reg)
+
+	err := s.Close()
+	if err != nil {
+		t.Error("shutdown error:", err)
+	}
+	err = <-errChan
+	require.NoError(t, err)
+
+	reg.Close()
+	require.NoError(t, ind.Close(), "Error closing indexer core")
+}
+
+func TestFindIndexWithExtendedProviders(t *testing.T) {
+	// Initialize everything
+	ind := initIndex(t, true)
+	// We don't want to have any restricitons around provider identities as they are generated in rkandom for extended providers
+	reg := initRegistryWithRestrictivePolicy(t, false)
+	s := setupServer(ind, reg, nil, t)
+	c := setupClient(s.URL(), t)
+
+	// Start server
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	// Test must complete in 5 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	providersShouldBeUnaffectedByExtendedProvidersOfEachOtherTest(ctx, t, c, ind, reg)
+	extendedProviderShouldHaveOwnMetadataTest(ctx, t, c, ind, reg)
+	extendedProviderShouldInheritMetadataOfMainProviderTest(ctx, t, c, ind, reg)
+	contextualExtendedProvidersShouldUnionUpWithChainLevelOnesTest(ctx, t, c, ind, reg)
+	contextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx, t, c, ind, reg)
+	mainProviderChainRecordIsIncludedIfItsMetadataIsDifferentTest(ctx, t, c, ind, reg)
+	mainProviderContextRecordIsIncludedIfItsMetadataIsDifferentTest(ctx, t, c, ind, reg)
+
+	require.NoError(t, s.Close(), "shutdown error")
+	err := <-errChan
+	require.NoError(t, err)
+
+	reg.Close()
+	require.NoError(t, ind.Close(), "Error closing indexer core")
+}
+
+func TestReframeFindIndexData(t *testing.T) {
+	// Initialize everything
+	ind := initIndex(t, true)
+	reg := initRegistry(t)
+	s := setupServer(ind, reg, nil, t)
+	c := setupClient(s.URL(), t)
+
+	// create delegated routing client
+	q, err := proto.New_DelegatedRouting_Client(s.URL() + "/reframe")
+	require.NoError(t, err)
+	reframeClient, err := reframeclient.NewClient(q, nil, nil)
+	require.NoError(t, err)
+
+	// Start server
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	// Test must complete in 5 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	reframeFindIndexTest(ctx, t, c, reframeClient, ind, reg)
+
+	require.NoError(t, s.Close(), "shutdown error")
+	err = <-errChan
+	require.NoError(t, err)
+
+	reg.Close()
+	require.NoError(t, ind.Close(), "Error closing indexer core")
+}
+
+func TestProviderInfo(t *testing.T) {
+	// Initialize everything
+	ind := initIndex(t, true)
+	reg := initRegistry(t)
+	idxCts := counter.NewIndexCounts(datastore.NewMapDatastore())
+
+	s := setupServer(ind, reg, idxCts, t)
+	httpClient := setupClient(s.URL(), t)
+
+	// Start server
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	peerID := register(ctx, t, reg)
+
+	idxCts.AddCount(peerID, []byte("context-id"), 939)
+
+	getProviderTest(t, httpClient, peerID)
+	listProvidersTest(t, httpClient, peerID)
+
+	require.NoError(t, s.Close(), "shutdown error")
+	err := <-errChan
+	require.NoError(t, err)
+
+	reg.Close()
+	require.NoError(t, ind.Close(), "Error closing indexer core")
+}
+
+func TestGetStats(t *testing.T) {
+	ind := initPebbleIndex(t, false)
+	defer ind.Close()
+	reg := initRegistry(t)
+	defer reg.Close()
+
+	s := setupServer(ind, reg, nil, t)
+	httpClient := setupClient(s.URL(), t)
+
+	// Start server
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	getStatsTest(ctx, t, ind, s.RefreshStats, httpClient)
+
+	require.NoError(t, s.Close(), "shutdown error")
+	err := <-errChan
+	require.NoError(t, err)
+}
+
+func TestRemoveProvider(t *testing.T) {
+	// Initialize everything
+	ind := initIndex(t, true)
+	reg := initRegistry(t)
+	s := setupServer(ind, reg, nil, t)
+	c := setupClient(s.URL(), t)
+
+	// Start server
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	// Test must complete in 5 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	removeProviderTest(ctx, t, c, ind, reg)
+
+	require.NoError(t, s.Close(), "shutdown error")
+	err := <-errChan
+	require.NoError(t, err)
+
+	reg.Close()
+	require.NoError(t, ind.Close(), "Error closing indexer core")
+}
+
 // InitIndex initialize a new indexer engine.
-func InitIndex(t *testing.T, withCache bool) indexer.Interface {
+func initIndex(t *testing.T, withCache bool) indexer.Interface {
 	return engine.New(nil, memory.New())
 }
 
 // InitPebbleIndex initialize a new indexer engine using pebbel with cache.
-func InitPebbleIndex(t *testing.T, withCache bool) indexer.Interface {
+func initPebbleIndex(t *testing.T, withCache bool) indexer.Interface {
 	valueStore, err := pebble.New(t.TempDir(), nil)
 	require.NoError(t, err)
 	if withCache {
@@ -43,12 +267,12 @@ func InitPebbleIndex(t *testing.T, withCache bool) indexer.Interface {
 	return engine.New(nil, valueStore)
 }
 
-func InitRegistry(t *testing.T) *registry.Registry {
-	return InitRegistryWithRestrictivePolicy(t, true)
+func initRegistry(t *testing.T) *registry.Registry {
+	return initRegistryWithRestrictivePolicy(t, true)
 }
 
 // InitRegistry initializes a new registry
-func InitRegistryWithRestrictivePolicy(t *testing.T, restrictive bool) *registry.Registry {
+func initRegistryWithRestrictivePolicy(t *testing.T, restrictive bool) *registry.Registry {
 	var discoveryCfg = config.Discovery{}
 	if restrictive {
 		discoveryCfg.Policy = config.Policy{
@@ -78,7 +302,7 @@ func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 	require.True(t, v.Equal(vals[0]), "stored and retrieved values are different")
 }
 
-func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Interface, rc *reframeclient.Client, ind indexer.Interface, reg *registry.Registry) {
+func reframeFindIndexTest(ctx context.Context, t *testing.T, c client.Interface, rc *reframeclient.Client, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
 	mhs := test.RandomMultihashes(15)
 	p, err := peer.Decode(providerID)
@@ -112,7 +336,7 @@ func ReframeFindIndexTest(ctx context.Context, t *testing.T, c client.Interface,
 	require.Equal(t, p, peerAddrs[0].ID)
 }
 
-func FindIndexTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
+func findIndexTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
 	mhs := test.RandomMultihashes(15)
 	p, err := peer.Decode(providerID)
@@ -207,7 +431,7 @@ func hasMultihash(mhs []multihash.Multihash, m multihash.Multihash) bool {
 	return false
 }
 
-func GetProviderTest(t *testing.T, c client.Interface, providerID peer.ID) {
+func getProviderTest(t *testing.T, c client.Interface, providerID peer.ID) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -217,7 +441,7 @@ func GetProviderTest(t *testing.T, c client.Interface, providerID peer.ID) {
 	verifyProviderInfo(t, provInfo)
 }
 
-func ListProvidersTest(t *testing.T, c client.Interface, providerID peer.ID) {
+func listProvidersTest(t *testing.T, c client.Interface, providerID peer.ID) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -260,7 +484,7 @@ func verifyProviderInfo(t *testing.T, provInfo *model.ProviderInfo) {
 	})
 }
 
-func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
+func removeProviderTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
 	mhs := test.RandomMultihashes(15)
 	p, err := peer.Decode(providerID)
@@ -315,7 +539,7 @@ func RemoveProviderTest(ctx context.Context, t *testing.T, c client.Interface, i
 	require.ErrorContains(t, err, "not found")
 }
 
-func GetStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refreshStats func(), c client.Interface) {
+func getStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refreshStats func(), c client.Interface) {
 	t.Parallel()
 	mhs := test.RandomMultihashes(15)
 	p, err := peer.Decode(providerID)
@@ -338,7 +562,7 @@ func GetStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refr
 	}, 5*time.Second, time.Second)
 }
 
-func Register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID {
+func register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID {
 	peerID, err := peer.Decode(providerID)
 	require.NoError(t, err)
 

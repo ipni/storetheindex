@@ -17,7 +17,11 @@ var log = logging.Logger("indexer/http")
 func MethodOK(w http.ResponseWriter, r *http.Request, method string) bool {
 	if r.Method != method {
 		w.Header().Set("Allow", method)
-		http.Error(w, "", http.StatusMethodNotAllowed)
+		if r.Method == http.MethodOptions {
+			http.Error(w, "", http.StatusOK)
+		} else {
+			http.Error(w, "", http.StatusMethodNotAllowed)
+		}
 		return false
 	}
 	return true

@@ -1,4 +1,4 @@
-package httpfindserver
+package find_test
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"runtime"
 	"strings"
 	"testing"
@@ -16,7 +15,7 @@ import (
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/go-libipni/test"
-	findtest "github.com/ipni/storetheindex/server/find/test"
+	"github.com/ipni/storetheindex/server/find"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -67,7 +66,7 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 	require.NoError(t, err)
 	c := cid.NewCidV1(cid.Raw, mhs[0])
 
-	subject := setupTestServerHander(t, indexer.Value{
+	s := setupTestServer(t, indexer.Value{
 		ProviderID:    p,
 		ContextID:     []byte("fish"),
 		MetadataBytes: []byte("lobster"),
@@ -122,29 +121,35 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 		},
 	}
 
+	cl := http.DefaultClient
+
 	for _, tt := range tests {
 		name := fmt.Sprintf("%s %s", tt.reqMethod, tt.reqUrl)
 		t.Run(name, func(t *testing.T) {
-			rr := httptest.NewRecorder()
-
-			req, err := http.NewRequest(tt.reqMethod, tt.reqUrl, tt.reqBody)
+			reqURL := s.URL() + tt.reqUrl
+			req, err := http.NewRequest(tt.reqMethod, reqURL, tt.reqBody)
 			require.NoError(t, err)
 			// Set necessary headers for CORS.
 			req.Header.Set("Origin", "ghoti")
 			req.Header.Set("Access-Control-Request-Method", tt.reqMethod)
 
-			subject(rr, req)
-			require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-			require.Equal(t, "*", rr.Header().Get("Access-Control-Allow-Origin"))
+			res, err := cl.Do(req)
+			require.NoError(t, err)
+			res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
 
-			gotContentType := rr.Header().Get("Content-Type")
+			require.Equal(t, "*", res.Header.Get("Access-Control-Allow-Origin"))
+
+			gotContentType := res.Header.Get("Content-Type")
 			require.True(t, strings.HasPrefix(gotContentType, tt.wantContentType), "expected "+tt.wantContentType)
 
 			// Assert the endpoint supports OPTIONS as required by CORS.
-			optReq, err := http.NewRequest(http.MethodOptions, tt.reqUrl, nil)
+			optReq, err := http.NewRequest(http.MethodOptions, reqURL, nil)
 			require.NoError(t, err)
-			subject(rr, optReq)
-			require.Equal(t, http.StatusOK, rr.Code)
+			res, err = cl.Do(optReq)
+			require.NoError(t, err)
+			res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
 		})
 	}
 }
@@ -161,7 +166,7 @@ func TestServer_StreamingResponse(t *testing.T) {
 	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	require.NoError(t, err)
 
-	subject := setupTestServerHander(t, indexer.Value{
+	s := setupTestServer(t, indexer.Value{
 		ProviderID:    p,
 		ContextID:     []byte("fish"),
 		MetadataBytes: []byte("lobster"),
@@ -243,56 +248,67 @@ func TestServer_StreamingResponse(t *testing.T) {
 		},
 	}
 
+	cl := http.DefaultClient
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rr := httptest.NewRecorder()
-
-			req, err := http.NewRequest(http.MethodGet, tt.reqURI, nil)
+			reqURL := s.URL() + tt.reqURI
+			req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 			require.NoError(t, err)
 			req.Header.Set("Accept", tt.reqAccept)
-			subject(rr, req)
-			require.Equal(t, tt.wantResponseStatus, rr.Code, rr.Body.String())
 
-			gotContentType := rr.Header().Get("Content-Type")
+			res, err := cl.Do(req)
+			require.NoError(t, err)
+			body, err := io.ReadAll(res.Body)
+			res.Body.Close()
+			require.NoError(t, err)
+			require.Equal(t, tt.wantResponseStatus, res.StatusCode)
+
+			gotContentType := res.Header.Get("Content-Type")
 			require.Equal(t, tt.wantContentType, gotContentType)
-			require.Equal(t, tt.wantResponseBody, rr.Body.String())
+			require.Equal(t, tt.wantResponseBody, string(body))
 		})
 	}
 }
 
 func TestServer_Landing(t *testing.T) {
-	ind := findtest.InitIndex(t, false)
-	reg := findtest.InitRegistry(t)
-	s, err := New("127.0.0.1:0", ind, reg)
-	require.NoError(t, err)
+	ind := initIndex(t, false)
+	reg := initRegistry(t)
+	s := setupServer(ind, reg, nil, t)
+	go func() {
+		err := s.Start()
+		require.ErrorIs(t, err, http.ErrServerClosed)
+	}()
 	t.Cleanup(func() {
+		require.NoError(t, s.Close())
 		require.NoError(t, ind.Close())
 		reg.Close()
 	})
 
-	rr := httptest.NewRecorder()
-
-	req, err := http.NewRequest(http.MethodGet, "/", nil)
+	res, err := http.Get(s.URL() + "/")
 	require.NoError(t, err)
-
-	s.server.Handler.ServeHTTP(rr, req)
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	gotBody := rr.Body.String()
-	require.NotEmpty(t, gotBody)
-	require.True(t, strings.Contains(gotBody, "https://web-ipni.cid.contact/"))
+	body, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.NoError(t, err)
+	require.Contains(t, string(body), "https://web-ipni.cid.contact/")
 }
 
-func setupTestServerHander(t *testing.T, iv indexer.Value, mhs []multihash.Multihash) http.HandlerFunc {
-	ind := findtest.InitIndex(t, false)
-	reg := findtest.InitRegistry(t)
-	s, err := New("127.0.0.1:0", ind, reg)
-	require.NoError(t, err)
+func setupTestServer(t *testing.T, iv indexer.Value, mhs []multihash.Multihash) *find.Server {
+	ind := initIndex(t, false)
+	reg := initRegistry(t)
+	s := setupServer(ind, reg, nil, t)
+	go func() {
+		err := s.Start()
+		require.ErrorIs(t, err, http.ErrServerClosed)
+	}()
 	t.Cleanup(func() {
+		require.NoError(t, s.Close())
 		require.NoError(t, ind.Close())
 		reg.Close()
 	})
 
-	err = ind.Put(iv, mhs...)
+	err := ind.Put(iv, mhs...)
 	require.NoError(t, err)
 	require.NoError(t, ind.Flush())
 	v, found, err := ind.Get(mhs[0])
@@ -308,5 +324,6 @@ func setupTestServerHander(t *testing.T, iv indexer.Value, mhs []multihash.Multi
 
 	err = reg.Update(context.Background(), provider, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err)
-	return s.server.Handler.ServeHTTP
+
+	return s
 }
