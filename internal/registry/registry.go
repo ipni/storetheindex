@@ -290,7 +290,17 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 			return nil, err
 		}
 		log.Infow("Loaded assignments into registry", "count", len(r.assigned))
-		r.preferred = loadPreferredAssignments(r.providers, r.assigned)
+		unassigned := unassignedPublishers(r.providers, r.assigned)
+		if cfg.UnassignedPublishers {
+			// Leave unassigned publishers unassigned, but indicate preference
+			// that they get assigned to this indexer.
+			r.preferred = unassigned
+		} else {
+			// Immediately assign all unassigned publishers to this indexer.
+			if err = r.assignUnassigned(unassigned); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	if opts.freezeAtPercent >= 0 {
@@ -594,9 +604,12 @@ func (r *Registry) UnassignPeer(peerID peer.ID) (bool, error) {
 		return false, nil
 	}
 
-	err := r.deleteAssignedPeer(peerID)
-	if err != nil {
-		return false, fmt.Errorf("cannot save assignment: %w", err)
+	if r.dstore != nil {
+		dsKey := peerIDToDsKey(assignmentsKeyPath, peerID)
+		err := r.dstore.Delete(context.Background(), dsKey)
+		if err != nil {
+			return false, fmt.Errorf("cannot save assignment: %w", err)
+		}
 	}
 
 	delete(r.assigned, peerID)
@@ -1256,14 +1269,6 @@ func (r *Registry) saveAssignedPeer(peerID, frozenID peer.ID) error {
 	return r.dstore.Sync(ctx, dsKey)
 }
 
-func (r *Registry) deleteAssignedPeer(peerID peer.ID) error {
-	if r.dstore == nil {
-		return nil
-	}
-	dsKey := peerIDToDsKey(assignmentsKeyPath, peerID)
-	return r.dstore.Delete(context.Background(), dsKey)
-}
-
 func migrateOldAssignments(ctx context.Context, dstore datastore.Datastore, prefix string, deleteOld bool) error {
 	q := query.Query{
 		Prefix:   prefix,
@@ -1410,8 +1415,8 @@ func loadPersistedAssignments(ctx context.Context, dstore datastore.Datastore, d
 	return assigned, nil
 }
 
-func loadPreferredAssignments(providers map[peer.ID]*ProviderInfo, assigned map[peer.ID]peer.ID) map[peer.ID]struct{} {
-	var preferred map[peer.ID]struct{}
+func unassignedPublishers(providers map[peer.ID]*ProviderInfo, assigned map[peer.ID]peer.ID) map[peer.ID]struct{} {
+	var unassigned map[peer.ID]struct{}
 	for _, pinfo := range providers {
 		if pinfo.Publisher.Validate() != nil {
 			continue
@@ -1422,10 +1427,29 @@ func loadPreferredAssignments(providers map[peer.ID]*ProviderInfo, assigned map[
 		if pinfo.LastAdvertisement == cid.Undef {
 			continue
 		}
-		if preferred == nil {
-			preferred = make(map[peer.ID]struct{})
+		if unassigned == nil {
+			unassigned = make(map[peer.ID]struct{})
 		}
-		preferred[pinfo.Publisher] = struct{}{}
+		unassigned[pinfo.Publisher] = struct{}{}
 	}
-	return preferred
+	return unassigned
+}
+
+func (r *Registry) assignUnassigned(unassigned map[peer.ID]struct{}) error {
+	var noFrom peer.ID
+	ctx := context.Background()
+	for peerID := range unassigned {
+		if r.dstore != nil {
+			dsKey := peerIDToDsKey(assignmentsKeyPath, peerID)
+			err := r.dstore.Put(ctx, dsKey, []byte{})
+			if err != nil {
+				return err
+			}
+		}
+		r.assigned[peerID] = noFrom
+	}
+	if r.dstore != nil {
+		return r.dstore.Sync(ctx, datastore.NewKey(assignmentsKeyPath))
+	}
+	return nil
 }

@@ -221,6 +221,7 @@ func TestDatastore(t *testing.T) {
 	// existing publishers.
 	t.Log("Converted registry to work with assigner service")
 	discoveryCfg.UseAssigner = true
+	discoveryCfg.UnassignedPublishers = true
 	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
 	r, err = New(ctx, discoveryCfg, dstore)
@@ -259,6 +260,18 @@ func TestDatastore(t *testing.T) {
 	require.ErrorIs(t, r.AssignPeer(preferred[0]), ErrNotAllowed)
 
 	r.Close()
+
+	discoveryCfg.UnassignedPublishers = false
+	r, err = New(ctx, discoveryCfg, dstore)
+	require.NoError(t, err)
+
+	// There should be one assigned peer.
+	assigned, _, err = r.ListAssignedPeers()
+	require.NoError(t, err)
+	require.Equal(t, 1, len(assigned))
+
+	r.Close()
+
 	require.NoError(t, dstore.Close())
 }
 
