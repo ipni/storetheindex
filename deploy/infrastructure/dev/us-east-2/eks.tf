@@ -30,12 +30,19 @@ module "eks" {
       instance_types = ["r6a.xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a2.id]
     }
+    dev-ue2b-r6a-xl = {
+      min_size       = 0
+      max_size       = 5
+      desired_size   = 1
+      instance_types = ["r6a.xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2b1.id,data.aws_subnet.ue2b2.id,data.aws_subnet.ue2b3.id]
+    }
     dev-ue2c-r6a-xl = {
       min_size       = 0
       max_size       = 5
       desired_size   = 1
       instance_types = ["r6a.xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2c2.id]
+      subnet_ids     = [data.aws_subnet.ue2c1.id,data.aws_subnet.ue2c2.id,data.aws_subnet.ue2c3.id]
     }
 
     # General purpose node groups, one per subnet.
@@ -70,7 +77,7 @@ module "eks" {
       max_size       = 7
       desired_size   = 1
       instance_types = ["r5a.2xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2a1.id]
+      subnet_ids     = [data.aws_subnet.ue2a1.id, data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
     }
     
     # Memory optimised node groups primarily used to run indexer nodes.
