@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	finderhttpclient "github.com/ipni/go-libipni/find/client/http"
+	findclient "github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/multiformats/go-multihash"
@@ -327,7 +327,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	require.Contains(t, string(outProvider), "IndexCount: 1043")
 
 	// Create double hashed client and verify that the multihashes ended up in dhstore
-	client, err := finderhttpclient.NewDHashClient("http://127.0.0.1:40080", "http://127.0.0.1:3000")
+	client, err := findclient.NewDHashClient("http://127.0.0.1:40080", "http://127.0.0.1:3000")
 	require.NoError(t, err)
 
 	mh, err := multihash.FromB58String("2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj")

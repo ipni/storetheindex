@@ -19,7 +19,7 @@ import (
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/go-libipni/find/client"
-	httpclient "github.com/ipni/go-libipni/find/client/http"
+	findclient "github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/config"
@@ -40,8 +40,8 @@ func setupServer(ind indexer.Interface, reg *registry.Registry, idxCts *counter.
 	return s
 }
 
-func setupClient(host string, t *testing.T) *httpclient.Client {
-	c, err := httpclient.New(host)
+func setupClient(host string, t *testing.T) *findclient.Client {
+	c, err := findclient.New(host)
 	require.NoError(t, err)
 	return c
 }
@@ -162,7 +162,7 @@ func TestProviderInfo(t *testing.T) {
 	idxCts := counter.NewIndexCounts(datastore.NewMapDatastore())
 
 	s := setupServer(ind, reg, idxCts, t)
-	httpClient := setupClient(s.URL(), t)
+	findclient := setupClient(s.URL(), t)
 
 	// Start server
 	errChan := make(chan error, 1)
@@ -181,8 +181,8 @@ func TestProviderInfo(t *testing.T) {
 
 	idxCts.AddCount(peerID, []byte("context-id"), 939)
 
-	getProviderTest(t, httpClient, peerID)
-	listProvidersTest(t, httpClient, peerID)
+	getProviderTest(t, findclient, peerID)
+	listProvidersTest(t, findclient, peerID)
 
 	require.NoError(t, s.Close(), "shutdown error")
 	err := <-errChan
@@ -199,7 +199,7 @@ func TestGetStats(t *testing.T) {
 	defer reg.Close()
 
 	s := setupServer(ind, reg, nil, t)
-	httpClient := setupClient(s.URL(), t)
+	findclient := setupClient(s.URL(), t)
 
 	// Start server
 	errChan := make(chan error, 1)
@@ -214,7 +214,7 @@ func TestGetStats(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	getStatsTest(ctx, t, ind, s.RefreshStats, httpClient)
+	getStatsTest(ctx, t, ind, s.RefreshStats, findclient)
 
 	require.NoError(t, s.Close(), "shutdown error")
 	err := <-errChan

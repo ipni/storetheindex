@@ -16,7 +16,7 @@ import (
 	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/go-libipni/apierror"
-	httpclient "github.com/ipni/go-libipni/find/client/http"
+	findclient "github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/config"
@@ -840,7 +840,7 @@ func (r *Registry) Handoff(ctx context.Context, publisherID, frozenID peer.ID, f
 	}
 
 	// Get the providers from the frozen indexer.
-	cl, err := httpclient.New(frozenURL.String())
+	cl, err := findclient.New(frozenURL.String())
 	if err != nil {
 		return err
 	}
@@ -904,7 +904,7 @@ func (r *Registry) Handoff(ctx context.Context, publisherID, frozenID peer.ID, f
 // ImportProviders reads providers from another indexer and registers any that
 // are not already registered. Returns the count of newly registered providers.
 func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, error) {
-	cl, err := httpclient.New(fromURL.String())
+	cl, err := findclient.New(fromURL.String())
 	if err != nil {
 		return 0, err
 	}

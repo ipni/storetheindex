@@ -3,7 +3,7 @@ package command
 import (
 	"fmt"
 
-	client "github.com/ipni/go-libipni/find/client/http"
+	"github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/urfave/cli/v2"
