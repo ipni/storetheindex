@@ -6,7 +6,6 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-libipni/find/client"
-	findclient "github.com/ipni/go-libipni/find/client"
 	"github.com/multiformats/go-multihash"
 	"github.com/urfave/cli/v2"
 )
@@ -51,10 +50,7 @@ func findAction(cctx *cli.Context) error {
 		mhs = append(mhs, c.Hash())
 	}
 
-	var cl client.Interface
-	var err error
-
-	cl, err = findclient.New(cliIndexer(cctx, "find"))
+	cl, err := client.New(cliIndexer(cctx, "find"))
 	if err != nil {
 		return err
 	}

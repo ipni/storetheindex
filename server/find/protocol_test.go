@@ -19,7 +19,6 @@ import (
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/go-libipni/find/client"
-	findclient "github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/config"
@@ -40,8 +39,8 @@ func setupServer(ind indexer.Interface, reg *registry.Registry, idxCts *counter.
 	return s
 }
 
-func setupClient(host string, t *testing.T) *findclient.Client {
-	c, err := findclient.New(host)
+func setupClient(host string, t *testing.T) *client.Client {
+	c, err := client.New(host)
 	require.NoError(t, err)
 	return c
 }
