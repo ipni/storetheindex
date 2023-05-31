@@ -43,7 +43,6 @@ import (
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -60,13 +59,8 @@ var (
 		EntriesDepthLimit:       100,
 		IngestWorkerCount:       1,
 		PubSubTopic:             "test/ingest",
-		RateLimit: config.RateLimit{
-			Apply:           true,
-			BlocksPerSecond: 100,
-			BurstSize:       1000,
-		},
-		SyncTimeout:           config.Duration(time.Minute),
-		SyncSegmentDepthLimit: 1, // By default run all tests using segmented sync.
+		SyncTimeout:             config.Duration(time.Minute),
+		SyncSegmentDepthLimit:   1, // By default run all tests using segmented sync.
 	}
 	rng = rand.New(rand.NewSource(1413))
 )
@@ -1460,42 +1454,6 @@ func TestMultiplePublishers(t *testing.T) {
 	require.Equal(t, gotLink1, headAd1)
 	gotLink2 := i.sub.GetLatestSync(pubHost2.ID())
 	require.Equal(t, gotLink2, headAd2)
-}
-
-func TestRateLimitConfig(t *testing.T) {
-	store := dssync.MutexWrap(datastore.NewMapDatastore())
-	defer store.Close()
-	reg := mkRegistry(t)
-	defer reg.Close()
-	core := mkIndexer(t, true)
-	defer core.Close()
-	pubHost := mkTestHost()
-	h := mkTestHost()
-
-	cfg := defaultTestIngestConfig
-	ingester, err := NewIngester(cfg, h, core, reg, store)
-	require.NoError(t, err)
-	limiter := ingester.getRateLimiter(pubHost.ID())
-	require.NotNil(t, limiter)
-	require.Equal(t, limiter.Limit(), rate.Limit(defaultTestIngestConfig.RateLimit.BlocksPerSecond))
-	ingester.Close()
-
-	cfg.RateLimit.Apply = false
-	ingester, err = NewIngester(cfg, h, core, reg, store)
-	require.NoError(t, err)
-	limiter = ingester.getRateLimiter(pubHost.ID())
-	require.NotNil(t, limiter)
-	require.Equal(t, limiter.Limit(), rate.Inf)
-	ingester.Close()
-
-	cfg.RateLimit.Apply = true
-	cfg.RateLimit.BlocksPerSecond = 0
-	ingester, err = NewIngester(cfg, h, core, reg, store)
-	require.NoError(t, err)
-	limiter = ingester.getRateLimiter(pubHost.ID())
-	require.NotNil(t, limiter)
-	require.Equal(t, limiter.Limit(), rate.Inf)
-	ingester.Close()
 }
 
 func mkTestHost(opts ...libp2p.Option) host.Host {

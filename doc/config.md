@@ -104,12 +104,6 @@ config file at runtime.
     "IngestWorkerCount": 10,
     "MinimumKeyLength": 0,
     "PubSubTopic": "/indexer/ingest/mainnet",
-    "RateLimit": {
-      "Apply": false,
-      "Except": null,
-      "BlocksPerSecond": 100,
-      "BurstSize": 500
-    },
     "ResendDirectAnnounce": true,
     "SyncSegmentDepthLimit": 2000,
     "SyncTimeout": "2h0m0s"
@@ -272,23 +266,9 @@ Default:
   "KeepAdvertisements": false,
   "MinimumKeyLength": 0,
   "PubSubTopic": "/indexer/ingest/mainnet",
-  "RateLimit": {},
   "ResendDirectAnnounce": false,
   "SyncSegmentDepthLimit": 2000,
   "SyncTimeout": "2h0m0s"
-}
-```
-
-### `Ingest.RateLimit`
-Description: [RateLimit](https://pkg.go.dev/github.com/ipni/storetheindex/config#RateLimit)
-
-Default:
-```json
-"RateLimit": {
-  "Apply": false,
-  "Except": null,
-  "BlocksPerSecond": 100,
-  "BurstSize": 500
 }
 ```
 
@@ -326,6 +306,5 @@ The storetheindex daemon can reload some portions of its config without restarti
 - [`Indexer.ConfigCheckInterval`](#indexer)
 - [`Indexer.ShutdownTimeout`](#indexer)
 - [`Ingest.IngestWorkerCount`](#ingest)
-- [`Ingest.RateLimit`](#ingestratelimit)
 - [`Logging`](#logging)
 - [`Peering`](#peering)
