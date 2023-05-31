@@ -613,8 +613,8 @@ github.com/ipni/dhstore v0.0.2-0.20230324212407-ceb5f50e3bad h1:nS2Zq9bHG0eFzRjz
 github.com/ipni/dhstore v0.0.2-0.20230324212407-ceb5f50e3bad/go.mod h1:XI6XW5Eu97zY5PEK2ZRuESh8mYkxIZYRTMcknPVbbrc=
 github.com/ipni/go-indexer-core v0.7.9 h1:maxecPV0hKUU2EoDc7ue0JebbOx8IgCdRz+PxnzqnS4=
 github.com/ipni/go-indexer-core v0.7.9/go.mod h1:EvhJc9EgziT8G/mWLTeSL2Zio0ynQ24Ee6c0N16cdMU=
-github.com/ipni/go-libipni v0.1.2-0.20230531205959-4d528f6b5fe7 h1:/7N+Gxj97auHU9a7H0o6sOVN3a29mN8tVH5WE71Geyw=
-github.com/ipni/go-libipni v0.1.2-0.20230531205959-4d528f6b5fe7/go.mod h1:GKp/Ff+w03w1jc5Xt4AE2Oj730fDKSEIhl8/wFNpyVU=
+github.com/ipni/go-libipni v0.2.0 h1:yZGUHTJ4t1SFtpGgLz4S56a+4tmrE4fGJjdmMyKV50A=
+github.com/ipni/go-libipni v0.2.0/go.mod h1:Ko+wQuMbUJ/DL+JHLPPeYP8bq5kWIU6taiwSbI28E0s=
 github.com/iris-contrib/blackfriday v2.0.0+incompatible/go.mod h1:UzZ2bDEoaSGPbkg6SAB4att1aAwTmVIx/5gCVqeyUdI=
 github.com/iris-contrib/go.uuid v2.0.0+incompatible/go.mod h1:iz2lgM/1UnEf1kP0L/+fafWORmlnuysV2EMP8MW+qe0=
 github.com/iris-contrib/i18n v0.0.0-20171121225848-987a633949d0/go.mod h1:pMCz62A0xJL6I+umB2YTlFRwWXaDFA0jy+5HzGiJjqI=
@@ -728,8 +728,8 @@ github.com/libp2p/go-libp2p v0.7.4/go.mod h1:oXsBlTLF1q7pxr+9w6lqzS1ILpyHsaBPniV
 github.com/libp2p/go-libp2p v0.8.1/go.mod h1:QRNH9pwdbEBpx5DTJYg+qxcVaDMAz3Ee/qDKwXujH5o=
 github.com/libp2p/go-libp2p v0.13.0/go.mod h1:pM0beYdACRfHO1WcJlp65WXyG2A6NqYM+t2DTVAJxMo=
 github.com/libp2p/go-libp2p v0.14.0/go.mod h1:dsQrWLAoIn+GkHPN/U+yypizkHiB9tnv79Os+kSgQ4Q=
-github.com/libp2p/go-libp2p v0.27.3 h1:tkV/zm3KCZ4R5er9Xcs2pt0YNB4JH0iBfGAtHJdLHRs=
-github.com/libp2p/go-libp2p v0.27.3/go.mod h1:FAvvfQa/YOShUYdiSS03IR9OXzkcJXwcNA2FUCh9ImE=
+github.com/libp2p/go-libp2p v0.27.4 h1:zliwN9xuzCBqCtWe0XjLKJGK6EIZTkp9L1e15wBpiOU=
+github.com/libp2p/go-libp2p v0.27.4/go.mod h1:oMfQGTb9CHnrOuSM6yMmyK2lXz3qIhnkn2+oK3B1Y2g=
 github.com/libp2p/go-libp2p-asn-util v0.3.0 h1:gMDcMyYiZKkocGXDQ5nsUQyquC9+H+iLEQHwOCZ7s8s=
 github.com/libp2p/go-libp2p-asn-util v0.3.0/go.mod h1:B1mcOrKUE35Xq/ASTmQ4tN3LNzVVaMNmq2NACuqyB9w=
 github.com/libp2p/go-libp2p-autonat v0.1.0/go.mod h1:1tLf2yXxiE/oKGtDwPYWTSYG3PtvYlJmg7NeVtPRqH8=
@@ -1020,8 +1020,8 @@ github.com/multiformats/go-multihash v0.0.10/go.mod h1:YSLudS+Pi8NHE7o6tb3D8vrpK
 github.com/multiformats/go-multihash v0.0.13/go.mod h1:VdAWLKTwram9oKAatUcLxBNUjdtcVwxObEQBtRfuyjc=
 github.com/multiformats/go-multihash v0.0.14/go.mod h1:VdAWLKTwram9oKAatUcLxBNUjdtcVwxObEQBtRfuyjc=
 github.com/multiformats/go-multihash v0.0.15/go.mod h1:D6aZrWNLFTV/ynMpKsNtB40mJzmCl4jb1alC0OvHiHg=
-github.com/multiformats/go-multihash v0.2.1 h1:aem8ZT0VA2nCHHk7bPJ1BjUbHNciqZC/d16Vve9l108=
-github.com/multiformats/go-multihash v0.2.1/go.mod h1:WxoMcYG85AZVQUyRyo9s4wULvW5qrI9vb2Lt6evduFc=
+github.com/multiformats/go-multihash v0.2.2 h1:Uu7LWs/PmWby1gkj1S1DXx3zyd3aVabA4FiMKn/2tAc=
+github.com/multiformats/go-multihash v0.2.2/go.mod h1:dXgKXCXjBzdscBLk9JkjINiEsCKRVch90MdaGiKsvSM=
 github.com/multiformats/go-multistream v0.1.0/go.mod h1:fJTiDfXJVmItycydCnNx4+wSzZ5NwG2FEVAI30fiovg=
 github.com/multiformats/go-multistream v0.1.1/go.mod h1:KmHZ40hzVxiaiwlj3MEbYgK9JFk2/9UktWZAF54Du38=
 github.com/multiformats/go-multistream v0.2.0/go.mod h1:5GZPQZbkWOLOn3J2y4Y99vVW7vOfsAflxARk3x14o6k=

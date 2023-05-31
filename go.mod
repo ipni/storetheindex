@@ -26,13 +26,13 @@ require (
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
 	github.com/ipld/go-storethehash v0.3.13
 	github.com/ipni/go-indexer-core v0.7.9
-	github.com/ipni/go-libipni v0.1.2-0.20230531205959-4d528f6b5fe7
-	github.com/libp2p/go-libp2p v0.27.3
+	github.com/ipni/go-libipni v0.2.0
+	github.com/libp2p/go-libp2p v0.27.4
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-multiaddr v0.9.0
 	github.com/multiformats/go-multicodec v0.9.0
-	github.com/multiformats/go-multihash v0.2.1
+	github.com/multiformats/go-multihash v0.2.2
 	github.com/multiformats/go-varint v0.0.7
 	github.com/orlangure/gnomock v0.24.0
 	github.com/prometheus/client_golang v1.14.0
