@@ -109,7 +109,7 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 			}
 			http.ServeContent(w, r, "index.html", compileTime, bytes.NewReader(buf.Bytes()))
 		default:
-			http.Error(w, "", http.StatusNotFound)
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		}
 	})
 	mux.HandleFunc("/cid/", s.findCid)
