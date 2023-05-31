@@ -109,15 +109,6 @@ func TestAssignOnAnnounce(t *testing.T) {
 	err = os.Chdir(filepath.Dir(filepath.Dir(cwd)))
 	require.NoError(t, err)
 	e.run("go", "install", ".")
-	// The following section should be used if assigner is moved to separate repo.
-	/*
-		err = os.Chdir(e.dir)
-		require.NoError(t, err)
-		e.run("git", "clone", "https://github.com/ipni/storetheindex.git")
-		err = os.Chdir("storetheindex")
-		require.NoError(t, err)
-		e.run("go", "install")
-	*/
 
 	err = os.Chdir(cwd)
 	require.NoError(t, err)

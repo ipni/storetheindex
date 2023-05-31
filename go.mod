@@ -11,7 +11,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.2
 	github.com/aws/smithy-go v1.13.5
 	github.com/cockroachdb/pebble v0.0.0-20220726144858-a78491c0086f
-	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.3.0
 	github.com/gammazero/channelqueue v0.2.1
 	github.com/hashicorp/go-retryablehttp v0.7.1
@@ -39,7 +38,6 @@ require (
 	github.com/prometheus/client_golang v1.14.0
 	github.com/stretchr/testify v1.8.2
 	github.com/urfave/cli/v2 v2.16.3
-	github.com/ybbus/jsonrpc/v2 v2.1.6
 	go.opencensus.io v0.24.0
 	go.uber.org/zap v1.24.0
 	golang.org/x/net v0.8.0
@@ -170,7 +168,6 @@ require (
 	github.com/miekg/dns v1.1.53 // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
-	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
 	github.com/minio/sha256-simd v1.0.0 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/multiformats/go-base32 v0.1.0 // indirect
