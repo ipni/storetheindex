@@ -1,40 +1,121 @@
-package test
+package ingest_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
-	"github.com/ipni/go-indexer-core"
+	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-libipni/announce"
+	"github.com/ipni/go-libipni/announce/httpsender"
 	"github.com/ipni/go-libipni/announce/message"
-	"github.com/ipni/go-libipni/apierror"
 	"github.com/ipni/go-libipni/ingest/client"
-	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
+	httpserver "github.com/ipni/storetheindex/server/ingest"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
 
-// InitIndex initialize a new indexer engine.
-func InitIndex(t *testing.T, withCache bool) indexer.Interface {
+var providerIdent = config.Identity{
+	PeerID:  "12D3KooWBckWLKiYoUX4k3HTrbrSe4DD5SPNTKgP6vKTva1NaRkJ",
+	PrivKey: "CAESQLypOCKYR7HGwVl4ngNhEqMZ7opchNOUA4Qc1QDpxsARGr2pWUgkXFXKU27TgzIHXqw0tXaUVx2GIbUuLitq22c=",
+}
+
+func setupServer(ind indexer.Interface, ing *ingest.Ingester, reg *registry.Registry, t *testing.T) *httpserver.Server {
+	s, err := httpserver.New("127.0.0.1:0", ind, ing, reg)
+	require.NoError(t, err)
+	return s
+}
+
+func setupClient(host string, t *testing.T) *client.Client {
+	c, err := client.New(host)
+	require.NoError(t, err)
+	return c
+}
+
+func setupSender(t *testing.T, baseURL string) *httpsender.Sender {
+	announceURL, err := url.Parse(baseURL + httpsender.DefaultAnnouncePath)
+	require.NoError(t, err)
+
+	peerID, _, err := providerIdent.Decode()
+	require.NoError(t, err)
+
+	httpSender, err := httpsender.New([]*url.URL{announceURL}, peerID)
+	require.NoError(t, err)
+
+	return httpSender
+}
+
+func TestRegisterProvider(t *testing.T) {
+	// Initialize everything
+	ind := initIndex(t, true)
+	reg := initRegistry(t, providerIdent.PeerID)
+	ing := initIngest(t, ind, reg)
+	s := setupServer(ind, ing, reg, t)
+	cl := setupClient(s.URL(), t)
+
+	peerID, privKey, err := providerIdent.Decode()
+	require.NoError(t, err)
+
+	// Start server
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	registerProviderTest(t, cl, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
+
+	reg.Close()
+	require.NoError(t, ind.Close(), "Error closing indexer core")
+}
+
+func TestAnnounce(t *testing.T) {
+	// Initialize everything
+	ind := initIndex(t, true)
+	reg := initRegistry(t, providerIdent.PeerID)
+	ing := initIngest(t, ind, reg)
+	s := setupServer(ind, ing, reg, t)
+	httpSender := setupSender(t, s.URL())
+	peerID, _, err := providerIdent.Decode()
+	require.NoError(t, err)
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	announceTest(t, peerID, httpSender)
+
+	reg.Close()
+	require.NoError(t, ind.Close(), "Error closing indexer core")
+}
+
+// initIndex initialize a new indexer engine.
+func initIndex(t *testing.T, withCache bool) indexer.Interface {
 	return engine.New(nil, memory.New())
 }
 
-// InitRegistry initializes a new registry
-func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
+// initRegistry initializes a new registry
+func initRegistry(t *testing.T, trustedID string) *registry.Registry {
 	var discoveryCfg = config.Discovery{
 		Policy: config.Policy{
 			Allow:         false,
@@ -48,7 +129,7 @@ func InitRegistry(t *testing.T, trustedID string) *registry.Registry {
 	return reg
 }
 
-func InitIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *ingest.Ingester {
+func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *ingest.Ingester {
 	cfg := config.NewIngest()
 	ds := dssync.MutexWrap(datastore.NewMapDatastore())
 	host, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
@@ -62,7 +143,26 @@ func InitIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *i
 	return ing
 }
 
-func RegisterProviderTest(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {
+func announceTest(t *testing.T, peerID peer.ID, sender announce.Sender) {
+	ai, err := peer.AddrInfoFromString(fmt.Sprintf("/ip4/127.0.0.1/tcp/9999/p2p/%s", peerID))
+	require.NoError(t, err)
+	ai.ID = peerID
+
+	p2pAddrs, err := peer.AddrInfoToP2pAddrs(ai)
+	require.NoError(t, err)
+
+	mhs := test.RandomMultihashes(1)
+
+	msg := message.Message{
+		Cid: cid.NewCidV1(22, mhs[0]),
+	}
+	msg.SetAddrs(p2pAddrs)
+
+	err = sender.Send(context.Background(), msg)
+	require.NoError(t, err, "Failed to announce")
+}
+
+func registerProviderTest(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -81,7 +181,9 @@ func RegisterProviderTest(t *testing.T, cl client.Interface, providerID peer.ID,
 	require.Error(t, err, "expected bad signature error")
 }
 
-func IndexContent(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
+// TODO: Uncomment when supporting puts directly to indexer.
+/*
+func indexContent(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -111,9 +213,9 @@ func IndexContent(t *testing.T, cl client.Interface, providerID peer.ID, private
 		}
 	}
 	require.True(t, ok, "did not get expected content")
-}
+    }
 
-func IndexContentNewAddr(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface, newAddr string, reg *registry.Registry) {
+func indexContentNewAddr(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface, newAddr string, reg *registry.Registry) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -136,7 +238,7 @@ func IndexContentNewAddr(t *testing.T, cl client.Interface, providerID peer.ID, 
 	require.True(t, info.AddrInfo.Addrs[0].Equal(maddr), "Did not update address")
 }
 
-func IndexContentFail(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
+func indexContentFail(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, ind indexer.Interface) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -160,22 +262,4 @@ func IndexContentFail(t *testing.T, cl client.Interface, providerID peer.ID, pri
 		require.Equal(t, 400, apierr.Status())
 	}
 }
-
-func AnnounceTest(t *testing.T, peerID peer.ID, sender announce.Sender) {
-	ai, err := peer.AddrInfoFromString(fmt.Sprintf("/ip4/127.0.0.1/tcp/9999/p2p/%s", peerID))
-	require.NoError(t, err)
-	ai.ID = peerID
-
-	p2pAddrs, err := peer.AddrInfoToP2pAddrs(ai)
-	require.NoError(t, err)
-
-	mhs := test.RandomMultihashes(1)
-
-	msg := message.Message{
-		Cid: cid.NewCidV1(22, mhs[0]),
-	}
-	msg.SetAddrs(p2pAddrs)
-
-	err = sender.Send(context.Background(), msg)
-	require.NoError(t, err, "Failed to announce")
-}
+*/

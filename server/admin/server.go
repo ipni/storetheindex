@@ -1,4 +1,4 @@
-package adminserver
+package admin
 
 import (
 	"context"
