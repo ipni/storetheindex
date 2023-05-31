@@ -43,6 +43,24 @@ type Discovery struct {
 	// versions. When false, previous versions of persisted assignments are
 	// migrated. Only applies if UseAssigner is true.
 	RemoveOldAssignments bool
+	// UnassignedPublishers, if true, allows unassigned publishers to remain
+	// unassigned until the assigner service assigns them, preferring this
+	// indexer to assign the publishers to. If false (the default), assigns all
+	// unassigned publishers known to this indexer.
+	//
+	// When configuring an existing indexer to use an assigner service, set
+	// this to false if the known publishers should be immediately assigned to
+	// this indexer to make them eligible for handoff if this indexer is
+	// frozen. Set to true if the publishers known to this indexer may already
+	// be assigned to another indexer, possibly making the assignment to this
+	// indexer unnecessary.
+	//
+	// In general, it is safer to leave this set to false to guarantee that the
+	// indexer is assigned the publishers it knows about. Otherwise, if the
+	// indexer is frozen the unassigned publishers may not be handed off to
+	// another indexer and an update from that publisher will result in
+	// indexing all that publisher's data.
+	UnassignedPublishers bool
 	// UseAssigner configures the indexer to work with an assigner service.
 	// This also requires that Policy.Allow is false, making Policy.Except into
 	// a list of allowed peers. Peers listed in Policy.Except in the
