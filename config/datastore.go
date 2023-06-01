@@ -1,10 +1,14 @@
 package config
 
+import "path/filepath"
+
 // Datastore tracks the configuration of the datastore.
 type Datastore struct {
 	// AdTmpDir is the directory where the datastore for temporaty
 	// advertisement data is kept. If this is not an absolute path then the
-	// location is relative to the indexer repo.
+	// location is relative to the indexer repo. If not set, and Dir is an
+	// absolute path, then the default ad temp dir is located in the parent
+	// directory of Dir.
 	AdTmpDir string
 	// AdTmpType is the type of datastore for temporary advertisement data.
 	AdTmpType string
@@ -37,7 +41,11 @@ func (c *Datastore) populateUnset() {
 		c.Type = def.Type
 	}
 	if c.AdTmpDir == "" {
-		c.AdTmpDir = def.AdTmpDir
+		if filepath.IsAbs(c.Dir) {
+			c.AdTmpDir = filepath.Join(filepath.Dir(c.Dir), def.AdTmpDir)
+		} else {
+			c.AdTmpDir = def.AdTmpDir
+		}
 	}
 	if c.AdTmpType == "" {
 		c.AdTmpType = def.AdTmpType
