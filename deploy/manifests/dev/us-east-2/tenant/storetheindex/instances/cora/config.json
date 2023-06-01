@@ -80,12 +80,6 @@
     "HttpSyncTimeout": "10s",
     "IngestWorkerCount":10,
     "PubSubTopic": "/indexer/ingest/mainnet",
-    "RateLimit": {
-      "Apply": false,
-      "Except": null,
-      "BlocksPerSecond": 0,
-      "BurstSize": 500
-    },
     "ResendDirectAnnounce": false,
     "StoreBatchSize": 8192,
     "SyncSegmentDepthLimit": 2000,
