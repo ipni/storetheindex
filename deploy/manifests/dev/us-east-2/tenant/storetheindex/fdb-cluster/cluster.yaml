@@ -1,0 +1,66 @@
+apiVersion: apps.foundationdb.org/v1beta2
+kind: FoundationDBCluster
+metadata:
+  name: fdb-dev-cluster
+spec:
+  version: 7.1.33
+  storageServersPerPod: 3
+  automationOptions:
+    replacements:
+      enabled: true
+  faultDomain:
+    key: kubernetes.io/hostname
+    valueFrom: spec.nodeName
+  databaseConfiguration:
+    storage_engine: ssd-rocksdb-v1
+  processCounts:
+    storage: 5
+    log: 3
+    stateless: 2
+  labels:
+    matchLabels:
+      foundationdb.org/fdb-cluster-name: dev
+    processClassLabels:
+      - foundationdb.org/fdb-process-class
+    processGroupIDLabels:
+      - foundationdb.org/fdb-process-group-id
+  minimumUptimeSecondsForBounce: 60
+  processes:
+    general:
+      customParameters:
+        - memory=20GiB
+        - cache-memory=12GiB
+      podTemplate:
+        spec:
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: ScheduleAnyway
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: node.kubernetes.io/instance-type
+                        operator: In
+                        values:
+                          - r5a.2xlarge
+          containers:
+            - name: foundationdb
+              resources:
+                requests:
+                  cpu: 7
+                  memory: 60.5Gi
+              securityContext:
+                runAsUser: 0
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3-iops16k-t1000
+          resources:
+            requests:
+              storage: 16Ti
+  sidecarContainer:
+    enableReadinessProbe: false
+    enableLivenessProbe: true
+  routing:
+    useDNSInClusterFile: true
