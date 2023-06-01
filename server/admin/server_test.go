@@ -301,11 +301,11 @@ func initIndex(t *testing.T, withCache bool) indexer.Interface {
 func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *ingest.Ingester {
 	cfg := config.NewIngest()
 	ds := dssync.MutexWrap(datastore.NewMapDatastore())
-	dsAdTmp := dssync.MutexWrap(datastore.NewMapDatastore())
+	dsTmp := dssync.MutexWrap(datastore.NewMapDatastore())
 	host, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
 	require.NoError(t, err)
 
-	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds, dsAdTmp)
+	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds, dsTmp)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ing.Close()
