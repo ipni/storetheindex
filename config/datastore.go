@@ -1,7 +1,5 @@
 package config
 
-import "path/filepath"
-
 // Datastore tracks the configuration of the datastore.
 type Datastore struct {
 	// AdTmpDir is the directory where the datastore for temporaty
@@ -41,11 +39,7 @@ func (c *Datastore) populateUnset() {
 		c.Type = def.Type
 	}
 	if c.AdTmpDir == "" {
-		if filepath.IsAbs(c.Dir) {
-			c.AdTmpDir = filepath.Join(filepath.Dir(c.Dir), def.AdTmpDir)
-		} else {
-			c.AdTmpDir = def.AdTmpDir
-		}
+		c.AdTmpDir = def.AdTmpDir
 	}
 	if c.AdTmpType == "" {
 		c.AdTmpType = def.AdTmpType
