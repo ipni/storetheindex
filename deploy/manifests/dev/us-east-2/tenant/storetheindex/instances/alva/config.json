@@ -33,8 +33,10 @@
     "MinimumPeers": 4
   },
   "Datastore": {
+    "Dir": "/data/datastore",
     "Type": "levelds",
-    "Dir": "/data/datastore"
+    "TmpDir": "/data/tmpstore",
+    "TmpType": "levelds"
   },
   "Discovery": {
     "FilterIPs": true,
