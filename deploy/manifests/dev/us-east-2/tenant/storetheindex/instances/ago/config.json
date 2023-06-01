@@ -79,6 +79,8 @@
       }
     },
     "EntriesDepthLimit": 65536,
+    "GsMaxInRequests": 2048,
+    "GsMaxOutRequests": 2048,
     "HttpSyncRetryMax": 4,
     "HttpSyncRetryWaitMax": "30s",
     "HttpSyncRetryWaitMin": "1s",
