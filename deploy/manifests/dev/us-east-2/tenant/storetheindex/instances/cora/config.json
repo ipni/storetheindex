@@ -59,7 +59,7 @@
     "ValueStoreDir": "",
     "ValueStoreType": "none",
     "DHBatchSize": 4096,
-    "DHStoreURL": "http://dhstore-cora.internal.dev.cid.contact",
+    "DHStoreURL": "http://dhstore-stateless:40080",
     "DHStoreHttpClientTimeout": "30s"
   },
   "Ingest": {
