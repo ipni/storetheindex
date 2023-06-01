@@ -19,7 +19,7 @@ spec:
     stateless: 2
   labels:
     matchLabels:
-      foundationdb.org/fdb-cluster-name: dev
+      foundationdb.org/fdb-cluster-name: fdb-dev-cluster
     processClassLabels:
       - foundationdb.org/fdb-process-class
     processGroupIDLabels:
