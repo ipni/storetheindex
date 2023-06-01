@@ -2,29 +2,28 @@ package config
 
 // Datastore tracks the configuration of the datastore.
 type Datastore struct {
-	// AdTmpDir is the directory where the datastore for temporaty
-	// advertisement data is kept. If this is not an absolute path then the
-	// location is relative to the indexer repo. If not set, and Dir is an
-	// absolute path, then the default ad temp dir is located in the parent
-	// directory of Dir.
-	AdTmpDir string
-	// AdTmpType is the type of datastore for temporary advertisement data.
-	AdTmpType string
 	// Dir is the directory where the datastore is kept. If this is not an
 	// absolute path then the location is relative to the indexer repo
 	// directory.
 	Dir string
 	// Type is the type of datastore.
 	Type string
+	// TmpDir is the directory where the datastore for persisted temporaty data
+	// is kept. This datastore contains temporary items such as synced
+	// advertisement data and data-transfer session state. If this is not an
+	// absolute path then the location is relative to the indexer repo.
+	TmpDir string
+	// TmpType is the type of datastore for temporary persisted data.
+	TmpType string
 }
 
 // NewDatastore returns Datastore with values set to their defaults.
 func NewDatastore() Datastore {
 	return Datastore{
-		AdTmpDir:  "adtmpstore",
-		AdTmpType: "levelds",
-		Dir:       "datastore",
-		Type:      "levelds",
+		Dir:     "datastore",
+		Type:    "levelds",
+		TmpDir:  "tmpstore",
+		TmpType: "levelds",
 	}
 }
 
@@ -38,10 +37,10 @@ func (c *Datastore) populateUnset() {
 	if c.Type == "" {
 		c.Type = def.Type
 	}
-	if c.AdTmpDir == "" {
-		c.AdTmpDir = def.AdTmpDir
+	if c.TmpDir == "" {
+		c.TmpDir = def.TmpDir
 	}
-	if c.AdTmpType == "" {
-		c.AdTmpType = def.AdTmpType
+	if c.TmpType == "" {
+		c.TmpType = def.TmpType
 	}
 }

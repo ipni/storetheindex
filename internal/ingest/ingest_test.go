@@ -373,7 +373,7 @@ func TestRestartDuringSync(t *testing.T) {
 	// Now we bring up the ingester again.
 	ingesterHost := mkTestHost(libp2p.Identity(te.ingesterPriv))
 	connectHosts(t, te.pubHost, ingesterHost)
-	ingester, err := NewIngester(defaultTestIngestConfig, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds, te.ingester.dsAdTmp)
+	ingester, err := NewIngester(defaultTestIngestConfig, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds, te.ingester.dsTmp)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ingester.Close()

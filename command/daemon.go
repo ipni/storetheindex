@@ -6,15 +6,12 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	pbl "github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
-	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-datastore/query"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipfs/kubo/core/bootstrap"
@@ -122,8 +119,8 @@ func daemonAction(cctx *cli.Context) error {
 		freezeDirs = append(freezeDirs, vsDir)
 	}
 
-	if cfg.Datastore.Dir == cfg.Datastore.AdTmpDir {
-		return fmt.Errorf("configuration cannot have same value for Datastore.Dir and Datastore.AdTmpDir")
+	if cfg.Datastore.Dir == cfg.Datastore.TmpDir {
+		return fmt.Errorf("configuration cannot have same value for Datastore.Dir and Datastore.TmpDir")
 	}
 
 	// Create datastore
@@ -139,12 +136,12 @@ func daemonAction(cctx *cli.Context) error {
 	freezeDirs = append(freezeDirs, dsDir)
 
 	// Create datastore for temporary ad data.
-	dsAdTmp, dsAdDir, err := createDatastore(cctx.Context, cfg.Datastore.AdTmpDir, cfg.Datastore.AdTmpType)
+	dsTmp, dsTmpDir, err := createDatastore(cctx.Context, cfg.Datastore.TmpDir, cfg.Datastore.TmpType)
 	if err != nil {
 		return err
 	}
-	defer dsAdTmp.Close()
-	freezeDirs = append(freezeDirs, dsAdDir)
+	defer dsTmp.Close()
+	freezeDirs = append(freezeDirs, dsTmpDir)
 
 	if cfg.Indexer.UnfreezeOnStart {
 		unfrozen, err := registry.Unfreeze(cctx.Context, freezeDirs, cfg.Indexer.FreezeAtPercent, dstore)
@@ -258,7 +255,7 @@ func daemonAction(cctx *cli.Context) error {
 		}
 
 		// Initialize ingester.
-		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, dsAdTmp,
+		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, dsTmp,
 			ingest.WithIndexCounts(indexCounts))
 		if err != nil {
 			return err
@@ -747,100 +744,4 @@ func createDatastore(ctx context.Context, dir, dsType string) (datastore.Batchin
 		return nil, "", err
 	}
 	return ds, dataStorePath, nil
-}
-
-func updateDatastore(ctx context.Context, ds datastore.Batching) error {
-	// updateBatchSize is the number of records to update at a time.
-	const updateBatchSize = 500000
-
-	dsVerKey := datastore.NewKey(dsInfoPrefix + dsVersionKey)
-	curVerData, err := ds.Get(ctx, dsVerKey)
-	if err != nil && !errors.Is(err, datastore.ErrNotFound) {
-		return fmt.Errorf("cannot check datastore: %w", err)
-	}
-	var curVer string
-	if len(curVerData) != 0 {
-		curVer = string(curVerData)
-	}
-	if curVer == dsVersion {
-		return nil
-	}
-	if curVer > dsVersion {
-		return fmt.Errorf("unknown datastore verssion: %s", curVer)
-	}
-
-	log.Infof("Updating datastore to version %s", dsVersion)
-
-	q := query.Query{
-		KeysOnly: true,
-	}
-	results, err := ds.Query(ctx, q)
-	if err != nil {
-		return fmt.Errorf("cannot query datastore: %w", err)
-	}
-	defer results.Close()
-
-	batch, err := ds.Batch(ctx)
-	if err != nil {
-		return fmt.Errorf("cannot create datastore batch: %w", err)
-	}
-	defer func() {
-		batch.Commit(context.Background())
-		ds.Sync(context.Background(), datastore.NewKey(""))
-	}()
-
-	var cidCount, dtKeyCount, writeCount int
-	for result := range results.Next() {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if writeCount >= updateBatchSize {
-			writeCount = 0
-			if err = batch.Commit(ctx); err != nil {
-				return fmt.Errorf("cannot commit to datastore: %w", err)
-			}
-			log.Infow("Datastore update removed old records", "dtState", dtKeyCount, "adData", cidCount)
-		}
-		if result.Error != nil {
-			return fmt.Errorf("cannot read query result from datastore: %w", result.Error)
-		}
-		ent := result.Entry
-		if len(ent.Key) == 0 {
-			log.Warnf("result entry has empty key")
-			continue
-		}
-		var key string
-		if ent.Key[0] == '/' {
-			key = ent.Key[1:]
-		} else {
-			key = ent.Key
-		}
-
-		before, after, found := strings.Cut(key, "/")
-		if found {
-			if before[0] >= '0' && before[0] <= '9' && len(after) > 22 {
-				if err = batch.Delete(ctx, datastore.NewKey(key)); err != nil {
-					return fmt.Errorf("cannot delete dt state key from datastore: %w", err)
-				}
-				writeCount++
-				dtKeyCount++
-			}
-			continue
-		}
-
-		if _, err := cid.Decode(key); err != nil {
-			log.Warnf("Unknown key: %s", key)
-			continue
-		}
-		if err = batch.Delete(ctx, datastore.NewKey(key)); err != nil {
-			return fmt.Errorf("cannot delete CID from datastore: %w", err)
-		}
-		writeCount++
-		cidCount++
-	}
-
-	batch.Put(context.Background(), dsVerKey, []byte(dsVersion))
-
-	log.Infow("Datastore update finished, removed old records", "dtState", dtKeyCount, "adData", cidCount)
-	return nil
 }
