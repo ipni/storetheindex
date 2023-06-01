@@ -33,12 +33,13 @@
     "MinimumPeers": 4
   },
   "Datastore": {
+    "Dir": "/data/datastore",
     "Type": "levelds",
-    "Dir": "/data/datastore"
+    "TmpDir": "/data/tmpstore",
+    "TmpType": "levelds"
   },
   "Discovery": {
     "FilterIPs": true,
-    "LotusGateway": "wss://api.chain.love",
     "Policy": {
       "Allow": true,
       "Except": [
@@ -80,12 +81,6 @@
     "HttpSyncTimeout": "10s",
     "IngestWorkerCount": 20,
     "PubSubTopic": "/indexer/ingest/mainnet",
-    "RateLimit": {
-      "Apply": false,
-      "Except": null,
-      "BlocksPerSecond": 0,
-      "BurstSize": 500
-    },
     "ResendDirectAnnounce": false,
     "StoreBatchSize": 8192,
     "SyncSegmentDepthLimit": 2000,

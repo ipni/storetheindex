@@ -40,6 +40,12 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+const (
+	dsInfoPrefix = "/dsInfo/"
+	dsVersionKey = "version"
+	dsVersion    = "001"
+)
+
 // Recognized valuestore type names.
 const (
 	vstoreMemory       = "memory"
@@ -113,14 +119,29 @@ func daemonAction(cctx *cli.Context) error {
 		freezeDirs = append(freezeDirs, vsDir)
 	}
 
+	if cfg.Datastore.Dir == cfg.Datastore.TmpDir {
+		return fmt.Errorf("configuration cannot have same value for Datastore.Dir and Datastore.TmpDir")
+	}
+
 	// Create datastore
-	dstore, dsDir, err := createDatastore(cfg.Datastore)
+	dstore, dsDir, err := createDatastore(cctx.Context, cfg.Datastore.Dir, cfg.Datastore.Type)
 	if err != nil {
 		return err
 	}
 	defer dstore.Close()
-
+	err = updateDatastore(cctx.Context, dstore)
+	if err != nil {
+		return fmt.Errorf("cannot update datastore: %w", err)
+	}
 	freezeDirs = append(freezeDirs, dsDir)
+
+	// Create datastore for temporary ad data.
+	dsTmp, dsTmpDir, err := createDatastore(cctx.Context, cfg.Datastore.TmpDir, cfg.Datastore.TmpType)
+	if err != nil {
+		return err
+	}
+	defer dsTmp.Close()
+	freezeDirs = append(freezeDirs, dsTmpDir)
 
 	if cfg.Indexer.UnfreezeOnStart {
 		unfrozen, err := registry.Unfreeze(cctx.Context, freezeDirs, cfg.Indexer.FreezeAtPercent, dstore)
@@ -165,6 +186,7 @@ func daemonAction(cctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("cannot create provider registry: %s", err)
 	}
+	defer reg.Close()
 
 	// Create find HTTP server
 	var findSvr *httpfind.Server
@@ -233,7 +255,7 @@ func daemonAction(cctx *cli.Context) error {
 		}
 
 		// Initialize ingester.
-		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore,
+		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, dsTmp,
 			ingest.WithIndexCounts(indexCounts))
 		if err != nil {
 			return err
@@ -495,9 +517,6 @@ func daemonAction(cctx *cli.Context) error {
 		}
 	}
 
-	reg.Close()
-	dstore.Close()
-
 	log.Info("Indexer stopped")
 	return finalErr
 }
@@ -709,11 +728,11 @@ func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p
 	return peeringService, nil
 }
 
-func createDatastore(cfg config.Datastore) (datastore.Batching, string, error) {
-	if cfg.Type != "levelds" {
-		return nil, "", fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Type)
+func createDatastore(ctx context.Context, dir, dsType string) (datastore.Batching, string, error) {
+	if dsType != "levelds" {
+		return nil, "", fmt.Errorf("only levelds datastore type supported, %q not supported", dsType)
 	}
-	dataStorePath, err := config.Path("", cfg.Dir)
+	dataStorePath, err := config.Path("", dir)
 	if err != nil {
 		return nil, "", err
 	}

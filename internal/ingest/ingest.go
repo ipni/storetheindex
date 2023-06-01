@@ -112,6 +112,7 @@ type workerAssignment struct {
 type Ingester struct {
 	host    host.Host
 	ds      datastore.Batching
+	dsTmp   datastore.Batching
 	lsys    ipld.LinkSystem
 	indexer indexer.Interface
 
@@ -174,7 +175,7 @@ type Ingester struct {
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
 // communication with providers.
-func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds datastore.Batching, options ...Option) (*Ingester, error) {
+func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds, dsTmp datastore.Batching, options ...Option) (*Ingester, error) {
 	opts, err := getOpts(options)
 	if err != nil {
 		return nil, err
@@ -187,7 +188,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	ing := &Ingester{
 		host:        h,
 		ds:          ds,
-		lsys:        mkLinkSystem(ds, reg),
+		dsTmp:       dsTmp,
+		lsys:        mkLinkSystem(dsTmp, reg),
 		indexer:     idxr,
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		entriesSel:  Selectors.EntriesWithLimit(recursionLimit(cfg.EntriesDepthLimit)),
@@ -211,7 +213,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 
-	ing.mirror, err = newMirror(cfg.AdvertisementMirror, ds)
+	ing.mirror, err = newMirror(cfg.AdvertisementMirror, ing.dsTmp)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +232,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	// Create and start pubsub subscriber. This also registers the storage hook
 	// to index data as it is received.
-	sub, err := dagsync.NewSubscriber(h, ds, ing.lsys, cfg.PubSubTopic, Selectors.AdSequence,
+	sub, err := dagsync.NewSubscriber(h, ing.dsTmp, ing.lsys, cfg.PubSubTopic, Selectors.AdSequence,
 		dagsync.AllowPeer(reg.Allowed),
 		dagsync.FilterIPs(reg.FilterIPsEnabled()),
 		dagsync.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)),
@@ -627,7 +629,7 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, k
 
 	if !keep || frozen {
 		// This ad is processed, so remove it from the datastore.
-		err = ing.ds.Delete(ctx, datastore.NewKey(cidStr))
+		err = ing.dsTmp.Delete(ctx, datastore.NewKey(cidStr))
 		if err != nil {
 			// Log the error, but do not return. Continue on to save the procesed ad.
 			log.Errorw("Cannot remove advertisement from datastore", "err", err)
