@@ -99,7 +99,7 @@
   },
   "Peering": {
     "Peers": [
-      "/dns4/assigner/tcp/3003/p2p/12D3KooWDBjcDRQ7CKJeF9Yy3UKbriHfyETDrXKzTDB6biH3ibBd"
+      "/dns4/assigner-fdb-backed/tcp/3003/p2p/12D3KooWGp2P8Ca3xVeKf2b41rWB4687Ude8kkDSrFWQ6oBnTNCv"
     ]
   }
 }

@@ -1,0 +1,9 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: assigner
+spec:
+  ports:
+    - name: libp2p
+      port: 3003
+      targetPort: libp2p

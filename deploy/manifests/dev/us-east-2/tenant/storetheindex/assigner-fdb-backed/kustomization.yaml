@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+nameSuffix: -fdb-backed
+commonLabels:
+  app: assigner-fdb-backed
+
+resources:
+  - ../../../../../base/assigner
+
+patchesStrategicMerge:
+  - deployment.yaml
+  - service.yaml
+
+secretGenerator:
+  - name: identity
+    behavior: create
+    files:
+      - identity.key=identity.key.encrypted # 12D3KooWGp2P8Ca3xVeKf2b41rWB4687Ude8kkDSrFWQ6oBnTNCv
+
+configMapGenerator:
+  - name: config
+    behavior: create
+    files:
+      - config=config.json
+
+images:
+- name: storetheindex
+  newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+  newTag: 20230518132024-2ea1218070d49e938fef062597eb739e89c3957a
