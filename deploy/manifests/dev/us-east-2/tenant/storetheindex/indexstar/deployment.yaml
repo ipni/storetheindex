@@ -20,6 +20,8 @@ spec:
             - '--backends=http://cali-indexer:3000/'
             - '--backends=http://dhfind.internal.dev.cid.contact/'
             - '--backends=http://dhfind-ago2.internal.dev.cid.contact/'
+            - '--backends=http://dhstore.internal.dev.cid.contact/'
+            - '--backends=http://dhstore-ago2.internal.dev.cid.contact/'
             - '--cascadeBackends=http://caskadht.internal.dev.cid.contact/'
             - '--cascadeBackends=http://cassette.internal.dev.cid.contact/'
             - '--fallbackBackend=http://ber-indexer:3000/'
