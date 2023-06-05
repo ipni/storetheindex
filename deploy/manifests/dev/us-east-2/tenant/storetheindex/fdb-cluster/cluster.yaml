@@ -4,7 +4,7 @@ metadata:
   name: fdb-dev-cluster
 spec:
   version: 7.1.33
-  storageServersPerPod: 3
+  storageServersPerPod: 5
   automationOptions:
     replacements:
       enabled: true
