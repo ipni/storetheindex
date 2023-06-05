@@ -15,6 +15,13 @@ spec:
             - '--storeType=fdb'
             - '--fdbClusterFile=/config/cluster-file'
             - '--fdbApiVersion=710'
+          resources:
+            limits:
+              cpu: "1.5"
+              memory: 3Gi
+            requests:
+              cpu: "1.5"
+              memory: 3Gi
           volumeMounts:
             - mountPath: /config
               name: config
