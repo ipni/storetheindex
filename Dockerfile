@@ -64,6 +64,8 @@ EXPOSE 3002
 EXPOSE 3000
 # Ingest interface
 EXPOSE 3001
+# P2P interface
+EXPOSE 3003
 
 ENV \
     STORETHEINDEX_LOTUS_GATEWAY="wss://api.chain.love" \
