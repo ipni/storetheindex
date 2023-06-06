@@ -40,7 +40,7 @@ RUN set -eux; \
     && chmod +x tini
 
 # Create the target image
-FROM busybox:1.34-glibc
+FROM busybox:1.36-glibc
 LABEL maintainer="Andrew Gillis <andrew.gillis@protocol.ai>"
 
 # Get the storetheindex binary, entrypoint script, and TLS CAs from the build container.
@@ -68,7 +68,6 @@ EXPOSE 3001
 EXPOSE 3003
 
 ENV \
-    STORETHEINDEX_LOTUS_GATEWAY="wss://api.chain.love" \
     STORETHEINDEX_PATH="/data/storetheindex" \
     GOLOG_LOG_FMT="json"
 
