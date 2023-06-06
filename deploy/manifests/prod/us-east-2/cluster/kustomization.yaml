@@ -13,3 +13,4 @@ resources:
   - aws-ebs-csi-driver
   - promtail
   - external-snapshotter
+  - ../../../base/foundationdb/crds
