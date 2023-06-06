@@ -6,6 +6,7 @@ namespace: storetheindex
 resources:
   - ../../../../../base/assigner
   - ingress.yaml
+  - service-external.yaml
 
 patchesStrategicMerge:
   - deployment.yaml
