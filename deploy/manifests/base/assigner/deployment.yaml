@@ -44,7 +44,7 @@ spec:
             - containerPort: 3001
               name: http
             - containerPort: 3003
-              name: p2p
+              name: libp2p
             - containerPort: 8081
               name: metrics
           readinessProbe:
