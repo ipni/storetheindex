@@ -25,7 +25,7 @@ var initFlags = []cli.Flag{
 	listenP2PFlag,
 	&cli.StringFlag{
 		Name:     "store",
-		Usage:    "Type of value store (pebble, sth). Default is \"pebble\"",
+		Usage:    "Type of value store (pebble, memory). Default is \"pebble\"",
 		Aliases:  []string{"s"},
 		EnvVars:  []string{"STORETHEINDEX_VALUE_STORE"},
 		Required: false,
@@ -111,7 +111,7 @@ func initAction(cctx *cli.Context) error {
 	switch storeType {
 	case "":
 		// Use config default
-	case vstoreMemory, vstorePebble, vstoreStorethehash:
+	case vstoreMemory, vstorePebble:
 		// These are good
 		cfg.Indexer.ValueStoreType = storeType
 	default:

@@ -24,8 +24,7 @@ require (
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
 	github.com/ipld/go-ipld-prime v0.20.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
-	github.com/ipld/go-storethehash v0.3.13
-	github.com/ipni/go-indexer-core v0.7.9
+	github.com/ipni/go-indexer-core v0.7.10-0.20230606031323-643f8ce48743
 	github.com/ipni/go-libipni v0.2.0
 	github.com/libp2p/go-libp2p v0.27.4
 	github.com/libp2p/go-msgio v0.3.0
@@ -91,9 +90,7 @@ require (
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/gammazero/deque v0.2.1 // indirect
-	github.com/gammazero/keymutex v0.1.0 // indirect
 	github.com/gammazero/radixtree v0.3.1 // indirect
-	github.com/gammazero/workerpool v1.1.3 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect

@@ -16,14 +16,12 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipfs/kubo/core/bootstrap"
 	"github.com/ipfs/kubo/peering"
-	sth "github.com/ipld/go-storethehash/store"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/cache"
 	"github.com/ipni/go-indexer-core/cache/radixcache"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
-	"github.com/ipni/go-indexer-core/store/storethehash"
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/fsutil"
@@ -48,9 +46,8 @@ const (
 
 // Recognized valuestore type names.
 const (
-	vstoreMemory       = "memory"
-	vstorePebble       = "pebble"
-	vstoreStorethehash = "sth"
+	vstoreMemory = "memory"
+	vstorePebble = "pebble"
 )
 
 var log = logging.Logger("indexer")
@@ -173,7 +170,6 @@ func daemonAction(cctx *cli.Context) error {
 		engine.WithDHBatchSize(cfg.Indexer.DHBatchSize),
 		engine.WithDHStore(cfg.Indexer.DHStoreURL),
 		engine.WithDHStoreCluster(cfg.Indexer.DHStoreClusterURLs),
-		engine.WithVSNoNewMH(cfg.Indexer.VSNoNewMH),
 		engine.WithHttpClientTimeout(time.Duration(cfg.Indexer.DHStoreHttpClientTimeout)),
 	)
 
@@ -522,8 +518,6 @@ func daemonAction(cctx *cli.Context) error {
 }
 
 func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.Interface, int, string, error) {
-	const sthMinKeyLen = 4
-
 	if cfgIndexer.ValueStoreType == "" || cfgIndexer.ValueStoreType == "none" {
 		return nil, 0, "", nil
 	}
@@ -542,27 +536,9 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 	var minKeyLen int
 
 	switch cfgIndexer.ValueStoreType {
-	case vstoreStorethehash:
-		if cfgIndexer.GCInterval == -1 {
-			cfgIndexer.GCInterval = 0
-			cfgIndexer.GCTimeLimit = 0
-		}
-		vs, err = storethehash.New(
-			ctx,
-			dir,
-			cfgIndexer.CorePutConcurrency,
-			sth.GCInterval(time.Duration(cfgIndexer.GCInterval)),
-			sth.GCTimeLimit(time.Duration(cfgIndexer.GCTimeLimit)),
-			sth.BurstRate(cfgIndexer.STHBurstRate),
-			sth.SyncInterval(time.Duration(cfgIndexer.STHSyncInterval)),
-			sth.IndexBitSize(cfgIndexer.STHBits),
-			sth.FileCacheSize(cfgIndexer.STHFileCacheSize),
-		)
-		minKeyLen = sthMinKeyLen
 	case vstoreMemory:
 		vs, err = memory.New(), nil
 	case vstorePebble:
-
 		// TODO: parameterize values and study what settings are right for sti
 
 		// Default options copied from cockroachdb with the addition of 1GiB cache.
@@ -661,14 +637,6 @@ func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Regis
 	err = setLoggingConfig(cfg.Logging)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure logging: %w", err)
-	}
-
-	if valueStore != nil {
-		sthStore, ok := valueStore.(*storethehash.SthStorage)
-		if ok {
-			sthStore.SetPutConcurrency(cfg.Indexer.CorePutConcurrency)
-			sthStore.SetFileCacheSize(cfg.Indexer.STHFileCacheSize)
-		}
 	}
 
 	log.Info("Reloaded reloadable values from configuration")
