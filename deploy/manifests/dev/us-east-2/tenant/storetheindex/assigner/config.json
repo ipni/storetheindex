@@ -64,6 +64,7 @@
   },
   "Peering": {
     "Peers": [
+      "/dns4/assigner.prod.cid.contact/tcp/3003/p2p/12D3KooWQAymjDKMivbkUNiJP7ChRsvsDuazerHW4wERRvQMWNor",
       "/dns4/ber-indexer/tcp/3003/p2p/12D3KooWSQpUgBZwbNuMN3ctZjMesnoH9UDhwEXroxParXQCgurN",
       "/dns4/cali-indexer/tcp/3003/p2p/12D3KooWHGHu3jVjya9sDSAYRmAVtUnQGTwnWeqan1smfJdjzscB",
       "/dns4/alva-indexer/tcp/3003/p2p/12D3KooWSrUNEvYeHKL74mFaY6oayTJBNTfBFd1u8TBsD4ZwxRMC",
