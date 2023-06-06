@@ -7,15 +7,11 @@ import (
 // Indexer holds configuration for the indexer core. Setting any of these items
 // to their zero-value configures the default value.
 type Indexer struct {
-	// CacheSize is the maximum number of CIDs that cache can hold. Setting to -1 disables the
-	// cache.
+	// CacheSize is the maximum number of CIDs that cache can hold. Setting to
+	// -1 disables the cache.
 	CacheSize int
 	// ConfigCheckInterval is the time between config file update checks.
 	ConfigCheckInterval Duration
-	// CorePutConcurrency is the number of core goroutines used to write
-	// individual multihashes within a Put. A value of 1 means no concurrency,
-	// and zero uses the default.
-	CorePutConcurrency int
 	// DHBatchSize configures the batch size when sending batches of merge
 	// requests to the DHStore service. A value < 1 results in the default
 	// size.
@@ -35,12 +31,6 @@ type Indexer struct {
 	// ValueStoreDir is on, at which to trigger the indexer to enter frozen
 	// mode. A zero value uses the default. A negative value disables freezing.
 	FreezeAtPercent float64
-	// GCInterval configures the garbage collection interval for valuestores
-	// that support it.
-	GCInterval Duration
-	// GCTimeLimit configures the maximum amount of time a garbage collection
-	// cycle may run.
-	GCTimeLimit Duration
 	// IndexCountTotalAddend is a value that is added to the index count total,
 	// to account for uncounted indexes that have existed in the value store
 	// before provider index counts were tracked. This value is reloadable.
@@ -53,20 +43,8 @@ type Indexer struct {
 	// an absolute path then the location is relative to the indexer repo
 	// directory.
 	ValueStoreDir string
-	// ValueStoreType specifies type of valuestore to use, such as "pebble" or "sth".
+	// ValueStoreType specifies type of valuestore to use, such as "pebble".
 	ValueStoreType string
-	// STHBits is bits for bucket size in store the hash. Note: this should not be changed
-	// from its value at initialization or the datastore will be corrupted.
-	STHBits uint8
-	// STHBurstRate specifies how much unwritten data can accumulate before
-	// causing data to be flushed to disk.
-	STHBurstRate uint64
-	// STHFileCacheSize is the maximum number of open files that the STH file
-	// cache may have. A value of 0 uses the default, and a value of -1
-	// disables the file cache.
-	STHFileCacheSize int
-	// STHSyncInterval determines how frequently changes are flushed to disk.
-	STHSyncInterval Duration
 	// PebbleDisableWAL sets whether to disable write-ahead-log in Pebble which
 	// can offer better performance in specific cases. Enabled by default. This
 	// option only applies when ValueStoreType is set to "pebble".
@@ -78,15 +56,6 @@ type Indexer struct {
 	// frozen. It only retains the most recent provider and publisher
 	// addresses.
 	UnfreezeOnStart bool
-	// VSNoNewMH, when true, prevents storing new multihashes in the
-	// valuestore. Existing data is still retrievable and metadata can be
-	// deleted and updated.
-	VSNoNewMH bool
-
-	// TODO: If left unspecified, could the functionality instead be to use whatever the existing
-	//      value store uses? If there is no existing value store, then use binary by default.
-	//      For this we need probing mechanisms in go-indexer-core.
-	//      While at it, do the same for STHBits.
 }
 
 // NewIndexer returns Indexer with values set to their defaults.
@@ -95,18 +64,12 @@ func NewIndexer() Indexer {
 		CacheSize:            300000,
 		PebbleBlockCacheSize: 1 << 30, // 1 Gi
 		ConfigCheckInterval:  Duration(30 * time.Second),
-		CorePutConcurrency:   64,
 		FreezeAtPercent:      90.0,
-		GCInterval:           Duration(30 * time.Minute),
-		GCTimeLimit:          Duration(5 * time.Minute),
 		ShutdownTimeout:      0,
 		ValueStoreDir:        "valuestore",
 		ValueStoreType:       "pebble",
-		STHBits:              24,
-		STHBurstRate:         8 * 1024 * 1024,
-		STHFileCacheSize:     512,
-		STHSyncInterval:      Duration(time.Second),
-		// defaulting http timeout to 10 seconds to survive over occasional spikes caused by compaction
+		// defaulting http timeout to 10 seconds to survive over occasional
+		// spikes caused by compaction
 		DHStoreHttpClientTimeout: Duration(10 * time.Second),
 	}
 }
@@ -121,35 +84,14 @@ func (c *Indexer) populateUnset() {
 	if c.ConfigCheckInterval == 0 {
 		c.ConfigCheckInterval = def.ConfigCheckInterval
 	}
-	if c.CorePutConcurrency == 0 {
-		c.CorePutConcurrency = def.CorePutConcurrency
-	}
 	if c.FreezeAtPercent == 0 {
 		c.FreezeAtPercent = def.FreezeAtPercent
-	}
-	if c.GCInterval == 0 {
-		c.GCInterval = def.GCInterval
-	}
-	if c.GCTimeLimit == 0 {
-		c.GCTimeLimit = def.GCTimeLimit
 	}
 	if c.ValueStoreDir == "" {
 		c.ValueStoreDir = def.ValueStoreDir
 	}
 	if c.ValueStoreType == "" {
 		c.ValueStoreType = def.ValueStoreType
-	}
-	if c.STHBits == 0 {
-		c.STHBits = def.STHBits
-	}
-	if c.STHBurstRate == 0 {
-		c.STHBurstRate = def.STHBurstRate
-	}
-	if c.STHFileCacheSize == 0 {
-		c.STHFileCacheSize = def.STHFileCacheSize
-	}
-	if c.STHSyncInterval == 0 {
-		c.STHSyncInterval = def.STHSyncInterval
 	}
 	if c.DHStoreHttpClientTimeout == 0 {
 		c.DHStoreHttpClientTimeout = def.DHStoreHttpClientTimeout

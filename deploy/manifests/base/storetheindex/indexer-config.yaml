@@ -45,7 +45,6 @@ data:
       },
       "Discovery": {
         "FilterIPs": true,
-        "LotusGateway": "wss://api.chain.love",
         "Policy": {
           "Allow": true,
           "Except": null,
@@ -62,11 +61,9 @@ data:
       "Indexer": {
         "CacheSize": 300000,
         "ConfigCheckInterval": "30s",
-        "GCInterval": "30m0s",
-        "GCTimeLimit":, "5m",
         "ShutdownTimeout": "15m",
         "ValueStoreDir": "/data/valuestore",
-        "ValueStoreType": "sth"
+        "ValueStoreType": "pebble"
       },
       "Ingest": {
         "AdvertisementDepthLimit": 33554432,
@@ -77,12 +74,6 @@ data:
         "HttpSyncTimeout": "10s",
         "IngestWorkerCount": 10,
         "PubSubTopic": "/indexer/ingest/mainnet",
-        "RateLimit": {
-          "Apply": false,
-          "Except": null,
-          "BlocksPerSecond": 100,
-          "BurstSize": 500
-        },
         "ResendDirectAnnounce": false,
         "StoreBatchSize": 4096,
         "SyncSegmentDepthLimit": 2000,

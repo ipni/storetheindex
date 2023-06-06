@@ -53,8 +53,7 @@ type Ingest struct {
 	// controls how many concurrent ingest from different providers we can handle.
 	IngestWorkerCount int
 	// MinimumKeyLengt causes any multihash, that has a digest length less than
-	// this, to be ignored. If using storethehash, this value is automatically
-	// set to 4 if it was configured to be anything less.
+	// this, to be ignored.
 	MinimumKeyLength int
 	// PubSubTopic sets the topic name to which to subscribe for ingestion
 	// announcements.

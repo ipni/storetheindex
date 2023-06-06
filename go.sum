@@ -255,12 +255,8 @@ github.com/gammazero/channelqueue v0.2.1 h1:AcK6wnLrj8koTTn3RxjRCyfmS677TjhIZb1F
 github.com/gammazero/channelqueue v0.2.1/go.mod h1:824o5HHE+yO1xokh36BIuSv8YWwXW0364ku91eRMFS4=
 github.com/gammazero/deque v0.2.1 h1:qSdsbG6pgp6nL7A0+K/B7s12mcCY/5l5SIUpMOl+dC0=
 github.com/gammazero/deque v0.2.1/go.mod h1:LFroj8x4cMYCukHJDbxFCkT+r9AndaJnFMuZDV34tuU=
-github.com/gammazero/keymutex v0.1.0 h1:9Qz6/dUQ+eEdHa8vq8uCR3o8S9OOFvIWJ8EOBB6PycQ=
-github.com/gammazero/keymutex v0.1.0/go.mod h1:qtzWCCLMisQUmVa4dvqHVgwfh4BP2YB7JxNDGXnsKrs=
 github.com/gammazero/radixtree v0.3.1 h1:kYVZUH/XgIktiGjUBERExxP6Ock7epWuCAlrB2FKsmk=
 github.com/gammazero/radixtree v0.3.1/go.mod h1:wcCpc8wCLVlPg2FVRYQLtBCnj9MNHQI1qB1hVrHvEDs=
-github.com/gammazero/workerpool v1.1.3 h1:WixN4xzukFoN0XSeXF6puqEqFTl2mECI9S6W44HWy9Q=
-github.com/gammazero/workerpool v1.1.3/go.mod h1:wPjyBLDbyKnUn2XwwyD3EEwo9dHutia9/fwNmSHWACc=
 github.com/gavv/httpexpect v2.0.0+incompatible/go.mod h1:x+9tiU1YnrOvnB725RkpoLv1M62hOWzwo5OXotisrKc=
 github.com/ghemawat/stream v0.0.0-20171120220530-696b145b53b9/go.mod h1:106OIgooyS7OzLDOpUGgm9fA3bQENb/cFSyyBmMoJDs=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
@@ -607,12 +603,10 @@ github.com/ipld/go-ipld-prime v0.20.0/go.mod h1:PzqZ/ZR981eKbgdr3y2DJYeD/8bgMawd
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20230102063945-1a409dc236dd h1:gMlw/MhNr2Wtp5RwGdsW23cs+yCuj9k2ON7i9MiJlRo=
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd h1:qdjo1CRvAQhOMoyYjPnbdZ5rYFFmqztweQ9KAsuWpO0=
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd/go.mod h1:9DD/GM0JNPoisgR09F62kbBi7kHa4eDIea4XshXYOVc=
-github.com/ipld/go-storethehash v0.3.13 h1:1T6kX5K57lAgxbsGitZEaZMAR3RdWch2kO8okK/BgN8=
-github.com/ipld/go-storethehash v0.3.13/go.mod h1:KCYpzmamubnSwm7fvWcCkm0aIwQh4WRNtzrKK4pVhAQ=
 github.com/ipni/dhstore v0.0.2-0.20230324212407-ceb5f50e3bad h1:nS2Zq9bHG0eFzRjz1naWKl6I1YYPGWI1yWJK+zX3UGM=
 github.com/ipni/dhstore v0.0.2-0.20230324212407-ceb5f50e3bad/go.mod h1:XI6XW5Eu97zY5PEK2ZRuESh8mYkxIZYRTMcknPVbbrc=
-github.com/ipni/go-indexer-core v0.7.9 h1:maxecPV0hKUU2EoDc7ue0JebbOx8IgCdRz+PxnzqnS4=
-github.com/ipni/go-indexer-core v0.7.9/go.mod h1:EvhJc9EgziT8G/mWLTeSL2Zio0ynQ24Ee6c0N16cdMU=
+github.com/ipni/go-indexer-core v0.7.10-0.20230606031323-643f8ce48743 h1:VZWAlwxbVGIBORFVJrIpxsga4Sv6qxRe22WeR4EqawY=
+github.com/ipni/go-indexer-core v0.7.10-0.20230606031323-643f8ce48743/go.mod h1:TMKcn1DJMo9UPr58Fn5zKmkxIbM35S6XkQqwx0e4XkY=
 github.com/ipni/go-libipni v0.2.0 h1:yZGUHTJ4t1SFtpGgLz4S56a+4tmrE4fGJjdmMyKV50A=
 github.com/ipni/go-libipni v0.2.0/go.mod h1:Ko+wQuMbUJ/DL+JHLPPeYP8bq5kWIU6taiwSbI28E0s=
 github.com/iris-contrib/blackfriday v2.0.0+incompatible/go.mod h1:UzZ2bDEoaSGPbkg6SAB4att1aAwTmVIx/5gCVqeyUdI=
