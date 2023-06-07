@@ -7,7 +7,7 @@
   "Addresses": {
     "Admin": "/ip4/0.0.0.0/tcp/3002",
     "Finder": "/ip4/0.0.0.0/tcp/3000",
-    "FinderWebpage": "https://web-ipni.cid.contact/dev",
+    "FinderWebpage": "https://web-ipni.cid.contact/",
     "Ingest": "/ip4/0.0.0.0/tcp/3001",
     "P2PAddr": "/ip4/0.0.0.0/tcp/3003",
     "NoResourceManager": true
@@ -42,8 +42,7 @@
     "FilterIPs": true,
     "Policy": {
       "Allow": true,
-      "Except": [
-      ],
+      "Except": null,
       "Publish": true,
       "PublishExcept": null
     },
@@ -58,9 +57,8 @@
     "ConfigCheckInterval": "30s",
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
-    "ValueStoreType": "pebble",
+    "ValueStoreType": "none",
     "DisableWAL": true,
-    "VSNoNewMH": true,
     "DHBatchSize": 5000,
     "DHStoreURL": "http://dhstore-porvy.internal.prod.cid.contact",
     "DHStoreClusterURLs": ["http://dhstore.internal.prod.cid.contact", "http://dhstore-helga.internal.prod.cid.contact"],
