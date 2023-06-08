@@ -131,6 +131,27 @@ module "eks" {
         }
       }
     }
+    prod-ue2a-r6a-2xl = {
+      min_size       = 0
+      max_size       = 10
+      desired_size   = 0
+      instance_types = ["r6a.2xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2a1.id,data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
+    }
+    prod-ue2b-r6a-2xl = {
+      min_size       = 0
+      max_size       = 10
+      desired_size   = 0
+      instance_types = ["r6a.2xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2b1.id,data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
+    }
+    prod-ue2c-r6a-2xl = {
+      min_size       = 0
+      max_size       = 10
+      desired_size   = 0
+      instance_types = ["r6a.2xlarge"]
+      subnet_ids     = [data.aws_subnet.ue2c1.id,data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
+    }
   }
 }
 
