@@ -78,12 +78,12 @@ data:
     - groups:
       - system:bootstrappers
       - system:nodes
-      rolearn: arn:aws:iam::407967248065:role/prod-ue2a-r6b-2xl-eks-node-group
+      rolearn: arn:aws:iam::407967248065:role/prod-ue2b-r6a-2xl-eks-node-group
       username: system:node:{{EC2PrivateDNSName}}
     - groups:
       - system:bootstrappers
       - system:nodes
-      rolearn: arn:aws:iam::407967248065:role/prod-ue2a-r6c-2xl-eks-node-group
+      rolearn: arn:aws:iam::407967248065:role/prod-ue2c-r6a-2xl-eks-node-group
       username: system:node:{{EC2PrivateDNSName}}
   mapUsers: |
     - userarn: arn:aws:iam::407967248065:user/masih
