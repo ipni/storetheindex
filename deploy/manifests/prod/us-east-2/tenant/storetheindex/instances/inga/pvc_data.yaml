@@ -11,5 +11,5 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 160Gi
+      storage: 1Ti
   storageClassName: gp3
