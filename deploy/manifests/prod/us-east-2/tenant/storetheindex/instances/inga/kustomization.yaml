@@ -19,10 +19,6 @@ secretGenerator:
     files:
       - identity.key=identity.key.encrypted # 12D3KooWGRNQLAeMZ658jcuCkVBcVnCkxVYT4GqknQV2tRwDXfRT
 
-replicas:
-  - name: inga-indexer
-    count: 0
-
 configMapGenerator:
   - name: config
     behavior: replace
