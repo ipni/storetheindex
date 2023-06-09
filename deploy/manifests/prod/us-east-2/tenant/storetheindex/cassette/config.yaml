@@ -39,3 +39,4 @@ bitswap:
   fallbackOnWantBlock: true
   recipientsRefreshInterval: 10s
   sendChannelBuffer: 100
+  broadcastCancelAfter: 2s
