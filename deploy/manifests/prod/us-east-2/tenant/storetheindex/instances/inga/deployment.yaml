@@ -36,4 +36,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: inga-data
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: c6a-8xl
+          effect: NoSchedule
 
