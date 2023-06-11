@@ -30,4 +30,4 @@ configMapGenerator:
 images:
   - name: cassette
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/cassette
-    newTag: 20230611102024-408d38b0b68f7c67fb63d84eba1e73192a1b1b15
+    newTag: 20230611103608-58dc6312994689faa1c4fbf9d673d0b716d0394f
