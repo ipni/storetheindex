@@ -24,11 +24,6 @@ configMapGenerator:
     behavior: replace
     files:
       - config=config.json
-   
-   
-replicas:
-  - name: ago-indexer
-    count: 0
 
 patchesStrategicMerge:
   - deployment.yaml
