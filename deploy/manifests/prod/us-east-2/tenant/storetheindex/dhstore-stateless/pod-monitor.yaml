@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: dhstore-stateless
+  labels:
+    app: dhstore
+    name: dhstore-stateless
+spec:
+  selector:
+    matchLabels:
+      app: dhstore
+      name: dhstore-stateless
+  namespaceSelector:
+    matchNames:
+      - storetheindex
+  podMetricsEndpoints:
+    - path: /metrics
+      port: metrics
