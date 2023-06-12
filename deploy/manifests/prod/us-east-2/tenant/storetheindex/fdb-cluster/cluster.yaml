@@ -53,7 +53,7 @@ spec:
               resources:
                 requests:
                   cpu: 30
-                  memory: 59Gi
+                  memory: 57Gi
               securityContext:
                 runAsUser: 0
       volumeClaimTemplate:
