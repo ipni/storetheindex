@@ -119,7 +119,7 @@ provider "aws" {
 
 module "cdn_cert" {
   source  = "registry.terraform.io/terraform-aws-modules/acm/aws"
-  version = "3.4.0"
+  version = "4.3.2"
 
   #  Certificate must be in us-east-1 as dictated by CloudFront
   providers = {

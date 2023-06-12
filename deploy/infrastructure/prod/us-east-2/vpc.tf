@@ -9,7 +9,7 @@ locals {
 
 module "vpc" {
   source  = "registry.terraform.io/terraform-aws-modules/vpc/aws"
-  version = "3.13.0"
+  version = "5.0.0"
 
   name = local.environment_name
 

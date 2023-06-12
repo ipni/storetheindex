@@ -246,7 +246,7 @@ provider "aws" {
 
 module "cdn_cert" {
   source  = "registry.terraform.io/terraform-aws-modules/acm/aws"
-  version = "3.4.0"
+  version = "4.3.2"
 
   #  Certificate must be in us-east-1 as dictated by CloudFront
   providers = {
@@ -262,7 +262,7 @@ module "cdn_cert" {
 
 module "records" {
   source  = "registry.terraform.io/terraform-aws-modules/route53/aws//modules/records"
-  version = "2.6.0"
+  version = "2.10.2"
 
   zone_id = aws_route53_zone.prod_external.zone_id
 
@@ -280,7 +280,7 @@ module "records" {
 
 module "cid_contact_cert" {
   source  = "registry.terraform.io/terraform-aws-modules/acm/aws"
-  version = "3.4.0"
+  version = "4.3.2"
 
   #  Certificate must be in us-east-1 as dictated by CloudFront
   providers = {

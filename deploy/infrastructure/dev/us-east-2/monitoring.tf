@@ -61,7 +61,7 @@ resource "aws_security_group" "vpc_tls" {
 
 module "endpoints" {
   source  = "registry.terraform.io/terraform-aws-modules/vpc/aws//modules/vpc-endpoints"
-  version = "3.14.0"
+  version = "5.0.0"
 
   vpc_id             = module.vpc.vpc_id
   security_group_ids = [aws_security_group.vpc_tls.id]
