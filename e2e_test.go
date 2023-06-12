@@ -288,7 +288,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
-			findOutput := e.run(ipni, "find", "-i", "localhost:3000", "-mh", mh)
+			findOutput := e.run(ipni, "find", "--no-priv", "-i", "localhost:3000", "-mh", mh)
 			t.Logf("import output:\n%s\n", findOutput)
 
 			if bytes.Contains(findOutput, []byte("not found")) {
@@ -357,7 +357,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
-			findOutput := e.run(ipni, "find", "-i", "localhost:3000", "-mh", mh)
+			findOutput := e.run(ipni, "find", "--no-priv", "-i", "localhost:3000", "-mh", mh)
 			t.Logf("import output:\n%s\n", findOutput)
 
 			if !bytes.Contains(findOutput, []byte("not found")) {
