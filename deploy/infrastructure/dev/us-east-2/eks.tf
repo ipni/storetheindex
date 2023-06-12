@@ -3,7 +3,7 @@ module "eks" {
   version = "18.20.2"
 
   cluster_name    = local.environment_name
-  cluster_version = "1.22"
+  cluster_version = "1.23"
 
   vpc_id     = module.vpc.vpc_id
   subnet_ids = local.initial_private_subnet_ids
@@ -35,14 +35,14 @@ module "eks" {
       max_size       = 5
       desired_size   = 1
       instance_types = ["r6a.xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2b1.id,data.aws_subnet.ue2b2.id,data.aws_subnet.ue2b3.id]
+      subnet_ids     = [data.aws_subnet.ue2b1.id, data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
     }
     dev-ue2c-r6a-xl = {
       min_size       = 0
       max_size       = 5
       desired_size   = 1
       instance_types = ["r6a.xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2c1.id,data.aws_subnet.ue2c2.id,data.aws_subnet.ue2c3.id]
+      subnet_ids     = [data.aws_subnet.ue2c1.id, data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
     }
 
     # General purpose node groups, one per subnet.
@@ -85,13 +85,13 @@ module "eks" {
       max_size       = 15
       desired_size   = 1
       instance_types = ["r5a.2xlarge"]
-      subnet_ids     = [
+      subnet_ids = [
         data.aws_subnet.ue2a1.id, data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id,
         data.aws_subnet.ue2b1.id, data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id,
         data.aws_subnet.ue2c1.id, data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id,
       ]
     }
-    
+
     # Memory optimised node groups primarily used to run indexer nodes.
     dev-ue2a-r5n-2xl = {
       min_size       = 1
@@ -99,7 +99,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["r5n.2xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a2.id]
-      taints         = {
+      taints = {
         dedicated = {
           key    = "dedicated"
           value  = "r5n-2xl"
@@ -113,7 +113,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["r5n.2xlarge"]
       subnet_ids     = [data.aws_subnet.ue2b2.id]
-      taints         = {
+      taints = {
         dedicated = {
           key    = "dedicated"
           value  = "r5n-2xl"
@@ -127,7 +127,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["r5n.2xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id]
-      taints         = {
+      taints = {
         dedicated = {
           key    = "dedicated"
           value  = "r5n-2xl"
@@ -138,8 +138,4 @@ module "eks" {
   }
 
   tags = local.tags
-}
-
-data "aws_eks_cluster_auth" "this" {
-  name = module.eks.cluster_id
 }
