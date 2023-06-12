@@ -30,8 +30,6 @@ spec:
       customParameters:
         - memory=20GiB
         - cache-memory=12GiB
-        - knob_storage_hard_limit_bytes=10GiB
-        - knob_target_bytes_per_storage_server=9GiB
       podTemplate:
         spec:
           topologySpreadConstraints:
