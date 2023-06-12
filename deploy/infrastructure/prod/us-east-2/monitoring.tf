@@ -25,7 +25,7 @@ resource "aws_iam_policy" "monitoring" {
 
 module "monitoring_role" {
   source  = "registry.terraform.io/terraform-aws-modules/iam/aws//modules/iam-assumable-role-with-oidc"
-  version = "4.17.1"
+  version = "5.20.0"
 
   create_role = true
 
@@ -56,7 +56,7 @@ resource "aws_security_group" "vpc_tls" {
 
 module "endpoints" {
   source  = "registry.terraform.io/terraform-aws-modules/vpc/aws//modules/vpc-endpoints"
-  version = "3.14.0"
+  version = "5.0.0"
 
   vpc_id             = module.vpc.vpc_id
   security_group_ids = [aws_security_group.vpc_tls.id]

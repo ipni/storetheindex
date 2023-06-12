@@ -30,7 +30,7 @@ resource "aws_iam_policy" "sti_s3_rw" {
 
 module "sti_s3_rw_role" {
   source  = "registry.terraform.io/terraform-aws-modules/iam/aws//modules/iam-assumable-role-with-oidc"
-  version = "4.17.1"
+  version = "5.20.0"
 
   create_role = true
 
