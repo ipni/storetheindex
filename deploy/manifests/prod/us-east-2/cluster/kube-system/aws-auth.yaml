@@ -95,10 +95,6 @@ data:
       username: masih
       groups:
         - system:masters
-    - userarn: arn:aws:iam::407967248065:user/marco
-      username: marco
-      groups:
-        - system:masters
     - userarn: arn:aws:iam::407967248065:user/gammazero
       username: gammazero
       groups:
@@ -109,14 +105,6 @@ data:
         - system:masters
     - userarn: arn:aws:iam::407967248065:user/kylehuntsman
       username: kylehuntsman
-      groups:
-        - system:masters
-    - userarn: arn:aws:iam::407967248065:user/steveFraser
-      username: steveFraser
-      groups:
-        - system:masters
-    - userarn: arn:aws:iam::407967248065:user/cmharden
-      username: cmharden
       groups:
         - system:masters
     - userarn: arn:aws:iam::407967248065:user/mayank.pandey
