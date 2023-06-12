@@ -14,10 +14,10 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "3"
+              cpu: "10"
               memory: 28Gi
             requests:
-              cpu: "3"
+              cpu: "10"
               memory: 28Gi
       affinity:
         nodeAffinity:
