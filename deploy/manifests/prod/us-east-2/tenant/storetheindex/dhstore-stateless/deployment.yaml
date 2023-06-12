@@ -28,4 +28,4 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: fdb-dev-cluster-config
+            name: fdb-prod-cluster-config
