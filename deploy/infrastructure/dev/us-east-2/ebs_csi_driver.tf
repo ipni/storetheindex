@@ -1,6 +1,6 @@
 module "ebs_csi_controller_role" {
   source  = "registry.terraform.io/terraform-aws-modules/iam/aws//modules/iam-assumable-role-with-oidc"
-  version = "4.17.1"
+  version = "5.20.0"
 
   create_role = true
 

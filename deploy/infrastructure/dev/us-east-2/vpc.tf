@@ -6,14 +6,14 @@ locals {
 
 module "vpc" {
   source  = "registry.terraform.io/terraform-aws-modules/vpc/aws"
-  version = "3.14.0"
+  version = "5.0.0"
 
   name = local.environment_name
 
   azs                    = data.aws_availability_zones.available.names
   one_nat_gateway_per_az = true
 
-  cidr            = "20.10.0.0/16"
+  cidr = "20.10.0.0/16"
   private_subnets = [
     "20.10.1.0/24", "20.10.2.0/24", "20.10.3.0/24",
     "20.10.4.0/24", "20.10.5.0/24", "20.10.6.0/24",
