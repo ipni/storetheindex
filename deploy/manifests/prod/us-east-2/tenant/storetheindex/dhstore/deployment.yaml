@@ -20,10 +20,10 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "2"
+              cpu: "5"
               memory: 16Gi
             requests:
-              cpu: "2"
+              cpu: "5"
               memory: 16Gi
           ports:
             - containerPort: 40081
