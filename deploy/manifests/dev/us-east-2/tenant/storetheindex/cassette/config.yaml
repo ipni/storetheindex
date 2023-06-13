@@ -39,3 +39,6 @@ bitswap:
   fallbackOnWantBlock: true
   recipientsRefreshInterval: 10s
   sendChannelBuffer: 100
+cache:
+  expiry: 12h
+  size: 10000
