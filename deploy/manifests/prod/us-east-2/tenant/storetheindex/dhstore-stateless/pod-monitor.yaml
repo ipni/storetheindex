@@ -3,13 +3,11 @@ kind: PodMonitor
 metadata:
   name: dhstore-stateless
   labels:
-    app: dhstore
-    name: dhstore-stateless
+    app: dhstore-stateless
 spec:
   selector:
     matchLabels:
-      app: dhstore
-      name: dhstore-stateless
+      app: dhstore-stateless
   namespaceSelector:
     matchNames:
       - storetheindex
