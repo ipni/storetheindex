@@ -16,8 +16,7 @@ spec:
             - '--translateNonStreaming'
             # Use service names local to the namespace over HTTP to avoid
             # TLS handshake overhead.
-            - '--providersBackends=http://ber-indexer:3000/'
-            - '--providersBackends=http://cali-indexer:3000/'
+            - '--providersBackends=http://ago-indexer:3000/'
             - '--backends=http://dhfind.internal.dev.cid.contact/'
             - '--backends=http://dhfind-ago2.internal.dev.cid.contact/'
             - '--dhBackends=http://dhstore.internal.dev.cid.contact/'
