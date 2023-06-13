@@ -40,3 +40,6 @@ bitswap:
   recipientsRefreshInterval: 10s
   sendChannelBuffer: 100
   broadcastCancelAfter: 2s
+cache:
+  expiry: 24h
+  size: 1000000
