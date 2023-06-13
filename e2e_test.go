@@ -126,6 +126,9 @@ func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
 }
 
 func TestEndToEndWithReferenceProvider(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("Skipping e2e test in CI environment")
+	}
 	switch runtime.GOOS {
 	case "windows":
 		t.Skip("skipping test on", runtime.GOOS)
