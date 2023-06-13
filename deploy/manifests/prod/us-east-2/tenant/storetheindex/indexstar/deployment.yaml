@@ -16,10 +16,17 @@ spec:
             - '--translateNonStreaming'
             # Use service names local to the namespace over HTTP to avoid
             # TLS handshake overhead.
-            - '--backends=http://inga-indexer:3000/'
+            - '--providersBackends=http://inga-indexer:3000/'
+            # Keeping old indexers connected as providers backends for redundancy
+            - '--providersBackends=http://oden-indexer:3000/'
+            - '--providersBackends=http://kepa-indexer:3000/'
+            - '--providersBackends=http://dido-indexer:3000/'
             - '--backends=http://dhfind.internal.prod.cid.contact/'
             - '--backends=http://dhfind-helga.internal.prod.cid.contact/'
             - '--backends=http://dhfind-porvy.internal.prod.cid.contact/'
+            - '--dhBackends=http://dhstore.internal.prod.cid.contact/'
+            - '--dhBackends=http://dhstore-helga.internal.prod.cid.contact/'
+            - '--dhBackends=http://dhstore-porvy.internal.prod.cid.contact/'
             - '--cascadeBackends=http://caskadht.internal.prod.cid.contact/'
             - '--cascadeBackends=http://cassette.internal.prod.cid.contact/'
             - '--fallbackBackend=http://dido-indexer:3000/'
