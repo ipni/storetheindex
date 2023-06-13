@@ -4,7 +4,7 @@ kind: Kustomization
 nameSuffix: -stateless
 
 commonLabels:
-  name: dhstore-stateless
+  app: dhstore-stateless
 
 resources:
   - github.com/ipni/dhstore/deploy/kubernetes?ref=9939a3a8804356e6f5f18198dcfa8d75786f6223
