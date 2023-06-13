@@ -21,10 +21,10 @@ spec:
           resources:
             limits:
               cpu: "5"
-              memory: 16Gi
+              memory: 32Gi
             requests:
               cpu: "5"
-              memory: 16Gi
+              memory: 32Gi
           ports:
             - containerPort: 40081
               name: metrics
