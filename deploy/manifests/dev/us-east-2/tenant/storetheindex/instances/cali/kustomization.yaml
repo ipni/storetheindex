@@ -28,3 +28,7 @@ configMapGenerator:
 
 patchesStrategicMerge:
   - deployment.yaml
+
+replicas:
+  - name: cali-indexer
+    count: 0
