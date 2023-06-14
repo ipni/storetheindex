@@ -13,4 +13,4 @@ patchesStrategicMerge:
 images:
   - name: heyfil
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/heyfil
-    newTag: 20230606105827-3e587f92bbd99db6a19a99fe23d06e3ab7a65ed0
+    newTag: 20230614095932-b27edd5517dd460dda4ea456cd55c323046df5c4
