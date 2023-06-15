@@ -59,7 +59,7 @@
     "ValueStoreDir": "/data/valuestore",
     "ValueStoreType": "none",
     "DisableWAL": true,
-    "DHBatchSize": 5000,
+    "DHBatchSize": 10000,
     "DHStoreURL": "http://dhstore-porvy.internal.prod.cid.contact",
     "DHStoreClusterURLs": ["http://dhstore.internal.prod.cid.contact", "http://dhstore-helga.internal.prod.cid.contact"],
     "DHStoreHttpClientTimeout": "60s"
