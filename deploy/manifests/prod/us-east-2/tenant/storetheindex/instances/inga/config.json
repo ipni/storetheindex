@@ -59,7 +59,7 @@
     "ValueStoreDir": "/data/valuestore",
     "ValueStoreType": "none",
     "DisableWAL": true,
-    "DHBatchSize": 5000,
+    "DHBatchSize": 16384,
     "DHStoreURL": "http://dhstore-porvy.internal.prod.cid.contact",
     "DHStoreClusterURLs": ["http://dhstore.internal.prod.cid.contact", "http://dhstore-helga.internal.prod.cid.contact"],
     "DHStoreHttpClientTimeout": "60s"
@@ -82,7 +82,7 @@
     "HttpSyncRetryWaitMax": "30s",
     "HttpSyncRetryWaitMin": "1s",
     "HttpSyncTimeout": "10s",
-    "IngestWorkerCount": 20,
+    "IngestWorkerCount": 30,
     "PubSubTopic": "/indexer/ingest/mainnet",
     "ResendDirectAnnounce": false,
     "StoreBatchSize": 8192,
