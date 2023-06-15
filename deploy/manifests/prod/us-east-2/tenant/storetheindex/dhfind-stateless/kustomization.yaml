@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+nameSuffix: -stateless
+commonLabels:
+  app: dhfind-stateless
+
+resources:
+  - ../../../../../base/dhfind
+  - pod-monitor.yaml
+
+patchesStrategicMerge:
+  - deployment.yaml
+  - service.yaml
+
+replicas:
+  - name: dhfind
+    count: 2
+
+images:
+  - name: dhfind
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/dhfind
+    newTag: 20230601101637-088cda6a7b9e2b980b62251c1059170690da745e
