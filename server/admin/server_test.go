@@ -295,7 +295,7 @@ func initRegistry(t *testing.T, trustedID string) *registry.Registry {
 }
 
 func initIndex(t *testing.T, withCache bool) indexer.Interface {
-	return engine.New(nil, memory.New())
+	return engine.New(memory.New())
 }
 
 func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *ingest.Ingester {

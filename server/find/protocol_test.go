@@ -253,7 +253,7 @@ func TestRemoveProvider(t *testing.T) {
 
 // InitIndex initialize a new indexer engine.
 func initIndex(t *testing.T, withCache bool) indexer.Interface {
-	return engine.New(nil, memory.New())
+	return engine.New(memory.New())
 }
 
 // InitPebbleIndex initialize a new indexer engine using pebbel with cache.
@@ -261,9 +261,9 @@ func initPebbleIndex(t *testing.T, withCache bool) indexer.Interface {
 	valueStore, err := pebble.New(t.TempDir(), nil)
 	require.NoError(t, err)
 	if withCache {
-		return engine.New(radixcache.New(1000), valueStore)
+		return engine.New(valueStore, engine.WithCache(radixcache.New(1000)))
 	}
-	return engine.New(nil, valueStore)
+	return engine.New(valueStore)
 }
 
 func initRegistry(t *testing.T) *registry.Registry {

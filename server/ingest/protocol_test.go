@@ -111,7 +111,7 @@ func TestAnnounce(t *testing.T) {
 
 // initIndex initialize a new indexer engine.
 func initIndex(t *testing.T, withCache bool) indexer.Interface {
-	return engine.New(nil, memory.New())
+	return engine.New(memory.New())
 }
 
 // initRegistry initializes a new registry

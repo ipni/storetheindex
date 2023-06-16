@@ -16,8 +16,8 @@ type Indexer struct {
 	// requests to the DHStore service. A value < 1 results in the default
 	// size.
 	DHBatchSize int
-	// DHStoreURL is the base URL for the DHStore service. This option value
-	// tells the indexer core to use a DHStore service, if configured.
+	// DHStoreURL is the base URL for the DHStore service. This value is required
+	// if ValueStoreType is "dhstore".
 	DHStoreURL string
 	// DHStoreClusterURLs provide addional URLs that the core will send delete
 	// requests to. Deletes will be send to the dhstoreURL as well as to all
@@ -39,11 +39,13 @@ type Indexer struct {
 	// before the daemon process is terminated. If unset or zero, configures no
 	// shutdown timeout. This value is reloadable.
 	ShutdownTimeout Duration
-	// ValueStoreDir is the directory where value store is kept. If this is not
-	// an absolute path then the location is relative to the indexer repo
-	// directory.
+	// ValueStoreDir is the directory where value store is kept, if the value
+	// store type requires local storage. If this is not an absolute path then
+	// the location is relative to the indexer repo directory.
 	ValueStoreDir string
-	// ValueStoreType specifies type of valuestore to use, such as "pebble".
+	// ValueStoreType specifies type of valuestore to use, such as "dhstore" or
+	// "pebble". If no set, then defaults to "dhstore" if DHStoreURL is
+	// configures, otherwise defaults to "pebble".
 	ValueStoreType string
 	// PebbleDisableWAL sets whether to disable write-ahead-log in Pebble which
 	// can offer better performance in specific cases. Enabled by default. This
@@ -90,8 +92,12 @@ func (c *Indexer) populateUnset() {
 	if c.ValueStoreDir == "" {
 		c.ValueStoreDir = def.ValueStoreDir
 	}
-	if c.ValueStoreType == "" {
-		c.ValueStoreType = def.ValueStoreType
+	if c.ValueStoreType == "" || c.ValueStoreType == "none" {
+		if c.DHStoreURL != "" {
+			c.ValueStoreType = "dhstore"
+		} else {
+			c.ValueStoreType = def.ValueStoreType
+		}
 	}
 	if c.DHStoreHttpClientTimeout == 0 {
 		c.DHStoreHttpClientTimeout = def.DHStoreHttpClientTimeout
