@@ -24,10 +24,10 @@ spec:
           resources:
             limits:
               cpu: "3"
-              memory: 8Gi
+              memory: 10Gi
             requests:
               cpu: "3"
-              memory: 8Gi
+              memory: 10Gi
       volumes:
         - name: identity
           secret:
