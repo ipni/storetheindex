@@ -917,6 +917,10 @@ func (r *Registry) Handoff(ctx context.Context, publisherID, frozenID peer.ID, f
 // ImportProviders reads providers from another indexer and registers any that
 // are not already registered. Returns the count of newly registered providers.
 func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, error) {
+	if r.assigned != nil {
+		return 0, errors.New("feature not available when using assigner")
+	}
+
 	cl, err := findclient.New(fromURL.String())
 	if err != nil {
 		return 0, err

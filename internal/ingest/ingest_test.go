@@ -1753,7 +1753,7 @@ func TestGetEntryDataFromCar(t *testing.T) {
 
 // Make new indexer engine
 func mkIndexer(t *testing.T, withCache bool) *engine.Engine {
-	return engine.New(nil, memory.New())
+	return engine.New(memory.New())
 }
 
 func mkRegistry(t *testing.T) *registry.Registry {

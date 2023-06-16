@@ -19,6 +19,7 @@ import (
 	"time"
 
 	findclient "github.com/ipni/go-libipni/find/client"
+	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/multiformats/go-multihash"
@@ -133,7 +134,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	case "windows":
 		t.Skip("skipping test on", runtime.GOOS)
 	}
-	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	e := &e2eTestRunner{
@@ -221,7 +222,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	t.Logf("Initialized provider ID: %s", providerID)
 
 	// initialize indexer
-	e.run(indexer, "init", "--store", "pebble", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap", "--dhstore", "http://127.0.0.1:40080")
+	e.run(indexer, "init", "--store", "pebble", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap")
 	stiCfgPath := filepath.Join(e.dir, ".storetheindex", "config")
 	cfg, err = config.Load(stiCfgPath)
 	require.NoError(t, err)
@@ -286,7 +287,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	t.Logf("import output:\n%s\n", outImport)
 
 	// Wait for the CAR to be indexed
-	retryWithTimeout(t, 10*time.Second, time.Second, func() error {
+	require.Eventually(t, func() bool {
 		for _, mh := range []string{
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
@@ -295,15 +296,15 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 			t.Logf("import output:\n%s\n", findOutput)
 
 			if bytes.Contains(findOutput, []byte("not found")) {
-				return fmt.Errorf("%s: index not found", mh)
+				return false
 			}
 			if !bytes.Contains(findOutput, []byte("Provider:")) {
-				return fmt.Errorf("%s: unexpected error: %s", mh, findOutput)
+				t.Logf("mh %s: unexpected error: %s", mh, findOutput)
+				return false
 			}
 		}
-
-		return nil
-	})
+		return true
+	}, 10*time.Second, time.Second)
 
 	e.run("sync")
 
@@ -329,56 +330,16 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	// Check that IndexCount with correct value appears in providers output.
 	require.Contains(t, string(outProvider), "IndexCount: 1043")
 
-	// Create double hashed client and verify that the multihashes ended up in dhstore
-	client, err := findclient.NewDHashClient("http://127.0.0.1:3000", findclient.WithDHStoreURL("http://127.0.0.1:40080"))
-	require.NoError(t, err)
-
-	mh, err := multihash.FromB58String("2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj")
-	require.NoError(t, err)
-
-	dhResp, err := client.Find(e.ctx, mh)
-	require.NoError(t, err)
-
-	require.Equal(t, 1, len(dhResp.MultihashResults))
-	require.Equal(t, dhResp.MultihashResults[0].Multihash, mh)
-	require.Equal(t, 1, len(dhResp.MultihashResults[0].ProviderResults))
-	require.Equal(t, providerID, dhResp.MultihashResults[0].ProviderResults[0].Provider.ID.String())
-
-	// Remove a car file from the provider.  This will cause the provider to
-	// publish an advertisement that tells the indexer to remove the car file
-	// content by contextID.  The indexer will then import the advertisement
-	// and remove content.
-	outRemove := e.run(provider, "remove", "car",
-		"-i", carPath,
-		"--listen-admin", "http://localhost:3102",
-	)
-	t.Logf("remove output:\n%s\n", outRemove)
-
-	// Wait for the CAR indexes to be removed
-	retryWithTimeout(t, 10*time.Second, time.Second, func() error {
-		for _, mh := range []string{
-			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
-			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
-		} {
-			findOutput := e.run(ipni, "find", "--no-priv", "-i", "localhost:3000", "-mh", mh)
-			t.Logf("import output:\n%s\n", findOutput)
-
-			if !bytes.Contains(findOutput, []byte("not found")) {
-				return fmt.Errorf("%s: index not removed", mh)
-			}
-		}
-
-		return nil
-	})
-
-	outProvider = e.run(ipni, "provider", "-pid", providerID, "--indexer", "localhost:3000")
-	// Check that IndexCount is back to zero after removing car.
-	require.Contains(t, string(outProvider), "IndexCount: 0")
-
 	root2 := filepath.Join(e.dir, ".storetheindex2")
 	e.env = append(e.env, fmt.Sprintf("%s=%s", config.EnvDir, root2))
-	e.run(indexer, "init", "--store", "memory", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap",
-		"--listen-admin", "/ip4/127.0.0.1/tcp/3202", "--listen-finder", "/ip4/127.0.0.1/tcp/3200", "--listen-ingest", "/ip4/127.0.0.1/tcp/3201")
+	e.run(indexer, "init", "--store", "dhstore", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap", "--dhstore", "http://127.0.0.1:40080",
+		"--listen-admin", "/ip4/127.0.0.1/tcp/3202", "--listen-finder", "/ip4/127.0.0.1/tcp/3200", "--listen-ingest", "/ip4/127.0.0.1/tcp/3201",
+		"--listen-p2p", "/ip4/127.0.0.1/tcp/3203")
+
+	sti2CfgPath := filepath.Join(root2, "config")
+	cfg, err = config.Load(sti2CfgPath)
+	require.NoError(t, err)
+	indexer2ID := cfg.Identity.PeerID
 
 	cmdIndexer2 := e.start(indexer, "daemon")
 	select {
@@ -397,6 +358,72 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	// Check that provider ID now appears in providers output.
 	outProviders = e.run(ipni, "provider", "--all", "--indexer", "localhost:3200", "--id-only")
 	require.Contains(t, string(outProviders), providerID, "expected provider id in providers output after import-providers")
+
+	// Connect provider to the 2nd indexer.
+	e.run(provider, "connect",
+		"--imaddr", fmt.Sprintf("/dns/localhost/tcp/3203/p2p/%s", indexer2ID),
+		"--listen-admin", "http://localhost:3102",
+	)
+	select {
+	case <-e.providerHasPeer:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for provider to connect to indexer")
+	}
+
+	// Tell provider to send direct announce to 2nd indexer.
+	out := e.run(provider, "announce-http",
+		"-i", "http://localhost:3201",
+		"--listen-admin", "http://localhost:3102",
+	)
+	t.Logf("announce output:\n%s\n", out)
+
+	// Create double hashed client and verify that 2nd indexer wrote
+	// multihashes to dhstore.
+	client, err := findclient.NewDHashClient("http://127.0.0.1:3000", findclient.WithDHStoreURL("http://127.0.0.1:40080"))
+	require.NoError(t, err)
+
+	mh, err := multihash.FromB58String("2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj")
+	require.NoError(t, err)
+
+	var dhResp *model.FindResponse
+	require.Eventually(t, func() bool {
+		dhResp, err = client.Find(e.ctx, mh)
+		return err == nil && len(dhResp.MultihashResults) != 0
+	}, 10*time.Second, time.Second)
+
+	require.Equal(t, 1, len(dhResp.MultihashResults))
+	require.Equal(t, dhResp.MultihashResults[0].Multihash, mh)
+	require.Equal(t, 1, len(dhResp.MultihashResults[0].ProviderResults))
+	require.Equal(t, providerID, dhResp.MultihashResults[0].ProviderResults[0].Provider.ID.String())
+
+	// Remove a car file from the provider.  This will cause the provider to
+	// publish an advertisement that tells the indexer to remove the car file
+	// content by contextID.  The indexer will then import the advertisement
+	// and remove content.
+	outRemove := e.run(provider, "remove", "car",
+		"-i", carPath,
+		"--listen-admin", "http://localhost:3102",
+	)
+	t.Logf("remove output:\n%s\n", outRemove)
+
+	// Wait for the CAR indexes to be removed
+	require.Eventually(t, func() bool {
+		for _, mh := range []string{
+			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
+			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
+		} {
+			findOutput := e.run(ipni, "find", "--no-priv", "-i", "localhost:3000", "-mh", mh)
+			t.Logf("import output:\n%s\n", findOutput)
+			if !bytes.Contains(findOutput, []byte("not found")) {
+				return false
+			}
+		}
+		return true
+	}, 10*time.Second, time.Second)
+
+	outProvider = e.run(ipni, "provider", "-pid", providerID, "--indexer", "localhost:3000")
+	// Check that IndexCount is back to zero after removing car.
+	require.Contains(t, string(outProvider), "IndexCount: 0")
 
 	// Check that status is not frozen.
 	outStatus := e.run(indexer, "admin", "status", "--indexer", "localhost:3202")
@@ -417,30 +444,6 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	e.stop(cmdIndexer, time.Second)
 	e.stop(cmdProvider, time.Second)
 	e.stop(cmdDhstore, time.Second)
-}
-
-func retryWithTimeout(t *testing.T, timeout time.Duration, timeBetweenRetries time.Duration, retryableFn func() error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	var errs []error
-	// Loop until context is done
-	timer := time.NewTimer(timeBetweenRetries)
-	for {
-		err := retryableFn()
-		if err == nil {
-			return
-		}
-
-		errs = append(errs, err)
-		select {
-		case <-ctx.Done():
-			t.Fatalf("hit timeout while retrying. Errs seen: %s", errs)
-			return
-		case <-timer.C:
-			timer.Reset(timeBetweenRetries)
-		}
-	}
 }
 
 func downloadFile(fileURL, filePath string) error {

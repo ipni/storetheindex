@@ -20,6 +20,7 @@ import (
 	"github.com/ipni/go-indexer-core/cache"
 	"github.com/ipni/go-indexer-core/cache/radixcache"
 	"github.com/ipni/go-indexer-core/engine"
+	"github.com/ipni/go-indexer-core/store/dhstore"
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/go-libipni/mautil"
@@ -46,8 +47,9 @@ const (
 
 // Recognized valuestore type names.
 const (
-	vstoreMemory = "memory"
-	vstorePebble = "pebble"
+	vstoreDHStore = "dhstore"
+	vstoreMemory  = "memory"
+	vstorePebble  = "pebble"
 )
 
 var log = logging.Logger("indexer")
@@ -106,13 +108,13 @@ func daemonAction(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if valueStore != nil {
-		log.Info("Valuestore initialized")
-		// If the value store requires a minimum key length, make sure the
-		// ingester is configured with at least the minimum.
-		if minKeyLen > cfg.Ingest.MinimumKeyLength {
-			cfg.Ingest.MinimumKeyLength = minKeyLen
-		}
+	log.Info("Valuestore initialized")
+	// If the value store requires a minimum key length, make sure the
+	// ingester is configured with at least the minimum.
+	if minKeyLen > cfg.Ingest.MinimumKeyLength {
+		cfg.Ingest.MinimumKeyLength = minKeyLen
+	}
+	if vsDir != "" {
 		freezeDirs = append(freezeDirs, vsDir)
 	}
 
@@ -166,12 +168,7 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	// Create indexer core
-	indexerCore := engine.New(resultCache, valueStore,
-		engine.WithDHBatchSize(cfg.Indexer.DHBatchSize),
-		engine.WithDHStore(cfg.Indexer.DHStoreURL),
-		engine.WithDHStoreCluster(cfg.Indexer.DHStoreClusterURLs),
-		engine.WithHttpClientTimeout(time.Duration(cfg.Indexer.DHStoreHttpClientTimeout)),
-	)
+	indexerCore := engine.New(valueStore, engine.WithCache(resultCache))
 
 	indexCounts := counter.NewIndexCounts(dstore)
 	indexCounts.SetTotalAddend(cfg.Indexer.IndexCountTotalAddend)
@@ -518,27 +515,30 @@ func daemonAction(cctx *cli.Context) error {
 }
 
 func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.Interface, int, string, error) {
-	if cfgIndexer.ValueStoreType == "" || cfgIndexer.ValueStoreType == "none" {
-		return nil, 0, "", nil
-	}
-
-	dir, err := config.Path("", cfgIndexer.ValueStoreDir)
-	if err != nil {
-		return nil, 0, "", err
-	}
-	log.Infow("Valuestore initializing/opening", "type", cfgIndexer.ValueStoreType, "path", dir)
-
-	if err = fsutil.DirWritable(dir); err != nil {
-		return nil, 0, "", err
-	}
-
+	var dir string
+	var err error
 	var vs indexer.Interface
 	var minKeyLen int
 
 	switch cfgIndexer.ValueStoreType {
+	case vstoreDHStore:
+		vs, err = dhstore.New(cfgIndexer.DHStoreURL,
+			dhstore.WithDHBatchSize(cfgIndexer.DHBatchSize),
+			dhstore.WithDHStoreCluster(cfgIndexer.DHStoreClusterURLs),
+			dhstore.WithHttpClientTimeout(time.Duration(cfgIndexer.DHStoreHttpClientTimeout)))
 	case vstoreMemory:
 		vs, err = memory.New(), nil
 	case vstorePebble:
+		dir, err = config.Path("", cfgIndexer.ValueStoreDir)
+		if err != nil {
+			return nil, 0, "", err
+		}
+		log.Infow("Valuestore initializing/opening", "type", cfgIndexer.ValueStoreType, "path", dir)
+
+		if err = fsutil.DirWritable(dir); err != nil {
+			return nil, 0, "", err
+		}
+
 		// TODO: parameterize values and study what settings are right for sti
 
 		// Default options copied from cockroachdb with the addition of 1GiB cache.
