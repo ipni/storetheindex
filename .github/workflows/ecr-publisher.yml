@@ -14,7 +14,7 @@ on:
       - 'doc/**'
     branches:
       - main
-      - hack-process-deletes-only
+      - dt-timeout
 
 jobs:
   publisher:
