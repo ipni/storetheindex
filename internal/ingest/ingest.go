@@ -520,8 +520,8 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 	}
 }
 
-// Announce send an announce message to directly to dagsync, instead of through
-// pubsub.
+// Announce sends an announce message to directly to dagsync, instead of
+// through pubsub.
 func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, pubAddrInfo peer.AddrInfo) error {
 	publisher := pubAddrInfo.ID
 	log := log.With("publisher", publisher, "cid", nextCid, "addrs", pubAddrInfo.Addrs)
