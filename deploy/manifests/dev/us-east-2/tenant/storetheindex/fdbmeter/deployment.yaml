@@ -12,7 +12,6 @@ spec:
             - '--fdbClusterFile=/config/cluster-file'
             - '--statusRefreshInterval=1m'
             - '--commonAttributes=cluster=fdb-dev'
-          imagePullPolicy: Always
           resources:
             limits:
               cpu: 500m
