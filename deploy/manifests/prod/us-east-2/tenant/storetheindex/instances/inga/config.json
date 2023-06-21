@@ -68,7 +68,7 @@
     "AdvertisementDepthLimit": 33554432,
     "AdvertisementMirror": {
       "Read": true,
-      "Write": false,
+      "Write": true,
       "Compress": "gzip",
       "Storage": {
         "Type": "s3",
