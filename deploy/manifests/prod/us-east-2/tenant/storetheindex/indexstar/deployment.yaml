@@ -12,7 +12,6 @@ spec:
       containers:
         - name: indexstar
           args:
-            - '--translateReframe'
             - '--translateNonStreaming'
             # Use service names local to the namespace over HTTP to avoid
             # TLS handshake overhead.
