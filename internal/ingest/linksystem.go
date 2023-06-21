@@ -705,7 +705,7 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, providerID peer
 	if err := ing.indexer.Put(value, mhs...); err != nil {
 		return fmt.Errorf("cannot put multihashes into indexer: %w", err)
 	}
-	log.Infow("Put multihashes in entry chunk", "count", len(mhs))
+	log.Infow("Indexed multihashes from chunk", "multihashes", len(mhs))
 
 	return nil
 }

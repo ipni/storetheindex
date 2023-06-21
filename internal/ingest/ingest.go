@@ -236,7 +236,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		dagsync.AllowPeer(reg.Allowed),
 		dagsync.FilterIPs(reg.FilterIPsEnabled()),
 		dagsync.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)),
-		dagsync.UseLatestSyncHandler(&syncHandler{ing}),
+		dagsync.WithLastKnownSync(ing.getLastKnownSync),
 		dagsync.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
 		dagsync.HttpClient(rclient.StandardClient()),
 		dagsync.BlockHook(ing.generalDagsyncBlockHook),
@@ -452,7 +452,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 	// Reference to the latest synced CID is only updated if the given selector
 	// is nil.
 	opts := []dagsync.SyncOption{
-		dagsync.AlwaysUpdateLatest(),
+		dagsync.WithForceUpdateLatest(),
 	}
 	if resync {
 		// If this is a resync, then it is necessary to mark the ad as
@@ -897,6 +897,15 @@ func (ing *Ingester) GetLatestSync(publisherID peer.ID) (cid.Cid, error) {
 	return c, err
 }
 
+func (ing *Ingester) getLastKnownSync(publisherID peer.ID) (cid.Cid, bool) {
+	c, err := ing.GetLatestSync(publisherID)
+	if err != nil {
+		log.Errorw("Error getting last knonw sync", "err", err)
+		return cid.Undef, false
+	}
+	return c, c != cid.Undef
+}
+
 func (ing *Ingester) RunWorkers(n int) {
 	for n > ing.workerPoolSize {
 		// Start worker.
@@ -958,13 +967,13 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 // assignment for a provider, then workers are given the next work assignment
 // for that provider.
 func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent dagsync.SyncFinished) {
-	if len(syncFinishedEvent.SyncedCids) == 0 {
+	if syncFinishedEvent.Count == 0 {
 		// Attempted sync, but already up to data. Nothing to do.
 		return
 	}
 	publisher := syncFinishedEvent.PeerID
 	log := log.With("publisher", publisher)
-	log.Infow("Advertisement chain synced", "length", len(syncFinishedEvent.SyncedCids))
+	log.Infow("Advertisement chain synced", "length", syncFinishedEvent.Count)
 
 	var rmCount int64
 	rmCtxID := make(map[string]struct{})
@@ -984,7 +993,10 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 	// specific providers on a mixed provider chain.
 	adsGroupedByProvider := map[peer.ID][]adInfo{}
 	provAddrs := map[peer.ID][]string{}
-	for _, c := range syncFinishedEvent.SyncedCids {
+	var totalAds int64
+	var nextAdCid cid.Cid
+
+	for c := syncFinishedEvent.Cid; c != cid.Undef; c = nextAdCid {
 		// Group the CIDs by the provider. Most of the time a publisher will
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
@@ -1000,8 +1012,15 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 		if err != nil {
 			stats.Record(context.Background(), metrics.AdLoadError.M(1))
 			log.Errorw("Failed to load advertisement CID, skipping", "cid", c, "err", err)
-			continue
+			break
 		}
+		if ad.PreviousID != nil {
+			nextAdCid = ad.PreviousID.(cidlink.Link).Cid
+		} else {
+			nextAdCid = cid.Undef
+		}
+		totalAds++
+
 		providerID, err := peer.Decode(ad.Provider)
 		if err != nil {
 			log.Errorf("Failed to get provider from ad CID: %s skipping", err)
@@ -1031,7 +1050,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 		adsGroupedByProvider[providerID] = append(adsGroupedByProvider[providerID], ai)
 	}
 
-	nonRmCount := int64(len(syncFinishedEvent.SyncedCids)) - rmCount
+	nonRmCount := totalAds - rmCount
 
 	stats.Record(ctx,
 		metrics.RemoveAdCount.M(totalRmAds.Add(rmCount)),
