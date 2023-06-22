@@ -13,9 +13,7 @@ spec:
         - name: indexstar
           args:
             - '--translateNonStreaming'
-            # Exclude inga because it is suffering from high CPU usage that then results 
-            # in large influx of 404s due to provider info lookup failing via dhfind instances.
-            # - '--providersBackends=http://inga-indexer:3000/'
+            - '--providersBackends=http://inga-indexer:3000/'
             
             # New FDB-backed new indexers 
             - '--providersBackends=http://arya-indexer:3000/'
