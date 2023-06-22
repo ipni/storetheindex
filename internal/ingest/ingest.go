@@ -903,7 +903,7 @@ func (ing *Ingester) getLastKnownSync(publisherID peer.ID) (cid.Cid, bool) {
 		log.Errorw("Error getting last knonw sync", "err", err)
 		return cid.Undef, false
 	}
-	return c, c != cid.Undef
+	return c, true
 }
 
 func (ing *Ingester) RunWorkers(n int) {
