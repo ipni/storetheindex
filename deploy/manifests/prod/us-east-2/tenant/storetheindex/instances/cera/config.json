@@ -58,7 +58,7 @@
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "",
     "ValueStoreType": "none",
-    "DHBatchSize": 16384,
+    "DHBatchSize": 16,
     "DHStoreURL": "http://dhstore-stateless:40080",
     "DHStoreHttpClientTimeout": "30s"
   },
