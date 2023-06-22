@@ -13,9 +13,15 @@ spec:
         - name: indexstar
           args:
             - '--translateNonStreaming'
-            # Use service names local to the namespace over HTTP to avoid
-            # TLS handshake overhead.
-            - '--providersBackends=http://inga-indexer:3000/'
+            # Exclude inga because it is suffering from high CPU usage that then results 
+            # in large influx of 404s due to provider info lookup failing via dhfind instances.
+            # - '--providersBackends=http://inga-indexer:3000/'
+            
+            # New FDB-backed new indexers 
+            - '--providersBackends=http://arya-indexer:3000/'
+            - '--providersBackends=http://bala-indexer:3000/'
+            - '--providersBackends=http://cera-indexer:3000/'
+            
             # Keeping old indexers connected as providers backends for redundancy
             - '--providersBackends=http://oden-indexer:3000/'
             - '--providersBackends=http://kepa-indexer:3000/'
