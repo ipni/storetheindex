@@ -26,10 +26,10 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "7"
+              cpu: "29"
               memory: 60Gi
             requests:
-              cpu: "7"
+              cpu: "29"
               memory: 60Gi
           ports:
             - containerPort: 40081
@@ -42,7 +42,7 @@ spec:
                   - key: node.kubernetes.io/instance-type
                     operator: In
                     values:
-                      - r5n.2xlarge
+                      - c6a.8xlarge
                   - key: topology.kubernetes.io/zone
                     operator: In
                     values:
@@ -51,9 +51,4 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: dhstore-data-porvy
-      tolerations:
-        - key: dedicated
-          operator: Equal
-          value: r5n-2xl
-          effect: NoSchedule
 
