@@ -82,7 +82,7 @@
     "HttpSyncRetryWaitMax": "30s",
     "HttpSyncRetryWaitMin": "1s",
     "HttpSyncTimeout": "10s",
-    "IngestWorkerCount": 10,
+    "IngestWorkerCount": 100,
     "PubSubTopic": "/indexer/ingest/mainnet",
     "ResendDirectAnnounce": false,
     "StoreBatchSize": 8192,
