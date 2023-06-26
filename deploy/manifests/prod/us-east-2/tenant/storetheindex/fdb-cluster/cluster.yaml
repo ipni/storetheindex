@@ -26,7 +26,41 @@ spec:
       - foundationdb.org/fdb-process-group-id
   minimumUptimeSecondsForBounce: 60
   processes:
-    general:
+    log:
+      customParameters:
+        - memory=50GiB
+        - cache-memory=32GiB
+      podTemplate:
+        spec:
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: ScheduleAnyway
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: node.kubernetes.io/instance-type
+                        operator: In
+                        values:
+                          # 32 CPU, 64GiB memory
+                          - c6a.8xlarge
+          containers:
+            - name: foundationdb
+              resources:
+                requests:
+                  cpu: 30
+                  memory: 57Gi
+              securityContext:
+                runAsUser: 0
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3-iops16k-t1000
+          resources:
+            requests:
+              storage: 2Ti
+    storage:
       customParameters:
         - memory=20GiB
         - cache-memory=12GiB
