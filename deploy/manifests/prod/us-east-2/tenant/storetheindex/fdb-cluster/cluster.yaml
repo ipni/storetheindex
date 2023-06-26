@@ -4,7 +4,7 @@ metadata:
   name: fdb-prod-cluster
 spec:
   version: 7.1.33
-  storageServersPerPod: 3
+  storageServersPerPod: 2
   automationOptions:
     replacements:
       enabled: true
@@ -16,7 +16,8 @@ spec:
   processCounts:
     storage: 5
     log: 2
-    stateless: 2
+    coordinator: 3
+    stateless: -1
   labels:
     matchLabels:
       foundationdb.org/fdb-cluster-name: fdb-prod-cluster
@@ -26,6 +27,10 @@ spec:
       - foundationdb.org/fdb-process-group-id
   minimumUptimeSecondsForBounce: 60
   processes:
+    general:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3
     log:
       customParameters:
         - memory=50GiB
@@ -99,4 +104,4 @@ spec:
     enableLivenessProbe: true
   routing:
     useDNSInClusterFile: true
-  replaceInstancesWhenResourcesChange:  true
+  replaceInstancesWhenResourcesChange: true
