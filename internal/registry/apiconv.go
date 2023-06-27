@@ -27,6 +27,12 @@ func RegToApiProviderInfo(pi *ProviderInfo, indexCount uint64) *model.ProviderIn
 			apiPI.LastAdvertisementTime = pi.LastAdvertisementTime.Format(time.RFC3339)
 		}
 	}
+	if pi.LastError != nil {
+		apiPI.LastError = pi.LastError.Error()
+		if !pi.LastErrorTime.IsZero() {
+			apiPI.LastErrorTime = pi.LastErrorTime.Format(time.RFC3339)
+		}
+	}
 
 	if pi.Publisher.Validate() == nil && pi.PublisherAddr != nil {
 		apiPI.Publisher = &peer.AddrInfo{

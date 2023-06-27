@@ -91,6 +91,12 @@ type ProviderInfo struct {
 	// FrozenAtTime is the time that the FrozenAt advertisement was received.
 	FrozenAtTime time.Time
 
+	// LastError is a description of the last ingestion error to occur for this
+	// provider.
+	LastError error `json:",omitempty"`
+	// LastErrorTime is the time that LastError occurred.
+	LastErrorTime time.Time
+
 	// lastContactTime is the last time the publisher contacted the indexer.
 	// This is not persisted, so that the time since last contact is reset when
 	// the indexer is started. If not reset, then it would appear the publisher
@@ -687,6 +693,9 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 
 			FrozenAt:     info.FrozenAt,
 			FrozenAtTime: info.FrozenAtTime,
+
+			LastError:     info.LastError,
+			LastErrorTime: info.LastErrorTime,
 		}
 
 		// If new addrs provided, update to use these.
@@ -1000,6 +1009,20 @@ func (r *Registry) RemoveProvider(ctx context.Context, providerID peer.ID) error
 		}
 	}
 	return nil
+}
+
+func (r *Registry) SetLastError(providerID peer.ID, err error) {
+	now := time.Now()
+	r.actions <- func() {
+		pinfo, ok := r.providers[providerID]
+		if !ok {
+			return
+		}
+		pinfoCpy := *pinfo
+		pinfoCpy.LastError = err
+		pinfoCpy.LastErrorTime = now
+		r.providers[providerID] = &pinfoCpy
+	}
 }
 
 func (r *Registry) CheckSequence(peerID peer.ID, seq uint64) error {
