@@ -136,6 +136,8 @@ type Ingester struct {
 	autoSyncDone      chan struct{}
 	closePendingSyncs chan struct{}
 
+	overwriteMirrorOnResync bool
+
 	// A map of providers currently being processed. A worker holds the lock of
 	// a provider while ingesting ads for that provider.
 	providersBeingProcessed   map[peer.ID]chan struct{}
@@ -199,6 +201,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		autoSyncDone:      make(chan struct{}),
 		closePendingSyncs: make(chan struct{}),
 
+		overwriteMirrorOnResync: cfg.OverwriteMirrorOnResync,
 		providersBeingProcessed: make(map[peer.ID]chan struct{}),
 		providerWorkAssignment:  make(map[peer.ID]*atomic.Value),
 		stopWorker:              make(chan struct{}),
@@ -1207,8 +1210,9 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 				ing.reg.SetLastError(provider, markErr)
 			}
 			if !frozen && keep {
+				overwrite := ai.resync && ing.overwriteMirrorOnResync
 				// Write the advertisement to a CAR file, but omit the entries.
-				carInfo, err := ing.mirror.write(ctx, ai.cid, true, ai.resync)
+				carInfo, err := ing.mirror.write(ctx, ai.cid, true, overwrite)
 				if err != nil {
 					if !errors.Is(err, fs.ErrExist) {
 						// Log the error, but do not return. Continue on to save the procesed ad.
@@ -1287,7 +1291,8 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 		}
 
 		if !frozen && keep {
-			carInfo, err := ing.mirror.write(ctx, ai.cid, false, ai.resync)
+			overwrite := ai.resync && ing.overwriteMirrorOnResync
+			carInfo, err := ing.mirror.write(ctx, ai.cid, false, overwrite)
 			if err != nil {
 				if !errors.Is(err, fs.ErrExist) {
 					// Log the error, but do not return. Continue on to save the procesed ad.

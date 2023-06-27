@@ -55,6 +55,8 @@ type Ingest struct {
 	// MinimumKeyLengt causes any multihash, that has a digest length less than
 	// this, to be ignored.
 	MinimumKeyLength int
+	// OverwriteMirrorOnResync overwrites the advertisement when resyncing.
+	OverwriteMirrorOnResync bool
 	// PubSubTopic sets the topic name to which to subscribe for ingestion
 	// announcements.
 	PubSubTopic string
