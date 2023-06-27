@@ -1169,6 +1169,13 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 	}
 	headAdCid := assignment.adInfos[0].cid
 
+	if ing.mirror.canWrite() && !assignment.adInfos[0].resync {
+		_, err := ing.mirror.writeHead(ctx, headAdCid, assignment.publisher)
+		if err != nil {
+			log.Errorw("Cannot write publisher head", "err", err)
+		}
+	}
+
 	total := len(assignment.adInfos)
 	log.Infow("Running worker on ad stack", "headAdCid", headAdCid, "numAdsToProcess", total)
 	var count int
@@ -1221,11 +1228,6 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 					// else car file already exists
 				} else {
 					log.Infow("Wrote CAR for skipped advertisement", "path", carInfo.Path, "size", carInfo.Size)
-					// TODO: Move this when iterating latest (head) to earliest (root).
-					_, err = ing.mirror.writeHead(ctx, ai.cid, assignment.publisher)
-					if err != nil {
-						log.Errorw("Cannot write publisher head", "err", err)
-					}
 				}
 			}
 
@@ -1301,11 +1303,6 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 				// else car file already exists
 			} else {
 				log.Infow("Wrote CAR for advertisement", "path", carInfo.Path, "size", carInfo.Size)
-				// TODO: Move this when iterating latest (head) to earliest (root).
-				_, err = ing.mirror.writeHead(ctx, ai.cid, assignment.publisher)
-				if err != nil {
-					log.Errorw("Cannot write publisher head", "err", err)
-				}
 			}
 		}
 
