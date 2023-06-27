@@ -15,10 +15,11 @@ spec:
             - '--translateNonStreaming'
             - '--providersBackends=http://inga-indexer:3000/'
             
-            # New FDB-backed new indexers 
-            - '--providersBackends=http://arya-indexer:3000/'
-            - '--providersBackends=http://bala-indexer:3000/'
-            - '--providersBackends=http://cera-indexer:3000/'
+            # New FDB-backed new indexers
+            # Excluded while load testing FoundationDB
+            # - '--providersBackends=http://arya-indexer:3000/'
+            # - '--providersBackends=http://bala-indexer:3000/'
+            # - '--providersBackends=http://cera-indexer:3000/'
             
             # Keeping old indexers connected as providers backends for redundancy
             - '--providersBackends=http://oden-indexer:3000/'
