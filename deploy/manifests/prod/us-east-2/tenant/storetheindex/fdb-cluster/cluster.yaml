@@ -35,6 +35,8 @@ spec:
       customParameters:
         - memory=50GiB
         - cache-memory=32GiB
+        # Increase the default max outstanding IO operations (64), used in AIO with O_DIRECT interface.
+        - knob_max_outstanding=256
       podTemplate:
         spec:
           topologySpreadConstraints:
@@ -69,6 +71,8 @@ spec:
       customParameters:
         - memory=20GiB
         - cache-memory=12GiB
+        # Increase the default max outstanding IO operations (64), used in AIO with O_DIRECT interface.
+        - knob_max_outstanding=256
       podTemplate:
         spec:
           topologySpreadConstraints:
