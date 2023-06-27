@@ -37,6 +37,9 @@ spec:
         - cache-memory=32GiB
         # Increase the default max outstanding IO operations (64), used in AIO with O_DIRECT interface.
         - knob_max_outstanding=256
+        # Increase relocation and fetch keys parallelism to speed up data distribution across the cluster.
+        - knob_relocation_parallelism_per_source_server=8
+        - knob_fetch_keys_parallelism_bytes=5e6
       podTemplate:
         spec:
           topologySpreadConstraints:
@@ -73,6 +76,9 @@ spec:
         - cache-memory=12GiB
         # Increase the default max outstanding IO operations (64), used in AIO with O_DIRECT interface.
         - knob_max_outstanding=256
+        # Increase relocation and fetch keys parallelism to speed up data distribution across the cluster.
+        - knob_relocation_parallelism_per_source_server=8
+        - knob_fetch_keys_parallelism_bytes=5e6
       podTemplate:
         spec:
           topologySpreadConstraints:
