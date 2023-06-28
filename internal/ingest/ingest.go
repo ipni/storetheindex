@@ -843,7 +843,6 @@ func (ing *Ingester) autoSync() {
 				// also means that the datastore is failing to store data, so
 				// likely nothing else is working.
 				log.Errorw("Failed to mark ad from handoff as processed", "err", err)
-				ing.reg.SetLastError(provInfo.AddrInfo.ID, fmt.Errorf("handoff error: %s", err))
 				continue
 			}
 		}
@@ -1214,7 +1213,6 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			keep := ing.mirror.canWrite()
 			if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, keep); markErr != nil {
 				log.Errorw("Failed to mark ad as processed", "err", markErr)
-				ing.reg.SetLastError(provider, markErr)
 			}
 			if !frozen && keep {
 				overwrite := ai.resync && ing.overwriteMirrorOnResync
@@ -1254,7 +1252,6 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 
 		var adIngestErr adIngestError
 		if errors.As(err, &adIngestErr) {
-			ing.reg.SetLastError(provider, fmt.Errorf("ingest error with ad %s: %s", ai.cid, err))
 			switch adIngestErr.state {
 			case adIngestDecodingErr, adIngestMalformedErr, adIngestEntryChunkErr, adIngestContentNotFound:
 				// These error cases are permanent. If retried later the same
@@ -1267,13 +1264,13 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 				stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
 				stats.WithTags(tag.Insert(metrics.ErrKind, string(adIngestErr.state))))
 		} else if err != nil {
-			ing.reg.SetLastError(provider, fmt.Errorf("error while ingesting ad %s: %s", ai.cid, err))
 			stats.RecordWithOptions(context.Background(),
 				stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
 				stats.WithTags(tag.Insert(metrics.ErrKind, "other error")))
 		}
 
 		if err != nil {
+			ing.reg.SetLastError(provider, fmt.Errorf("error while ingesting ad %s: %s", ai.cid, err))
 			log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err, "adsLeftToProcess", i+1)
 			// Tell anyone waiting that the sync finished for this head because
 			// of error.  TODO(mm) would be better to propagate the error.
@@ -1285,11 +1282,11 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			}
 			return
 		}
+		ing.reg.SetLastError(provider, nil)
 
 		keep := ing.mirror.canWrite()
 		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, keep); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
-			ing.reg.SetLastError(provider, markErr)
 		}
 
 		if !frozen && keep {

@@ -1012,10 +1012,13 @@ func (r *Registry) RemoveProvider(ctx context.Context, providerID peer.ID) error
 }
 
 func (r *Registry) SetLastError(providerID peer.ID, err error) {
-	now := time.Now()
+	var now time.Time
+	if err != nil {
+		now = time.Now()
+	}
 	r.actions <- func() {
 		pinfo, ok := r.providers[providerID]
-		if !ok {
+		if !ok || err == pinfo.LastError {
 			return
 		}
 		pinfoCpy := *pinfo
