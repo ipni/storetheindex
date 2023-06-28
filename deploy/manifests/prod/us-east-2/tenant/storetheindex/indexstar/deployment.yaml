@@ -21,10 +21,11 @@ spec:
             # - '--providersBackends=http://bala-indexer:3000/'
             # - '--providersBackends=http://cera-indexer:3000/'
             
-            # Keeping old indexers connected as providers backends for redundancy
-            - '--providersBackends=http://oden-indexer:3000/'
-#            - '--providersBackends=http://kepa-indexer:3000/'
-#            - '--providersBackends=http://dido-indexer:3000/'
+            # Remove old nodes since inga is largely caught up and other indexers may be further behind/forward.
+            # This results in inconsistent responses and hard to debugt issues.
+            # - '--providersBackends=http://oden-indexer:3000/'
+            # - '--providersBackends=http://kepa-indexer:3000/'
+            # - '--providersBackends=http://dido-indexer:3000/'
             - '--backends=http://dhfind.internal.prod.cid.contact/'
             - '--backends=http://dhfind-helga.internal.prod.cid.contact/'
             - '--backends=http://dhfind-porvy.internal.prod.cid.contact/'
