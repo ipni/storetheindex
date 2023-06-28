@@ -599,8 +599,8 @@ github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd/go.mod h1:9DD/GM0JNPoisgR09F62kbBi7kHa4eDIea4XshXYOVc=
 github.com/ipni/go-indexer-core v0.8.0 h1:HPFMngR47FL49mVnOZBrcxJoRODjIadlP+UYMRboNKA=
 github.com/ipni/go-indexer-core v0.8.0/go.mod h1:Y9su+no9k6y+jnQRERP/CKJewdISHzzl+n91GA+y4Ao=
-github.com/ipni/go-libipni v0.2.5-0.20230627013754-3ffcce76beea h1:LDhaZVXh6VjKA78PffSW+0L15XdFbGCyn7EzrtvYRQI=
-github.com/ipni/go-libipni v0.2.5-0.20230627013754-3ffcce76beea/go.mod h1:ej3Kw/58NEyM/NOCJTL7W62PjWwGGM1Dq/6chpUzGOM=
+github.com/ipni/go-libipni v0.2.5-0.20230628005641-f3760efb1b43 h1:0pBGLhYCNRasn8Q7MtTJ2/z63EZh3jGzGBIpL1RhzKU=
+github.com/ipni/go-libipni v0.2.5-0.20230628005641-f3760efb1b43/go.mod h1:ej3Kw/58NEyM/NOCJTL7W62PjWwGGM1Dq/6chpUzGOM=
 github.com/iris-contrib/blackfriday v2.0.0+incompatible/go.mod h1:UzZ2bDEoaSGPbkg6SAB4att1aAwTmVIx/5gCVqeyUdI=
 github.com/iris-contrib/go.uuid v2.0.0+incompatible/go.mod h1:iz2lgM/1UnEf1kP0L/+fafWORmlnuysV2EMP8MW+qe0=
 github.com/iris-contrib/i18n v0.0.0-20171121225848-987a633949d0/go.mod h1:pMCz62A0xJL6I+umB2YTlFRwWXaDFA0jy+5HzGiJjqI=
