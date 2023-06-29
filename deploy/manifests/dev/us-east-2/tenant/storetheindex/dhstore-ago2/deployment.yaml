@@ -18,7 +18,6 @@ spec:
       containers:
         - name: dhstore
           args:
-            - '--providersURL=http://ago-indexer:3000/'
             - '--storePath=/data'
             - '--disableWAL'
             - '--blockCacheSize=2Gi'
