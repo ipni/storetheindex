@@ -93,7 +93,7 @@ type ProviderInfo struct {
 
 	// LastError is a description of the last ingestion error to occur for this
 	// provider.
-	LastError error `json:",omitempty"`
+	LastError string `json:",omitempty"`
 	// LastErrorTime is the time that LastError occurred.
 	LastErrorTime time.Time
 
@@ -1018,11 +1018,17 @@ func (r *Registry) SetLastError(providerID peer.ID, err error) {
 	}
 	r.actions <- func() {
 		pinfo, ok := r.providers[providerID]
-		if !ok || err == pinfo.LastError {
+		if !ok {
+			return
+		}
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		} else if pinfo.LastError == "" {
 			return
 		}
 		pinfoCpy := *pinfo
-		pinfoCpy.LastError = err
+		pinfoCpy.LastError = errMsg
 		pinfoCpy.LastErrorTime = now
 		r.providers[providerID] = &pinfoCpy
 	}
@@ -1355,6 +1361,8 @@ func loadPersistedProviders(ctx context.Context, dstore datastore.Datastore, fil
 	}
 	defer results.Close()
 
+	var fixes []*ProviderInfo
+
 	for result := range results.Next() {
 		if result.Error != nil {
 			return nil, fmt.Errorf("cannot read provider data: %v", result.Error)
@@ -1373,6 +1381,7 @@ func loadPersistedProviders(ctx context.Context, dstore datastore.Datastore, fil
 			pinfo.AddrInfo.ID = peerID
 			// Add the provider to the set of registered providers so that it
 			// does not get delisted. The next update should fix the addresses.
+			fixes = append(fixes, pinfo)
 		}
 
 		if filterIPs {
@@ -1393,6 +1402,21 @@ func loadPersistedProviders(ctx context.Context, dstore datastore.Datastore, fil
 		}
 
 		providers[peerID] = pinfo
+	}
+
+	if len(fixes) != 0 {
+		for _, pinfo := range fixes {
+			value, err := json.Marshal(pinfo)
+			if err != nil {
+				log.Errorw("Cannot marshal provider info", "err", err, "provider", pinfo.AddrInfo.ID)
+				continue
+			}
+			if err = dstore.Put(ctx, pinfo.dsKey(), value); err != nil {
+				log.Errorw("Cannot store provider info", "err", err, "provider", pinfo.AddrInfo.ID)
+				continue
+			}
+		}
+		_ = dstore.Sync(ctx, datastore.NewKey(providerKeyPath))
 	}
 
 	return providers, nil
