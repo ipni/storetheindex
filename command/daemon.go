@@ -197,7 +197,7 @@ func daemonAction(cctx *cli.Context) error {
 			httpfind.WithWriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
 			httpfind.WithMaxConnections(cfg.Finder.MaxConnections),
 			httpfind.WithHomepage(cfg.Finder.Webpage),
-			httpfind.WithIndexCounts(indexCounts),
+			//httpfind.WithIndexCounts(indexCounts),
 			httpfind.WithVersion(cctx.App.Version),
 		)
 		if err != nil {
