@@ -14,6 +14,7 @@ on:
       - 'doc/**'
     branches:
       - main
+      - 'masih/disable_index_count'
 
 jobs:
   publisher:
