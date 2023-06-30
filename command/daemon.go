@@ -171,7 +171,7 @@ func daemonAction(cctx *cli.Context) error {
 	indexerCore := engine.New(valueStore, engine.WithCache(resultCache))
 
 	var indexCounts *counter.IndexCounts
-	if cfg.Ingest.IndexCountsEnabled || cfg.Finder.IndexCountsEnabled {
+	if cfg.Indexer.IndexCountEnabled {
 		indexCounts = counter.NewIndexCounts(dstore)
 		indexCounts.SetTotalAddend(cfg.Indexer.IndexCountTotalAddend)
 	}
@@ -195,17 +195,14 @@ func daemonAction(cctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("bad find address %s: %s", findAddr, err)
 		}
-		opts := []httpfind.Option{
+		findSvr, err = httpfind.New(findNetAddr.String(), indexerCore, reg,
 			httpfind.WithReadTimeout(time.Duration(cfg.Finder.ApiReadTimeout)),
 			httpfind.WithWriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
 			httpfind.WithMaxConnections(cfg.Finder.MaxConnections),
 			httpfind.WithHomepage(cfg.Finder.Webpage),
+			httpfind.WithIndexCounts(indexCounts),
 			httpfind.WithVersion(cctx.App.Version),
-		}
-		if cfg.Finder.IndexCountsEnabled {
-			opts = append(opts, httpfind.WithIndexCounts(indexCounts))
-		}
-		findSvr, err = httpfind.New(findNetAddr.String(), indexerCore, reg, opts...)
+		)
 		if err != nil {
 			return err
 		}
@@ -253,12 +250,8 @@ func daemonAction(cctx *cli.Context) error {
 			cfg.Ingest.ResendDirectAnnounce = false
 		}
 
-		var ingestOpts []ingest.Option
-		if cfg.Ingest.IndexCountsEnabled {
-			ingestOpts = append(ingestOpts, ingest.WithIndexCounts(indexCounts))
-		}
 		// Initialize ingester.
-		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, dsTmp, ingestOpts...)
+		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, dsTmp, ingest.WithIndexCounts(indexCounts))
 		if err != nil {
 			return err
 		}
