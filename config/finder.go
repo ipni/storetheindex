@@ -20,6 +20,9 @@ type Finder struct {
 	// Webpage is a domain to display when the homepage of the finder is
 	// accessed over HTTP.
 	Webpage string
+	// IndexCountsEnabled sets whether showing provider index count is enabled on the find server at /providers.
+	// Disabled by default. See Ingest.IndexCountsEnabled.
+	IndexCountsEnabled bool
 }
 
 func NewFinder() Finder {
