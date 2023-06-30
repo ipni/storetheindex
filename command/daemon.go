@@ -248,8 +248,8 @@ func daemonAction(cctx *cli.Context) error {
 		}
 
 		// Initialize ingester.
-		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, dsTmp,
-			ingest.WithIndexCounts(indexCounts))
+		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, dsTmp) //ingest.WithIndexCounts(indexCounts)
+
 		if err != nil {
 			return err
 		}
