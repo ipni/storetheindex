@@ -76,9 +76,6 @@ type Ingest struct {
 	// or a chain of advertisement entries. The value is an integer string
 	// ending in "s", "m", "h" for seconds. minutes, hours.
 	SyncTimeout Duration
-	// IndexCountsEnabled sets whether ingest process should count the number of index records per provider.
-	// Disabled by default. See: Finder.IndexCountsEnabled.
-	IndexCountsEnabled bool
 }
 
 type Mirror struct {
