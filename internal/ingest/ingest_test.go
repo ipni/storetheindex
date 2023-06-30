@@ -444,7 +444,7 @@ func TestFailDuringSync(t *testing.T) {
 		require.Error(t, err)
 		// Should see last error since cannot ingest ad entries.
 		pInfo, _ := te.reg.ProviderInfo(te.pubHost.ID())
-		require.Error(t, pInfo.LastError)
+		require.NotEmpty(t, pInfo.LastError)
 		t.Log("Last Error:", pInfo.LastError)
 	}()
 	// The ingester tried to sync B, but it was blocked. Now let's stop the ingester.

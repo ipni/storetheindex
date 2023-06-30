@@ -1021,8 +1021,10 @@ func (r *Registry) SetLastError(providerID peer.ID, err error) {
 		if !ok {
 			return
 		}
-		errMsg := err.Error()
-		if errMsg == pinfo.LastError {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		} else if pinfo.LastError == "" {
 			return
 		}
 		pinfoCpy := *pinfo
