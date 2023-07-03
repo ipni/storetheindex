@@ -12,6 +12,7 @@ spec:
       containers:
         - name: dhstore
           args:
+            - '--providersURL=http://inga-indexer:3000/'
             - '--storePath=/data'
             - '--disableWAL'
             - '--blockCacheSize=2Gi'
