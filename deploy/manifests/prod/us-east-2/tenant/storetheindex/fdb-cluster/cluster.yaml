@@ -80,7 +80,7 @@ spec:
               storage: 2Ti
     storage:
       customParameters:
-        - memory=20GiB
+        - memory=28GiB
         - cache-memory=5GiB
         # Increase the default max outstanding IO operations (64), used in AIO with O_DIRECT interface.
         - knob_max_outstanding=256
