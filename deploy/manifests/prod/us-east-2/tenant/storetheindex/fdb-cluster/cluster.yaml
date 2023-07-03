@@ -34,7 +34,7 @@ spec:
     log:
       customParameters:
         - memory=50GiB
-        - cache-memory=32GiB
+        - cache-memory=12.5GiB
         # Increase the default max outstanding IO operations (64), used in AIO with O_DIRECT interface.
         - knob_max_outstanding=256
         # Increase relocation and fetch keys parallelism to speed up data distribution across the cluster.
@@ -81,7 +81,7 @@ spec:
     storage:
       customParameters:
         - memory=20GiB
-        - cache-memory=12GiB
+        - cache-memory=5GiB
         # Increase the default max outstanding IO operations (64), used in AIO with O_DIRECT interface.
         - knob_max_outstanding=256
         # Increase relocation and fetch keys parallelism to speed up data distribution across the cluster.
