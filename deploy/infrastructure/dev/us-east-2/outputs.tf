@@ -10,6 +10,10 @@ output "kms_autoretrieve_alias_arn" {
   value = aws_kms_alias.kms_autoretrieve.arn
 }
 
+output "kms_tornado_alias_arn" {
+  value = aws_kms_alias.kms_tornado.arn
+}
+
 output "kms_index_provider_alias_arn" {
   value = aws_kms_alias.kms_index_provider.arn
 }
