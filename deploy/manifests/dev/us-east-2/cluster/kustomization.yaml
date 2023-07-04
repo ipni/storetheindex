@@ -19,3 +19,4 @@ resources:
   - snapshots
   - ../../../base/k6-operator
   - ../../../base/foundationdb/crds
+  - tornado
