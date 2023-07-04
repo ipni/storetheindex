@@ -4,7 +4,6 @@ module "ecr_ue2" {
   repositories = [
     "storetheindex/storetheindex",
     "index-observer/index-observer",
-    "autoretrieve/autoretrieve",
     "index-provider/index-provider",
     "indexstar/indexstar",
     "ipni/heyfil",
