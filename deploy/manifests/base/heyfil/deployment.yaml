@@ -23,3 +23,5 @@ spec:
           ports:
             - containerPort: 8080
               name: metrics
+            - containerPort: 8081
+              name: api
