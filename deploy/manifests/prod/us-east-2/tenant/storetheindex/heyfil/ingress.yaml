@@ -9,10 +9,10 @@ metadata:
 spec:
   tls:
     - hosts:
-        - heyfil.cid.contact
+        - heyfil.prod.cid.contact
       secretName: heyfil-ingress-tls
   rules:
-    - host: heyfil.cid.contact
+    - host: heyfil.prod.cid.contact
       http:
         paths:
           - path: /
