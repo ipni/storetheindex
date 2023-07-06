@@ -6,6 +6,8 @@ namespace: storetheindex
 resources:
   - ../../../../../base/heyfil
   - monitor.yaml
+  - pvc.yaml
+  - ingress.yaml
 
 patchesStrategicMerge:
   - deployment.yaml
@@ -13,4 +15,4 @@ patchesStrategicMerge:
 images:
   - name: heyfil
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/heyfil
-    newTag: 20230614095932-b27edd5517dd460dda4ea456cd55c323046df5c4
+    newTag: 20230706124905-cf3b03385090e32fdf35fd6974dbc8e881f1cab1

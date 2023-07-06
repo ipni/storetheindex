@@ -9,6 +9,7 @@ spec:
         - name: heyfil
           args:
             - '--httpIndexerEndpoint=https://dev.cid.contact'
+            - '--storePath=/store'
           resources:
             limits:
               cpu: "2"
@@ -16,4 +17,10 @@ spec:
             requests:
               cpu: "2"
               memory: 2Gi
-            
+          volumeMounts:
+            - name: store
+              mountPath: /store
+      volumes:
+        - name: store
+          persistentVolumeClaim:
+            claimName: heyfil
