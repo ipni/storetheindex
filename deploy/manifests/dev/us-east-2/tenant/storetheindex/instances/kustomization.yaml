@@ -6,8 +6,6 @@ namespace: storetheindex
 resources:
   - pdb.yaml
   - pod-monitor.yaml
-  - ber
-  - cali
   - ago
   - alva
   - bria
