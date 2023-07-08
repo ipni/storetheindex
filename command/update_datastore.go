@@ -151,60 +151,6 @@ func rmOldTempRecords(ctx context.Context, ds datastore.Batching) error {
 	return nil
 }
 
-func rmDtFsmRecords(ctx context.Context, ds datastore.Batching) error {
-	q := query.Query{
-		KeysOnly: true,
-		Prefix:   "/data-transfer-v2",
-	}
-	results, err := ds.Query(ctx, q)
-	if err != nil {
-		return fmt.Errorf("cannot query datastore: %w", err)
-	}
-	defer results.Close()
-
-	batch, err := ds.Batch(ctx)
-	if err != nil {
-		return fmt.Errorf("cannot create datastore batch: %w", err)
-	}
-
-	var dtKeyCount, writeCount int
-	for result := range results.Next() {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if writeCount >= updateBatchSize {
-			writeCount = 0
-			if err = batch.Commit(ctx); err != nil {
-				return fmt.Errorf("cannot commit datastore: %w", err)
-			}
-			log.Infow("Datastore update removed data-transfer fsm records", "count", dtKeyCount)
-		}
-		if result.Error != nil {
-			return fmt.Errorf("cannot read query result from datastore: %w", result.Error)
-		}
-		ent := result.Entry
-		if len(ent.Key) == 0 {
-			log.Warnf("result entry has empty key")
-			continue
-		}
-
-		if err = batch.Delete(ctx, datastore.NewKey(ent.Key)); err != nil {
-			return fmt.Errorf("cannot delete dt state key from datastore: %w", err)
-		}
-		writeCount++
-		dtKeyCount++
-	}
-
-	if err = batch.Commit(ctx); err != nil {
-		return fmt.Errorf("cannot commit datastore: %w", err)
-	}
-	if err = ds.Sync(context.Background(), datastore.NewKey(q.Prefix)); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func deletePrefix(ctx context.Context, ds datastore.Batching, prefix string) (int, error) {
 	q := query.Query{
 		KeysOnly: true,
