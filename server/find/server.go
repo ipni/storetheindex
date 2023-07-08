@@ -89,7 +89,7 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	s := &Server{
 		server:   server,
 		listener: l,
-		handler:  handler.New(indexer, registry, opts.indexCounts),
+		handler:  handler.New(indexer, registry),
 	}
 
 	s.healthMsg = "ready"

@@ -17,7 +17,6 @@ import (
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/storetheindex/admin/client"
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/server/admin"
@@ -235,7 +234,7 @@ func makeTestenv(t *testing.T) *testenv {
 	idx := initIndex(t, true)
 	reg := initRegistry(t, peerIDStr)
 	ing := initIngest(t, idx, reg)
-	s := setupServer(t, idx, ing, reg, nil)
+	s := setupServer(t, idx, ing, reg)
 	c := setupClient(t, s.URL())
 
 	// Start server
@@ -266,7 +265,7 @@ func (te *testenv) close(t *testing.T) {
 	te.registry.Close()
 }
 
-func setupServer(t *testing.T, ind indexer.Interface, ing *ingest.Ingester, reg *registry.Registry, idxCts *counter.IndexCounts) *admin.Server {
+func setupServer(t *testing.T, ind indexer.Interface, ing *ingest.Ingester, reg *registry.Registry) *admin.Server {
 	reloadErrChan := make(chan chan error)
 	s, err := admin.New("127.0.0.1:0", serverID, ind, ing, reg, reloadErrChan)
 	require.NoError(t, err)

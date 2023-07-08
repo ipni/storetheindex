@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
 	reframeclient "github.com/ipfs/go-delegated-routing/client"
 	"github.com/ipfs/go-delegated-routing/gen/proto"
 	indexer "github.com/ipni/go-indexer-core"
@@ -22,7 +21,6 @@ import (
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
 	httpserver "github.com/ipni/storetheindex/server/find"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -33,8 +31,8 @@ import (
 
 const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
 
-func setupServer(ind indexer.Interface, reg *registry.Registry, idxCts *counter.IndexCounts, t *testing.T) *httpserver.Server {
-	s, err := httpserver.New("127.0.0.1:0", ind, reg, httpserver.WithIndexCounts(idxCts))
+func setupServer(ind indexer.Interface, reg *registry.Registry, t *testing.T) *httpserver.Server {
+	s, err := httpserver.New("127.0.0.1:0", ind, reg)
 	require.NoError(t, err)
 	return s
 }
@@ -49,7 +47,7 @@ func TestFindIndexData(t *testing.T) {
 	// Initialize everything
 	ind := initIndex(t, true)
 	reg := initRegistry(t)
-	s := setupServer(ind, reg, nil, t)
+	s := setupServer(ind, reg, t)
 	c := setupClient(s.URL(), t)
 
 	// Start server
@@ -84,7 +82,7 @@ func TestFindIndexWithExtendedProviders(t *testing.T) {
 	ind := initIndex(t, true)
 	// We don't want to have any restricitons around provider identities as they are generated in rkandom for extended providers
 	reg := initRegistryWithRestrictivePolicy(t, false)
-	s := setupServer(ind, reg, nil, t)
+	s := setupServer(ind, reg, t)
 	c := setupClient(s.URL(), t)
 
 	// Start server
@@ -121,7 +119,7 @@ func TestReframeFindIndexData(t *testing.T) {
 	// Initialize everything
 	ind := initIndex(t, true)
 	reg := initRegistry(t)
-	s := setupServer(ind, reg, nil, t)
+	s := setupServer(ind, reg, t)
 	c := setupClient(s.URL(), t)
 
 	// create delegated routing client
@@ -158,9 +156,8 @@ func TestProviderInfo(t *testing.T) {
 	// Initialize everything
 	ind := initIndex(t, true)
 	reg := initRegistry(t)
-	idxCts := counter.NewIndexCounts(datastore.NewMapDatastore())
 
-	s := setupServer(ind, reg, idxCts, t)
+	s := setupServer(ind, reg, t)
 	findclient := setupClient(s.URL(), t)
 
 	// Start server
@@ -177,8 +174,6 @@ func TestProviderInfo(t *testing.T) {
 	defer cancel()
 
 	peerID := register(ctx, t, reg)
-
-	idxCts.AddCount(peerID, []byte("context-id"), 939)
 
 	getProviderTest(t, findclient, peerID)
 	listProvidersTest(t, findclient, peerID)
@@ -197,7 +192,7 @@ func TestGetStats(t *testing.T) {
 	reg := initRegistry(t)
 	defer reg.Close()
 
-	s := setupServer(ind, reg, nil, t)
+	s := setupServer(ind, reg, t)
 	findclient := setupClient(s.URL(), t)
 
 	// Start server
@@ -224,7 +219,7 @@ func TestRemoveProvider(t *testing.T) {
 	// Initialize everything
 	ind := initIndex(t, true)
 	reg := initRegistry(t)
-	s := setupServer(ind, reg, nil, t)
+	s := setupServer(ind, reg, t)
 	c := setupClient(s.URL(), t)
 
 	// Start server
@@ -454,7 +449,6 @@ func listProvidersTest(t *testing.T, c client.Interface, providerID peer.ID) {
 func verifyProviderInfo(t *testing.T, provInfo *model.ProviderInfo) {
 	require.NotNil(t, provInfo, "nil provider info")
 	require.Equal(t, providerID, provInfo.AddrInfo.ID.String(), "wrong peer id")
-	require.Equal(t, uint64(939), provInfo.IndexCount, "expected IndexCount to be 939")
 	require.NotNil(t, provInfo.ExtendedProviders, "expected to have extended providers")
 	require.Equal(t, 1, len(provInfo.ExtendedProviders.Providers))
 	require.Equal(t, 1, len(provInfo.ExtendedProviders.Contextual))

@@ -266,14 +266,6 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		if err != nil {
 			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to remove provider context: %w", err)}
 		}
-		if ing.indexCounts != nil {
-			rmCount, err := ing.indexCounts.RemoveCtx(providerID, ad.ContextID)
-			if err != nil {
-				log.Errorw("Error removing index count", "err", err)
-			} else {
-				log.Debugf("Removal ad reduced index count by %d", rmCount)
-			}
-		}
 		return nil
 	}
 
@@ -325,7 +317,6 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		mhCount, err = ing.ingestEntriesFromCar(ctx, ad, providerID, adCid, entriesCid, log)
 		// If entries data successfully read from CAR file.
 		if err == nil {
-			ing.updateIndexCounts(mhCount, providerID, ad.ContextID, resync)
 			ing.mhsFromMirror.Add(uint64(mhCount))
 			return nil
 		}
@@ -390,20 +381,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	if err != nil {
 		return err
 	}
-	// Update index counts only if no error, since ad usually reindexed if error.
-	ing.updateIndexCounts(mhCount, providerID, ad.ContextID, resync)
 	return nil
-}
-
-func (ing *Ingester) updateIndexCounts(mhCount int, providerID peer.ID, contextID []byte, resync bool) {
-	if ing.indexCounts != nil && mhCount != 0 {
-		if resync {
-			// If resyncing, only add missing values so that counts are not duplicated.
-			ing.indexCounts.AddMissingCount(providerID, contextID, uint64(mhCount))
-		} else {
-			ing.indexCounts.AddCount(providerID, contextID, uint64(mhCount))
-		}
-	}
 }
 
 func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, entsCid cid.Cid, log *zap.SugaredLogger) (int, error) {

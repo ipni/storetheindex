@@ -26,7 +26,6 @@ import (
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/fsutil"
-	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
 	httpadmin "github.com/ipni/storetheindex/server/admin"
@@ -37,12 +36,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
-)
-
-const (
-	dsInfoPrefix = "/dsInfo/"
-	dsVersionKey = "version"
-	dsVersion    = "001"
 )
 
 // Recognized valuestore type names.
@@ -170,12 +163,6 @@ func daemonAction(cctx *cli.Context) error {
 	// Create indexer core
 	indexerCore := engine.New(valueStore, engine.WithCache(resultCache))
 
-	var indexCounts *counter.IndexCounts
-	if cfg.Indexer.IndexCountEnabled {
-		indexCounts = counter.NewIndexCounts(dstore)
-		indexCounts.SetTotalAddend(cfg.Indexer.IndexCountTotalAddend)
-	}
-
 	// Create registry
 	reg, err := registry.New(cctx.Context, cfg.Discovery, dstore,
 		registry.WithFreezer(freezeDirs, cfg.Indexer.FreezeAtPercent))
@@ -200,7 +187,6 @@ func daemonAction(cctx *cli.Context) error {
 			httpfind.WithWriteTimeout(time.Duration(cfg.Finder.ApiWriteTimeout)),
 			httpfind.WithMaxConnections(cfg.Finder.MaxConnections),
 			httpfind.WithHomepage(cfg.Finder.Webpage),
-			httpfind.WithIndexCounts(indexCounts),
 			httpfind.WithVersion(cctx.App.Version),
 		)
 		if err != nil {
@@ -251,7 +237,7 @@ func daemonAction(cctx *cli.Context) error {
 		}
 
 		// Initialize ingester.
-		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, dsTmp, ingest.WithIndexCounts(indexCounts))
+		ingester, err = ingest.NewIngester(cfg.Ingest, p2pHost, indexerCore, reg, dstore, dsTmp)
 		if err != nil {
 			return err
 		}
@@ -424,10 +410,6 @@ func daemonAction(cctx *cli.Context) error {
 						continue
 					}
 				}
-			}
-
-			if indexCounts != nil {
-				indexCounts.SetTotalAddend(cfg.Indexer.IndexCountTotalAddend)
 			}
 
 			if errChan != nil {

@@ -47,8 +47,6 @@ func TestRegToApiProviderInfo(t *testing.T) {
 	ep2, _, _ := test.RandomIdentity()
 	ep2Metadata := []byte("ep2-metadata")
 
-	indexCount := uint64(1809246)
-
 	regPI := ProviderInfo{
 		AddrInfo:              provAddrInfo,
 		LastAdvertisement:     lastAdCid,
@@ -81,7 +79,7 @@ func TestRegToApiProviderInfo(t *testing.T) {
 		FrozenAtTime: frozenAtTime,
 	}
 
-	apiPI := RegToApiProviderInfo(&regPI, indexCount)
+	apiPI := RegToApiProviderInfo(&regPI)
 	require.NotNil(t, apiPI)
 
 	require.Equal(t, regPI.AddrInfo, apiPI.AddrInfo)
@@ -90,7 +88,6 @@ func TestRegToApiProviderInfo(t *testing.T) {
 	require.Equal(t, regPI.Publisher, apiPI.Publisher.ID)
 	require.Equal(t, 1, len(apiPI.Publisher.Addrs))
 	require.Equal(t, regPI.PublisherAddr, apiPI.Publisher.Addrs[0])
-	require.Equal(t, indexCount, apiPI.IndexCount)
 	require.Equal(t, regPI.FrozenAt, apiPI.FrozenAt)
 	require.Equal(t, regPI.FrozenAtTime.Format(time.RFC3339), apiPI.FrozenAtTime)
 
@@ -126,6 +123,6 @@ func TestRegToApiProviderInfo(t *testing.T) {
 
 	require.Equal(t, regPI, *regPI2)
 
-	require.Nil(t, RegToApiProviderInfo(nil, 0))
+	require.Nil(t, RegToApiProviderInfo(nil))
 	require.Nil(t, apiToRegProviderInfo(nil))
 }

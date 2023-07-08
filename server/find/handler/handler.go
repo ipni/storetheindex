@@ -11,7 +11,6 @@ import (
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-libipni/apierror"
 	"github.com/ipni/go-libipni/find/model"
-	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -27,18 +26,16 @@ const avg_mh_size = 40
 // handler provides request handling functionality for the find server
 // that is common to all protocols.
 type Handler struct {
-	indexer     indexer.Interface
-	registry    *registry.Registry
-	indexCounts *counter.IndexCounts
-	stats       *cachedStats
+	indexer  indexer.Interface
+	registry *registry.Registry
+	stats    *cachedStats
 }
 
-func New(indexer indexer.Interface, reg *registry.Registry, indexCounts *counter.IndexCounts) *Handler {
+func New(indexer indexer.Interface, reg *registry.Registry) *Handler {
 	return &Handler{
-		indexer:     indexer,
-		registry:    reg,
-		indexCounts: indexCounts,
-		stats:       newCachedStats(indexer, time.Hour),
+		indexer:  indexer,
+		registry: reg,
+		stats:    newCachedStats(indexer, time.Hour),
 	}
 }
 
@@ -173,15 +170,7 @@ func (h *Handler) ListProviders() ([]byte, error) {
 
 	responses := make([]model.ProviderInfo, len(infos))
 	for i, pInfo := range infos {
-		var indexCount uint64
-		if h.indexCounts != nil {
-			var err error
-			indexCount, err = h.indexCounts.Provider(pInfo.AddrInfo.ID)
-			if err != nil {
-				log.Errorw("Could not get provider index count", "err", err)
-			}
-		}
-		responses[i] = *registry.RegToApiProviderInfo(pInfo, indexCount)
+		responses[i] = *registry.RegToApiProviderInfo(pInfo)
 	}
 
 	return json.Marshal(responses)
@@ -192,16 +181,7 @@ func (h *Handler) GetProvider(providerID peer.ID) ([]byte, error) {
 	if info == nil || !allowed || info.Inactive() {
 		return nil, nil
 	}
-
-	var indexCount uint64
-	if h.indexCounts != nil {
-		var err error
-		indexCount, err = h.indexCounts.Provider(providerID)
-		if err != nil {
-			log.Errorw("Could not get provider index count", "err", err)
-		}
-	}
-	rsp := registry.RegToApiProviderInfo(info, indexCount)
+	rsp := registry.RegToApiProviderInfo(info)
 	return json.Marshal(rsp)
 }
 

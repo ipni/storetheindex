@@ -34,7 +34,6 @@ var (
 	AdLoadError          = stats.Int64("ingest/adLoadError", "Number of times an ad failed to load", stats.UnitDimensionless)
 	ProviderCount        = stats.Int64("provider/count", "Number of known (registered) providers", stats.UnitDimensionless)
 	EntriesSyncLatency   = stats.Float64("ingest/entriessynclatency", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
-	IndexCount           = stats.Int64("provider/indexCount", "Number of indexes stored for all providers", stats.UnitDimensionless)
 	PercentUsage         = stats.Float64("ingest/percentusage", "Percent usage of storage available in value store", stats.UnitDimensionless)
 	NonRemoveAdCount     = stats.Int64("ingest/nonremoveadcount", "Number of non-removal advertisements", stats.UnitDimensionless)
 	RemoveAdCount        = stats.Int64("ingest/removeadcount", "Number of removal advertisements", stats.UnitDimensionless)
@@ -93,10 +92,6 @@ var (
 		Measure:     AdLoadError,
 		Aggregation: view.Count(),
 	}
-	indexCountView = &view.View{
-		Measure:     IndexCount,
-		Aggregation: view.LastValue(),
-	}
 	percentUsageView = &view.View{
 		Measure:     PercentUsage,
 		Aggregation: view.LastValue(),
@@ -129,7 +124,6 @@ func Start(views []*view.View) http.Handler {
 		adIngestSkipped,
 		adIngestSuccess,
 		adLoadError,
-		indexCountView,
 		percentUsageView,
 		nonRemoveAdCountView,
 		removeAdCountView,

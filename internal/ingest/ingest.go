@@ -25,7 +25,6 @@ import (
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/go-libipni/dagsync"
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -171,18 +170,12 @@ type Ingester struct {
 	mhsFromMirror atomic.Uint64
 
 	// Metrics
-	backlogs    map[peer.ID]int32
-	indexCounts *counter.IndexCounts
+	backlogs map[peer.ID]int32
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
 // communication with providers.
-func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds, dsTmp datastore.Batching, options ...Option) (*Ingester, error) {
-	opts, err := getOpts(options)
-	if err != nil {
-		return nil, err
-	}
-
+func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *registry.Registry, ds, dsTmp datastore.Batching) (*Ingester, error) {
 	if cfg.IngestWorkerCount == 0 {
 		return nil, errors.New("ingester worker count must be > 0")
 	}
@@ -210,12 +203,12 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 		minKeyLen: cfg.MinimumKeyLength,
 
-		indexCounts: opts.idxCounts,
-		backlogs:    make(map[peer.ID]int32),
+		backlogs: make(map[peer.ID]int32),
 	}
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 
+	var err error
 	ing.mirror, err = newMirror(cfg.AdvertisementMirror, ing.dsTmp)
 	if err != nil {
 		return nil, err
@@ -745,20 +738,9 @@ func (ing *Ingester) metricsUpdater() {
 				usage = usageStats.Percent
 			}
 
-			if ing.indexCounts != nil {
-				indexCount, err := ing.indexCounts.Total()
-				if err != nil {
-					log.Errorw("Error getting index counts", "err", err)
-				}
-				stats.Record(context.Background(),
-					coremetrics.StoreSize.M(size),
-					metrics.IndexCount.M(int64(indexCount)),
-					metrics.PercentUsage.M(usage))
-			} else {
-				stats.Record(context.Background(),
-					coremetrics.StoreSize.M(size),
-					metrics.PercentUsage.M(usage))
-			}
+			stats.Record(context.Background(),
+				coremetrics.StoreSize.M(size),
+				metrics.PercentUsage.M(usage))
 
 			if ing.mirror.canRead() {
 				mhsFromMirror := ing.MultihashesFromMirror()
@@ -821,9 +803,6 @@ func (ing *Ingester) autoSync() {
 		if provInfo.Deleted() {
 			if err := ing.removePublisher(ctx, provInfo.Publisher); err != nil {
 				log.Errorw("Error removing provider", "err", err, "provider", provInfo.AddrInfo.ID)
-			}
-			if ing.indexCounts != nil {
-				ing.indexCounts.RemoveProvider(provInfo.AddrInfo.ID)
 			}
 			// Do not remove provider info from core, because that requires
 			// scanning the entire core valuestore. Instead, let the finder
