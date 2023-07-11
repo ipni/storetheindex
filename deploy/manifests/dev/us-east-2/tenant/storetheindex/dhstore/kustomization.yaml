@@ -15,4 +15,4 @@ patchesStrategicMerge:
 images:
   - name: dhstore
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/dhstore
-    newTag: 20230711082458-12d6910826fbb777db474502b120ca081d5efdd6
+    newTag: 20230705194338-aa1b4265230e18eac52ed01514c0ff31bb3c38b3
