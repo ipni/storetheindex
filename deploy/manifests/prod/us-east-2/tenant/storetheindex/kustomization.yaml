@@ -13,17 +13,12 @@ resources:
 - dhstore
 - dhstore-helga
 - dhstore-porvy
-- dhfind
-- dhfind-helga
-- dhfind-porvy
 - cassette
 - fdb-manager
 - dhstore-stateless
 - fdb-cluster
-- dhfind-stateless
 - fdbmeter
 - dhstore-qiu
-- dhfind-qiu
 images:
 - name: storetheindex
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
