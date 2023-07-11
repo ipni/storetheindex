@@ -20,4 +20,4 @@ replicas:
 images:
   - name: dhstore
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/dhstore
-    newTag: 20230711010055-33591e41c4371d1720e7c09d433732bfb7c70a0d
+    newTag: 20230711082458-12d6910826fbb777db474502b120ca081d5efdd6
