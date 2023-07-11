@@ -15,7 +15,7 @@ patchesStrategicMerge:
 
 replicas:
   - name: dhstore
-    count: 3
+    count: 2
 
 images:
   - name: dhstore
