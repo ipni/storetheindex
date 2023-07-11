@@ -18,6 +18,7 @@ spec:
     log: 2
     coordinator: 3
     stateless: -1
+    data_distributor: 2
   labels:
     matchLabels:
       foundationdb.org/fdb-cluster-name: fdb-prod-cluster
