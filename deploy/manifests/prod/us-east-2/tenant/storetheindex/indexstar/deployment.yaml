@@ -36,7 +36,6 @@ spec:
             - '--dhBackends=http://dhstore-qiu:40080'
             - '--cascadeBackends=http://caskadht.internal.prod.cid.contact/'
             - '--cascadeBackends=http://cassette.internal.prod.cid.contact/'
-            - '--fallbackBackend=http://dido-indexer:3000/'
           env:
             # Increase maximum accepted request body to 1 MiB in order to allow batch finds requests
             # by the `provider verify-ingest` CLI command. 
