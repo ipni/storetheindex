@@ -8,4 +8,4 @@ resources:
 images:
   - name: manager
     newName: foundationdb/fdb-kubernetes-operator
-    newTag: v1.19.0
+    newTag: v1.20.1
