@@ -19,6 +19,7 @@ spec:
     coordinator: 3
     stateless: -1
     data_distributor: 2
+    ratekeeper: 2
   labels:
     matchLabels:
       foundationdb.org/fdb-cluster-name: fdb-prod-cluster
@@ -29,6 +30,8 @@ spec:
   minimumUptimeSecondsForBounce: 60
   processes:
     general:
+      customParameters:
+      - knob-max-generations-override=200
       volumeClaimTemplate:
         spec:
           storageClassName: gp3
@@ -49,6 +52,7 @@ spec:
         - knob_target_bytes_per_storage_server=2000e6
         # Defaults to 750e6
         - knob_target_bytes_per_storage_server_batch=1500e6
+        - knob-max-generations-override=200
       podTemplate:
         spec:
           topologySpreadConstraints:
@@ -81,8 +85,8 @@ spec:
               storage: 2Ti
     storage:
       customParameters:
-        - memory=28GiB
-        - cache-memory=5GiB
+        - memory=29GiB
+        - cache-memory=2GiB
         # Increase the default max outstanding IO operations (64), used in AIO with O_DIRECT interface.
         - knob_max_outstanding=256
         # Increase relocation and fetch keys parallelism to speed up data distribution across the cluster.
@@ -96,6 +100,7 @@ spec:
         - knob_rocksdb_background_parallelism=8
         - knob_rocksdb_read_parallelism=16
         - knob_rocksdb_checkpoint_reader_parallelism=16
+        - knob-max-generations-override=200
       podTemplate:
         spec:
           topologySpreadConstraints:
