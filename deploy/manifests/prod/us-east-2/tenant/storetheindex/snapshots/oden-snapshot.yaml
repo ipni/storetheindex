@@ -1,15 +1,6 @@
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshot
 metadata:
-  name: oden-20230331
-spec:
-  volumeSnapshotClassName: csi-aws-vsc
-  source:
-    persistentVolumeClaimName: oden-data
----
-apiVersion: snapshot.storage.k8s.io/v1
-kind: VolumeSnapshot
-metadata:
   name: oden-20230404
 spec:
   volumeSnapshotClassName: csi-aws-vsc
