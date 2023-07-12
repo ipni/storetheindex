@@ -6,12 +6,3 @@ spec:
   volumeSnapshotClassName: csi-aws-vsc
   source:
     persistentVolumeClaimName: dhstore-data
----
-apiVersion: snapshot.storage.k8s.io/v1
-kind: VolumeSnapshot
-metadata:
-  name: dhstore-20230427
-spec:
-  volumeSnapshotClassName: csi-aws-vsc
-  source:
-    persistentVolumeClaimName: dhstore-data
