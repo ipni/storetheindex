@@ -52,7 +52,7 @@ spec:
         - knob_target_bytes_per_storage_server=2000e6
         # Defaults to 750e6
         - knob_target_bytes_per_storage_server_batch=1500e6
-        - knob-max-generations-override=400
+        - knob-max-generations-override=200
       podTemplate:
         spec:
           topologySpreadConstraints:
@@ -100,7 +100,7 @@ spec:
         - knob_rocksdb_background_parallelism=8
         - knob_rocksdb_read_parallelism=16
         - knob_rocksdb_checkpoint_reader_parallelism=16
-        - knob-max-generations-override=400
+        - knob-max-generations-override=200
       podTemplate:
         spec:
           topologySpreadConstraints:
