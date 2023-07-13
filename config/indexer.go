@@ -31,13 +31,6 @@ type Indexer struct {
 	// ValueStoreDir is on, at which to trigger the indexer to enter frozen
 	// mode. A zero value uses the default. A negative value disables freezing.
 	FreezeAtPercent float64
-	// IndexCountEnabled sets whether ingest process should count the number of index records per provider and
-	// finder should show the number of index counts per provider.
-	IndexCountEnabled bool
-	// IndexCountTotalAddend is a value that is added to the index count total,
-	// to account for uncounted indexes that have existed in the value store
-	// before provider index counts were tracked. This value is reloadable.
-	IndexCountTotalAddend uint64
 	// ShutdownTimeout is the duration that a graceful shutdown has to complete
 	// before the daemon process is terminated. If unset or zero, configures no
 	// shutdown timeout. This value is reloadable.

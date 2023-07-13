@@ -3,8 +3,6 @@ package find
 import (
 	"fmt"
 	"time"
-
-	"github.com/ipni/storetheindex/internal/counter"
 )
 
 const (
@@ -17,7 +15,6 @@ const (
 // config contains all options for the server.
 type config struct {
 	homepageURL  string
-	indexCounts  *counter.IndexCounts
 	maxConns     int
 	readTimeout  time.Duration
 	writeTimeout time.Duration
@@ -56,14 +53,6 @@ func WithHomepage(URL string) Option {
 func WithMaxConnections(maxConnections int) Option {
 	return func(c *config) error {
 		c.maxConns = maxConnections
-		return nil
-	}
-}
-
-// WithIndexCounts supplies a counter.IndexCounts for tracking index counts.
-func WithIndexCounts(indexCounts *counter.IndexCounts) Option {
-	return func(c *config) error {
-		c.indexCounts = indexCounts
 		return nil
 	}
 }

@@ -326,10 +326,6 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	require.Equal(t, 1, carCount)
 	require.Equal(t, 1, headCount)
 
-	outProvider := e.run(ipni, "provider", "-pid", providerID, "--indexer", "localhost:3000")
-	// Check that IndexCount with correct value appears in providers output.
-	require.Contains(t, string(outProvider), "IndexCount: 1043")
-
 	root2 := filepath.Join(e.dir, ".storetheindex2")
 	e.env = append(e.env, fmt.Sprintf("%s=%s", config.EnvDir, root2))
 	e.run(indexer, "init", "--store", "dhstore", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap", "--dhstore", "http://127.0.0.1:40080",
@@ -420,10 +416,6 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		}
 		return true
 	}, 10*time.Second, time.Second)
-
-	outProvider = e.run(ipni, "provider", "-pid", providerID, "--indexer", "localhost:3000")
-	// Check that IndexCount is back to zero after removing car.
-	require.Contains(t, string(outProvider), "IndexCount: 0")
 
 	// Check that status is not frozen.
 	outStatus := e.run(indexer, "admin", "status", "--indexer", "localhost:3202")

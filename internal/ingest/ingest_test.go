@@ -33,7 +33,6 @@ import (
 	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/internal/counter"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/test/typehelpers"
 	"github.com/libp2p/go-libp2p"
@@ -807,7 +806,7 @@ func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	i, core, _, indexCounts := mkIngest(t, h)
+	i, core, _ := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
@@ -853,32 +852,9 @@ func TestSync(t *testing.T) {
 	_, err = i.Sync(ctx, peerInfo, 1, true)
 	require.NoError(t, err)
 
-	// Check that the total number of indexes is correct.
-	expectCount := uint64(testEntriesChunkCount * testEntriesChunkSize)
-	count, err := indexCounts.Total()
-	require.NoError(t, err)
-	require.Equal(t, int(expectCount), int(count))
-	count, err = indexCounts.Provider(providerID)
-	require.NoError(t, err)
-	require.Equal(t, expectCount, count)
-	// Check again to check for correct value from memory.
-	count, err = indexCounts.Total()
-	require.NoError(t, err)
-	require.Equal(t, expectCount, count)
-	count, err = indexCounts.Provider(providerID)
-	require.NoError(t, err)
-	require.Equal(t, expectCount, count)
-
 	publishRemovalAd(t, pub, lsys, false, providerID, privKey)
 	_, err = i.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
-
-	count, err = indexCounts.Provider(providerID)
-	require.NoError(t, err)
-	require.Zero(t, count)
-	count, err = indexCounts.Provider(providerID)
-	require.NoError(t, err)
-	require.Zero(t, count)
 }
 
 func testSyncWithExtendedProviders(t *testing.T,
@@ -892,7 +868,7 @@ func testSyncWithExtendedProviders(t *testing.T,
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	ingester, core, reg, _ := mkIngest(t, h)
+	ingester, core, reg := mkIngest(t, h)
 	defer core.Close()
 	defer ingester.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
@@ -1098,7 +1074,7 @@ func TestSyncTooLargeMetadata(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	i, core, _, _ := mkIngest(t, h)
+	i, core, _ := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
@@ -1138,7 +1114,7 @@ func TestSyncSkipNoMetadata(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	i, core, reg, _ := mkIngest(t, h)
+	i, core, reg := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
@@ -1260,7 +1236,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	ing, core, _, _ := mkIngest(t, h)
+	ing, core, _ := mkIngest(t, h)
 	defer core.Close()
 	defer ing.Close()
 	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
@@ -1382,7 +1358,7 @@ func TestMultiplePublishers(t *testing.T) {
 	pubHost2 := mkTestHost()
 	pubHost2Priv := pubHost2.Peerstore().PrivKey(pubHost2.ID())
 
-	i, core, _, _ := mkIngest(t, h)
+	i, core, _ := mkIngest(t, h)
 	defer core.Close()
 	defer i.Close()
 	pub1, lsys1 := mkMockPublisher(t, pubHost1, h, srcStore1)
@@ -1799,19 +1775,18 @@ func mkMockPublisher(t *testing.T, pubHost, testHost host.Host, store datastore.
 	return pub, lsys
 }
 
-func mkIngest(t *testing.T, h host.Host) (*Ingester, *engine.Engine, *registry.Registry, *counter.IndexCounts) {
+func mkIngest(t *testing.T, h host.Host) (*Ingester, *engine.Engine, *registry.Registry) {
 	return mkIngestWithConfig(t, h, defaultTestIngestConfig)
 }
 
-func mkIngestWithConfig(t *testing.T, h host.Host, cfg config.Ingest) (*Ingester, *engine.Engine, *registry.Registry, *counter.IndexCounts) {
+func mkIngestWithConfig(t *testing.T, h host.Host, cfg config.Ingest) (*Ingester, *engine.Engine, *registry.Registry) {
 	store := dssync.MutexWrap(datastore.NewMapDatastore())
 	tmpStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	reg := mkRegistry(t)
 	core := mkIndexer(t, true)
-	indexCounts := counter.NewIndexCounts(store)
-	ing, err := NewIngester(cfg, h, core, reg, store, tmpStore, WithIndexCounts(indexCounts))
+	ing, err := NewIngester(cfg, h, core, reg, store, tmpStore)
 	require.NoError(t, err)
-	return ing, core, reg, indexCounts
+	return ing, core, reg
 }
 
 func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
@@ -2093,7 +2068,6 @@ type testEnv struct {
 	publisherPriv    crypto.PrivKey
 	ingesterPriv     crypto.PrivKey
 	publisherLinkSys ipld.LinkSystem
-	indexCounts      *counter.IndexCounts
 	ingester         *Ingester
 	ingesterHost     host.Host
 	core             indexer.Interface
@@ -2162,7 +2136,7 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 	require.NoError(t, err)
 	pubHost := mkTestHost(libp2p.Identity(priv))
 
-	i, core, reg, indexCounts := mkIngestWithConfig(t, ingesterHost, *testOpt.ingestConfig)
+	i, core, reg := mkIngestWithConfig(t, ingesterHost, *testOpt.ingestConfig)
 
 	var lsys ipld.LinkSystem
 	if testOpt.publisherLinkSysFn != nil {
@@ -2191,7 +2165,6 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 		core:             core,
 		reg:              reg,
 		skipIngCleanup:   testOpt.skipIngesterCleanup,
-		indexCounts:      indexCounts,
 	}
 
 	t.Cleanup(func() {

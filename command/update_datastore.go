@@ -11,8 +11,14 @@ import (
 	"github.com/ipfs/go-datastore/query"
 )
 
-// updateBatchSize is the number of records to update at a time.
-const updateBatchSize = 500000
+const (
+	dsInfoPrefix = "/dsInfo/"
+	dsVersionKey = "version"
+	dsVersion    = "002"
+
+	// updateBatchSize is the number of records to update at a time.
+	updateBatchSize = 500000
+)
 
 func updateDatastore(ctx context.Context, ds datastore.Batching) error {
 	dsVerKey := datastore.NewKey(dsInfoPrefix + dsVersionKey)
@@ -20,7 +26,7 @@ func updateDatastore(ctx context.Context, ds datastore.Batching) error {
 	if err != nil && !errors.Is(err, datastore.ErrNotFound) {
 		return fmt.Errorf("cannot check datastore: %w", err)
 	}
-	var curVer string
+	curVer := "000"
 	if len(curVerData) != 0 {
 		curVer = string(curVerData)
 	}
@@ -31,12 +37,29 @@ func updateDatastore(ctx context.Context, ds datastore.Batching) error {
 		return fmt.Errorf("unknown datastore verssion: %s", curVer)
 	}
 
-	log.Infof("Updating datastore to version %s", dsVersion)
-	if err = rmDtFsmRecords(ctx, ds); err != nil {
-		return err
+	var count int
+
+	log.Infof("Updating datastore from version %s to %s", curVer, dsVersion)
+	if curVer < "001" {
+		count, err = deletePrefix(ctx, ds, "/data-transfer-v2")
+		if err != nil {
+			return err
+		}
+		if count != 0 {
+			log.Infow("Datastore update removed data-transfer fsm records", "count", count)
+		}
+		if err = rmOldTempRecords(ctx, ds); err != nil {
+			return err
+		}
 	}
-	if err = rmOldTempRecords(ctx, ds); err != nil {
-		return err
+	if curVer < "002" {
+		count, err = deletePrefix(ctx, ds, "/indexCounts")
+		if err != nil {
+			return err
+		}
+		if count != 0 {
+			log.Infow("Datastore update removed index count records", "count", count)
+		}
 	}
 
 	if err = ds.Put(ctx, dsVerKey, []byte(dsVersion)); err != nil {
@@ -128,36 +151,36 @@ func rmOldTempRecords(ctx context.Context, ds datastore.Batching) error {
 	return nil
 }
 
-func rmDtFsmRecords(ctx context.Context, ds datastore.Batching) error {
+func deletePrefix(ctx context.Context, ds datastore.Batching, prefix string) (int, error) {
 	q := query.Query{
 		KeysOnly: true,
-		Prefix:   "/data-transfer-v2",
+		Prefix:   prefix,
 	}
 	results, err := ds.Query(ctx, q)
 	if err != nil {
-		return fmt.Errorf("cannot query datastore: %w", err)
+		return 0, fmt.Errorf("cannot query datastore: %w", err)
 	}
 	defer results.Close()
 
 	batch, err := ds.Batch(ctx)
 	if err != nil {
-		return fmt.Errorf("cannot create datastore batch: %w", err)
+		return 0, fmt.Errorf("cannot create datastore batch: %w", err)
 	}
 
-	var dtKeyCount, writeCount int
+	var keyCount, writeCount int
 	for result := range results.Next() {
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return 0, ctx.Err()
 		}
 		if writeCount >= updateBatchSize {
 			writeCount = 0
 			if err = batch.Commit(ctx); err != nil {
-				return fmt.Errorf("cannot commit datastore: %w", err)
+				return 0, fmt.Errorf("cannot commit datastore: %w", err)
 			}
-			log.Infow("Datastore update removed data-transfer fsm records", "count", dtKeyCount)
+			log.Infow("Datastore update removed records", "count", keyCount)
 		}
 		if result.Error != nil {
-			return fmt.Errorf("cannot read query result from datastore: %w", result.Error)
+			return 0, fmt.Errorf("cannot read query result from datastore: %w", result.Error)
 		}
 		ent := result.Entry
 		if len(ent.Key) == 0 {
@@ -166,21 +189,18 @@ func rmDtFsmRecords(ctx context.Context, ds datastore.Batching) error {
 		}
 
 		if err = batch.Delete(ctx, datastore.NewKey(ent.Key)); err != nil {
-			return fmt.Errorf("cannot delete dt state key from datastore: %w", err)
+			return 0, fmt.Errorf("cannot delete key from datastore: %w", err)
 		}
 		writeCount++
-		dtKeyCount++
+		keyCount++
 	}
 
 	if err = batch.Commit(ctx); err != nil {
-		return fmt.Errorf("cannot commit datastore: %w", err)
+		return 0, fmt.Errorf("cannot commit datastore: %w", err)
 	}
 	if err = ds.Sync(context.Background(), datastore.NewKey(q.Prefix)); err != nil {
-		return err
+		return 0, err
 	}
 
-	if dtKeyCount != 0 {
-		log.Infow("Datastore update removed data-transfer fsm records", "count", dtKeyCount)
-	}
-	return nil
+	return keyCount, nil
 }

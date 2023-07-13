@@ -10,16 +10,15 @@ import (
 )
 
 // RegToApiProviderInfo converts provider info from registry to api objects.
-func RegToApiProviderInfo(pi *ProviderInfo, indexCount uint64) *model.ProviderInfo {
+func RegToApiProviderInfo(pi *ProviderInfo) *model.ProviderInfo {
 	if pi == nil {
 		return nil
 	}
 
 	apiPI := &model.ProviderInfo{
-		AddrInfo:   pi.AddrInfo,
-		IndexCount: indexCount,
-		Lag:        pi.Lag,
-		Inactive:   pi.Inactive(),
+		AddrInfo: pi.AddrInfo,
+		Lag:      pi.Lag,
+		Inactive: pi.Inactive(),
 	}
 	if pi.LastAdvertisement != cid.Undef {
 		apiPI.LastAdvertisement = pi.LastAdvertisement
