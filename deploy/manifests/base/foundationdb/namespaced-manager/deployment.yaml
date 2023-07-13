@@ -52,20 +52,56 @@ spec:
             - mountPath: /usr/bin/fdb
               name: fdb-binaries
       initContainers:
-        # Copy library version 7.1 as primary in order to support DNS names in cluster file and
+        # Copy library version 7.3 as primary in order to support DNS names in cluster file and
         # avoid issues when pod IPs change on redeployment.
-        - name: foundationdb-kubernetes-init-7-1-primary
-          image: foundationdb/foundationdb-kubernetes-sidecar:7.1.33-1
+        - name: foundationdb-kubernetes-init-7-3-primary
+          image: foundationdb/foundationdb-kubernetes-sidecar:7.3.7-1
           args:
             - "--copy-library"
-            - "7.1"
+            - "7.3"
             - "--output-dir"
             - "/var/output-files/primary"
             - "--init-mode"
           volumeMounts:
             - name: fdb-binaries
               mountPath: /var/output-files
-        # Only copy library versions 7.1 since that's the version we use. If multi-version support
+        # Copy library versions 7.3 as the newest.
+        - name: foundationdb-kubernetes-init-7-3
+          image: foundationdb/foundationdb-kubernetes-sidecar:7.3.7-1
+          args:
+            - --copy-library
+            - "7.3"
+            - --copy-binary
+            - fdbcli
+            - --copy-binary
+            - fdbbackup
+            - --copy-binary
+            - fdbrestore
+            - --output-dir
+            - /var/output-files/7.3.7
+            - --init-mode
+          volumeMounts:
+            - mountPath: /var/output-files
+              name: fdb-binaries
+        # Copy library versions 7.2 for potential experimentation.
+        - name: foundationdb-kubernetes-init-7-2
+          image: foundationdb/foundationdb-kubernetes-sidecar:7.2.9-1
+          args:
+            - --copy-library
+            - "7.2"
+            - --copy-binary
+            - fdbcli
+            - --copy-binary
+            - fdbbackup
+            - --copy-binary
+            - fdbrestore
+            - --output-dir
+            - /var/output-files/7.2.9
+            - --init-mode
+          volumeMounts:
+            - mountPath: /var/output-files
+              name: fdb-binaries
+        # Copy library versions 7.1 for backward compatibility. If multi-version support
         # needed, the libraries need to be copied via dedicated init containers.
         - name: foundationdb-kubernetes-init-7-1
           image: foundationdb/foundationdb-kubernetes-sidecar:7.1.33-1
