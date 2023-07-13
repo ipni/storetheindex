@@ -3,7 +3,7 @@ kind: FoundationDBCluster
 metadata:
   name: fdb-prod-cluster
 spec:
-  version: 7.1.33
+  version: 7.3.7
   storageServersPerPod: 2
   automationOptions:
     replacements:
