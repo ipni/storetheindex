@@ -7,7 +7,7 @@ spec:
   storageServersPerPod: 2
   automationOptions:
     replacements:
-      enabled: true
+      enabled: false
   faultDomain:
     key: kubernetes.io/hostname
     valueFrom: spec.nodeName
