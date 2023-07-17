@@ -43,15 +43,11 @@ spec:
         - knob_max_outstanding=256
         # Increase relocation and fetch keys parallelism to speed up data distribution across the cluster.
         - knob_relocation_parallelism_per_source_server=8
-        - knob_fetch_keys_parallelism_bytes=5e6
-        # Defaults to 15e6
-        - knob_max_queue_commit_bytes=30e6
-        # Defaults to 1500e6
-        - knob_storage_hard_limit_bytes=3000e6
-        # Defaults to 1000e6
-        - knob_target_bytes_per_storage_server=2000e6
-        # Defaults to 750e6
-        - knob_target_bytes_per_storage_server_batch=1500e6
+        - knob_fetch_keys_parallelism_bytes=5000000
+        - knob_max_queue_commit_bytes=30000000
+        - knob_storage_hard_limit_bytes=3000000000
+        - knob_target_bytes_per_storage_server=2000000000
+        - knob_target_bytes_per_storage_server_batch=1500000000
         - knob-max-generations-override=200
       podTemplate:
         spec:
@@ -85,13 +81,17 @@ spec:
               storage: 2Ti
     storage:
       customParameters:
-        - memory=29GiB
+        - memory=25GiB
         - cache-memory=2GiB
         # Increase the default max outstanding IO operations (64), used in AIO with O_DIRECT interface.
         - knob_max_outstanding=256
         # Increase relocation and fetch keys parallelism to speed up data distribution across the cluster.
         - knob_relocation_parallelism_per_source_server=8
-        - knob_fetch_keys_parallelism_bytes=5e6
+        - knob_fetch_keys_parallelism_bytes=5000000
+        - knob_max_queue_commit_bytes=30000000
+        - knob_storage_hard_limit_bytes=3000000000
+        - knob_target_bytes_per_storage_server=2000000000
+        - knob_target_bytes_per_storage_server_batch=1500000000
         - knob_rocksdb_block_size=65536
         - knob_rocksdb_block_cache_size=4294967296
         - knob_rocksdb_compaction_readahead_size=65536
