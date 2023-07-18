@@ -4,7 +4,7 @@ metadata:
   name: fdb-prod-cluster
 spec:
   version: 7.3.7
-  storageServersPerPod: 2
+  storageServersPerPod: 1
   automationOptions:
     replacements:
       enabled: false
@@ -12,9 +12,9 @@ spec:
     key: kubernetes.io/hostname
     valueFrom: spec.nodeName
   databaseConfiguration:
-    storage_engine: ssd-rocksdb-v1
+    storage_engine: ssd-redwood-1-experimental
   processCounts:
-    storage: 5
+    storage: 3
     log: 2
     coordinator: 3
     stateless: -1
@@ -92,14 +92,6 @@ spec:
         - knob_storage_hard_limit_bytes=2500000000
         - knob_target_bytes_per_storage_server=1500000000
         - knob_target_bytes_per_storage_server_batch=1000000000
-        - knob_rocksdb_block_size=32768
-        - knob_rocksdb_block_cache_size=2147483648
-        - knob_rocksdb_compaction_readahead_size=32768
-        - knob_rocksdb_cf_write_buffer_size=67108864
-        - knob_rocksdb_write_buffer_size=1073741824
-        - knob_rocksdb_background_parallelism=8
-        - knob_rocksdb_read_parallelism=16
-        - knob_rocksdb_checkpoint_reader_parallelism=16
         - knob-max-generations-override=200
       podTemplate:
         spec:
