@@ -15,7 +15,7 @@ spec:
             - '--providersURL=http://indexstar:8080/'
             - '--storeType=fdb'
             - '--fdbClusterFile=/config/cluster-file'
-            - '--fdbApiVersion=710'
+            - '--fdbApiVersion=730'
           resources:
             limits:
               cpu: "3"

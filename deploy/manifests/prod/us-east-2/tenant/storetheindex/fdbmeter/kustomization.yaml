@@ -9,3 +9,7 @@ resources:
 
 patchesStrategicMerge:
   - deployment.yaml
+
+images:
+  - name: ghcr.io/masih/fdbmeter
+    newTag: sha-b83c2fdecd3cdefb847298b6deced3b999403a90

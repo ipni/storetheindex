@@ -15,9 +15,9 @@ patchesStrategicMerge:
 
 replicas:
   - name: dhstore
-    count: 0
+    count: 2
 
 images:
   - name: dhstore
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/dhstore
-    newTag: 20230711090901-4007d7934c3c308f98fd06d9253ba50c13339689
+    newTag: 20230718102059-38bdb04f3b6d4796eaa54c5c58a73bc3e1fa76e4
