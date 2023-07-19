@@ -15,9 +15,9 @@ spec:
             - '--maxConcurrentCompactions=20'
             - '--experimentalCompactionDebtConcurrency=1Gi'
             - '--experimentalL0CompactionConcurrency=10'
-            - '--l0StopWritesThreshold=12'
-            - '--l0CompactionThreshold=4'
-            - '--l0CompactionFileThreshold=500'
+            - '--l0StopWritesThreshold=8'
+            - '--l0CompactionThreshold=3'
+            - '--l0CompactionFileThreshold=300'
           env:
             - name: GO_DEBUG_MAX_THREADS
               value: "20000"

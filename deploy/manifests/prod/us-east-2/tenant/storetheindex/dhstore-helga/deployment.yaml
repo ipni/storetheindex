@@ -22,6 +22,12 @@ spec:
             - '--storePath=/data'
             - '--disableWAL'
             - '--blockCacheSize=2Gi'
+            - '--maxConcurrentCompactions=20'
+            - '--experimentalCompactionDebtConcurrency=1Gi'
+            - '--experimentalL0CompactionConcurrency=10'
+            - '--l0StopWritesThreshold=8'
+            - '--l0CompactionThreshold=3'
+            - '--l0CompactionFileThreshold=300'
           volumeMounts:
             - name: data
               mountPath: /data
