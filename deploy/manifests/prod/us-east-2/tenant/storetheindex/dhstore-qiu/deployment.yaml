@@ -12,6 +12,10 @@ spec:
             - '--storePath=/data'
             - '--disableWAL'
             - '--blockCacheSize=2Gi'
+            # Set max concurrent compactions to the number of CPUs
+            - '--maxConcurrentCompactions=28'
+            # Bump from the default 12
+            - '--l0StopWritesThreshold=20'
           volumeMounts:
             - name: data
               mountPath: /data
