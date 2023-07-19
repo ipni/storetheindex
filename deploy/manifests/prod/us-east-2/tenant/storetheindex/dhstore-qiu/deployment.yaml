@@ -12,10 +12,16 @@ spec:
             - '--storePath=/data'
             - '--disableWAL'
             - '--blockCacheSize=2Gi'
-            # Set max concurrent compactions to the number of CPUs
-            - '--maxConcurrentCompactions=28'
-            # Bump from the default 12
-            - '--l0StopWritesThreshold=20'
+            - '--maxConcurrentCompactions=20'
+            - '--experimentalCompactionDebtConcurrency=100Gi'
+            - '--experimentalL0CompactionConcurrency=500'
+            # experimenting with higher threshold and impact of compaction on writes. 
+            - '--l0StopWritesThreshold=1000'
+            - '--l0CompactionThreshold=1000'
+            - '--l0CompactionFileThreshold=1000'
+          env:
+            - name: GO_DEBUG_MAX_THREADS
+              value: "20000"
           volumeMounts:
             - name: data
               mountPath: /data
