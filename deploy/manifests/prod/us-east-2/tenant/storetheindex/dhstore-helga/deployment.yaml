@@ -27,11 +27,11 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "7"
-              memory: 16Gi
+              cpu: "28"
+              memory: 58Gi
             requests:
-              cpu: "7"
-              memory: 16Gi
+              cpu: "28"
+              memory: 58Gi
           ports:
             - containerPort: 40081
               name: metrics
@@ -43,7 +43,7 @@ spec:
                   - key: node.kubernetes.io/instance-type
                     operator: In
                     values:
-                      - r5n.2xlarge
+                      - c6a.8xlarge
                   - key: topology.kubernetes.io/zone
                     operator: In
                     values:
@@ -52,9 +52,4 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: dhstore-data-helga
-      tolerations:
-        - key: dedicated
-          operator: Equal
-          value: r5n-2xl
-          effect: NoSchedule
 
