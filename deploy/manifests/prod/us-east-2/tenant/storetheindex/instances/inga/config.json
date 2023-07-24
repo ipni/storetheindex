@@ -60,10 +60,10 @@
     "ValueStoreType": "none",
     "DisableWAL": true,
     "DHBatchSize": 16384,
-    "DHStoreURL": "http://dhstore-qiu:40080",
+    "DHStoreURL": "http://dhstore-helga.internal.prod.cid.contact",
     "DHStoreClusterURLs": [
-      "http://dhstore-helga.internal.prod.cid.contact",
       "http://dhstore.internal.prod.cid.contact",
+      "http://dhstore-qiu:40080",
       "http://dhstore-porvy.internal.prod.cid.contact"
     ],
     "DHStoreHttpClientTimeout": "60s"
