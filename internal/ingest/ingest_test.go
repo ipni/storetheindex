@@ -25,6 +25,8 @@ import (
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
+	"github.com/ipni/go-libipni/announce"
+	"github.com/ipni/go-libipni/announce/p2psender"
 	"github.com/ipni/go-libipni/dagsync"
 	"github.com/ipni/go-libipni/dagsync/dtsync"
 	dstest "github.com/ipni/go-libipni/dagsync/test"
@@ -74,14 +76,13 @@ func TestSubscribe(t *testing.T) {
 			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 2},
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
-	ctx := context.Background()
-	err := te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(adHead.(cidlink.Link).Cid)
 	peerInfo := peer.AddrInfo{
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
-	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
+	ctx := context.Background()
+	_, err := te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
@@ -94,8 +95,7 @@ func TestSubscribe(t *testing.T) {
 			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 3},
 			typehelpers.RandomHamtEntryBuilder{MultihashCount: 100, Seed: 4},
 		}}.Build(t, te.publisherLinkSys, someOtherProviderPriv)
-	err = te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(adHead.(cidlink.Link).Cid)
 
 	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
@@ -136,8 +136,7 @@ func TestSubscribe(t *testing.T) {
 	te.reg.BlockPeer(te.pubHost.ID())
 	te.reg.BlockPeer(someOtherProvider)
 
-	err = te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(adHead.(cidlink.Link).Cid)
 
 	// We are manually syncing here to not rely on the pubsub mechanism inside a test.
 	// This will fetch the add and put it into our datastore, but will not process it.
@@ -226,8 +225,7 @@ func TestFailDuringResync(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := te.publisher.SetRoot(ctx, adHead.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(adHead.(cidlink.Link).Cid)
 
 	allMHs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 	allAds := typehelpers.AllAds(t, typehelpers.AdFromLink(t, adHead, te.publisherLinkSys), te.publisherLinkSys)
@@ -287,14 +285,13 @@ func TestFirstAdMissingAddrs(t *testing.T) {
 	cAd, err := schema.UnwrapAdvertisement(cAdNode)
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(cCid.(cidlink.Link).Cid)
 
 	peerInfo := peer.AddrInfo{
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
+	ctx := context.Background()
 	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
@@ -321,7 +318,7 @@ func TestRestartDuringSync(t *testing.T) {
 	cAd, err := schema.UnwrapAdvertisement(cAdNode)
 	require.NoError(t, err)
 
-	// We have a chain of 3 ads, A<-B<-C. We'll UpdateRoot to be B. Sync the
+	// We have a chain of 3 ads, A<-B<-C. We'll SetRoot to be B. Sync the
 	// ingester, then kill the ingester when it tries to process B but after it
 	// processes A. Then we'll bring the ingester up again and update root to be
 	// C, and see if we index everything (A, B, C) correctly.
@@ -335,8 +332,7 @@ func TestRestartDuringSync(t *testing.T) {
 	bCid := cAd.PreviousID
 
 	ctx := context.Background()
-	err = te.publisher.SetRoot(ctx, bCid.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(bCid.(cidlink.Link).Cid)
 
 	sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -380,9 +376,7 @@ func TestRestartDuringSync(t *testing.T) {
 	te.ingester = ingester
 
 	// And sync to C
-	err = te.publisher.UpdateRoot(ctx, cCid.(cidlink.Link).Cid)
-	require.NoError(t, err)
-
+	te.publisher.SetRoot(cCid.(cidlink.Link).Cid)
 	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
@@ -409,7 +403,7 @@ func TestFailDuringSync(t *testing.T) {
 	cAd, err := schema.UnwrapAdvertisement(cAdNode)
 	require.NoError(t, err)
 
-	// We have a chain of 3 ads, A<-B<-C. We'll UpdateRoot to be B. Sync the
+	// We have a chain of 3 ads, A<-B<-C. We'll SetRoot to be B. Sync the
 	// ingester, then fail the entries sync when the ingester tries to process B
 	// but after it processes A. Then we'll run a sync with head==C and verify if
 	// we've processed everything correctly
@@ -426,9 +420,7 @@ func TestFailDuringSync(t *testing.T) {
 	bCid := cAd.PreviousID
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	err = te.publisher.SetRoot(ctx, bCid.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(bCid.(cidlink.Link).Cid)
 
 	sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -457,10 +449,9 @@ func TestFailDuringSync(t *testing.T) {
 
 	blockedReads.rm(bAd.Entries.(cidlink.Link).Cid)
 	// And sync to C
-	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(cCid.(cidlink.Link).Cid)
 
-	endCid, err := te.ingester.Sync(ctx, peerInfo, 0, false)
+	endCid, err := te.ingester.Sync(sctx, peerInfo, 0, false)
 	require.NoError(t, err)
 	require.Equal(t, cCid.(cidlink.Link).Cid, endCid)
 
@@ -502,7 +493,7 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	cAd, err := schema.UnwrapAdvertisement(cAdNode)
 	require.NoError(t, err)
 
-	// We have a chain of 3 ads, A<-B<-C. We'll UpdateRoot to be B. Sync the
+	// We have a chain of 3 ads, A<-B<-C. We'll SetRoot to be B. Sync the
 	// ingester, then fail the entries sync when the ingester tries to process B
 	// but after it processes A. Then we'll run a sync with head==C and verify if
 	// we've processed everything correctly
@@ -518,8 +509,7 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	aCid := bAd.PreviousID
 
 	ctx := context.Background()
-	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(cCid.(cidlink.Link).Cid)
 
 	syncFinishedCh, cncl := te.ingester.sub.OnSyncFinished()
 	defer cncl()
@@ -598,17 +588,14 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 	ad, err := schema.UnwrapAdvertisement(adNode)
 	require.NoError(t, err)
 
-	ctx := context.Background()
-
-	err = te.publisher.SetRoot(ctx, chainHead.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(chainHead.(cidlink.Link).Cid)
 
 	peerInfo := peer.AddrInfo{
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
 
-	c, err := te.ingester.Sync(ctx, peerInfo, 0, false)
+	c, err := te.ingester.Sync(context.Background(), peerInfo, 0, false)
 	require.NoError(t, err)
 
 	lcid, err := te.ingester.GetLatestSync(te.pubHost.ID())
@@ -636,17 +623,14 @@ func TestSyncWithDepth(t *testing.T) {
 	ad, err := schema.UnwrapAdvertisement(adNode)
 	require.NoError(t, err)
 
-	ctx := context.Background()
-
-	err = te.publisher.SetRoot(ctx, chainHead.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(chainHead.(cidlink.Link).Cid)
 
 	peerInfo := peer.AddrInfo{
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
 
-	c, err := te.ingester.Sync(ctx, peerInfo, 1, false)
+	c, err := te.ingester.Sync(context.Background(), peerInfo, 1, false)
 	require.NoError(t, err)
 
 	lcid, err := te.ingester.GetLatestSync(te.pubHost.ID())
@@ -671,14 +655,13 @@ func TestFreeze(t *testing.T) {
 			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 2},
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
-	ctx := context.Background()
-	err := te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(adHead.(cidlink.Link).Cid)
 	peerInfo := peer.AddrInfo{
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
-	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
+
+	_, err := te.ingester.Sync(context.Background(), peerInfo, 0, false)
 	require.NoError(t, err)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
@@ -699,8 +682,9 @@ func TestFreeze(t *testing.T) {
 			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 10, Seed: 222},
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
-	err = te.publisher.UpdateRoot(ctx, adHead.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(adHead.(cidlink.Link).Cid)
+
+	ctx := context.Background()
 	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
@@ -766,14 +750,13 @@ func TestRmWithNoEntries(t *testing.T) {
 	prevAd, err := schema.UnwrapAdvertisement(prevAdNode)
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	err = te.publisher.UpdateRoot(context.Background(), chainHead.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(chainHead.(cidlink.Link).Cid)
 
 	peerInfo := peer.AddrInfo{
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
+	ctx := context.Background()
 	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 	var lcid cid.Cid
@@ -1171,13 +1154,12 @@ func TestReSyncWithDepth(t *testing.T) {
 		},
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
-	err := te.publisher.SetRoot(context.Background(), adHead.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(adHead.(cidlink.Link).Cid)
 	peerInfo := peer.AddrInfo{
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
-	_, err = te.ingester.Sync(context.Background(), peerInfo, 1, false)
+	_, err := te.ingester.Sync(context.Background(), peerInfo, 1, false)
 	require.NoError(t, err)
 	allMHs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs[1:])
@@ -1210,13 +1192,12 @@ func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 	cLink := allAdLinks[2]
 	allMHs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 	ctx := context.Background()
-	err := te.publisher.SetRoot(ctx, bLink.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(bLink.(cidlink.Link).Cid)
 	peerInfo := peer.AddrInfo{
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
-	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
+	_, err := te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs[0:2])
@@ -1224,8 +1205,7 @@ func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 
 	err = te.ingester.sub.SetLatestSync(te.pubHost.ID(), aLink.(cidlink.Link).Cid)
 	require.NoError(t, err)
-	err = te.publisher.SetRoot(ctx, cLink.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(cLink.(cidlink.Link).Cid)
 	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
@@ -1381,8 +1361,7 @@ func TestMultiplePublishers(t *testing.T) {
 		}}.Build(t, lsys1, pubHost1Priv)
 	headAd1Cid := headAd1.(cidlink.Link).Cid
 
-	err := pub1.UpdateRoot(ctx, headAd1Cid)
-	require.NoError(t, err)
+	pub1.SetRoot(headAd1Cid)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, headAd1, lsys1)
 	peerInfo1 := peer.AddrInfo{
 		ID:    pub1.ID(),
@@ -1402,8 +1381,7 @@ func TestMultiplePublishers(t *testing.T) {
 		}}.Build(t, lsys2, pubHost2Priv)
 	headAd2Cid := headAd2.(cidlink.Link).Cid
 
-	err = pub2.UpdateRoot(ctx, headAd2Cid)
-	require.NoError(t, err)
+	pub2.SetRoot(headAd2Cid)
 	mhs = typehelpers.AllMultihashesFromAdLink(t, headAd2, lsys2)
 
 	peerInfo2 := peer.AddrInfo{
@@ -1473,8 +1451,7 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 	mhs := typehelpers.AllMultihashesFromAdLink(t, headLink, te.publisherLinkSys)
 	pubAddrInfo := te.pubHost.Peerstore().PeerInfo(te.pubHost.ID())
 
-	err := te.publisher.SetRoot(context.Background(), headCid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(headCid)
 
 	// Block syncing of head ad entries
 	headAd := typehelpers.AdFromLink(t, headLink, te.publisherLinkSys)
@@ -1500,7 +1477,7 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 	// Announce an ad CID and assert that call to announce is deferred since
 	// we have blocked the processing.
 	ad2Cid := ads[2].(cidlink.Link).Cid
-	err = te.ingester.Announce(context.Background(), ad2Cid, pubAddrInfo)
+	err := te.ingester.Announce(context.Background(), ad2Cid, pubAddrInfo)
 	require.NoError(t, err)
 	gotPendingAnnounce, found := te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
 	require.True(t, found)
@@ -1575,13 +1552,17 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 	mhs := typehelpers.AllMultihashesFromAdLink(t, headLink, te.publisherLinkSys)
 	pubAddrInfo := te.pubHost.Peerstore().PeerInfo(te.pubHost.ID())
 
-	// Block Ad C which should block the sync triggered by publisher.UpdateRoot.
+	// Block Ad C which should block the sync triggered by publisher.SetRoot + announce.Send
 	adCCid := ads[2].(cidlink.Link).Cid
 	blockedReads.add(adCCid)
 
 	// Publish announce message on publisher side, which should trigger a background sync that
 	// gets blocked when attempting to sync ad C.
-	err := te.publisher.UpdateRoot(context.Background(), adCCid)
+	p2pSender, err := p2psender.New(te.pubHost, defaultTestIngestConfig.PubSubTopic)
+	require.NoError(t, err)
+	defer p2pSender.Close()
+	te.publisher.SetRoot(adCCid)
+	err = announce.Send(context.Background(), adCCid, te.publisher.Addrs(), p2pSender)
 	require.NoError(t, err)
 
 	// Assert that there is no announce pending processing since no explicit announce was made to
@@ -1654,8 +1635,7 @@ func TestGetEntryDataFromCar(t *testing.T) {
 	rootAd.Addresses = nil
 
 	ctx := context.Background()
-	err = te.publisher.SetRoot(ctx, cCid.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(cCid.(cidlink.Link).Cid)
 
 	peerInfo := peer.AddrInfo{
 		ID:    te.publisher.ID(),
@@ -1820,7 +1800,6 @@ func publishRandomIndexAndAdv(t *testing.T, pub dagsync.Publisher, lsys ipld.Lin
 }
 
 func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub dagsync.Publisher, lsys ipld.LinkSystem, fakeSig bool, eChunkCount int, metadata []byte, prevAdCid cid.Cid) (cid.Cid, []multihash.Multihash, peer.ID, crypto.PrivKey) {
-
 	priv, pubKey, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
 	require.NoError(t, err)
 
@@ -1857,8 +1836,7 @@ func publishRandomIndexAndAdvWithEntriesChunkCount(t *testing.T, pub dagsync.Pub
 	require.NoError(t, err)
 	advLnk, err := lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
 	require.NoError(t, err)
-	err = pub.UpdateRoot(context.Background(), advLnk.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	pub.SetRoot(advLnk.(cidlink.Link).Cid)
 	return advLnk.(cidlink.Link).Cid, mhs, p, priv
 }
 
@@ -1935,8 +1913,7 @@ func publishAdvWithExtendedProviders(t *testing.T,
 	require.NoError(t, err)
 	advLnk, err := lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
 	require.NoError(t, err)
-	err = pub.UpdateRoot(context.Background(), advLnk.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	pub.SetRoot(advLnk.(cidlink.Link).Cid)
 	return adv, advLnk.(cidlink.Link).Cid, mhs
 }
 
@@ -1983,8 +1960,7 @@ func publishAdWithEmptyExtendedProviders(t *testing.T,
 	require.NoError(t, err)
 	advLnk, err := lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
 	require.NoError(t, err)
-	err = pub.UpdateRoot(context.Background(), advLnk.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	pub.SetRoot(advLnk.(cidlink.Link).Cid)
 	return adv, advLnk.(cidlink.Link).Cid, mhs
 }
 
@@ -2009,8 +1985,7 @@ func publishRemovalAd(t *testing.T, pub dagsync.Publisher, lsys ipld.LinkSystem,
 	require.NoError(t, err)
 	advLnk, err := lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
 	require.NoError(t, err)
-	err = pub.UpdateRoot(context.Background(), advLnk.(cidlink.Link).Cid)
-	require.NoError(t, err)
+	pub.SetRoot(advLnk.(cidlink.Link).Cid)
 	return advLnk.(cidlink.Link).Cid
 }
 

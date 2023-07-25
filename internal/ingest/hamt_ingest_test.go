@@ -29,8 +29,7 @@ func TestIngester_IngestsMixedEntriesTypeSuccessfully(t *testing.T) {
 
 	// Set the head on publisher.
 	headAdCid := headAd.(cidlink.Link).Cid
-	err := te.publisher.SetRoot(ctx, headAdCid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(headAdCid)
 
 	// Extract the list of all multihashes in the ad chain.
 	mhs := typehelpers.AllMultihashesFromAdLink(t, headAd, te.publisherLinkSys)
