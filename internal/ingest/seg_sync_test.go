@@ -42,8 +42,7 @@ func TestAdsSyncedViaSegmentsAreProcessed(t *testing.T) {
 	headAdCid := headAd.(cidlink.Link).Cid
 
 	ctx := context.Background()
-	err := te.publisher.UpdateRoot(ctx, headAdCid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(headAdCid)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, headAd, te.publisherLinkSys)
 
 	subject := te.ingester

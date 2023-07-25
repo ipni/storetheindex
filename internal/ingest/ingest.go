@@ -23,6 +23,7 @@ import (
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	indexer "github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
+	"github.com/ipni/go-libipni/announce"
 	"github.com/ipni/go-libipni/dagsync"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/metrics"
@@ -226,22 +227,24 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		Backoff:      retryablehttp.DefaultBackoff,
 	}
 
-	// Create and start pubsub subscriber. This also registers the storage hook
-	// to index data as it is received.
-	sub, err := dagsync.NewSubscriber(h, ing.dsTmp, ing.lsys, cfg.PubSubTopic, Selectors.AdSequence,
-		dagsync.AllowPeer(reg.Allowed),
-		dagsync.FilterIPs(reg.FilterIPsEnabled()),
+	// Create and start subscriber. This also registers the storage hook to
+	// index data as it is received.
+	sub, err := dagsync.NewSubscriber(h, ing.dsTmp, ing.lsys, cfg.PubSubTopic,
+		dagsync.DefaultSelectorSeq(Selectors.AdSequence),
 		dagsync.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)),
 		dagsync.WithLastKnownSync(ing.getLastKnownSync),
 		dagsync.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
 		dagsync.HttpClient(rclient.StandardClient()),
 		dagsync.BlockHook(ing.generalDagsyncBlockHook),
-		dagsync.ResendAnnounce(cfg.ResendDirectAnnounce),
 		dagsync.WithMaxGraphsyncRequests(cfg.GsMaxInRequests, cfg.GsMaxOutRequests),
+		dagsync.RecvAnnounce(
+			announce.WithAllowPeer(reg.Allowed),
+			announce.WithFilterIPs(reg.FilterIPsEnabled()),
+			announce.WithResend(cfg.ResendDirectAnnounce),
+		),
 	)
-
 	if err != nil {
-		log.Errorw("Failed to start pubsub subscriber", "err", err)
+		log.Errorw("Failed to start dagsync subscriber", "err", err)
 		return nil, errors.New("ingester subscriber failed")
 	}
 	ing.sub = sub

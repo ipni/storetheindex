@@ -275,7 +275,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	}
 
 	// Allow provider advertisements, regardless of default policy.
-	e.run(indexer, "admin", "allow", "-i", "localhost:3002", "--peer", providerID)
+	e.run(indexer, "admin", "allow", "-i", "http://localhost:3002", "--peer", providerID)
 
 	// Import a car file into the provider.  This will cause the provider to
 	// publish an advertisement that the indexer will read.  The indexer will
@@ -292,7 +292,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
-			findOutput := e.run(ipni, "find", "--no-priv", "-i", "localhost:3000", "-mh", mh)
+			findOutput := e.run(ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
 			t.Logf("import output:\n%s\n", findOutput)
 
 			if bytes.Contains(findOutput, []byte("not found")) {
@@ -344,15 +344,15 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		t.Fatal("timed out waiting for indexer2 to start")
 	}
 
-	outProviders := e.run(ipni, "provider", "--all", "--indexer", "localhost:3200")
+	outProviders := e.run(ipni, "provider", "--all", "--indexer", "http://localhost:3200")
 	require.Contains(t, string(outProviders), "No providers registered with indexer",
 		"expected no providers message")
 
 	// import providers from first indexer.
-	e.run(indexer, "admin", "import-providers", "--indexer", "localhost:3202", "--from", "localhost:3000")
+	e.run(indexer, "admin", "import-providers", "--indexer", "http://localhost:3202", "--from", "localhost:3000")
 
 	// Check that provider ID now appears in providers output.
-	outProviders = e.run(ipni, "provider", "--all", "--indexer", "localhost:3200", "--id-only")
+	outProviders = e.run(ipni, "provider", "--all", "--indexer", "http://localhost:3200", "--id-only")
 	require.Contains(t, string(outProviders), providerID, "expected provider id in providers output after import-providers")
 
 	// Connect provider to the 2nd indexer.
@@ -375,7 +375,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 
 	// Create double hashed client and verify that 2nd indexer wrote
 	// multihashes to dhstore.
-	client, err := findclient.NewDHashClient("http://127.0.0.1:3000", findclient.WithDHStoreURL("http://127.0.0.1:40080"))
+	client, err := findclient.NewDHashClient(findclient.WithProvidersURL("http://127.0.0.1:3000"), findclient.WithDHStoreURL("http://127.0.0.1:40080"))
 	require.NoError(t, err)
 
 	mh, err := multihash.FromB58String("2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj")
@@ -408,7 +408,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
-			findOutput := e.run(ipni, "find", "--no-priv", "-i", "localhost:3000", "-mh", mh)
+			findOutput := e.run(ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
 			t.Logf("import output:\n%s\n", findOutput)
 			if !bytes.Contains(findOutput, []byte("not found")) {
 				return false
@@ -418,17 +418,17 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	}, 10*time.Second, time.Second)
 
 	// Check that status is not frozen.
-	outStatus := e.run(indexer, "admin", "status", "--indexer", "localhost:3202")
+	outStatus := e.run(indexer, "admin", "status", "--indexer", "http://localhost:3202")
 	require.Contains(t, string(outStatus), "Frozen: false", "expected indexer to be frozen")
 
-	e.run(indexer, "admin", "freeze", "--indexer", "localhost:3202")
-	outProviders = e.run(ipni, "provider", "--all", "--indexer", "localhost:3200")
+	e.run(indexer, "admin", "freeze", "--indexer", "http://localhost:3202")
+	outProviders = e.run(ipni, "provider", "--all", "--indexer", "http://localhost:3200")
 
 	// Check that provider ID now appears as frozen in providers output.
 	require.Contains(t, string(outProviders), "FrozenAtTime", "expected provider to be frozen")
 
 	// Check that status is frozen.
-	outStatus = e.run(indexer, "admin", "status", "--indexer", "localhost:3202")
+	outStatus = e.run(indexer, "admin", "status", "--indexer", "http://localhost:3202")
 	require.Contains(t, string(outStatus), "Frozen: true", "expected indexer to be frozen")
 
 	e.stop(cmdIndexer2, time.Second)

@@ -27,8 +27,7 @@ func TestInvalidMultihashesAreNotIngested(t *testing.T) {
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 	headAdCid := headAd.(cidlink.Link).Cid
 	ctx := context.Background()
-	err := te.publisher.SetRoot(ctx, headAdCid)
-	require.NoError(t, err)
+	te.publisher.SetRoot(headAdCid)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, headAd, te.publisherLinkSys)
 	require.Len(t, mhs, 6) // 6 ads; one mh each.
 	validMhs := []multihash.Multihash{mhs[1], mhs[3], mhs[5]}

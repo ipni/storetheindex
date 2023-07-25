@@ -16,6 +16,8 @@ import (
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/storage/dsadapter"
+	"github.com/ipni/go-libipni/announce"
+	"github.com/ipni/go-libipni/announce/p2psender"
 	"github.com/ipni/go-libipni/dagsync"
 	"github.com/ipni/go-libipni/dagsync/dtsync"
 	"github.com/ipni/go-libipni/dagsync/httpsync"
@@ -141,11 +143,15 @@ func newProviderLoadGen(c Config, indexerHttpAddr string, addressMapping map[str
 		pub, err = httpsync.NewPublisher(c.HttpListenAddr, lsys, signingKey)
 	} else {
 		pub, err = dtsync.NewPublisher(host, ds, lsys, c.GossipSubTopic)
-
 	}
 	if err != nil {
 		panic("Failed to start publisher: " + err.Error())
 	}
+	sender, err := p2psender.New(host, c.GossipSubTopic)
+	if err != nil {
+		panic("Failed to start announce sender: " + err.Error())
+	}
+
 	p := &providerLoadGen{
 		indexerHttpAddr: indexerHttpAddr,
 		config:          c,
@@ -153,6 +159,7 @@ func newProviderLoadGen(c Config, indexerHttpAddr string, addressMapping map[str
 		h:               host,
 		lsys:            lsys,
 		pub:             pub,
+		sender:          sender,
 	}
 
 	return p
@@ -172,6 +179,7 @@ type providerLoadGen struct {
 	adsGenerated     uint
 	currentHead      ipld.Link
 	recordKeepingMu  sync.Mutex
+	sender           announce.Sender
 }
 
 func (p *providerLoadGen) announce() error {
@@ -256,7 +264,8 @@ func (p *providerLoadGen) runUpdater(afterEachUpdate func()) func() {
 
 				p.recordKeepingMu.Unlock()
 
-				err = p.pub.UpdateRootWithAddrs(context.Background(), nextAdHead.(cidlink.Link).Cid, p.h.Addrs())
+				p.pub.SetRoot(nextAdHead.(cidlink.Link).Cid)
+				err = announce.Send(context.Background(), nextAdHead.(cidlink.Link).Cid, p.h.Addrs(), p.sender)
 				if err != nil {
 					panic(fmt.Sprintf("Failed to publish ad: %s", err))
 				}
