@@ -17,11 +17,11 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	indexer "github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
+	"github.com/ipni/go-libipni/apierror"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
-	"github.com/ipni/storetheindex/server/find/handler"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
@@ -37,8 +37,10 @@ var (
 type Server struct {
 	server    *http.Server
 	listener  net.Listener
-	handler   *handler.Handler
 	healthMsg string
+	indexer   indexer.Interface
+	registry  *registry.Registry
+	stats     *cachedStats
 }
 
 func (s *Server) URL() string {
@@ -88,7 +90,9 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	s := &Server{
 		server:   server,
 		listener: l,
-		handler:  handler.New(indexer, registry),
+		indexer:  indexer,
+		registry: registry,
+		stats:    newCachedStats(indexer, time.Hour),
 	}
 
 	s.healthMsg = "ready"
@@ -128,12 +132,12 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) RefreshStats() {
-	s.handler.RefreshStats()
+	s.stats.refresh()
 }
 
 func (s *Server) Close() error {
 	log.Info("find http server shutdown")
-	s.handler.Close()
+	s.stats.close()
 	return s.server.Shutdown(context.Background())
 }
 
@@ -226,7 +230,14 @@ func (s *Server) listProviders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := s.handler.ListProviders()
+	infos := s.registry.AllProviderInfo()
+
+	responses := make([]model.ProviderInfo, len(infos))
+	for i, pInfo := range infos {
+		responses[i] = *registry.RegToApiProviderInfo(pInfo)
+	}
+
+	data, err := json.Marshal(responses)
 	if err != nil {
 		log.Errorw("cannot list providers", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
@@ -238,11 +249,9 @@ func (s *Server) listProviders(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getProvider(w http.ResponseWriter, r *http.Request) {
 	enableCors(w)
-
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
 		return
 	}
-
 	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
 		return
 	}
@@ -253,15 +262,16 @@ func (s *Server) getProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := s.handler.GetProvider(providerID)
+	info, allowed := s.registry.ProviderInfo(providerID)
+	if info == nil || !allowed || info.Inactive() {
+		http.Error(w, "provider not found", http.StatusNotFound)
+		return
+	}
+	rsp := registry.RegToApiProviderInfo(info)
+	data, err := json.Marshal(rsp)
 	if err != nil {
 		log.Error("cannot get provider", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	if len(data) == 0 {
-		http.Error(w, "provider not found", http.StatusNotFound)
 		return
 	}
 
@@ -274,22 +284,29 @@ func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
 		return
 	}
-
 	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
 		return
 	}
 
-	data, err := s.handler.GetStats()
-	switch {
-	case err != nil:
+	stats, err := s.stats.get()
+	if err != nil {
 		log.Errorw("cannot get stats", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
-	case len(data) == 0:
+		return
+	}
+	data, err := model.MarshalStats(&stats)
+	if err != nil {
+		log.Errorw("cannot marshal stats", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	if len(data) == 0 {
 		log.Warn("processing stats")
 		http.Error(w, "processing", http.StatusTeapot)
-	default:
-		httpserver.WriteJsonResponse(w, http.StatusOK, data)
+		return
 	}
+
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
@@ -318,7 +335,7 @@ func (s *Server) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, st
 			stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
 	}()
 
-	response, err := s.handler.Find(mhs)
+	response, err := s.find(mhs)
 	if err != nil {
 		httpserver.HandleError(w, err, "get")
 		return
@@ -385,4 +402,152 @@ func getProviderID(r *http.Request) (peer.ID, error) {
 		return providerID, fmt.Errorf("cannot decode provider id: %s", err)
 	}
 	return providerID, nil
+}
+
+// find reads from indexer core to populate a response from a list of
+// multihashes.
+func (s *Server) find(mhashes []multihash.Multihash) (*model.FindResponse, error) {
+	results := make([]model.MultihashResult, 0, len(mhashes))
+	provInfos := map[peer.ID]*registry.ProviderInfo{}
+
+	for i := range mhashes {
+		values, found, err := s.indexer.Get(mhashes[i])
+		if err != nil {
+			err = fmt.Errorf("failed to query multihash %s: %s", mhashes[i].B58String(), err)
+			return nil, apierror.New(err, http.StatusInternalServerError)
+		}
+		if !found {
+			continue
+		}
+
+		provResults := make([]model.ProviderResult, 0, len(values))
+		for j := range values {
+			iVal := values[j]
+			provID := iVal.ProviderID
+			pinfo := s.fetchProviderInfo(provID, iVal.ContextID, provInfos, true)
+			if pinfo == nil {
+				continue
+			}
+
+			// Adding the main provider
+			provResult := model.ProviderResult{
+				ContextID: iVal.ContextID,
+				Metadata:  iVal.MetadataBytes,
+				Provider: &peer.AddrInfo{
+					ID:    provID,
+					Addrs: pinfo.AddrInfo.Addrs,
+				},
+			}
+			provResults = append(provResults, provResult)
+
+			if pinfo.ExtendedProviders == nil {
+				continue
+			}
+
+			epRecord := pinfo.ExtendedProviders
+
+			// If override is set to true at the context level then the chain
+			// level EPs should be ignored for this context ID
+			override := false
+
+			// Adding context-level EPs if they exist
+			if contextualEpRecord, ok := epRecord.ContextualProviders[string(iVal.ContextID)]; ok {
+				override = contextualEpRecord.Override
+				for _, epInfo := range contextualEpRecord.Providers {
+					// Skippng the main provider's record if its metadata is
+					// nil or is the same as the one retrieved from the
+					// indexer, because such EP record does not advertise any
+					// new protocol.
+					if epInfo.PeerID == provID &&
+						(len(epInfo.Metadata) == 0 || bytes.Equal(epInfo.Metadata, iVal.MetadataBytes)) {
+						continue
+					}
+					provResult := createExtendedProviderResult(epInfo, iVal)
+					provResults = append(provResults, *provResult)
+
+				}
+			}
+
+			if override {
+				continue
+			}
+
+			// Adding chain-level EPs if such exist
+			for _, epInfo := range epRecord.Providers {
+				// Skippng the main provider's record if its metadata is nil or
+				// is the same as the one retrieved from the indexer, because
+				// such EP record does not advertise any new protocol.
+				if epInfo.PeerID == provID &&
+					(len(epInfo.Metadata) == 0 || bytes.Equal(epInfo.Metadata, iVal.MetadataBytes)) {
+					continue
+				}
+				provResult := createExtendedProviderResult(epInfo, iVal)
+				provResults = append(provResults, *provResult)
+			}
+
+		}
+
+		// If there are no providers for this multihash, then do not return a
+		// result for it.
+		if len(provResults) == 0 {
+			continue
+		}
+
+		// Add the result to the list of index results.
+		results = append(results, model.MultihashResult{
+			Multihash:       mhashes[i],
+			ProviderResults: provResults,
+		})
+	}
+
+	return &model.FindResponse{
+		MultihashResults: results,
+	}, nil
+}
+
+func (s *Server) fetchProviderInfo(provID peer.ID, contextID []byte, provAddrs map[peer.ID]*registry.ProviderInfo, removeProviderContext bool) *registry.ProviderInfo {
+	// Lookup provider info for each unique provider, look in local map
+	// before going to registry.
+	pinfo, ok := provAddrs[provID]
+	if ok {
+		return pinfo
+	}
+	pinfo, allowed := s.registry.ProviderInfo(provID)
+	if pinfo == nil && removeProviderContext {
+		// If provider not in registry, then provider was deleted.
+		// Tell the indexed core to delete the contextID for the
+		// deleted provider. Delete the contextID from the core,
+		// because there is no way to delete all records for the
+		// provider without a scan of the entire core valuestore.
+		go func(provID peer.ID, contextID []byte) {
+			err := s.indexer.RemoveProviderContext(provID, contextID)
+			if err != nil {
+				log.Errorw("Error removing provider context", "err", err)
+			}
+		}(provID, contextID)
+		// If provider not in registry, do not return in result.
+		return nil
+	}
+	// Omit provider info if not allowed or marked as inactive.
+	if !allowed || pinfo.Inactive() {
+		return nil
+	}
+	provAddrs[provID] = pinfo
+	return pinfo
+}
+
+func createExtendedProviderResult(epInfo registry.ExtendedProviderInfo, iVal indexer.Value) *model.ProviderResult {
+	metadata := epInfo.Metadata
+	if metadata == nil {
+		metadata = iVal.MetadataBytes
+	}
+
+	return &model.ProviderResult{
+		ContextID: iVal.ContextID,
+		Metadata:  metadata,
+		Provider: &peer.AddrInfo{
+			ID:    epInfo.PeerID,
+			Addrs: epInfo.Addrs,
+		},
+	}
 }

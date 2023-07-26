@@ -1,4 +1,4 @@
-package handler
+package find
 
 import (
 	"context"
@@ -8,6 +8,10 @@ import (
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-libipni/find/model"
 )
+
+// avgMhSize is a slight overcount over the expected size of a multihash as a
+// way of estimating the number of entries in the primary value store.
+const avgMhSize = 40
 
 type (
 	cachedStats struct {
@@ -67,7 +71,7 @@ func (c *cachedStats) refresh() {
 	var size int64
 	size, newResult.errEntriesEstimate = c.indexer.Size()
 	if newResult.errEntriesEstimate == nil {
-		newResult.entriesEstimate = size / avg_mh_size
+		newResult.entriesEstimate = size / avgMhSize
 	}
 	c.latest.Store(&newResult)
 }
