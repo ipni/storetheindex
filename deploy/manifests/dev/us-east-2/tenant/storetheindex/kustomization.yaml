@@ -8,6 +8,7 @@ resources:
 - indexstar
 - dhstore
 - dhstore-ago2
+- dhstore-ago3
 - caskadht
 - snapshots
 - lookout
