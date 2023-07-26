@@ -3,15 +3,12 @@ package find_test
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/ipfs/go-cid"
-	reframeclient "github.com/ipfs/go-delegated-routing/client"
-	"github.com/ipfs/go-delegated-routing/gen/proto"
 	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/cache/radixcache"
 	"github.com/ipni/go-indexer-core/engine"
@@ -109,43 +106,6 @@ func TestFindIndexWithExtendedProviders(t *testing.T) {
 
 	require.NoError(t, s.Close(), "shutdown error")
 	err := <-errChan
-	require.NoError(t, err)
-
-	reg.Close()
-	require.NoError(t, ind.Close(), "Error closing indexer core")
-}
-
-func TestReframeFindIndexData(t *testing.T) {
-	// Initialize everything
-	ind := initIndex(t, true)
-	reg := initRegistry(t)
-	s := setupServer(ind, reg, t)
-	c := setupClient(s.URL(), t)
-
-	// create delegated routing client
-	q, err := proto.New_DelegatedRouting_Client(s.URL() + "/reframe")
-	require.NoError(t, err)
-	reframeClient, err := reframeclient.NewClient(q, nil, nil)
-	require.NoError(t, err)
-
-	// Start server
-	errChan := make(chan error, 1)
-	go func() {
-		err := s.Start()
-		if err != http.ErrServerClosed {
-			errChan <- err
-		}
-		close(errChan)
-	}()
-
-	// Test must complete in 5 seconds
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	reframeFindIndexTest(ctx, t, c, reframeClient, ind, reg)
-
-	require.NoError(t, s.Close(), "shutdown error")
-	err = <-errChan
 	require.NoError(t, err)
 
 	reg.Close()
@@ -294,40 +254,6 @@ func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 	require.True(t, ok, "index not found")
 	require.NotZero(t, len(vals), "no values returned")
 	require.True(t, v.Equal(vals[0]), "stored and retrieved values are different")
-}
-
-func reframeFindIndexTest(ctx context.Context, t *testing.T, c client.Interface, rc *reframeclient.Client, ind indexer.Interface, reg *registry.Registry) {
-	// Generate some multihashes and populate indexer
-	mhs := test.RandomMultihashes(15)
-	p, err := peer.Decode(providerID)
-	require.NoError(t, err)
-	ctxID := []byte("test-context-id")
-
-	// Use a sample metadata with multiple protocols that includes BitSwap
-	// among others to make a stronger test.
-	metadata, err := base64.StdEncoding.DecodeString("gBKQEqNoUGllY2VDSUTYKlgoAAGB4gOSICAYVAKmPqL1mpkiiDhd9iBaXoU/3rXorXxzjiyESP4hB2xWZXJpZmllZERlYWz0bUZhc3RSZXRyaWV2YWz1")
-	require.NoError(t, err)
-	v := indexer.Value{
-		ProviderID:    p,
-		ContextID:     ctxID,
-		MetadataBytes: metadata,
-	}
-	populateIndex(ind, mhs[:10], v, t)
-
-	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
-	provider := peer.AddrInfo{
-		ID:    p,
-		Addrs: []multiaddr.Multiaddr{a},
-	}
-	err = reg.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
-	require.NoError(t, err, "could not register provider info")
-
-	// Get single multihash
-	peerAddrs, err := rc.FindProviders(ctx, cid.NewCidV1(cid.Raw, mhs[0]))
-	require.NoError(t, err)
-
-	require.Equal(t, 1, len(peerAddrs), "expecting one peer addr")
-	require.Equal(t, p, peerAddrs[0].ID)
 }
 
 func findIndexTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {

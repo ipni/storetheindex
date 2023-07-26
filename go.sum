@@ -480,8 +480,6 @@ github.com/ipfs/go-datastore v0.5.0/go.mod h1:9zhEApYMTl17C8YDp7JmU7sQZi2/wqiYh7
 github.com/ipfs/go-datastore v0.5.1/go.mod h1:9zhEApYMTl17C8YDp7JmU7sQZi2/wqiYh73hakZ90Bk=
 github.com/ipfs/go-datastore v0.6.0 h1:JKyz+Gvz1QEZw0LsX1IBn+JFCJQH4SJVFtM4uWU0Myk=
 github.com/ipfs/go-datastore v0.6.0/go.mod h1:rt5M3nNbSO/8q1t4LNkLyUwRs8HupMeN/8O4Vn9YAT8=
-github.com/ipfs/go-delegated-routing v0.8.0 h1:faiRi4k8YioTxU2x7+pnrLQjR7jIQhGWN2JvCwcQ/aU=
-github.com/ipfs/go-delegated-routing v0.8.0/go.mod h1:18Dds6ZoNTsff9S/7R49Nh2t2YNXIIKR/RLQmBZdjjY=
 github.com/ipfs/go-detect-race v0.0.1 h1:qX/xay2W3E4Q1U7d9lNs1sU9nvguX0a7319XbyQ6cOk=
 github.com/ipfs/go-detect-race v0.0.1/go.mod h1:8BNT7shDZPo99Q74BpGMK+4D8Mn4j46UU0LZ723meps=
 github.com/ipfs/go-ds-badger v0.0.2/go.mod h1:Y3QpeSFWQf6MopLTiZD+VT6IC1yZqaGmjvRcKeSGij8=
@@ -583,8 +581,6 @@ github.com/ipfs/go-verifcid v0.0.2 h1:XPnUv0XmdH+ZIhLGKg6U2vaPaRDXb9urMyNVCE7uvT
 github.com/ipfs/go-verifcid v0.0.2/go.mod h1:40cD9x1y4OWnFXbLNJYRe7MpNvWlMn3LZAG5Wb4xnPU=
 github.com/ipfs/kubo v0.21.0 h1:1+XKokeyatfI2Mri5iBn8Eplxf2F5ud0K5zLDg4tSSc=
 github.com/ipfs/kubo v0.21.0/go.mod h1:LuK5ANXz/UhHp8jdt4mRwE16AHhbRqY68g/uyc5/VqU=
-github.com/ipld/edelweiss v0.2.0 h1:KfAZBP8eeJtrLxLhi7r3N0cBCo7JmwSRhOJp3WSpNjk=
-github.com/ipld/edelweiss v0.2.0/go.mod h1:FJAzJRCep4iI8FOFlRriN9n0b7OuX3T/S9++NpBDmA4=
 github.com/ipld/go-car/v2 v2.10.1 h1:MRDqkONNW9WRhB79u+Z3U5b+NoN7lYA5B8n8qI3+BoI=
 github.com/ipld/go-car/v2 v2.10.1/go.mod h1:sQEkXVM3csejlb1kCCb+vQ/pWBKX9QtvsrysMQjOgOg=
 github.com/ipld/go-codec-dagpb v1.6.0 h1:9nYazfyu9B1p3NAgfVdpRco3Fs2nFC72DqVsMj6rOcc=
@@ -598,8 +594,8 @@ github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd/go.mod h1:9DD/GM0JNPoisgR09F62kbBi7kHa4eDIea4XshXYOVc=
 github.com/ipni/go-indexer-core v0.8.0 h1:HPFMngR47FL49mVnOZBrcxJoRODjIadlP+UYMRboNKA=
 github.com/ipni/go-indexer-core v0.8.0/go.mod h1:Y9su+no9k6y+jnQRERP/CKJewdISHzzl+n91GA+y4Ao=
-github.com/ipni/go-libipni v0.3.0 h1:EHjRCYColMSZ7A0e7eF9bjWWpCLHI+K7wvJY1OR3Pxo=
-github.com/ipni/go-libipni v0.3.0/go.mod h1:2zyo+mgV+E1T0n6eGmef7+uEt0awOpIhqONfz9ZPtNo=
+github.com/ipni/go-libipni v0.3.1 h1:zCq9UXrvVL4NAxyumPGHboUAGraNfmkDC16BAoQGrww=
+github.com/ipni/go-libipni v0.3.1/go.mod h1:2zyo+mgV+E1T0n6eGmef7+uEt0awOpIhqONfz9ZPtNo=
 github.com/iris-contrib/blackfriday v2.0.0+incompatible/go.mod h1:UzZ2bDEoaSGPbkg6SAB4att1aAwTmVIx/5gCVqeyUdI=
 github.com/iris-contrib/go.uuid v2.0.0+incompatible/go.mod h1:iz2lgM/1UnEf1kP0L/+fafWORmlnuysV2EMP8MW+qe0=
 github.com/iris-contrib/i18n v0.0.0-20171121225848-987a633949d0/go.mod h1:pMCz62A0xJL6I+umB2YTlFRwWXaDFA0jy+5HzGiJjqI=
@@ -782,7 +778,6 @@ github.com/libp2p/go-libp2p-pubsub v0.9.3/go.mod h1:RYA7aM9jIic5VV47WXu4GkcRxRhr
 github.com/libp2p/go-libp2p-quic-transport v0.10.0/go.mod h1:RfJbZ8IqXIhxBRm5hqUEJqjiiY8xmEuq3HUDS993MkA=
 github.com/libp2p/go-libp2p-record v0.1.0/go.mod h1:ujNc8iuE5dlKWVy6wuL6dd58t0n7xI4hAIl8pE6wu5Q=
 github.com/libp2p/go-libp2p-record v0.2.0 h1:oiNUOCWno2BFuxt3my4i1frNrt7PerzB3queqa1NkQ0=
-github.com/libp2p/go-libp2p-record v0.2.0/go.mod h1:I+3zMkvvg5m2OcSdoL0KPljyJyvNDFGKX7QdlpYUcwk=
 github.com/libp2p/go-libp2p-secio v0.1.0/go.mod h1:tMJo2w7h3+wN4pgU2LSYeiKPrfqBgkOsdiKK77hE7c8=
 github.com/libp2p/go-libp2p-secio v0.2.0/go.mod h1:2JdZepB8J5V9mBp79BmwsaPQhRPNN2NrnB2lKQcdy6g=
 github.com/libp2p/go-libp2p-secio v0.2.1/go.mod h1:cWtZpILJqkqrSkiYcDBh5lA3wbT2Q+hz3rJQq3iftD8=
