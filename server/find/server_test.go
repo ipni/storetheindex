@@ -196,7 +196,6 @@ func TestServer_StreamingResponse(t *testing.T) {
 			reqAccept:       "application/x-ndjson,application/xhtml+xml,application/xml;q=0.9",
 			wantContentType: "application/x-ndjson",
 			wantResponseBody: `{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}
-
 `,
 			wantResponseStatus: http.StatusOK,
 		},
@@ -214,7 +213,6 @@ func TestServer_StreamingResponse(t *testing.T) {
 			reqAccept:       "ext/html,application/xhtml+xml,application/xml;q=0.9,application/x-ndjson",
 			wantContentType: "application/x-ndjson",
 			wantResponseBody: `{"ContextID":"ZmlzaA==","Metadata":"bG9ic3Rlcg==","Provider":{"ID":"12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA","Addrs":["/ip4/127.0.0.1/tcp/9999"]}}
-
 `,
 			wantResponseStatus: http.StatusOK,
 		},
