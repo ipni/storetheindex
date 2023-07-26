@@ -22,7 +22,6 @@ import (
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/server/find/handler"
-	"github.com/ipni/storetheindex/server/reframe"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
@@ -119,9 +118,6 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	mux.HandleFunc("/providers", s.listProviders)
 	mux.HandleFunc("/providers/", s.getProvider)
 	mux.HandleFunc("/stats", s.getStats)
-
-	reframeHandler := reframe.NewReframeHTTPHandler(indexer, registry)
-	mux.HandleFunc("/reframe", reframeHandler)
 
 	return s, nil
 }
