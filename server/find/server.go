@@ -29,10 +29,7 @@ import (
 	xnet "golang.org/x/net/netutil"
 )
 
-var (
-	log     = logging.Logger("indexer/find")
-	newline = []byte("\n")
-)
+var log = logging.Logger("indexer/find")
 
 type Server struct {
 	server    *http.Server
@@ -363,10 +360,6 @@ func (s *Server) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, st
 		for _, result := range pr {
 			if err := encoder.Encode(result); err != nil {
 				log.Errorw("Failed to encode streaming response", "err", err)
-				break
-			}
-			if _, err := w.Write(newline); err != nil {
-				log.Errorw("failed to write newline while streaming results", "err", err)
 				break
 			}
 			// TODO: optimise the number of time we call flush based on some time-based or result
