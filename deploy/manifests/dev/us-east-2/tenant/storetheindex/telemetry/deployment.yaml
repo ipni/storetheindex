@@ -13,7 +13,7 @@ spec:
         - name: telemetry
           args:
             - '-providersURL=http://indexstar:8080/'
-            - '-maxDepth=5000'
+            - '-maxDepth=500'
             - '-updateIn=2m'
             - '-listenAddr=0.0.0.0:40080'
             - '-metricsAddr=0.0.0.0:40081'
