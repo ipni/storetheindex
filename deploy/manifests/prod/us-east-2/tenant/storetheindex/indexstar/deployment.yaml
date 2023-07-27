@@ -16,9 +16,9 @@ spec:
             - '--providersBackends=http://inga-indexer:3000/'
             
             # New FDB-backed new indexers
-            - '--providersBackends=http://arya-indexer:3000/'
-            - '--providersBackends=http://bala-indexer:3000/'
-            - '--providersBackends=http://cera-indexer:3000/'
+            #- '--providersBackends=http://arya-indexer:3000/'
+            #- '--providersBackends=http://bala-indexer:3000/'
+            #- '--providersBackends=http://cera-indexer:3000/'
             
             # Remove old nodes since inga is largely caught up and other indexers may be further behind/forward.
             # This results in inconsistent responses and hard to debug issues.
