@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry
+spec:
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+      containers:
+        - name: telemetry
+          args:
+            - '-providersURL=http://indexstar.dev.cid.contact'
+            - '-maxDepth=5000'
+            - '-updateIn=2m'
+            - '-metricsAddr=40081'
+          ports:
+            - containerPort: 40081
+              name: metrics
+          volumeMounts:
+            - name: identity
+              mountPath: /identity
+            - name: config
+              mountPath: /config
+          resources:
+            limits:
+              cpu: "3"
+              memory: 2Gi
+            requests:
+              cpu: "3"
+              memory: 2Gi
