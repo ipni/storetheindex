@@ -17,18 +17,10 @@ spec:
             - '-updateIn=2m'
             - '-listenAddr=0.0.0.0:40080'
             - '-metricsAddr=0.0.0.0:40081'
-          ports:
-            - containerPort: 40081
-              name: metrics
-          volumeMounts:
-            - name: identity
-              mountPath: /identity
-            - name: config
-              mountPath: /config
           resources:
             limits:
-              cpu: "3"
+              cpu: "1"
               memory: 2Gi
             requests:
-              cpu: "3"
+              cpu: "1"
               memory: 2Gi

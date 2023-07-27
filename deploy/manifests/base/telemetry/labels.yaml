@@ -1,0 +1,12 @@
+apiVersion: builtin
+kind: LabelTransformer
+metadata:
+  name: labels
+labels:
+  app.kubernetes.io/name: telemetry
+  app.kubernetes.io/component: routing
+  app.kubernetes.io/part-of: ipni
+  app.kubernetes.io/managed-by: kustomization
+fieldSpecs:
+  - path: metadata/labels
+    create: true
