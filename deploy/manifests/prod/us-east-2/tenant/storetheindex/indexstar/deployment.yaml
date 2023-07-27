@@ -15,11 +15,6 @@ spec:
             - '--translateNonStreaming'
             - '--providersBackends=http://inga-indexer:3000/'
             
-            # Remove old nodes since inga is largely caught up and other indexers may be further behind/forward.
-            # This results in inconsistent responses and hard to debug issues.
-            # - '--providersBackends=http://oden-indexer:3000/'
-            # - '--providersBackends=http://kepa-indexer:3000/'
-            # - '--providersBackends=http://dido-indexer:3000/'
             - '--backends=http://dhstore.internal.prod.cid.contact/'
             - '--backends=http://dhstore-helga.internal.prod.cid.contact/'
             - '--backends=http://dhstore-porvy.internal.prod.cid.contact/'
