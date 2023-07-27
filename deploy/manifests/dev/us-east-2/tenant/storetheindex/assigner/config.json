@@ -7,6 +7,11 @@
   "Assignment": {
     "FilterIPs": false,
     "IndexerPool": [
+      {
+        "AdminURL": "http://noop-indexer:3002",
+        "FindURL": "http://noop-indexer:3000",
+        "IngestURL": "http://noop-indexer:3001"
+      }
     ],
     "Policy": {
       "Allow": true,
