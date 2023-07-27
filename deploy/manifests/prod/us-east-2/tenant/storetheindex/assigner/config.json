@@ -8,19 +8,9 @@
     "FilterIPs": false,
     "IndexerPool": [
       {
-        "AdminURL": "http://arya-indexer:3002",
-        "FindURL": "http://arya-indexer:3000",
-        "IngestURL": "http://arya-indexer:3001"
-      },
-      {
-        "AdminURL": "http://bala-indexer:3002",
-        "FindURL": "http://bala-indexer:3000",
-        "IngestURL": "http://bala-indexer:3001"
-      },
-      {
-        "AdminURL": "http://cera-indexer:3002",
-        "FindURL": "http://cera-indexer:3000",
-        "IngestURL": "http://cera-indexer:3001"
+        "AdminURL": "http://noop-indexer:3002",
+        "FindURL": "http://noop-indexer:3000",
+        "IngestURL": "http://noop-indexer:3001"
       }
     ],
     "Policy": {
@@ -65,10 +55,7 @@
   "Peering": {
     "Peers": [
       "/dns4/inga-indexer/tcp/3003/p2p/12D3KooWGRNQLAeMZ658jcuCkVBcVnCkxVYT4GqknQV2tRwDXfRT",
-      "/dns4/assigner-peer.dev.cid.contact/tcp/3003/p2p/12D3KooWDBjcDRQ7CKJeF9Yy3UKbriHfyETDrXKzTDB6biH3ibBd",
-      "/dns4/arya-indexer/tcp/3003/p2p/12D3KooWQoE7zwUzodJsLVSukj1tMtygRmNPBE6YZovcqkBFTQQF",
-      "/dns4/bala-indexer/tcp/3003/p2p/12D3KooWLyT5StTAVZTvCFdr8BAwWxLikYWE5WM6c13DADJoxxoG",
-      "/dns4/cera-indexer/tcp/3003/p2p/12D3KooWDdFeN29ukjmoksLnLRT5bwkGv2mQ41bqwS2Bjuhhd4oQ"
+      "/dns4/assigner-peer.dev.cid.contact/tcp/3003/p2p/12D3KooWDBjcDRQ7CKJeF9Yy3UKbriHfyETDrXKzTDB6biH3ibBd"
     ]
   }
 }
