@@ -1,9 +1,0 @@
-
-apiVersion: snapshot.storage.k8s.io/v1
-kind: VolumeSnapshot
-metadata:
-  name: kepa-20230404
-spec:
-  volumeSnapshotClassName: csi-aws-vsc
-  source:
-    persistentVolumeClaimName: kepa-data

@@ -4,7 +4,4 @@ kind: Kustomization
 namespace: storetheindex
 
 resources:
-  - dido-snapshot.yaml
-  - kepa-snapshot.yaml
-  - oden-snapshot.yaml
   - dhstore-snapshot.yaml

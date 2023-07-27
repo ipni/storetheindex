@@ -6,7 +6,4 @@ namespace: storetheindex
 resources:
   - pdb.yaml
   - pod-monitor.yaml
-  - oden # pebble, 5 IOPS per GiB, nft.storage only
-  - dido # pebble, 5 IOPS per GiB, on us-east2a
-  - kepa # pebble, 3 IOPS per GiB, mirror of dido but on us-east2b, replacement of indexer-1
   - inga # double hashed instance, writes to prod dhstore
