@@ -12,10 +12,11 @@ spec:
       containers:
         - name: telemetry
           args:
-            - '-providersURL=http://indexstar.dev.cid.contact'
+            - '-providersURL=http://indexstar:8080/'
             - '-maxDepth=5000'
             - '-updateIn=2m'
-            - '-metricsAddr=40081'
+            - '-listenAddr=0.0.0.0:40080'
+            - '-metricsAddr=0.0.0.0:40081'
           ports:
             - containerPort: 40081
               name: metrics
