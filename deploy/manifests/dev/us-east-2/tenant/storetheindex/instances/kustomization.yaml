@@ -7,6 +7,3 @@ resources:
   - pdb.yaml
   - pod-monitor.yaml
   - ago
-  - alva
-  - bria
-  - cora

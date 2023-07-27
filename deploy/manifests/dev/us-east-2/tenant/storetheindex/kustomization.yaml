@@ -14,10 +14,6 @@ resources:
 - lookout
 - cassette
 - heyfil
-- fdb-manager
-- fdb-cluster
-- dhstore-stateless
-- fdbmeter
 images:
 - name: storetheindex
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
