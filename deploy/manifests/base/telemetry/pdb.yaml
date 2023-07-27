@@ -1,0 +1,9 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: telemetry
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: telemetry

@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry
+spec:
+  selector:
+    matchLabels:
+      app: telemetry
+  template:
+    metadata:
+      labels:
+        app: telemetry
+    spec:
+      containers:
+        - name: telemetry
+          image: telemetry
+          ports:
+            - containerPort: 40080
+              name: http
+            - containerPort: 40081
+              name: metrics
+          readinessProbe:
+            httpGet:
+              port: http
+              path: /ready
+            initialDelaySeconds: 3
+            failureThreshold: 3
+            successThreshold: 1
+            timeoutSeconds: 5
+            periodSeconds: 10
