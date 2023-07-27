@@ -5,7 +5,6 @@ namespace: storetheindex
 
 resources:
   - ../../../../../base/telemetry
-  - service-external.yaml
   - pod-monitor.yaml
 
 patchesStrategicMerge:
