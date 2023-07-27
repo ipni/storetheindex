@@ -7,21 +7,6 @@
   "Assignment": {
     "FilterIPs": false,
     "IndexerPool": [
-      {
-        "AdminURL": "http://alva-indexer:3002",
-        "FindURL": "http://alva-indexer:3000",
-        "IngestURL": "http://alva-indexer:3001"
-      },
-      {
-        "AdminURL": "http://bria-indexer:3002",
-        "FindURL": "http://bria-indexer:3000",
-        "IngestURL": "http://bria-indexer:3001"
-      },
-      {
-        "AdminURL": "http://cora-indexer:3002",
-        "FindURL": "http://cora-indexer:3000",
-        "IngestURL": "http://cora-indexer:3001"
-      }
     ],
     "Policy": {
       "Allow": true,
@@ -64,9 +49,6 @@
   },
   "Peering": {
     "Peers": [
-      "/dns4/alva-indexer/tcp/3003/p2p/12D3KooWSrUNEvYeHKL74mFaY6oayTJBNTfBFd1u8TBsD4ZwxRMC",
-      "/dns4/bria-indexer/tcp/3003/p2p/12D3KooWBYVX8aSiS8butwauzJvg5Ka8J339PHkn3WjhLZJAdDM8",
-      "/dns4/cora-indexer/tcp/3003/p2p/12D3KooWEkZMB3XQTDYgAxhMd9jfZhfD9zHjKPTyyi6jzM5u7bgv"
     ]
   }
 }
