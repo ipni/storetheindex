@@ -14,10 +14,6 @@ resources:
 - dhstore-helga
 - dhstore-porvy
 - cassette
-- fdb-manager
-- dhstore-stateless
-- fdb-cluster
-- fdbmeter
 - dhstore-qiu
 images:
 - name: storetheindex
