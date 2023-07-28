@@ -13,14 +13,14 @@ spec:
         - name: telemetry
           args:
             - '-providersURL=http://indexstar:8080/'
-            - '-maxDepth=200'
+            - '-maxDepth=10000'
             - '-updateIn=2m'
             - '-listenAddr=0.0.0.0:40080'
             - '-metricsAddr=0.0.0.0:40081'
           resources:
             limits:
               cpu: "1"
-              memory: 6Gi
+              memory: 5Gi
             requests:
               cpu: "1"
-              memory: 6Gi
+              memory: 5Gi
