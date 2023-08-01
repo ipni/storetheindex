@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - ../../../../../base/telemetry
+  - pod-monitor.yaml
+
+patchesStrategicMerge:
+  - deployment.yaml
+
+images:
+  - name: telemetry
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/telemetry
+    newTag: 20230801005039-f6c8466cd6ed7984b935446d6afcb436be1cf0dd
+

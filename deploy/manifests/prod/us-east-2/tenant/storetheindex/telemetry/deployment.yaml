@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry
+spec:
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+      containers:
+        - name: telemetry
+          args:
+            - '-providersURL=http://indexstar:8080/'
+            - '-maxDepth=5000'
+            - '-updateIn=2m'
+            - '-updateTimeout=5m'
+            - '-listenAddr=0.0.0.0:40080'
+            - '-metricsAddr=0.0.0.0:40081'
+          resources:
+            limits:
+              cpu: "1"
+              memory: 5Gi
+            requests:
+              cpu: "1"
+              memory: 5Gi
