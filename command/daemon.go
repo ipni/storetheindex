@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -15,7 +14,6 @@ import (
 	"github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
-	kuboconfig "github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core/bootstrap"
 	"github.com/ipfs/kubo/peering"
 	"github.com/ipni/go-indexer-core"
@@ -76,8 +74,6 @@ var daemonFlags = []cli.Flag{
 		Required: false,
 	},
 }
-
-var tempBootstrapPeersKey = datastore.NewKey("/local/temp_bootstrap_peers")
 
 func daemonAction(cctx *cli.Context) error {
 	cfg, err := loadConfig("")
@@ -259,50 +255,10 @@ func daemonAction(cctx *cli.Context) error {
 
 			bootCfg := bootstrap.BootstrapConfigWithPeers(addrs)
 			bootCfg.MinPeerThreshold = cfg.Bootstrap.MinimumPeers
-			if dstore == nil {
-				bootCfg.LoadBackupBootstrapPeers = func(_ context.Context) []peer.AddrInfo { return nil }
-				bootCfg.SaveBackupBootstrapPeers = func(_ context.Context, _ []peer.AddrInfo) {}
-			} else {
-				bootCfg.LoadBackupBootstrapPeers = func(ctx context.Context) []peer.AddrInfo {
-					data, err := dstore.Get(ctx, tempBootstrapPeersKey)
-					if err != nil {
-						if !errors.Is(err, datastore.ErrNotFound) {
-							log.Errorw("failed to read temp bootstrap peers", "err", err)
-						}
-						return nil
-					}
-					if len(data) == 0 {
-						return nil
-					}
-					var addrs []string
-					if err = json.Unmarshal(data, &addrs); err != nil {
-						log.Errorw("failed to unmarshal temp bootstrap peers", "err", err)
-						return nil
-					}
-					peerList, err := kuboconfig.ParseBootstrapPeers(addrs)
-					if err != nil {
-						log.Errorw("failed to parse temp bootstrap peers", "err", err)
-						return nil
-					}
-					return peerList
-				}
 
-				bootCfg.SaveBackupBootstrapPeers = func(ctx context.Context, peerList []peer.AddrInfo) {
-					data, err := json.Marshal(kuboconfig.BootstrapPeerStrings(peerList))
-					if err != nil {
-						log.Errorw("failed to marshal temp bootstrap peers", "err", err)
-						return
-					}
-					if err = dstore.Put(ctx, tempBootstrapPeersKey, data); err != nil {
-						log.Errorw("failed to write temp bootstrap peers", "err", err)
-						return
-					}
-					if err = dstore.Sync(ctx, tempBootstrapPeersKey); err != nil {
-						log.Errorw("failed to sync datastore", "err", err)
-						return
-					}
-				}
-			}
+			// Kubo does not allow these to be nil, so set empty functions.
+			bootCfg.LoadBackupBootstrapPeers = func(_ context.Context) []peer.AddrInfo { return nil }
+			bootCfg.SaveBackupBootstrapPeers = func(_ context.Context, _ []peer.AddrInfo) {}
 
 			bootstrapper, err := bootstrap.Bootstrap(peerID, p2pHost, nil, bootCfg)
 			if err != nil {
