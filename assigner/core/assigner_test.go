@@ -787,6 +787,49 @@ func TestFreezeHandoff(t *testing.T) {
 	fakeIndexer2.close()
 }
 
+func TestAssignerNoIndexers(t *testing.T) {
+	cfgAssignment := config.Assignment{
+		Policy: config.Policy{
+			Allow: true,
+		},
+		PubSubTopic: "testtopic",
+		Replication: 1,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	assigner, err := core.NewAssigner(ctx, cfgAssignment, nil)
+	require.NoError(t, err)
+
+	asmtChan, cancel := assigner.OnAssignment(peer2ID)
+	defer cancel()
+
+	// Send announce message for publisher peer2. It has a preset assignment to
+	// indexer0, so should only be assigned to that indexer.
+	adCid, _ := cid.Decode("bafybeigvgzoolc3drupxhlevdp2ugqcrbcsqfmcek2zxiw5wctk3xjpjwy")
+	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	addrInfo := peer.AddrInfo{
+		ID:    peer2ID,
+		Addrs: []multiaddr.Multiaddr{a},
+	}
+	err = assigner.Announce(ctx, adCid, addrInfo)
+	require.NoError(t, err)
+
+	err = assigner.Close()
+	require.NoError(t, err)
+
+	// Check that channel is closed without receiving anything.
+	timeout := time.NewTimer(3 * time.Second)
+	defer timeout.Stop()
+	select {
+	case _, open := <-asmtChan:
+		require.False(t, open)
+	case <-timeout.C:
+		t.Fatal("timed out waiting for assignment")
+	}
+}
+
 type testIndexer struct {
 	adminServer  *httptest.Server
 	findServer   *httptest.Server
