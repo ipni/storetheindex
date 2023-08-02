@@ -303,6 +303,9 @@ func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *i
 	dsTmp := dssync.MutexWrap(datastore.NewMapDatastore())
 	host, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		host.Close()
+	})
 
 	ing, err := ingest.NewIngester(cfg, host, indx, reg, ds, dsTmp)
 	require.NoError(t, err)

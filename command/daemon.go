@@ -231,6 +231,7 @@ func daemonAction(cctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
+		defer p2pHost.Close()
 
 		// Do not resend direct announce messages if using an assigner service.
 		if cfg.Discovery.UseAssigner {
