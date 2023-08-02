@@ -34,7 +34,6 @@ data "aws_iam_policy_document" "kms_sti" {
         "arn:aws:iam::407967248065:user/masih",
         "arn:aws:iam::407967248065:user/gammazero",
         "arn:aws:iam::407967248065:user/will.scott",
-        "arn:aws:iam::407967248065:user/kylehuntsman",
         "arn:aws:iam::407967248065:user/ischasny",
       ]
     }
@@ -139,7 +138,6 @@ data "aws_iam_policy_document" "kms_cluster" {
         "arn:aws:iam::407967248065:user/masih",
         "arn:aws:iam::407967248065:user/gammazero",
         "arn:aws:iam::407967248065:user/will.scott",
-        "arn:aws:iam::407967248065:user/kylehuntsman",
         "arn:aws:iam::407967248065:user/ischasny",
       ]
     }
