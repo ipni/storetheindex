@@ -77,6 +77,7 @@ func TestHandleRegisterProvider(t *testing.T) {
 
 	host, err := libp2p.New()
 	require.NoError(t, err)
+	defer host.Close()
 
 	ds := dssync.MutexWrap(datastore.NewMapDatastore())
 	dsTmp := dssync.MutexWrap(datastore.NewMapDatastore())

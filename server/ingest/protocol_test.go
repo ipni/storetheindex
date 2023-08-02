@@ -140,6 +140,7 @@ func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *i
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ing.Close()
+		host.Close()
 	})
 	return ing
 }

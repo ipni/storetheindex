@@ -104,6 +104,7 @@ func daemonAction(cctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
+		defer p2pHost.Close()
 
 		bootstrapper, err := startBootstrapper(cfg.Bootstrap, p2pHost)
 		if err != nil {
