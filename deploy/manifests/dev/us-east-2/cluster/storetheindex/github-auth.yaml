@@ -6,7 +6,7 @@ metadata:
 type: Opaque
 stringData:
     username: ENC[AES256_GCM,data:1+UktyjIQQ==,iv:QMjAc1384Y8Q6Wkrq9ftrCuK75zHNq4whLvA0ypv0RM=,tag:vSGKVzGQbRb4cCSRBRJzZw==,type:str]
-    password: ENC[AES256_GCM,data:D2svX/BUKnl1I6y3Zw/eIpqeir0/QF6EHq/VIZ4s72qmemQ/YTA0Wg==,iv:HxzaW5U2FX8z5GZSKIygjGOZRVr2dEhQwYV1UKUlrTE=,tag:Mb/hnRSO7SvKGNK1GfGQPA==,type:str]
+    password: ENC[AES256_GCM,data:VCoz0nhovuhhH4MoOXScL9df3Vdf2cqNsqUxhsAV/dpwzmB6tY7Zig==,iv:0gQ8p2esdvUj5jqf/1P3ywBCJ71QuJ+PU+fdDLMSG6Q=,tag:QckmONQ5usd3P72bC4LOwQ==,type:str]
 sops:
     kms:
         - arn: arn:aws:kms:us-east-2:407967248065:alias/dev/us-east-2/cluster
@@ -17,8 +17,8 @@ sops:
     azure_kv: []
     hc_vault: []
     age: []
-    lastmodified: "2023-05-27T15:51:42Z"
-    mac: ENC[AES256_GCM,data:K+w0QXOSkFSfZHssbgFbIe8ZPysy6sI4+Waycpj053JAByFNoI8rdyf0TvYhEzM8xKv+X1qdTgKYhvvDNUqHbb8hPPsVMWTqKLBRRaBLcQCaHKPdEtJck6tVDOcsqLbaQxgI2zmc5Nc8qtwsTCWRM0ZmKbD+SgKxZuS5L2kPJHc=,iv:E4dTgrcwi2z+DrvlnjcZGwRiuMPETMZIhgxXnisp5P0=,tag:EBd0/iROppHaeDuKt+L4Ng==,type:str]
+    lastmodified: "2023-08-02T21:24:16Z"
+    mac: ENC[AES256_GCM,data:CJ3ZNDcb5hLbqttN3g9zvp7d0iK2aY02U32Li9u3YvMjyoVzuBiqLwx178fzvEZ9LqKqk5LL2yCHHMPoSWeyeB9Pu778Sv7NzfBm/6EOdrcJ738yBipuFK9r2ADO3ivicfGFDaMbuIEysPGaA4ul1vZ7AGYkpgYse67sJErZpkc=,iv:gGVEpgdomKg+qE3+PbzNBdLMMNUA/gfhX01cfzYCBaU=,tag:NF+pdHMpjyHHSUlrsCl7Lw==,type:str]
     pgp: []
     encrypted_regex: ^(data|stringData)$
     version: 3.7.3
