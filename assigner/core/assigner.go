@@ -127,9 +127,6 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 	if cfg.Replication < 0 {
 		return nil, errors.New("bad replication value, must be 0 or positive")
 	}
-	if len(cfg.IndexerPool) < 1 {
-		return nil, errors.New("no indexers configured to assign to")
-	}
 
 	indexerPool, presets, err := indexersFromConfig(cfg.IndexerPool)
 	if err != nil {
@@ -160,7 +157,8 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 	replication := cfg.Replication
 	if replication <= 0 {
 		replication = 1
-	} else if replication > len(indexerPool) {
+	}
+	if replication > len(indexerPool) {
 		replication = len(indexerPool)
 	}
 
@@ -169,8 +167,6 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 		indexerPool: indexerPool,
 		p2pHost:     p2pHost,
 		policy:      policy,
-		pollDone:    make(chan struct{}),
-		pollNow:     make(chan struct{}),
 		presets:     presets,
 		presetRepl:  presetRepl,
 		receiver:    rcvr,
@@ -190,11 +186,15 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 		log.Infow("Read assignments from all indexers")
 	}
 
-	pollCtx, pollCancel := context.WithCancel(context.Background())
-	a.pollCancel = pollCancel
+	if len(indexerPool) != 0 {
+		a.pollDone = make(chan struct{})
+		a.pollNow = make(chan struct{})
+		pollCtx, pollCancel := context.WithCancel(context.Background())
+		a.pollCancel = pollCancel
+		go a.poll(pollCtx, time.Duration(cfg.PollInterval))
+	}
 
 	go a.watch()
-	go a.poll(pollCtx, time.Duration(cfg.PollInterval))
 
 	return a, nil
 }
@@ -218,7 +218,9 @@ func (a *Assigner) InitDone() bool {
 }
 
 func (a *Assigner) PollNow() {
-	a.pollNow <- struct{}{}
+	if a.pollNow != nil {
+		a.pollNow <- struct{}{}
+	}
 }
 
 func (a *Assigner) initAssignments(ctx context.Context) int {
@@ -468,14 +470,15 @@ func (a *Assigner) Close() error {
 	a.waitingNotice = nil
 	a.noticeMutex.Unlock()
 
-	a.mutex.Lock()
-	if a.pollCancel != nil {
-		a.pollCancel()
-		a.pollCancel = nil
+	if a.pollDone != nil {
+		a.mutex.Lock()
+		if a.pollCancel != nil {
+			a.pollCancel()
+			a.pollCancel = nil
+		}
+		a.mutex.Unlock()
+		<-a.pollDone
 	}
-	a.mutex.Unlock()
-
-	<-a.pollDone
 
 	// Close receiver and wait for watch to exit.
 	err := a.receiver.Close()
@@ -586,6 +589,11 @@ func (a *Assigner) watch() {
 			break
 		}
 		log.Debugw("Received announce", "publisher", amsg.PeerID)
+
+		// If no indexers to assign to, ignore announcement.
+		if len(a.indexerPool) == 0 {
+			continue
+		}
 
 		a.mutex.Lock()
 
@@ -710,6 +718,9 @@ func (a *Assigner) makeAssignments(ctx context.Context, amsg announce.Announce, 
 }
 
 func (a *Assigner) pollFrozen(ctx context.Context) {
+	if len(a.indexerPool) == 0 {
+		return
+	}
 	ctx, cancel := context.WithTimeout(ctx, pollFrozenTimeout)
 	defer cancel()
 
