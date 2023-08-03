@@ -95,13 +95,6 @@ module "eks" {
       desired_size   = 0
       instance_types = ["c6a.8xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
-      taints         = {
-        dedicated = {
-          key    = "dedicated"
-          value  = "c6a-8xl"
-          effect = "NO_SCHEDULE"
-        }
-      }
     }
     prod-ue2b-c6a-8xl-2 = {
       min_size       = 0
@@ -109,13 +102,6 @@ module "eks" {
       desired_size   = 0
       instance_types = ["c6a.8xlarge"]
       subnet_ids     = [data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
-      taints         = {
-        dedicated = {
-          key    = "dedicated"
-          value  = "c6a-8xl"
-          effect = "NO_SCHEDULE"
-        }
-      }
     }
     prod-ue2c-c6a-8xl-2 = {
       min_size       = 0
@@ -123,13 +109,6 @@ module "eks" {
       desired_size   = 0
       instance_types = ["c6a.8xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
-      taints         = {
-        dedicated = {
-          key    = "dedicated"
-          value  = "c6a-8xl"
-          effect = "NO_SCHEDULE"
-        }
-      }
     }
     prod-ue2a-r6a-2xl = {
       min_size       = 0
