@@ -675,8 +675,8 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 	}
 
 	if r.filterIPs {
-		provider.Addrs = mautil.FilterPrivateIPs(provider.Addrs)
-		publisher.Addrs = mautil.FilterPrivateIPs(publisher.Addrs)
+		provider.Addrs = mautil.FilterPublic(provider.Addrs)
+		publisher.Addrs = mautil.FilterPublic(publisher.Addrs)
 	}
 
 	var newPublisher bool
@@ -1385,9 +1385,9 @@ func loadPersistedProviders(ctx context.Context, dstore datastore.Datastore, fil
 		}
 
 		if filterIPs {
-			pinfo.AddrInfo.Addrs = mautil.FilterPrivateIPs(pinfo.AddrInfo.Addrs)
+			pinfo.AddrInfo.Addrs = mautil.FilterPublic(pinfo.AddrInfo.Addrs)
 			if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr != nil {
-				pubAddrs := mautil.FilterPrivateIPs([]multiaddr.Multiaddr{pinfo.PublisherAddr})
+				pubAddrs := mautil.FilterPublic([]multiaddr.Multiaddr{pinfo.PublisherAddr})
 				if len(pubAddrs) == 0 {
 					pinfo.PublisherAddr = nil
 				} else {
