@@ -35,4 +35,4 @@ images:
     # in order to relieve high cpu spikes that cause lookup outage. See: 
     #  - https://github.com/ipni/storetheindex/issues/2062
     #  - https://github.com/ipni/storetheindex/pull/2067
-    newTag: 0.7.7
+    newTag: 0.7.8
