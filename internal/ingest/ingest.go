@@ -18,9 +18,7 @@ import (
 	"github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
-	"github.com/ipld/go-ipld-prime/datamodel"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
-	"github.com/ipld/go-ipld-prime/traversal/selector"
 	indexer "github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/go-libipni/announce"
@@ -121,8 +119,7 @@ type Ingester struct {
 	sub         *dagsync.Subscriber
 	syncTimeout time.Duration
 
-	entriesSel datamodel.Node
-	reg        *registry.Registry
+	reg *registry.Registry
 
 	// inEvents is used to send an adProcessedEvent to the distributeEvents
 	// goroutine, when an advertisement in marked complete or having an error.
@@ -188,7 +185,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		lsys:        mkLinkSystem(dsTmp, reg),
 		indexer:     idxr,
 		syncTimeout: time.Duration(cfg.SyncTimeout),
-		entriesSel:  Selectors.EntriesWithLimit(recursionLimit(cfg.EntriesDepthLimit)),
 		reg:         reg,
 		inEvents:    make(chan adProcessedEvent, 1),
 
@@ -230,8 +226,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	// Create and start subscriber. This also registers the storage hook to
 	// index data as it is received.
 	sub, err := dagsync.NewSubscriber(h, ing.dsTmp, ing.lsys, cfg.PubSubTopic,
-		dagsync.DefaultSelectorSeq(Selectors.AdSequence),
-		dagsync.SyncRecursionLimit(recursionLimit(cfg.AdvertisementDepthLimit)),
+		dagsync.AdsDepthLimit(int64(cfg.AdvertisementDepthLimit)),
+		dagsync.EntriesDepthLimit(int64(cfg.EntriesDepthLimit)),
 		dagsync.WithLastKnownSync(ing.getLastKnownSync),
 		dagsync.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
 		dagsync.HttpClient(rclient.StandardClient()),
@@ -398,9 +394,6 @@ func removeProcessedFrozen(ctx context.Context, dstore datastore.Datastore) erro
 // entries in each advertisement are synced and the multihashes in each entry
 // are indexed.
 //
-// The selector used to sync the advertisement is controlled by the following
-// parameters: depth, and resync.
-//
 // The depth argument specifies the recursion depth limit to use during sync.
 // Its value may less than -1 for no limit, 0 to use the indexer's configured
 // value, or greater than 1 for an explicit limit.
@@ -411,9 +404,7 @@ func removeProcessedFrozen(ctx context.Context, dstore datastore.Datastore) erro
 // recursion depth limit is reached.
 //
 // The reference to the latest synced advertisement returned by GetLatestSync
-// is only updated if the given depth is zero and resync is set to
-// false. Otherwise, a custom selector with the given depth limit and stop link
-// is constructed and used for traversal. See dagsync.Subscriber.Sync.
+// is only updated if the given depth is zero and resync is set to false.
 //
 // The Context argument controls the lifetime of the sync. Canceling it cancels
 // the sync and causes the multihash channel to close without any data.
@@ -426,46 +417,31 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 	log := log.With("publisher", peerInfo.ID, "addrs", peerInfo.Addrs, "depth", depth, "resync", resync)
 	log.Info("Explicitly syncing the latest advertisement from peer")
 
-	var sel ipld.Node
-	// If depth is non-zero or traversal should not stop at the latest synced,
-	// then construct a selector to behave accordingly.
-	if depth != 0 || resync {
-		sel, err = ing.makeLimitedDepthSelector(peerInfo.ID, depth, resync)
-		if err != nil {
-			return cid.Undef, fmt.Errorf("failed to construct selector for explicit sync: %w", err)
-		}
-	}
-
-	latest, err := ing.GetLatestSync(peerInfo.ID)
-	if err != nil {
-		return cid.Undef, fmt.Errorf("failed to get latest sync: %w", err)
-	}
-
-	// Start syncing. Notifications for the finished sync are sent
-	// asynchronously. Sync with cid.Undef so that the latest head is queried
-	// by dagsync via head-publisher.
-	//
-	// Note that if the selector is nil the default selector is used where
-	// traversal stops at the latest known head.
-	//
-	// Reference to the latest synced CID is only updated if the given selector
-	// is nil.
-	opts := []dagsync.SyncOption{
-		dagsync.WithForceUpdateLatest(),
-	}
+	// Ad chain traversal stops at the latest known head, unless resyncing.
+	var opts []dagsync.SyncOption
+	var latest cid.Cid
 	if resync {
 		// If this is a resync, then it is necessary to mark the ad as
 		// unprocessed so that everything can be reingested from the start of
 		// this sync. Create a scoped block-hook to do this.
-		opts = append(opts, dagsync.ScopedBlockHook(func(i peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
-			err := ing.markAdUnprocessed(c, true)
-			if err != nil {
-				log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
-			}
-			// Call the general hook because scoped block hook overrides the
-			// subscriber's general block hook.
-			ing.generalDagsyncBlockHook(i, c, actions)
-		}))
+		opts = append(opts, dagsync.WithAdsResync(true),
+			dagsync.ScopedBlockHook(func(i peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
+				if err := ing.markAdUnprocessed(c, true); err != nil {
+					log.Errorw("Failed to mark ad as unprocessed", "err", err, "adCid", c)
+				}
+				// Call the general hook because scoped block hook overrides the
+				// subscriber's general block hook.
+				ing.generalDagsyncBlockHook(i, c, actions)
+			}))
+	} else {
+		latest, err = ing.GetLatestSync(peerInfo.ID)
+		if err != nil {
+			return cid.Undef, fmt.Errorf("failed to get latest sync: %w", err)
+		}
+	}
+
+	if depth != 0 {
+		opts = append(opts, dagsync.ScopedDepthLimit(int64(depth)))
 	}
 
 	syncDone, cancel := ing.onAdProcessed(peerInfo.ID)
@@ -478,7 +454,10 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 		defer syncCancel()
 	}
 
-	c, err := ing.sub.Sync(syncCtx, peerInfo, cid.Undef, sel, opts...)
+	// Start syncing. Notifications for the finished sync are sent
+	// asynchronously. Sync with cid.Undef so that the latest head is queried
+	// by dagsync via head-publisher.
+	c, err := ing.sub.SyncAdChain(syncCtx, peerInfo, opts...)
 	if err != nil {
 		ing.reg.SetLastError(peerInfo.ID, err)
 		return cid.Undef, fmt.Errorf("failed to sync: %w", err)
@@ -488,7 +467,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 
 	// If latest head had already finished syncing, then do not wait for
 	// syncDone since it will never happen.
-	if latest == c && !resync {
+	if !resync && latest == c {
 		log.Infow("Latest advertisement already processed", "adCid", c)
 		return c, nil
 	}
@@ -554,28 +533,6 @@ func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, pubAddrInfo 
 		log.Info("Deferred handling direct announce request")
 		return nil
 	}
-}
-
-func (ing *Ingester) makeLimitedDepthSelector(peerID peer.ID, depth int, resync bool) (ipld.Node, error) {
-	// Consider the value of < 1 as no-limit.
-	rLimit := recursionLimit(depth)
-	log := log.With("depth", depth)
-
-	var stopAt ipld.Link
-	if !resync {
-		latest, err := ing.GetLatestSync(peerID)
-		if err != nil {
-			return nil, err
-		}
-
-		if latest != cid.Undef {
-			stopAt = cidlink.Link{Cid: latest}
-		}
-	}
-	// The stop link may be nil, in which case it is treated as no stop link.
-	// Log it regardless for debugging purposes.
-	log.Debugw("Custom selector constructed for explicit sync", "stopAt", stopAt)
-	return dagsync.ExploreRecursiveWithStopNode(rLimit, Selectors.AdSequence, stopAt), nil
 }
 
 // markAdUnprocessed takes an advertisement CID and marks it as unprocessed.
@@ -860,7 +817,7 @@ func (ing *Ingester) autoSync() {
 				ID:    pubID,
 				Addrs: []multiaddr.Multiaddr{pubAddr},
 			}
-			_, err := ing.sub.Sync(ctx, peerInfo, cid.Undef, nil)
+			_, err := ing.sub.SyncAdChain(ctx, peerInfo)
 			if err != nil {
 				log.Errorw("Failed to auto-sync with publisher", "err", err)
 				ing.reg.SetLastError(provID, fmt.Errorf("auto-sync failed: %s", err))
@@ -1319,12 +1276,4 @@ func (ing *Ingester) handlePendingAnnounce(ctx context.Context, pubID peer.ID) {
 		return
 	}
 	log.Info("Successfully handled pending announce")
-}
-
-// recursionLimit returns the recursion limit for the given depth.
-func recursionLimit(depth int) selector.RecursionLimit {
-	if depth < 1 {
-		return selector.RecursionLimitNone()
-	}
-	return selector.RecursionLimitDepth(int64(depth))
 }
