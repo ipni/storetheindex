@@ -21,7 +21,6 @@ import (
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
-	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
@@ -521,7 +520,7 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 
 	// Note that this doesn't start an ingest on the indexer because we removed
 	// the OnSyncFinished hook above.
-	_, err = te.ingester.sub.Sync(ctx, peerInfo, cid.Undef, nil)
+	_, err = te.ingester.sub.SyncAdChain(ctx, peerInfo)
 	require.NoError(t, err)
 	syncFinishedEvent := <-syncFinishedCh
 
@@ -1213,23 +1212,25 @@ func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 }
 
 func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
+	const entriesDepth = 10
+
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	h := mkTestHost()
 	pubHost := mkTestHost()
-	ing, core, _ := mkIngest(t, h)
-	defer core.Close()
-	defer ing.Close()
+
+	// make ingester with much smaller entries depth limit.
+	ingCfg := defaultTestIngestConfig
+	ingCfg.EntriesDepthLimit = entriesDepth
+	ing, core, _ := mkIngestWithConfig(t, h, ingCfg)
 	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
-	defer pub.Close()
+	t.Cleanup(func() {
+		pub.Close()
+		ing.Close()
+		core.Close()
+	})
 	connectHosts(t, h, pubHost)
 
-	const entriesDepth = 10
-
 	totalChunkCount := entriesDepth * 2
-
-	// Replace ingester entries selector with on that has a much smaller limit,
-	// for testing.
-	ing.entriesSel = Selectors.EntriesWithLimit(selector.RecursionLimitDepth(entriesDepth))
 
 	adCid, _, providerID, _ := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount, nil, cid.Undef)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

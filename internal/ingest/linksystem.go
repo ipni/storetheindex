@@ -342,10 +342,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	// HAMT. Sync the very first entry so that we can check which type it is.
 	// This means the maximum depth of entries traversal will be 1 plus the
 	// configured max depth.
-	//
-	// TODO: See if it is worth detecting and reducing depth the depth in
-	// entries selectors by one.
-	syncedFirstEntryCid, err := ing.sub.Sync(ctx, publisher, entriesCid, Selectors.One)
+	err = ing.sub.SyncOneEntry(ctx, publisher, entriesCid)
 	if err != nil {
 		// TODO: A "content not found" error from graphsync does not have a
 		// graphsync.RequestFailedContentNotFoundErr in the error chain. Need
@@ -363,25 +360,21 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 			strings.Contains(msg, "content not found"),
 			strings.Contains(msg, "graphsync request failed to complete: skip"):
 			return adIngestError{adIngestContentNotFound, wrappedErr}
-		default:
-			return adIngestError{adIngestSyncEntriesErr, wrappedErr}
 		}
+		return adIngestError{adIngestSyncEntriesErr, wrappedErr}
 	}
 
-	node, err := ing.loadNode(syncedFirstEntryCid, basicnode.Prototype.Any)
+	node, err := ing.loadNode(entriesCid, basicnode.Prototype.Any)
 	if err != nil {
 		return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load first entry after sync: %w", err)}
 	}
 
 	if isHAMT(node) {
-		mhCount, err = ing.ingestHamtFromPublisher(ctx, ad, publisherID, providerID, syncedFirstEntryCid, log)
+		mhCount, err = ing.ingestHamtFromPublisher(ctx, ad, publisherID, providerID, entriesCid, log)
 	} else {
-		mhCount, err = ing.ingestEntriesFromPublisher(ctx, ad, publisherID, providerID, syncedFirstEntryCid, log)
+		mhCount, err = ing.ingestEntriesFromPublisher(ctx, ad, publisherID, providerID, entriesCid, log)
 	}
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, entsCid cid.Cid, log *zap.SugaredLogger) (int, error) {
@@ -420,15 +413,9 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	for _, e := range hn.Hamt.Data {
 		if e.HashMapNode != nil {
 			nodeCid := (*e.HashMapNode).(cidlink.Link).Cid
-			_, err = ing.sub.Sync(ctx, pubInfo, nodeCid, Selectors.All,
-				// Gather all the HAMT Cids so that we can remove them from
-				// datastore once finished processing.
-				dagsync.ScopedBlockHook(gatherCids),
-				// Disable segmented sync.
-				//
-				// TODO: see if segmented sync for HAMT makes sense and if
-				// so modify block hook action above appropriately.
-				dagsync.ScopedSegmentDepthLimit(-1))
+			// Gather all the HAMT Cids so that we can remove them from
+			// datastore once finished processing.
+			err = ing.sub.SyncHAMTEntries(ctx, pubInfo, nodeCid, dagsync.ScopedBlockHook(gatherCids))
 			if err != nil {
 				wrappedErr := fmt.Errorf("failed to sync remaining HAMT: %w", err)
 				if errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found") {
@@ -511,8 +498,7 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 	// Sync all remaining entry chunks.
 	if chunk.Next != nil {
 		blockHook := func(p peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
-			// Load CID as entry chunk since the selector should only
-			// select entry chunk nodes.
+			// Load CID as entry chunk.
 			chunk, err := ing.loadEntryChunk(c)
 			if err != nil {
 				actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entry chunk: %w", err)})
@@ -535,10 +521,9 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 		pubInfo := peer.AddrInfo{
 			ID: publisherID,
 		}
-		// Traverse remaining entry chunks based on the entries selector
-		// that limits recursion depth.
-		_, err = ing.sub.Sync(ctx, pubInfo, chunk.Next.(cidlink.Link).Cid, ing.entriesSel,
-			dagsync.ScopedBlockHook(blockHook))
+		// Traverse remaining entry chunks until end of chain or recursion
+		// depth reached.
+		err = ing.sub.SyncEntries(ctx, pubInfo, chunk.Next.(cidlink.Link).Cid, dagsync.ScopedBlockHook(blockHook))
 		if err != nil {
 			var adIngestErr adIngestError
 			if errors.As(err, &adIngestErr) {
