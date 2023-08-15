@@ -238,6 +238,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			announce.WithFilterIPs(reg.FilterIPsEnabled()),
 			announce.WithResend(cfg.ResendDirectAnnounce),
 		),
+		dagsync.MaxAsyncConcurrency(cfg.MaxAsyncConcurrency),
 	)
 	if err != nil {
 		log.Errorw("Failed to start dagsync subscriber", "err", err)
@@ -502,17 +503,16 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 // Announce sends an announce message to directly to dagsync, instead of
 // through pubsub.
 func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, pubAddrInfo peer.AddrInfo) error {
-	publisher := pubAddrInfo.ID
-	log := log.With("publisher", publisher, "cid", nextCid, "addrs", pubAddrInfo.Addrs)
+	log := log.With("publisher", pubAddrInfo.ID, "cid", nextCid, "addrs", pubAddrInfo.Addrs)
 
 	// If the publisher is not the same as the provider, then this will not
 	// wait for the provider to be done processing the ad chain it is working
 	// on.
 	ing.providersBeingProcessedMu.Lock()
-	pc, ok := ing.providersBeingProcessed[publisher]
+	pc, ok := ing.providersBeingProcessed[pubAddrInfo.ID]
 	ing.providersBeingProcessedMu.Unlock()
 	if !ok {
-		return ing.sub.Announce(ctx, nextCid, publisher, pubAddrInfo.Addrs)
+		return ing.sub.Announce(ctx, nextCid, pubAddrInfo)
 	}
 
 	// The publisher in the announce message has the same ID as a known
@@ -520,13 +520,13 @@ func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, pubAddrInfo 
 	select {
 	case pc <- struct{}{}:
 		log.Info("Handling direct announce request")
-		err := ing.sub.Announce(ctx, nextCid, publisher, pubAddrInfo.Addrs)
+		err := ing.sub.Announce(ctx, nextCid, pubAddrInfo)
 		<-pc
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
-		ing.providersPendingAnnounce.Store(publisher, pendingAnnounce{
+		ing.providersPendingAnnounce.Store(pubAddrInfo.ID, pendingAnnounce{
 			addrInfo: pubAddrInfo,
 			nextCid:  nextCid,
 		})
@@ -914,14 +914,14 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 // create provider work assignments. When not workers are working on a work
 // assignment for a provider, then workers are given the next work assignment
 // for that provider.
-func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent dagsync.SyncFinished) {
-	if syncFinishedEvent.Count == 0 {
+func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync.SyncFinished) {
+	if syncFinished.Count == 0 {
 		// Attempted sync, but already up to data. Nothing to do.
 		return
 	}
-	publisher := syncFinishedEvent.PeerID
+	publisher := syncFinished.PeerID
 	log := log.With("publisher", publisher)
-	log.Infow("Advertisement chain synced", "length", syncFinishedEvent.Count)
+	log.Infow("Advertisement chain synced", "length", syncFinished.Count)
 
 	var rmCount int64
 	rmCtxID := make(map[string]struct{})
@@ -944,7 +944,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinishedEvent da
 	var totalAds int64
 	var nextAdCid cid.Cid
 
-	for c := syncFinishedEvent.Cid; c != cid.Undef; c = nextAdCid {
+	for c := syncFinished.Cid; c != cid.Undef; c = nextAdCid {
 		// Group the CIDs by the provider. Most of the time a publisher will
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
@@ -1270,7 +1270,7 @@ func (ing *Ingester) handlePendingAnnounce(ctx context.Context, pubID peer.ID) {
 		return
 	}
 	log = log.With("cid", pa.nextCid, "addrinfo", pa.addrInfo)
-	err := ing.sub.Announce(ctx, pa.nextCid, pa.addrInfo.ID, pa.addrInfo.Addrs)
+	err := ing.sub.Announce(ctx, pa.nextCid, pa.addrInfo)
 	if err != nil {
 		log.Errorw("Failed to handle pending announce", "err", err)
 		return

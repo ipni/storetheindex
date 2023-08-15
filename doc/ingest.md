@@ -149,7 +149,7 @@ The IPLD objects of advertisements and entries are represented as files named as
 The `head` protocol is the same as above, but not wrapped in a libp2p multiprotocol.
 A client wanting to know the latest advertisement CID will ask for the file named `head` in the same directory as the advertisements/entries, and will expect back a signed response for the current head.
 
-An implementation of the core HTTP content advertisement publisher is available as [httpsync/publisher](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/httpsync#Publisher). This used to build the full provider implementation available in [index-provider](https://github.com/ipni/index-provider).
+An implementation of the core HTTP content advertisement publisher is available as [ipnisync/publisher](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/ipnisync#Publisher). This used to build the full provider implementation available in [index-provider](https://github.com/ipni/index-provider).
 
 ## Announcements
 
@@ -169,7 +169,7 @@ There are two ways that a provider may proactively alert indexer(s) of new conte
 
 Both of these methods send a [`Message`](https://pkg.go.dev/github.com/ipni/go-libipni/announce/message#Message) to the indexer to announce the availability of a new advertisement. This message contains the CID of the head and the multiaddrs (libp2p and/or HTTP) of the host where the advertisement can be fetched from.
 
-The dagsync [`dtsync/Publisher`]([dtsync/publisher](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Publisher)) and [`httpsync/Publisher`](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/httpsync#Publisher) generate announcements automatically using the [`Sender`](https://pkg.go.dev/github.com/ipni/go-libipni/announce#Sender) instances they are configured with. These Senders can consist of both [p2psender](https://pkg.go.dev/github.com/ipni/go-libipni/announce/p2psender) and [httpsender](https://pkg.go.dev/github.com/ipni/go-libipni/announce/httpsender) types.
+The dagsync [`dtsync/Publisher`]([dtsync/publisher](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Publisher)) and [`ipnisync/Publisher`](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/ipnisync#Publisher) generate announcements automatically using the [`Sender`](https://pkg.go.dev/github.com/ipni/go-libipni/announce#Sender) instances they are configured with. These Senders can consist of both [p2psender](https://pkg.go.dev/github.com/ipni/go-libipni/announce/p2psender) and [httpsender](https://pkg.go.dev/github.com/ipni/go-libipni/announce/httpsender) types.
 
 ### Gossipsub
 

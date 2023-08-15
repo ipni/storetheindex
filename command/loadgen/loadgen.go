@@ -20,7 +20,7 @@ import (
 	"github.com/ipni/go-libipni/announce/p2psender"
 	"github.com/ipni/go-libipni/dagsync"
 	"github.com/ipni/go-libipni/dagsync/dtsync"
-	"github.com/ipni/go-libipni/dagsync/httpsync"
+	"github.com/ipni/go-libipni/dagsync/ipnisync"
 	ingestclient "github.com/ipni/go-libipni/ingest/client"
 	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/libp2p/go-libp2p"
@@ -140,7 +140,7 @@ func newProviderLoadGen(c Config, indexerHttpAddr string, addressMapping map[str
 
 	var pub dagsync.Publisher
 	if c.IsHttp {
-		pub, err = httpsync.NewPublisher(c.HttpListenAddr, lsys, signingKey)
+		pub, err = ipnisync.NewPublisher(c.HttpListenAddr, lsys, signingKey)
 	} else {
 		pub, err = dtsync.NewPublisher(host, ds, lsys, c.GossipSubTopic)
 	}

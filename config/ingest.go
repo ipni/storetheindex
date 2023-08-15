@@ -52,6 +52,9 @@ type Ingest struct {
 	// IngestWorkerCount sets how many ingest worker goroutines to spawn. This
 	// controls how many concurrent ingest from different providers we can handle.
 	IngestWorkerCount int
+	// MaxAsyncConcurrency sets the maximum number of concurrent asynchrouous syncs
+	// (started by announce messages). Set -1 for unlimited, 0 for default.
+	MaxAsyncConcurrency int
 	// MinimumKeyLengt causes any multihash, that has a digest length less than
 	// this, to be ignored.
 	MinimumKeyLength int
@@ -134,6 +137,7 @@ func NewIngest() Ingest {
 		HttpSyncRetryWaitMin:  Duration(1 * time.Second),
 		HttpSyncTimeout:       Duration(10 * time.Second),
 		IngestWorkerCount:     10,
+		MaxAsyncConcurrency:   32,
 		PubSubTopic:           "/indexer/ingest/mainnet",
 		SyncSegmentDepthLimit: 2_000,
 		SyncTimeout:           Duration(2 * time.Hour),
@@ -173,6 +177,9 @@ func (c *Ingest) populateUnset() {
 	}
 	if c.IngestWorkerCount == 0 {
 		c.IngestWorkerCount = def.IngestWorkerCount
+	}
+	if c.MaxAsyncConcurrency == 0 {
+		c.MaxAsyncConcurrency = def.MaxAsyncConcurrency
 	}
 	if c.PubSubTopic == "" {
 		c.PubSubTopic = def.PubSubTopic
