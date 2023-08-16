@@ -211,7 +211,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		return nil, err
 	}
 
-	// Instantiate retryable HTTP client used by dagsync httpsync.
+	// Instantiate retryable HTTP client used by dagsync/ipnisync.
 	rclient := &retryablehttp.Client{
 		HTTPClient: &http.Client{
 			Timeout: time.Duration(cfg.HttpSyncTimeout),
