@@ -206,7 +206,7 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	e.run("go", "install", "github.com/ipni/index-provider/cmd/provider@latest")
 
 	// install dhstore
-	e.run("go", "install", "github.com/ipni/dhstore/cmd/dhstore@v0.0.2")
+	e.run("go", "install", "-tags", "nofdb", "github.com/ipni/dhstore/cmd/dhstore@latest")
 
 	// install ipni-cli
 	e.run("go", "install", "github.com/ipni/ipni-cli/cmd/ipni@latest")

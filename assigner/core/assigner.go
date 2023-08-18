@@ -435,7 +435,7 @@ func (a *Assigner) Allowed(peerID peer.ID) bool {
 // Announce sends a direct announce message to the assigner. This publisher in
 // the message will be assigned to one or more indexers.
 func (a *Assigner) Announce(ctx context.Context, nextCid cid.Cid, addrInfo peer.AddrInfo) error {
-	return a.receiver.Direct(ctx, nextCid, addrInfo.ID, addrInfo.Addrs)
+	return a.receiver.Direct(ctx, nextCid, addrInfo)
 }
 
 // Assigned returns the indexers that the given peer is assigned to.
