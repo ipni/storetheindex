@@ -5,14 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"path"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gammazero/channelqueue"
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
@@ -211,18 +209,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		return nil, err
 	}
 
-	// Instantiate retryable HTTP client used by dagsync/ipnisync.
-	rclient := &retryablehttp.Client{
-		HTTPClient: &http.Client{
-			Timeout: time.Duration(cfg.HttpSyncTimeout),
-		},
-		RetryWaitMin: time.Duration(cfg.HttpSyncRetryWaitMin),
-		RetryWaitMax: time.Duration(cfg.HttpSyncRetryWaitMax),
-		RetryMax:     cfg.HttpSyncRetryMax,
-		CheckRetry:   retryablehttp.DefaultRetryPolicy,
-		Backoff:      retryablehttp.DefaultBackoff,
-	}
-
 	// Create and start subscriber. This also registers the storage hook to
 	// index data as it is received.
 	sub, err := dagsync.NewSubscriber(h, ing.dsTmp, ing.lsys, cfg.PubSubTopic,
@@ -230,7 +216,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		dagsync.EntriesDepthLimit(int64(cfg.EntriesDepthLimit)),
 		dagsync.WithLastKnownSync(ing.getLastKnownSync),
 		dagsync.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
-		dagsync.HttpClient(rclient.StandardClient()),
 		dagsync.BlockHook(ing.generalDagsyncBlockHook),
 		dagsync.WithMaxGraphsyncRequests(cfg.GsMaxInRequests, cfg.GsMaxOutRequests),
 		dagsync.RecvAnnounce(
@@ -239,6 +224,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 			announce.WithResend(cfg.ResendDirectAnnounce),
 		),
 		dagsync.MaxAsyncConcurrency(cfg.MaxAsyncConcurrency),
+		dagsync.HttpTimeout(time.Duration(cfg.HttpSyncTimeout)),
+		dagsync.RetryableHTTPClient(cfg.HttpSyncRetryMax, time.Duration(cfg.HttpSyncRetryWaitMin), time.Duration(cfg.HttpSyncRetryWaitMax)),
 	)
 	if err != nil {
 		log.Errorw("Failed to start dagsync subscriber", "err", err)

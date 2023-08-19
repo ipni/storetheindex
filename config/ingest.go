@@ -39,7 +39,7 @@ type Ingest struct {
 	// requests. Default is 1024.
 	GsMaxOutRequests uint64
 	// HttpSyncRetryMax sets the maximum number of times HTTP sync requests
-	// should be retried.
+	// should be retried. A value of zero, the default, means no retry.
 	HttpSyncRetryMax int
 	// HttpSyncRetryWaitMax sets the maximum time to wait before retrying a
 	// failed HTTP sync.
@@ -132,7 +132,6 @@ func NewIngest() Ingest {
 		EntriesDepthLimit:     65536,
 		GsMaxInRequests:       1024,
 		GsMaxOutRequests:      1024,
-		HttpSyncRetryMax:      4,
 		HttpSyncRetryWaitMax:  Duration(30 * time.Second),
 		HttpSyncRetryWaitMin:  Duration(1 * time.Second),
 		HttpSyncTimeout:       Duration(10 * time.Second),
@@ -162,9 +161,6 @@ func (c *Ingest) populateUnset() {
 	}
 	if c.GsMaxOutRequests == 0 {
 		c.GsMaxOutRequests = def.GsMaxOutRequests
-	}
-	if c.HttpSyncRetryMax == 0 {
-		c.HttpSyncRetryMax = def.HttpSyncRetryMax
 	}
 	if c.HttpSyncRetryWaitMax == 0 {
 		c.HttpSyncRetryWaitMax = def.HttpSyncRetryWaitMax
