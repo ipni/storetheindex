@@ -126,7 +126,7 @@ func (e *e2eTestRunner) stop(cmd *exec.Cmd, timeout time.Duration) {
 	}
 }
 
-func TestEndToEndWithReferenceProvider(t *testing.T) {
+func TestEndToEndWithAllProviderTypes(t *testing.T) {
 	if os.Getenv("CI") != "" {
 		t.Skip("Skipping e2e test in CI environment")
 	}
@@ -135,6 +135,23 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 		t.Skip("skipping test on", runtime.GOOS)
 	}
 
+	// Test with publisher running HTTP ipnisync over libp2p.
+	t.Run("Libp2pHTTPProvider", func(t *testing.T) {
+		testEndToEndWithReferenceProvider(t, "libp2phttp")
+	})
+
+	// Test with publisher running plain HTTP only, not over libp2p.
+	t.Run("PlainHTTPProvider", func(t *testing.T) {
+		testEndToEndWithReferenceProvider(t, "http")
+	})
+
+	// Test with publisher running dtsync over libp2p.
+	t.Run("DTSyncProvider", func(t *testing.T) {
+		testEndToEndWithReferenceProvider(t, "dtsync")
+	})
+}
+
+func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	e := &e2eTestRunner{
@@ -203,8 +220,15 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	require.NoError(t, err)
 
 	// install index-provider
-	e.run("go", "install", "github.com/ipni/index-provider/cmd/provider@latest")
-
+	switch publisherProto {
+	case "dtsync":
+		// Install index-provider that supports dtsync.
+		e.run("go", "install", "github.com/ipni/index-provider/cmd/provider@v0.13.5")
+	case "libp2phttp", "http":
+		e.run("go", "install", "github.com/ipni/index-provider/cmd/provider@d75a5e4180882fd48cb956b35462b59f9413a166")
+	default:
+		panic("providerProto must be one of: libp2phttp, http, dtsync")
+	}
 	// install dhstore
 	e.run("go", "install", "-tags", "nofdb", "github.com/ipni/dhstore/cmd/dhstore@latest")
 
@@ -215,8 +239,16 @@ func TestEndToEndWithReferenceProvider(t *testing.T) {
 	require.NoError(t, err)
 
 	// initialize index-provider
-	e.run(provider, "init")
-	cfg, err := config.Load(filepath.Join(e.dir, ".index-provider", "config"))
+	switch publisherProto {
+	case "dtsync":
+		e.run(provider, "init")
+	case "http":
+		e.run(provider, "init", "--no-libp2phttp")
+	case "libp2phttp":
+		e.run(provider, "init")
+	}
+	providerCfgPath := filepath.Join(e.dir, ".index-provider", "config")
+	cfg, err := config.Load(providerCfgPath)
 	require.NoError(t, err)
 	providerID := cfg.Identity.PeerID
 	t.Logf("Initialized provider ID: %s", providerID)
