@@ -15,6 +15,7 @@ resources:
 - dhstore-porvy
 - cassette
 - dhstore-qiu
+- dhstore-ravi
 - telemetry
 images:
 - name: storetheindex
