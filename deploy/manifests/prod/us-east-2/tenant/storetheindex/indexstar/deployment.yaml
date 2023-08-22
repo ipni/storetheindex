@@ -19,10 +19,12 @@ spec:
             - '--backends=http://dhstore-helga.internal.prod.cid.contact/'
             - '--backends=http://dhstore-porvy.internal.prod.cid.contact/'
             - '--backends=http://dhstore-qiu:40080/'
+            - '--backends=http://dhstore-ravi:40080/'
             - '--dhBackends=http://dhstore.internal.prod.cid.contact/'
             - '--dhBackends=http://dhstore-helga.internal.prod.cid.contact/'
             - '--dhBackends=http://dhstore-porvy.internal.prod.cid.contact/'
             - '--dhBackends=http://dhstore-qiu:40080'
+            - '--dhBackends=http://dhstore-ravi:40080'
             - '--cascadeBackends=http://caskadht.internal.prod.cid.contact/'
             - '--cascadeBackends=http://cassette.internal.prod.cid.contact/'
           env:

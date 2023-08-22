@@ -60,8 +60,9 @@
     "ValueStoreType": "none",
     "DisableWAL": true,
     "DHBatchSize": 16384,
-    "DHStoreURL": "http://dhstore-qiu:40080",
-    "DHStoreClusterURLs": [
+    "DHStoreURL": "http://dhstore-ravi:40080",
+      "DHStoreClusterURLs": [
+      "http://dhstore-qiu:40080",
       "http://dhstore-helga.internal.prod.cid.contact",
       "http://dhstore.internal.prod.cid.contact",
       "http://dhstore-porvy.internal.prod.cid.contact"
