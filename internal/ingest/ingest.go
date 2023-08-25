@@ -244,8 +244,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	go ing.autoSync()
 
-	log.Debugf("Ingester started and all hooks and linksystem registered")
-
 	return ing, nil
 }
 
@@ -402,8 +400,8 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 		return cid.Undef, errors.New("invalid provider id")
 	}
 
-	log := log.With("publisher", peerInfo.ID, "addrs", peerInfo.Addrs, "depth", depth, "resync", resync)
-	log.Info("Explicitly syncing the latest advertisement from peer")
+	log := log.With("peer", peerInfo.ID, "addrs", peerInfo.Addrs, "depth", depth, "resync", resync)
+	log.Info("Explicitly syncing the latest advertisement")
 
 	// Ad chain traversal stops at the latest known head, unless resyncing.
 	var opts []dagsync.SyncOption
@@ -490,7 +488,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 // Announce sends an announce message to directly to dagsync, instead of
 // through pubsub.
 func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, pubAddrInfo peer.AddrInfo) error {
-	log := log.With("publisher", pubAddrInfo.ID, "cid", nextCid, "addrs", pubAddrInfo.Addrs)
+	log := log.With("peer", pubAddrInfo.ID, "cid", nextCid, "addrs", pubAddrInfo.Addrs)
 
 	// If the publisher is not the same as the provider, then this will not
 	// wait for the provider to be done processing the ad chain it is working
@@ -627,7 +625,7 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 		defer ing.outEventsMutex.Unlock()
 		pubEventsChans, ok := ing.outEventsChans[peerID]
 		if !ok {
-			log.Warnw("Advertisement processed notification already cancelled", "peerID", peerID)
+			log.Warnw("Advertisement processed notification already cancelled", "peer", peerID)
 			return
 		}
 
@@ -692,7 +690,7 @@ func (ing *Ingester) metricsUpdater() {
 			if ing.mirror.canRead() {
 				mhsFromMirror := ing.MultihashesFromMirror()
 				if mhsFromMirror != prevMhsFromMirror {
-					log.Infof("Multihashes from mirror: %d", mhsFromMirror)
+					log.Infow("Multihashes from mirror", "count", mhsFromMirror)
 					prevMhsFromMirror = mhsFromMirror
 				}
 			}
@@ -881,8 +879,8 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 					log.Info("ingest worker exiting, sync finished events closed")
 					return
 				}
-				if event.AsyncErr != nil {
-					ing.reg.SetLastError(event.PeerID, event.AsyncErr)
+				if event.Err != nil {
+					ing.reg.SetLastError(event.PeerID, event.Err)
 					continue
 				}
 				ing.processRawAdChain(ctx, event)

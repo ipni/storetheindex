@@ -13,7 +13,6 @@ import (
 
 func TestInvalidMultihashesAreNotIngested(t *testing.T) {
 	te := setupTestEnv(t, true)
-	defer te.Close(t)
 
 	headAd := typehelpers.RandomAdBuilder{
 		EntryBuilders: []typehelpers.EntryBuilder{
