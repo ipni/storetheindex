@@ -28,9 +28,12 @@ import (
 
 const providerID = "12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA"
 
-func setupServer(ind indexer.Interface, reg *registry.Registry, t *testing.T) *httpserver.Server {
+func setupServer(t *testing.T, ind indexer.Interface, reg *registry.Registry) *httpserver.Server {
 	s, err := httpserver.New("127.0.0.1:0", ind, reg)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, s.Close(), "error closing server")
+	})
 	return s
 }
 
@@ -44,7 +47,7 @@ func TestFindIndexData(t *testing.T) {
 	// Initialize everything
 	ind := initIndex(t, true)
 	reg := initRegistry(t)
-	s := setupServer(ind, reg, t)
+	s := setupServer(t, ind, reg)
 	c := setupClient(s.URL(), t)
 
 	// Start server
@@ -69,9 +72,6 @@ func TestFindIndexData(t *testing.T) {
 	}
 	err = <-errChan
 	require.NoError(t, err)
-
-	reg.Close()
-	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 func TestFindIndexWithExtendedProviders(t *testing.T) {
@@ -79,17 +79,13 @@ func TestFindIndexWithExtendedProviders(t *testing.T) {
 	ind := initIndex(t, true)
 	// We don't want to have any restricitons around provider identities as they are generated in rkandom for extended providers
 	reg := initRegistryWithRestrictivePolicy(t, false)
-	s := setupServer(ind, reg, t)
+	s := setupServer(t, ind, reg)
 	c := setupClient(s.URL(), t)
 
 	// Start server
-	errChan := make(chan error, 1)
 	go func() {
 		err := s.Start()
-		if err != http.ErrServerClosed {
-			errChan <- err
-		}
-		close(errChan)
+		require.ErrorIs(t, err, http.ErrServerClosed)
 	}()
 
 	// Test must complete in 5 seconds
@@ -103,13 +99,6 @@ func TestFindIndexWithExtendedProviders(t *testing.T) {
 	contextualExtendedProvidersShouldOverrideChainLevelOnesTest(ctx, t, c, ind, reg)
 	mainProviderChainRecordIsIncludedIfItsMetadataIsDifferentTest(ctx, t, c, ind, reg)
 	mainProviderContextRecordIsIncludedIfItsMetadataIsDifferentTest(ctx, t, c, ind, reg)
-
-	require.NoError(t, s.Close(), "shutdown error")
-	err := <-errChan
-	require.NoError(t, err)
-
-	reg.Close()
-	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 func TestProviderInfo(t *testing.T) {
@@ -117,17 +106,13 @@ func TestProviderInfo(t *testing.T) {
 	ind := initIndex(t, true)
 	reg := initRegistry(t)
 
-	s := setupServer(ind, reg, t)
+	s := setupServer(t, ind, reg)
 	findclient := setupClient(s.URL(), t)
 
 	// Start server
-	errChan := make(chan error, 1)
 	go func() {
 		err := s.Start()
-		if err != http.ErrServerClosed {
-			errChan <- err
-		}
-		close(errChan)
+		require.ErrorIs(t, err, http.ErrServerClosed)
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -137,59 +122,38 @@ func TestProviderInfo(t *testing.T) {
 
 	getProviderTest(t, findclient, peerID)
 	listProvidersTest(t, findclient, peerID)
-
-	require.NoError(t, s.Close(), "shutdown error")
-	err := <-errChan
-	require.NoError(t, err)
-
-	reg.Close()
-	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 func TestGetStats(t *testing.T) {
 	ind := initPebbleIndex(t, false)
-	defer ind.Close()
 	reg := initRegistry(t)
-	defer reg.Close()
 
-	s := setupServer(ind, reg, t)
+	s := setupServer(t, ind, reg)
 	findclient := setupClient(s.URL(), t)
 
 	// Start server
-	errChan := make(chan error, 1)
 	go func() {
 		err := s.Start()
-		if err != http.ErrServerClosed {
-			errChan <- err
-		}
-		close(errChan)
+		require.ErrorIs(t, err, http.ErrServerClosed)
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	getStatsTest(ctx, t, ind, s.RefreshStats, findclient)
-
-	require.NoError(t, s.Close(), "shutdown error")
-	err := <-errChan
-	require.NoError(t, err)
 }
 
 func TestRemoveProvider(t *testing.T) {
 	// Initialize everything
 	ind := initIndex(t, true)
 	reg := initRegistry(t)
-	s := setupServer(ind, reg, t)
+	s := setupServer(t, ind, reg)
 	c := setupClient(s.URL(), t)
 
 	// Start server
-	errChan := make(chan error, 1)
 	go func() {
 		err := s.Start()
-		if err != http.ErrServerClosed {
-			errChan <- err
-		}
-		close(errChan)
+		require.ErrorIs(t, err, http.ErrServerClosed)
 	}()
 
 	// Test must complete in 5 seconds
@@ -197,28 +161,31 @@ func TestRemoveProvider(t *testing.T) {
 	defer cancel()
 
 	removeProviderTest(ctx, t, c, ind, reg)
-
-	require.NoError(t, s.Close(), "shutdown error")
-	err := <-errChan
-	require.NoError(t, err)
-
-	reg.Close()
-	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 // InitIndex initialize a new indexer engine.
 func initIndex(t *testing.T, withCache bool) indexer.Interface {
-	return engine.New(memory.New())
+	ind := engine.New(memory.New())
+	t.Cleanup(func() {
+		require.NoError(t, ind.Close(), "Error closing indexer core")
+	})
+	return ind
 }
 
 // InitPebbleIndex initialize a new indexer engine using pebbel with cache.
 func initPebbleIndex(t *testing.T, withCache bool) indexer.Interface {
 	valueStore, err := pebble.New(t.TempDir(), nil)
 	require.NoError(t, err)
+	var ind indexer.Interface
 	if withCache {
-		return engine.New(valueStore, engine.WithCache(radixcache.New(1000)))
+		ind = engine.New(valueStore, engine.WithCache(radixcache.New(1000)))
+	} else {
+		ind = engine.New(valueStore)
 	}
-	return engine.New(valueStore)
+	t.Cleanup(func() {
+		require.NoError(t, ind.Close(), "Error closing indexer core")
+	})
+	return ind
 }
 
 func initRegistry(t *testing.T) *registry.Registry {
@@ -242,6 +209,9 @@ func initRegistryWithRestrictivePolicy(t *testing.T, restrictive bool) *registry
 	}
 	reg, err := registry.New(context.Background(), discoveryCfg, nil)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		reg.Close()
+	})
 	return reg
 }
 

@@ -83,6 +83,9 @@ func TestHandleRegisterProvider(t *testing.T) {
 	dsTmp := dssync.MutexWrap(datastore.NewMapDatastore())
 	ing, err := ingest.NewIngester(config.NewIngest(), host, idx, reg, ds, dsTmp)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, ing.Close())
+	})
 
 	s, err := New("127.0.0.1:", idx, ing, reg)
 	require.NoError(t, err)

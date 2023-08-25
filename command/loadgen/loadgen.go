@@ -19,7 +19,6 @@ import (
 	"github.com/ipni/go-libipni/announce"
 	"github.com/ipni/go-libipni/announce/p2psender"
 	"github.com/ipni/go-libipni/dagsync"
-	"github.com/ipni/go-libipni/dagsync/dtsync"
 	"github.com/ipni/go-libipni/dagsync/ipnisync"
 	ingestclient "github.com/ipni/go-libipni/ingest/client"
 	"github.com/ipni/go-libipni/ingest/schema"
@@ -142,7 +141,7 @@ func newProviderLoadGen(c Config, indexerHttpAddr string, addressMapping map[str
 	if c.IsHttp {
 		pub, err = ipnisync.NewPublisher(lsys, signingKey, ipnisync.WithHTTPListenAddrs(c.HttpListenAddr))
 	} else {
-		pub, err = dtsync.NewPublisher(host, ds, lsys, c.GossipSubTopic)
+		pub, err = ipnisync.NewPublisher(lsys, signingKey, ipnisync.WithStreamHost(host), ipnisync.WithHeadTopic(c.GossipSubTopic))
 	}
 	if err != nil {
 		panic("Failed to start publisher: " + err.Error())
