@@ -45,13 +45,26 @@ In Go, it’s simplest to use [dagsync](https://github.com/ipni/storetheindex/bl
 For an index-provider you’ll want to setup a `dagsync` Publisher:
 
 ```go
-pub, err := dtsync.NewPublisher(pubLibp2pHost, datastore, linksys, topicName)
+pub, err := ipnisync.NewPublisher(linksys, publisherPrivKey, ipnisync.WithStreamHost(publisherHost), ipnisync.WithHeadTopic(topicName))
 ```
 
 And when you have a new Advertisement you’ll call:
 
 ```go
+// Tell the publisher what the latest advertisement it.
 err = pub.UpdateRoot(ctx, newAdCid)
+```
+
+This will allow indexers to retrieve the latest advertisement. Next, broadcast an announcement to all indexers on a libp2p pubsub network or send an announcement directly to specific indexers via HTTP.
+```go
+// Create a p2p broadcast sender.
+p2pSender, err := p2psender.New(pulisherbHost, defaultTestIngestConfig.PubSubTopic)
+
+// Create an HTTP direct sender.
+httpSender, err := httpsender.New([]*url.URL{recipientURL}, publisherHost.ID())
+
+// Announce that a new advertisement is available.
+err = announce.Send(ctx, newAdCid, pub.Addrs(), p2pSender, httpSender)
 ```
 
 That will automatically send a message on the gossipsub channel to let the indexer know there’s a new update for this provider.
@@ -62,15 +75,15 @@ The dagsync publisher will also handle the datatransfer requests from the indexe
 
 After you finish building your index provider, you probably want to test it. You can run the indexer locally and tell it about your index provider. That should cause the indexer to sync from your index provider. Then you can query the indexer to see if it has some content that your index provider provided.
 
-1. Make sure your index provider has actual content it is providing. You can do this by checking the `/head` endpoint if implementing an HTTP provider or by using [https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Syncer.GetHead](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Syncer.GetHead) with dagsync.
+1. Make sure your index provider has actual content it is providing. You can do this by checking the `/head` endpoint if implementing an HTTP provider or by using [https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/ipnisync#Syncer.GetHead](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/ipnisync#Syncer.GetHead) with dagsync.
     - HTTP:
         
         ```bash
-        ❯ curl http://localhost:8070/head
-        {"head":{"/":"bafy2bzaceaceibjf5pottpm4ghfnu7jo7sjcqjom4vhzm5jmq7domxun5vor4"},"sig":{"/":{"bytes":"nPm4HNlVZxOuNZ0ujKbP7YT7eGpenOHfSzrhRid0dTyz1HHKalLZwIHWL+sArsEVuMvKrL0hVqKkBwz/9aMvAA=="}},"pubkey":{"/":{"bytes":"CAESIGNJlqCl/NPKn3FCWNtWmWCjzJ7qb7ClJZQJg3tHDDk2"}}}
+        ❯ curl http://localhost:3105/ipni/v1/ad/head
+        {"head":{"/":"baguqeerar6uhbs23pfhmtgspgbxk6k6vwu5ccvvudw22ikzh63beqwzuemyq"},"pubkey":{"/":{"bytes":"CAESINT5QWl1KSCFOVmk7hCT4qBit/oxGw8xcQza5EF+cSk4"}},"sig":{"/":{"bytes":"yODvBoXCpPR+xgNERUv18iqzsRCUO5Rj5axl2pVTUW6x7lxYRnypzi+/tfla3Y5qKjQ8hd9rZyCZAh3BpWedCg"}},"topic":"/indexer/ingest/testnet"}
         ```
         
-2. Make sure you can also fetch that block. For an HTTP provider you should get the block back when hitting `/<cid>`. For a libp2p provider you should be able to call [https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Syncer.Sync](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Syncer.Sync). 
+2. Make sure you can also fetch that block. For an HTTP provider you should get the block back when hitting `/<cid>`. For a libp2p provider you should be able to call [https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/ipnisync#Syncer.Sync](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/ipnisync#Syncer.Sync). 
     - HTTP: (using [dagconv](https://github.com/marcopolo/dagconv) to convert the dagcbor into readable dagjson)
         
         ```bash
@@ -91,7 +104,7 @@ After you finish building your index provider, you probably want to test it. You
     2. Sync the provider with your local indexer using the indexer’s cli. Here’s an example, replace the peer id and addr with your provider’s value.
         
         ```bash
-        storetheindex admin sync -p 12D3KooWGVwcVphAgpXjJWHoWyKZUrZsXyc34jeuUmG5nSRZyuQq --addr "/ip4/127.0.0.1/tcp/8070/http/p2p/12D3KooWGVwcVphAgpXjJWHoWyKZUrZsXyc34jeuUmG5nSRZyuQq"
+        storetheindex admin sync -p 12D3KooWGVwcVphAgpXjJWHoWyKZUrZsXyc34jeuUmG5nSRZyuQq --addr "/ip4/127.0.0.1/tcp/8070/http"
         ```
         
         You can also follow the log from the indexer to see if any errors pop up.
@@ -103,15 +116,20 @@ After you finish building your index provider, you probably want to test it. You
         {"MultihashResults":[{"Multihash":"EiA8L8pq463M/L6z3ZcMIggzqtXcJSB3RoZn9W9qT+cEvg==","ProviderResults":[{"ContextID":"Li90ZXN0ZGF0YS9zYW1wbGUtdjEtMi5jYXI=","Metadata":{"ProtocolID":3145744,"Data":""},"Provider":{"ID":"12D3KooWFtqYPKGKPJqtTAnNLR84SphEChUfRud3bbfskK6561r5","Addrs":["/ip4/1.1.1.1/tcp/1234"]}},{"ContextID":"Li90ZXN0ZGF0YS9zYW1wbGUtdjEtMi5jYXI=","Metadata":{"ProtocolID":3145744,"Data":""},"Provider":{"ID":"12D3KooWGVwcVphAgpXjJWHoWyKZUrZsXyc34jeuUmG5nSRZyuQq","Addrs":["/ip4/1.1.1.1/tcp/1234"]}}]}]}
         ```
         
-        1. If you aren’t sure which multihash to use, you can use the [index-provider cli](https://github.com/ipni/index-provider/tree/main/cmd/provider) to list some multihashes that your provider is advertising.
+        1. If you aren’t sure which multihash to use, you can use the [ipni-cli](https://github.com/ipni/ipni-cli#ipni-cli) to list some multihashes that your provider is advertising.
             
             ```bash
-            ❯ provider list -e -p "/ip4/127.0.0.1/tcp/8070/http/p2p/12D3KooWGVwcVphAgpXjJWHoWyKZUrZsXyc34jeuUmG5nSRZyuQq"
-            ID:          bafy2bzaceaceibjf5pottpm4ghfnu7jo7sjcqjom4vhzm5jmq7domxun5vor4
-            PreviousID:  b
-            ProviderID:  12D3KooWGVwcVphAgpXjJWHoWyKZUrZsXyc34jeuUmG5nSRZyuQq
-            Addresses:   [/ip4/1.1.1.1/tcp/1234]
-            Is Remove:   false
+            ❯ ./ipni ads get -e --ai="/ip4/127.0.0.1/tcp/3105/http/p2p/12D3KooWGVwcVphAgpXjJWHoWyKZUrZsXyc34jeuUmG5nSRZyuQq" --head
+            CID:          bafy2bzaceaceibjf5pottpm4ghfnu7jo7sjcqjom4vhzm5jmq7domxun5vor4
+            PreviousCID:  l  
+            ProviderID:   12D3KooWGVwcVphAgpXjJWHoWyKZUrZsXyc34jeuUmG5nSRZyuQq
+            Addresses:    [/ip4/1.1.1.1/tcp/1234]
+            Is Remove:    false
+            Metadata:     kBKjaFBpZWNlQ0lE2CpYJgABkBIAIBWfmHBGFppM9e4jZXNGIurSMwHvMle8J1NxP1WRK6hbbFZlcmlmaWVkRGVhbPVtRmFzdFJldHJpZXZhbPU=
+            Extended Providers:
+               None
+            Signature: ✅ valid
+            Signed by: content provider
             Entries:
               QmSkVyuukaYv2N31hJHYssgXU4JSqHNz2Q9jyTKGj5oadr
               QmXFz92Uc9gCyAVGKkCzD84HEiR9fmrFzPSrvUypaN2Yzx

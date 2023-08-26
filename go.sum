@@ -592,8 +592,8 @@ github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd/go.mod h1:9DD/GM0JNPoisgR09F62kbBi7kHa4eDIea4XshXYOVc=
 github.com/ipni/go-indexer-core v0.8.0 h1:HPFMngR47FL49mVnOZBrcxJoRODjIadlP+UYMRboNKA=
 github.com/ipni/go-indexer-core v0.8.0/go.mod h1:Y9su+no9k6y+jnQRERP/CKJewdISHzzl+n91GA+y4Ao=
-github.com/ipni/go-libipni v0.4.1-0.20230825184311-352032b68331 h1:Xt6RRB6K0X3YuyDK0M83wh8zPbBVpsVsvUNtqKAZBVs=
-github.com/ipni/go-libipni v0.4.1-0.20230825184311-352032b68331/go.mod h1:HDLA8NiUTg+8vtM2S5TNDXd7ZZ3JJ/ukE62c9CdMxGw=
+github.com/ipni/go-libipni v0.4.1-0.20230826004428-2194d3a10198 h1:uc4Pey8/KQa6hidvotIwvQrr59u5kU7AzN/8bKlVkL0=
+github.com/ipni/go-libipni v0.4.1-0.20230826004428-2194d3a10198/go.mod h1:fnTwBp3bJqWV6ItVmT44j9JpIKBuphBpDmACmHxavXw=
 github.com/iris-contrib/blackfriday v2.0.0+incompatible/go.mod h1:UzZ2bDEoaSGPbkg6SAB4att1aAwTmVIx/5gCVqeyUdI=
 github.com/iris-contrib/go.uuid v2.0.0+incompatible/go.mod h1:iz2lgM/1UnEf1kP0L/+fafWORmlnuysV2EMP8MW+qe0=
 github.com/iris-contrib/i18n v0.0.0-20171121225848-987a633949d0/go.mod h1:pMCz62A0xJL6I+umB2YTlFRwWXaDFA0jy+5HzGiJjqI=
@@ -702,8 +702,8 @@ github.com/libp2p/go-libp2p v0.7.4/go.mod h1:oXsBlTLF1q7pxr+9w6lqzS1ILpyHsaBPniV
 github.com/libp2p/go-libp2p v0.8.1/go.mod h1:QRNH9pwdbEBpx5DTJYg+qxcVaDMAz3Ee/qDKwXujH5o=
 github.com/libp2p/go-libp2p v0.13.0/go.mod h1:pM0beYdACRfHO1WcJlp65WXyG2A6NqYM+t2DTVAJxMo=
 github.com/libp2p/go-libp2p v0.14.0/go.mod h1:dsQrWLAoIn+GkHPN/U+yypizkHiB9tnv79Os+kSgQ4Q=
-github.com/libp2p/go-libp2p v0.29.1-0.20230824185545-1af5d3baeec0 h1:qaUGo0lQDfzTCsdnPFDGCNbYAq9tJvhUL+c/WzPgetg=
-github.com/libp2p/go-libp2p v0.29.1-0.20230824185545-1af5d3baeec0/go.mod h1:iNKL7mEnZ9wAss+03IjAwM9ZAQXfVUAPUUmOACQfQ/g=
+github.com/libp2p/go-libp2p v0.29.1-0.20230825222710-ed42d2fe6cee h1:UioCkyX/qjEs5mzVoBfZUChXtyhtXG9salRwQ8iUDfI=
+github.com/libp2p/go-libp2p v0.29.1-0.20230825222710-ed42d2fe6cee/go.mod h1:iNKL7mEnZ9wAss+03IjAwM9ZAQXfVUAPUUmOACQfQ/g=
 github.com/libp2p/go-libp2p-asn-util v0.3.0 h1:gMDcMyYiZKkocGXDQ5nsUQyquC9+H+iLEQHwOCZ7s8s=
 github.com/libp2p/go-libp2p-asn-util v0.3.0/go.mod h1:B1mcOrKUE35Xq/ASTmQ4tN3LNzVVaMNmq2NACuqyB9w=
 github.com/libp2p/go-libp2p-autonat v0.1.0/go.mod h1:1tLf2yXxiE/oKGtDwPYWTSYG3PtvYlJmg7NeVtPRqH8=

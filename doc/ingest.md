@@ -120,16 +120,39 @@ type Provider struct {
 
 ### Advertisement transfer
 
-There are two ways that the provider advertisement chain can be made available for consumption by network indexers.
+There are three ways that the provider advertisement chain can be made available for consumption by network indexers.
 
-1. As a [graphsync](https://github.com/ipfs/go-graphsync) endpoint on a libp2p host.
+1. As set of files fetched over libp2phttp. This is the default for ipnisync.
 2. As a set of files fetched over HTTP.
+3. As a [graphsync](https://github.com/ipfs/go-graphsync) endpoint on a libp2p host. Support for this is ending soon.
 
 There are two parts to the transfer protocol. The providing of the advertisement chain itself, and a 'head' protocol for indexers to query the provider on what it's most recent advertisement is.
 
-#### Libp2p
+#### Libp2p + HTTP
 
-On libp2p hosts, graphsync is used for providing the advertisement chain.
+On libp2p hosts, HTTP is served over libp2p.
+
+* HTTP is configured as a multiprotocol in the libp2p host.
+* A publisher registers a HTTP request handler with a known IPNI path.
+* HTTP requests sent over libp2p, and matching the handler's path, are handled by the publisher's handler.
+* The publisher handles requests for a `head` resource or a CID resource.
+  * Requests for `head` return information about advertisement chain including the latest CID.
+  * Requests for a CID return the advertisement data or multihash entries block correcponding to that CID.
+
+An implementation of the core ipnisync advertisement publisher is available as [ipnisync/publisher](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/ipnisync#Publisher). This is used to build the full provider implementation available in [index-provider](https://github.com/ipni/index-provider).
+
+#### HTTP
+
+The IPLD objects of advertisements and entries are represented as files named as their CIDs in an HTTP directory. These files are immutable, so can be safely cached or stored on CDNs.
+
+The `head` protocol is the same as above, but not wrapped in a libp2p multiprotocol.
+A client wanting to know the latest advertisement CID will ask for the file named `head` in the same directory as the advertisements/entries, and will expect back a signed response for the current head.
+
+An implementation of the core HTTP content advertisement publisher is available as [ipnisync/publisher](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/ipnisync#Publisher). This used to build the full provider implementation available in [index-provider](https://github.com/ipni/index-provider).
+
+#### Libp2p with Legacy data-transfer/graphsync
+
+On older libp2p hosts, graphsync may still be used for providing the advertisement chain.
 
 * Graphsync is configured on the common graphsync multiprotocol of the libp2p host.
 * Requests for index advertisements can be identified by
@@ -141,15 +164,6 @@ An implementation of the core graphsync content advertisement publisher is avail
 
 On publisher hosts, a custom `head` multiprotocol is exposed on the libp2p host as a way of learning the most recent current advertisement.
 The multiprotocol is named `/legs/head/<network-identifier>/<version>`. The protocol itself is implemented as an HTTP TCP stream, where a request is made for the `/head` resource, and the response body contains the string representation of the root CID.
-
-#### HTTP
-
-The IPLD objects of advertisements and entries are represented as files named as their CIDs in an HTTP directory. These files are immutable, so can be safely cached or stored on CDNs.
-
-The `head` protocol is the same as above, but not wrapped in a libp2p multiprotocol.
-A client wanting to know the latest advertisement CID will ask for the file named `head` in the same directory as the advertisements/entries, and will expect back a signed response for the current head.
-
-An implementation of the core HTTP content advertisement publisher is available as [ipnisync/publisher](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/ipnisync#Publisher). This used to build the full provider implementation available in [index-provider](https://github.com/ipni/index-provider).
 
 ## Announcements
 
@@ -164,12 +178,12 @@ The indexer will maintain a policy for when advertisements from a provider are c
 
 There are two ways that a provider may proactively alert indexer(s) of new content availability:
 
-1. Gossipsub announcements
-2. HTTP announcements
+1. Gossipsub announcements boradcast to all indexers subscribed to a pubsub topic
+2. HTTP announcements sent directly to one or more specific indexers
 
 Both of these methods send a [`Message`](https://pkg.go.dev/github.com/ipni/go-libipni/announce/message#Message) to the indexer to announce the availability of a new advertisement. This message contains the CID of the head and the multiaddrs (libp2p and/or HTTP) of the host where the advertisement can be fetched from.
 
-The dagsync [`dtsync/Publisher`]([dtsync/publisher](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/dtsync#Publisher)) and [`ipnisync/Publisher`](https://pkg.go.dev/github.com/ipni/go-libipni/dagsync/ipnisync#Publisher) generate announcements automatically using the [`Sender`](https://pkg.go.dev/github.com/ipni/go-libipni/announce#Sender) instances they are configured with. These Senders can consist of both [p2psender](https://pkg.go.dev/github.com/ipni/go-libipni/announce/p2psender) and [httpsender](https://pkg.go.dev/github.com/ipni/go-libipni/announce/httpsender) types.
+The dagsync publishers operate independently of announcement senders. Any announcement sender can send announcements for either a HTTP or libp2p pbulisher, or both. Announcements are send using the [`Sender`](https://pkg.go.dev/github.com/ipni/go-libipni/announce#Sender) instances that are configured. These Senders can consist of both [p2psender](https://pkg.go.dev/github.com/ipni/go-libipni/announce/p2psender) broadcast sender and [httpsender](https://pkg.go.dev/github.com/ipni/go-libipni/announce/httpsender) direct sender types.
 
 ### Gossipsub
 
