@@ -14,10 +14,11 @@ import (
 
 // Global Tags
 var (
-	ErrKind, _ = tag.NewKey("errKind")
-	Method, _  = tag.NewKey("method")
-	Found, _   = tag.NewKey("found")
-	Version, _ = tag.NewKey("version")
+	ErrKind, _   = tag.NewKey("errKind")
+	Found, _     = tag.NewKey("found")
+	Method, _    = tag.NewKey("method")
+	Publisher, _ = tag.NewKey("publisher")
+	Version, _   = tag.NewKey("version")
 )
 
 // Measures
@@ -32,6 +33,8 @@ var (
 	AdIngestSuccessCount = stats.Int64("ingest/adingestSuccess", "Number of successful ad ingest", stats.UnitDimensionless)
 	AdIngestSkippedCount = stats.Int64("ingest/adingestSkipped", "Number of ads skipped during ingest", stats.UnitDimensionless)
 	AdLoadError          = stats.Int64("ingest/adLoadError", "Number of times an ad failed to load", stats.UnitDimensionless)
+	AdsIngestedCount     = stats.Int64("ingest/mhsingested", "Number of advertisements ingested per provider", stats.UnitDimensionless)
+	MhsIngestedCount     = stats.Int64("ingest/mhsingested", "Number of multihashes ingested per provider", stats.UnitDimensionless)
 	ProviderCount        = stats.Int64("provider/count", "Number of known (registered) providers", stats.UnitDimensionless)
 	EntriesSyncLatency   = stats.Float64("ingest/entriessynclatency", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
 	PercentUsage         = stats.Float64("ingest/percentusage", "Percent usage of storage available in value store", stats.UnitDimensionless)
@@ -92,6 +95,16 @@ var (
 		Measure:     AdLoadError,
 		Aggregation: view.Count(),
 	}
+	mhsIngested = &view.View{
+		Measure:     MhsIngestedCount,
+		Aggregation: view.Count(),
+		TagKeys:     []tag.Key{Publisher},
+	}
+	adsIngested = &view.View{
+		Measure:     AdsIngestedCount,
+		Aggregation: view.Count(),
+		TagKeys:     []tag.Key{Publisher},
+	}
 	percentUsageView = &view.View{
 		Measure:     PercentUsage,
 		Aggregation: view.LastValue(),
@@ -124,6 +137,7 @@ func Start(views []*view.View) http.Handler {
 		adIngestSkipped,
 		adIngestSuccess,
 		adLoadError,
+		mhsIngested,
 		percentUsageView,
 		nonRemoveAdCountView,
 		removeAdCountView,
