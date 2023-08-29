@@ -95,9 +95,14 @@ var (
 		Measure:     AdLoadError,
 		Aggregation: view.Count(),
 	}
+	mhsIngestTime = &view.View{
+		Measure:     EntriesSyncLatency,
+		Aggregation: view.LastValue(),
+		TagKeys:     []tag.Key{Publisher},
+	}
 	mhsIngested = &view.View{
 		Measure:     MhsIngestedCount,
-		Aggregation: view.Count(),
+		Aggregation: view.LastValue(),
 		TagKeys:     []tag.Key{Publisher},
 	}
 	adsIngested = &view.View{
