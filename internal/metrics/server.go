@@ -33,7 +33,7 @@ var (
 	AdIngestSuccessCount = stats.Int64("ingest/adingestSuccess", "Number of successful ad ingest", stats.UnitDimensionless)
 	AdIngestSkippedCount = stats.Int64("ingest/adingestSkipped", "Number of ads skipped during ingest", stats.UnitDimensionless)
 	AdLoadError          = stats.Int64("ingest/adLoadError", "Number of times an ad failed to load", stats.UnitDimensionless)
-	AdsIngestedCount     = stats.Int64("ingest/mhsingested", "Number of advertisements ingested per provider", stats.UnitDimensionless)
+	AdsIngestedCount     = stats.Int64("ingest/adsingested", "Number of advertisements ingested per provider", stats.UnitDimensionless)
 	MhsIngestedCount     = stats.Int64("ingest/mhsingested", "Number of multihashes ingested per provider", stats.UnitDimensionless)
 	ProviderCount        = stats.Int64("provider/count", "Number of known (registered) providers", stats.UnitDimensionless)
 	EntriesSyncLatency   = stats.Float64("ingest/entriessynclatency", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
@@ -143,6 +143,7 @@ func Start(views []*view.View) http.Handler {
 		adIngestSuccess,
 		adLoadError,
 		mhsIngested,
+		mhsIngestTime,
 		percentUsageView,
 		nonRemoveAdCountView,
 		removeAdCountView,
