@@ -14,7 +14,6 @@ on:
       - 'doc/**'
     branches:
       - main
-      - metrics
 
 jobs:
   publisher:
