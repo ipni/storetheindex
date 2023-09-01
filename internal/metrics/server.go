@@ -96,6 +96,11 @@ var (
 		Measure:     AdLoadError,
 		Aggregation: view.Count(),
 	}
+	adsIngested = &view.View{
+		Measure:     AdsIngestedCount,
+		Aggregation: view.Count(),
+		TagKeys:     []tag.Key{Publisher},
+	}
 	mhsIngestTimeView = &view.View{
 		Measure:     MhsIngestTime,
 		Aggregation: view.LastValue(),
@@ -104,11 +109,6 @@ var (
 	mhsIngested = &view.View{
 		Measure:     MhsIngestedCount,
 		Aggregation: view.LastValue(),
-		TagKeys:     []tag.Key{Publisher},
-	}
-	adsIngested = &view.View{
-		Measure:     AdsIngestedCount,
-		Aggregation: view.Count(),
 		TagKeys:     []tag.Key{Publisher},
 	}
 	percentUsageView = &view.View{
@@ -143,6 +143,7 @@ func Start(views []*view.View) http.Handler {
 		adIngestSkipped,
 		adIngestSuccess,
 		adLoadError,
+		adsIngested,
 		mhsIngested,
 		mhsIngestTimeView,
 		percentUsageView,
