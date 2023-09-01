@@ -18,13 +18,13 @@ require (
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipfs/kubo v0.22.0
-	github.com/ipld/go-car/v2 v2.10.2-0.20230622090957-499d0c909d33
+	github.com/ipld/go-car/v2 v2.11.0
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
-	github.com/ipld/go-ipld-prime v0.20.0
+	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
 	github.com/ipni/go-indexer-core v0.8.0
-	github.com/ipni/go-libipni v0.4.1-0.20230829144642-6828f75e198d
-	github.com/libp2p/go-libp2p v0.30.1-0.20230829055202-ac038dbf2d38
+	github.com/ipni/go-libipni v0.5.0
+	github.com/libp2p/go-libp2p v0.31.0
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-multiaddr v0.11.0
@@ -116,7 +116,7 @@ require (
 	github.com/ipfs/bbloom v0.0.4 // indirect
 	github.com/ipfs/go-block-format v0.1.2 // indirect
 	github.com/ipfs/go-blockservice v0.5.1 // indirect
-	github.com/ipfs/go-graphsync v0.14.7 // indirect
+	github.com/ipfs/go-graphsync v0.14.8 // indirect
 	github.com/ipfs/go-ipfs-blockstore v1.3.0 // indirect
 	github.com/ipfs/go-ipfs-chunker v0.0.5 // indirect
 	github.com/ipfs/go-ipfs-ds-help v1.1.0 // indirect
@@ -150,7 +150,6 @@ require (
 	github.com/libp2p/go-cidranger v1.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.1.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.3.0 // indirect
-	github.com/libp2p/go-libp2p-gostream v0.6.0 // indirect
 	github.com/libp2p/go-libp2p-pubsub v0.9.3 // indirect
 	github.com/libp2p/go-nat v0.2.0 // indirect
 	github.com/libp2p/go-netroute v0.2.1 // indirect
