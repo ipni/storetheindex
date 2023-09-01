@@ -136,13 +136,18 @@ func TestEndToEndWithAllProviderTypes(t *testing.T) {
 	}
 
 	// Test with publisher running HTTP ipnisync over libp2p.
-	t.Run("Libp2pHTTPProvider", func(t *testing.T) {
-		testEndToEndWithReferenceProvider(t, "libp2phttp")
+	t.Run("Libp2pProvider", func(t *testing.T) {
+		testEndToEndWithReferenceProvider(t, "libp2p")
 	})
 
 	// Test with publisher running plain HTTP only, not over libp2p.
 	t.Run("PlainHTTPProvider", func(t *testing.T) {
 		testEndToEndWithReferenceProvider(t, "http")
+	})
+
+	// Test with publisher running plain HTTP only, not over libp2p.
+	t.Run("Libp2pWithHTTPProvider", func(t *testing.T) {
+		testEndToEndWithReferenceProvider(t, "libp2phttp")
 	})
 
 	// Test with publisher running dtsync over libp2p.
@@ -224,8 +229,8 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	case "dtsync":
 		// Install index-provider that supports dtsync.
 		e.run("go", "install", "github.com/ipni/index-provider/cmd/provider@v0.13.6")
-	case "libp2phttp", "http":
-		e.run("go", "install", "github.com/ipni/index-provider/cmd/provider@925ab59162cb9c45bda73103df82eb156d42e7d3")
+	case "libp2p", "libp2phttp", "http":
+		e.run("go", "install", "github.com/ipni/index-provider/cmd/provider@e1a840c2f29566328ed93929cddf7b303fd0136e")
 	default:
 		panic("providerProto must be one of: libp2phttp, http, dtsync")
 	}
@@ -243,9 +248,11 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	case "dtsync":
 		e.run(provider, "init")
 	case "http":
-		e.run(provider, "init", "--no-libp2phttp")
+		e.run(provider, "init", "--pubkind=http")
+	case "libp2p":
+		e.run(provider, "init", "--pubkind=libp2phttp")
 	case "libp2phttp":
-		e.run(provider, "init")
+		e.run(provider, "init", "--pubkind=libp2phttp")
 	}
 	providerCfgPath := filepath.Join(e.dir, ".index-provider", "config")
 	cfg, err := config.Load(providerCfgPath)
