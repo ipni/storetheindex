@@ -14,7 +14,6 @@ on:
       - 'doc/**'
     branches:
       - main
-      - ipnisync-with-libp2phttp
 
 jobs:
   publisher:
