@@ -230,7 +230,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 		// Install index-provider that supports dtsync.
 		e.run("go", "install", "github.com/ipni/index-provider/cmd/provider@v0.13.6")
 	case "libp2p", "libp2phttp", "http":
-		e.run("go", "install", "github.com/ipni/index-provider/cmd/provider@e1a840c2f29566328ed93929cddf7b303fd0136e")
+		e.run("go", "install", "github.com/ipni/index-provider/cmd/provider@latest")
 	default:
 		panic("providerProto must be one of: libp2phttp, http, dtsync")
 	}

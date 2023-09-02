@@ -16,31 +16,28 @@ The Index Provider serves as the interface between the storage provider and the
 indexer. It can be used from within `Lotus` so that the publishing of new data
 happens automatically. But it can also happen separately.
 
-The Index Provider sends updates to the Indexer via a series of [Advertisement](https://github.com/ipni/go-libipni/blob/main/ingest/schema/schema.ipldsch)
-messages. Each message references a previous advertisement so that as a whole it
-forms an advertisement chain. The state of the indexer is basically a function
+The Index Provider serves advertisements [Advertisement](https://github.com/ipni/go-libipni/blob/main/ingest/schema/schema.ipldsch) for the indexer to fetch using a "sync" operation.
+Each advertisement references the previous advertisement so that they forms an advertisement chain. The state of the indexer is basically a function
 of consuming this chain from the initial Advertisement to the latest one.
 
 ## HTTP Index Provider
 
 An HTTP Index provider needs to provide two endpoints:
 
-1. `GET /head`
-    - This returns the latest Advertisement that the index provider knows about.
-2. `GET /<cid>`
+1. `GET /ipni/v1/ad/head`
+    - This returns information about the latest advertisement that the index provider knows about.
+2. `GET /ipni/v1/ad/<cid>`
     - This returns the content for a block identified by the given cid.
 
-And that’s it. With those two endpoints an indexer should be able to sync with the provider.
+When using go-libipni, the `/ipni/v1/ad/` part of the URL path is implicit. It is automatically added by ipnisync clients, and expected by ipnisync publishers.
 
 ### On Syncing
 
-If an indexer has registered an index provider it will occasionally poll the provider to check if there is new content to index. If you want to let the indexer know you have new changes you may call the `Announce` endpoint on the indexer.
+If an indexer knows about an index provider, it will occasionally poll the provider to check if there is new content to index. To let the indexer know that there is a new change to content, the provider sends an announcement message to the `announce/` endpoint on the indexer, or boradcasts the announcement over gossib pubsub.
 
 ## libp2p Index Provider
 
-While this should be possible in any language, Go has the best support here. If you’re trying to target another language I’d recommend building an HTTP Index provider.
-
-In Go, it’s simplest to use [dagsync](https://github.com/ipni/storetheindex/blob/main/dagsync). dagsync provides a simpler interface to go-data-transfer and graphsync. 
+In Go, it’s simplest to use [dagsync](https://github.com/ipni/storetheindex/blob/main/dagsync) to perform IPNI communications between providers and indexers.
 
 For an index-provider you’ll want to setup a `dagsync` Publisher:
 
@@ -48,7 +45,9 @@ For an index-provider you’ll want to setup a `dagsync` Publisher:
 pub, err := ipnisync.NewPublisher(linksys, publisherPrivKey, ipnisync.WithStreamHost(publisherHost), ipnisync.WithHeadTopic(topicName))
 ```
 
-And when you have a new Advertisement you’ll call:
+This Publisher can serve advertisements using ipnisync over HTTP, libp2p, or both, depending on the options passed.
+
+When a new Advertisement is available the provider calls:
 
 ```go
 // Tell the publisher what the latest advertisement it.
@@ -67,9 +66,7 @@ httpSender, err := httpsender.New([]*url.URL{recipientURL}, publisherHost.ID())
 err = announce.Send(ctx, newAdCid, pub.Addrs(), p2pSender, httpSender)
 ```
 
-That will automatically send a message on the gossipsub channel to let the indexer know there’s a new update for this provider.
-
-The dagsync publisher will also handle the datatransfer requests from the indexer automatically.
+The dagsync publisher will also handle HTTP and libp2p requests from indexers.
 
 ## Testing your index Provider
 
