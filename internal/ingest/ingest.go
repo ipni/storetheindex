@@ -18,7 +18,6 @@ import (
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	indexer "github.com/ipni/go-indexer-core"
-	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/go-libipni/announce"
 	"github.com/ipni/go-libipni/dagsync"
 	"github.com/ipni/storetheindex/config"
@@ -670,11 +669,6 @@ func (ing *Ingester) metricsUpdater() {
 	for {
 		select {
 		case <-t.C:
-			// Update value store size metric after sync.
-			size, err := ing.indexer.Size()
-			if err != nil {
-				log.Errorw("Error getting indexer value store size", "err", err)
-			}
 			var usage float64
 			usageStats, err := ing.reg.ValueStoreUsage()
 			if err != nil {
@@ -684,7 +678,6 @@ func (ing *Ingester) metricsUpdater() {
 			}
 
 			stats.Record(context.Background(),
-				coremetrics.StoreSize.M(size),
 				metrics.PercentUsage.M(usage))
 
 			if ing.mirror.canRead() {
