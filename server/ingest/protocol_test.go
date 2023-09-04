@@ -80,9 +80,6 @@ func TestRegisterProvider(t *testing.T) {
 	}()
 
 	registerProviderTest(t, cl, peerID, privKey, "/ip4/127.0.0.1/tcp/9999", reg)
-
-	reg.Close()
-	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 func TestAnnounce(t *testing.T) {
@@ -104,14 +101,15 @@ func TestAnnounce(t *testing.T) {
 	}()
 
 	announceTest(t, peerID, httpSender)
-
-	reg.Close()
-	require.NoError(t, ind.Close(), "Error closing indexer core")
 }
 
 // initIndex initialize a new indexer engine.
 func initIndex(t *testing.T, withCache bool) indexer.Interface {
-	return engine.New(memory.New())
+	ind := engine.New(memory.New())
+	t.Cleanup(func() {
+		require.NoError(t, ind.Close(), "Error closing indexer core")
+	})
+	return ind
 }
 
 // initRegistry initializes a new registry
@@ -126,6 +124,9 @@ func initRegistry(t *testing.T, trustedID string) *registry.Registry {
 	}
 	reg, err := registry.New(context.Background(), discoveryCfg, nil)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		reg.Close()
+	})
 	return reg
 }
 

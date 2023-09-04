@@ -21,7 +21,6 @@ func TestAdsSyncedViaSegmentsAreProcessed(t *testing.T) {
 	te := setupTestEnv(t, true, func(opts *testEnvOpts) {
 		opts.ingestConfig = &cfg
 	})
-	defer te.Close(t)
 	rng := rand.New(rand.NewSource(1413))
 	var cb []typehelpers.EntryBuilder
 	for i := 0; i < 50; i++ {

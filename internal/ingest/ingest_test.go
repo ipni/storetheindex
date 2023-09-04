@@ -27,7 +27,7 @@ import (
 	"github.com/ipni/go-libipni/announce"
 	"github.com/ipni/go-libipni/announce/p2psender"
 	"github.com/ipni/go-libipni/dagsync"
-	"github.com/ipni/go-libipni/dagsync/dtsync"
+	"github.com/ipni/go-libipni/dagsync/ipnisync"
 	dstest "github.com/ipni/go-libipni/dagsync/test"
 	schema "github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/go-libipni/mautil"
@@ -301,9 +301,7 @@ func TestFirstAdMissingAddrs(t *testing.T) {
 func TestRestartDuringSync(t *testing.T) {
 	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(failBlockedRead)
 
-	te := setupTestEnv(t, true, blockableLsysOpt, func(teo *testEnvOpts) {
-		teo.skipIngesterCleanup = true
-	})
+	te := setupTestEnv(t, true, blockableLsysOpt)
 
 	cCid := typehelpers.RandomAdBuilder{
 		EntryBuilders: []typehelpers.EntryBuilder{
@@ -365,7 +363,7 @@ func TestRestartDuringSync(t *testing.T) {
 	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), bMhs, "bMHs should not be indexed yet")
 
 	// Now we bring up the ingester again.
-	ingesterHost := mkTestHost(libp2p.Identity(te.ingesterPriv))
+	ingesterHost := dstest.MkTestHost(t, libp2p.Identity(te.ingesterPriv))
 	connectHosts(t, te.pubHost, ingesterHost)
 	ingester, err := NewIngester(defaultTestIngestConfig, ingesterHost, te.ingester.indexer, mkRegistry(t), te.ingester.ds, te.ingester.dsTmp)
 	require.NoError(t, err)
@@ -603,8 +601,6 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 
 	allMhs := typehelpers.AllMultihashesFromAdChain(t, ad, te.publisherLinkSys)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
-
-	te.Close(t)
 }
 
 func TestSyncWithDepth(t *testing.T) {
@@ -639,13 +635,10 @@ func TestSyncWithDepth(t *testing.T) {
 	allMhs := typehelpers.AllMultihashesFromAdChain(t, ad, te.publisherLinkSys)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[1]})
 	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[0]})
-
-	te.Close(t)
 }
 
 func TestFreeze(t *testing.T) {
 	te := setupTestEnv(t, true)
-	defer te.Close(t)
 
 	// Check that we sync with an ad chain
 	adHead := typehelpers.RandomAdBuilder{
@@ -786,13 +779,10 @@ func TestRmWithNoEntries(t *testing.T) {
 
 func TestSync(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
-	h := mkTestHost()
-	pubHost := mkTestHost()
-	i, core, _ := mkIngest(t, h)
-	defer core.Close()
-	defer i.Close()
+	h := dstest.MkTestHost(t)
+	pubHost := dstest.MkTestHost(t)
+	i, _ := mkIngest(t, h)
 	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
-	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
 	c1, mhs, providerID, privKey := publishRandomIndexAndAdv(t, pub, lsys, false, nil, cid.Undef)
@@ -848,13 +838,10 @@ func testSyncWithExtendedProviders(t *testing.T,
 	require.NoError(t, err)
 
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
-	h := mkTestHost()
-	pubHost := mkTestHost()
-	ingester, core, reg := mkIngest(t, h)
-	defer core.Close()
-	defer ingester.Close()
+	h := dstest.MkTestHost(t)
+	pubHost := dstest.MkTestHost(t)
+	ingester, reg := mkIngest(t, h)
 	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
-	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
 	testFunc(privKey, pubKey, providerID, reg, lsys, pubHost, ingester, pub)
@@ -1054,13 +1041,10 @@ func verifyExtendedProviders(t *testing.T,
 
 func TestSyncTooLargeMetadata(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
-	h := mkTestHost()
-	pubHost := mkTestHost()
-	i, core, _ := mkIngest(t, h)
-	defer core.Close()
-	defer i.Close()
+	h := dstest.MkTestHost(t)
+	pubHost := dstest.MkTestHost(t)
+	i, _ := mkIngest(t, h)
 	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
-	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
 	metadata := make([]byte, schema.MaxMetadataLen*2)
@@ -1094,13 +1078,10 @@ func TestSyncTooLargeMetadata(t *testing.T) {
 
 func TestSyncSkipNoMetadata(t *testing.T) {
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
-	h := mkTestHost()
-	pubHost := mkTestHost()
-	i, core, reg := mkIngest(t, h)
-	defer core.Close()
-	defer i.Close()
+	h := dstest.MkTestHost(t)
+	pubHost := dstest.MkTestHost(t)
+	i, reg := mkIngest(t, h)
 	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
-	defer pub.Close()
 	connectHosts(t, h, pubHost)
 
 	// Test ad that has no entries and no metadata.
@@ -1215,19 +1196,14 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	const entriesDepth = 10
 
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
-	h := mkTestHost()
-	pubHost := mkTestHost()
+	h := dstest.MkTestHost(t)
+	pubHost := dstest.MkTestHost(t)
 
 	// make ingester with much smaller entries depth limit.
 	ingCfg := defaultTestIngestConfig
 	ingCfg.EntriesDepthLimit = entriesDepth
-	ing, core, _ := mkIngestWithConfig(t, h, ingCfg)
+	ing, _ := mkIngestWithConfig(t, h, ingCfg)
 	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
-	t.Cleanup(func() {
-		pub.Close()
-		ing.Close()
-		core.Close()
-	})
 	connectHosts(t, h, pubHost)
 
 	totalChunkCount := entriesDepth * 2
@@ -1333,19 +1309,13 @@ func decodeEntriesChunk(t *testing.T, store datastore.Batching, c cid.Cid) ([]mu
 func TestMultiplePublishers(t *testing.T) {
 	srcStore1 := dssync.MutexWrap(datastore.NewMapDatastore())
 	srcStore2 := dssync.MutexWrap(datastore.NewMapDatastore())
-	h := mkTestHost()
-	pubHost1 := mkTestHost()
-	pubHost1Priv := pubHost1.Peerstore().PrivKey(pubHost1.ID())
-	pubHost2 := mkTestHost()
-	pubHost2Priv := pubHost2.Peerstore().PrivKey(pubHost2.ID())
+	h := dstest.MkTestHost(t)
+	pubHost1, pubHost1Priv := dstest.MkTestHostPK(t)
+	pubHost2, pubHost2Priv := dstest.MkTestHostPK(t)
 
-	i, core, _ := mkIngest(t, h)
-	defer core.Close()
-	defer i.Close()
+	i, _ := mkIngest(t, h)
 	pub1, lsys1 := mkMockPublisher(t, pubHost1, h, srcStore1)
-	defer pub1.Close()
 	pub2, lsys2 := mkMockPublisher(t, pubHost2, h, srcStore2)
-	defer pub2.Close()
 
 	// connect both providers
 	connectHosts(t, h, pubHost1)
@@ -1415,31 +1385,11 @@ func TestMultiplePublishers(t *testing.T) {
 	require.Equal(t, gotLink2, headAd2)
 }
 
-func mkTestHost(opts ...libp2p.Option) host.Host {
-	// 10x Faster than the default identity option in libp2p.New
-	var defaultIdentity libp2p.Option = func(cfg *libp2p.Config) error {
-		if cfg.PeerKey == nil {
-			priv, _, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
-			if err != nil {
-				return err
-			}
-			cfg.PeerKey = priv
-		}
-
-		return nil
-	}
-	opts = append(opts, defaultIdentity)
-
-	opts = append(opts, libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
-	h, _ := libp2p.New(opts...)
-	return h
-}
-
 func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 	t.Parallel()
 	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
 	te := setupTestEnv(t, true, blockableLsysOpt)
-	defer te.Close(t)
+
 	headLink := typehelpers.RandomAdBuilder{
 		EntryBuilders: []typehelpers.EntryBuilder{
 			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 1},
@@ -1513,7 +1463,6 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 func TestAnnounceIsNotDeferredOnNoInProgressIngest(t *testing.T) {
 	t.Parallel()
 	te := setupTestEnv(t, true)
-	defer te.Close(t)
 	headLink := typehelpers.RandomAdBuilder{
 		EntryBuilders: []typehelpers.EntryBuilder{
 			typehelpers.RandomEntryChunkBuilder{ChunkCount: 10, EntriesPerChunk: 7, Seed: 1},
@@ -1540,7 +1489,6 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 	t.Parallel()
 	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
 	te := setupTestEnv(t, true, blockableLsysOpt)
-	defer te.Close(t)
 	headLink := typehelpers.RandomAdBuilder{
 		EntryBuilders: []typehelpers.EntryBuilder{
 			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1}, // 0: A <- tail
@@ -1750,24 +1698,34 @@ func mkProvLinkSystem(ds datastore.Batching) ipld.LinkSystem {
 }
 func mkMockPublisher(t *testing.T, pubHost, testHost host.Host, store datastore.Batching) (dagsync.Publisher, ipld.LinkSystem) {
 	lsys := mkProvLinkSystem(store)
-	pub, err := dtsync.NewPublisher(pubHost, store, lsys, defaultTestIngestConfig.PubSubTopic)
+	privKey := pubHost.Peerstore().PrivKey(pubHost.ID())
+	pub, err := ipnisync.NewPublisher(lsys, privKey, ipnisync.WithStreamHost(pubHost), ipnisync.WithHeadTopic(defaultTestIngestConfig.PubSubTopic))
 	require.NoError(t, err)
-	require.NoError(t, dstest.WaitForP2PPublisher(pub, testHost, defaultTestIngestConfig.PubSubTopic))
+	t.Cleanup(func() {
+		pub.Close()
+	})
 	return pub, lsys
 }
 
-func mkIngest(t *testing.T, h host.Host) (*Ingester, *engine.Engine, *registry.Registry) {
+func mkIngest(t *testing.T, h host.Host) (*Ingester, *registry.Registry) {
 	return mkIngestWithConfig(t, h, defaultTestIngestConfig)
 }
 
-func mkIngestWithConfig(t *testing.T, h host.Host, cfg config.Ingest) (*Ingester, *engine.Engine, *registry.Registry) {
+func mkIngestWithConfig(t *testing.T, h host.Host, cfg config.Ingest) (*Ingester, *registry.Registry) {
 	store := dssync.MutexWrap(datastore.NewMapDatastore())
 	tmpStore := dssync.MutexWrap(datastore.NewMapDatastore())
 	reg := mkRegistry(t)
 	core := mkIndexer(t, true)
 	ing, err := NewIngester(cfg, h, core, reg, store, tmpStore)
 	require.NoError(t, err)
-	return ing, core, reg
+
+	t.Cleanup(func() {
+		require.NoError(t, ing.Close())
+		reg.Close()
+		require.NoError(t, core.Close())
+	})
+
+	return ing, reg
 }
 
 func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
@@ -2046,51 +2004,12 @@ type testEnv struct {
 	publisherLinkSys ipld.LinkSystem
 	ingester         *Ingester
 	ingesterHost     host.Host
-	core             indexer.Interface
 	reg              *registry.Registry
-	skipIngCleanup   bool
 }
 
 type testEnvOpts struct {
-	publisherLinkSysFn  func(ds datastore.Batching) ipld.LinkSystem
-	skipIngesterCleanup bool
-	ingestConfig        *config.Ingest
-}
-
-func (te *testEnv) Close(t *testing.T) {
-	err := te.publisher.Close()
-	if err != nil {
-		t.Errorf("Error closing publisher: %s", err)
-	}
-	rm := te.pubHost.Network().ResourceManager()
-	err = te.pubHost.Close()
-	if err != nil {
-		t.Errorf("Error closing publisher host: %s", err)
-	}
-	err = rm.Close()
-	if err != nil {
-		t.Errorf("Error closing publisher host resource manager: %s", err)
-	}
-	if !te.skipIngCleanup {
-		err = te.ingester.Close()
-		if err != nil {
-			t.Errorf("Error closing ingester: %s", err)
-		}
-	}
-	err = te.core.Close()
-	if err != nil {
-		t.Errorf("Error closing indexer core: %s", err)
-	}
-	te.reg.Close()
-	rm = te.ingesterHost.Network().ResourceManager()
-	err = te.ingesterHost.Close()
-	if err != nil {
-		t.Errorf("Error closing ingester host: %s", err)
-	}
-	err = rm.Close()
-	if err != nil {
-		t.Errorf("Error closing ingester host resource manager: %s", err)
-	}
+	publisherLinkSysFn func(ds datastore.Batching) ipld.LinkSystem
+	ingestConfig       *config.Ingest
 }
 
 func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOpts)) *testEnv {
@@ -2105,14 +2024,16 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 
 	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
 
-	ingesterPriv, _, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
-	require.NoError(t, err)
-	ingesterHost := mkTestHost(libp2p.Identity(ingesterPriv))
-	priv, _, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
-	require.NoError(t, err)
-	pubHost := mkTestHost(libp2p.Identity(priv))
+	ingesterHost, ingesterPriv := dstest.MkTestHostPK(t)
+	t.Cleanup(func() {
+		ingesterHost.Network().ResourceManager().Close()
+	})
+	pubHost, priv := dstest.MkTestHostPK(t)
+	t.Cleanup(func() {
+		pubHost.Network().ResourceManager().Close()
+	})
 
-	i, core, reg := mkIngestWithConfig(t, ingesterHost, *testOpt.ingestConfig)
+	i, reg := mkIngestWithConfig(t, ingesterHost, *testOpt.ingestConfig)
 
 	var lsys ipld.LinkSystem
 	if testOpt.publisherLinkSysFn != nil {
@@ -2121,13 +2042,15 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 		lsys = mkProvLinkSystem(srcStore)
 	}
 
-	pub, err := dtsync.NewPublisher(pubHost, srcStore, lsys, defaultTestIngestConfig.PubSubTopic)
+	pub, err := ipnisync.NewPublisher(lsys, priv, ipnisync.WithStreamHost(pubHost), ipnisync.WithHeadTopic(defaultTestIngestConfig.PubSubTopic))
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, pub.Close())
+	})
 
 	if shouldConnectHosts {
 		connectHosts(t, ingesterHost, pubHost)
 	}
-	require.NoError(t, dstest.WaitForP2PPublisher(pub, ingesterHost, defaultTestIngestConfig.PubSubTopic))
 
 	te := &testEnv{
 		publisher:        pub,
@@ -2138,14 +2061,8 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 		ingester:         i,
 		ingesterHost:     ingesterHost,
 		ingesterPriv:     ingesterPriv,
-		core:             core,
 		reg:              reg,
-		skipIngCleanup:   testOpt.skipIngesterCleanup,
 	}
-
-	t.Cleanup(func() {
-		te.Close(t)
-	})
 
 	return te
 }

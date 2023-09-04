@@ -39,7 +39,6 @@ type testenv struct {
 	registry *registry.Registry
 	client   *client.Client
 	server   *admin.Server
-	errChan  chan error
 }
 
 var (
@@ -88,8 +87,6 @@ func TestAssign(t *testing.T) {
 	assigned, err = te.client.ListAssignedPeers(context.Background())
 	require.NoError(t, err)
 	require.Zero(t, len(assigned))
-
-	te.close(t)
 }
 
 func TestHandoff(t *testing.T) {
@@ -147,8 +144,6 @@ func TestHandoff(t *testing.T) {
 
 	err = te.client.Handoff(context.Background(), peerID, indexerID, frozenServer.URL)
 	require.ErrorContains(t, err, registry.ErrAlreadyAssigned.Error())
-
-	te.close(t)
 }
 
 // TestHandoffNoPublisher tests reassigning a publisher when none of the
@@ -201,7 +196,6 @@ func TestHandoffNoPublisher(t *testing.T) {
 	}
 
 	require.Zero(t, len(assigned))
-	te.close(t)
 }
 
 func TestStatus(t *testing.T) {
@@ -218,8 +212,6 @@ func TestStatus(t *testing.T) {
 	status, err = te.client.Status(context.Background())
 	require.NoError(t, err)
 	require.True(t, status.Frozen)
-
-	te.close(t)
 }
 
 func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
@@ -247,22 +239,20 @@ func makeTestenv(t *testing.T) *testenv {
 		close(errChan)
 	}()
 
-	return &testenv{
+	te := &testenv{
 		core:     idx,
 		registry: reg,
 		ingester: ing,
 		server:   s,
 		client:   c,
-		errChan:  errChan,
 	}
-}
 
-func (te *testenv) close(t *testing.T) {
-	require.NoError(t, te.server.Close())
-	require.NoError(t, <-te.errChan)
-	require.NoError(t, te.ingester.Close())
-	require.NoError(t, te.core.Close())
-	te.registry.Close()
+	t.Cleanup(func() {
+		require.NoError(t, s.Close())
+		require.NoError(t, <-errChan)
+	})
+
+	return te
 }
 
 func setupServer(t *testing.T, ind indexer.Interface, ing *ingest.Ingester, reg *registry.Registry) *admin.Server {
@@ -294,7 +284,11 @@ func initRegistry(t *testing.T, trustedID string) *registry.Registry {
 }
 
 func initIndex(t *testing.T, withCache bool) indexer.Interface {
-	return engine.New(memory.New())
+	ind := engine.New(memory.New())
+	t.Cleanup(func() {
+		require.NoError(t, ind.Close())
+	})
+	return ind
 }
 
 func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *ingest.Ingester {

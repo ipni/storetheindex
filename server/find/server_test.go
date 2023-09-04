@@ -270,17 +270,15 @@ func TestServer_StreamingResponse(t *testing.T) {
 }
 
 func TestServer_Landing(t *testing.T) {
-	ind := initIndex(t, false)
 	reg := initRegistry(t)
-	s := setupServer(ind, reg, t)
+	ind := initIndex(t, false)
+	s := setupServer(t, ind, reg)
 	go func() {
 		err := s.Start()
 		require.ErrorIs(t, err, http.ErrServerClosed)
 	}()
 	t.Cleanup(func() {
 		require.NoError(t, s.Close())
-		require.NoError(t, ind.Close())
-		reg.Close()
 	})
 
 	res, err := http.Get(s.URL() + "/")
@@ -293,18 +291,13 @@ func TestServer_Landing(t *testing.T) {
 }
 
 func setupTestServer(t *testing.T, iv indexer.Value, mhs []multihash.Multihash) *find.Server {
-	ind := initIndex(t, false)
 	reg := initRegistry(t)
-	s := setupServer(ind, reg, t)
+	ind := initIndex(t, false)
+	s := setupServer(t, ind, reg)
 	go func() {
 		err := s.Start()
 		require.ErrorIs(t, err, http.ErrServerClosed)
 	}()
-	t.Cleanup(func() {
-		require.NoError(t, s.Close())
-		require.NoError(t, ind.Close())
-		reg.Close()
-	})
 
 	err := ind.Put(iv, mhs...)
 	require.NoError(t, err)

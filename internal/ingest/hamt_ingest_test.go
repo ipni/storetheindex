@@ -13,7 +13,6 @@ import (
 func TestIngester_IngestsMixedEntriesTypeSuccessfully(t *testing.T) {
 	ctx := context.Background()
 	te := setupTestEnv(t, true)
-	defer te.Close(t)
 
 	// Generate an ad chain with mixed entries type and different shape HAMT.
 	headAd := typehelpers.RandomAdBuilder{

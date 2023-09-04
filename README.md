@@ -7,9 +7,7 @@
 This repo provides an indexer implementation that can be used to index data stored by a range of participating storage providers.
 
 ## Design
-- [About the Indexer](https://github.com/ipni/storetheindex/blob/main/doc/indexer_about.md#about-the-indexer)
-- [Ingestion Process](https://github.com/ipni/storetheindex/blob/main/doc/ingest.md#providing-data-to-a-network-indexer)
-- [Creating an Index Provider](https://github.com/ipni/storetheindex/blob/main/doc/creating-an-index-provider.md#creating-an-index-provider)
+- [IPNI: InterPlanetary Network Indexer](https://github.com/ipni/specs/blob/main/IPNI.md#ipni-interplanetary-network-indexer)
 
 ## Current Status
 Released for production: The current production release is running at https://cid.contact 
