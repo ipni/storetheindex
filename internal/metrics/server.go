@@ -14,11 +14,9 @@ import (
 
 // Global Tags
 var (
-	ErrKind, _   = tag.NewKey("errKind")
-	Found, _     = tag.NewKey("found")
-	Method, _    = tag.NewKey("method")
-	Publisher, _ = tag.NewKey("publisher")
-	Version, _   = tag.NewKey("version")
+	ErrKind, _ = tag.NewKey("errKind")
+	Found, _   = tag.NewKey("found")
+	Method, _  = tag.NewKey("method")
 )
 
 // Measures
@@ -33,9 +31,6 @@ var (
 	AdIngestSuccessCount = stats.Int64("ingest/adingestSuccess", "Number of successful ad ingest", stats.UnitDimensionless)
 	AdIngestSkippedCount = stats.Int64("ingest/adingestSkipped", "Number of ads skipped during ingest", stats.UnitDimensionless)
 	AdLoadError          = stats.Int64("ingest/adLoadError", "Number of times an ad failed to load", stats.UnitDimensionless)
-	AdsIngestedCount     = stats.Int64("ingest/adsingested", "Number of advertisements ingested per provider", stats.UnitDimensionless)
-	MhsIngestedCount     = stats.Int64("ingest/mhsingested", "Number of multihashes ingested per provider", stats.UnitDimensionless)
-	MhsIngestTime        = stats.Float64("ingest/mhsingesttime", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
 	ProviderCount        = stats.Int64("provider/count", "Number of known (registered) providers", stats.UnitDimensionless)
 	EntriesSyncLatency   = stats.Float64("ingest/entriessynclatency", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
 	PercentUsage         = stats.Float64("ingest/percentusage", "Percent usage of storage available in value store", stats.UnitDimensionless)
@@ -96,21 +91,6 @@ var (
 		Measure:     AdLoadError,
 		Aggregation: view.Count(),
 	}
-	adsIngested = &view.View{
-		Measure:     AdsIngestedCount,
-		Aggregation: view.Count(),
-		TagKeys:     []tag.Key{Publisher},
-	}
-	mhsIngestTimeView = &view.View{
-		Measure:     MhsIngestTime,
-		Aggregation: view.LastValue(),
-		TagKeys:     []tag.Key{Publisher},
-	}
-	mhsIngested = &view.View{
-		Measure:     MhsIngestedCount,
-		Aggregation: view.LastValue(),
-		TagKeys:     []tag.Key{Publisher},
-	}
 	percentUsageView = &view.View{
 		Measure:     PercentUsage,
 		Aggregation: view.LastValue(),
@@ -143,9 +123,6 @@ func Start(views []*view.View) http.Handler {
 		adIngestSkipped,
 		adIngestSuccess,
 		adLoadError,
-		adsIngested,
-		mhsIngested,
-		mhsIngestTimeView,
 		percentUsageView,
 		nonRemoveAdCountView,
 		removeAdCountView,

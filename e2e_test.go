@@ -111,7 +111,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	case "http":
 		e.Run(provider, "init", "--pubkind=http")
 	case "libp2p":
-		e.Run(provider, "init", "--pubkind=libp2phttp")
+		e.Run(provider, "init", "--pubkind=libp2p")
 	case "libp2phttp":
 		e.Run(provider, "init", "--pubkind=libp2phttp")
 	}
@@ -229,6 +229,9 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	}
 	require.Equal(t, 1, carCount)
 	require.Equal(t, 1, headCount)
+
+	outRates := e.Run(indexer, "admin", "telemetry", "-i", "http://localhost:3002")
+	t.Logf("Telemetry:\n%s", outRates)
 
 	root2 := filepath.Join(e.Dir, ".storetheindex2")
 	e.Env = append(e.Env, fmt.Sprintf("%s=%s", config.EnvDir, root2))

@@ -16,6 +16,7 @@ import (
 
 	"github.com/ipni/go-libipni/apierror"
 	"github.com/ipni/storetheindex/admin/model"
+	"github.com/ipni/storetheindex/rate"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 )
@@ -29,6 +30,7 @@ const (
 	preferredPath       = "preferred"
 	reloadConfigPath    = "reloadconfig"
 	statusPath          = "status"
+	telemetryPath       = "telemetry/providers"
 )
 
 // Client is an http client for the indexer finder API,
@@ -459,10 +461,6 @@ func (c *Client) Status(ctx context.Context) (*model.Status, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, err
-		}
 		return nil, apierror.FromResponse(resp.StatusCode, body)
 	}
 
@@ -473,6 +471,76 @@ func (c *Client) Status(ctx context.Context) (*model.Status, error) {
 	}
 
 	return &status, nil
+}
+
+func (c *Client) GetAllTelemetry(ctx context.Context) (map[string]rate.Rate, error) {
+	u := c.baseURL.JoinPath(telemetryPath)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == http.StatusNoContent {
+		return nil, nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, apierror.FromResponse(resp.StatusCode, body)
+	}
+
+	var ingestRates map[string]rate.Rate
+	err = json.Unmarshal(body, &ingestRates)
+	if err != nil {
+		return nil, err
+	}
+
+	return ingestRates, nil
+}
+
+func (c *Client) GetTelemetry(ctx context.Context, providerID peer.ID) (rate.Rate, bool, error) {
+	u := c.baseURL.JoinPath(telemetryPath, providerID.String())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return rate.Rate{}, false, err
+	}
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return rate.Rate{}, false, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return rate.Rate{}, false, err
+	}
+
+	if resp.StatusCode == http.StatusNoContent {
+		return rate.Rate{}, false, nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return rate.Rate{}, false, apierror.FromResponse(resp.StatusCode, body)
+	}
+
+	var ingestRate rate.Rate
+	err = json.Unmarshal(body, &ingestRate)
+	if err != nil {
+		return rate.Rate{}, false, err
+	}
+
+	return ingestRate, true, nil
 }
 
 func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, method string, data []byte, queryPairs ...string) error {

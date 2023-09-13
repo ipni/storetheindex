@@ -23,6 +23,7 @@ import (
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
+	"github.com/ipni/storetheindex/rate"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -166,6 +167,9 @@ type Ingester struct {
 
 	// Metrics
 	backlogs map[peer.ID]int32
+
+	// Ingest rates
+	ingestRates *rate.Map
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
@@ -198,6 +202,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		minKeyLen: cfg.MinimumKeyLength,
 
 		backlogs: make(map[peer.ID]int32),
+
+		ingestRates: rate.NewMap(),
 	}
 
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
@@ -244,6 +250,14 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	go ing.autoSync()
 
 	return ing, nil
+}
+
+func (ing *Ingester) GetAllIngestRates() map[string]rate.Rate {
+	return ing.ingestRates.GetAll()
+}
+
+func (ing *Ingester) GetIngestRate(peerID peer.ID) (rate.Rate, bool) {
+	return ing.ingestRates.Get(string(peerID))
 }
 
 func (ing *Ingester) MultihashesFromMirror() uint64 {
