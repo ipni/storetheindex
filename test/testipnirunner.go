@@ -24,60 +24,40 @@ const (
 )
 
 // StdoutWatcher is a helper for watching the stdout of a command for a
-// specific string. It is used by TestIndexerRunner to watch for specific
+// specific string. It is used by TestIpniRunner to watch for specific
 // output from the commands. The Signal channel will be sent on when the
 // match string is found.
 type StdoutWatcher struct {
-	Prog   string
 	Match  string
 	Signal chan struct{}
 }
 
-func NewStdoutWatcher(prog, match string) StdoutWatcher {
+func NewStdoutWatcher(match string) StdoutWatcher {
 	return StdoutWatcher{
-		Prog:   prog,
 		Match:  match,
 		Signal: make(chan struct{}, 1),
 	}
 }
 
-func NewIndexerReadyWatcher() StdoutWatcher {
-	return NewStdoutWatcher("storetheindex", IndexerReadyMatch)
-}
-
-func NewProviderHasPeerWatcher() StdoutWatcher {
-	return NewStdoutWatcher("provider", ProviderHasPeerMatch)
-}
-
-func NewProviderReadyWatcher() StdoutWatcher {
-	return NewStdoutWatcher("provider", ProviderReadyMatch)
-}
-
-func NewDhstoreReadyWatcher() StdoutWatcher {
-	return NewStdoutWatcher("dhstore", DhstoreReady)
-}
-
-// TestIndexerRunner is a helper for running the indexer and other commands.
-// TestIndexerRunner is not specifically tied to the indexer, but is designed
+// TestIpniRunner is a helper for running the indexer and other commands.
+// TestIpniRunner is not specifically tied to the indexer, but is designed
 // to be used to manage multiple processes in a test; and is therefore useful
 // for testing the indexer, the dhstore, and providers, all in a temporary
 // directory and with a test environment.
-type TestIndexerRunner struct {
-	t        *testing.T
-	watchers []StdoutWatcher
+type TestIpniRunner struct {
+	t *testing.T
 
 	Ctx context.Context
 	Dir string
 	Env []string
 }
 
-// NewTestIndexerRunner creates a new TestIndexerRunner for the given test,
+// NewTestIpniRunner creates a new TestIpniRunner for the given test,
 // context, and temporary directory. It also takes a list of StdoutWatchers,
 // which will be used to watch for specific output from the commands.
-func NewTestIndexerRunner(t *testing.T, ctx context.Context, dir string, watchers ...StdoutWatcher) *TestIndexerRunner {
-	tr := TestIndexerRunner{
-		t:        t,
-		watchers: watchers,
+func NewTestIpniRunner(t *testing.T, ctx context.Context, dir string) *TestIpniRunner {
+	tr := TestIpniRunner{
+		t: t,
 
 		Ctx: ctx,
 		Dir: dir,
@@ -124,7 +104,7 @@ func NewTestIndexerRunner(t *testing.T, ctx context.Context, dir string, watcher
 
 // Run runs a command and returns its output. This is useful for executing
 // synchronous commands within the temporary environment.
-func (tr *TestIndexerRunner) Run(name string, args ...string) []byte {
+func (tr *TestIpniRunner) Run(name string, args ...string) []byte {
 	tr.t.Helper()
 
 	tr.t.Logf("run: %s %s", name, strings.Join(args, " "))
@@ -136,17 +116,40 @@ func (tr *TestIndexerRunner) Run(name string, args ...string) []byte {
 	return out
 }
 
+type Execution struct {
+	Name     string
+	Args     []string
+	Watchers []StdoutWatcher
+}
+
+func NewExecution(name string, args ...string) Execution {
+	return Execution{
+		Name:     name,
+		Args:     args,
+		Watchers: []StdoutWatcher{},
+	}
+}
+
+func (p Execution) String() string {
+	return p.Name + " " + strings.Join(p.Args, " ")
+}
+
+func (p Execution) WithWatcher(watcher StdoutWatcher) Execution {
+	p.Watchers = append(append([]StdoutWatcher{}, p.Watchers...), watcher)
+	return p
+}
+
 // Start starts a command and returns the command. This is useful for executing
 // asynchronous commands within the temporary environment. It will watch the
 // command's stdout for the given match string, and send on a watcher's
 // channel when/if found.
-func (tr *TestIndexerRunner) Start(prog string, args ...string) *exec.Cmd {
+func (tr *TestIpniRunner) Start(ex Execution) *exec.Cmd {
 	tr.t.Helper()
 
-	name := filepath.Base(prog)
-	tr.t.Logf("run: %s %s", name, strings.Join(args, " "))
+	name := filepath.Base(ex.Name)
+	tr.t.Logf("run: %s", ex.String())
 
-	cmd := exec.CommandContext(tr.Ctx, prog, args...)
+	cmd := exec.CommandContext(tr.Ctx, ex.Name, ex.Args...)
 	cmd.Env = tr.Env
 
 	stdout, err := cmd.StdoutPipe()
@@ -155,6 +158,9 @@ func (tr *TestIndexerRunner) Start(prog string, args ...string) *exec.Cmd {
 
 	scanner := bufio.NewScanner(stdout)
 
+	for _, watcher := range ex.Watchers {
+		tr.t.Logf("watching: %s for [%s]", name, watcher.Match)
+	}
 	go func() {
 		for scanner.Scan() {
 			line := strings.ToLower(scanner.Text())
@@ -163,8 +169,8 @@ func (tr *TestIndexerRunner) Start(prog string, args ...string) *exec.Cmd {
 			// but helps see what's happening, especially when the test fails.
 			tr.t.Logf("%s: %s", name, line)
 
-			for _, watcher := range tr.watchers {
-				if watcher.Prog == name && strings.Contains(line, strings.ToLower(watcher.Match)) {
+			for _, watcher := range ex.Watchers {
+				if strings.Contains(line, strings.ToLower(watcher.Match)) {
 					watcher.Signal <- struct{}{}
 				}
 			}
@@ -177,7 +183,7 @@ func (tr *TestIndexerRunner) Start(prog string, args ...string) *exec.Cmd {
 }
 
 // Stop stops a command. It sends SIGINT, and if that doesn't work, SIGKILL.
-func (tr *TestIndexerRunner) Stop(cmd *exec.Cmd, timeout time.Duration) {
+func (tr *TestIpniRunner) Stop(cmd *exec.Cmd, timeout time.Duration) {
 	sig := os.Interrupt
 	if runtime.GOOS == "windows" {
 		// Windows can't send SIGINT.

@@ -65,12 +65,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	indexerReady := test.NewIndexerReadyWatcher()
-	providerReady := test.NewProviderReadyWatcher()
-	providerHasPeer := test.NewProviderHasPeerWatcher()
-	dhstoreReady := test.NewDhstoreReadyWatcher()
-
-	e := test.NewTestIndexerRunner(t, ctx, t.TempDir(), indexerReady, providerReady, providerHasPeer, dhstoreReady)
+	e := test.NewTestIpniRunner(t, ctx, t.TempDir())
 
 	carPath := filepath.Join(e.Dir, "sample-wrapped-v2.car")
 	err := downloadFile("https://github.com/ipni/index-provider/raw/main/testdata/sample-wrapped-v2.car", carPath)
@@ -145,7 +140,9 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	cfg.Save(stiCfgPath)
 
 	// start provider
-	cmdProvider := e.Start(provider, "daemon")
+	providerReady := test.NewStdoutWatcher(test.ProviderReadyMatch)
+	providerHasPeer := test.NewStdoutWatcher(test.ProviderHasPeerMatch)
+	cmdProvider := e.Start(test.NewExecution(provider, "daemon").WithWatcher(providerReady).WithWatcher(providerHasPeer))
 	select {
 	case <-providerReady.Signal:
 	case <-ctx.Done():
@@ -153,7 +150,8 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	}
 
 	// start dhstore
-	cmdDhstore := e.Start(dhstore, "--storePath", e.Dir)
+	dhstoreReady := test.NewStdoutWatcher(test.DhstoreReady)
+	cmdDhstore := e.Start(test.NewExecution(dhstore, "--storePath", e.Dir).WithWatcher(dhstoreReady))
 	select {
 	case <-dhstoreReady.Signal:
 	case <-ctx.Done():
@@ -161,7 +159,8 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	}
 
 	// start indexer
-	cmdIndexer := e.Start(indexer, "daemon")
+	indexerReady := test.NewStdoutWatcher(test.IndexerReadyMatch)
+	cmdIndexer := e.Start(test.NewExecution(indexer, "daemon").WithWatcher(indexerReady))
 	select {
 	case <-indexerReady.Signal:
 	case <-ctx.Done():
@@ -242,9 +241,10 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	require.NoError(t, err)
 	indexer2ID := cfg.Identity.PeerID
 
-	cmdIndexer2 := e.Start(indexer, "daemon")
+	indexerReady2 := test.NewStdoutWatcher(test.IndexerReadyMatch)
+	cmdIndexer2 := e.Start(test.NewExecution(indexer, "daemon").WithWatcher(indexerReady2))
 	select {
-	case <-indexerReady.Signal:
+	case <-indexerReady2.Signal:
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for indexer2 to start")
 	}
