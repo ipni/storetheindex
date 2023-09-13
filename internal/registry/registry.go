@@ -648,9 +648,8 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 
 	var newPublisher bool
 
-	info, _ := r.ProviderInfo(provider.ID)
-
-	if info != nil {
+	info, ok := r.ProviderInfo(provider.ID)
+	if ok {
 		info = &ProviderInfo{
 			AddrInfo:              info.AddrInfo,
 			LastAdvertisement:     info.LastAdvertisement,
@@ -698,7 +697,7 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 			AddrInfo: provider,
 		}
 		if extendedProviders != nil {
-			if err := validateExtProviders(extendedProviders); err != nil {
+			if err = validateExtProviders(extendedProviders); err != nil {
 				return err
 			}
 			info.ExtendedProviders = extendedProviders
@@ -723,9 +722,9 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 	}
 
 	if info.Publisher.Validate() == nil {
-		// Use new publisher addrs if any given. Otherwise, keep existing.
-		// If no existing publisher addrs, and publisher ID is same as
-		// provider ID, then use provider addresses if any.
+		// Use new publisher addrs if any given. Otherwise, keep existing. If
+		// no existing publisher addrs, and publisher ID is same as provider
+		// ID, then use provider addresses if any.
 		if len(publisher.Addrs) != 0 {
 			info.PublisherAddr = publisher.Addrs[0]
 		} else if info.PublisherAddr == nil && publisher.ID == info.AddrInfo.ID {
@@ -826,7 +825,8 @@ func (r *Registry) Handoff(ctx context.Context, publisherID, frozenID peer.ID, f
 		return err
 	}
 
-	// Iterate through the providers to find the one with the publisher being handed off.
+	// Iterate through providers to find the one with the publisher being
+	// handed off.
 	var provInfo *model.ProviderInfo
 	for _, pInfo := range provs {
 		if pInfo.Publisher.ID == publisherID {
@@ -867,7 +867,6 @@ func (r *Registry) Handoff(ctx context.Context, publisherID, frozenID peer.ID, f
 	// sync with the frozen at ad as the ad to stop at.
 	if provInfo.FrozenAt != cid.Undef {
 		regInfo.stopCid = provInfo.FrozenAt
-
 		select {
 		case r.syncChan <- regInfo:
 		case <-r.closing:
@@ -988,7 +987,7 @@ func (r *Registry) SetLastError(providerID peer.ID, err error) {
 	if err != nil {
 		errMsg = err.Error()
 	} else if pinfo.LastError == "" {
-		// Last error also empty; nothing to update.
+		// Last error is also empty; nothing to update.
 		return
 	}
 	pinfoCpy := *pinfo
@@ -1169,8 +1168,8 @@ func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]p
 			poll = override
 		}
 		if info.lastContactTime.IsZero() {
-			// There has been no contact since startup.  Poll during next
-			// call to this function if no update for provider.
+			// There has been no contact since startup. Poll during next call
+			// to this function if no update for provider.
 			info.lastContactTime = now.Add(-poll.interval)
 			continue
 		}
@@ -1180,9 +1179,8 @@ func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]p
 			continue
 		}
 		sincePollingStarted := noContactTime - poll.interval
-		// If more than stopAfter time has elapsed since polling started,
-		// then the publisher is considered permanently unresponsive, so
-		// remove it.
+		// If more than stopAfter time has elapsed since polling started, then
+		// the publisher is considered permanently unresponsive, so remove it.
 		if sincePollingStarted >= poll.stopAfter {
 			// Too much time since last contact.
 			log.Warnw("Lost contact with provider, too long with no updates",
@@ -1198,8 +1196,8 @@ func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]p
 			// Tell the ingester to remove data for the provider.
 			info.deleted = true
 		} else if sincePollingStarted >= poll.deactivateAfter {
-			// Still polling after deactivateAfter, so mark inactive.
-			// This will exclude the provider from find responses.
+			// Still polling after deactivateAfter, so mark inactive. This will
+			// exclude the provider from find responses.
 			log.Infow("Deactivating provider, too long with no updates",
 				"publisher", info.Publisher,
 				"provider", info.AddrInfo.ID,
