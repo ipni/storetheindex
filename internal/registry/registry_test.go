@@ -410,16 +410,19 @@ func TestPollProvider(t *testing.T) {
 		t.Fatal("Expected sync channel to be written")
 	}
 
-	// Check that actions chan is not blocked by unread auto-sync channel.
+	// Check that registry is not blocked by unread auto-sync channel.
 	poll.retryAfter = 0
 	poll.deactivateAfter = 0
 	r.pollProviders(poll, nil)
 	r.pollProviders(poll, nil)
 	r.pollProviders(poll, nil)
 	done := make(chan struct{})
-	r.actions <- func() {
+	go func() {
+		_, ok := r.ProviderInfo(peerID)
+		require.True(t, ok)
 		close(done)
-	}
+	}()
+
 	select {
 	case <-done:
 	case <-timeout:
