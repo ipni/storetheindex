@@ -12,6 +12,7 @@ spec:
       containers:
         - name: telemetry
           args:
+            - '-indexerURL=http://ago-indexer:3002'
             - '-providersURL=http://indexstar:8080/'
             - '-maxDepth=5000'
             - '-updateIn=2m'
