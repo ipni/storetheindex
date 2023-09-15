@@ -30,7 +30,6 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
 	"go.uber.org/zap"
 
 	// Import so these codecs get registered.
@@ -167,19 +166,13 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 			return
 		}
 
-		// Record how long entries sync took.
+		// Record multihashes rate per provider.
 		elapsed = now.Sub(entsSyncStart)
+		ing.ingestRates.Update(string(headProvider.ID), uint64(mhCount), elapsed)
+
+		// Record how long entries sync took.
 		elapsedMsec = float64(elapsed.Nanoseconds()) / 1e6
-
 		stats.Record(ctx, metrics.EntriesSyncLatency.M(elapsedMsec))
-
-		// Record multihashes per provider.
-		stats.RecordWithOptions(ctx, stats.WithMeasurements(
-			metrics.MhsIngestTime.M(elapsedMsec),
-			metrics.MhsIngestedCount.M(int64(mhCount)),
-			metrics.AdsIngestedCount.M(1)),
-			stats.WithTags(tag.Insert(metrics.Publisher, publisherID.String())))
-
 	}()
 
 	// Since all advertisements in an assignment have the same provider,

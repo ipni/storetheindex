@@ -86,6 +86,10 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	mux.Handle("/metrics/", metrics.Start(append(coremetrics.DefaultViews, coremetrics.PebbleViews...)))
 	mux.Handle("/debug/pprof/", pprof.WithProfile())
 
+	// Telemetry routes
+	mux.HandleFunc("/telemetry/providers", h.listTelemetry)
+	mux.HandleFunc("/telemetry/providers/", h.getTelemetry)
+
 	// Config routes
 	mux.HandleFunc("/config/log/level", setLogLevel)
 	mux.HandleFunc("/config/log/subsystems", listLogSubSystems)

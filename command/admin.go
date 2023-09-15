@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ipni/storetheindex/admin/client"
+	"github.com/ipni/storetheindex/rate"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
@@ -26,6 +27,7 @@ var AdminCmd = &cli.Command{
 		statusCmd,
 		syncCmd,
 		unassignCmd,
+		telemetryCmd,
 	},
 }
 
@@ -176,6 +178,22 @@ var unassignFlags = []cli.Flag{
 		Usage:    "Peer ID of publisher un-assign",
 		Aliases:  []string{"p"},
 		Required: true,
+	},
+	indexerHostFlag,
+}
+
+var telemetryCmd = &cli.Command{
+	Name:   "telemetry",
+	Usage:  "Show provider telemetry info",
+	Flags:  telemetryFlags,
+	Action: telemetryAction,
+}
+
+var telemetryFlags = []cli.Flag{
+	&cli.StringFlag{
+		Name:    "provider",
+		Usage:   "Provider ID to show latest telemetry info for",
+		Aliases: []string{"p"},
 	},
 	indexerHostFlag,
 }
@@ -379,4 +397,46 @@ func unassignAction(cctx *cli.Context) error {
 	fmt.Println()
 	fmt.Println("Restart assigner service see this change. To prevent re-assignment to this indexer, first block the peer on this indexer or configure a pre-set assignment.")
 	return nil
+}
+
+func telemetryAction(cctx *cli.Context) error {
+	cl, err := client.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	if cctx.String("provider") == "" {
+		rateMap, err := cl.GetAllTelemetry(cctx.Context)
+		if err != nil {
+			return err
+		}
+		if len(rateMap) == 0 {
+			fmt.Println("no new rate information")
+			return nil
+		}
+		for pid, irate := range rateMap {
+			printIngestRate(peer.ID(pid), irate)
+		}
+		return nil
+	}
+
+	pid, err := peer.Decode(cctx.String("provider"))
+	if err != nil {
+		return err
+	}
+	irate, ok, err := cl.GetTelemetry(cctx.Context, pid)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		fmt.Println("no new rate information")
+		return nil
+	}
+	printIngestRate(pid, irate)
+	return nil
+}
+
+func printIngestRate(pid peer.ID, irate rate.Rate) {
+	fmt.Println("Provider", pid, "ingest rate:")
+	sec := irate.Elapsed.Seconds()
+	fmt.Printf("  %d multihashes from %d ads in %f seconds: %d mh/s\n", irate.Count, irate.Samples, sec, int64(float64(irate.Count)/sec))
 }

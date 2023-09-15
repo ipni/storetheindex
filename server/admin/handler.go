@@ -683,6 +683,54 @@ func (h *adminHandler) healthCheckHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// ----- Telemetry routes -----
+
+func (h *adminHandler) listTelemetry(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+
+	ingestRates := h.ingester.GetAllIngestRates()
+	if len(ingestRates) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	data, err := json.Marshal(ingestRates)
+	if err != nil {
+		log.Errorw("Error marshaling telemetry data", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
+func (h *adminHandler) getTelemetry(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+
+	providerID, err := peer.Decode(path.Base(r.URL.Path))
+	if err != nil {
+		http.Error(w, "cannot decode provider id", http.StatusBadRequest)
+		return
+	}
+
+	ingestRate, ok := h.ingester.GetIngestRate(providerID)
+	if !ok {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	data, err := json.Marshal(ingestRate)
+	if err != nil {
+		log.Errorw("Error marshaling telemetry data", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
 // ----- utility functions -----
 
 func decodePeerID(id string, w http.ResponseWriter) (peer.ID, bool) {
@@ -713,7 +761,6 @@ func init() {
 }
 
 func healthCheckValueStore(h *adminHandler) error {
-
 	if err := h.indexer.Put(healthCheckValue, healthCheckMH); err != nil {
 		return fmt.Errorf("cannot write to valuestore: %s", err)
 	}
