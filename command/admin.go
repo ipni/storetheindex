@@ -438,5 +438,5 @@ func telemetryAction(cctx *cli.Context) error {
 func printIngestRate(pid peer.ID, irate rate.Rate) {
 	fmt.Println("Provider", pid, "ingest rate:")
 	sec := irate.Elapsed.Seconds()
-	fmt.Printf("    %d mh, %d ads, %f seconds: %f mh/s\n", irate.Count, irate.Samples, sec, float64(irate.Count)/sec)
+	fmt.Printf("  %d multihashes from %d ads in %f seconds: %d mh/s\n", irate.Count, irate.Samples, sec, int64(float64(irate.Count)/sec))
 }

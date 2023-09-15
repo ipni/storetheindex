@@ -231,6 +231,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	require.Equal(t, 1, headCount)
 
 	outRates := e.Run(indexer, "admin", "telemetry", "-i", "http://localhost:3002")
+	require.Contains(t, string(outRates), "1043 multihashes from 1 ads")
 	t.Logf("Telemetry:\n%s", outRates)
 
 	root2 := filepath.Join(e.Dir, ".storetheindex2")
