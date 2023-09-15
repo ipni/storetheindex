@@ -15,7 +15,6 @@ on:
       - 'doc/**'
     branches:
       - main
-      - telemetry-endpoints
 
 jobs:
   publisher:
