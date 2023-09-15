@@ -27,12 +27,3 @@ configMapGenerator:
 
 patchesStrategicMerge:
   - deployment.yaml
-
-images:
-  - name: storetheindex
-    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
-    # Deploy a branch build that disables index counter from both ingest and find server
-    # in order to relieve high cpu spikes that cause lookup outage. See: 
-    #  - https://github.com/ipni/storetheindex/issues/2062
-    #  - https://github.com/ipni/storetheindex/pull/2067
-    newTag: 0.7.8
