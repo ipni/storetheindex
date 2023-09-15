@@ -14,7 +14,7 @@ type Rate struct {
 }
 
 // Map records the cumulative rate, since the last call to Get or GetAll,
-// for each ID. Getting the rate
+// for each ID.
 type Map struct {
 	mutex sync.Mutex
 	rates map[string]Rate
@@ -27,7 +27,7 @@ func NewMap() *Map {
 }
 
 // Update adds the new rate information to the existing information. If the
-// existing rate information is markes as observed, then it is reset before
+// existing rate information is marked as observed, then it is reset before
 // applying the new information.
 func (m *Map) Update(id string, count uint64, elapsed time.Duration) {
 	if m == nil || count == 0 || elapsed == 0 {
@@ -46,7 +46,7 @@ func (m *Map) Update(id string, count uint64, elapsed time.Duration) {
 }
 
 // Get reads the accumulated rate information for the specified ID. The
-// information is markes as observed and is reset at next write.
+// information is marked as observed and is reset at next write.
 func (m *Map) Get(id string) (Rate, bool) {
 	if m == nil {
 		return Rate{}, false
@@ -62,7 +62,7 @@ func (m *Map) Get(id string) (Rate, bool) {
 }
 
 // GetAll reads and removes all accumulated rate information. The
-// information is markes as observed and is reset at next write.
+// information is marked as observed and is reset at next write.
 func (m *Map) GetAll() map[string]Rate {
 	if m == nil {
 		return nil
