@@ -815,7 +815,7 @@ func (ing *Ingester) autoSync() {
 				ing.reg.SetLastError(provID, fmt.Errorf("auto-sync failed: %s", err))
 				return
 			}
-			ing.reg.Saw(provID)
+			ing.reg.Saw(provID, true)
 		}(provInfo.Publisher, provInfo.PublisherAddr, provInfo.AddrInfo.ID)
 	}
 }
@@ -1019,7 +1019,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		if oldAssignment == nil || oldAssignment.(workerAssignment).none {
 			// No previous run scheduled a worker to handle this provider, so
 			// schedule one.
-			ing.reg.Saw(providerID)
+			ing.reg.Saw(providerID, false)
 
 			go func(provID peer.ID) {
 				ing.providersBeingProcessedMu.Lock()

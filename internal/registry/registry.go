@@ -433,15 +433,21 @@ running:
 }
 
 // Saw indicates that a provider was seen.
-func (r *Registry) Saw(provider peer.ID) {
+func (r *Registry) Saw(providerID peer.ID, clearError bool) {
 	r.provMutex.Lock()
 	defer r.provMutex.Unlock()
 
-	pinfo, ok := r.providers[provider]
+	pinfo, ok := r.providers[providerID]
 	if ok {
 		pinfo.lastContactTime = time.Now()
 		pinfo.inactive = false
-		log.Infow("Saw provider", "provider", provider, "publisher", pinfo.Publisher, "time", pinfo.lastContactTime)
+		log.Infow("Saw provider", "provider", providerID, "publisher", pinfo.Publisher, "time", pinfo.lastContactTime)
+		if clearError && pinfo.LastError != "" {
+			pinfoCpy := *pinfo
+			pinfoCpy.LastError = ""
+			pinfoCpy.LastErrorTime = time.Time{}
+			r.providers[providerID] = &pinfoCpy
+		}
 	}
 }
 
