@@ -114,7 +114,7 @@ var loadGenVerifyFlags = []cli.Flag{
 }
 
 func loadGenVerifyAction(cctx *cli.Context) error {
-	client, err := client.New(cctx.String("indexerFind"))
+	cl, err := client.New(cctx.String("indexerFind"))
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func loadGenVerifyAction(cctx *cli.Context) error {
 
 	start := time.Now()
 
-	resp, err := client.FindBatch(context.Background(), allMhs)
+	resp, err := client.FindBatch(context.Background(), cl, allMhs)
 	if err != nil {
 		return err
 	}

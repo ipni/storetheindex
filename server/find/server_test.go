@@ -1,7 +1,6 @@
 package find_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-indexer-core"
-	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/server/find"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -62,8 +60,6 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 	mhs := test.RandomMultihashes(10)
 	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	require.NoError(t, err)
-	findBatchRequest, err := model.MarshalFindRequest(&model.FindRequest{Multihashes: mhs})
-	require.NoError(t, err)
 	c := cid.NewCidV1(cid.Raw, mhs[0])
 
 	s := setupTestServer(t, indexer.Value{
@@ -75,8 +71,8 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 	tests := []struct {
 		reqMethod       string
 		reqUrl          string
-		reqBody         io.Reader
 		wantContentType string
+		statusCode      int
 	}{
 		{
 			reqMethod:       http.MethodGet,
@@ -106,8 +102,8 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 		{
 			reqMethod:       http.MethodPost,
 			reqUrl:          "/multihash",
-			reqBody:         bytes.NewBuffer(findBatchRequest),
 			wantContentType: "application/json",
+			statusCode:      http.StatusBadRequest,
 		},
 		{
 			reqMethod:       http.MethodGet,
@@ -125,9 +121,12 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 
 	for _, tt := range tests {
 		name := fmt.Sprintf("%s %s", tt.reqMethod, tt.reqUrl)
+		if tt.statusCode == 0 {
+			tt.statusCode = http.StatusOK
+		}
 		t.Run(name, func(t *testing.T) {
 			reqURL := s.URL() + tt.reqUrl
-			req, err := http.NewRequest(tt.reqMethod, reqURL, tt.reqBody)
+			req, err := http.NewRequest(tt.reqMethod, reqURL, nil)
 			require.NoError(t, err)
 			// Set necessary headers for CORS.
 			req.Header.Set("Origin", "ghoti")
@@ -136,7 +135,10 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 			res, err := cl.Do(req)
 			require.NoError(t, err)
 			res.Body.Close()
-			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, tt.statusCode, res.StatusCode)
+			if res.StatusCode != http.StatusOK {
+				return
+			}
 
 			require.Equal(t, "*", res.Header.Get("Access-Control-Allow-Origin"))
 
