@@ -226,9 +226,9 @@ func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 	require.True(t, v.Equal(vals[0]), "stored and retrieved values are different")
 }
 
-func findIndexTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
+func findIndexTest(ctx context.Context, t *testing.T, f client.Finder, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
-	mhs := test.RandomMultihashes(15)
+	mhs := test.RandomMultihashes(2)
 	p, err := peer.Decode(providerID)
 	require.NoError(t, err)
 	ctxID := []byte("test-context-id")
@@ -238,7 +238,7 @@ func findIndexTest(ctx context.Context, t *testing.T, c client.Interface, ind in
 		ContextID:     ctxID,
 		MetadataBytes: metadata,
 	}
-	populateIndex(ind, mhs[:10], v, t)
+	populateIndex(ind, mhs[:1], v, t)
 
 	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	provider := peer.AddrInfo{
@@ -249,7 +249,7 @@ func findIndexTest(ctx context.Context, t *testing.T, c client.Interface, ind in
 	require.NoError(t, err, "could not register provider info")
 
 	// Get single multihash
-	resp, err := c.Find(ctx, mhs[0])
+	resp, err := f.Find(ctx, mhs[0])
 	require.NoError(t, err)
 	t.Log("index values in resp:", len(resp.MultihashResults))
 
@@ -266,29 +266,9 @@ func findIndexTest(ctx context.Context, t *testing.T, c client.Interface, ind in
 	err = checkResponse(resp, mhs[:1], expectedResults)
 	require.NoError(t, err)
 
-	// Get a batch of multihashes
-	resp, err = c.FindBatch(ctx, mhs[:10])
+	resp, err = f.Find(ctx, mhs[1])
 	require.NoError(t, err)
-	err = checkResponse(resp, mhs[:10], expectedResults)
-	require.NoError(t, err)
-
-	// Get a batch of multihashes where only a subset is in the index
-	resp, err = c.FindBatch(ctx, mhs)
-	require.NoError(t, err)
-	err = checkResponse(resp, mhs[:10], expectedResults)
-	require.NoError(t, err)
-
-	// Get empty batch
-	_, err = c.FindBatch(ctx, []multihash.Multihash{})
-	require.NoError(t, err)
-	err = checkResponse(&model.FindResponse{}, []multihash.Multihash{}, nil)
-	require.NoError(t, err)
-
-	// Get batch with no multihashes in request
-	_, err = c.FindBatch(ctx, mhs[10:])
-	require.NoError(t, err)
-	err = checkResponse(&model.FindResponse{}, []multihash.Multihash{}, nil)
-	require.NoError(t, err)
+	require.Zero(t, len(resp.MultihashResults))
 }
 
 func checkResponse(r *model.FindResponse, mhs []multihash.Multihash, expected []model.ProviderResult) error {
@@ -321,7 +301,7 @@ func hasMultihash(mhs []multihash.Multihash, m multihash.Multihash) bool {
 	return false
 }
 
-func getProviderTest(t *testing.T, c client.Interface, providerID peer.ID) {
+func getProviderTest(t *testing.T, c *client.Client, providerID peer.ID) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -331,7 +311,7 @@ func getProviderTest(t *testing.T, c client.Interface, providerID peer.ID) {
 	verifyProviderInfo(t, provInfo)
 }
 
-func listProvidersTest(t *testing.T, c client.Interface, providerID peer.ID) {
+func listProvidersTest(t *testing.T, c *client.Client, providerID peer.ID) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -373,7 +353,7 @@ func verifyProviderInfo(t *testing.T, provInfo *model.ProviderInfo) {
 	})
 }
 
-func removeProviderTest(ctx context.Context, t *testing.T, c client.Interface, ind indexer.Interface, reg *registry.Registry) {
+func removeProviderTest(ctx context.Context, t *testing.T, c *client.Client, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
 	mhs := test.RandomMultihashes(15)
 	p, err := peer.Decode(providerID)
@@ -428,7 +408,7 @@ func removeProviderTest(ctx context.Context, t *testing.T, c client.Interface, i
 	require.ErrorContains(t, err, "not found")
 }
 
-func getStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refreshStats func(), c client.Interface) {
+func getStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refreshStats func(), c *client.Client) {
 	t.Parallel()
 	mhs := test.RandomMultihashes(15)
 	p, err := peer.Decode(providerID)

@@ -6,7 +6,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"path"
@@ -113,7 +112,6 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 		}
 	})
 	mux.HandleFunc("/cid/", s.findCid)
-	mux.HandleFunc("/multihash", s.findBatch)
 	mux.HandleFunc("/multihash/", s.findMultihash)
 	mux.HandleFunc("/health", s.health)
 	mux.HandleFunc("/providers", s.listProviders)
@@ -188,32 +186,6 @@ func (s *Server) findMultihash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.getIndexes(w, []multihash.Multihash{m}, stream)
-}
-
-func (s *Server) findBatch(w http.ResponseWriter, r *http.Request) {
-	enableCors(w)
-
-	if !httpserver.MethodOK(w, r, http.MethodPost) {
-		return
-	}
-
-	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
-		return
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Errorw("failed reading get batch request", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-	req, err := model.UnmarshalFindRequest(body)
-	if err != nil {
-		log.Errorw("error unmarshalling get batch request", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-	s.getIndexes(w, req.Multihashes, false)
 }
 
 func (s *Server) listProviders(w http.ResponseWriter, r *http.Request) {
