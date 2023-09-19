@@ -14,7 +14,8 @@ spec:
           args:
             - '--translateNonStreaming'
             - '--providersBackends=http://inga-indexer:3000/'
-            
+            # Use service names local to the namespace over HTTP to avoid
+            # TLS handshake overhead.
             - '--backends=http://dhstore.internal.prod.cid.contact/'
             - '--backends=http://dhstore-helga.internal.prod.cid.contact/'
             - '--backends=http://dhstore-porvy.internal.prod.cid.contact/'
