@@ -62,8 +62,9 @@
     "DisableWAL": true,
     "VSNoNewMH": true,
     "DHBatchSize": 4096,
-    "DHStoreURL": "http://dhstore-ago3.internal.dev.cid.contact",
+    "DHStoreURL": "http://dhstore-ago4.internal.dev.cid.contact",
     "DHStoreClusterURLs": [
+      "http://dhstore-ago3.internal.dev.cid.contact",
       "http://dhstore-ago2.internal.dev.cid.contact",
       "http://dhstore.internal.dev.cid.contact"
     ],
