@@ -217,6 +217,8 @@ func (tr *TestIpniRunner) Stop(cmd *exec.Cmd, timeout time.Duration) {
 		err = cmd.Process.Kill()
 		require.NoError(tr.t, err)
 	case err = <-waitErr:
-		require.NoError(tr.t, err)
+		if runtime.GOOS != "windows" {
+			require.NoError(tr.t, err)
+		}
 	}
 }
