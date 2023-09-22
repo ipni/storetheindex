@@ -17,6 +17,10 @@ import (
 )
 
 const (
+	// When this environ var is set to a value and running tests with -v flag,
+	// then TestIpniRunner output is logged.
+	EnvTestIpniRunnerOutput = "TEST_IPNI_RUNNER_OUTPUT"
+
 	IndexerReadyMatch    = "Indexer is ready"
 	ProviderHasPeerMatch = "connected to peer successfully"
 	ProviderReadyMatch   = "admin http server listening"
@@ -45,7 +49,8 @@ func NewStdoutWatcher(match string) StdoutWatcher {
 // for testing the indexer, the dhstore, and providers, all in a temporary
 // directory and with a test environment.
 type TestIpniRunner struct {
-	t *testing.T
+	t       *testing.T
+	verbose bool
 
 	Ctx context.Context
 	Dir string
@@ -57,7 +62,8 @@ type TestIpniRunner struct {
 // which will be used to watch for specific output from the commands.
 func NewTestIpniRunner(t *testing.T, ctx context.Context, dir string) *TestIpniRunner {
 	tr := TestIpniRunner{
-		t: t,
+		t:       t,
+		verbose: os.Getenv(EnvTestIpniRunnerOutput) != "",
 
 		Ctx: ctx,
 		Dir: dir,
@@ -88,7 +94,9 @@ func NewTestIpniRunner(t *testing.T, ctx context.Context, dir string) *TestIpniR
 		require.NoError(t, err)
 		tr.Env = append(tr.Env, fmt.Sprintf("GOPATH=%s", gopath))
 	}
-	t.Logf("Env: %s", strings.Join(tr.Env, " "))
+	if tr.verbose {
+		t.Logf("Env: %s", strings.Join(tr.Env, " "))
+	}
 
 	// Reuse the host's build and module download cache.
 	// This should allow "go install" to reuse work.
@@ -107,7 +115,9 @@ func NewTestIpniRunner(t *testing.T, ctx context.Context, dir string) *TestIpniR
 func (tr *TestIpniRunner) Run(name string, args ...string) []byte {
 	tr.t.Helper()
 
-	tr.t.Logf("run: %s %s", name, strings.Join(args, " "))
+	if tr.verbose {
+		tr.t.Logf("run: %s %s", name, strings.Join(args, " "))
+	}
 
 	cmd := exec.CommandContext(tr.Ctx, name, args...)
 	cmd.Env = tr.Env
@@ -147,7 +157,9 @@ func (tr *TestIpniRunner) Start(ex Execution) *exec.Cmd {
 	tr.t.Helper()
 
 	name := filepath.Base(ex.Name)
-	tr.t.Logf("run: %s", ex.String())
+	if tr.verbose {
+		tr.t.Logf("run: %s", ex.String())
+	}
 
 	cmd := exec.CommandContext(tr.Ctx, ex.Name, ex.Args...)
 	cmd.Env = tr.Env
@@ -158,16 +170,20 @@ func (tr *TestIpniRunner) Start(ex Execution) *exec.Cmd {
 
 	scanner := bufio.NewScanner(stdout)
 
-	for _, watcher := range ex.Watchers {
-		tr.t.Logf("watching: %s for [%s]", name, watcher.Match)
+	if tr.verbose {
+		for _, watcher := range ex.Watchers {
+			tr.t.Logf("watching: %s for [%s]", name, watcher.Match)
+		}
 	}
 	go func() {
 		for scanner.Scan() {
 			line := strings.ToLower(scanner.Text())
 
-			// Logging every single line via the test output is verbose,
-			// but helps see what's happening, especially when the test fails.
-			tr.t.Logf("%s: %s", name, line)
+			if tr.verbose {
+				// Logging every single line via the test output is verbose,
+				// but helps see what's happening, especially when the test fails.
+				tr.t.Logf("%s: %s", name, line)
+			}
 
 			for _, watcher := range ex.Watchers {
 				if strings.Contains(line, strings.ToLower(watcher.Match)) {
