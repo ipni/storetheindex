@@ -154,12 +154,16 @@ func loadGenVerifyAction(cctx *cli.Context) error {
 		return err
 	}
 
-	for _, result := range resp.MultihashResults {
-		providerAndEntry := mhToProviderEntryNumber[result.Multihash.B58String()]
-		allMhsProviderEntryNumber[providerAndEntry.providerNumber][providerAndEntry.entryNumber] = true
+	var nResults int
+	if resp != nil {
+		nResults = len(resp.MultihashResults)
+		for _, result := range resp.MultihashResults {
+			providerAndEntry := mhToProviderEntryNumber[result.Multihash.B58String()]
+			allMhsProviderEntryNumber[providerAndEntry.providerNumber][providerAndEntry.entryNumber] = true
+		}
 	}
 
-	if len(allMhs) != len(resp.MultihashResults) {
+	if len(allMhs) != nResults {
 		limitToShow := 10
 		for provider, entries := range allMhsProviderEntryNumber {
 			for entry, found := range entries {
@@ -174,9 +178,9 @@ func loadGenVerifyAction(cctx *cli.Context) error {
 		}
 	}
 
-	fmt.Printf("Found %d out of %d (%02d%%)\n", len(resp.MultihashResults), len(allMhs), int(float64(len(resp.MultihashResults))/float64(len(allMhs))*100))
+	fmt.Printf("Found %d out of %d (%02d%%)\n", nResults, len(allMhs), int(float64(100*nResults)/float64(len(allMhs))))
 	fmt.Println("Find took", time.Since(start))
-	if len(allMhs) != len(resp.MultihashResults) {
+	if len(allMhs) != nResults {
 		return errors.New("not all mhs were found")
 	}
 	return nil
