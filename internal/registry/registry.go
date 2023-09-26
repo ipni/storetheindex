@@ -1274,11 +1274,6 @@ func (p pollSortableInfos) Len() int           { return len(p) }
 func (p pollSortableInfos) Less(i, j int) bool { return p[i].lastPoll < p[j].lastPoll }
 func (p pollSortableInfos) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
-type sortableInfo struct {
-	info  *ProviderInfo
-	polls int
-}
-
 func (r *Registry) syncRemoveProvider(ctx context.Context, providerID peer.ID) error {
 	// Remove the provider from the registry.
 	delete(r.providers, providerID)
