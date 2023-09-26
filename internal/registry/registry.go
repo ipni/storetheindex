@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sort"
 	"sync"
 	"time"
 
@@ -45,6 +46,7 @@ type Registry struct {
 	dstore    datastore.Datastore
 	filterIPs bool
 	freezer   *freeze.Freezer
+	maxPoll   int
 	provMutex sync.Mutex
 	pollDone  chan struct{}
 	providers map[peer.ID]*ProviderInfo
@@ -101,6 +103,9 @@ type ProviderInfo struct {
 	// the indexer is started. If not reset, then it would appear the publisher
 	// was unreachable for the indexer downtime.
 	lastContactTime time.Time
+
+	// lastPoll is a sequence number recording when the provider was last polled
+	lastPoll int
 
 	// deleted is used as a signal to the ingester to delete the provider's data.
 	deleted bool
@@ -413,6 +418,7 @@ func (r *Registry) runPollCheck(poll polling, pollOverrides map[peer.ID]polling)
 		}
 	}
 
+	var pollSeq int
 	if retryAfter < time.Minute {
 		retryAfter = time.Minute
 	}
@@ -421,15 +427,16 @@ running:
 	for {
 		select {
 		case <-timer.C:
-			r.pollProviders(poll, pollOverrides)
+			pollSeq++
+			r.pollProviders(poll, pollOverrides, pollSeq)
 			timer.Reset(retryAfter)
 		case <-r.closing:
 			break running
 		}
 	}
-
 	close(r.syncChan)
 	close(r.pollDone)
+	timer.Stop()
 }
 
 // Saw indicates that a provider was seen.
@@ -669,6 +676,8 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 
 			LastError:     info.LastError,
 			LastErrorTime: info.LastErrorTime,
+
+			lastPoll: info.lastPoll,
 		}
 
 		// If new addrs provided, update to use these.
@@ -1002,6 +1011,13 @@ func (r *Registry) SetLastError(providerID peer.ID, err error) {
 	r.providers[providerID] = &pinfoCpy
 }
 
+// SetMaxPoll sets the maximum number of providers to poll at each polling retry.
+func (r *Registry) SetMaxPoll(maxPoll int) {
+	r.provMutex.Lock()
+	r.maxPoll = maxPoll
+	r.provMutex.Unlock()
+}
+
 func (r *Registry) CheckSequence(peerID peer.ID, seq uint64) error {
 	return r.sequences.check(peerID, seq)
 }
@@ -1142,12 +1158,12 @@ func (r *Registry) syncPersistProvider(ctx context.Context, info *ProviderInfo) 
 	return r.dstore.Sync(ctx, dsKey)
 }
 
-func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]polling) {
+func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]polling, pollSeq int) {
+	var needPoll []*ProviderInfo
+	var maxPoll int
 	now := time.Now()
 
 	r.provMutex.Lock()
-	defer r.provMutex.Unlock()
-
 	for peerID, info := range r.providers {
 		// Reset poll in case previously overridden.
 		poll := normalPoll
@@ -1212,13 +1228,51 @@ func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]p
 				"deactivateAfter", poll.deactivateAfter)
 			info.inactive = true
 		}
+		needPoll = append(needPoll, info)
+	}
+	maxPoll = r.maxPoll
+	r.provMutex.Unlock()
+
+	if len(needPoll) == 0 {
+		return
+	}
+
+	// Sort from least to most recent.
+	sort.Sort(pollSortableInfos(needPoll))
+	// Do not poll more than the max, if it is set to non-zero. This selects
+	// the n least recently used.
+	if maxPoll != 0 && len(needPoll) > maxPoll {
+		needPoll = needPoll[:maxPoll]
+	}
+	// Record last poll sequence for infos getting polled
+	r.provMutex.Lock()
+	for _, info := range needPoll {
+		info.lastPoll = pollSeq
+	}
+	r.provMutex.Unlock()
+
+	// If system is too slow to write all within a second, then stop.
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+
+	for _, info := range needPoll {
 		select {
 		case r.syncChan <- info:
-		default:
-			log.Debugw("Sync channel blocked, skipping auto-sync", "publisher", info.Publisher)
+		case <-r.closing:
+			return
+		case <-timer.C:
+			log.Warn("Timeout sending providers to auto-sync")
+			return
 		}
 	}
 }
+
+// Make provider info sortable by poll sequence.
+type pollSortableInfos []*ProviderInfo
+
+func (p pollSortableInfos) Len() int           { return len(p) }
+func (p pollSortableInfos) Less(i, j int) bool { return p[i].lastPoll < p[j].lastPoll }
+func (p pollSortableInfos) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 func (r *Registry) syncRemoveProvider(ctx context.Context, providerID peer.ID) error {
 	// Remove the provider from the registry.

@@ -843,6 +843,7 @@ func (ing *Ingester) getLastKnownSync(publisherID peer.ID) (cid.Cid, bool) {
 }
 
 func (ing *Ingester) RunWorkers(n int) {
+	ing.reg.SetMaxPoll(n / 2)
 	for n > ing.workerPoolSize {
 		// Start worker.
 		ing.waitForWorkers.Add(1)
