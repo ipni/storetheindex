@@ -399,23 +399,25 @@ func TestPollProvider(t *testing.T) {
 	}
 
 	// Check for auto-sync after pollInterval 0.
-	r.pollProviders(poll, nil)
-	timeout := time.After(2 * time.Second)
+	r.pollProviders(poll, nil, 1)
+	timeout := time.NewTimer(time.Second)
 	select {
 	case pinfo := <-r.SyncChan():
 		require.Equal(t, pinfo.AddrInfo.ID, peerID, "Wrong provider ID")
 		require.Equal(t, pinfo.Publisher, pubID, "Wrong publisher ID")
 		require.False(t, pinfo.Inactive(), "Expected provider not to be marked inactive")
-	case <-timeout:
+	case <-timeout.C:
 		t.Fatal("Expected sync channel to be written")
+	}
+	if !timeout.Stop() {
+		<-timeout.C
 	}
 
 	// Check that registry is not blocked by unread auto-sync channel.
 	poll.retryAfter = 0
 	poll.deactivateAfter = 0
-	r.pollProviders(poll, nil)
-	r.pollProviders(poll, nil)
-	r.pollProviders(poll, nil)
+	r.pollProviders(poll, nil, 2)
+	r.pollProviders(poll, nil, 3)
 	done := make(chan struct{})
 	go func() {
 		_, ok := r.ProviderInfo(peerID)
@@ -423,18 +425,20 @@ func TestPollProvider(t *testing.T) {
 		close(done)
 	}()
 
+	timeout.Reset(time.Second)
 	select {
 	case <-done:
-	case <-timeout:
+	case <-timeout.C:
 		t.Fatal("actions channel blocked")
 	}
 	select {
 	case pinfo := <-r.SyncChan():
 		require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel, expected %q got %q", peerID.String(), pinfo.AddrInfo.ID.String())
 		require.True(t, pinfo.Inactive(), "Expected provider to be marked inactive")
-	case <-timeout:
+	case <-timeout.C:
 		t.Fatal("Expected sync channel to be written")
 	}
+	timeout.Stop()
 
 	// Inactive provider should not be returned.
 	pinfo, _ := r.ProviderInfo(peerID)
@@ -445,11 +449,11 @@ func TestPollProvider(t *testing.T) {
 	// contact. This will make publisher appear unresponsive and polling will
 	// stop.
 	poll.stopAfter = 0
-	r.pollProviders(poll, nil)
+	r.pollProviders(poll, nil, 4)
 	// wait some time to pass poll interval (for low-res timers)
 	time.Sleep(time.Second)
-	r.pollProviders(poll, nil)
-	r.pollProviders(poll, nil)
+	r.pollProviders(poll, nil, 5)
+	r.pollProviders(poll, nil, 6)
 
 	// Check that provider has been removed from registry after provider
 	// appeared non-responsive.
@@ -516,7 +520,7 @@ func TestPollProviderOverrides(t *testing.T) {
 	}
 
 	// Check for auto-sync after pollInterval 0.
-	r.pollProviders(poll, overrides)
+	r.pollProviders(poll, overrides, 1)
 	timeout := time.After(2 * time.Second)
 	select {
 	case pinfo := <-r.SyncChan():
@@ -533,11 +537,11 @@ func TestPollProviderOverrides(t *testing.T) {
 		retryAfter: time.Minute,
 		stopAfter:  0,
 	}
-	r.pollProviders(poll, overrides)
+	r.pollProviders(poll, overrides, 2)
 	// wait some time to pass poll interval (for low-res timers)
 	time.Sleep(time.Second)
-	r.pollProviders(poll, overrides)
-	r.pollProviders(poll, overrides)
+	r.pollProviders(poll, overrides, 3)
+	r.pollProviders(poll, overrides, 4)
 
 	// Check that provider has been removed from registry after provider
 	// appeared non-responsive.
