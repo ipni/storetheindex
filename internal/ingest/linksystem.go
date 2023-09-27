@@ -668,10 +668,11 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, providerID peer
 		panic("removing individual multihashes not allowed")
 	}
 
+	start := time.Now()
 	if err := ing.indexer.Put(value, mhs...); err != nil {
 		return fmt.Errorf("cannot put multihashes into indexer: %w", err)
 	}
-	log.Infow("Indexed multihashes from chunk", "multihashes", len(mhs), "sample", mhs[0].B58String())
+	log.Infow("Indexed multihashes from chunk", "mhs", len(mhs), "elapsed", time.Since(start).String(), "sample", mhs[0].B58String())
 
 	return nil
 }
