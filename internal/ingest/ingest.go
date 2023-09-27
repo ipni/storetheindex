@@ -1202,7 +1202,11 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 		}
 
 		if err != nil {
-			ing.reg.SetLastError(provider, fmt.Errorf("error while ingesting ad %s: %s", ai.cid, err))
+			errText := err.Error()
+			if errors.Is(err, errInternal) {
+				errText = errInternal.Error()
+			}
+			ing.reg.SetLastError(provider, fmt.Errorf("error while ingesting ad %s: %s", ai.cid, errText))
 			log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err, "adsLeftToProcess", i+1)
 			// Tell anyone waiting that the sync finished for this head because
 			// of error.  TODO(mm) would be better to propagate the error.
