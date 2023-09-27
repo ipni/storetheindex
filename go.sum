@@ -590,10 +590,10 @@ github.com/ipld/go-ipld-prime v0.21.0/go.mod h1:3RLqy//ERg/y5oShXXdx5YIp50cFGOan
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20230102063945-1a409dc236dd h1:gMlw/MhNr2Wtp5RwGdsW23cs+yCuj9k2ON7i9MiJlRo=
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd h1:qdjo1CRvAQhOMoyYjPnbdZ5rYFFmqztweQ9KAsuWpO0=
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd/go.mod h1:9DD/GM0JNPoisgR09F62kbBi7kHa4eDIea4XshXYOVc=
-github.com/ipni/go-indexer-core v0.8.0 h1:HPFMngR47FL49mVnOZBrcxJoRODjIadlP+UYMRboNKA=
-github.com/ipni/go-indexer-core v0.8.0/go.mod h1:Y9su+no9k6y+jnQRERP/CKJewdISHzzl+n91GA+y4Ao=
-github.com/ipni/go-libipni v0.5.4-0.20230927024201-69e936f64530 h1:cqyFWXyRwdRGQoWXebstFM1Mpsl2NLaI6zsYa/KVTB4=
-github.com/ipni/go-libipni v0.5.4-0.20230927024201-69e936f64530/go.mod h1:lwecr1Bn32BtroPW3Dnb9qzWGQ3IsB4STr1Cs+gS8TA=
+github.com/ipni/go-indexer-core v0.8.1 h1:3j0X6J7VLGWqaUbx3n1Gj7GmkWE4okd6G+IMOMDZSBM=
+github.com/ipni/go-indexer-core v0.8.1/go.mod h1:DGb2EYVsfEo+p7mqBF+Tq8PDJZHVtHd53qXvuObKuio=
+github.com/ipni/go-libipni v0.5.4 h1:JakC6jMdHv28f85aKa/qrPG34D7yURVz8uy1r/m7y3s=
+github.com/ipni/go-libipni v0.5.4/go.mod h1:lwecr1Bn32BtroPW3Dnb9qzWGQ3IsB4STr1Cs+gS8TA=
 github.com/iris-contrib/blackfriday v2.0.0+incompatible/go.mod h1:UzZ2bDEoaSGPbkg6SAB4att1aAwTmVIx/5gCVqeyUdI=
 github.com/iris-contrib/go.uuid v2.0.0+incompatible/go.mod h1:iz2lgM/1UnEf1kP0L/+fafWORmlnuysV2EMP8MW+qe0=
 github.com/iris-contrib/i18n v0.0.0-20171121225848-987a633949d0/go.mod h1:pMCz62A0xJL6I+umB2YTlFRwWXaDFA0jy+5HzGiJjqI=
