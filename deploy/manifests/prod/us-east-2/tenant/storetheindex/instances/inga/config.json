@@ -83,7 +83,7 @@
       }
     },
     "EntriesDepthLimit": 65536,
-    "HttpSyncRetryMax": 4,
+    "HttpSyncRetryMax": 0,
     "HttpSyncRetryWaitMax": "30s",
     "HttpSyncRetryWaitMin": "1s",
     "HttpSyncTimeout": "10s",
