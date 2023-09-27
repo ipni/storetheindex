@@ -40,6 +40,8 @@ import (
 var (
 	errBadAdvert              = errors.New("bad advertisement")
 	errInvalidAdvertSignature = errors.New("invalid advertisement signature")
+	// errInternal is an error message that should not be shown to users.
+	errInternal = errors.New("internal error")
 )
 
 // mkLinkSystem makes the indexer linkSystem which checks advertisement
@@ -220,7 +222,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		for _, ep := range ad.ExtendedProvider.Providers {
 			epID, err := peer.Decode(ep.ID)
 			if err != nil {
-				return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update extended provider info: %w", err)}
+				return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not decode extended provider id: %w", err)}
 			}
 
 			eProvs = append(eProvs, registry.ExtendedProviderInfo{
@@ -257,17 +259,16 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		// to the chain in the future may have a valid address than can be
 		// used, allowing all the previous ads without valid addresses to be
 		// processed.
-		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not register/update provider info: %w", err)}
+		return adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not update provider info: %w", err)}
 	}
 
 	log = log.With("contextID", base64.StdEncoding.EncodeToString(ad.ContextID))
 
 	if ad.IsRm {
 		log.Infow("Advertisement is for removal by context id")
-
 		err = ing.indexer.RemoveProviderContext(providerID, ad.ContextID)
 		if err != nil {
-			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to remove provider context: %w", err)}
+			return adIngestError{adIngestIndexerErr, fmt.Errorf("%w: failed to remove provider context: %w", errInternal, err)}
 		}
 		return nil
 	}
@@ -297,7 +298,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 		err = ing.indexer.Put(value)
 		if err != nil {
-			return adIngestError{adIngestIndexerErr, fmt.Errorf("failed to update metadata: %w", err)}
+			return adIngestError{adIngestIndexerErr, fmt.Errorf("%w: failed to update metadata: %w", errInternal, err)}
 		}
 		return nil
 	}
@@ -669,7 +670,7 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, providerID peer
 	}
 
 	if err := ing.indexer.Put(value, mhs...); err != nil {
-		return fmt.Errorf("cannot put multihashes into indexer: %w", err)
+		return fmt.Errorf("%w: cannot put multihashes into indexer: %w", errInternal, err)
 	}
 	log.Infow("Indexed multihashes from chunk", "count", len(mhs), "sample", mhs[0].B58String())
 
@@ -715,7 +716,10 @@ func (ing *Ingester) loadHamt(c cid.Cid) (*hamt.Node, error) {
 func (ing *Ingester) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Node, error) {
 	val, err := ing.dsTmp.Get(context.Background(), datastore.NewKey(c.String()))
 	if err != nil {
-		return nil, fmt.Errorf("cannot fetch the node from datastore: %w", err)
+		if errors.Is(err, datastore.ErrNotFound) {
+			return nil, errors.New("node not present on indexer")
+		}
+		return nil, fmt.Errorf("%w: cannot fetch the node from datastore: %w", errInternal, err)
 	}
 	node, err := decodeIPLDNode(c.Prefix().Codec, bytes.NewBuffer(val), prototype)
 	if err != nil {

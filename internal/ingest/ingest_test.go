@@ -829,6 +829,48 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSyncInternalError(t *testing.T) {
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := dstest.MkTestHost(t)
+	pubHost := dstest.MkTestHost(t)
+	ing, reg := mkIngest(t, h)
+	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
+	connectHosts(t, h, pubHost)
+
+	c1, _, providerID, _ := publishRandomIndexAndAdv(t, pub, lsys, false, nil, cid.Undef)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	errVS := newErrorValueStore()
+	ing.indexer = engine.New(errVS)
+
+	// The explicit sync will happen concurrently with the sycn triggered by
+	// the published advertisement. These will be serialized in the dagsync
+	// handler for the provider.
+	peerInfo := peer.AddrInfo{
+		ID:    pub.ID(),
+		Addrs: pub.Addrs(),
+	}
+	_, err := ing.Sync(ctx, peerInfo, 0, false)
+	require.Error(t, err)
+	require.ErrorIs(t, err, errInternal)
+	require.ErrorContains(t, err, errVS.err.Error())
+	t.Log("Sync error:", err)
+
+	// Check that subscriber did ot record latest sync.
+	lnk := ing.sub.GetLatestSync(pubHost.ID())
+	lcid := lnk.(cidlink.Link).Cid
+	require.Equal(t, c1, lcid)
+
+	provs := reg.AllProviderInfo()
+	require.NotZero(t, len(provs))
+	p := provs[0]
+	require.Equal(t, providerID, p.AddrInfo.ID)
+	require.Contains(t, p.LastError, errInternal.Error())
+	require.NotContains(t, p.LastError, errVS.err.Error())
+	t.Log("Last Error:", p.LastError)
+}
+
 func testSyncWithExtendedProviders(t *testing.T,
 	testFunc func(crypto.PrivKey, crypto.PubKey, peer.ID, *registry.Registry, linking.LinkSystem, host.Host, *Ingester, dagsync.Publisher)) {
 	privKey, pubKey, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
@@ -977,6 +1019,7 @@ func TestSyncNilExtendedProvidersDontOverrideTheExistingOnes(t *testing.T) {
 }
 
 func syncIngester(t *testing.T, ctx context.Context, ingester *Ingester, providerID peer.ID, pubHost host.Host, mhs ...[]multihash.Multihash) {
+	t.Helper()
 	peerInfo := peer.AddrInfo{
 		ID:    pubHost.ID(),
 		Addrs: pubHost.Addrs(),
@@ -989,6 +1032,7 @@ func syncIngester(t *testing.T, ctx context.Context, ingester *Ingester, provide
 }
 
 func verifyContextualProviders(t *testing.T, extendedProviders *registry.ExtendedProviders, adv *schema.Advertisement, reg *registry.Registry) {
+	t.Helper()
 	contextualProviders := extendedProviders.ContextualProviders[string(adv.ContextID)]
 	require.NotNil(t, contextualProviders)
 	require.Equal(t, adv.ContextID, contextualProviders.ContextID)
@@ -1007,6 +1051,7 @@ func verifyContextualProviders(t *testing.T, extendedProviders *registry.Extende
 }
 
 func verifyChainLevelProviders(t *testing.T, extendedProviders *registry.ExtendedProviders, adv *schema.Advertisement, reg *registry.Registry) {
+	t.Helper()
 	providerID, err := peer.Decode(adv.Provider)
 	require.NoError(t, err)
 
@@ -1017,11 +1062,8 @@ func verifyChainLevelProviders(t *testing.T, extendedProviders *registry.Extende
 	verifyExtendedProviders(t, providerID, chainLevelProviderByID, adv.ExtendedProvider.Providers, reg)
 }
 
-func verifyExtendedProviders(t *testing.T,
-	adProviderID peer.ID,
-	providerInfosMap map[peer.ID]registry.ExtendedProviderInfo,
-	adExtendedProviders []schema.Provider,
-	reg *registry.Registry) {
+func verifyExtendedProviders(t *testing.T, adProviderID peer.ID, providerInfosMap map[peer.ID]registry.ExtendedProviderInfo, adExtendedProviders []schema.Provider, reg *registry.Registry) {
+	t.Helper()
 	for _, ep := range adExtendedProviders {
 		peerID, err := peer.Decode(ep.ID)
 		require.NoError(t, err)
@@ -1267,6 +1309,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 }
 
 func requireNotIndexed(t *testing.T, ix indexer.Interface, p peer.ID, mhs []multihash.Multihash, msgAndArgs ...interface{}) {
+	t.Helper()
 	for _, mh := range mhs {
 		vs, exists, err := ix.Get(mh)
 		require.NoError(t, err, "failed to get index for mh to check whether it is indexed")
@@ -1972,12 +2015,14 @@ func checkAllIndexed(ix indexer.Interface, p peer.ID, mhs []multihash.Multihash)
 }
 
 func requireIndexedEventually(t *testing.T, ix indexer.Interface, p peer.ID, mhs []multihash.Multihash) {
+	t.Helper()
 	requireTrueEventually(t, func() bool {
 		return checkAllIndexed(ix, p, mhs) == nil
 	}, testRetryInterval, testRetryTimeout, "Expected all multihashes from %s to have been indexed eventually", p.String())
 }
 
 func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Duration, timeout time.Duration, msgAndArgs ...interface{}) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	ticker := time.NewTicker(interval)
@@ -2066,3 +2111,25 @@ func setupTestEnv(t *testing.T, shouldConnectHosts bool, opts ...func(*testEnvOp
 
 	return te
 }
+
+type errorValueStore struct {
+	err error
+}
+
+func newErrorValueStore() *errorValueStore {
+	return &errorValueStore{
+		err: errors.New("dead value store"),
+	}
+}
+func (vs *errorValueStore) Get(_ multihash.Multihash) ([]indexer.Value, bool, error) {
+	return nil, false, vs.err
+}
+func (vs *errorValueStore) Put(_ indexer.Value, _ ...multihash.Multihash) error    { return vs.err }
+func (vs *errorValueStore) Remove(_ indexer.Value, _ ...multihash.Multihash) error { return vs.err }
+func (vs *errorValueStore) RemoveProvider(_ context.Context, _ peer.ID) error      { return vs.err }
+func (vs *errorValueStore) RemoveProviderContext(_ peer.ID, _ []byte) error        { return vs.err }
+func (vs *errorValueStore) Size() (int64, error)                                   { return 0, vs.err }
+func (vs *errorValueStore) Flush() error                                           { return vs.err }
+func (vs *errorValueStore) Close() error                                           { return vs.err }
+func (vs *errorValueStore) Iter() (indexer.Iterator, error)                        { return nil, vs.err }
+func (vs *errorValueStore) Stats() (*indexer.Stats, error)                         { return nil, vs.err }
