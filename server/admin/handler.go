@@ -323,7 +323,6 @@ func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
 	log.Info("Syncing with peer")
 
 	// Start the sync, but do not wait for it to complete.
-	h.pendingSyncs.Add(1)
 	h.pendingSyncsLock.Lock()
 	if _, ok := h.pendingSyncsPeers[peerID]; ok {
 		h.pendingSyncsLock.Unlock()
@@ -334,6 +333,7 @@ func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
 	h.pendingSyncsPeers[peerID] = struct{}{}
 	h.pendingSyncsLock.Unlock()
 
+	h.pendingSyncs.Add(1)
 	go func() {
 		peerInfo := peer.AddrInfo{
 			ID:    peerID,
