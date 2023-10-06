@@ -26,26 +26,26 @@ import (
 )
 
 type adminHandler struct {
-	ctx                context.Context
-	id                 peer.ID
-	indexer            indexer.Interface
-	ingester           *ingest.Ingester
-	reg                *registry.Registry
-	reloadErrChan      chan<- chan error
-	pendingSyncs       sync.WaitGroup
-	pendingsSyncsPeers map[string]struct{}
-	pendingSyncsLock   sync.Mutex
+	ctx               context.Context
+	id                peer.ID
+	indexer           indexer.Interface
+	ingester          *ingest.Ingester
+	reg               *registry.Registry
+	reloadErrChan     chan<- chan error
+	pendingSyncs      sync.WaitGroup
+	pendingSyncsPeers map[peer.ID]struct{}
+	pendingSyncsLock  sync.Mutex
 }
 
 func newHandler(ctx context.Context, id peer.ID, indexer indexer.Interface, ingester *ingest.Ingester, reg *registry.Registry, reloadErrChan chan<- chan error) *adminHandler {
 	return &adminHandler{
-		ctx:                ctx,
-		id:                 id,
-		indexer:            indexer,
-		ingester:           ingester,
-		reg:                reg,
-		reloadErrChan:      reloadErrChan,
-		pendingsSyncsPeers: make(map[string]struct{}),
+		ctx:               ctx,
+		id:                id,
+		indexer:           indexer,
+		ingester:          ingester,
+		reg:               reg,
+		reloadErrChan:     reloadErrChan,
+		pendingSyncsPeers: make(map[peer.ID]struct{}),
 	}
 }
 
@@ -325,13 +325,15 @@ func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
 	// Start the sync, but do not wait for it to complete.
 	h.pendingSyncs.Add(1)
 	h.pendingSyncsLock.Lock()
-	defer h.pendingSyncsLock.Unlock()
-	if _, ok := h.pendingsSyncsPeers[peerID.String()]; ok {
+	if _, ok := h.pendingSyncsPeers[peerID]; ok {
+		h.pendingSyncsLock.Unlock()
 		msg := fmt.Sprintf("Peer %s has already a sync in progress", peerID.String())
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
-	h.pendingsSyncsPeers[peerID.String()] = struct{}{}
+	h.pendingSyncsPeers[peerID] = struct{}{}
+	h.pendingSyncsLock.Unlock()
+
 	go func() {
 		peerInfo := peer.AddrInfo{
 			ID:    peerID,
@@ -339,13 +341,13 @@ func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
 		}
 		_, err := h.ingester.Sync(h.ctx, peerInfo, int(depth), resync)
 		if err != nil {
-			msg := "Cannot sync with peer"
-			log.Errorw(msg, "err", err)
+			log.Errorw("Cannot sync with peer", "err", err)
 		}
 		h.pendingSyncs.Done()
+
 		h.pendingSyncsLock.Lock()
-		defer h.pendingSyncsLock.Unlock()
-		delete(h.pendingsSyncsPeers, peerID.String())
+		delete(h.pendingSyncsPeers, peerID)
+		h.pendingSyncsLock.Unlock()
 	}()
 
 	// Return (202) Accepted
@@ -354,11 +356,12 @@ func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
 
 func (h *adminHandler) handleGetSyncs(w http.ResponseWriter, r *http.Request) {
 	h.pendingSyncsLock.Lock()
-	defer h.pendingSyncsLock.Unlock()
-	peers := make([]string, 0, len(h.pendingsSyncsPeers))
-	for k := range h.pendingsSyncsPeers {
-		peers = append(peers, k)
+	peers := make([]string, 0, len(h.pendingSyncsPeers))
+	for k := range h.pendingSyncsPeers {
+		peers = append(peers, k.String())
 	}
+	h.pendingSyncsLock.Unlock()
+
 	sort.Strings(peers)
 	marshalled, err := json.Marshal(peers)
 	if err != nil {
