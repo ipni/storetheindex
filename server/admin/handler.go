@@ -680,7 +680,6 @@ func (h *adminHandler) healthCheckHandler(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte("\"OK\"")); err != nil {
 		log.Errorw("Cannot write HealthCheck response:", "err", err)
 	}
