@@ -86,7 +86,7 @@
     "HttpSyncRetryMax": 0,
     "HttpSyncRetryWaitMax": "30s",
     "HttpSyncRetryWaitMin": "1s",
-    "HttpSyncTimeout": "60s",
+    "HttpSyncTimeout": "3m",
     "IngestWorkerCount": 30,
     "PubSubTopic": "/indexer/ingest/mainnet",
     "ResendDirectAnnounce": false,
