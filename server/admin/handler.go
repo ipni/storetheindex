@@ -320,19 +320,19 @@ func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
 		log = log.With("address", syncAddr)
 	}
 
-	log.Info("Syncing with peer")
-
 	// Start the sync, but do not wait for it to complete.
 	h.pendingSyncsLock.Lock()
 	if _, ok := h.pendingSyncsPeers[peerID]; ok {
 		h.pendingSyncsLock.Unlock()
+		log.Info("Manual sync ignored because another sync is in progress")
 		msg := fmt.Sprintf("Peer %s has already a sync in progress", peerID.String())
-		http.Error(w, msg, http.StatusBadRequest)
+		http.Error(w, msg, http.StatusConflict)
 		return
 	}
 	h.pendingSyncsPeers[peerID] = struct{}{}
 	h.pendingSyncsLock.Unlock()
 
+	log.Info("Syncing with peer")
 	h.pendingSyncs.Add(1)
 	go func() {
 		peerInfo := peer.AddrInfo{

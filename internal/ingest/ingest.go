@@ -437,6 +437,9 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 		if err != nil {
 			return cid.Undef, fmt.Errorf("failed to get latest sync: %w", err)
 		}
+		// If explicitly syncing, then start from the last fully processed
+		// advertisement and not the last seen advertisement.
+		ing.sub.SetLatestSync(peerInfo.ID, latest)
 	}
 
 	if depth != 0 {
@@ -805,6 +808,9 @@ func (ing *Ingester) autoSync() {
 			}
 			log.Info("Auto-syncing the latest advertisement with publisher")
 
+			if latest, ok := ing.getLastKnownSync(pubID); ok {
+				ing.sub.SetLatestSync(pubID, latest)
+			}
 			peerInfo := peer.AddrInfo{
 				ID:    pubID,
 				Addrs: []multiaddr.Multiaddr{pubAddr},
@@ -820,7 +826,8 @@ func (ing *Ingester) autoSync() {
 	}
 }
 
-// GetLatestSync gets the latest CID synced for the peer.
+// GetLatestSync gets the latest CID synced for the peer. If no error is
+// returned, then returned CID is never cid.Undef.
 func (ing *Ingester) GetLatestSync(publisherID peer.ID) (cid.Cid, error) {
 	b, err := ing.ds.Get(context.Background(), datastore.NewKey(syncPrefix+publisherID.String()))
 	if err != nil {
@@ -829,10 +836,13 @@ func (ing *Ingester) GetLatestSync(publisherID peer.ID) (cid.Cid, error) {
 		}
 		return cid.Undef, err
 	}
+	// Returns error if b is nil or empty.
 	_, c, err := cid.CidFromBytes(b)
 	return c, err
 }
 
+// getLastKnownSync returns the CID of the last fully processed advertisement
+// and a boolean indicating that a defined CID was successfully found.
 func (ing *Ingester) getLastKnownSync(publisherID peer.ID) (cid.Cid, bool) {
 	c, err := ing.GetLatestSync(publisherID)
 	if err != nil {
