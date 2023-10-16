@@ -16,6 +16,7 @@ resources:
 - cassette
 - dhstore-qiu
 - dhstore-ravi
+- dhstore-seka
 - telemetry
 images:
 - name: storetheindex
