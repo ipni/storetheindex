@@ -17,6 +17,13 @@ spec:
     spec:
       containers:
         - name: cluster-autoscaler
+          resources:
+            limits:
+              cpu: 200m
+              memory: 2Gi
+            requests:
+              cpu: 200m
+              memory: 2Gi
           command:
             - ./cluster-autoscaler
             - --v=4
