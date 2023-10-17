@@ -37,7 +37,7 @@ spec:
                   - key: topology.kubernetes.io/zone
                     operator: In
                     values:
-                      - us-east-2b
+                      - us-east-2c
       volumes:
         - name: data
           persistentVolumeClaim:
