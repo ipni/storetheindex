@@ -20,10 +20,10 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "28"
+              cpu: "18"
               memory: 58Gi
             requests:
-              cpu: "28"
+              cpu: "18"
               memory: 58Gi
       affinity:
         nodeAffinity:
@@ -37,7 +37,7 @@ spec:
                   - key: topology.kubernetes.io/zone
                     operator: In
                     values:
-                      - us-east-2a
+                      - us-east-2c
       volumes:
         - name: data
           persistentVolumeClaim:
