@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"sort"
 	"strconv"
@@ -17,7 +16,6 @@ import (
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/storetheindex/admin/model"
 	"github.com/ipni/storetheindex/internal/httpserver"
-	"github.com/ipni/storetheindex/internal/importer"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -48,8 +46,6 @@ func newHandler(ctx context.Context, id peer.ID, indexer indexer.Interface, inge
 		pendingSyncsPeers: make(map[peer.ID]struct{}),
 	}
 }
-
-const importBatchSize = 256
 
 // ----- assignment handlers -----
 func (h *adminHandler) listAssignedPeers(w http.ResponseWriter, r *http.Request) {
@@ -438,71 +434,6 @@ func (h *adminHandler) reloadConfig(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// ----- import handlers -----
-
-func (h *adminHandler) importManifest(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPost) {
-		return
-	}
-
-	// TODO: This code is the same for all import handlers.
-	// We probably can take it out to its own function to deduplicate.
-	provID, ok := decodePeerID(path.Base(r.URL.Path), w)
-	if !ok {
-		return
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Errorw("failed reading import manifest request", "err", err)
-		http.Error(w, "", http.StatusBadRequest)
-		return
-	}
-
-	fileName, contextID, metadata, err := getParams(body)
-	if err != nil {
-		log.Error(err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	file, err := os.Open(fileName)
-	if err != nil {
-		log.Errorw("Cannot open cidlist file", "err", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-	}
-	defer file.Close()
-
-	out := make(chan multihash.Multihash, importBatchSize)
-	errOut := make(chan error, 1)
-	ctx, cancel := context.WithCancel(h.ctx)
-	defer cancel()
-	go importer.ReadManifest(ctx, file, out, errOut)
-
-	value := indexer.Value{
-		ProviderID:    provID,
-		ContextID:     contextID,
-		MetadataBytes: metadata,
-	}
-	batchErr := batchIndexerEntries(importBatchSize, out, value, h.indexer)
-	err = <-batchErr
-	if err != nil {
-		log.Errorf("Error putting entries in indexer: %s", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	err = <-errOut
-	if err != nil {
-		log.Errorw("Error reading manifest", "err", err)
-		http.Error(w, fmt.Sprintf("error reading manifest: %s", err), http.StatusBadRequest)
-		return
-	}
-
-	log.Info("Success importing")
-	w.WriteHeader(http.StatusOK)
-}
-
 func getParams(data []byte) (string, []byte, []byte, error) {
 	var params map[string][]byte
 	err := json.Unmarshal(data, &params)
@@ -523,68 +454,6 @@ func getParams(data []byte) (string, []byte, []byte, error) {
 	}
 
 	return string(fileName), contextID, metadata, nil
-}
-
-func (h *adminHandler) importCidList(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPost) {
-		return
-	}
-
-	provID, ok := decodePeerID(path.Base(r.URL.Path), w)
-	if !ok {
-		return
-	}
-	log.Infow("Import multihash list for provider", "provider", provID.String())
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Errorw("failed reading import cidlist request", "err", err)
-		http.Error(w, "", http.StatusBadRequest)
-		return
-	}
-
-	fileName, contextID, metadata, err := getParams(body)
-	if err != nil {
-		log.Error(err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	file, err := os.Open(fileName)
-	if err != nil {
-		log.Errorw("Cannot open cidlist file", "err", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-	}
-	defer file.Close()
-
-	out := make(chan multihash.Multihash, importBatchSize)
-	errOut := make(chan error, 1)
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-	go importer.ReadCids(ctx, file, out, errOut)
-
-	value := indexer.Value{
-		ProviderID:    provID,
-		ContextID:     contextID,
-		MetadataBytes: metadata,
-	}
-	batchErr := batchIndexerEntries(importBatchSize, out, value, h.indexer)
-	err = <-batchErr
-	if err != nil {
-		log.Errorf("Error putting entries in indexer: %s", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	err = <-errOut
-	if err != nil {
-		log.Errorw("Error reading CID list", "err", err)
-		http.Error(w, fmt.Sprintf("error reading cid list: %s", err), http.StatusBadRequest)
-		return
-	}
-
-	log.Info("Success importing")
-	w.WriteHeader(http.StatusOK)
 }
 
 // batchIndexerEntries read
