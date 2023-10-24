@@ -434,28 +434,6 @@ func (h *adminHandler) reloadConfig(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func getParams(data []byte) (string, []byte, []byte, error) {
-	var params map[string][]byte
-	err := json.Unmarshal(data, &params)
-	if err != nil {
-		return "", nil, nil, fmt.Errorf("cannot unmarshal import cidlist params: %s", err)
-	}
-	fileName, ok := params["file"]
-	if !ok {
-		return "", nil, nil, errors.New("missing file in request")
-	}
-	contextID, ok := params["context_id"]
-	if !ok {
-		return "", nil, nil, errors.New("missing context_id in request")
-	}
-	metadata, ok := params["metadata"]
-	if !ok {
-		return "", nil, nil, errors.New("missing metadata in request")
-	}
-
-	return string(fileName), contextID, metadata, nil
-}
-
 // batchIndexerEntries read
 func batchIndexerEntries(batchSize int, putChan <-chan multihash.Multihash, value indexer.Value, idxr indexer.Interface) <-chan error {
 	errChan := make(chan error, 1)
