@@ -434,38 +434,6 @@ func (h *adminHandler) reloadConfig(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// batchIndexerEntries read
-func batchIndexerEntries(batchSize int, putChan <-chan multihash.Multihash, value indexer.Value, idxr indexer.Interface) <-chan error {
-	errChan := make(chan error, 1)
-
-	go func() {
-		defer close(errChan)
-		puts := make([]multihash.Multihash, 0, batchSize)
-		for m := range putChan {
-			puts = append(puts, m)
-			if len(puts) == batchSize {
-				// Process full batch of puts
-				if err := idxr.Put(value, puts...); err != nil {
-					errChan <- err
-					return
-				}
-				puts = puts[:0]
-
-			}
-		}
-
-		if len(puts) != 0 {
-			// Process any remaining puts
-			if err := idxr.Put(value, puts...); err != nil {
-				errChan <- err
-				return
-			}
-		}
-	}()
-
-	return errChan
-}
-
 // ----- admin handlers -----
 
 func (h *adminHandler) freeze(w http.ResponseWriter, r *http.Request) {
