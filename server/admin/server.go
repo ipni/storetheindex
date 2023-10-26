@@ -57,12 +57,6 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 		server:   server,
 	}
 
-	// Set protocol handlers
-
-	// Import routes
-	mux.HandleFunc("/import/manifest/", h.importManifest)
-	mux.HandleFunc("/import/cidlist/", h.importCidList)
-
 	// Admin routes
 	mux.HandleFunc("/freeze", h.freeze)
 	mux.HandleFunc("/status", h.status)
