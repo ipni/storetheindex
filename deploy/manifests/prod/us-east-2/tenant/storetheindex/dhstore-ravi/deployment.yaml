@@ -20,10 +20,10 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "28"
+              cpu: "7"
               memory: 58Gi
             requests:
-              cpu: "28"
+              cpu: "7"
               memory: 58Gi
       affinity:
         nodeAffinity:
@@ -33,7 +33,7 @@ spec:
                   - key: node.kubernetes.io/instance-type
                     operator: In
                     values:
-                      - c6a.8xlarge
+                      - r6a.2xlarge
                   - key: topology.kubernetes.io/zone
                     operator: In
                     values:
