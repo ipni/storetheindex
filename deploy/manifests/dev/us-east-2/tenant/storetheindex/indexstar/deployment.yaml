@@ -25,7 +25,9 @@ spec:
             - '--dhBackends=http://dhstore-ago2.internal.dev.cid.contact/'
             - '--dhBackends=http://dhstore.internal.dev.cid.contact/'
             - '--cascadeBackends=http://caskadht.internal.dev.cid.contact/'
-            - '--cascadeBackends=http://cassette.internal.dev.cid.contact/'
+          # Excluded in prep for sunsetting Cassette
+          # See: https://github.com/ipni/storetheindex/pull/2352
+          # - '--cascadeBackends=http://cassette.internal.dev.cid.contact/'
           env:
             # Increase maximum accepted request body to 1 MiB in order to allow batch finds requests
             # by the `provider verify-ingest` CLI command. 

@@ -29,7 +29,7 @@ configMapGenerator:
 
 replicas:
   - name: cassette
-    count: 1
+    count: 0
 
 images:
   - name: cassette

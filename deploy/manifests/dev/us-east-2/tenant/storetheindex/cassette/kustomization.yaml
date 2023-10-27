@@ -27,6 +27,10 @@ configMapGenerator:
     files:
       - config.yaml
 
+replicas:
+  - name: cassette
+    count: 0
+
 images:
   - name: cassette
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/cassette
