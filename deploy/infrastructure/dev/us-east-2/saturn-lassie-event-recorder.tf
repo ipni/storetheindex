@@ -15,12 +15,12 @@ module "saturn_lassie_events_db" {
   identifier = "${local.environment_name}-saturn-lassie-events"
 
   engine               = "postgres"
-  engine_version       = "14.3"
+  engine_version       = "14.7"
   family               = "postgres14"
   major_engine_version = "14"
   instance_class       = "db.m5.large"
 
-  allocated_storage   = 2000
+  allocated_storage   = 2500
   skip_final_snapshot = true
   db_name             = "SaturnLassieEvents"
   username            = "postgres"

@@ -91,17 +91,6 @@ module "eks" {
         data.aws_subnet.ue2c1.id, data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id,
       ]
     }
-    dev-ue2-c6a-8xl = {
-      min_size       = 0
-      max_size       = 15
-      desired_size   = 1
-      instance_types = ["c6a.8xlarge"]
-      subnet_ids = [
-        data.aws_subnet.ue2a1.id, data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id,
-        data.aws_subnet.ue2b1.id, data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id,
-        data.aws_subnet.ue2c1.id, data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id,
-      ]
-    }
 
     # Memory optimised node groups primarily used to run indexer nodes.
     dev-ue2a-r5n-2xl = {
