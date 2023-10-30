@@ -1,4 +1,4 @@
-apiVersion: v1
+6capiVersion: v1
 kind: Secret
 metadata:
     name: github-auth
@@ -6,7 +6,7 @@ metadata:
 type: Opaque
 stringData:
     username: ENC[AES256_GCM,data:1+UktyjIQQ==,iv:QMjAc1384Y8Q6Wkrq9ftrCuK75zHNq4whLvA0ypv0RM=,tag:vSGKVzGQbRb4cCSRBRJzZw==,type:str]
-    password: ENC[AES256_GCM,data:VCoz0nhovuhhH4MoOXScL9df3Vdf2cqNsqUxhsAV/dpwzmB6tY7Zig==,iv:0gQ8p2esdvUj5jqf/1P3ywBCJ71QuJ+PU+fdDLMSG6Q=,tag:QckmONQ5usd3P72bC4LOwQ==,type:str]
+    password: ENC[AES256_GCM,data:21XHhs6mfXro0HVFhDvdPbaOVR+T+4ztR1cPYdC/Y3rLbjBFlfo75Q==,iv:bmIx3cM6oUWsh3Cc2vZbbzZppT6bhKGVzA7/Lm5vAbQ=,tag:98njHA9GaOXudfNUMay6yw==,type:str]
 sops:
     kms:
         - arn: arn:aws:kms:us-east-2:407967248065:alias/dev/us-east-2/cluster
@@ -17,8 +17,8 @@ sops:
     azure_kv: []
     hc_vault: []
     age: []
-    lastmodified: "2023-08-02T21:24:16Z"
-    mac: ENC[AES256_GCM,data:CJ3ZNDcb5hLbqttN3g9zvp7d0iK2aY02U32Li9u3YvMjyoVzuBiqLwx178fzvEZ9LqKqk5LL2yCHHMPoSWeyeB9Pu778Sv7NzfBm/6EOdrcJ738yBipuFK9r2ADO3ivicfGFDaMbuIEysPGaA4ul1vZ7AGYkpgYse67sJErZpkc=,iv:gGVEpgdomKg+qE3+PbzNBdLMMNUA/gfhX01cfzYCBaU=,tag:NF+pdHMpjyHHSUlrsCl7Lw==,type:str]
+    lastmodified: "2023-10-30T10:49:26Z"
+    mac: ENC[AES256_GCM,data:Dg3gKoPl1YGwoky5LLYt/alvl/d2meReZusUkbRw/aKtXGHSQVyVvUnT+MP1Zi7KCiol0U+XqvL5I3JCG88q2CCeYRGoF6D2Wd8HCCb3XnBlH4UoPW5UzW2GcKkiT3tAcc7V+anMqdYXliF0A2Le8FBD4I+SSVw/cIF7HSWRLMA=,iv:68xZ9mSbzTr1EzVSZ+yUpSiCjOYJcRCLRW38xvs7SNY=,tag:0vMPsimb/2JiL5BA4g6nvQ==,type:str]
     pgp: []
     encrypted_regex: ^(data|stringData)$
     version: 3.7.3
