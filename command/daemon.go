@@ -11,11 +11,11 @@ import (
 
 	pbl "github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
+	"github.com/ipfs/boxo/bootstrap"
+	"github.com/ipfs/boxo/peering"
 	"github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/ipfs/kubo/core/bootstrap"
-	"github.com/ipfs/kubo/peering"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/cache"
 	"github.com/ipni/go-indexer-core/cache/radixcache"
@@ -34,7 +34,6 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 )
@@ -257,10 +256,6 @@ func daemonAction(cctx *cli.Context) error {
 			bootCfg := bootstrap.BootstrapConfigWithPeers(addrs)
 			bootCfg.MinPeerThreshold = cfg.Bootstrap.MinimumPeers
 
-			// Kubo does not allow these to be nil, so set empty functions.
-			bootCfg.LoadBackupBootstrapPeers = func(_ context.Context) []peer.AddrInfo { return nil }
-			bootCfg.SaveBackupBootstrapPeers = func(_ context.Context, _ []peer.AddrInfo) {}
-
 			bootstrapper, err := bootstrap.Bootstrap(peerID, p2pHost, nil, bootCfg)
 			if err != nil {
 				return fmt.Errorf("bootstrap failed: %s", err)
@@ -460,10 +455,7 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	if peeringService != nil {
-		err = peeringService.Stop()
-		if err != nil {
-			log.Errorw("Error stopping peering service", "err", err)
-		}
+		peeringService.Stop()
 	}
 
 	if ingestSvr != nil {
@@ -637,10 +629,7 @@ func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p
 	// If no peers are configured, then stop peering service if it is running.
 	if len(cfg.Peers) == 0 {
 		if peeringService != nil {
-			err := peeringService.Stop()
-			if err != nil {
-				return nil, fmt.Errorf("error stopping peering service: %w", err)
-			}
+			peeringService.Stop()
 		}
 		return nil, nil
 	}
