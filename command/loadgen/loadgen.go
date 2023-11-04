@@ -110,7 +110,7 @@ func startProviderLoadGen(config Config, indexerHttpAddr string, addressMapping 
 		close = p.announceInBackground()
 	}
 	fmt.Println("Started provider load generator")
-	fmt.Println("Peer ID:", p.h.ID().Pretty())
+	fmt.Println("Peer ID:", p.h.ID().String())
 	fmt.Println("Addrs:", p.h.Addrs())
 	fmt.Println()
 

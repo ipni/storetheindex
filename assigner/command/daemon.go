@@ -1,15 +1,14 @@
 package command
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 
+	"github.com/ipfs/boxo/bootstrap"
+	"github.com/ipfs/boxo/peering"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/ipfs/kubo/core/bootstrap"
-	"github.com/ipfs/kubo/peering"
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/assigner/config"
 	"github.com/ipni/storetheindex/assigner/core"
@@ -18,7 +17,6 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 )
@@ -236,10 +234,6 @@ func startBootstrapper(cfg sticfg.Bootstrap, p2pHost host.Host) (io.Closer, erro
 
 	bootCfg := bootstrap.BootstrapConfigWithPeers(addrs)
 	bootCfg.MinPeerThreshold = cfg.MinimumPeers
-
-	// Kubo does not allow these to be nil, so set empty functions.
-	bootCfg.LoadBackupBootstrapPeers = func(_ context.Context) []peer.AddrInfo { return nil }
-	bootCfg.SaveBackupBootstrapPeers = func(_ context.Context, _ []peer.AddrInfo) {}
 
 	return bootstrap.Bootstrap(p2pHost.ID(), p2pHost, nil, bootCfg)
 }
