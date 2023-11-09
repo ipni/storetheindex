@@ -146,8 +146,6 @@ var reloadCmd = &cli.Command{
 		" Indexer.ConfigCheckInterval," +
 		" Indexer.ShutdownTimeout," +
 		" Ingest.IngestWorkerCount," +
-		" Ingest.RateLimit," +
-		" Ingest.StoreBatchSize," +
 		" Logging," +
 		" Peering",
 	Flags: []cli.Flag{
