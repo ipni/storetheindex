@@ -72,7 +72,6 @@ data:
         "IngestWorkerCount": 10,
         "PubSubTopic": "/indexer/ingest/mainnet",
         "ResendDirectAnnounce": false,
-        "StoreBatchSize": 4096,
         "SyncSegmentDepthLimit": 2000,
         "SyncTimeout": "2h0m0s"
       },

@@ -436,7 +436,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	// and we are using the keys in the map to represent multihashes.
 	// Therefore, we only care about the keys.
 	//
-	// Group the mutlihashes in StoreBatchSize batches and process as usual.
+	// Group the mutlihashes into batches and process as usual.
 	mhs := make([]multihash.Multihash, 0, batchSize)
 	mi := hn.MapIterator()
 	for !mi.Done() {
