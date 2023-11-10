@@ -105,7 +105,7 @@ module "eks" {
     }
     prod-ue2c-c6a-8xl-2 = {
       min_size       = 0
-      max_size       = 10
+      max_size       = 5
       desired_size   = 0
       instance_types = ["c6a.8xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
