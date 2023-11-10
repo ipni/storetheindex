@@ -116,7 +116,7 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	// Create datastore
-	dstore, dsDir, err := createDatastore(cctx.Context, cfg.Datastore.Dir, cfg.Datastore.Type)
+	dstore, dsDir, err := createDatastore(cctx.Context, cfg.Datastore.Dir, cfg.Datastore.Type, false)
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func daemonAction(cctx *cli.Context) error {
 	freezeDirs = append(freezeDirs, dsDir)
 
 	// Create datastore for temporary ad data.
-	dsTmp, dsTmpDir, err := createDatastore(cctx.Context, cfg.Datastore.TmpDir, cfg.Datastore.TmpType)
+	dsTmp, dsTmpDir, err := createDatastore(cctx.Context, cfg.Datastore.TmpDir, cfg.Datastore.TmpType, cfg.Datastore.RemoveTmpAtStartup)
 	if err != nil {
 		return err
 	}
@@ -679,13 +679,18 @@ func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p
 	return peeringService, nil
 }
 
-func createDatastore(ctx context.Context, dir, dsType string) (datastore.Batching, string, error) {
+func createDatastore(ctx context.Context, dir, dsType string, rmExisting bool) (datastore.Batching, string, error) {
 	if dsType != "levelds" {
 		return nil, "", fmt.Errorf("only levelds datastore type supported, %q not supported", dsType)
 	}
 	dataStorePath, err := config.Path("", dir)
 	if err != nil {
 		return nil, "", err
+	}
+	if rmExisting {
+		if err = os.RemoveAll(dataStorePath); err != nil {
+			return nil, "", fmt.Errorf("cannot remove temporary datastore directory:", err)
+		}
 	}
 	if err = fsutil.DirWritable(dataStorePath); err != nil {
 		return nil, "", err
