@@ -133,6 +133,10 @@ func daemonAction(cctx *cli.Context) error {
 		return err
 	}
 	defer dsTmp.Close()
+	err = cleanupTempData(cctx.Context, dsTmp)
+	if err != nil {
+		return err
+	}
 	freezeDirs = append(freezeDirs, dsTmpDir)
 
 	if cfg.Indexer.UnfreezeOnStart {
@@ -691,4 +695,15 @@ func createDatastore(ctx context.Context, dir, dsType string) (datastore.Batchin
 		return nil, "", err
 	}
 	return ds, dataStorePath, nil
+}
+
+func cleanupTempData(ctx context.Context, ds datastore.Batching) error {
+	count, err := deletePrefix(ctx, ds, "/data-transfer-v2")
+	if err != nil {
+		return err
+	}
+	if count != 0 {
+		log.Infow("Removed old temporary data-transfer fsm records", "count", count)
+	}
+	return nil
 }
