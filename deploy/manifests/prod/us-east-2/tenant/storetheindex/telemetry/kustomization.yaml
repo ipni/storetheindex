@@ -10,10 +10,6 @@ resources:
 patchesStrategicMerge:
   - deployment.yaml
 
-replicas:
-  - name: telemetry
-    count: 0
-
 images:
   - name: telemetry
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/telemetry
