@@ -18,11 +18,11 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "45"
-              memory: 50Gi
+              cpu: "28"
+              memory: 58Gi
             requests:
-              cpu: "45"
-              memory: 50Gi
+              cpu: "28"
+              memory: 58Gi
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -31,7 +31,7 @@ spec:
                   - key: node.kubernetes.io/instance-type
                     operator: In
                     values:
-                      - c6a.12xlarge
+                      - c6a.8xlarge
                   - key: topology.kubernetes.io/zone
                     operator: In
                     values:
