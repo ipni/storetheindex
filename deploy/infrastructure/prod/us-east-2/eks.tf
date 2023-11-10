@@ -142,13 +142,6 @@ module "eks" {
         data.aws_subnet.ue2c1.id, data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id
       ]
     }
-    prod-ue2-c6a-12xl = {
-      min_size       = 0
-      max_size       = 20
-      desired_size   = 1
-      instance_types = ["c6a.12xlarge"]
-      subnet_ids     = module.vpc.private_subnets
-    }
   }
 }
 
