@@ -177,7 +177,7 @@ func deletePrefix(ctx context.Context, ds datastore.Batching, prefix string) (in
 			if err = batch.Commit(ctx); err != nil {
 				return 0, fmt.Errorf("cannot commit datastore: %w", err)
 			}
-			log.Infow("Datastore update removed records", "count", keyCount)
+			log.Infow("Removed datastore records", "count", keyCount)
 		}
 		if result.Error != nil {
 			return 0, fmt.Errorf("cannot read query result from datastore: %w", result.Error)
