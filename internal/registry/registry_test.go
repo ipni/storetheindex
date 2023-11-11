@@ -940,9 +940,10 @@ func TestIgnoreBadAds(t *testing.T) {
 	time.Sleep(time.Second)
 	require.False(t, r.Allowed(pubID), "publisher should be blocked")
 
-	// Allowed after 2 more seconds.
+	// Allowed once after 2 more seconds.
 	time.Sleep(time.Second * 2)
 	require.True(t, r.Allowed(pubID), "publisher should be not allowed")
+	require.False(t, r.Allowed(pubID), "publisher should be blocked")
 
 	// Allowed after good update.
 	provider.Addrs = []multiaddr.Multiaddr{maddr}

@@ -435,8 +435,12 @@ func (r *Registry) runTmpBlockCheck() {
 		case now := <-ticker.C:
 			r.tmpBlockMutex.Lock()
 			for peer, expAt := range r.tmpBlockPeers {
-				if expAt.Before(now) {
-					delete(r.tmpBlockPeers, peer)
+				if expAt.Before(now) && !expAt.IsZero() {
+					if expAt.Unix() == 0 {
+						delete(r.tmpBlockPeers, peer)
+					} else {
+						r.tmpBlockPeers[peer] = time.Time{}
+					}
 				}
 			}
 			r.tmpBlockMutex.Unlock()
@@ -506,14 +510,27 @@ func (r *Registry) Allowed(peerID peer.ID) bool {
 			return false
 		}
 	}
+	if !r.policy.Allowed(peerID) {
+		return false
+	}
+	return r.checkTempBlockAllowed(peerID)
+}
+
+func (r *Registry) checkTempBlockAllowed(peerID peer.ID) bool {
 	r.tmpBlockMutex.Lock()
-	_, blocked := r.tmpBlockPeers[peerID]
+	expAt, blocked := r.tmpBlockPeers[peerID]
+	if blocked && expAt.IsZero() {
+		// Temporary block expired, so only allow once. Block will be
+		// reinstated or removed at next check.
+		r.tmpBlockPeers[peerID] = time.Unix(0, 0)
+		blocked = false
+	}
 	r.tmpBlockMutex.Unlock()
 	if blocked {
 		log.Warnw("Publisher temporarily blocked", "peerID", peerID)
 		return false
 	}
-	return r.policy.Allowed(peerID)
+	return true
 }
 
 // PublishAllowed checks if a peer is allowed to publish for other providers.
@@ -756,6 +773,11 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 			log.Warnw("Temporarily blocking publisher", "peerID", publisher.ID, "period", r.tmpBlockPeriod, "reason", ErrMissingProviderAddr)
 			return ErrMissingProviderAddr
 		}
+		// Remove any temporary block.
+		r.tmpBlockMutex.Lock()
+		delete(r.tmpBlockPeers, publisher.ID)
+		r.tmpBlockMutex.Unlock()
+
 		info = &ProviderInfo{
 			AddrInfo: provider,
 		}
