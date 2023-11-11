@@ -898,6 +898,58 @@ func TestHandoff(t *testing.T) {
 	require.ErrorIs(t, r.AssignPeer(pubID2), ErrFrozen)
 }
 
+func TestIgnoreBadAds(t *testing.T) {
+	cfg := config.Discovery{
+		IgnoreBadAdsTime: config.Duration(time.Second),
+		Policy: config.Policy{
+			Allow:   true,
+			Publish: true,
+		},
+	}
+	tmpBlockCheckInterval = 2 * time.Second
+
+	ctx := context.Background()
+
+	r, err := New(ctx, cfg, nil)
+	require.NoError(t, err)
+
+	provID, err := peer.Decode(limitedID)
+	require.NoError(t, err)
+	maddr, err := multiaddr.NewMultiaddr(minerAddr)
+	require.NoError(t, err)
+	provider := peer.AddrInfo{
+		ID: provID,
+	}
+
+	pubID, err := peer.Decode(publisherID)
+	require.NoError(t, err)
+	pubAddr, err := multiaddr.NewMultiaddr(publisherAddr)
+	require.NoError(t, err)
+	publisher := peer.AddrInfo{
+		ID:    pubID,
+		Addrs: []multiaddr.Multiaddr{pubAddr},
+	}
+
+	err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
+	require.ErrorIs(t, err, ErrMissingProviderAddr)
+	require.False(t, r.Allowed(pubID), "publisher should be blocked")
+	require.True(t, r.Allowed(provID), "provider should be allowed")
+
+	// Still not allowed after 1 second.
+	time.Sleep(time.Second)
+	require.False(t, r.Allowed(pubID), "publisher should be blocked")
+
+	// Allowed after 2 more seconds.
+	time.Sleep(time.Second * 2)
+	require.True(t, r.Allowed(pubID), "publisher should be not allowed")
+
+	// Allowed after good update.
+	provider.Addrs = []multiaddr.Multiaddr{maddr}
+	err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
+	require.NoError(t, err)
+	require.True(t, r.Allowed(pubID), "publisher should be not allowed")
+}
+
 func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
