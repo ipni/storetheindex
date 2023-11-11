@@ -287,6 +287,7 @@ func TestAllowed(t *testing.T) {
 
 	r, err := New(ctx, cfg, nil)
 	require.NoError(t, err)
+	t.Cleanup(func() { r.Close() })
 
 	provID, err := peer.Decode(limitedID)
 	require.NoError(t, err)
@@ -913,6 +914,7 @@ func TestIgnoreBadAds(t *testing.T) {
 
 	r, err := New(ctx, cfg, nil)
 	require.NoError(t, err)
+	t.Cleanup(func() { r.Close() })
 
 	provID, err := peer.Decode(limitedID)
 	require.NoError(t, err)
