@@ -707,13 +707,11 @@ func cleanupTempData(ctx context.Context, ds datastore.Batching) error {
 	count, err := deletePrefix(ctx, ds, dtPrefix)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			log.Infow("Not enough time to finish data-transfer state cleanup")
+			log.Info("Not enough time to finish data-transfer state cleanup")
 			return ds.Sync(context.Background(), datastore.NewKey(dtPrefix))
 		}
 		return err
 	}
-	if count != 0 {
-		log.Infow("Removed old temporary data-transfer fsm records", "count", count)
-	}
+	log.Infow("Removed old temporary data-transfer fsm records", "count", count)
 	return nil
 }
