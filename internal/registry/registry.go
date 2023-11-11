@@ -749,8 +749,9 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 			return err
 		}
 		if len(provider.Addrs) == 0 {
+			now := time.Now()
 			r.tmpBlockMutex.Lock()
-			r.tmpBlockPeers[publisher.ID] = time.Now().Add(r.tmpBlockPeriod)
+			r.tmpBlockPeers[publisher.ID] = now.Add(r.tmpBlockPeriod)
 			r.tmpBlockMutex.Unlock()
 			log.Warnw("Temporarily blocking publisher", "peerID", publisher.ID, "period", r.tmpBlockPeriod, "reason", ErrMissingProviderAddr)
 			return ErrMissingProviderAddr
