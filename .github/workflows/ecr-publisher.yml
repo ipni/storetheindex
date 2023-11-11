@@ -14,7 +14,6 @@ on:
       - 'doc/**'
     branches:
       - main
-      - temp-ignore-bad-ads
 
 jobs:
   publisher:

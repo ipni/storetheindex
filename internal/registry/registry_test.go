@@ -690,8 +690,9 @@ func TestRegistry_loadPersistedProvidersFiltersNilAddrGracefully(t *testing.T) {
 	require.NoError(t, err)
 	cfg := config.NewDiscovery()
 	cfg.FilterIPs = true
-	_, err = New(ctx, cfg, ds)
+	r, err := New(ctx, cfg, ds)
 	require.NoError(t, err)
+	t.Cleanup(func() { r.Close() })
 }
 
 func TestFreezeUnfreeze(t *testing.T) {
