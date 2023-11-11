@@ -10,6 +10,9 @@ type Discovery struct {
 	// FilterIPs, when true, removes any private, loopback, or unspecified IP
 	// addresses from provider and publisher addresses.
 	FilterIPs bool
+	// IgnoreBadAdsTime is the period of time to ignore publishers that have
+	// published unindexable advertisement chains. Default is 2 hours.
+	IgnoreBadAdsTime Duration
 	// Policy configures which publishers are allowed and blocked, rate-limited,
 	// and allowed to publish on behalf of others providers.
 	Policy Policy
@@ -89,11 +92,12 @@ type Polling struct {
 func NewDiscovery() Discovery {
 	const defaultStopAfter = Duration(7 * 24 * time.Hour)
 	return Discovery{
-		Policy:          NewPolicy(),
-		PollInterval:    Duration(24 * time.Hour),
-		PollRetryAfter:  Duration(5 * time.Hour),
-		PollStopAfter:   defaultStopAfter,
-		DeactivateAfter: defaultStopAfter,
+		IgnoreBadAdsTime: Duration(2 * time.Hour),
+		Policy:           NewPolicy(),
+		PollInterval:     Duration(24 * time.Hour),
+		PollRetryAfter:   Duration(5 * time.Hour),
+		PollStopAfter:    defaultStopAfter,
+		DeactivateAfter:  defaultStopAfter,
 	}
 }
 
@@ -101,6 +105,9 @@ func NewDiscovery() Discovery {
 func (c *Discovery) populateUnset() {
 	def := NewDiscovery()
 
+	if c.IgnoreBadAdsTime == 0 {
+		c.IgnoreBadAdsTime = def.IgnoreBadAdsTime
+	}
 	if c.PollInterval == 0 {
 		c.PollInterval = def.PollInterval
 	}

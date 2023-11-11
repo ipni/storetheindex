@@ -39,6 +39,10 @@ const (
 
 var log = logging.Logger("indexer/registry")
 
+// tmpBlockCheckInterval is how often to check the temporary block cache for
+// expired entries.
+var tmpBlockCheckInterval = 5 * time.Minute
+
 // Registry stores information about discovered providers
 type Registry struct {
 	closeOnce sync.Once
@@ -63,6 +67,11 @@ type Registry struct {
 	preferred map[peer.ID]struct{}
 
 	syncChan chan *ProviderInfo
+
+	tmpBlockPeers     map[peer.ID]time.Time
+	tmpBlockCheckDone chan struct{}
+	tmpBlockMutex     sync.Mutex
+	tmpBlockPeriod    time.Duration
 }
 
 // ProviderInfo is an immutable data structure that holds information about a
@@ -284,6 +293,10 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 
 		dstore:   dstore,
 		syncChan: make(chan *ProviderInfo, 1),
+
+		tmpBlockPeers:     make(map[peer.ID]time.Time),
+		tmpBlockCheckDone: make(chan struct{}),
+		tmpBlockPeriod:    time.Duration(cfg.IgnoreBadAdsTime),
 	}
 
 	r.providers, err = loadPersistedProviders(ctx, dstore, cfg.FilterIPs)
@@ -339,6 +352,8 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		r.pollDone = make(chan struct{})
 		go r.runPollCheck(poll, pollOverrides)
 	}
+
+	go r.runTmpBlockCheck()
 
 	return r, nil
 }
@@ -400,6 +415,7 @@ func (r *Registry) Close() {
 			r.freezer.Close()
 		}
 		close(r.closing)
+		<-r.tmpBlockCheckDone
 		if r.pollDone != nil {
 			<-r.pollDone
 		}
@@ -408,6 +424,30 @@ func (r *Registry) Close() {
 
 func (r *Registry) SyncChan() <-chan *ProviderInfo {
 	return r.syncChan
+}
+
+func (r *Registry) runTmpBlockCheck() {
+	defer close(r.tmpBlockCheckDone)
+	ticker := time.NewTicker(tmpBlockCheckInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case now := <-ticker.C:
+			r.tmpBlockMutex.Lock()
+			for peer, expAt := range r.tmpBlockPeers {
+				if expAt.Before(now) && !expAt.IsZero() {
+					if expAt.Unix() == 0 {
+						delete(r.tmpBlockPeers, peer)
+					} else {
+						r.tmpBlockPeers[peer] = time.Time{}
+					}
+				}
+			}
+			r.tmpBlockMutex.Unlock()
+		case <-r.closing:
+			return
+		}
+	}
 }
 
 func (r *Registry) runPollCheck(poll polling, pollOverrides map[peer.ID]polling) {
@@ -470,7 +510,27 @@ func (r *Registry) Allowed(peerID peer.ID) bool {
 			return false
 		}
 	}
-	return r.policy.Allowed(peerID)
+	if !r.policy.Allowed(peerID) {
+		return false
+	}
+	return r.checkTempBlockAllowed(peerID)
+}
+
+func (r *Registry) checkTempBlockAllowed(peerID peer.ID) bool {
+	r.tmpBlockMutex.Lock()
+	expAt, blocked := r.tmpBlockPeers[peerID]
+	if blocked && expAt.IsZero() {
+		// Temporary block expired, so only allow once. Block will be
+		// reinstated or removed at next check.
+		r.tmpBlockPeers[peerID] = time.Unix(0, 0)
+		blocked = false
+	}
+	r.tmpBlockMutex.Unlock()
+	if blocked {
+		log.Warnw("Publisher temporarily blocked", "peerID", peerID)
+		return false
+	}
+	return true
 }
 
 // PublishAllowed checks if a peer is allowed to publish for other providers.
@@ -706,8 +766,18 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 			return err
 		}
 		if len(provider.Addrs) == 0 {
+			now := time.Now()
+			r.tmpBlockMutex.Lock()
+			r.tmpBlockPeers[publisher.ID] = now.Add(r.tmpBlockPeriod)
+			r.tmpBlockMutex.Unlock()
+			log.Warnw("Temporarily blocking publisher", "peerID", publisher.ID, "period", r.tmpBlockPeriod, "reason", ErrMissingProviderAddr)
 			return ErrMissingProviderAddr
 		}
+		// Remove any temporary block.
+		r.tmpBlockMutex.Lock()
+		delete(r.tmpBlockPeers, publisher.ID)
+		r.tmpBlockMutex.Unlock()
+
 		info = &ProviderInfo{
 			AddrInfo: provider,
 		}
