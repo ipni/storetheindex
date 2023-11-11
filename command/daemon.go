@@ -698,8 +698,18 @@ func createDatastore(ctx context.Context, dir, dsType string) (datastore.Batchin
 }
 
 func cleanupTempData(ctx context.Context, ds datastore.Batching) error {
-	count, err := deletePrefix(ctx, ds, "/data-transfer-v2")
+	const dtCleanupTimeout = 10 * time.Minute
+	const dtPrefix = "/data-transfer-v2"
+
+	ctx, cancel := context.WithTimeout(ctx, dtCleanupTimeout)
+	defer cancel()
+
+	count, err := deletePrefix(ctx, ds, dtPrefix)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			log.Infow("Not enough time to finish data-transfer state cleanup")
+			return ds.Sync(context.Background(), datastore.NewKey(dtPrefix))
+		}
 		return err
 	}
 	if count != 0 {
