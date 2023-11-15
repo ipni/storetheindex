@@ -37,6 +37,7 @@
   },
   "Discovery": {
     "FilterIPs": true,
+    "IgnoreBadAdsTime": "2h0m0s",
     "Policy": {
       "Allow": true,
       "Except": null,
@@ -55,10 +56,9 @@
     "ShutdownTimeout": "15m",
     "ValueStoreDir": "/data/valuestore",
     "ValueStoreType": "none",
-    "DisableWAL": true,
     "DHBatchSize": 16384,
     "DHStoreURL": "http://dhstore-seka:40080",
-      "DHStoreClusterURLs": [
+    "DHStoreClusterURLs": [
       "http://dhstore-ravi:40080",
       "http://dhstore-qiu:40080",
       "http://dhstore-helga.internal.prod.cid.contact",
