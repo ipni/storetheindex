@@ -37,11 +37,14 @@ data:
         "MinimumPeers": 4
       },
       "Datastore": {
+        "Dir": "/data/datastore",
         "Type": "levelds",
-        "Dir": "/data/datastore"
+        "TmpDir": "/data/tmpstore",
+        "TmpType": "levelds"
       },
       "Discovery": {
         "FilterIPs": true,
+        "IgnoreBadAdsTime": "2h0m0s",
         "Policy": {
           "Allow": true,
           "Except": null,
@@ -52,11 +55,10 @@ data:
         "PollRetryAfter": "5h0m0s",
         "PollStopAfter": "168h0m0s",
         "PollOverrides": null,
-        "RediscoverWait": "5m0s",
-        "Timeout": "2m0s"
+        "UseAssigner": false
       },
       "Indexer": {
-        "CacheSize": 300000,
+        "CacheSize": -1,
         "ConfigCheckInterval": "30s",
         "ShutdownTimeout": "15m",
         "ValueStoreDir": "/data/valuestore",
@@ -65,7 +67,7 @@ data:
       "Ingest": {
         "AdvertisementDepthLimit": 33554432,
         "EntriesDepthLimit": 65536,
-        "HttpSyncRetryMax": 4,
+        "HttpSyncRetryMax": 0,
         "HttpSyncRetryWaitMax": "30s",
         "HttpSyncRetryWaitMin": "1s",
         "HttpSyncTimeout": "10s",
