@@ -128,7 +128,7 @@ func daemonAction(cctx *cli.Context) error {
 	freezeDirs = append(freezeDirs, dsDir)
 
 	// Create datastore for temporary ad data.
-	dsTmp, dsTmpDir, err := createDatastore(cctx.Context, cfg.Datastore.TmpDir, cfg.Datastore.TmpType, cfg.Datastore.RemoveTmpAtStartup)
+	dsTmp, dsTmpDir, err := createDatastore(cctx.Context, cfg.Datastore.TmpDir, cfg.Datastore.TmpType, cfg.Datastore.RemoveTmpAtStart)
 	if err != nil {
 		return err
 	}
