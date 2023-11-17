@@ -35,5 +35,5 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: ago-data
+            claimName: ago-data-gp3
 

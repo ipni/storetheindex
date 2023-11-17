@@ -5,11 +5,15 @@ metadata:
     app: indexer-single
     app.kubernetes.io/managed-by: kustomization
     app.kubernetes.io/part-of: storetheindex
-  name: data
+  name: data-gp3
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: 1Ti
+  dataSource:
+    name: ago-data-20231117
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io
   storageClassName: gp3
