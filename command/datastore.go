@@ -4,11 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
+	leveldb "github.com/ipfs/go-ds-leveldb"
+	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/fsutil"
 )
 
 const (
@@ -19,6 +24,48 @@ const (
 	// updateBatchSize is the number of records to update at a time.
 	updateBatchSize = 500000
 )
+
+func createDatastore(ctx context.Context, dir, dsType string, rmExisting bool) (datastore.Batching, string, error) {
+	if dsType != "levelds" {
+		return nil, "", fmt.Errorf("only levelds datastore type supported, %q not supported", dsType)
+	}
+	dataStorePath, err := config.Path("", dir)
+	if err != nil {
+		return nil, "", err
+	}
+	if rmExisting {
+		if err = os.RemoveAll(dataStorePath); err != nil {
+			return nil, "", fmt.Errorf("cannot remove temporary datastore directory: %w", err)
+		}
+	}
+	if err = fsutil.DirWritable(dataStorePath); err != nil {
+		return nil, "", err
+	}
+	ds, err := leveldb.NewDatastore(dataStorePath, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	return ds, dataStorePath, nil
+}
+
+func cleanupDTTempData(ctx context.Context, ds datastore.Batching) error {
+	const dtCleanupTimeout = 10 * time.Minute
+	const dtPrefix = "/data-transfer-v2"
+
+	ctx, cancel := context.WithTimeout(ctx, dtCleanupTimeout)
+	defer cancel()
+
+	count, err := deletePrefix(ctx, ds, dtPrefix)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			log.Info("Not enough time to finish data-transfer state cleanup")
+			return ds.Sync(context.Background(), datastore.NewKey(dtPrefix))
+		}
+		return err
+	}
+	log.Infow("Removed old temporary data-transfer fsm records", "count", count)
+	return nil
+}
 
 func updateDatastore(ctx context.Context, ds datastore.Batching) error {
 	dsVerKey := datastore.NewKey(dsInfoPrefix + dsVersionKey)
@@ -177,7 +224,7 @@ func deletePrefix(ctx context.Context, ds datastore.Batching, prefix string) (in
 			if err = batch.Commit(ctx); err != nil {
 				return 0, fmt.Errorf("cannot commit datastore: %w", err)
 			}
-			log.Infow("Datastore update removed records", "count", keyCount)
+			log.Infow("Removed datastore records", "count", keyCount)
 		}
 		if result.Error != nil {
 			return 0, fmt.Errorf("cannot read query result from datastore: %w", result.Error)

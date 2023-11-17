@@ -13,8 +13,6 @@ import (
 	"github.com/cockroachdb/pebble/bloom"
 	"github.com/ipfs/boxo/bootstrap"
 	"github.com/ipfs/boxo/peering"
-	"github.com/ipfs/go-datastore"
-	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/cache"
@@ -116,7 +114,7 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	// Create datastore
-	dstore, dsDir, err := createDatastore(cctx.Context, cfg.Datastore.Dir, cfg.Datastore.Type)
+	dstore, dsDir, err := createDatastore(cctx.Context, cfg.Datastore.Dir, cfg.Datastore.Type, false)
 	if err != nil {
 		return err
 	}
@@ -128,12 +126,12 @@ func daemonAction(cctx *cli.Context) error {
 	freezeDirs = append(freezeDirs, dsDir)
 
 	// Create datastore for temporary ad data.
-	dsTmp, dsTmpDir, err := createDatastore(cctx.Context, cfg.Datastore.TmpDir, cfg.Datastore.TmpType)
+	dsTmp, dsTmpDir, err := createDatastore(cctx.Context, cfg.Datastore.TmpDir, cfg.Datastore.TmpType, cfg.Datastore.RemoveTmpAtStart)
 	if err != nil {
 		return err
 	}
 	defer dsTmp.Close()
-	err = cleanupTempData(cctx.Context, dsTmp)
+	err = cleanupDTTempData(cctx.Context, dsTmp)
 	if err != nil {
 		return err
 	}
@@ -396,7 +394,7 @@ func daemonAction(cctx *cli.Context) error {
 				ticker.Reset(time.Duration(cfg.Indexer.ConfigCheckInterval))
 			}
 
-			cfg, err = reloadConfig(cfgPath, ingester, reg, valueStore)
+			cfg, err = reloadConfig(cfgPath, ingester, reg)
 			if err != nil {
 				log.Errorw("Error reloading conifg", "err", err)
 				if errChan != nil {
@@ -605,7 +603,7 @@ func loadConfig(filePath string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Registry, valueStore indexer.Interface) (*config.Config, error) {
+func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Registry) (*config.Config, error) {
 	cfg, err := loadConfig(cfgPath)
 	if err != nil {
 		return nil, err
@@ -677,41 +675,4 @@ func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p
 	}
 
 	return peeringService, nil
-}
-
-func createDatastore(ctx context.Context, dir, dsType string) (datastore.Batching, string, error) {
-	if dsType != "levelds" {
-		return nil, "", fmt.Errorf("only levelds datastore type supported, %q not supported", dsType)
-	}
-	dataStorePath, err := config.Path("", dir)
-	if err != nil {
-		return nil, "", err
-	}
-	if err = fsutil.DirWritable(dataStorePath); err != nil {
-		return nil, "", err
-	}
-	ds, err := leveldb.NewDatastore(dataStorePath, nil)
-	if err != nil {
-		return nil, "", err
-	}
-	return ds, dataStorePath, nil
-}
-
-func cleanupTempData(ctx context.Context, ds datastore.Batching) error {
-	const dtCleanupTimeout = 10 * time.Minute
-	const dtPrefix = "/data-transfer-v2"
-
-	ctx, cancel := context.WithTimeout(ctx, dtCleanupTimeout)
-	defer cancel()
-
-	count, err := deletePrefix(ctx, ds, dtPrefix)
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			log.Info("Not enough time to finish data-transfer state cleanup")
-			return ds.Sync(context.Background(), datastore.NewKey(dtPrefix))
-		}
-		return err
-	}
-	log.Infow("Removed old temporary data-transfer fsm records", "count", count)
-	return nil
 }

@@ -15,6 +15,8 @@ type Datastore struct {
 	TmpDir string
 	// TmpType is the type of datastore for temporary persisted data.
 	TmpType string
+	// RemoveTmpAtStart causes all temproary data to be removed at startup.
+	RemoveTmpAtStart bool
 }
 
 // NewDatastore returns Datastore with values set to their defaults.
