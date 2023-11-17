@@ -27,3 +27,7 @@ configMapGenerator:
 
 patchesStrategicMerge:
   - deployment.yaml
+
+replicas:
+  - name: ago
+    count: 0
