@@ -30,14 +30,14 @@ func TestCreateDatastore(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that ds directory is not removed.
-	ds, path, err = createDatastore(context.Background(), dsDir, "levelds", false)
+	ds, _, err = createDatastore(context.Background(), dsDir, "levelds", false)
 	require.NoError(t, err)
 	require.NotNil(t, ds)
 	require.NoError(t, ds.Close())
 	require.True(t, fileExists(checkFile))
 
 	// Check that ds directory is removed.
-	ds, path, err = createDatastore(context.Background(), dsDir, "levelds", true)
+	ds, _, err = createDatastore(context.Background(), dsDir, "levelds", true)
 	require.NoError(t, err)
 	require.NotNil(t, ds)
 	require.NoError(t, ds.Close())
@@ -52,6 +52,9 @@ func TestDeletePrefix(t *testing.T) {
 	dsDir := filepath.Join(tmpDir, "testDataDir")
 	ds, _, err := createDatastore(ctx, dsDir, "levelds", false)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		ds.Close()
+	})
 
 	const prefix = "testKeys"
 	dsKey1 := datastore.NewKey(prefix + "/foo")
