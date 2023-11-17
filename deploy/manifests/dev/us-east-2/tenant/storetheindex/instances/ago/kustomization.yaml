@@ -29,5 +29,5 @@ patchesStrategicMerge:
   - deployment.yaml
 
 replicas:
-  - name: ago
+  - name: ago-indexer
     count: 0
