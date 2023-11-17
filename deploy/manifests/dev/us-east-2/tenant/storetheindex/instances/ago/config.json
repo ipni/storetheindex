@@ -33,7 +33,8 @@
     "Dir": "/data/datastore",
     "Type": "levelds",
     "TmpDir": "/data/tmpstore",
-    "TmpType": "levelds"
+    "TmpType": "levelds",
+    "RemoveTmpAtStart": true
   },
   "Discovery": {
     "FilterIPs": true,
