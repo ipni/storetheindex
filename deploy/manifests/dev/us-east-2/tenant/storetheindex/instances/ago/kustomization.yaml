@@ -27,7 +27,3 @@ configMapGenerator:
 
 patchesStrategicMerge:
   - deployment.yaml
-
-replicas:
-  - name: ago-indexer
-    count: 0
