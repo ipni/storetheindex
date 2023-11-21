@@ -39,7 +39,6 @@ func main() {
 			command.AdminCmd,
 			command.AssignerCmd,
 			command.DaemonCmd,
-			command.ImportCmd,
 			command.InitCmd,
 			command.LoadtestCmd,
 			command.LogCmd,
