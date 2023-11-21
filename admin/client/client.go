@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 
@@ -532,32 +531,4 @@ func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, meth
 	}
 
 	return nil
-}
-
-func (c *Client) newUploadRequest(ctx context.Context, uri, fileName string, contextID, metadata []byte) (*http.Request, error) {
-	file, err := os.Open(fileName)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	params := map[string][]byte{
-		"file":       []byte(fileName),
-		"context_id": contextID,
-		"metadata":   metadata,
-	}
-
-	bodyData, err := json.Marshal(&params)
-	if err != nil {
-		return nil, err
-	}
-
-	body := bytes.NewBuffer(bodyData)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uri, body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	return req, nil
 }
