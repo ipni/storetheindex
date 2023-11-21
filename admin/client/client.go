@@ -86,58 +86,6 @@ func (c *Client) Freeze(ctx context.Context) error {
 	return nil
 }
 
-// ImportFromManifest processes entries from manifest and imports them into the
-// indexer.
-func (c *Client) ImportFromManifest(ctx context.Context, fileName string, provID peer.ID, contextID, metadata []byte) error {
-	u := c.baseURL.JoinPath(importPath, "manifest", provID.String())
-	req, err := c.newUploadRequest(ctx, u.String(), fileName, contextID, metadata)
-	if err != nil {
-		return err
-	}
-	resp, err := c.c.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Handle failed requests
-	if resp.StatusCode != http.StatusOK {
-		var errMsg string
-		body, err := io.ReadAll(resp.Body)
-		if err == nil && len(body) != 0 {
-			errMsg = ": " + string(body)
-		}
-		return fmt.Errorf("importing from manifest failed: %v%s", http.StatusText(resp.StatusCode), errMsg)
-	}
-	return nil
-}
-
-// ImportFromCidList process entries from a cidlist and imprts it into the
-// indexer.
-func (c *Client) ImportFromCidList(ctx context.Context, fileName string, provID peer.ID, contextID, metadata []byte) error {
-	u := c.baseURL.JoinPath(importPath, "cidlist", provID.String())
-	req, err := c.newUploadRequest(ctx, u.String(), fileName, contextID, metadata)
-	if err != nil {
-		return err
-	}
-	resp, err := c.c.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Handle failed requests
-	if resp.StatusCode != http.StatusOK {
-		var errMsg string
-		body, err := io.ReadAll(resp.Body)
-		if err == nil && len(body) != 0 {
-			errMsg = ": " + string(body)
-		}
-		return fmt.Errorf("importing from cidlist failed: %v%s", http.StatusText(resp.StatusCode), errMsg)
-	}
-	return nil
-}
-
 func (c *Client) GetPendingSyncs(ctx context.Context) ([]string, error) {
 	u := c.baseURL.JoinPath(ingestPath, "sync")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -439,6 +387,7 @@ func (c *Client) SetLogLevels(ctx context.Context, sysLvl map[string]string) err
 		}
 		return apierror.FromResponse(resp.StatusCode, body)
 	}
+
 	return nil
 }
 

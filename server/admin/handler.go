@@ -151,8 +151,6 @@ func (h *adminHandler) handoffPeer(w http.ResponseWriter, r *http.Request) {
 		assignError(w, err)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func (h *adminHandler) assignPeer(w http.ResponseWriter, r *http.Request) {
@@ -170,8 +168,6 @@ func (h *adminHandler) assignPeer(w http.ResponseWriter, r *http.Request) {
 		assignError(w, err)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func assignError(w http.ResponseWriter, err error) {
@@ -213,7 +209,6 @@ func (h *adminHandler) unassignPeer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infow("Unassigned publisher from indexer", "publisher", peerID)
-	w.WriteHeader(http.StatusOK)
 }
 
 // ----- ingest handlers -----
@@ -231,7 +226,6 @@ func (h *adminHandler) allowPeer(w http.ResponseWriter, r *http.Request) {
 	if h.reg.AllowPeer(peerID) {
 		log.Infow("Update config to persist allowing peer", "peerr", peerID)
 	}
-	w.WriteHeader(http.StatusOK)
 }
 
 func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
@@ -247,7 +241,6 @@ func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
 	if h.reg.BlockPeer(peerID) {
 		log.Infow("Update config to persist blocking peer", "provider", peerID)
 	}
-	w.WriteHeader(http.StatusOK)
 }
 
 func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
@@ -418,8 +411,6 @@ func (h *adminHandler) importProviders(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusBadGateway)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func (h *adminHandler) reloadConfig(w http.ResponseWriter, r *http.Request) {
@@ -434,7 +425,6 @@ func (h *adminHandler) reloadConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
 }
 
 // ----- admin handlers -----
@@ -455,8 +445,6 @@ func (h *adminHandler) freeze(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func (h *adminHandler) status(w http.ResponseWriter, r *http.Request) {
