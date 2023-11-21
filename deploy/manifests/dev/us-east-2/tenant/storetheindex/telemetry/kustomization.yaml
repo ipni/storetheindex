@@ -13,5 +13,5 @@ patchesStrategicMerge:
 images:
   - name: telemetry
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/telemetry
-    newTag: 20230925165457-2359d42c4e76caedd3a2d5cc00f1373151fba23d
+    newTag: 20231121192904-72830ed6f93befdff6ea107f6ae8cd6c0ba2c67b
 
