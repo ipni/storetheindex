@@ -43,7 +43,6 @@ func setLogLevel(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Infow("Log level changed", "subsystem", ss, "level", l)
 	}
-	w.WriteHeader(http.StatusOK)
 }
 
 // listLogSubSystems prints current logging subsystems one at a line.
