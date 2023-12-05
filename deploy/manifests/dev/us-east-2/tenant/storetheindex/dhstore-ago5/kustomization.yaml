@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - github.com/ipni/dhstore/deploy/kubernetes?ref=58dfcad7aae9c172c68237dad25494625d8ac160
+  - pvc.yaml
+  - internal-service.yaml
+  - pod-monitor.yaml
+
+nameSuffix: -ago5
+
+patchesStrategicMerge:
+  - deployment.yaml
+  - service.yaml
+
+images:
+  - name: dhstore
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/dhstore
+    newTag: 20231121181533-cea5ef70253e284ea8cf9fc529adf5470a16e774
