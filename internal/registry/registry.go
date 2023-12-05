@@ -1518,8 +1518,7 @@ func loadPersistedAssignments(ctx context.Context, dstore datastore.Datastore, d
 
 	// Load all assigned publishers from datastore.
 	q := query.Query{
-		Prefix:   assignmentsKeyPath,
-		KeysOnly: true,
+		Prefix: assignmentsKeyPath,
 	}
 	results, err := dstore.Query(ctx, q)
 	if err != nil {

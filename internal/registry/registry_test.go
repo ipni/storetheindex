@@ -820,7 +820,8 @@ func TestHandoff(t *testing.T) {
 
 	ctx := context.Background()
 	tempDir := t.TempDir()
-	r, err := New(ctx, cfg, datastore.NewMapDatastore(), WithFreezer([]string{tempDir}, 90.0))
+	dstore := datastore.NewMapDatastore()
+	r, err := New(ctx, cfg, dstore, WithFreezer([]string{tempDir}, 90.0))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
@@ -879,15 +880,15 @@ func TestHandoff(t *testing.T) {
 	pubs, froms, err := r.ListAssignedPeers()
 	require.NoError(t, err)
 
-	require.Equal(t, 1, len(pubs))
-	require.Equal(t, 1, len(froms))
+	require.Len(t, pubs, 1)
+	require.Len(t, froms, 1)
 
 	require.Equal(t, pubID, pubs[0])
 	require.Equal(t, peerID, froms[0])
 
 	provs := r.AllProviderInfo()
 	require.NoError(t, err)
-	require.Equal(t, 1, len(provs))
+	require.Len(t, provs, 1)
 
 	prov := provs[0]
 	require.Equal(t, pubID, prov.AddrInfo.ID)
@@ -898,6 +899,19 @@ func TestHandoff(t *testing.T) {
 	pubID2, err := peer.Decode(limitedID3)
 	require.NoError(t, err)
 	require.ErrorIs(t, r.AssignPeer(pubID2), ErrFrozen)
+
+	r.Close()
+
+	// Check assigned info it persisted and reloaded.
+	r, err = New(ctx, cfg, dstore, WithFreezer([]string{tempDir}, 90.0))
+	require.NoError(t, err)
+	pubs, froms, err = r.ListAssignedPeers()
+	require.NoError(t, err)
+	require.Len(t, pubs, 1)
+	require.Len(t, froms, 1)
+	require.Equal(t, pubID, pubs[0])
+	require.Equal(t, peerID, froms[0])
+	r.Close()
 }
 
 func TestIgnoreBadAds(t *testing.T) {
