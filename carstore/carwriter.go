@@ -55,6 +55,10 @@ func NewWriter(dstore datastore.Batching, fileStore filestore.Interface, options
 	}, nil
 }
 
+func (cw *CarWriter) CarPath(adCid cid.Cid) string {
+	return carFilePath(adCid, cw.compAlg)
+}
+
 // Compression returns the name of the compression used to compress CAR files.
 func (cw *CarWriter) Compression() string {
 	return cw.compAlg
@@ -84,10 +88,7 @@ func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries, over
 
 func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Advertisement, data []byte, skipEntries, overWrite bool) (*filestore.File, error) {
 	fileName := adCid.String() + CarFileSuffix
-	carPath := fileName
-	if cw.compAlg == Gzip {
-		carPath += GzipFileSuffix
-	}
+	carPath := cw.CarPath(adCid)
 	roots := make([]cid.Cid, 1, 2)
 	roots[0] = adCid
 
@@ -283,6 +284,29 @@ func (cw *CarWriter) WriteHead(ctx context.Context, adCid cid.Cid, publisher pee
 
 	headName := publisher.String() + HeadFileSuffix
 	return cw.fileStore.Put(ctx, headName, strings.NewReader(adCid.String()))
+}
+
+func (cw *CarWriter) Delete(ctx context.Context, adCid cid.Cid) error {
+	err := cw.fileStore.Delete(ctx, cw.CarPath(adCid))
+	if err != nil {
+		return err
+	}
+	ad, _, err := cw.loadAd(ctx, adCid)
+	if err != nil {
+		return fmt.Errorf("cannot load advertisement: %w", err)
+	}
+
+	roots := make([]cid.Cid, 1, 2)
+	roots[0] = adCid
+
+	if ad.Entries != nil && ad.Entries != schema.NoEntries {
+		roots = append(roots, ad.Entries.(cidlink.Link).Cid)
+	}
+
+	if err = cw.removeAdData(roots); err != nil {
+		return fmt.Errorf("cannot remove advertisement data from datastore: %w", err)
+	}
+	return nil
 }
 
 func (cw *CarWriter) deleteCids(delCids []cid.Cid) {

@@ -20,6 +20,7 @@ import (
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/filestore"
 	"github.com/ipni/storetheindex/test"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
@@ -130,9 +131,9 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
 		Compress: "gzip",
 		Write:    true,
-		Storage: config.FileStore{
+		Storage: filestore.Config{
 			Type: "local",
-			Local: config.LocalFileStore{
+			Local: filestore.LocalConfig{
 				BasePath: e.Dir,
 			},
 		},

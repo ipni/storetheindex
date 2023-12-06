@@ -49,7 +49,7 @@ func initAction(cctx *cli.Context) error {
 		return err
 	}
 
-	configFile, err := config.Filename(configRoot)
+	configFile, err := config.Path(configRoot, "")
 	if err != nil {
 		return err
 	}

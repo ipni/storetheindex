@@ -34,12 +34,6 @@ const (
 	Version = 1
 )
 
-// Filename returns the configuration file path given a configuration root
-// directory. If the configuration root directory is empty, use the default.
-func Filename(configRoot string) (string, error) {
-	return Path(configRoot, DefaultConfigFile)
-}
-
 // Marshal configuration with JSON.
 func Marshal(value interface{}) ([]byte, error) {
 	// need to prettyprint, hence MarshalIndent, instead of Encoder.
@@ -50,7 +44,9 @@ func Marshal(value interface{}) ([]byte, error) {
 // empty string is provided for `configRoot`, the default root is used. If
 // configFile is an absolute path, then configRoot is ignored.
 func Path(configRoot, configFile string) (string, error) {
-	if filepath.IsAbs(configFile) {
+	if configFile == "" {
+		configFile = DefaultConfigFile
+	} else if filepath.IsAbs(configFile) {
 		return filepath.Clean(configFile), nil
 	}
 	if configRoot == "" {
@@ -76,7 +72,7 @@ func PathRoot() (string, error) {
 func Load(filePath string) (*Config, error) {
 	var err error
 	if filePath == "" {
-		filePath, err = Filename("")
+		filePath, err = Path("", "")
 		if err != nil {
 			return nil, err
 		}
@@ -131,7 +127,7 @@ func (c *Config) UpgradeConfig(filePath string) error {
 func (c *Config) Save(filePath string) error {
 	var err error
 	if filePath == "" {
-		filePath, err = Filename("")
+		filePath, err = Path("", "")
 		if err != nil {
 			return err
 		}

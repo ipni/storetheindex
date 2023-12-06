@@ -352,7 +352,7 @@ func daemonAction(cctx *cli.Context) error {
 
 	var cfgPath string
 	if cctx.Bool("watch-config") {
-		cfgPath, err = config.Filename("")
+		cfgPath, err = config.Path("", "")
 		if err != nil {
 			log.Errorw("Cannot get config file name", "err", err)
 		}

@@ -21,7 +21,7 @@ type CarReader struct {
 	fileStore filestore.Interface
 }
 
-// AdBlock contains schema.Advertisement dat.
+// AdBlock contains schema.Advertisement data.
 type AdBlock struct {
 	Cid     cid.Cid
 	Data    []byte
@@ -85,6 +85,18 @@ func NewReader(fileStore filestore.Interface, options ...Option) (*CarReader, er
 	}, nil
 }
 
+func carFilePath(adCid cid.Cid, compAlg string) string {
+	carPath := adCid.String() + CarFileSuffix
+	if compAlg == Gzip {
+		carPath += GzipFileSuffix
+	}
+	return carPath
+}
+
+func (cr CarReader) CarPath(adCid cid.Cid) string {
+	return carFilePath(adCid, cr.compAlg)
+}
+
 func (cr CarReader) Compression() string {
 	return cr.compAlg
 }
@@ -93,10 +105,7 @@ func (cr CarReader) Compression() string {
 // and returns the advertisement data and a channel to read blocks of multihash
 // entries. Returns fs.ErrNotExist if file is not found.
 func (cr CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) (*AdBlock, error) {
-	carPath := adCid.String() + CarFileSuffix
-	if cr.compAlg == Gzip {
-		carPath += GzipFileSuffix
-	}
+	carPath := cr.CarPath(adCid)
 	_, r, err := cr.fileStore.Get(ctx, carPath)
 	if err != nil {
 		return nil, err
