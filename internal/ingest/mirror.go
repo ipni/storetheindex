@@ -2,7 +2,6 @@ package ingest
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/ipfs/go-cid"
@@ -44,7 +43,7 @@ func newMirror(cfgMirror config.Mirror, dstore datastore.Batching) (adMirror, er
 		return m, nil
 	}
 
-	fileStore, err := makeFilestore(cfgMirror.Storage)
+	fileStore, err := filestore.MakeFilestore(cfgMirror.Storage)
 	if err != nil {
 		return m, fmt.Errorf("cannot create car file storage for mirror: %w", err)
 	}
@@ -67,23 +66,4 @@ func newMirror(cfgMirror config.Mirror, dstore datastore.Batching) (adMirror, er
 	}
 
 	return m, nil
-}
-
-// Create a new storage system of the configured type.
-func makeFilestore(cfg config.FileStore) (filestore.Interface, error) {
-	switch cfg.Type {
-	case "local":
-		return filestore.NewLocal(cfg.Local.BasePath)
-	case "s3":
-		return filestore.NewS3(cfg.S3.BucketName,
-			filestore.WithEndpoint(cfg.S3.Endpoint),
-			filestore.WithRegion(cfg.S3.Region),
-			filestore.WithKeys(cfg.S3.AccessKey, cfg.S3.SecretKey),
-		)
-	case "":
-		return nil, errors.New("storage type not defined")
-	case "none":
-		return nil, nil
-	}
-	return nil, fmt.Errorf("unsupported file storage type: %s", cfg.Type)
 }

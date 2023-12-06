@@ -108,6 +108,32 @@ func TestLocal(t *testing.T) {
 	})
 }
 
+func TestMakeFilestore(t *testing.T) {
+	cfg := filestore.Config{
+		Type: "none",
+	}
+	fs, err := filestore.MakeFilestore(cfg)
+	require.NoError(t, err)
+	require.Nil(t, fs)
+
+	cfg.Type = "unknown"
+	fs, err = filestore.MakeFilestore(cfg)
+	require.ErrorContains(t, err, "unsupported")
+
+	cfg.Type = ""
+	fs, err = filestore.MakeFilestore(cfg)
+	require.ErrorContains(t, err, "not defined")
+
+	cfg.Type = "local"
+	fs, err = filestore.MakeFilestore(cfg)
+	require.ErrorContains(t, err, "base path")
+
+	cfg.Local.BasePath = t.TempDir()
+	fs, err = filestore.MakeFilestore(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, fs)
+}
+
 func testPut(t *testing.T, fileStore filestore.Interface) {
 	fileInfo, err := fileStore.Put(context.Background(), fileName, strings.NewReader(data))
 	require.NoError(t, err)

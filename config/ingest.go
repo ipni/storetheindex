@@ -81,65 +81,22 @@ type Ingest struct {
 	SyncTimeout Duration
 }
 
-type Mirror struct {
-	// Read specifies to read advertisement content from the mirror.
-	Read bool
-	// Write specified to write advertisement content to the mirrir.
-	Write bool
-	// Compress specifies how to compress files. One of: "gzip", "none".
-	// Defaults to "gzip" if unspecified.
-	Compress string
-	// Storage configures the backing file store for the mirror.
-	Storage FileStore
-}
-
-// FileStore configures a particular file store implementation.
-type FileStore struct {
-	// Type of file store to use: "", "local", "s3"
-	Type string
-	// Configuration for storing files in local filesystem.
-	Local LocalFileStore
-	// Configuration for storing files in S3.
-	S3 S3FileStore
-}
-
-type LocalFileStore struct {
-	// Path to filesystem directory where files are stored.
-	BasePath string
-}
-
-type S3FileStore struct {
-	BucketName string
-
-	// ## Optional Overrides ##
-	//
-	// These values are generally set by the environment and should only be
-	// provided when necessary to override values from the environment, or when the
-	// environment is not configured.
-	Endpoint  string
-	Region    string
-	AccessKey string
-	SecretKey string
-}
-
 // NewIngest returns Ingest with values set to their defaults.
 func NewIngest() Ingest {
 	return Ingest{
 		AdvertisementDepthLimit: 33554432,
-		AdvertisementMirror: Mirror{
-			Compress: "gzip",
-		},
-		EntriesDepthLimit:     65536,
-		GsMaxInRequests:       1024,
-		GsMaxOutRequests:      1024,
-		HttpSyncRetryWaitMax:  Duration(30 * time.Second),
-		HttpSyncRetryWaitMin:  Duration(1 * time.Second),
-		HttpSyncTimeout:       Duration(10 * time.Second),
-		IngestWorkerCount:     10,
-		MaxAsyncConcurrency:   32,
-		PubSubTopic:           "/indexer/ingest/mainnet",
-		SyncSegmentDepthLimit: 2_000,
-		SyncTimeout:           Duration(2 * time.Hour),
+		AdvertisementMirror:     NewMirror(),
+		EntriesDepthLimit:       65536,
+		GsMaxInRequests:         1024,
+		GsMaxOutRequests:        1024,
+		HttpSyncRetryWaitMax:    Duration(30 * time.Second),
+		HttpSyncRetryWaitMin:    Duration(1 * time.Second),
+		HttpSyncTimeout:         Duration(10 * time.Second),
+		IngestWorkerCount:       10,
+		MaxAsyncConcurrency:     32,
+		PubSubTopic:             "/indexer/ingest/mainnet",
+		SyncSegmentDepthLimit:   2_000,
+		SyncTimeout:             Duration(2 * time.Hour),
 	}
 }
 
@@ -147,11 +104,10 @@ func NewIngest() Ingest {
 func (c *Ingest) populateUnset() {
 	def := NewIngest()
 
+	c.AdvertisementMirror.PopulateUnset()
+
 	if c.AdvertisementDepthLimit == 0 {
 		c.AdvertisementDepthLimit = def.AdvertisementDepthLimit
-	}
-	if c.AdvertisementMirror.Compress == "" {
-		c.AdvertisementMirror.Compress = def.AdvertisementMirror.Compress
 	}
 	if c.EntriesDepthLimit == 0 {
 		c.EntriesDepthLimit = def.EntriesDepthLimit

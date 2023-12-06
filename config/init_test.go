@@ -38,7 +38,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 
 func TestSaveLoad(t *testing.T) {
 	tmpDir := t.TempDir()
-	cfgFile, err := Filename(tmpDir)
+	cfgFile, err := Path(tmpDir, "")
 	require.NoError(t, err)
 
 	require.Equal(t, tmpDir, filepath.Dir(cfgFile), "wrong root dir")
