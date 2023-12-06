@@ -24,7 +24,6 @@ type config struct {
 	dstoreTmpDir      string
 	entriesDepthLimit int64
 	httpTimeout       time.Duration
-	maxSyncRetry      uint64
 	p2pHost           host.Host
 	pcache            *pcache.ProviderCache
 	topic             string

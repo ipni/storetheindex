@@ -43,10 +43,6 @@ var ErrProviderNotFound = errors.New("provider not found")
 
 var errIndexerWrite = errors.New("delete from index valuestore failed")
 
-const (
-	providerGCKeyPath = "/gc/"
-)
-
 type GCStats struct {
 	AdsProcessed    int
 	CarsDataSize    int64
