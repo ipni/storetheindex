@@ -585,7 +585,7 @@ func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Adverti
 
 	for entryBlock := range adBlock.Entries {
 		if entryBlock.Err != nil {
-			return mhCount, err
+			return mhCount, entryBlock.Err
 		}
 		chunk, err = entryBlock.EntryChunk()
 		if err != nil {
