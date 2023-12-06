@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ipni/storetheindex/gc/config"
+	"github.com/ipni/storetheindex/ipni-gc/config"
 	"github.com/stretchr/testify/require"
 )
 
