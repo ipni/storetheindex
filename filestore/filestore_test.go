@@ -117,15 +117,15 @@ func TestMakeFilestore(t *testing.T) {
 	require.Nil(t, fs)
 
 	cfg.Type = "unknown"
-	fs, err = filestore.MakeFilestore(cfg)
+	_, err = filestore.MakeFilestore(cfg)
 	require.ErrorContains(t, err, "unsupported")
 
 	cfg.Type = ""
-	fs, err = filestore.MakeFilestore(cfg)
+	_, err = filestore.MakeFilestore(cfg)
 	require.ErrorContains(t, err, "not defined")
 
 	cfg.Type = "local"
-	fs, err = filestore.MakeFilestore(cfg)
+	_, err = filestore.MakeFilestore(cfg)
 	require.ErrorContains(t, err, "base path")
 
 	cfg.Local.BasePath = t.TempDir()
