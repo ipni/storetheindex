@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-libipni/apierror"
 	"github.com/ipni/storetheindex/admin/model"
 	"github.com/ipni/storetheindex/rate"
@@ -308,6 +309,33 @@ func (c *Client) Handoff(ctx context.Context, publisherID, frozenID peer.ID, fro
 	}
 
 	return c.ingestRequest(ctx, publisherID, "handoff", http.MethodPost, data)
+}
+
+func (c *Client) MarkAdProcessed(ctx context.Context, providerID peer.ID, adCid cid.Cid) error {
+	u := c.baseURL.JoinPath("markadprocessed", providerID.String())
+
+	values := url.Values{}
+	values.Set("cid", adCid.String())
+	u.RawQuery = values.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, u.String(), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return apierror.FromResponse(resp.StatusCode, body)
+	}
+	return nil
 }
 
 // Unassign unassigns a publish from an indexer, when the indexer is configured

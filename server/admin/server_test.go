@@ -214,6 +214,25 @@ func TestStatus(t *testing.T) {
 	require.True(t, status.Frozen)
 }
 
+func TestMarkAdProcessed(t *testing.T) {
+	te := makeTestenv(t)
+
+	provAddr, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	peerInfo := peer.AddrInfo{
+		ID:    peerID,
+		Addrs: []multiaddr.Multiaddr{provAddr},
+	}
+
+	err := te.registry.Update(context.Background(), peerInfo, peerInfo, cid.Undef, nil, 0)
+	require.NoError(t, err)
+
+	adCid, err := cid.Decode("bafybeigvgzoolc3drupxhlevdp2ugqcrbcsqfmcek2zxiw5wctk3xjpjwy")
+	require.NoError(t, err)
+
+	err = te.client.MarkAdProcessed(context.Background(), peerID, adCid)
+	require.NoError(t, err)
+}
+
 func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)

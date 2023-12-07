@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/ipfs/go-cid"
 	"github.com/ipni/storetheindex/admin/client"
 	"github.com/ipni/storetheindex/rate"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -23,6 +24,7 @@ var AdminCmd = &cli.Command{
 		importProvidersCmd,
 		listAssignedCmd,
 		listPreferredCmd,
+		markAdProcessedCmd,
 		reloadCmd,
 		statusCmd,
 		syncCmd,
@@ -88,6 +90,28 @@ var adminPolicyFlags = []cli.Flag{
 		Name:     "peer",
 		Usage:    "Peer ID of publisher or provider to allow or block",
 		Aliases:  []string{"p"},
+		Required: true,
+	},
+	indexerHostFlag,
+}
+
+var markAdProcessedCmd = &cli.Command{
+	Name:   "mark-processed",
+	Usage:  "Mark an advertisement as processed",
+	Flags:  markAdProcessedFlags,
+	Action: markAdProcessedAction,
+}
+
+var markAdProcessedFlags = []cli.Flag{
+	&cli.StringFlag{
+		Name:     "provider",
+		Usage:    "Provider ID for whom to mark add processed",
+		Aliases:  []string{"pid"},
+		Required: true,
+	},
+	&cli.StringFlag{
+		Name:     "cid",
+		Usage:    "CID of advertisement to mark processed",
 		Required: true,
 	},
 	indexerHostFlag,
@@ -307,6 +331,27 @@ func blockAction(cctx *cli.Context) error {
 		return err
 	}
 	fmt.Println("Blocking advertisements and content from peer", peerID)
+	return nil
+}
+
+func markAdProcessedAction(cctx *cli.Context) error {
+	cl, err := client.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	peerID, err := peer.Decode(cctx.String("provider"))
+	if err != nil {
+		return err
+	}
+	adCid, err := cid.Decode(cctx.String("cid"))
+	if err != nil {
+		return fmt.Errorf("error decoding cid: %s", err)
+	}
+	err = cl.MarkAdProcessed(cctx.Context, peerID, adCid)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Marked advertisement as processed")
 	return nil
 }
 

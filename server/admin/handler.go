@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/storetheindex/admin/model"
 	"github.com/ipni/storetheindex/internal/httpserver"
@@ -241,6 +242,37 @@ func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
 	if h.reg.BlockPeer(peerID) {
 		log.Infow("Update config to persist blocking peer", "provider", peerID)
 	}
+}
+
+func (h *adminHandler) markAdProcessed(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodPut) {
+		return
+	}
+	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
+	if !ok {
+		return
+	}
+	pinfo, found := h.reg.ProviderInfo(peerID)
+	if !found {
+		http.Error(w, "", http.StatusNotFound)
+		return
+	}
+	cidStr := r.URL.Query().Get("cid")
+	stopCid, err := cid.Decode(cidStr)
+	if err != nil {
+		log.Errorw("error decoding cid", "cid", cidStr, "err", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = h.ingester.MarkAdProcessed(pinfo.Publisher, stopCid)
+	if err != nil {
+		log.Errorw("Failed to explicitly mark adas processed", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	log.Infow("Explicitly marked advertisement as processed", "adCid", stopCid, "provider", peerID)
 }
 
 func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {

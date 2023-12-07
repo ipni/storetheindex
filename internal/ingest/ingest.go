@@ -570,6 +570,12 @@ func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool) {
 	return processed, resync
 }
 
+// MarkAdProcessed explicitly marks an advertisement as processed. This is used
+// to avoid ingesting this and previous advertisements.
+func (ing *Ingester) MarkAdProcessed(publisher peer.ID, adCid cid.Cid) error {
+	return ing.markAdProcessed(publisher, adCid, false, false)
+}
+
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, keep bool) error {
 	cidStr := adCid.String()
 	ctx := context.Background()

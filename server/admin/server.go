@@ -63,6 +63,7 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	mux.HandleFunc("/healthcheck", h.healthCheckHandler)
 	mux.HandleFunc("/importproviders", h.importProviders)
 	mux.HandleFunc("/reloadconfig", h.reloadConfig)
+	mux.HandleFunc("/markadprocessed/", h.markAdProcessed)
 
 	// Ingester routes
 	mux.HandleFunc("/ingest/allow/", h.allowPeer)
