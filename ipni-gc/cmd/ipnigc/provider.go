@@ -18,8 +18,6 @@ import (
 
 var log = logging.Logger("ipni-gc")
 
-const progName = "assigner"
-
 var providerCmd = &cli.Command{
 	Name:   "provider",
 	Usage:  "Run ipni garbage collection for specified providers",

@@ -44,8 +44,6 @@ var log = logging.Logger("ipni-gc")
 
 var ErrProviderNotFound = errors.New("provider not found")
 
-const gcDataArchivePrefix = "ipnigc-"
-
 var errIndexerWrite = errors.New("delete from index valuestore failed")
 
 type GCStats struct {
@@ -686,7 +684,7 @@ func (s *scythe) removeEntriesWithPublisher(ctx context.Context, adCid cid.Cid) 
 
 	for entsCid != cid.Undef {
 		if err = s.sub.SyncEntries(ctx, s.publisher, entsCid); err != nil {
-			return mhCount, fmt.Errorf("Cannot sync entries from publisher: %w", err)
+			return mhCount, fmt.Errorf("cannot sync entries from publisher: %w", err)
 		}
 		chunk, err := s.loadEntryChunk(entsCid)
 		if err != nil {
