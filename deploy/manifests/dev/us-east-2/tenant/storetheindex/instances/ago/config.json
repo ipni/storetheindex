@@ -65,7 +65,7 @@
       "http://dhstore-ago2.internal.dev.cid.contact",
       "http://dhstore.internal.dev.cid.contact"
     ],
-    "DHStoreHttpClientTimeout": "30s"
+    "DHStoreHttpClientTimeout": "55s"
   },
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
