@@ -28,6 +28,12 @@ var providerCmd = &cli.Command{
 }
 
 var providerFlags = []cli.Flag{
+	&cli.IntFlag{
+		Name:    "batch-size",
+		Usage:   "Set batch size for dhstore requests",
+		Aliases: []string{"b"},
+		Value:   2048,
+	},
 	&cli.BoolFlag{
 		Name:    "commit",
 		Usage:   "Commit changes to storage if set. Otherwise, only report what GC would have deleted.",
@@ -74,7 +80,7 @@ func providerAction(cctx *cli.Context) error {
 
 	// Create a dhstore valuestore.
 	dhs, err := dhstore.New(cfg.Indexer.DHStoreURL,
-		dhstore.WithDHBatchSize(cfg.Indexer.DHBatchSize),
+		dhstore.WithDHBatchSize(cctx.Int("batch-size")),
 		dhstore.WithDHStoreCluster(cfg.Indexer.DHStoreClusterURLs),
 		dhstore.WithHttpClientTimeout(time.Duration(cfg.Indexer.DHStoreHttpClientTimeout)))
 	if err != nil {
