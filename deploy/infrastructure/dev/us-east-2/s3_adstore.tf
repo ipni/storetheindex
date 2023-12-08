@@ -16,8 +16,7 @@ data "aws_iam_policy_document" "sti_s3_rw" {
     actions = [
       "s3:PutObject",
       "s3:GetObject",
-      # TODO: Enable if needed.
-      #      "s3:DeleteObject",
+      "s3:DeleteObject",
       "s3:ListBucket",
     ]
 
