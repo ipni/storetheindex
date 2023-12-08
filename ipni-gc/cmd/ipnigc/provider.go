@@ -152,29 +152,34 @@ func providerAction(cctx *cli.Context) error {
 	if cctx.Bool("commit") {
 		fmt.Println("Starting IPNI GC, committing changes")
 	} else {
-		fmt.Println("Starting IPNI GC, dry-run")
+		fmt.Println("Starting IPNI GC, dry-run - GC progress and changes will not be saved")
 	}
 
+	var gcCount int
 	for _, pid := range peerIDs {
 		err = grim.Reap(cctx.Context, pid)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "ipni-gc failed for provider %s: %s\n", pid, err)
 			continue
 		}
+		gcCount++
+	}
 
+	if gcCount > 1 {
 		stats := grim.Stats()
-		grim.ClearStats()
-		fmt.Println("GC stats for provider", pid)
-		fmt.Println("  AdsProcessed:", stats.AdsProcessed)
-		fmt.Println("  CarsDataSize:", stats.CarsDataSize)
-		fmt.Println("  CarsRemoved:", stats.CarsRemoved)
-		fmt.Println("  CtxIDsKept:", stats.CtxIDsKept)
-		fmt.Println("  CtxIDsRemoved:", stats.CtxIDsRemoved)
-		fmt.Println("  IndexAdsKept:", stats.IndexAdsKept)
-		fmt.Println("  IndexAdsRemoved:", stats.IndexAdsRemoved)
-		fmt.Println("  IndexesRemoved:", stats.IndexesRemoved)
-		fmt.Println("  RemovalAds:", stats.RemovalAds)
-		fmt.Println("  ReusedCtxIDs:", stats.ReusedCtxIDs)
+		log.Infow("Total gc stats for all providers",
+			"AdsProcessed:", stats.AdsProcessed,
+			"CarsDataSize:", stats.CarsDataSize,
+			"CarsRemoved:", stats.CarsRemoved,
+			"CtxIDsKept:", stats.CtxIDsKept,
+			"CtxIDsRemoved:", stats.CtxIDsRemoved,
+			"IndexAdsKept:", stats.IndexAdsKept,
+			"IndexAdsRemoved:", stats.IndexAdsRemoved,
+			"IndexesRemoved:", stats.IndexesRemoved,
+			"RemovalAds:", stats.RemovalAds,
+			"ReusedCtxIDs:", stats.ReusedCtxIDs,
+			"TimeElapsed:", stats.TimeElapsed,
+		)
 	}
 
 	return nil

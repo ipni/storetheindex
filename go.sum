@@ -260,6 +260,8 @@ github.com/gammazero/deque v0.2.1 h1:qSdsbG6pgp6nL7A0+K/B7s12mcCY/5l5SIUpMOl+dC0
 github.com/gammazero/deque v0.2.1/go.mod h1:LFroj8x4cMYCukHJDbxFCkT+r9AndaJnFMuZDV34tuU=
 github.com/gammazero/radixtree v0.3.1 h1:kYVZUH/XgIktiGjUBERExxP6Ock7epWuCAlrB2FKsmk=
 github.com/gammazero/radixtree v0.3.1/go.mod h1:wcCpc8wCLVlPg2FVRYQLtBCnj9MNHQI1qB1hVrHvEDs=
+github.com/gammazero/targz v0.0.3 h1:vlODyfU9QdRgD1AgdEgLQ7lhg+rc4eDQVoSoMoC1ruc=
+github.com/gammazero/targz v0.0.3/go.mod h1:tSwRar0Db0zQLPoQPpSfzk86s1ijPdySS4n+jHsbEXo=
 github.com/gavv/httpexpect v2.0.0+incompatible/go.mod h1:x+9tiU1YnrOvnB725RkpoLv1M62hOWzwo5OXotisrKc=
 github.com/ghemawat/stream v0.0.0-20171120220530-696b145b53b9/go.mod h1:106OIgooyS7OzLDOpUGgm9fA3bQENb/cFSyyBmMoJDs=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=

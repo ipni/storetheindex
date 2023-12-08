@@ -10,7 +10,7 @@ build:
 docker: Dockerfile clean
 	docker build . --force-rm -f Dockerfile -t storetheindex:$(shell git rev-parse --short HEAD)
 
-ipnigc:
+gc:
 	go build ./ipni-gc/cmd/ipnigc
 
 install:
