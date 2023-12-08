@@ -38,7 +38,7 @@ type mockSource struct {
 }
 
 func TestReaper(t *testing.T) {
-	tmpDir := "/tmp/rtest" //t.TempDir()
+	tmpDir := t.TempDir()
 	dsDir := filepath.Join(tmpDir, "gcdatastore")
 	dsTmpDir := filepath.Join(tmpDir, "gctmpdata")
 
