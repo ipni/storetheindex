@@ -36,7 +36,6 @@ var providerFlags = []cli.Flag{
 		Usage:       "Indexer URL. Specifies one or more URL to get provider info from",
 		Aliases:     []string{"i"},
 		DefaultText: "http://localhost:3000",
-		Required:    true,
 	},
 	&cli.StringSliceFlag{
 		Name:  "pid",

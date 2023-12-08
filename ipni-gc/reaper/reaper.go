@@ -772,6 +772,7 @@ func unarchiveDatastore(ctx context.Context, publisherID peer.ID, fileStore file
 	fileInfo, rc, err := fileStore.Get(ctx, tarName)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
+			log.Debug("Datastore archive not found, will create new datastore")
 			return nil
 		}
 		return fmt.Errorf("cannot retrieve datastore archive from filestore: %w", err)
