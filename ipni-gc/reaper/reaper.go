@@ -652,12 +652,9 @@ func (s *scythe) removeEntriesWithCar(ctx context.Context, adCid cid.Cid) (int, 
 		}
 		if commit {
 			if err = indexer.Remove(value, chunk.Entries...); err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					log.Errorw("Timed out removing indexes from valuestore, retrying", "indexes", len(chunk.Entries))
-					time.Sleep(100 * time.Millisecond)
-					err = indexer.Remove(value, chunk.Entries...)
-				}
-				if err != nil {
+				log.Errorw("Failed to remove indexes from valuestore, retrying", "err", err, "indexes", len(chunk.Entries))
+				time.Sleep(100 * time.Millisecond)
+				if err = indexer.Remove(value, chunk.Entries...); err != nil {
 					return mhCount, fmt.Errorf("%w: %w", errIndexerWrite, err)
 				}
 			}
@@ -703,12 +700,9 @@ func (s *scythe) removeEntriesWithPublisher(ctx context.Context, adCid cid.Cid) 
 		}
 		if commit {
 			if err = indexer.Remove(value, chunk.Entries...); err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					log.Errorw("Timed out removing indexes from valuestore, retrying", "indexes", len(chunk.Entries))
-					time.Sleep(100 * time.Millisecond)
-					err = indexer.Remove(value, chunk.Entries...)
-				}
-				if err != nil {
+				log.Errorw("Failed to remove indexes from valuestore, retrying", "err", err, "indexes", len(chunk.Entries))
+				time.Sleep(100 * time.Millisecond)
+				if err = indexer.Remove(value, chunk.Entries...); err != nil {
 					return mhCount, fmt.Errorf("%w: %w", errIndexerWrite, err)
 				}
 			}
