@@ -88,10 +88,6 @@ func daemonAction(cctx *cli.Context) error {
 		return err
 	}
 
-	if cfg.Version != config.Version {
-		log.Warn("Configuration file out-of-date. Upgrade by running: ./storetheindex init --upgrade")
-	}
-
 	var freezeDirs []string
 
 	// Create a valuestore of the configured type.
@@ -593,7 +589,7 @@ func loadConfig(filePath string) (*config.Config, error) {
 		return nil, fmt.Errorf("cannot load config file: %w", err)
 	}
 	if cfg.Version != config.Version {
-		log.Warn("Configuration file out-of-date. Upgrade by running: ./storetheindex init --upgrade")
+		log.Warn("Configuration file out-of-date. Upgrade by running: storetheindex init --upgrade")
 	}
 
 	if cfg.Datastore.Type != "levelds" {

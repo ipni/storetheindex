@@ -38,8 +38,8 @@ func main() {
 		Description: "Remove deleted indexes from value store",
 		Version:     revision.Revision,
 		Commands: []*cli.Command{
+			daemonCmd,
 			providerCmd,
-			initCmd,
 		},
 	}
 
