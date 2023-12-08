@@ -583,7 +583,7 @@ func (s *scythe) deleteEntries(ctx context.Context, adCid cid.Cid) error {
 			if errors.Is(err, errIndexerWrite) {
 				return err
 			}
-			log.Warnw("Cannot get advertisement from car store, will try publisher", "err", err)
+			log.Warnw("Cannot get advertisement from car store, will try publisher", "err", err, "adCid", adCid)
 		}
 		source = "CAR"
 	}
@@ -594,8 +594,8 @@ func (s *scythe) deleteEntries(ctx context.Context, adCid cid.Cid) error {
 			if errors.Is(err, errIndexerWrite) {
 				return err
 			}
-			log.Warnw("Cannot get advertisement from publisher, not deleting entries", "err", err)
-			return errors.New("cannot get index data from advertisement to delete")
+			log.Warnw("Cannot get advertisement from publisher, not deleting entries", "err", err, "adCid", adCid)
+			return nil
 		}
 		source = "synced from publisher"
 	}
