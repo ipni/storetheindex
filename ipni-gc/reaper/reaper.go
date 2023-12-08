@@ -381,7 +381,7 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 		} else {
 			_, ok := removedCtxSet[contextID]
 			if ok {
-				log.Debugw("GC removed index content ad", "adCid", adCid)
+				log.Debugw("GC removing index content ad", "adCid", adCid)
 				s.stats.IndexAdsRemoved++
 				// Ad's context ID is removed, so delete all multihashes for ad.
 				if err = s.deleteEntries(ctx, adCid); err != nil {
@@ -438,7 +438,11 @@ func (s *scythe) reapPrevRemaining(ctx context.Context, contextID string) error 
 
 	commit := s.reaper.commit
 
-	log.Debugw("Deleting indexes from previously processed ads that have removed contextID", "count", len(ents))
+	if len(ents) == 0 {
+		return nil
+	}
+
+	log.Debugw("Deleting indexes from previously processed ads that have removed contextID", "ads", len(ents))
 	for i := range ents {
 		key := ents[i].Key
 		adCid, err := cid.Decode(path.Base(key))

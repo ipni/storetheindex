@@ -18,6 +18,8 @@ import (
 
 var log = logging.Logger("ipni-gc")
 
+const defaultIndexerURL = "http://localhost:3000"
+
 var providerCmd = &cli.Command{
 	Name:   "provider",
 	Usage:  "Run ipni garbage collection for specified providers",
@@ -94,7 +96,7 @@ func providerAction(cctx *cli.Context) error {
 
 	indexerURLs := cctx.StringSlice("indexer")
 	if len(indexerURLs) == 0 {
-		indexerURLs = []string{"htto://localhost:3000"}
+		indexerURLs = []string{defaultIndexerURL}
 	}
 
 	dsDir, err := config.Path("", cfg.Datastore.Dir+"-gc")
