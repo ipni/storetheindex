@@ -39,6 +39,11 @@ var providerFlags = []cli.Flag{
 		Usage:   "Commit changes to storage if set. Otherwise, only report what GC would have deleted.",
 		Aliases: []string{"w"},
 	},
+	&cli.BoolFlag{
+		Name:    "delete-not-found",
+		Usage:   "Delete all provider indexes if provider is not found",
+		Aliases: []string{"dnf"},
+	},
 	&cli.StringSliceFlag{
 		Name:        "indexer",
 		Usage:       "Indexer URL. Specifies one or more URL to get provider info from",
@@ -142,6 +147,7 @@ func providerAction(cctx *cli.Context) error {
 		reaper.WithCommit(cctx.Bool("commit")),
 		reaper.WithDatastoreDir(dsDir),
 		reaper.WithDatastoreTempDir(dsTmpDir),
+		reaper.WithDeleteNotFound(cctx.Bool("delete-not-found")),
 		reaper.WithPCache(pc),
 		reaper.WithTopicName(cfg.Ingest.PubSubTopic),
 		reaper.WithHttpTimeout(time.Duration(cfg.Ingest.HttpSyncTimeout)),
@@ -161,7 +167,12 @@ func providerAction(cctx *cli.Context) error {
 	for _, pid := range peerIDs {
 		err = grim.Reap(cctx.Context, pid)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "ipni-gc failed for provider %s: %s\n", pid, err)
+			if errors.Is(err, reaper.ErrProviderNotFound) && cctx.Bool("delete-not-found") {
+				fmt.Fprintln(os.Stderr, "Provider", pid, "not found.")
+				fmt.Fprintln(os.Stderr, "To delete providers that is not found use the -dnf flag.")
+			} else {
+				fmt.Fprintf(os.Stderr, "ipni-gc failed for provider %s: %s\n", pid, err)
+			}
 			continue
 		}
 		gcCount++

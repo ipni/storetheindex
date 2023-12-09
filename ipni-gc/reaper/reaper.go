@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,10 +61,27 @@ type GCStats struct {
 	TimeElapsed     time.Duration
 }
 
+func (s *GCStats) Log(providerID peer.ID) {
+	log.Infow("GC stats for provider", "provider", providerID,
+		"AdsProcessed:", s.AdsProcessed,
+		"CarsDataSize:", s.CarsDataSize,
+		"CarsRemoved:", s.CarsRemoved,
+		"CtxIDsKept:", s.CtxIDsKept,
+		"CtxIDsRemoved:", s.CtxIDsRemoved,
+		"IndexAdsKept:", s.IndexAdsKept,
+		"IndexAdsRemoved:", s.IndexAdsRemoved,
+		"IndexesRemoved:", s.IndexesRemoved,
+		"RemovalAds:", s.RemovalAds,
+		"ReusedCtxIDs:", s.ReusedCtxIDs,
+		"TimeElapsed:", s.TimeElapsed,
+	)
+}
+
 type Reaper struct {
 	carDelete   bool
 	carReader   *carstore.CarReader
 	commit      bool
+	delNotFound bool
 	dsDir       string
 	dsTmpDir    string
 	fileStore   filestore.Interface
@@ -143,6 +161,7 @@ func New(idxr indexer.Interface, fileStore filestore.Interface, options ...Optio
 		carDelete:   opts.carDelete,
 		carReader:   carReader,
 		commit:      opts.commit,
+		delNotFound: opts.deleteNotFound,
 		dsDir:       opts.dstoreDir,
 		dsTmpDir:    opts.dstoreTmpDir,
 		fileStore:   fileStore,
@@ -192,12 +211,220 @@ func (r *Reaper) Stats() GCStats {
 	return r.stats
 }
 
+func (r *Reaper) removePublisher(ctx context.Context, providerID, publisherID peer.ID) error {
+	startTime := time.Now()
+
+	if r.carReader != nil {
+		return errors.New("car reader not available")
+	}
+
+	adCid, err := r.readHeadFile(ctx, publisherID)
+	if err != nil {
+		return fmt.Errorf("cannot read head advertisement: %w", err)
+	}
+
+	adProviderID, err := r.providerFromCar(ctx, adCid)
+	if err != nil {
+		return fmt.Errorf("cannot read provider from car: %w", err)
+	}
+
+	if providerID == "" {
+		providerID = adProviderID
+	} else if providerID != adProviderID {
+		return errors.New("requested provider does not match provider in advertisement")
+	}
+
+	name := dstoreArchiveName(publisherID)
+	err = r.fileStore.Delete(ctx, name)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		log.Errorw("Cannot delete datastore archive for provider", "err", err, "name", name)
+	}
+	name = filepath.Join(r.dsDir, dstoreDirName(publisherID))
+	err = os.RemoveAll(name)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		log.Errorw("Cannot remove datastore directory for provider", "err", err, "dir", name)
+	}
+	if r.dsTmpDir != "" {
+		name = filepath.Join(r.dsTmpDir, "gc-tmp-"+publisherID.String())
+		err = os.RemoveAll(name)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			log.Errorw("Cannot remove datastore directory for provider", "err", err, "dir", name)
+		}
+	}
+	err = nil
+
+	var stats GCStats
+	var newHead cid.Cid
+	var cleanErr error
+
+	for adCid != cid.Undef {
+		prevAdCid, mhCount, err := r.cleanCarIndexes(ctx, adCid, providerID)
+		stats.IndexesRemoved += mhCount
+		if err != nil {
+			cleanErr = fmt.Errorf("stopping gc due to error removing entries in CAR: %w", err)
+			break
+		}
+		size, err := r.deleteCarFile(ctx, adCid)
+		if err != nil {
+			cleanErr = fmt.Errorf("Cannot delete CAR file: %w", err)
+			break
+		}
+		if size != 0 {
+			stats.CarsRemoved++
+			stats.CarsDataSize += size
+		}
+		newHead = adCid
+		adCid = prevAdCid
+	}
+
+	headName := publisherID.String() + carstore.HeadFileSuffix
+	if adCid == cid.Undef {
+		err = r.fileStore.Delete(ctx, headName)
+		if err != nil {
+			err = fmt.Errorf("failed to delete head file: %w", err)
+		}
+	} else if newHead != cid.Undef {
+		_, err = r.fileStore.Put(ctx, headName, strings.NewReader(newHead.String()))
+		if err != nil {
+			err = fmt.Errorf("failed to update head file: %w", err)
+		}
+	}
+	if err != nil {
+		if cleanErr != nil {
+			log.Error(err.Error())
+		} else {
+			cleanErr = err
+		}
+	}
+
+	stats.TimeElapsed = time.Since(startTime)
+	stats.Log(providerID)
+	r.AddStats(stats)
+
+	return cleanErr
+}
+
+func (r *Reaper) providerFromCar(ctx context.Context, adCid cid.Cid) (peer.ID, error) {
+	adBlock, err := r.carReader.Read(ctx, adCid, true)
+	if err != nil {
+		return "", err
+	}
+	ad, err := adBlock.Advertisement()
+	if err != nil {
+		return "", err
+	}
+	return peer.Decode(ad.Provider)
+}
+
+func (r *Reaper) cleanCarIndexes(ctx context.Context, adCid cid.Cid, providerID peer.ID) (cid.Cid, int, error) {
+	// Create a context to cancel the carReader reading entries.
+	readCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	adBlock, err := r.carReader.Read(readCtx, adCid, false)
+	if err != nil {
+		return cid.Undef, 0, fmt.Errorf("cannot read car file: %w", err)
+	}
+
+	ad, err := adBlock.Advertisement()
+	if err != nil {
+		log.Errorw("Failed to decode advertisement from car file", "err", err)
+		return cid.Undef, 0, nil
+	}
+
+	var prevAdCid cid.Cid
+	if ad.PreviousID != nil {
+		prevAdCid = ad.PreviousID.(cidlink.Link).Cid
+	}
+
+	if adBlock.Entries == nil {
+		return prevAdCid, 0, nil
+	}
+
+	value := indexer.Value{
+		ProviderID:    providerID,
+		ContextID:     ad.ContextID,
+		MetadataBytes: ad.Metadata,
+	}
+
+	commit := r.commit
+	indexer := r.indexer
+
+	var mhCount int
+	for entryBlock := range adBlock.Entries {
+		if entryBlock.Err != nil {
+			log.Errorw("Error reading entries block", "err", err)
+			continue
+		}
+		chunk, err := entryBlock.EntryChunk()
+		if err != nil {
+			log.Errorw("Failed to decode entry chunk from car file data", "err", err)
+			continue
+		}
+		if len(chunk.Entries) == 0 {
+			continue
+		}
+		if commit {
+			if err = indexer.Remove(value, chunk.Entries...); err != nil {
+				log.Errorw("Failed to remove indexes from valuestore, retrying", "err", err, "indexes", len(chunk.Entries))
+				time.Sleep(100 * time.Millisecond)
+				if err = indexer.Remove(value, chunk.Entries...); err != nil {
+					return cid.Undef, mhCount, fmt.Errorf("%w: %w", errIndexerWrite, err)
+				}
+			}
+		}
+		mhCount += len(chunk.Entries)
+	}
+
+	return prevAdCid, mhCount, nil
+}
+
+func (r *Reaper) deleteCarFile(ctx context.Context, adCid cid.Cid) (int64, error) {
+	if r.carReader == nil || !r.carDelete {
+		return 0, nil
+	}
+	carPath := r.carReader.CarPath(adCid)
+	file, err := r.fileStore.Head(ctx, carPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	log.Infow("Deleting CAR file", "name", carPath, "size", file.Size)
+	if r.commit {
+		if err = r.fileStore.Delete(ctx, carPath); err != nil {
+			return 0, fmt.Errorf("failed to remove CAR file: %w", err)
+		}
+	}
+	return file.Size, nil
+}
+
+func (r *Reaper) readHeadFile(ctx context.Context, publisherID peer.ID) (cid.Cid, error) {
+	headName := publisherID.String() + carstore.HeadFileSuffix
+	_, rc, err := r.fileStore.Get(ctx, headName)
+	if err != nil {
+		return cid.Undef, err
+	}
+
+	cidData, err := io.ReadAll(rc)
+	rc.Close()
+	if err != nil {
+		return cid.Undef, err
+	}
+
+	return cid.Decode(string(cidData))
+}
+
 func (r *Reaper) Reap(ctx context.Context, providerID peer.ID) error {
 	pinfo, err := r.pcache.Get(ctx, providerID)
 	if err != nil {
 		return err
 	}
 	if pinfo == nil {
+		if r.delNotFound {
+			return r.removePublisher(ctx, providerID, providerID)
+		}
 		return ErrProviderNotFound
 	}
 
@@ -206,11 +433,15 @@ func (r *Reaper) Reap(ctx context.Context, providerID peer.ID) error {
 	}
 	publisher := *pinfo.Publisher
 
-	// If the gc state datastore does not already exist, try to get archive
-	// from filestore.
+	// Check that parent directory for the gc datastore directory is writable.
+	if err = fsutil.DirWritable(r.dsDir); err != nil {
+		return err
+	}
+	// If the gc datastore ddir oes not already exist, try to get archive from
+	// filestore.
 	dstoreDir := filepath.Join(r.dsDir, dstoreDirName(publisher.ID))
 	_, err = os.Stat(dstoreDir)
-	if errors.Is(err, fs.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) && r.fileStore != nil {
 		if err = unarchiveDatastore(ctx, publisher.ID, r.fileStore, r.dsDir); err != nil {
 			return fmt.Errorf("failed to retireve datastore from archive: %w", err)
 		}
@@ -219,7 +450,7 @@ func (r *Reaper) Reap(ctx context.Context, providerID peer.ID) error {
 	// not exist create a new gc datastore directory.
 	dstore, err := createDatastore(dstoreDir)
 	if err != nil {
-		return fmt.Errorf("failed to create datastore: %w", err)
+		return fmt.Errorf("failed to create ipni-gc datastore: %w", err)
 	}
 	defer func() {
 		if dstore != nil {
@@ -279,20 +510,6 @@ func (r *Reaper) Reap(ctx context.Context, providerID peer.ID) error {
 
 	s.stats.TimeElapsed = time.Since(startTime)
 
-	log.Infow("GC stats for provider", "provider", providerID,
-		"AdsProcessed:", s.stats.AdsProcessed,
-		"CarsDataSize:", s.stats.CarsDataSize,
-		"CarsRemoved:", s.stats.CarsRemoved,
-		"CtxIDsKept:", s.stats.CtxIDsKept,
-		"CtxIDsRemoved:", s.stats.CtxIDsRemoved,
-		"IndexAdsKept:", s.stats.IndexAdsKept,
-		"IndexAdsRemoved:", s.stats.IndexAdsRemoved,
-		"IndexesRemoved:", s.stats.IndexesRemoved,
-		"RemovalAds:", s.stats.RemovalAds,
-		"ReusedCtxIDs:", s.stats.ReusedCtxIDs,
-		"TimeElapsed:", s.stats.TimeElapsed,
-	)
-
 	r.AddStats(s.stats)
 
 	dstore.Close()
@@ -314,6 +531,71 @@ func (r *Reaper) DataArchiveName(ctx context.Context, providerID peer.ID) (strin
 		return "", errors.New("provider has not publisher")
 	}
 	return dstoreArchiveName(pinfo.Publisher.ID), nil
+}
+
+func (r *Reaper) removeEntriesFromCar(ctx context.Context, adCid cid.Cid) (int, error) {
+	// Create a context to cancel the carReader reading entries.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	adBlock, err := r.carReader.Read(ctx, adCid, false)
+	if err != nil {
+		return 0, err
+	}
+
+	if adBlock.Entries == nil {
+		// This advertisement has no entries because they were removed later in
+		// the chain and were not saved, or the publisher was not serving
+		// content for the advertisement's entries CID when this CAR file was
+		// created.
+		return 0, nil
+	}
+
+	ad, err := adBlock.Advertisement()
+	if err != nil {
+		return 0, fmt.Errorf("failed to decode advertisement from car file: %w", err)
+	}
+
+	providerID, err := peer.Decode(ad.Provider)
+	if err != nil {
+		return 0, fmt.Errorf("cannot get provider from advertisement: %w", err)
+	}
+
+	value := indexer.Value{
+		ProviderID:    providerID,
+		ContextID:     ad.ContextID,
+		MetadataBytes: ad.Metadata,
+	}
+
+	commit := r.commit
+	indexer := r.indexer
+
+	var mhCount int
+	for entryBlock := range adBlock.Entries {
+		if entryBlock.Err != nil {
+			return mhCount, entryBlock.Err
+		}
+		chunk, err := entryBlock.EntryChunk()
+		if err != nil {
+			log.Errorw("Failed to decode entry chunk from car file data", "err", err)
+			continue
+		}
+		if len(chunk.Entries) == 0 {
+			continue
+		}
+		if commit {
+			if err = indexer.Remove(value, chunk.Entries...); err != nil {
+				log.Errorw("Failed to remove indexes from valuestore, retrying", "err", err, "indexes", len(chunk.Entries))
+				time.Sleep(100 * time.Millisecond)
+				if err = indexer.Remove(value, chunk.Entries...); err != nil {
+					return mhCount, fmt.Errorf("%w: %w", errIndexerWrite, err)
+				}
+			}
+		}
+		mhCount += len(chunk.Entries)
+	}
+
+	return mhCount, nil
 }
 
 func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
@@ -349,11 +631,11 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 	for adCid := latestAdCid; adCid != gcState.LastProcessedAdCid; {
 		ad, err := s.loadAd(adCid)
 		if err != nil {
-			return fmt.Errorf("gc failed to load advertisement %s: %w", adCid.String(), err)
+			return fmt.Errorf("Failed to load advertisement %s: %w", adCid.String(), err)
 		}
 		contextID := base64.StdEncoding.EncodeToString(ad.ContextID)
 		if ad.IsRm {
-			log.Debugw("GC processing removal ad", "adCid", adCid)
+			log.Debugw("Processing removal ad", "adCid", adCid)
 			s.stats.RemovalAds++
 			reused, ok := remaining[contextID]
 			if ok {
@@ -368,31 +650,31 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 					}
 				}
 			}
-			// Do not keep removal car files.
-			if err = s.removeCarFile(ctx, adCid); err != nil {
+			// Do not keep car files for removal ads.
+			if err = s.deleteCarFile(ctx, adCid); err != nil {
 				return err
 			}
 		} else if ad.Entries == nil || ad.Entries == schema.NoEntries {
-			log.Debugw("GC processing no-content ad", "adCid", adCid)
-			// Remove CAR file of empty ad.
-			if err = s.removeCarFile(ctx, adCid); err != nil {
+			log.Debugw("Processing no-content ad", "adCid", adCid)
+			// Delete CAR file of empty ad.
+			if err = s.deleteCarFile(ctx, adCid); err != nil {
 				return err
 			}
 		} else {
 			_, ok := removedCtxSet[contextID]
 			if ok {
-				log.Debugw("GC removing index content ad", "adCid", adCid)
+				log.Debugw("Removing index content", "adCid", adCid)
 				s.stats.IndexAdsRemoved++
 				// Ad's context ID is removed, so delete all multihashes for ad.
-				if err = s.deleteEntries(ctx, adCid); err != nil {
+				if err = s.removeEntries(ctx, adCid); err != nil {
 					return fmt.Errorf("could not delete advertisement content: %w", err)
 				}
-				// Do not keep removed CAR file.
-				if err = s.removeCarFile(ctx, adCid); err != nil {
+				// Do not keep CAR file with removed entries.
+				if err = s.deleteCarFile(ctx, adCid); err != nil {
 					return err
 				}
 			} else {
-				log.Debugw("GC processing index content ad", "adCid", adCid)
+				log.Debugw("Keeping index content", "adCid", adCid)
 				s.stats.IndexAdsKept++
 				// Append ad cid to list of remaining for this context ID.
 				remaining[contextID] = append(remaining[contextID], adCid)
@@ -455,7 +737,7 @@ func (s *scythe) reapPrevRemaining(ctx context.Context, contextID string) error 
 			}
 			continue
 		}
-		if err = s.deleteEntries(ctx, adCid); err != nil {
+		if err = s.removeEntries(ctx, adCid); err != nil {
 			return fmt.Errorf("could not delete advertisement content: %w", err)
 		}
 		if commit {
@@ -490,27 +772,15 @@ func (s *scythe) saveRemaining(ctx context.Context, remaining map[string][]cid.C
 	return nil
 }
 
-func (s *scythe) removeCarFile(ctx context.Context, adCid cid.Cid) error {
-	r := s.reaper
-	if r.carReader == nil || !r.carDelete {
-		return nil
-	}
-	carPath := r.carReader.CarPath(adCid)
-	file, err := r.fileStore.Head(ctx, carPath)
+func (s *scythe) deleteCarFile(ctx context.Context, adCid cid.Cid) error {
+	size, err := s.reaper.deleteCarFile(ctx, adCid)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
 		return err
 	}
-	log.Debugw("Deleting CAR file", "path", carPath, "size", file.Size)
-	if r.commit {
-		if err = r.fileStore.Delete(ctx, carPath); err != nil {
-			return fmt.Errorf("failed to remove CAR file: %w", err)
-		}
+	if size != 0 {
+		s.stats.CarsRemoved++
+		s.stats.CarsDataSize += size
 	}
-	s.stats.CarsRemoved++
-	s.stats.CarsDataSize += file.Size
 	return nil
 }
 
@@ -576,12 +846,12 @@ func (s *scythe) saveGCState(ctx context.Context, gcState GCState) error {
 	return s.dstore.Sync(ctx, key)
 }
 
-func (s *scythe) deleteEntries(ctx context.Context, adCid cid.Cid) error {
+func (s *scythe) removeEntries(ctx context.Context, adCid cid.Cid) error {
 	var mhCount int
 	var err error
 	var source string
 	if s.reaper.carReader != nil {
-		mhCount, err = s.removeEntriesWithCar(ctx, adCid)
+		mhCount, err = s.reaper.removeEntriesFromCar(ctx, adCid)
 		s.stats.IndexesRemoved += mhCount
 		if err != nil {
 			if errors.Is(err, errIndexerWrite) {
@@ -592,7 +862,7 @@ func (s *scythe) deleteEntries(ctx context.Context, adCid cid.Cid) error {
 		source = "CAR"
 	}
 	if s.reaper.carReader == nil || err != nil {
-		mhCount, err = s.removeEntriesWithPublisher(ctx, adCid)
+		mhCount, err = s.removeEntriesFromPublisher(ctx, adCid)
 		s.stats.IndexesRemoved += mhCount
 		if err != nil {
 			if errors.Is(err, errIndexerWrite) {
@@ -607,65 +877,7 @@ func (s *scythe) deleteEntries(ctx context.Context, adCid cid.Cid) error {
 	return nil
 }
 
-func (s *scythe) removeEntriesWithCar(ctx context.Context, adCid cid.Cid) (int, error) {
-	// Create a context to cancel reading entries.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	adBlock, err := s.reaper.carReader.Read(ctx, adCid, false)
-	if err != nil {
-		return 0, err
-	}
-
-	if adBlock.Entries == nil {
-		// This advertisement has no entries because they were removed later in
-		// the chain and were not saved, or the publisher was not serving
-		// content for the advertisement's entries CID when this CAR file was
-		// created.
-		return 0, nil
-	}
-
-	ad, err := adBlock.Advertisement()
-	if err != nil {
-		return 0, fmt.Errorf("failed to decode advertisement from car file: %w", err)
-	}
-	value := indexer.Value{
-		ProviderID:    s.providerID,
-		ContextID:     ad.ContextID,
-		MetadataBytes: ad.Metadata,
-	}
-
-	commit := s.reaper.commit
-	indexer := s.reaper.indexer
-
-	var mhCount int
-	for entryBlock := range adBlock.Entries {
-		if entryBlock.Err != nil {
-			return mhCount, entryBlock.Err
-		}
-		chunk, err := entryBlock.EntryChunk()
-		if err != nil {
-			return mhCount, fmt.Errorf("failed to decode entry chunk from car file data: %w", err)
-		}
-		if len(chunk.Entries) == 0 {
-			continue
-		}
-		if commit {
-			if err = indexer.Remove(value, chunk.Entries...); err != nil {
-				log.Errorw("Failed to remove indexes from valuestore, retrying", "err", err, "indexes", len(chunk.Entries))
-				time.Sleep(100 * time.Millisecond)
-				if err = indexer.Remove(value, chunk.Entries...); err != nil {
-					return mhCount, fmt.Errorf("%w: %w", errIndexerWrite, err)
-				}
-			}
-		}
-		mhCount += len(chunk.Entries)
-	}
-
-	return mhCount, nil
-}
-
-func (s *scythe) removeEntriesWithPublisher(ctx context.Context, adCid cid.Cid) (int, error) {
+func (s *scythe) removeEntriesFromPublisher(ctx context.Context, adCid cid.Cid) (int, error) {
 	_, err := s.sub.SyncAdChain(ctx, s.publisher, dagsync.WithHeadAdCid(adCid), dagsync.ScopedDepthLimit(int64(1)))
 	if err != nil {
 		return 0, err
@@ -680,8 +892,14 @@ func (s *scythe) removeEntriesWithPublisher(ctx context.Context, adCid cid.Cid) 
 	}
 	entsCid := ad.Entries.(cidlink.Link).Cid
 
+	providerID, err := peer.Decode(ad.Provider)
+	if err != nil {
+		log.Errorw("Cannot get provider from advertisement", "err", err)
+		providerID = s.providerID
+	}
+
 	value := indexer.Value{
-		ProviderID:    s.providerID,
+		ProviderID:    providerID,
 		ContextID:     ad.ContextID,
 		MetadataBytes: ad.Metadata,
 	}
@@ -775,11 +993,6 @@ func (s *scythe) archiveDatastore(ctx context.Context, dstoreDir string) error {
 func unarchiveDatastore(ctx context.Context, publisherID peer.ID, fileStore filestore.Interface, parentDir string) error {
 	tarName := dstoreArchiveName(publisherID)
 	log.Debugw("Datastore directory does not exist, fetching from archive", "name", tarName)
-
-	err := fsutil.DirWritable(parentDir)
-	if err != nil {
-		return err
-	}
 
 	fileInfo, rc, err := fileStore.Get(ctx, tarName)
 	if err != nil {

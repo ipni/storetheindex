@@ -20,6 +20,7 @@ type config struct {
 	carDelete         bool
 	carRead           bool
 	commit            bool
+	deleteNotFound    bool
 	dstoreDir         string
 	dstoreTmpDir      string
 	entriesDepthLimit int64
@@ -100,7 +101,17 @@ func WithDatastoreTempDir(dir string) Option {
 	}
 }
 
-// WithLibp2pHost configures the client to use an existing libp2p host.
+// WithDeleteNotFound causes all index content for a provider to be deleted if
+// that provider is not found in any of the sources of provider information.
+func WithDeleteNotFound(dnf bool) Option {
+	return func(c *config) error {
+		c.deleteNotFound = dnf
+		return nil
+	}
+}
+
+// WithLibp2pHost configures gc to use an existing libp2p host to connect to
+// publishers.
 func WithLibp2pHost(h host.Host) Option {
 	return func(c *config) error {
 		c.p2pHost = h
