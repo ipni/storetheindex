@@ -3,6 +3,7 @@ package reaper_test
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"testing"
 	"time"
@@ -19,7 +20,7 @@ import (
 
 const testTopic = "/indexer/ingest/test"
 
-var pid1, pid2 peer.ID
+var pid1, pid2, pid3 peer.ID
 
 func init() {
 	var err error
@@ -28,6 +29,10 @@ func init() {
 		panic(err)
 	}
 	pid2, err = peer.Decode("12D3KooWHf7cahZvAVB36SGaVXc7fiVDoJdRJq42zDRcN2s2512h")
+	if err != nil {
+		panic(err)
+	}
+	pid3, err = peer.Decode("12D3KooWPMGfQs5CaJKG4yCxVWizWBRtB85gEUwiX2ekStvYvqgp")
 	if err != nil {
 		panic(err)
 	}
@@ -51,7 +56,7 @@ func TestReaper(t *testing.T) {
 	pc, err := pcache.New(pcache.WithSource(src))
 	require.NoError(t, err)
 
-	grim, err := reaper.New(idxr, fileStore,
+	gc, err := reaper.New(idxr, fileStore,
 		reaper.WithCarDelete(true),
 		reaper.WithCarRead(true),
 		reaper.WithCommit(true),
@@ -61,20 +66,38 @@ func TestReaper(t *testing.T) {
 		reaper.WithTopicName(testTopic),
 	)
 	require.NoError(t, err)
-	defer grim.Close()
+	defer gc.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err = grim.Reap(ctx, pid1)
+	err = gc.Reap(ctx, pid1)
 	require.NoError(t, err)
 
 	// Check that archive is stored in filestore.
-	archiveName, err := grim.DataArchiveName(ctx, pid1)
+	archiveName, err := gc.DataArchiveName(ctx, pid1)
 	require.NoError(t, err)
 	fileInfo, err := fileStore.Head(ctx, archiveName)
 	require.NoError(t, err)
 	require.NotZero(t, fileInfo.Size)
+
+	err = gc.Reap(ctx, pid3)
+	require.ErrorIs(t, err, reaper.ErrProviderNotFound)
+
+	gc2, err := reaper.New(idxr, fileStore,
+		reaper.WithCarDelete(true),
+		reaper.WithCarRead(true),
+		reaper.WithCommit(true),
+		reaper.WithDatastoreDir(dsDir),
+		reaper.WithDatastoreTempDir(dsTmpDir),
+		reaper.WithDeleteNotFound(true),
+		reaper.WithPCache(pc),
+		reaper.WithTopicName(testTopic),
+	)
+	err = gc2.Reap(ctx, pid3)
+	require.Error(t, err)
+	require.Error(t, fs.ErrNotExist)
+	defer gc2.Close()
 }
 
 func newMockSource(pids ...peer.ID) *mockSource {

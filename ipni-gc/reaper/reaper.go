@@ -61,19 +61,19 @@ type GCStats struct {
 	TimeElapsed     time.Duration
 }
 
-func (s *GCStats) Log(providerID peer.ID) {
-	log.Infow("GC stats for provider", "provider", providerID,
+func (s GCStats) String() string {
+	return fmt.Sprint(
 		"AdsProcessed:", s.AdsProcessed,
-		"CarsDataSize:", s.CarsDataSize,
-		"CarsRemoved:", s.CarsRemoved,
-		"CtxIDsKept:", s.CtxIDsKept,
-		"CtxIDsRemoved:", s.CtxIDsRemoved,
-		"IndexAdsKept:", s.IndexAdsKept,
-		"IndexAdsRemoved:", s.IndexAdsRemoved,
-		"IndexesRemoved:", s.IndexesRemoved,
-		"RemovalAds:", s.RemovalAds,
-		"ReusedCtxIDs:", s.ReusedCtxIDs,
-		"TimeElapsed:", s.TimeElapsed,
+		" CarsDataSize:", s.CarsDataSize,
+		" CarsRemoved:", s.CarsRemoved,
+		" CtxIDsKept:", s.CtxIDsKept,
+		" CtxIDsRemoved:", s.CtxIDsRemoved,
+		" IndexAdsKept:", s.IndexAdsKept,
+		" IndexAdsRemoved:", s.IndexAdsRemoved,
+		" IndexesRemoved:", s.IndexesRemoved,
+		" RemovalAds:", s.RemovalAds,
+		" ReusedCtxIDs:", s.ReusedCtxIDs,
+		" TimeElapsed:", s.TimeElapsed,
 	)
 }
 
@@ -211,10 +211,126 @@ func (r *Reaper) Stats() GCStats {
 	return r.stats
 }
 
+func (r *Reaper) Reap(ctx context.Context, providerID peer.ID) error {
+	pinfo, err := r.pcache.Get(ctx, providerID)
+	if err != nil {
+		return err
+	}
+	if pinfo == nil {
+		if r.delNotFound {
+			return r.removePublisher(ctx, providerID, providerID)
+		}
+		return ErrProviderNotFound
+	}
+	if pinfo.Publisher == nil {
+		return errors.New("provider has no publisher")
+	}
+	publisher := *pinfo.Publisher
+
+	// Check that parent directory for the gc datastore directory is writable.
+	if err = fsutil.DirWritable(r.dsDir); err != nil {
+		return err
+	}
+	// If the gc datastore ddir oes not already exist, try to get archive from
+	// filestore.
+	dstoreDir := filepath.Join(r.dsDir, dstoreDirName(publisher.ID))
+	_, err = os.Stat(dstoreDir)
+	if errors.Is(err, fs.ErrNotExist) && r.fileStore != nil {
+		if err = unarchiveDatastore(ctx, publisher.ID, r.fileStore, r.dsDir); err != nil {
+			return fmt.Errorf("failed to retireve datastore from archive: %w", err)
+		}
+	}
+	// Check that the extracted archive directory is readable, and if it does
+	// not exist create a new gc datastore directory.
+	dstore, err := createDatastore(dstoreDir)
+	if err != nil {
+		return fmt.Errorf("failed to create ipni-gc datastore: %w", err)
+	}
+	defer func() {
+		if dstore != nil {
+			dstore.Close()
+		}
+	}()
+
+	// Create datastore for temporary ad data.
+	var tmpDir string
+	if r.dsTmpDir == "" {
+		tmpDir, err = os.MkdirTemp("", "gc-tmp-"+publisher.ID.String())
+		if err != nil {
+			return fmt.Errorf("cannot create temp directory for gc: %w", err)
+		}
+		defer os.RemoveAll(tmpDir)
+	} else {
+		if err = fsutil.DirWritable(r.dsTmpDir); err != nil {
+			return err
+		}
+		tmpDir = filepath.Join(r.dsTmpDir, "gc-tmp-"+publisher.ID.String())
+		defer func() {
+			if tmpDir != "" {
+				os.RemoveAll(tmpDir)
+			}
+		}()
+	}
+	dstoreTmp, err := createDatastore(tmpDir)
+	if err != nil {
+		return fmt.Errorf("failed to create temporary datastore: %w", err)
+	}
+	defer dstoreTmp.Close()
+
+	// Create ipni dagsync Subscriber for this publisher.
+	sub, err := makeSubscriber(r.host, dstoreTmp, r.topic, r.httpTimeout)
+	if err != nil {
+		return fmt.Errorf("failed to start dagsync subscriber: %w", err)
+	}
+	defer sub.Close()
+
+	s := &scythe{
+		reaper:     r,
+		dstore:     dstore,
+		dstoreTmp:  dstoreTmp,
+		providerID: pinfo.AddrInfo.ID,
+		publisher:  publisher,
+		sub:        sub,
+		tmpDir:     tmpDir,
+	}
+
+	startTime := time.Now()
+
+	err = s.reap(ctx, pinfo.LastAdvertisement)
+	if err != nil {
+		tmpDir = ""
+		return err
+	}
+
+	s.stats.TimeElapsed = time.Since(startTime)
+	log.Infow("Finished GC for provider", "provider", providerID, "stats", s.stats.String())
+	r.AddStats(s.stats)
+
+	dstore.Close()
+	dstore = nil
+
+	return s.archiveDatastore(ctx, dstoreDir)
+}
+
+func (r *Reaper) DataArchiveName(ctx context.Context, providerID peer.ID) (string, error) {
+	pinfo, err := r.pcache.Get(ctx, providerID)
+	if err != nil {
+		return "", err
+	}
+	if pinfo == nil {
+		return "", ErrProviderNotFound
+	}
+
+	if pinfo.Publisher == nil {
+		return "", errors.New("provider has not publisher")
+	}
+	return dstoreArchiveName(pinfo.Publisher.ID), nil
+}
+
 func (r *Reaper) removePublisher(ctx context.Context, providerID, publisherID peer.ID) error {
 	startTime := time.Now()
 
-	if r.carReader != nil {
+	if r.carReader == nil {
 		return errors.New("car reader not available")
 	}
 
@@ -234,16 +350,19 @@ func (r *Reaper) removePublisher(ctx context.Context, providerID, publisherID pe
 		return errors.New("requested provider does not match provider in advertisement")
 	}
 
+	// Delete gc-datastore archive.
 	name := dstoreArchiveName(publisherID)
 	err = r.fileStore.Delete(ctx, name)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		log.Errorw("Cannot delete datastore archive for provider", "err", err, "name", name)
 	}
+	// Delete gc-datastore.
 	name = filepath.Join(r.dsDir, dstoreDirName(publisherID))
 	err = os.RemoveAll(name)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		log.Errorw("Cannot remove datastore directory for provider", "err", err, "dir", name)
 	}
+	// Delete temporary gc-datastore.
 	if r.dsTmpDir != "" {
 		name = filepath.Join(r.dsTmpDir, "gc-tmp-"+publisherID.String())
 		err = os.RemoveAll(name)
@@ -283,11 +402,16 @@ func (r *Reaper) removePublisher(ctx context.Context, providerID, publisherID pe
 		if err != nil {
 			err = fmt.Errorf("failed to delete head file: %w", err)
 		}
+		stats.TimeElapsed = time.Since(startTime)
+		log.Infow("Finished GC for removed provider", "provider", providerID, "stats", stats.String())
 	} else if newHead != cid.Undef {
+		// Did not comple. Save head where GC left off.
 		_, err = r.fileStore.Put(ctx, headName, strings.NewReader(newHead.String()))
 		if err != nil {
 			err = fmt.Errorf("failed to update head file: %w", err)
 		}
+		stats.TimeElapsed = time.Since(startTime)
+		log.Infow("Incomplete GC for removed provider", "provider", providerID, "stats", stats.String())
 	}
 	if err != nil {
 		if cleanErr != nil {
@@ -297,10 +421,7 @@ func (r *Reaper) removePublisher(ctx context.Context, providerID, publisherID pe
 		}
 	}
 
-	stats.TimeElapsed = time.Since(startTime)
-	stats.Log(providerID)
 	r.AddStats(stats)
-
 	return cleanErr
 }
 
@@ -414,123 +535,6 @@ func (r *Reaper) readHeadFile(ctx context.Context, publisherID peer.ID) (cid.Cid
 	}
 
 	return cid.Decode(string(cidData))
-}
-
-func (r *Reaper) Reap(ctx context.Context, providerID peer.ID) error {
-	pinfo, err := r.pcache.Get(ctx, providerID)
-	if err != nil {
-		return err
-	}
-	if pinfo == nil {
-		if r.delNotFound {
-			return r.removePublisher(ctx, providerID, providerID)
-		}
-		return ErrProviderNotFound
-	}
-
-	if pinfo.Publisher == nil {
-		return errors.New("provider has not publisher")
-	}
-	publisher := *pinfo.Publisher
-
-	// Check that parent directory for the gc datastore directory is writable.
-	if err = fsutil.DirWritable(r.dsDir); err != nil {
-		return err
-	}
-	// If the gc datastore ddir oes not already exist, try to get archive from
-	// filestore.
-	dstoreDir := filepath.Join(r.dsDir, dstoreDirName(publisher.ID))
-	_, err = os.Stat(dstoreDir)
-	if errors.Is(err, fs.ErrNotExist) && r.fileStore != nil {
-		if err = unarchiveDatastore(ctx, publisher.ID, r.fileStore, r.dsDir); err != nil {
-			return fmt.Errorf("failed to retireve datastore from archive: %w", err)
-		}
-	}
-	// Check that the extracted archive directory is readable, and if it does
-	// not exist create a new gc datastore directory.
-	dstore, err := createDatastore(dstoreDir)
-	if err != nil {
-		return fmt.Errorf("failed to create ipni-gc datastore: %w", err)
-	}
-	defer func() {
-		if dstore != nil {
-			dstore.Close()
-		}
-	}()
-
-	// Create datastore for temporary ad data.
-	var tmpDir string
-	if r.dsTmpDir == "" {
-		tmpDir, err = os.MkdirTemp("", "gc-tmp-"+publisher.ID.String())
-		if err != nil {
-			return fmt.Errorf("cannot create temp directory for gc: %w", err)
-		}
-		defer os.RemoveAll(tmpDir)
-	} else {
-		if err = fsutil.DirWritable(r.dsTmpDir); err != nil {
-			return err
-		}
-		tmpDir = filepath.Join(r.dsTmpDir, "gc-tmp-"+publisher.ID.String())
-		defer func() {
-			if tmpDir != "" {
-				os.RemoveAll(tmpDir)
-			}
-		}()
-	}
-	dstoreTmp, err := createDatastore(tmpDir)
-	if err != nil {
-		return fmt.Errorf("failed to create temporary datastore: %w", err)
-	}
-	defer dstoreTmp.Close()
-
-	// Create ipni dagsync Subscriber for this publisher.
-	sub, err := makeSubscriber(r.host, dstoreTmp, r.topic, r.httpTimeout)
-	if err != nil {
-		return fmt.Errorf("failed to start dagsync subscriber: %w", err)
-	}
-	defer sub.Close()
-
-	s := &scythe{
-		reaper:     r,
-		dstore:     dstore,
-		dstoreTmp:  dstoreTmp,
-		providerID: providerID,
-		publisher:  publisher,
-		sub:        sub,
-		tmpDir:     tmpDir,
-	}
-
-	startTime := time.Now()
-
-	err = s.reap(ctx, pinfo.LastAdvertisement)
-	if err != nil {
-		tmpDir = ""
-		return err
-	}
-
-	s.stats.TimeElapsed = time.Since(startTime)
-
-	r.AddStats(s.stats)
-
-	dstore.Close()
-	dstore = nil
-
-	return s.archiveDatastore(ctx, dstoreDir)
-}
-
-func (r *Reaper) DataArchiveName(ctx context.Context, providerID peer.ID) (string, error) {
-	pinfo, err := r.pcache.Get(ctx, providerID)
-	if err != nil {
-		return "", err
-	}
-	if pinfo == nil {
-		return "", ErrProviderNotFound
-	}
-
-	if pinfo.Publisher == nil {
-		return "", errors.New("provider has not publisher")
-	}
-	return dstoreArchiveName(pinfo.Publisher.ID), nil
 }
 
 func (r *Reaper) removeEntriesFromCar(ctx context.Context, adCid cid.Cid) (int, error) {

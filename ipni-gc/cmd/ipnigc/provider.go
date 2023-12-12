@@ -32,7 +32,7 @@ var providerFlags = []cli.Flag{
 		Name:    "batch-size",
 		Usage:   "Set batch size for dhstore requests",
 		Aliases: []string{"b"},
-		Value:   2048,
+		Value:   1024,
 	},
 	&cli.BoolFlag{
 		Name:    "commit",
@@ -52,7 +52,7 @@ var providerFlags = []cli.Flag{
 	},
 	&cli.StringSliceFlag{
 		Name:  "pid",
-		Usage: "Provider's peer ID, multiple allowed. Reads IDs from stdin if none are specified.",
+		Usage: "Provider's peer ID, multiple allowed",
 	},
 	&cli.StringFlag{
 		Name:    "log-level",
@@ -180,19 +180,7 @@ func providerAction(cctx *cli.Context) error {
 
 	if gcCount > 1 {
 		stats := grim.Stats()
-		log.Infow("Total gc stats for all providers",
-			"AdsProcessed:", stats.AdsProcessed,
-			"CarsDataSize:", stats.CarsDataSize,
-			"CarsRemoved:", stats.CarsRemoved,
-			"CtxIDsKept:", stats.CtxIDsKept,
-			"CtxIDsRemoved:", stats.CtxIDsRemoved,
-			"IndexAdsKept:", stats.IndexAdsKept,
-			"IndexAdsRemoved:", stats.IndexAdsRemoved,
-			"IndexesRemoved:", stats.IndexesRemoved,
-			"RemovalAds:", stats.RemovalAds,
-			"ReusedCtxIDs:", stats.ReusedCtxIDs,
-			"TimeElapsed:", stats.TimeElapsed,
-		)
+		log.Infow("Finished GC for all providers", "success", gcCount, "stats", stats.String())
 	}
 
 	return nil
