@@ -94,6 +94,7 @@ func TestReaper(t *testing.T) {
 		reaper.WithPCache(pc),
 		reaper.WithTopicName(testTopic),
 	)
+	require.NoError(t, err)
 	err = gc2.Reap(ctx, pid3)
 	require.Error(t, err)
 	require.Error(t, fs.ErrNotExist)

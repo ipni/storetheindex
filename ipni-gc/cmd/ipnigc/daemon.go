@@ -156,8 +156,6 @@ func daemonAction(cctx *cli.Context) error {
 			return nil
 		}
 	}
-
-	return nil
 }
 
 func runGC(ctx context.Context, grim *reaper.Reaper, pc *pcache.ProviderCache, excludes map[peer.ID]struct{}) {

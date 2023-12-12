@@ -385,7 +385,7 @@ func (r *Reaper) removePublisher(ctx context.Context, providerID, publisherID pe
 		}
 		size, err := r.deleteCarFile(ctx, adCid)
 		if err != nil {
-			cleanErr = fmt.Errorf("Cannot delete CAR file: %w", err)
+			cleanErr = fmt.Errorf("cannot delete car file: %w", err)
 			break
 		}
 		if size != 0 {
@@ -635,7 +635,7 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 	for adCid := latestAdCid; adCid != gcState.LastProcessedAdCid; {
 		ad, err := s.loadAd(adCid)
 		if err != nil {
-			return fmt.Errorf("Failed to load advertisement %s: %w", adCid.String(), err)
+			return fmt.Errorf("vailed to load advertisement %s: %w", adCid.String(), err)
 		}
 		contextID := base64.StdEncoding.EncodeToString(ad.ContextID)
 		if ad.IsRm {

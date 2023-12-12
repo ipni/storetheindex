@@ -223,15 +223,12 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	require.NoError(t, err)
 	var carCount, headCount int
 
-	var cars, heads []string
 	carSuffix := carstore.CarFileSuffix + carstore.GzipFileSuffix
 	for _, name := range names {
 		if strings.HasSuffix(name, carSuffix) && strings.HasPrefix(name, "baguqeera") {
 			carCount++
-			cars = append(cars, name)
 		} else if strings.HasSuffix(name, carstore.HeadFileSuffix) {
 			headCount++
-			heads = append(heads, name)
 		}
 	}
 	require.Equal(t, 1, carCount)
