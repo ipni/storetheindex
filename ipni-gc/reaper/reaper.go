@@ -240,13 +240,13 @@ func (r *Reaper) Reap(ctx context.Context, providerID peer.ID) error {
 	if err = fsutil.DirWritable(r.dsDir); err != nil {
 		return err
 	}
-	// If the gc datastore ddir oes not already exist, try to get archive from
+	// If the gc datastore dir does not already exist, try to get archive from
 	// filestore.
 	dstoreDir := filepath.Join(r.dsDir, dstoreDirName(publisher.ID))
 	_, err = os.Stat(dstoreDir)
 	if errors.Is(err, fs.ErrNotExist) && r.fileStore != nil {
 		if err = unarchiveDatastore(ctx, publisher.ID, r.fileStore, r.dsDir); err != nil {
-			return fmt.Errorf("failed to retireve datastore from archive: %w", err)
+			return fmt.Errorf("failed to retrieve datastore from archive: %w", err)
 		}
 	}
 	// Check that the extracted archive directory is readable, and if it does
@@ -274,11 +274,6 @@ func (r *Reaper) Reap(ctx context.Context, providerID peer.ID) error {
 			return err
 		}
 		tmpDir = filepath.Join(r.dsTmpDir, "gc-tmp-"+publisher.ID.String())
-		defer func() {
-			if tmpDir != "" {
-				os.RemoveAll(tmpDir)
-			}
-		}()
 	}
 	dstoreTmp, err := createDatastore(tmpDir)
 	if err != nil {
@@ -307,14 +302,14 @@ func (r *Reaper) Reap(ctx context.Context, providerID peer.ID) error {
 
 	err = s.reap(ctx, pinfo.LastAdvertisement)
 	if err != nil {
-		tmpDir = ""
 		log.Errorw("Could not process advertisement chain for GC", "err", err)
+	} else {
+		os.RemoveAll(tmpDir)
 	}
 
-	log.Info("Removing indexes cand CARS for removed advertisements")
+	log.Info("Removing indexes and CARS for removed advertisements")
 	err = s.reapRemoved(ctx)
 	if err != nil {
-		tmpDir = ""
 		return err
 	}
 
@@ -340,7 +335,7 @@ func (r *Reaper) DataArchiveName(ctx context.Context, providerID peer.ID) (strin
 	}
 
 	if pinfo.Publisher == nil {
-		return "", errors.New("provider has not publisher")
+		return "", errors.New("provider has no publisher")
 	}
 	return dstoreArchiveName(pinfo.Publisher.ID), nil
 }
@@ -423,7 +418,7 @@ func (r *Reaper) removePublisher(ctx context.Context, providerID, publisherID pe
 		stats.TimeElapsed = time.Since(startTime)
 		log.Infow("Finished GC for removed provider", "provider", providerID, "stats", stats.String())
 	} else if newHead != cid.Undef {
-		// Did not comple. Save head where GC left off.
+		// Did not complete. Save head where GC left off.
 		_, err = r.fileStore.Put(ctx, headName, strings.NewReader(newHead.String()))
 		if err != nil {
 			err = fmt.Errorf("failed to update head file: %w", err)
@@ -590,7 +585,7 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 	for adCid := latestAdCid; adCid != gcState.LastProcessedAdCid; {
 		ad, err := s.loadAd(adCid)
 		if err != nil {
-			return fmt.Errorf("vailed to load advertisement %s: %w", adCid.String(), err)
+			return fmt.Errorf("failed to load advertisement %s: %w", adCid.String(), err)
 		}
 		contextID := base64.StdEncoding.EncodeToString(ad.ContextID)
 		if ad.IsRm {
@@ -622,6 +617,7 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 		} else {
 			_, ok := removedCtxSet[contextID]
 			if ok {
+				log.Debugw("Marking index ad for removal", "adCid", adCid)
 				if err = s.saveRemoved(ctx, adCid); err != nil {
 					return err
 				}
@@ -665,6 +661,8 @@ func (s *scythe) saveRemoved(ctx context.Context, adCid cid.Cid) error {
 }
 
 func (s *scythe) reapRemoved(ctx context.Context) error {
+	log.Infow("Removing index content for all removed advertisements")
+
 	q := query.Query{
 		Prefix:   dsRmPrefix,
 		KeysOnly: true,
@@ -686,7 +684,6 @@ func (s *scythe) reapRemoved(ctx context.Context) error {
 			log.Errorw("Cannot decode removed advertisement cid", "err", err)
 		}
 
-		log.Debugw("Removing index content", "adCid", adCid)
 		// Ad's context ID is removed, so delete all multihashes for ad.
 		if err = s.removeEntries(ctx, adCid); err != nil {
 			return fmt.Errorf("could not delete advertisement content: %w", err)
@@ -854,7 +851,7 @@ func (s *scythe) saveGCState(ctx context.Context, gcState GCState) error {
 func (s *scythe) removeEntries(ctx context.Context, adCid cid.Cid) error {
 	prevRemoved := s.stats.IndexesRemoved
 	var err error
-	var source string
+	source := "none"
 
 	if s.reaper.carReader != nil {
 		err = s.removeEntriesFromCar(ctx, adCid)
@@ -862,9 +859,10 @@ func (s *scythe) removeEntries(ctx context.Context, adCid cid.Cid) error {
 			if errors.Is(err, errIndexerWrite) {
 				return err
 			}
-			log.Warnw("Cannot get advertisement from car store, will try publisher", "err", err, "adCid", adCid)
+			log.Warnw("Cannot get advertisement from car store", "err", err, "adCid", adCid)
+		} else {
+			source = "CAR"
 		}
-		source = "CAR"
 	} else {
 		err = ErrNoCarReader
 	}
@@ -876,10 +874,11 @@ func (s *scythe) removeEntries(ctx context.Context, adCid cid.Cid) error {
 			}
 			log.Warnw("Cannot get advertisement from publisher, not deleting entries", "err", err, "adCid", adCid)
 			return nil
+		} else {
+			source = "synced from publisher"
 		}
-		source = "synced from publisher"
 	}
-	log.Infow("Deleted indexes for removed contextID", "count", s.stats.IndexesRemoved-prevRemoved, "total", s.stats.IndexesRemoved, "source", source, "adsProcessed", s.stats.AdsProcessed)
+	log.Infow("Removed indexes in removed ad", "adCid", adCid, "count", s.stats.IndexesRemoved-prevRemoved, "total", s.stats.IndexesRemoved, "source", source, "adsProcessed", s.stats.AdsProcessed)
 	return nil
 }
 
