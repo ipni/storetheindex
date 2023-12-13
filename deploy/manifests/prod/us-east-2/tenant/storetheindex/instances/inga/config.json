@@ -44,7 +44,7 @@
       "Publish": true,
       "PublishExcept": null
     },
-    "PollInterval": "12h0m0s",
+    "PollInterval": "6h0m0s",
     "PollRetryAfter": "2h0m0s",
     "PollStopAfter": "168h0m0s",
     "PollOverrides": null,
