@@ -24,6 +24,7 @@ type config struct {
 	dstoreDir         string
 	dstoreTmpDir      string
 	entriesDepthLimit int64
+	entsFromPub       bool
 	httpTimeout       time.Duration
 	p2pHost           host.Host
 	pcache            *pcache.ProviderCache
@@ -38,6 +39,7 @@ func getOpts(opts []Option) (config, error) {
 	cfg := config{
 		carCompAlg:  carstore.Gzip,
 		carRead:     true,
+		entsFromPub: true,
 		httpTimeout: defaultHttpTimeout,
 		topic:       defaultTopic,
 	}
@@ -106,6 +108,15 @@ func WithDatastoreTempDir(dir string) Option {
 func WithDeleteNotFound(dnf bool) Option {
 	return func(c *config) error {
 		c.deleteNotFound = dnf
+		return nil
+	}
+}
+
+// WithEntriesFromPublisher allows fetching advertisement entries from the
+// publisher if they cannot be fetched from a CAR file.
+func WithEntriesFromPublisher(entsFromPub bool) Option {
+	return func(c *config) error {
+		c.entsFromPub = entsFromPub
 		return nil
 	}
 }

@@ -360,7 +360,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 		"-i", "http://localhost:3000",
 	))
 	t.Logf("GC Results:\n%s\n", outgc)
-	require.Contains(t, outgc, `{"count": 1043, "total": 1043, "source": "CAR", "adsProcessed": 1}`)
+	require.Contains(t, outgc, `{"count": 1043, "total": 1043, "source": "CAR", "adsProcessed": 2}`)
 
 	e.Stop(cmdIndexer2, time.Second)
 

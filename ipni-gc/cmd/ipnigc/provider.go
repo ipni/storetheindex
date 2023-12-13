@@ -50,6 +50,12 @@ var providerFlags = []cli.Flag{
 		Aliases:     []string{"i"},
 		DefaultText: "http://localhost:3000",
 	},
+	&cli.BoolFlag{
+		Name:    "ents-from-pub",
+		Usage:   "If advertisement entries cannot be retrieved from CAR file, then fetch from publisher",
+		Aliases: []string{"efp"},
+		Value:   true,
+	},
 	&cli.StringSliceFlag{
 		Name:  "pid",
 		Usage: "Provider's peer ID, multiple allowed",
@@ -148,6 +154,7 @@ func providerAction(cctx *cli.Context) error {
 		reaper.WithDatastoreDir(dsDir),
 		reaper.WithDatastoreTempDir(dsTmpDir),
 		reaper.WithDeleteNotFound(cctx.Bool("delete-not-found")),
+		reaper.WithEntriesFromPublisher(cctx.Bool("ents-from-pub")),
 		reaper.WithPCache(pc),
 		reaper.WithTopicName(cfg.Ingest.PubSubTopic),
 		reaper.WithHttpTimeout(time.Duration(cfg.Ingest.HttpSyncTimeout)),
