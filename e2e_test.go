@@ -75,10 +75,12 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	// install storetheindex
 	indexer := filepath.Join(e.Dir, "storetheindex")
 	e.Run("go", "install", ".")
+	e.Run("go", "install", "./ipni-gc/cmd/ipnigc")
 
 	provider := filepath.Join(e.Dir, "provider")
 	dhstore := filepath.Join(e.Dir, "dhstore")
 	ipni := filepath.Join(e.Dir, "ipni")
+	ipnigc := filepath.Join(e.Dir, "ipnigc")
 
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
@@ -220,6 +222,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	dir.Close()
 	require.NoError(t, err)
 	var carCount, headCount int
+
 	carSuffix := carstore.CarFileSuffix + carstore.GzipFileSuffix
 	for _, name := range names {
 		if strings.HasSuffix(name, carSuffix) && strings.HasPrefix(name, "baguqeera") {
@@ -245,6 +248,17 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	cfg, err = config.Load(sti2CfgPath)
 	require.NoError(t, err)
 	indexer2ID := cfg.Identity.PeerID
+	cfg.Ingest.AdvertisementMirror = config.Mirror{
+		Compress: "gzip",
+		Write:    true,
+		Storage: filestore.Config{
+			Type: "local",
+			Local: filestore.LocalConfig{
+				BasePath: e.Dir,
+			},
+		},
+	}
+	cfg.Save(sti2CfgPath)
 
 	indexerReady2 := test.NewStdoutWatcher(test.IndexerReadyMatch)
 	cmdIndexer2 := e.Start(test.NewExecution(indexer, "daemon").WithWatcher(indexerReady2))
@@ -302,10 +316,10 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	require.Equal(t, 1, len(dhResp.MultihashResults[0].ProviderResults))
 	require.Equal(t, providerID, dhResp.MultihashResults[0].ProviderResults[0].Provider.ID.String())
 
-	// Remove a car file from the provider.  This will cause the provider to
+	// Remove a car file from the provider. This will cause the provider to
 	// publish an advertisement that tells the indexer to remove the car file
-	// content by contextID.  The indexer will then import the advertisement
-	// and remove content.
+	// content by contextID. The indexer will then import the advertisement and
+	// remove content.
 	outRemove := e.Run(provider, "remove", "car",
 		"-i", carPath,
 		"--listen-admin", "http://localhost:3102",
@@ -340,6 +354,13 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	// Check that status is frozen.
 	outStatus = e.Run(indexer, "admin", "status", "--indexer", "http://localhost:3202")
 	require.Contains(t, string(outStatus), "Frozen: true", "expected indexer to be frozen")
+
+	outgc := string(e.Run(ipnigc, "provider", "-pid", providerID, "-ll", "debug", "--commit",
+		"-i", "http://localhost:3200",
+		"-i", "http://localhost:3000",
+	))
+	t.Logf("GC Results:\n%s\n", outgc)
+	require.Contains(t, outgc, `{"count": 1043, "total": 1043, "source": "CAR", "adsProcessed": 2}`)
 
 	e.Stop(cmdIndexer2, time.Second)
 

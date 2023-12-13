@@ -13,6 +13,7 @@ require (
 	github.com/cockroachdb/pebble v0.0.0-20220726144858-a78491c0086f
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.3.0
 	github.com/gammazero/channelqueue v0.2.1
+	github.com/gammazero/targz v0.0.3
 	github.com/ipfs/boxo v0.15.0
 	github.com/ipfs/go-cid v0.4.1
 	github.com/ipfs/go-datastore v0.6.0
@@ -22,7 +23,7 @@ require (
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
-	github.com/ipni/go-indexer-core v0.8.5
+	github.com/ipni/go-indexer-core v0.8.6
 	github.com/ipni/go-libipni v0.5.7
 	github.com/libp2p/go-libp2p v0.32.1
 	github.com/libp2p/go-msgio v0.3.0

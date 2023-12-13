@@ -16,7 +16,8 @@ RUN go mod download
 COPY . .
 
 # Build the executable
-RUN go build -ldflags "-X 'github.com/ipni/storetheindex/internal/version.GitVersion=$(git rev-list -1 HEAD)'"
+RUN go build \
+    && go build ./ipni-gc/cmd/ipnigc
 
 # Get su-exec, a very minimal tool for dropping privileges,
 # and tini, a very minimal init daemon for containers
@@ -48,12 +49,13 @@ ENV SRC_DIR /storetheindex
 COPY --from=builder storetheindex/storetheindex /usr/local/bin/storetheindex
 COPY --from=builder storetheindex/scripts/start_storetheindex /usr/local/bin/start_storetheindex
 COPY --from=builder storetheindex/scripts/start_assigner /usr/local/bin/start_assigner
+COPY --from=builder storetheindex/ipnigc /usr/local/bin/ipnigc
 COPY --from=builder /tmp/su-exec/su-exec-static /sbin/su-exec
 COPY --from=builder /tmp/tini /sbin/tini
 COPY --from=builder /etc/ssl/certs /etc/ssl/certs
 
 # Set permissions on storetheindex
-RUN chmod 0755 /usr/local/bin/storetheindex
+RUN chmod 0755 /usr/local/bin/storetheindex /usr/local/bin/ipnigc
 
 # This shared lib (part of glibc) doesn't seem to be included with busybox.
 COPY --from=builder /lib/*-linux-gnu*/libdl.so.2 /lib/
