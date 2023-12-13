@@ -304,10 +304,9 @@ func (r *Reaper) Reap(ctx context.Context, providerID peer.ID) error {
 	if err != nil {
 		log.Errorw("Could not process advertisement chain for GC", "err", err)
 	} else {
-		os.RemoveAll(tmpDir)
+		defer os.RemoveAll(tmpDir)
 	}
 
-	log.Info("Removing indexes and CARS for removed advertisements")
 	err = s.reapRemoved(ctx)
 	if err != nil {
 		return err
