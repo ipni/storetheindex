@@ -520,12 +520,12 @@ func (r *Reaper) deleteCarFile(ctx context.Context, adCid cid.Cid) (int64, error
 		}
 		return 0, err
 	}
-	log.Infow("Deleting CAR file", "name", carPath, "size", file.Size)
 	if r.commit {
 		if err = r.fileStore.Delete(ctx, carPath); err != nil {
 			return 0, fmt.Errorf("failed to remove CAR file: %w", err)
 		}
 	}
+	log.Infow("Deleted CAR file", "name", carPath, "size", file.Size)
 	return file.Size, nil
 }
 
