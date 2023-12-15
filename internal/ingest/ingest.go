@@ -1117,7 +1117,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 	headAdCid := assignment.adInfos[0].cid
 
 	if ing.mirror.canWrite() && !assignment.adInfos[0].resync {
-		_, err := ing.mirror.writeHead(ctx, headAdCid, assignment.publisher)
+		_, err := ing.mirror.writeHead(ctx, headAdCid, provider)
 		if err != nil {
 			log.Errorw("Cannot write publisher head", "err", err)
 		}

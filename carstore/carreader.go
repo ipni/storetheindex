@@ -157,16 +157,16 @@ func (cr CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) (
 	return &adBlock, nil
 }
 
-// ReadHead reads the advertisement CID from the publisher's head file. The
-// head file contains the CID of the latest advertisement for an advertisement
-// publisher. Returns fs.ErrNotExist if head file is not found.
-func (cr CarReader) ReadHead(ctx context.Context, publisher peer.ID) (cid.Cid, error) {
-	err := publisher.Validate()
+// ReadHead reads the advertisement CID from the provider's head file. The head
+// file contains the CID of the latest advertisement for a provider. Returns
+// fs.ErrNotExist if head file is not found.
+func (cr CarReader) ReadHead(ctx context.Context, provider peer.ID) (cid.Cid, error) {
+	err := provider.Validate()
 	if err != nil {
 		return cid.Undef, err
 	}
 
-	headPath := publisher.String() + HeadFileSuffix
+	headPath := provider.String() + HeadFileSuffix
 	_, r, err := cr.fileStore.Get(ctx, headPath)
 	if err != nil {
 		return cid.Undef, err
