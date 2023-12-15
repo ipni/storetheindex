@@ -276,14 +276,18 @@ func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid, overWrite bo
 	return count, nil
 }
 
-func (cw *CarWriter) WriteHead(ctx context.Context, adCid cid.Cid, publisher peer.ID) (*filestore.File, error) {
-	err := publisher.Validate()
+func (cw *CarWriter) WriteHead(ctx context.Context, adCid cid.Cid, provider peer.ID) (*filestore.File, error) {
+	err := provider.Validate()
 	if err != nil {
 		return nil, err
 	}
-
-	headName := publisher.String() + HeadFileSuffix
+	headName := provider.String() + HeadFileSuffix
 	return cw.fileStore.Put(ctx, headName, strings.NewReader(adCid.String()))
+}
+
+func (cw *CarWriter) DeleteHead(ctx context.Context, provider peer.ID) error {
+	headName := provider.String() + HeadFileSuffix
+	return cw.fileStore.Delete(ctx, headName)
 }
 
 func (cw *CarWriter) Delete(ctx context.Context, adCid cid.Cid) error {

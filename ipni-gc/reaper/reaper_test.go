@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/go-libipni/pcache"
+	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/filestore"
 	"github.com/ipni/storetheindex/ipni-gc/reaper"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -21,6 +23,7 @@ import (
 const testTopic = "/indexer/ingest/test"
 
 var pid1, pid2, pid3 peer.ID
+var adCid cid.Cid
 
 func init() {
 	var err error
@@ -33,6 +36,10 @@ func init() {
 		panic(err)
 	}
 	pid3, err = peer.Decode("12D3KooWPMGfQs5CaJKG4yCxVWizWBRtB85gEUwiX2ekStvYvqgp")
+	if err != nil {
+		panic(err)
+	}
+	adCid, err = cid.Decode("bafybeigvgzoolc3drupxhlevdp2ugqcrbcsqfmcek2zxiw5wctk3xjpjwy")
 	if err != nil {
 		panic(err)
 	}
@@ -52,8 +59,7 @@ func TestReaper(t *testing.T) {
 
 	idxr := memory.New()
 
-	src := newMockSource(pid1)
-	pc, err := pcache.New(pcache.WithSource(src))
+	pc, err := pcache.New(pcache.WithSource(newMockSource(pid1)))
 	require.NoError(t, err)
 
 	gc, err := reaper.New(idxr, fileStore,
@@ -75,9 +81,7 @@ func TestReaper(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that archive is stored in filestore.
-	archiveName, err := gc.DataArchiveName(ctx, pid1)
-	require.NoError(t, err)
-	fileInfo, err := fileStore.Head(ctx, archiveName)
+	fileInfo, err := fileStore.Head(ctx, reaper.ArchiveName(pid1))
 	require.NoError(t, err)
 	require.NotZero(t, fileInfo.Size)
 
@@ -95,10 +99,33 @@ func TestReaper(t *testing.T) {
 		reaper.WithTopicName(testTopic),
 	)
 	require.NoError(t, err)
-	err = gc2.Reap(ctx, pid3)
-	require.Error(t, err)
-	require.Error(t, fs.ErrNotExist)
 	defer gc2.Close()
+	err = gc2.Reap(ctx, pid3)
+	require.NoError(t, err)
+	gc2.Close()
+
+	carWriter, err := carstore.NewWriter(nil, fileStore)
+	require.NoError(t, err)
+	_, err = carWriter.WriteHead(context.Background(), adCid, pid1)
+	require.NoError(t, err)
+
+	pc, err = pcache.New(pcache.WithSource(newMockSource(pid2)))
+	require.NoError(t, err)
+	gc2, err = reaper.New(idxr, fileStore,
+		reaper.WithCarDelete(true),
+		reaper.WithCarRead(true),
+		reaper.WithCommit(true),
+		reaper.WithDatastoreDir(dsDir),
+		reaper.WithDatastoreTempDir(dsTmpDir),
+		reaper.WithDeleteNotFound(true),
+		reaper.WithPCache(pc),
+		reaper.WithTopicName(testTopic),
+	)
+	require.NoError(t, err)
+
+	err = gc2.Reap(ctx, pid1)
+	require.ErrorIs(t, err, fs.ErrNotExist)
+	gc2.Close()
 }
 
 func newMockSource(pids ...peer.ID) *mockSource {

@@ -355,12 +355,16 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	outStatus = e.Run(indexer, "admin", "status", "--indexer", "http://localhost:3202")
 	require.Contains(t, string(outStatus), "Frozen: true", "expected indexer to be frozen")
 
-	outgc := string(e.Run(ipnigc, "provider", "-pid", providerID, "-ll", "debug", "--commit",
+	logLevel := "info"
+	if testing.Verbose() {
+		logLevel = "debug"
+	}
+	outgc := string(e.Run(ipnigc, "provider", "-pid", providerID, "-ll", logLevel, "--commit",
 		"-i", "http://localhost:3200",
 		"-i", "http://localhost:3000",
 	))
 	t.Logf("GC Results:\n%s\n", outgc)
-	require.Contains(t, outgc, `{"count": 1043, "total": 1043, "source": "CAR", "adsProcessed": 2}`)
+	require.Contains(t, outgc, `"count": 1043, "total": 1043, "source": "CAR", "adsProcessed": 2`)
 
 	e.Stop(cmdIndexer2, time.Second)
 
