@@ -949,7 +949,7 @@ func (s *scythe) removeEntries(ctx context.Context, adCid cid.Cid) error {
 	}
 	newRemoved := s.stats.IndexesRemoved - prevRemoved
 	if newRemoved != 0 {
-		log.Infow("Removed indexes in removed ad", "adCid", adCid, "count", newRemoved, "total", s.stats.IndexesRemoved, "source", source, "adsProcessed", s.stats.AdsProcessed)
+		log.Infow("Removed indexes in removed ad", "adCid", adCid, "count", newRemoved, "total", s.stats.IndexesRemoved, "source", source)
 	}
 	return nil
 }
