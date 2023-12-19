@@ -61,7 +61,7 @@
     "DHStoreURL": "http://dhstore-ago5.internal.dev.cid.contact",
     "DHStoreClusterURLs": [
       "http://dhstore-ago4.internal.dev.cid.contact",
-      "http://dhstore-ago3.internal.dev.cid.contact",
+      "http://dhstore-ago3.internal.dev.cid.contact"
     ],
     "DHStoreHttpClientTimeout": "55s"
   },
