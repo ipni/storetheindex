@@ -12,6 +12,10 @@ resources:
 patchesStrategicMerge:
   - deployment.yaml
 
+replicas:
+  - name: dhstore
+    count: 0
+
 images:
   - name: dhstore
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/dhstore
