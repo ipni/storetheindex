@@ -6,8 +6,6 @@ resources:
 - assigner
 - instances
 - indexstar
-- dhstore
-- dhstore-ago2
 - dhstore-ago3
 - dhstore-ago4
 - dhstore-ago5
