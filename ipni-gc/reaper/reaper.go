@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gammazero/deque"
 	"github.com/gammazero/targz"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -93,6 +94,7 @@ type Reaper struct {
 	httpTimeout time.Duration
 	indexer     indexer.Interface
 	pcache      *pcache.ProviderCache
+	segmentSize int
 	stats       GCStats
 	statsMutex  sync.Mutex
 	topic       string
@@ -118,6 +120,13 @@ type GCAd struct {
 
 type GCState struct {
 	LastProcessedAdCid cid.Cid
+}
+
+type adInfo struct {
+	cid       cid.Cid
+	contextID []byte
+	empty     bool
+	isRm      bool
 }
 
 func dsContextPrefix(contextID string) string {
@@ -178,6 +187,7 @@ func New(idxr indexer.Interface, fileStore filestore.Interface, options ...Optio
 		httpTimeout: opts.httpTimeout,
 		indexer:     idxr,
 		pcache:      opts.pcache,
+		segmentSize: opts.segmentSize,
 		topic:       opts.topic,
 	}, nil
 }
@@ -638,16 +648,69 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 		}
 	}()
 
+	segSize := s.reaper.segmentSize
+	segment := deque.New[adInfo](segSize, segSize)
+
+	for segEnd := gcState.LastProcessedAdCid; segEnd != latestAdCid; {
+		for adCid := latestAdCid; adCid != segEnd; {
+			ad, err := s.loadAd(adCid)
+			if err != nil {
+				return fmt.Errorf("failed to load advertisement %s: %w", adCid.String(), err)
+			}
+			var empty bool
+			if !ad.IsRm && (ad.Entries == nil || ad.Entries == schema.NoEntries) {
+				empty = true
+			}
+			if segment.Len() == segSize {
+				segment.PopFront()
+			}
+			ai := adInfo{
+				cid:       adCid,
+				contextID: ad.ContextID,
+				empty:     empty,
+				isRm:      ad.IsRm,
+			}
+			segment.PushBack(ai)
+			if ad.PreviousID == nil {
+				break
+			}
+			adCid = ad.PreviousID.(cidlink.Link).Cid
+			if adCid == cid.Undef {
+				// This should never happen, unless the provider has a
+				// different chain that it did previously.
+				log.Errorw("Did not find last provessed advertisement in chain", "lastProcessed", segEnd, "chainEnd", adCid)
+				break
+			}
+		}
+
+		segEnd = segment.Front().cid
+
+		err = s.reapSegment(ctx, segment)
+		if err != nil {
+			return err
+		}
+
+		// Update GC state.
+		gcState.LastProcessedAdCid = segEnd
+		if err = s.saveGCState(ctx, gcState); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *scythe) reapSegment(ctx context.Context, segment *deque.Deque[adInfo]) error {
 	removedCtxSet := make(map[string]struct{})
 	remaining := make(map[string][]cid.Cid)
+	segSize := segment.Len()
 
-	for adCid := latestAdCid; adCid != gcState.LastProcessedAdCid; {
-		ad, err := s.loadAd(adCid)
-		if err != nil {
-			return fmt.Errorf("failed to load advertisement %s: %w", adCid.String(), err)
-		}
-		contextID := base64.StdEncoding.EncodeToString(ad.ContextID)
-		if ad.IsRm {
+	var err error
+	for segment.Len() != 0 {
+		ad := segment.Front()
+		segment.PopFront()
+		adCid := ad.cid
+		contextID := base64.StdEncoding.EncodeToString(ad.contextID)
+		if ad.isRm {
 			log.Debugw("Processing removal ad", "adCid", adCid)
 			s.stats.RemovalAds++
 			reused, ok := remaining[contextID]
@@ -667,7 +730,7 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 			if err = s.deleteCarFile(ctx, adCid); err != nil {
 				return err
 			}
-		} else if ad.Entries == nil || ad.Entries == schema.NoEntries {
+		} else if ad.empty {
 			log.Debugw("Processing no-content ad", "adCid", adCid)
 			// Delete CAR file of empty ad.
 			if err = s.deleteCarFile(ctx, adCid); err != nil {
@@ -688,14 +751,8 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 			}
 		}
 		s.stats.AdsProcessed++
-
-		if ad.PreviousID == nil {
-			adCid = cid.Undef
-		} else {
-			adCid = ad.PreviousID.(cidlink.Link).Cid
-		}
 	}
-	log.Debugw("Done processing advertisements", "processed", s.stats.AdsProcessed, "removed", s.stats.IndexAdsRemoved)
+	log.Debugw("Done processing advertisements segment", "size", segSize, "processed", s.stats.AdsProcessed, "removed", s.stats.IndexAdsRemoved)
 
 	// Record which ads remain undeleted.
 	if err = s.saveRemaining(ctx, remaining); err != nil {
@@ -704,9 +761,7 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 	s.stats.CtxIDsKept += len(remaining)
 	s.stats.CtxIDsRemoved += len(removedCtxSet)
 
-	// Update GC state.
-	gcState.LastProcessedAdCid = latestAdCid
-	return s.saveGCState(ctx, gcState)
+	return nil
 }
 
 func (s *scythe) saveRemoved(ctx context.Context, adCid cid.Cid) error {

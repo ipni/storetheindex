@@ -12,6 +12,7 @@ import (
 
 const (
 	defaultHttpTimeout = 10 * time.Second
+	defaultSegmentSize = 16384
 	defaultTopic       = "/indexer/ingest/mainnet"
 )
 
@@ -28,6 +29,7 @@ type config struct {
 	httpTimeout       time.Duration
 	p2pHost           host.Host
 	pcache            *pcache.ProviderCache
+	segmentSize       int
 	topic             string
 }
 
@@ -41,6 +43,7 @@ func getOpts(opts []Option) (config, error) {
 		carRead:     true,
 		entsFromPub: true,
 		httpTimeout: defaultHttpTimeout,
+		segmentSize: defaultSegmentSize,
 		topic:       defaultTopic,
 	}
 
@@ -133,6 +136,17 @@ func WithLibp2pHost(h host.Host) Option {
 func WithPCache(pc *pcache.ProviderCache) Option {
 	return func(c *config) error {
 		c.pcache = pc
+		return nil
+	}
+}
+
+// WithSegmentSize sets the size of the segments that the ad chain is broken
+// into for processing.
+func WithSegmentSize(size int) Option {
+	return func(c *config) error {
+		if size > 0 {
+			c.segmentSize = size
+		}
 		return nil
 	}
 }

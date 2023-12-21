@@ -72,6 +72,12 @@ var providerFlags = []cli.Flag{
 		Usage:   "Set log level for other loggers that are not ipni-gc",
 		Value:   "error",
 	},
+	&cli.IntFlag{
+		Name:    "segment-size",
+		Usage:   "Set advertisement chain segment size. This specifies how many ads to process at a time.",
+		Aliases: []string{"ss"},
+		Value:   16384,
+	},
 }
 
 func providerAction(cctx *cli.Context) error {
@@ -156,6 +162,7 @@ func providerAction(cctx *cli.Context) error {
 		reaper.WithDeleteNotFound(cctx.Bool("delete-not-found")),
 		reaper.WithEntriesFromPublisher(cctx.Bool("ents-from-pub")),
 		reaper.WithPCache(pc),
+		reaper.WithSegmentSize(cctx.Int("segment-size")),
 		reaper.WithTopicName(cfg.Ingest.PubSubTopic),
 		reaper.WithHttpTimeout(time.Duration(cfg.Ingest.HttpSyncTimeout)),
 	)
