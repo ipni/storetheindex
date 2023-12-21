@@ -17,6 +17,7 @@ resources:
 - dhstore-qiu
 - dhstore-ravi
 - dhstore-seka
+- dhstore-tetra
 - telemetry
 images:
 - name: storetheindex
