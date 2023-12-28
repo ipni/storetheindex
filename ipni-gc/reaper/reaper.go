@@ -56,6 +56,7 @@ type GCStats struct {
 	CarsRemoved     int
 	CtxIDsKept      int
 	CtxIDsRemoved   int
+	EmptyAds        int
 	IndexAdsKept    int
 	IndexAdsRemoved int
 	IndexesRemoved  int
@@ -71,6 +72,7 @@ func (s GCStats) String() string {
 		" CarsRemoved:", s.CarsRemoved,
 		" CtxIDsKept:", s.CtxIDsKept,
 		" CtxIDsRemoved:", s.CtxIDsRemoved,
+		" EmptyAds:", s.EmptyAds,
 		" IndexAdsKept:", s.IndexAdsKept,
 		" IndexAdsRemoved:", s.IndexAdsRemoved,
 		" IndexesRemoved:", s.IndexesRemoved,
@@ -209,6 +211,7 @@ func (r *Reaper) AddStats(a GCStats) {
 	r.stats.CarsRemoved += a.CarsRemoved
 	r.stats.CtxIDsKept += a.CtxIDsKept
 	r.stats.CtxIDsRemoved += a.CtxIDsRemoved
+	r.stats.EmptyAds += a.EmptyAds
 	r.stats.IndexAdsKept += a.IndexAdsKept
 	r.stats.IndexAdsRemoved += a.IndexAdsRemoved
 	r.stats.IndexesRemoved += a.IndexesRemoved
@@ -657,20 +660,15 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 			if err != nil {
 				return fmt.Errorf("failed to load advertisement %s: %w", adCid.String(), err)
 			}
-			var empty bool
-			if !ad.IsRm && (ad.Entries == nil || ad.Entries == schema.NoEntries) {
-				empty = true
-			}
 			if segment.Len() == segSize {
 				segment.PopFront()
 			}
-			ai := adInfo{
+			segment.PushBack(adInfo{
 				cid:       adCid,
 				contextID: ad.ContextID,
-				empty:     empty,
+				empty:     ad.Entries == nil || ad.Entries == schema.NoEntries,
 				isRm:      ad.IsRm,
-			}
-			segment.PushBack(ai)
+			})
 			if ad.PreviousID == nil {
 				break
 			}
@@ -700,11 +698,12 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 }
 
 func (s *scythe) reapSegment(ctx context.Context, segment *deque.Deque[adInfo]) error {
+	log.Infow("Processing advertisements segment", "size", segment.Len())
+
 	removedCtxSet := make(map[string]struct{})
 	remaining := make(map[string][]cid.Cid)
-	segSize := segment.Len()
-
 	var err error
+
 	for segment.Len() != 0 {
 		ad := segment.Front()
 		segment.PopFront()
@@ -736,6 +735,7 @@ func (s *scythe) reapSegment(ctx context.Context, segment *deque.Deque[adInfo]) 
 			if err = s.deleteCarFile(ctx, adCid); err != nil {
 				return err
 			}
+			s.stats.EmptyAds++
 		} else {
 			_, ok := removedCtxSet[contextID]
 			if ok {
@@ -752,7 +752,6 @@ func (s *scythe) reapSegment(ctx context.Context, segment *deque.Deque[adInfo]) 
 		}
 		s.stats.AdsProcessed++
 	}
-	log.Debugw("Done processing advertisements segment", "size", segSize, "processed", s.stats.AdsProcessed, "removed", s.stats.IndexAdsRemoved)
 
 	// Record which ads remain undeleted.
 	if err = s.saveRemaining(ctx, remaining); err != nil {
@@ -761,6 +760,7 @@ func (s *scythe) reapSegment(ctx context.Context, segment *deque.Deque[adInfo]) 
 	s.stats.CtxIDsKept += len(remaining)
 	s.stats.CtxIDsRemoved += len(removedCtxSet)
 
+	log.Infow("Done processing advertisements segment", "stats", s.stats.String())
 	return nil
 }
 
