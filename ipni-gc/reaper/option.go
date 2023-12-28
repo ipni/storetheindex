@@ -20,7 +20,6 @@ type config struct {
 	carCompAlg        string
 	carDelete         bool
 	carRead           bool
-	commit            bool
 	deleteNotFound    bool
 	dstoreDir         string
 	dstoreTmpDir      string
@@ -83,15 +82,8 @@ func WithCarDelete(del bool) Option {
 	}
 }
 
-// WithCommit tells GC to commit changes to storage. Otherwise, GC only reports
-// information about what would have been collected.
-func WithCommit(commit bool) Option {
-	return func(c *config) error {
-		c.commit = commit
-		return nil
-	}
-}
-
+// WithDatastoreDir tells GC the directory to use as the parent for all
+// provider-specific datastores.
 func WithDatastoreDir(dir string) Option {
 	return func(c *config) error {
 		c.dstoreDir = dir
@@ -99,6 +91,8 @@ func WithDatastoreDir(dir string) Option {
 	}
 }
 
+// WithDatastoreTempDir tells GC the directory to use as the parent for all
+// provider-specific temproary datastores.
 func WithDatastoreTempDir(dir string) Option {
 	return func(c *config) error {
 		c.dstoreTmpDir = dir

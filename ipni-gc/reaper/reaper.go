@@ -85,7 +85,6 @@ func (s GCStats) String() string {
 type Reaper struct {
 	carDelete   bool
 	carReader   *carstore.CarReader
-	commit      bool
 	delNotFound bool
 	dsDir       string
 	dsTmpDir    string
@@ -178,7 +177,6 @@ func New(idxr indexer.Interface, fileStore filestore.Interface, options ...Optio
 	return &Reaper{
 		carDelete:   opts.carDelete,
 		carReader:   carReader,
-		commit:      opts.commit,
 		delNotFound: opts.deleteNotFound,
 		dsDir:       opts.dstoreDir,
 		dsTmpDir:    opts.dstoreTmpDir,
@@ -399,30 +397,26 @@ func (r *Reaper) removeProvider(ctx context.Context, providerID peer.ID) error {
 		dstore.Close()
 
 		// Delete gc-datastore archive.
-		if r.commit {
-			name := ArchiveName(providerID)
-			err = r.fileStore.Delete(ctx, name)
-			if err != nil && !errors.Is(err, fs.ErrNotExist) {
-				log.Errorw("Cannot delete datastore archive for provider", "err", err, "name", name)
-			}
-			// Delete gc-datastore.
-			dstoreDir := filepath.Join(r.dsDir, dstoreDirName(providerID))
-			err = os.RemoveAll(dstoreDir)
-			if err != nil && !errors.Is(err, fs.ErrNotExist) {
-				log.Errorw("Cannot remove datastore directory for provider", "err", err, "dir", dstoreDir)
-			}
+		name := ArchiveName(providerID)
+		err = r.fileStore.Delete(ctx, name)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			log.Errorw("Cannot delete datastore archive for provider", "err", err, "name", name)
+		}
+		// Delete gc-datastore.
+		dstoreDir := filepath.Join(r.dsDir, dstoreDirName(providerID))
+		err = os.RemoveAll(dstoreDir)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			log.Errorw("Cannot remove datastore directory for provider", "err", err, "dir", dstoreDir)
 		}
 
 		r.AddStats(s.stats)
 	}
 
 	// Delete temporary gc-datastore.
-	if r.dsTmpDir != "" && r.commit {
-		name := filepath.Join(r.dsTmpDir, "gc-tmp-"+providerID.String())
-		err = os.RemoveAll(name)
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			log.Errorw("Cannot remove datastore directory for provider", "err", err, "dir", name)
-		}
+	name := filepath.Join(r.dsTmpDir, "gc-tmp-"+providerID.String())
+	err = os.RemoveAll(name)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		log.Errorw("Cannot remove datastore directory for provider", "err", err, "dir", name)
 	}
 
 	if r.carReader == nil {
@@ -440,10 +434,8 @@ func (r *Reaper) removeProvider(ctx context.Context, providerID peer.ID) error {
 			// OK if head file does not exist. No CAR files to clean up.
 			return nil
 		}
-		if r.commit {
-			if err = carWriter.DeleteHead(ctx, providerID); err != nil {
-				log.Errorw("Failed to delete head file for provider", "err", err, "provider", providerID)
-			}
+		if err = carWriter.DeleteHead(ctx, providerID); err != nil {
+			log.Errorw("Failed to delete head file for provider", "err", err, "provider", providerID)
 		}
 		return fmt.Errorf("cannot read head advertisement for provider %s: %w", providerID, err)
 	}
@@ -492,20 +484,16 @@ func (r *Reaper) removeProvider(ctx context.Context, providerID peer.ID) error {
 	}
 
 	if adCid == cid.Undef {
-		if r.commit {
-			if err = carWriter.DeleteHead(ctx, providerID); err != nil {
-				err = fmt.Errorf("failed to delete head file: %w", err)
-			}
+		if err = carWriter.DeleteHead(ctx, providerID); err != nil {
+			err = fmt.Errorf("failed to delete head file: %w", err)
 		}
 		stats.TimeElapsed = time.Since(startTime)
 		log.Infow("Finished GC for removed provider", "provider", providerID, "stats", stats.String())
 	} else if newHead != cid.Undef {
 		// Did not complete. Save head where GC left off.
-		if r.commit {
-			_, err = carWriter.WriteHead(ctx, newHead, providerID)
-			if err != nil {
-				err = fmt.Errorf("failed to update head file: %w", err)
-			}
+		_, err = carWriter.WriteHead(ctx, newHead, providerID)
+		if err != nil {
+			err = fmt.Errorf("failed to update head file: %w", err)
 		}
 		stats.TimeElapsed = time.Since(startTime)
 		log.Infow("Incomplete GC for removed provider", "provider", providerID, "stats", stats.String())
@@ -569,7 +557,6 @@ func (r *Reaper) cleanCarIndexes(ctx context.Context, adCid cid.Cid) (cid.Cid, i
 		MetadataBytes: ad.Metadata,
 	}
 
-	commit := r.commit
 	indexer := r.indexer
 
 	var mhCount int
@@ -586,10 +573,8 @@ func (r *Reaper) cleanCarIndexes(ctx context.Context, adCid cid.Cid) (cid.Cid, i
 		if len(chunk.Entries) == 0 {
 			continue
 		}
-		if commit {
-			if err = indexer.Remove(value, chunk.Entries...); err != nil {
-				return cid.Undef, mhCount, fmt.Errorf("%w: %w", errIndexerWrite, err)
-			}
+		if err = indexer.Remove(value, chunk.Entries...); err != nil {
+			return cid.Undef, mhCount, fmt.Errorf("%w: %w", errIndexerWrite, err)
 		}
 		mhCount += len(chunk.Entries)
 	}
@@ -609,10 +594,8 @@ func (r *Reaper) deleteCarFile(ctx context.Context, adCid cid.Cid) (int64, error
 		}
 		return 0, err
 	}
-	if r.commit {
-		if err = r.fileStore.Delete(ctx, carPath); err != nil {
-			return 0, fmt.Errorf("failed to remove CAR file: %w", err)
-		}
+	if err = r.fileStore.Delete(ctx, carPath); err != nil {
+		return 0, fmt.Errorf("failed to remove CAR file: %w", err)
 	}
 	log.Infow("Deleted CAR file", "name", carPath, "size", file.Size)
 	return file.Size, nil
@@ -843,8 +826,6 @@ func (s *scythe) reapPrefixedAds(ctx context.Context, prefix string) error {
 		return err
 	}
 
-	commit := s.reaper.commit
-
 	if len(ents) == 0 {
 		return nil
 	}
@@ -855,33 +836,23 @@ func (s *scythe) reapPrefixedAds(ctx context.Context, prefix string) error {
 		adCid, err := cid.Decode(path.Base(key))
 		if err != nil {
 			log.Errorw("Cannot decode remaining advertisement cid", "err", err)
-			if commit {
-				if err = s.dstore.Delete(ctx, datastore.NewKey(key)); err != nil {
-					return err
-				}
+			if err = s.dstore.Delete(ctx, datastore.NewKey(key)); err != nil {
+				return err
 			}
 			continue
 		}
 		if err = s.saveRemoved(ctx, adCid); err != nil {
 			return err
 		}
-		if commit {
-			if err = s.dstore.Delete(ctx, datastore.NewKey(key)); err != nil {
-				return err
-			}
+		if err = s.dstore.Delete(ctx, datastore.NewKey(key)); err != nil {
+			return err
 		}
 	}
 
-	if !commit {
-		return nil
-	}
 	return s.dstore.Sync(ctx, datastore.NewKey(prefix))
 }
 
 func (s *scythe) saveRemaining(ctx context.Context, remaining map[string][]cid.Cid) error {
-	if !s.reaper.commit {
-		return nil
-	}
 	for contextID, adCids := range remaining {
 		ctxPrefix := dsContextPrefix(contextID)
 		for _, adCid := range adCids {
@@ -951,7 +922,7 @@ func (s *scythe) loadGCState(ctx context.Context) (GCState, error) {
 }
 
 func (s *scythe) saveGCState(ctx context.Context, gcState GCState) error {
-	if !s.reaper.commit || s.dstore == nil {
+	if s.dstore == nil {
 		return nil
 	}
 
@@ -1043,7 +1014,6 @@ func (s *scythe) removeEntriesFromCar(ctx context.Context, adCid cid.Cid) error 
 		MetadataBytes: ad.Metadata,
 	}
 
-	commit := s.reaper.commit
 	indexer := s.reaper.indexer
 
 	for entryBlock := range adBlock.Entries {
@@ -1058,10 +1028,8 @@ func (s *scythe) removeEntriesFromCar(ctx context.Context, adCid cid.Cid) error 
 		if len(chunk.Entries) == 0 {
 			continue
 		}
-		if commit {
-			if err = indexer.Remove(value, chunk.Entries...); err != nil {
-				return fmt.Errorf("%w: %w", errIndexerWrite, err)
-			}
+		if err = indexer.Remove(value, chunk.Entries...); err != nil {
+			return fmt.Errorf("%w: %w", errIndexerWrite, err)
 		}
 		s.stats.IndexesRemoved += len(chunk.Entries)
 	}
@@ -1095,7 +1063,6 @@ func (s *scythe) removeEntriesFromPublisher(ctx context.Context, adCid cid.Cid) 
 		MetadataBytes: ad.Metadata,
 	}
 
-	commit := s.reaper.commit
 	indexer := s.reaper.indexer
 
 	for entsCid != cid.Undef {
@@ -1106,13 +1073,11 @@ func (s *scythe) removeEntriesFromPublisher(ctx context.Context, adCid cid.Cid) 
 		if err != nil {
 			return fmt.Errorf("failed to load first entry chunk: %w", err)
 		}
-		if commit {
+		if err = indexer.Remove(value, chunk.Entries...); err != nil {
+			log.Errorw("Failed to remove indexes from valuestore, retrying", "err", err, "indexes", len(chunk.Entries))
+			time.Sleep(100 * time.Millisecond)
 			if err = indexer.Remove(value, chunk.Entries...); err != nil {
-				log.Errorw("Failed to remove indexes from valuestore, retrying", "err", err, "indexes", len(chunk.Entries))
-				time.Sleep(100 * time.Millisecond)
-				if err = indexer.Remove(value, chunk.Entries...); err != nil {
-					return fmt.Errorf("%w: %w", errIndexerWrite, err)
-				}
+				return fmt.Errorf("%w: %w", errIndexerWrite, err)
 			}
 		}
 		s.stats.IndexesRemoved += len(chunk.Entries)
@@ -1181,9 +1146,6 @@ func (r *Reaper) unarchiveDatastore(ctx context.Context, providerID peer.ID) err
 // create an archive of `gc-data-PId` named `gc-data-PID.tar.gz` and copy
 // it to the filestore.
 func (s *scythe) archiveDatastore(ctx context.Context) error {
-	if !s.reaper.commit {
-		return nil
-	}
 	if s.reaper.fileStore == nil {
 		log.Warn("Filestore not available to save gc datastore to")
 		return nil
