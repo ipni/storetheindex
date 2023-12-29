@@ -174,6 +174,10 @@ func New(idxr indexer.Interface, fileStore filestore.Interface, options ...Optio
 		}
 	}
 
+	if opts.dstoreTmpDir == "" {
+		opts.dstoreTmpDir = os.TempDir()
+	}
+
 	return &Reaper{
 		carDelete:   opts.carDelete,
 		carReader:   carReader,
@@ -256,19 +260,10 @@ func (r *Reaper) Reap(ctx context.Context, providerID peer.ID) error {
 	}()
 
 	// Create datastore for temporary ad data.
-	var tmpDir string
-	if r.dsTmpDir == "" {
-		tmpDir, err = os.MkdirTemp("", "gc-tmp-"+providerID.String())
-		if err != nil {
-			return fmt.Errorf("cannot create temp directory for gc: %w", err)
-		}
-		defer os.RemoveAll(tmpDir)
-	} else {
-		if err = fsutil.DirWritable(r.dsTmpDir); err != nil {
-			return err
-		}
-		tmpDir = filepath.Join(r.dsTmpDir, "gc-tmp-"+providerID.String())
+	if err = fsutil.DirWritable(r.dsTmpDir); err != nil {
+		return err
 	}
+	tmpDir := filepath.Join(r.dsTmpDir, "gc-tmp-"+providerID.String())
 	dstoreTmp, err := createDatastore(tmpDir)
 	if err != nil {
 		return fmt.Errorf("failed to create temporary datastore: %w", err)
