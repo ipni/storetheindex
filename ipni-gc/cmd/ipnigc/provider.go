@@ -35,11 +35,6 @@ var providerFlags = []cli.Flag{
 		Value:   1024,
 	},
 	&cli.BoolFlag{
-		Name:    "commit",
-		Usage:   "Commit changes to storage if set. Otherwise, only report what GC would have deleted.",
-		Aliases: []string{"w"},
-	},
-	&cli.BoolFlag{
 		Name:    "delete-not-found",
 		Usage:   "Delete all provider indexes if provider is not found",
 		Aliases: []string{"dnf"},
@@ -71,6 +66,12 @@ var providerFlags = []cli.Flag{
 		Aliases: []string{"llo"},
 		Usage:   "Set log level for other loggers that are not ipni-gc",
 		Value:   "error",
+	},
+	&cli.IntFlag{
+		Name:    "segment-size",
+		Usage:   "Set advertisement chain segment size. This specifies how many ads to process at a time.",
+		Aliases: []string{"ss"},
+		Value:   16384,
 	},
 }
 
@@ -150,12 +151,12 @@ func providerAction(cctx *cli.Context) error {
 		reaper.WithCarCompress(cfgMirror.Compress),
 		reaper.WithCarDelete(cfgMirror.Write),
 		reaper.WithCarRead(true),
-		reaper.WithCommit(cctx.Bool("commit")),
 		reaper.WithDatastoreDir(dsDir),
 		reaper.WithDatastoreTempDir(dsTmpDir),
 		reaper.WithDeleteNotFound(cctx.Bool("delete-not-found")),
 		reaper.WithEntriesFromPublisher(cctx.Bool("ents-from-pub")),
 		reaper.WithPCache(pc),
+		reaper.WithSegmentSize(cctx.Int("segment-size")),
 		reaper.WithTopicName(cfg.Ingest.PubSubTopic),
 		reaper.WithHttpTimeout(time.Duration(cfg.Ingest.HttpSyncTimeout)),
 	)
@@ -164,11 +165,7 @@ func providerAction(cctx *cli.Context) error {
 	}
 	defer grim.Close()
 
-	if cctx.Bool("commit") {
-		fmt.Println("Starting IPNI GC, committing changes")
-	} else {
-		fmt.Println("Starting IPNI GC, dry-run - GC progress and changes will not be saved")
-	}
+	fmt.Println("Starting IPNI GC")
 
 	var gcCount int
 	for _, pid := range peerIDs {

@@ -119,7 +119,6 @@ func daemonAction(cctx *cli.Context) error {
 		reaper.WithCarCompress(cfgMirror.Compress),
 		reaper.WithCarDelete(cfgMirror.Write),
 		reaper.WithCarRead(true),
-		reaper.WithCommit(true),
 		reaper.WithDatastoreDir(dsDir),
 		reaper.WithDatastoreTempDir(dsTmpDir),
 		reaper.WithPCache(pc),

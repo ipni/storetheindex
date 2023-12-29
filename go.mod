@@ -13,6 +13,7 @@ require (
 	github.com/cockroachdb/pebble v0.0.0-20220726144858-a78491c0086f
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.3.0
 	github.com/gammazero/channelqueue v0.2.1
+	github.com/gammazero/deque v0.2.1
 	github.com/gammazero/targz v0.0.3
 	github.com/ipfs/boxo v0.15.0
 	github.com/ipfs/go-cid v0.4.1
@@ -89,7 +90,6 @@ require (
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/gammazero/deque v0.2.1 // indirect
 	github.com/gammazero/radixtree v0.3.1 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
