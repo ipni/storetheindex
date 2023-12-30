@@ -359,9 +359,10 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	if testing.Verbose() {
 		logLevel = "debug"
 	}
-	outgc := string(e.Run(ipnigc, "provider", "-pid", providerID, "-ll", logLevel, "--commit",
+	outgc := string(e.Run(ipnigc, "provider", "-pid", providerID, "-ll", logLevel,
 		"-i", "http://localhost:3200",
 		"-i", "http://localhost:3000",
+		"-sync-segment-size", "2",
 	))
 	t.Logf("GC Results:\n%s\n", outgc)
 	require.Contains(t, outgc, `"count": 1043, "total": 1043, "source": "CAR"`)

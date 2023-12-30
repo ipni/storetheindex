@@ -59,6 +59,12 @@ var daemonFlags = []cli.Flag{
 		Usage:   "Set log level for other loggers that are not ipni-gc",
 		Value:   "error",
 	},
+	&cli.IntFlag{
+		Name:    "sync-segment-size",
+		Usage:   "Set advertisement chain sync segment size. This specifies how many ads to sync in each segment.",
+		Aliases: []string{"sync-ss"},
+		Value:   4096,
+	},
 }
 
 func daemonAction(cctx *cli.Context) error {
@@ -124,6 +130,7 @@ func daemonAction(cctx *cli.Context) error {
 		reaper.WithPCache(pc),
 		reaper.WithTopicName(cfg.Ingest.PubSubTopic),
 		reaper.WithHttpTimeout(time.Duration(cfg.Ingest.HttpSyncTimeout)),
+		reaper.WithSyncSegmentSize(cctx.Int("sync-segment-size")),
 	)
 	if err != nil {
 		return err

@@ -13,6 +13,7 @@ import (
 const (
 	defaultHttpTimeout = 10 * time.Second
 	defaultSegmentSize = 16384
+	defaultSyncSegSize = 4096
 	defaultTopic       = "/indexer/ingest/mainnet"
 )
 
@@ -29,6 +30,7 @@ type config struct {
 	p2pHost           host.Host
 	pcache            *pcache.ProviderCache
 	segmentSize       int
+	syncSegSize       int
 	topic             string
 }
 
@@ -43,6 +45,7 @@ func getOpts(opts []Option) (config, error) {
 		entsFromPub: true,
 		httpTimeout: defaultHttpTimeout,
 		segmentSize: defaultSegmentSize,
+		syncSegSize: defaultSyncSegSize,
 		topic:       defaultTopic,
 	}
 
@@ -135,11 +138,21 @@ func WithPCache(pc *pcache.ProviderCache) Option {
 }
 
 // WithSegmentSize sets the size of the segments that the ad chain is broken
-// into for processing.
+// into for processing after syncing.
 func WithSegmentSize(size int) Option {
 	return func(c *config) error {
 		if size > 0 {
 			c.segmentSize = size
+		}
+		return nil
+	}
+}
+
+// WithSyncSegmentSize sets sice that the ad chain is broken into when syncing.
+func WithSyncSegmentSize(size int) Option {
+	return func(c *config) error {
+		if size > 0 {
+			c.syncSegSize = size
 		}
 		return nil
 	}
