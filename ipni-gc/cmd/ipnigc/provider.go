@@ -73,6 +73,12 @@ var providerFlags = []cli.Flag{
 		Aliases: []string{"ss"},
 		Value:   16384,
 	},
+	&cli.IntFlag{
+		Name:    "sync-segment-size",
+		Usage:   "Set advertisement chain sync segment size. This specifies how many ads to sync in each segment.",
+		Aliases: []string{"sync-ss"},
+		Value:   4096,
+	},
 }
 
 func providerAction(cctx *cli.Context) error {
@@ -159,6 +165,7 @@ func providerAction(cctx *cli.Context) error {
 		reaper.WithSegmentSize(cctx.Int("segment-size")),
 		reaper.WithTopicName(cfg.Ingest.PubSubTopic),
 		reaper.WithHttpTimeout(time.Duration(cfg.Ingest.HttpSyncTimeout)),
+		reaper.WithSyncSegmentSize(cctx.Int("sync-segment-size")),
 	)
 	if err != nil {
 		return err

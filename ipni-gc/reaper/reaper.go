@@ -98,6 +98,7 @@ type Reaper struct {
 	segmentSize int
 	stats       GCStats
 	statsMutex  sync.Mutex
+	syncSegSize int
 	topic       string
 }
 
@@ -192,6 +193,7 @@ func New(idxr indexer.Interface, fileStore filestore.Interface, options ...Optio
 		indexer:     idxr,
 		pcache:      opts.pcache,
 		segmentSize: opts.segmentSize,
+		syncSegSize: opts.syncSegSize,
 		topic:       opts.topic,
 	}, nil
 }
@@ -271,7 +273,7 @@ func (r *Reaper) Reap(ctx context.Context, providerID peer.ID) error {
 	defer dstoreTmp.Close()
 
 	// Create ipni dagsync Subscriber for the provider.
-	sub, err := makeSubscriber(r.host, dstoreTmp, r.topic, r.httpTimeout)
+	sub, err := r.makeSubscriber(dstoreTmp)
 	if err != nil {
 		return fmt.Errorf("failed to start dagsync subscriber: %w", err)
 	}
@@ -596,6 +598,53 @@ func (r *Reaper) deleteCarFile(ctx context.Context, adCid cid.Cid) (int64, error
 	return file.Size, nil
 }
 
+func (r *Reaper) makeSubscriber(dstoreTmp datastore.Batching) (*dagsync.Subscriber, error) {
+	linksys := cidlink.DefaultLinkSystem()
+
+	linksys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
+		c := lnk.(cidlink.Link).Cid
+		val, err := dstoreTmp.Get(lctx.Ctx, datastore.NewKey(c.String()))
+		if err != nil {
+			return nil, err
+		}
+		return bytes.NewBuffer(val), nil
+	}
+	linksys.StorageWriteOpener = func(lctx ipld.LinkContext) (io.Writer, ipld.BlockWriteCommitter, error) {
+		buf := bytes.NewBuffer(nil)
+		return buf, func(lnk ipld.Link) error {
+			c := lnk.(cidlink.Link).Cid
+			return dstoreTmp.Put(lctx.Ctx, datastore.NewKey(c.String()), buf.Bytes())
+		}, nil
+	}
+
+	return dagsync.NewSubscriber(r.host, dstoreTmp, linksys, r.topic,
+		dagsync.HttpTimeout(r.httpTimeout),
+		dagsync.SegmentDepthLimit(int64(r.syncSegSize)))
+}
+
+func (s *scythe) generalDagsyncBlockHook(_ peer.ID, adCid cid.Cid, actions dagsync.SegmentSyncActions) {
+	// The only kind of block we should get by loading CIDs here should be
+	// Advertisement.
+	//
+	// Because:
+	//  - the default subscription selector only selects advertisements.
+	//  - explicit Ingester.Sync only selects advertisement.
+	//  - entries are synced with an explicit selector separate from
+	//    advertisement syncs and should use dagsync.ScopedBlockHook to
+	//    override this hook and decode chunks instead.
+	//
+	// Therefore, we only attempt to load advertisements here and signal
+	// failure if the load fails.
+	ad, err := s.loadAd(adCid)
+	if err != nil {
+		actions.FailSync(err)
+	} else if ad.PreviousID != nil {
+		actions.SetNextSyncCid(ad.PreviousID.(cidlink.Link).Cid)
+	} else {
+		actions.SetNextSyncCid(cid.Undef)
+	}
+}
+
 func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 	log.Infow("Starting GC for provider", "latestAd", latestAdCid, "provider", s.providerID)
 	if latestAdCid == cid.Undef {
@@ -617,6 +666,7 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 	_, err = s.sub.SyncAdChain(ctx, s.publisher,
 		dagsync.WithHeadAdCid(latestAdCid),
 		dagsync.WithStopAdCid(gcState.LastProcessedAdCid),
+		dagsync.ScopedBlockHook(s.generalDagsyncBlockHook),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to sync advertisement chain: %w", err)
@@ -871,28 +921,6 @@ func (s *scythe) deleteCarFile(ctx context.Context, adCid cid.Cid) error {
 		s.stats.CarsDataSize += size
 	}
 	return nil
-}
-
-func makeSubscriber(host host.Host, dstoreTmp datastore.Batching, topic string, httpTimeout time.Duration) (*dagsync.Subscriber, error) {
-	linksys := cidlink.DefaultLinkSystem()
-
-	linksys.StorageReadOpener = func(lctx ipld.LinkContext, lnk ipld.Link) (io.Reader, error) {
-		c := lnk.(cidlink.Link).Cid
-		val, err := dstoreTmp.Get(lctx.Ctx, datastore.NewKey(c.String()))
-		if err != nil {
-			return nil, err
-		}
-		return bytes.NewBuffer(val), nil
-	}
-	linksys.StorageWriteOpener = func(lctx ipld.LinkContext) (io.Writer, ipld.BlockWriteCommitter, error) {
-		buf := bytes.NewBuffer(nil)
-		return buf, func(lnk ipld.Link) error {
-			c := lnk.(cidlink.Link).Cid
-			return dstoreTmp.Put(lctx.Ctx, datastore.NewKey(c.String()), buf.Bytes())
-		}, nil
-	}
-
-	return dagsync.NewSubscriber(host, dstoreTmp, linksys, topic, dagsync.HttpTimeout(httpTimeout))
 }
 
 func (s *scythe) loadGCState(ctx context.Context) (GCState, error) {
