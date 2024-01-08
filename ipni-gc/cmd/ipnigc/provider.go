@@ -32,7 +32,7 @@ var providerFlags = []cli.Flag{
 		Name:    "batch-size",
 		Usage:   "Set batch size for dhstore requests",
 		Aliases: []string{"b"},
-		Value:   1024,
+		Value:   8192,
 	},
 	&cli.BoolFlag{
 		Name:    "delete-not-found",
