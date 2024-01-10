@@ -1,0 +1,20 @@
+type FederationHead  struct {
+    Head            Link
+    Topic  optional String
+    PublicKey       Bytes
+    Signature       Bytes
+}
+
+type FederationSnapshot struct {
+    Epoch             Int
+    VectorClock       Int
+    Providers         ProvidersIngestStatusMap
+    Previous optional Link
+}
+
+type ProvidersIngestStatusMap {String:IngestStatus}
+
+type IngestStatus struct {
+   LastAdvertisement    Link
+   HeightHint  optional Int
+}
