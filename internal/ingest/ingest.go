@@ -576,7 +576,7 @@ func (ing *Ingester) MarkAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 	return ing.markAdProcessed(publisher, adCid, false, false)
 }
 
-func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, keep bool) error {
+func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, mirrored bool) error {
 	cidStr := adCid.String()
 	ctx := context.Background()
 	if frozen {
@@ -591,7 +591,7 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, k
 		return err
 	}
 
-	if !keep || frozen {
+	if !mirrored || frozen {
 		// This ad is processed, so remove it from the datastore.
 		err = ing.dsTmp.Delete(ctx, datastore.NewKey(cidStr))
 		if err != nil {
@@ -1158,24 +1158,11 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 				"adCid", ai.cid,
 				"progress", fmt.Sprintf("%d of %d", count, total))
 
-			keep := ing.mirror.canWrite()
-			if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, keep); markErr != nil {
+			if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, false); markErr != nil {
 				log.Errorw("Failed to mark ad as processed", "err", markErr)
 			}
-			if !frozen && keep {
-				overwrite := ai.resync && ing.overwriteMirrorOnResync
-				// Write the advertisement to a CAR file, but omit the entries.
-				carInfo, err := ing.mirror.write(ctx, ai.cid, true, overwrite)
-				if err != nil {
-					if !errors.Is(err, fs.ErrExist) {
-						// Log the error, but do not return. Continue on to save the procesed ad.
-						log.Errorw("Cannot write advertisement to CAR file", "err", err)
-					}
-					// else car file already exists
-				} else {
-					log.Infow("Wrote CAR for skipped advertisement", "path", carInfo.Path, "size", carInfo.Size)
-				}
-			}
+			// Do not write removed ads to mirror. They are not read during
+			// indexing, and those deleted in the future are removed by GC.
 
 			// Distribute the atProcessedEvent notices to waiting Sync calls.
 			ing.inEvents <- adProcessedEvent{
@@ -1192,56 +1179,58 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			"progress", fmt.Sprintf("%d of %d", count, total),
 			"lag", lag)
 
-		err := ing.ingestAd(ctx, assignment.publisher, ai.cid, ai.resync, frozen, lag, headProvider)
-		if err == nil {
+		hasEnts, err := ing.ingestAd(ctx, assignment.publisher, ai.cid, ai.resync, frozen, lag, headProvider)
+		if err != nil {
+			var adIngestErr adIngestError
+			if errors.As(err, &adIngestErr) {
+				switch adIngestErr.state {
+				case adIngestDecodingErr, adIngestMalformedErr, adIngestEntryChunkErr, adIngestContentNotFound:
+					// These error cases are permanent. If retried later the same
+					// error will happen. So log and drop this error.
+					log.Errorw("Skipping ad because of a permanent error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
+					stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
+					err = nil
+				}
+				stats.RecordWithOptions(context.Background(),
+					stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
+					stats.WithTags(tag.Insert(metrics.ErrKind, string(adIngestErr.state))))
+			} else {
+				stats.RecordWithOptions(context.Background(),
+					stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
+					stats.WithTags(tag.Insert(metrics.ErrKind, "other error")))
+			}
+
+			// If err still not nil, then this is a non-permanent type of error.
+			if err != nil {
+				errText := err.Error()
+				if errors.Is(err, errInternal) {
+					errText = errInternal.Error()
+				}
+				ing.reg.SetLastError(provider, fmt.Errorf("error while ingesting ad %s: %s", ai.cid, errText))
+				log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err, "adsLeftToProcess", i+1)
+				// Tell anyone waiting that the sync finished for this head because
+				// of error.  TODO(mm) would be better to propagate the error.
+				ing.inEvents <- adProcessedEvent{
+					publisher: assignment.publisher,
+					headAdCid: headAdCid,
+					adCid:     ai.cid,
+					err:       err,
+				}
+				return
+			}
+		} else {
 			// No error at all, this ad was processed successfully.
 			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))
 		}
 
-		var adIngestErr adIngestError
-		if errors.As(err, &adIngestErr) {
-			switch adIngestErr.state {
-			case adIngestDecodingErr, adIngestMalformedErr, adIngestEntryChunkErr, adIngestContentNotFound:
-				// These error cases are permanent. If retried later the same
-				// error will happen. So log and drop this error.
-				log.Errorw("Skipping ad because of a permanent error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
-				stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
-				err = nil
-			}
-			stats.RecordWithOptions(context.Background(),
-				stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
-				stats.WithTags(tag.Insert(metrics.ErrKind, string(adIngestErr.state))))
-		} else if err != nil {
-			stats.RecordWithOptions(context.Background(),
-				stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
-				stats.WithTags(tag.Insert(metrics.ErrKind, "other error")))
-		}
-
-		if err != nil {
-			errText := err.Error()
-			if errors.Is(err, errInternal) {
-				errText = errInternal.Error()
-			}
-			ing.reg.SetLastError(provider, fmt.Errorf("error while ingesting ad %s: %s", ai.cid, errText))
-			log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err, "adsLeftToProcess", i+1)
-			// Tell anyone waiting that the sync finished for this head because
-			// of error.  TODO(mm) would be better to propagate the error.
-			ing.inEvents <- adProcessedEvent{
-				publisher: assignment.publisher,
-				headAdCid: headAdCid,
-				adCid:     ai.cid,
-				err:       err,
-			}
-			return
-		}
 		ing.reg.SetLastError(provider, nil)
 
-		keep := ing.mirror.canWrite()
-		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, keep); markErr != nil {
+		mirrored := hasEnts && ing.mirror.canWrite()
+		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, mirrored); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
 
-		if !frozen && keep {
+		if !frozen && mirrored {
 			overwrite := ai.resync && ing.overwriteMirrorOnResync
 			carInfo, err := ing.mirror.write(ctx, ai.cid, false, overwrite)
 			if err != nil {
