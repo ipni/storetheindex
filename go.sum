@@ -593,8 +593,8 @@ github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd/go.mod h1:9DD/GM0JNPoisgR09F62kbBi7kHa4eDIea4XshXYOVc=
 github.com/ipni/go-indexer-core v0.8.7 h1:IaEBoVe1RiTBDTj8MiUlbsYk/L32AOjtCBhQQmXuxIo=
 github.com/ipni/go-indexer-core v0.8.7/go.mod h1:lLWTrQ7dhKwCak1qn6AQBNoSrGYBAXJJy2OGc02BO2Q=
-github.com/ipni/go-libipni v0.5.8 h1:iSob6WRjdRuKpDZmwYw5aBD13utosnEGlRRun/21ZCs=
-github.com/ipni/go-libipni v0.5.8/go.mod h1:QvWhyJAY6CZ6IoQNw0DvZQW2nDJWxt/diwxv8udoAIw=
+github.com/ipni/go-libipni v0.5.9 h1:AlYlqZScX2jusGXXWkW5j6OMUtMKgQKNcl1Mi8g3glA=
+github.com/ipni/go-libipni v0.5.9/go.mod h1:c8mHa6J9iFREpDB29GlPIsbvztRq6bnhg5zJKrnvdUg=
 github.com/iris-contrib/blackfriday v2.0.0+incompatible/go.mod h1:UzZ2bDEoaSGPbkg6SAB4att1aAwTmVIx/5gCVqeyUdI=
 github.com/iris-contrib/go.uuid v2.0.0+incompatible/go.mod h1:iz2lgM/1UnEf1kP0L/+fafWORmlnuysV2EMP8MW+qe0=
 github.com/iris-contrib/i18n v0.0.0-20171121225848-987a633949d0/go.mod h1:pMCz62A0xJL6I+umB2YTlFRwWXaDFA0jy+5HzGiJjqI=

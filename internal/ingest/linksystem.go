@@ -489,7 +489,7 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 		return 0, adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to load first entry chunk: %w", err)}
 	}
 
-	err = ing.ingestEntryChunk(ctx, ad, providerID, entsCid, *chunk, log)
+	err = ing.ingestEntryChunk(ctx, ad, providerID, entsCid, chunk, log)
 	if err != nil {
 		// There was an error storing the multihashes.
 		return 0, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest first entry chunk: %w", err)}
@@ -506,7 +506,7 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 				actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entry chunk: %w", err)})
 				return
 			}
-			err = ing.ingestEntryChunk(ctx, ad, providerID, c, *chunk, log)
+			err = ing.ingestEntryChunk(ctx, ad, providerID, c, chunk, log)
 			if err != nil {
 				actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)})
 				return
@@ -688,12 +688,16 @@ func (ing *Ingester) loadAd(c cid.Cid) (schema.Advertisement, error) {
 	return *ad, nil
 }
 
-func (ing *Ingester) loadEntryChunk(c cid.Cid) (*schema.EntryChunk, error) {
+func (ing *Ingester) loadEntryChunk(c cid.Cid) (schema.EntryChunk, error) {
 	node, err := ing.loadNode(c, schema.EntryChunkPrototype)
 	if err != nil {
-		return nil, err
+		return schema.EntryChunk{}, err
 	}
-	return schema.UnwrapEntryChunk(node)
+	entChunk, err := schema.UnwrapEntryChunk(node)
+	if err != nil {
+		return schema.EntryChunk{}, fmt.Errorf("cannot decode entry chunk: %w", err)
+	}
+	return *entChunk, nil
 }
 
 func (ing *Ingester) loadHamt(c cid.Cid) (*hamt.Node, error) {

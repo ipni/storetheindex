@@ -24,7 +24,6 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
-	"github.com/ipld/go-ipld-prime/multicodec"
 	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-libipni/dagsync"
 	"github.com/ipni/go-libipni/ingest/schema"
@@ -622,27 +621,12 @@ func (r *Reaper) makeSubscriber(dstoreTmp datastore.Batching) (*dagsync.Subscrib
 		dagsync.SegmentDepthLimit(int64(r.syncSegSize)))
 }
 
-func (s *scythe) generalDagsyncBlockHook(_ peer.ID, adCid cid.Cid, actions dagsync.SegmentSyncActions) {
-	// The only kind of block we should get by loading CIDs here should be
-	// Advertisement.
-	//
-	// Because:
-	//  - the default subscription selector only selects advertisements.
-	//  - explicit Ingester.Sync only selects advertisement.
-	//  - entries are synced with an explicit selector separate from
-	//    advertisement syncs and should use dagsync.ScopedBlockHook to
-	//    override this hook and decode chunks instead.
-	//
-	// Therefore, we only attempt to load advertisements here and signal
-	// failure if the load fails.
+func (s *scythe) prevAdCid(adCid cid.Cid) (cid.Cid, error) {
 	ad, err := s.loadAd(adCid)
 	if err != nil {
-		actions.FailSync(err)
-	} else if ad.PreviousID != nil {
-		actions.SetNextSyncCid(ad.PreviousID.(cidlink.Link).Cid)
-	} else {
-		actions.SetNextSyncCid(cid.Undef)
+		return cid.Undef, err
 	}
+	return ad.PreviousCid(), nil
 }
 
 func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
@@ -666,7 +650,7 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 	_, err = s.sub.SyncAdChain(ctx, s.publisher,
 		dagsync.WithHeadAdCid(latestAdCid),
 		dagsync.WithStopAdCid(gcState.LastProcessedAdCid),
-		dagsync.ScopedBlockHook(s.generalDagsyncBlockHook),
+		dagsync.ScopedBlockHook(dagsync.MakeGeneralBlockHook(s.prevAdCid)),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to sync advertisement chain: %w", err)
@@ -1200,43 +1184,17 @@ func (s *scythe) archiveDatastore(ctx context.Context) error {
 }
 
 func (s *scythe) loadAd(c cid.Cid) (schema.Advertisement, error) {
-	adn, err := s.loadNode(c, schema.AdvertisementPrototype)
+	val, err := s.dstoreTmp.Get(context.Background(), datastore.NewKey(c.String()))
 	if err != nil {
 		return schema.Advertisement{}, err
 	}
-	ad, err := schema.UnwrapAdvertisement(adn)
-	if err != nil {
-		return schema.Advertisement{}, fmt.Errorf("cannot decode advertisement: %w", err)
-	}
-
-	return *ad, nil
+	return schema.BytesToAdvertisement(c, val)
 }
 
-func (s *scythe) loadEntryChunk(c cid.Cid) (*schema.EntryChunk, error) {
-	node, err := s.loadNode(c, schema.EntryChunkPrototype)
-	if err != nil {
-		return nil, err
-	}
-	return schema.UnwrapEntryChunk(node)
-}
-
-func (s *scythe) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Node, error) {
+func (s *scythe) loadEntryChunk(c cid.Cid) (schema.EntryChunk, error) {
 	val, err := s.dstoreTmp.Get(context.Background(), datastore.NewKey(c.String()))
 	if err != nil {
-		return nil, err
+		return schema.EntryChunk{}, err
 	}
-	return decodeIPLDNode(c.Prefix().Codec, bytes.NewBuffer(val), prototype)
-}
-
-// decodeIPLDNode decodes an ipld.Node from bytes read from an io.Reader.
-func decodeIPLDNode(codec uint64, r io.Reader, prototype ipld.NodePrototype) (ipld.Node, error) {
-	nb := prototype.NewBuilder()
-	decoder, err := multicodec.LookupDecoder(codec)
-	if err != nil {
-		return nil, err
-	}
-	if err = decoder(nb, r); err != nil {
-		return nil, err
-	}
-	return nb.Build(), nil
+	return schema.BytesToEntryChunk(c, val)
 }
