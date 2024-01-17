@@ -23,9 +23,9 @@ type Datastore struct {
 func NewDatastore() Datastore {
 	return Datastore{
 		Dir:     "datastore",
-		Type:    "levelds",
+		Type:    "pebble",
 		TmpDir:  "tmpstore",
-		TmpType: "levelds",
+		TmpType: "pebble",
 	}
 }
 
