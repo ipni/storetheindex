@@ -1241,8 +1241,8 @@ func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]p
 		if !r.policy.Allowed(peerID) {
 			continue
 		}
+		// If no publisher then do not poll.
 		if info.Publisher.Validate() != nil || !r.policy.Allowed(info.Publisher) {
-			// No publisher.
 			continue
 		}
 		// If using assigner service, and the provider's publisher is not
@@ -1267,7 +1267,11 @@ func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]p
 		}
 		noContactTime := now.Sub(info.lastContactTime)
 		if noContactTime < poll.interval {
-			// Had recent enough contact, no need to poll.
+			// Had recent enough contact, no need to poll, unless there was an
+			// error during the previous sync.
+			if info.LastError != "" {
+				needPoll = append(needPoll, info)
+			}
 			continue
 		}
 		sincePollingStarted := noContactTime - poll.interval
@@ -1308,7 +1312,10 @@ func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]p
 	}
 
 	// Sort from least to most recent.
-	sort.Sort(pollSortableInfos(needPoll))
+	sort.Slice(needPoll, func(i, j int) bool {
+		return needPoll[i].lastPoll < needPoll[j].lastPoll
+	})
+
 	// Do not poll more than the max, if it is set to non-zero. This selects
 	// the n least recently used.
 	if maxPoll != 0 && len(needPoll) > maxPoll {
@@ -1336,13 +1343,6 @@ func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]p
 		}
 	}
 }
-
-// Make provider info sortable by poll sequence.
-type pollSortableInfos []*ProviderInfo
-
-func (p pollSortableInfos) Len() int           { return len(p) }
-func (p pollSortableInfos) Less(i, j int) bool { return p[i].lastPoll < p[j].lastPoll }
-func (p pollSortableInfos) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 func (r *Registry) syncRemoveProvider(ctx context.Context, providerID peer.ID) error {
 	// Remove the provider from the registry.

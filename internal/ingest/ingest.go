@@ -814,6 +814,8 @@ func (ing *Ingester) autoSync() {
 			}
 			log.Info("Auto-syncing the latest advertisement with publisher")
 
+			// Sync from the last fully processed advertisement and not the
+			// last seen advertisement.
 			if latest, ok := ing.getLastKnownSync(pubID); ok {
 				ing.sub.SetLatestSync(pubID, latest)
 			}
