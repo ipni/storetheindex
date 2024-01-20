@@ -1311,17 +1311,19 @@ func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]p
 		return
 	}
 
-	// Sort from least to most recent.
+	// Sort from least to most recently polled.
 	sort.Slice(needPoll, func(i, j int) bool {
 		return needPoll[i].lastPoll < needPoll[j].lastPoll
 	})
 
-	// Do not poll more than the max, if it is set to non-zero. This selects
-	// the n least recently used.
+	// Do not poll more than the max when set to non-zero.
 	if maxPoll != 0 && len(needPoll) > maxPoll {
 		needPoll = needPoll[:maxPoll]
 	}
-	// Record last poll sequence for infos getting polled
+
+	// Record last poll sequence for infos getting polled. This avoids polling
+	// the same providers during each poll period, if there are others that
+	// should be polled.
 	r.provMutex.Lock()
 	for _, info := range needPoll {
 		info.lastPoll = pollSeq
