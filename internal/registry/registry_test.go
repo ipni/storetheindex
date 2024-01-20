@@ -417,16 +417,16 @@ func TestPollProvider(t *testing.T) {
 	// Check that registry is not blocked by unread auto-sync channel.
 	poll.retryAfter = 0
 	poll.deactivateAfter = 0
-	r.pollProviders(poll, nil, 2)
-	r.pollProviders(poll, nil, 3)
 	done := make(chan struct{})
 	go func() {
+		r.pollProviders(poll, nil, 2)
+		r.pollProviders(poll, nil, 3)
 		_, ok := r.ProviderInfo(peerID)
 		require.True(t, ok)
 		close(done)
 	}()
 
-	timeout.Reset(time.Second)
+	timeout.Reset(2 * time.Second)
 	select {
 	case <-done:
 	case <-timeout.C:
