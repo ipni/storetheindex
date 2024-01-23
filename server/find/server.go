@@ -300,7 +300,7 @@ func (s *Server) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, st
 	defer func() {
 		msecPerMh := coremetrics.MsecSince(startTime) / float64(len(mhs))
 		_ = stats.RecordWithOptions(context.Background(),
-			stats.WithTags(tag.Insert(metrics.Method, "http"), tag.Insert(metrics.Found, fmt.Sprintf("%v", found))),
+			stats.WithTags(tag.Insert(metrics.Found, fmt.Sprintf("%v", found))),
 			stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
 	}()
 
