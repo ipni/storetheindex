@@ -48,7 +48,6 @@ const (
 
 // Metrics
 var (
-	totalBacklog  atomic.Int32
 	totalNonRmAds atomic.Int64
 	totalRmAds    atomic.Int64
 	workersActive atomic.Int32
@@ -165,9 +164,6 @@ type Ingester struct {
 	mirror        adMirror
 	mhsFromMirror atomic.Uint64
 
-	// Metrics
-	backlogs map[peer.ID]int32
-
 	// Ingest rates
 	ingestRates *rate.Map
 }
@@ -200,8 +196,6 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		workReady: make(chan peer.ID, 1),
 
 		minKeyLen: cfg.MinimumKeyLength,
-
-		backlogs: make(map[peer.ID]int32),
 
 		ingestRates: rate.NewMap(),
 	}
@@ -1043,11 +1037,9 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 			go func(provID peer.ID) {
 				ing.providersBeingProcessedMu.Lock()
 				provBusy := ing.providersBeingProcessed[provID]
-				ing.backlogs[provID]++
 				ing.providersBeingProcessedMu.Unlock()
 
 				stats.Record(ctx,
-					metrics.AdIngestBacklog.M(int64(totalBacklog.Add(1))),
 					metrics.AdIngestQueued.M(int64(workersQueued.Add(1))))
 				// Wait until the no workers are doing work for the provider
 				// before notifying that another work assignment is available.
@@ -1075,14 +1067,11 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 func (ing *Ingester) handleWorkReady(ctx context.Context, provider peer.ID) {
 	ing.providersBeingProcessedMu.Lock()
 	provBusy := ing.providersBeingProcessed[provider]
-	n := ing.backlogs[provider]
-	delete(ing.backlogs, provider)
 	// Pull out the assignment for this provider, which was populated by processAdChain.
 	wa := ing.providerWorkAssignment[provider]
 	ing.providersBeingProcessedMu.Unlock()
 
 	stats.Record(context.Background(),
-		metrics.AdIngestBacklog.M(int64(totalBacklog.Add(-n))),
 		metrics.AdIngestQueued.M(int64(workersQueued.Add(-1))),
 		metrics.AdIngestActive.M(int64(workersActive.Add(1))))
 

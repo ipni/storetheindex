@@ -188,7 +188,7 @@ func runGC(ctx context.Context, grim *reaper.Reaper, pc *pcache.ProviderCache, e
 		err := grim.Reap(ctx, pid)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
-				log.Info("GC shutdown while processing provider", "provider", pid)
+				log.Infow("GC shutdown while processing provider", "provider", pid)
 				return
 			}
 			log.Errorw("Failed GC for provider", "err", err, "provider", pid)
