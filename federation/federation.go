@@ -119,7 +119,9 @@ func (f *Federation) snapshot(ctx context.Context, t time.Time) error {
 		return err
 	}
 	newSnapshot := &Snapshot{
-		Epoch:       uint64(t.UTC().Unix()), // TODO: consider time dilution?
+		// TODO: consider reducing the granularity of epoch. Millisecond increments in terms of unix clock may be too
+		//       fine for the purposes of IPNI federation.
+		Epoch:       uint64(t.UTC().Unix()),
 		VectorClock: f.vc.tick(f.host.ID()),
 		Providers: ProvidersIngestStatusMap{
 			Values: make(map[string]IngestStatus),
