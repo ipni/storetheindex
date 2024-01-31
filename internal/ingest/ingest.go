@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -166,6 +167,8 @@ type Ingester struct {
 
 	// Ingest rates
 	ingestRates *rate.Map
+
+	skip500EntsErr atomic.Bool
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
@@ -207,6 +210,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	if err != nil {
 		return nil, err
 	}
+
+	ing.skip500EntsErr.Store(cfg.Skip500EntriesError)
 
 	// Create and start subscriber. This also registers the storage hook to
 	// index data as it is received.
@@ -256,6 +261,10 @@ func (ing *Ingester) GetIngestRate(peerID peer.ID) (rate.Rate, bool) {
 
 func (ing *Ingester) MultihashesFromMirror() uint64 {
 	return ing.mhsFromMirror.Load()
+}
+
+func (ing *Ingester) Skip500EntriesError(skip bool) {
+	ing.skip500EntsErr.Store(skip)
 }
 
 func (ing *Ingester) generalDagsyncBlockHook(_ peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
@@ -1114,6 +1123,8 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 		}
 	}
 
+	skip500EntsErr := ing.skip500EntsErr.Load()
+
 	total := len(assignment.adInfos)
 	log.Infow("Running worker on ad stack", "headAdCid", headAdCid, "numAdsToProcess", total)
 	var count int
@@ -1181,6 +1192,12 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 					log.Errorw("Skipping ad because of a permanent error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
 					stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
 					err = nil
+				case adIngestSyncEntriesErr:
+					if skip500EntsErr && strings.Contains(err.Error(), "failed to sync first entry") && strings.Contains(err.Error(), ": 500") {
+						log.Errorw("Skipping ad because of a permanent 500 error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
+						stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
+						err = nil
+					}
 				}
 				stats.RecordWithOptions(context.Background(),
 					stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),

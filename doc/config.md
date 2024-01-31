@@ -13,5 +13,6 @@ The storetheindex daemon can reload some portions of its config without restarti
 - `Indexer.ConfigCheckInterval`
 - `Indexer.ShutdownTimeout`
 - `Ingest.IngestWorkerCount`
+- `Ingest.Skip500EntriesError`
 - `Logging`
 - `Peering`
