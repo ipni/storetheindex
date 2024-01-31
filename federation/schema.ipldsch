@@ -1,5 +1,5 @@
 type FederationHead  struct {
-    Head            Link
+    Head   optional Link
     Topic  optional String
     PublicKey       Bytes
     Signature       Bytes

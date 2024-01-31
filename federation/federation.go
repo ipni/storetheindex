@@ -301,6 +301,11 @@ func (f *Federation) reconcile(ctx context.Context, t time.Time) error {
 			snapshotCid := head.Head.(cidlink.Link).Cid
 			logger = logger.With("snapshotCid", snapshotCid)
 
+			if cid.Undef.Equals(snapshotCid) {
+				logger.Debug("Head link is empty")
+				continue
+			}
+
 			if seenCid, ok := f.lastSeenSnapshotByMember[member.ID]; ok && seenCid.Equals(snapshotCid) {
 				logger.Debugw("Snapshot already seen; skipping reconciliation")
 				continue
