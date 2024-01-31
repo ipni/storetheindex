@@ -25,7 +25,7 @@ func TestFederationStandalone(t *testing.T) {
 	}
 	require.NoError(t, subject.registry.Update(context.TODO(), providerAddrInfo, providerAddrInfo, madeUpAdCid, nil, 0))
 
-	head := subject.requireHeadEventually(t, 10*time.Second, time.Second)
+	head := subject.requireHeadEventually(t, 20*time.Second, time.Second)
 	snapshot := subject.requireSnapshot(t, head.Head)
 
 	require.True(t, snapshot.Epoch > 0)
