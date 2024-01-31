@@ -52,8 +52,9 @@ type Ingest struct {
 	// IngestWorkerCount sets how many ingest worker goroutines to spawn. This
 	// controls how many concurrent ingest from different providers we can handle.
 	IngestWorkerCount int
-	// MaxAsyncConcurrency sets the maximum number of concurrent asynchrouous syncs
-	// (started by announce messages). Set -1 for unlimited, 0 for default.
+	// MaxAsyncConcurrency sets the maximum number of concurrent asynchrouous
+	// syncs (started by announce messages). Set -1 for unlimited, 0 for
+	// default. This value is reloadable.
 	MaxAsyncConcurrency int
 	// MinimumKeyLengt causes any multihash, that has a digest length less than
 	// this, to be ignored.
@@ -69,6 +70,10 @@ type Ingest struct {
 	// the announce so that other indexers can also receive it. This is always
 	// false if configured to use an assigner.
 	ResendDirectAnnounce bool
+	// Skip500EntriesError, when true, skips advertisements for which the
+	// publisher returns a 500 status code and an error message "failed to sync
+	// first entry". This value is reloadable.
+	Skip500EntriesError bool
 	// SyncSegmentDepthLimit is the depth limit of a single sync in a series of
 	// calls that collectively sync advertisements or their entries. The value
 	// -1 disables the segmentation where the sync will be done in a single call

@@ -612,6 +612,7 @@ func reloadConfig(cfgPath string, ingester *ingest.Ingester, reg *registry.Regis
 
 	if ingester != nil {
 		ingester.RunWorkers(cfg.Ingest.IngestWorkerCount)
+		ingester.Skip500EntriesError(cfg.Ingest.Skip500EntriesError)
 	}
 
 	err = setLoggingConfig(cfg.Logging)
