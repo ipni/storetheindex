@@ -25,6 +25,8 @@ func (f *Federation) handleV1FedHead(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		logger.Errorw("Failed to load head snapshot link", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
+	case headNode == nil:
+		w.WriteHeader(http.StatusNoContent)
 	default:
 		// TODO: Support alternative content types based on request Accept header.
 		w.Header().Add("Content-Type", "application/json")

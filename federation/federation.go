@@ -16,7 +16,6 @@ import (
 	"github.com/ipld/go-ipld-prime/codec/dagjson"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/multicodec"
-	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/node/bindnode"
 	"github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/go-libipni/find/model"
@@ -163,9 +162,7 @@ func (f *Federation) getHeadNode(ctx context.Context) (ipld.Node, error) {
 	headLink, err := f.getHeadLink(ctx)
 	if err != nil {
 		if errors.Is(err, datastore.ErrNotFound) {
-			// Set headNodeCache to an empty node to avoid hitting datastore every time head is fetched.
-			f.headNodeCache = basicnode.Prototype.Any.NewBuilder().Build()
-			return f.headNodeCache, nil
+			return nil, nil
 		}
 		return nil, err
 	}
