@@ -144,11 +144,10 @@ func (f *Federation) snapshot(ctx context.Context, t time.Time) error {
 	node := bindnode.Wrap(newSnapshot, Prototypes.Snapshot.Type()).Representation()
 	headSnapshotLink, err := f.linkSystem.Store(ipld.LinkContext{Ctx: ctx}, Prototypes.link, node)
 	if err != nil {
-		f.vc.untick(f.host.ID())
 		return err
 	}
 	if err := f.setHeadLink(ctx, headSnapshotLink); err != nil {
-		f.vc.untick(f.host.ID())
+		return err
 	}
 	return nil
 }

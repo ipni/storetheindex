@@ -24,11 +24,6 @@ func TestVectorClock(t *testing.T) {
 	require.False(t, found)
 	require.Equal(t, uint64(0), clock)
 
-	subject.untick("one")
-	clock, found = subject.clock("one")
-	require.True(t, found)
-	require.Equal(t, uint64(0), clock)
-
 	subject.reconcile("another", 1413)
 	clock, found = subject.clock("another")
 	require.True(t, found)
