@@ -40,7 +40,7 @@
     "IgnoreBadAdsTime": "2h0m0s",
     "Policy": {
       "Allow": true,
-      "Except": null,
+      "Except": ["12D3KooWJA2ETdy5wYTbCHVqKdgrqtmuNEwjMVMwEtMrNugrsGkZ"],
       "Publish": true,
       "PublishExcept": null
     },
