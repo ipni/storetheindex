@@ -9,7 +9,7 @@
     "IndexerPool": [],
     "Policy": {
       "Allow": true,
-      "Except": null
+      "Except": ["12D3KooWJA2ETdy5wYTbCHVqKdgrqtmuNEwjMVMwEtMrNugrsGkZ"]
     },
     "PubSubTopic": "/indexer/ingest/mainnet",
     "Replication": 1
