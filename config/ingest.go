@@ -32,6 +32,11 @@ type Ingest struct {
 	// (segments) of size set by SyncSegmentDepthLimit. EntriesDepthLimit sets
 	// the limit on the total number of entries chunks across all segments.
 	EntriesDepthLimit int
+	// FirstSyncDepth sets the advertisement chain depth to sync on the first
+	// sync with a new provider. To sync a new provider with only the most
+	// recent advertisement, set this to 1. A value of 0, the default, means
+	// unlimited depth.
+	FirstSyncDepth int
 	// GsMaxInRequests is the maximum number of incoming in-progress graphsync
 	// requests. Default is 1024.
 	GsMaxInRequests uint64
