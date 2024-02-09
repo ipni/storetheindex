@@ -28,9 +28,8 @@ spec:
       containers:
         - name: assigner
           image: storetheindex
-          command: ["/sbin/tini", "--", "/usr/local/bin/start_assigner"]
           args:
-            - 'daemon'
+            - 'assigner'
           env:
             - name: GOLOG_LOG_LEVEL
               value: INFO
