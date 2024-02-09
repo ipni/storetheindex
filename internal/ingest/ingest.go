@@ -218,6 +218,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	sub, err := dagsync.NewSubscriber(h, ing.dsTmp, ing.lsys, cfg.PubSubTopic,
 		dagsync.AdsDepthLimit(int64(cfg.AdvertisementDepthLimit)),
 		dagsync.EntriesDepthLimit(int64(cfg.EntriesDepthLimit)),
+		dagsync.FirstSyncDepth(int64(cfg.FirstSyncDepth)),
 		dagsync.WithLastKnownSync(ing.getLastKnownSync),
 		dagsync.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
 		dagsync.BlockHook(ing.generalDagsyncBlockHook),
