@@ -25,4 +25,4 @@ configMapGenerator:
 images:
 - name: storetheindex
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
-  newTag: 0.8.17
+  newTag: 20240209210003-a622ff548cf6ba5aa0512848a504c2d4176331bd
