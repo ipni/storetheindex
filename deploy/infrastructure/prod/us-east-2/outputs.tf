@@ -34,6 +34,10 @@ output "prod_cid_contact_nameservers" {
   value = aws_route53_zone.prod_external.name_servers
 }
 
-output "prod_cid_contact_zone_id" {
-  value = aws_route53_zone.prod_external.zone_id
+output "berg_user_access_key_id" {
+  value = module.berg_user.iam_access_key_id
+}
+
+output "berg_user_access_key_secret_encrypted" {
+  value = module.berg_user.iam_access_key_encrypted_secret
 }
