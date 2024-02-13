@@ -38,32 +38,31 @@ func (m adMirror) writeHead(ctx context.Context, adCid cid.Cid, publisher peer.I
 
 func newMirror(cfgMirror config.Mirror, dstore datastore.Batching) (adMirror, error) {
 	var m adMirror
-
-	if !(cfgMirror.Read || cfgMirror.Write) {
-		return m, nil
-	}
-
-	fileStore, err := filestore.MakeFilestore(cfgMirror.Storage)
-	if err != nil {
-		return m, fmt.Errorf("cannot create car file storage for mirror: %w", err)
-	}
-	if fileStore == nil {
-		return m, nil
-	}
-
 	if cfgMirror.Write {
-		m.carWriter, err = carstore.NewWriter(dstore, fileStore, carstore.WithCompress(cfgMirror.Compress))
-		if err != nil {
-			return m, fmt.Errorf("cannot create car file writer: %w", err)
+		switch writeStore, err := filestore.MakeFilestore(cfgMirror.Storage); {
+		case err != nil:
+			return m, fmt.Errorf("cannot create car file storage for mirror: %w", err)
+		case writeStore != nil:
+			m.carWriter, err = carstore.NewWriter(dstore, writeStore, carstore.WithCompress(cfgMirror.Compress))
+			if err != nil {
+				return m, fmt.Errorf("cannot create mirror car file writer: %w", err)
+			}
+		default:
+			log.Warnw("Mirror write is enabled with no storage backend", "backendType", cfgMirror.Storage.Type)
 		}
 	}
-
 	if cfgMirror.Read {
-		m.carReader, err = carstore.NewReader(fileStore, carstore.WithCompress(cfgMirror.Compress))
-		if err != nil {
-			return m, fmt.Errorf("cannot create car file reader: %w", err)
+		switch readStore, err := filestore.MakeFilestore(cfgMirror.Retrieval); {
+		case err != nil:
+			return m, fmt.Errorf("cannot create car file retrieval for mirror: %w", err)
+		case readStore != nil:
+			m.carReader, err = carstore.NewReader(readStore, carstore.WithCompress(cfgMirror.Compress))
+			if err != nil {
+				return m, fmt.Errorf("cannot create mirror car file reader: %w", err)
+			}
+		default:
+			log.Warnw("Mirror read is enabled with no retrieval backend", "backendType", cfgMirror.Retrieval.Type)
 		}
 	}
-
 	return m, nil
 }
