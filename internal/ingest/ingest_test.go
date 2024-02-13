@@ -1604,6 +1604,8 @@ func TestGetEntryDataFromCar(t *testing.T) {
 	cfgWithMirror.AdvertisementMirror.Write = true
 	cfgWithMirror.AdvertisementMirror.Storage.Type = "local"
 	cfgWithMirror.AdvertisementMirror.Storage.Local.BasePath = tempDir
+	cfgWithMirror.AdvertisementMirror.Retrieval.Type = "local"
+	cfgWithMirror.AdvertisementMirror.Retrieval.Local.BasePath = tempDir
 
 	te := setupTestEnv(t, true, func(optCfg *testEnvOpts) {
 		optCfg.ingestConfig = &cfgWithMirror
