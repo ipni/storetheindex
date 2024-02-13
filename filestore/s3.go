@@ -16,7 +16,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
+	"github.com/ipfs/go-log/v2"
 )
+
+var s3logger = log.Logger("filestore/s3")
 
 // S3 is a file store that stores files in AWS S3.
 //
@@ -96,14 +99,17 @@ func (s *S3) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, err
 	if err != nil {
 		var nsk *types.NoSuchKey
 		if errors.As(err, &nsk) {
+			s3logger.Debugw("Cannot perform GET: no such key", "key", relPath)
 			return nil, nil, fs.ErrNotExist
 		}
 		var apiErr smithy.APIError
 		if errors.As(err, &apiErr) {
 			if apiErr.ErrorCode() == "NotFound" {
+				s3logger.Debugw("Cannot perform GET: API error not found", "key", relPath)
 				return nil, nil, fs.ErrNotExist
 			}
 		}
+		s3logger.Errorw("Failed to perform GET", "key", relPath, "err", err)
 		return nil, nil, err
 	}
 
@@ -115,6 +121,7 @@ func (s *S3) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, err
 		file.Modified = *rsp.LastModified
 	}
 
+	s3logger.Debugw("Successfully performed GET", "key", relPath)
 	return file, &wrappedReadCloser{rsp.Body}, nil
 }
 
@@ -128,17 +135,21 @@ func (s *S3) Head(ctx context.Context, relPath string) (*File, error) {
 		var apiErr smithy.APIError
 		if errors.As(err, &apiErr) {
 			if apiErr.ErrorCode() == "NotFound" {
+				s3logger.Debugw("Cannot perform HEAD: API error not found", "key", relPath)
 				return nil, fs.ErrNotExist
 			}
 		}
 		var nsk *types.NoSuchKey
 		if errors.As(err, &nsk) {
+			s3logger.Debugw("Cannot perform HEAD: no such key", "key", relPath)
 			return nil, fs.ErrNotExist
 		}
 		var nf *types.NotFound
 		if errors.As(err, &nf) {
+			s3logger.Debugw("Cannot perform HEAD: not found", "key", relPath)
 			return nil, fs.ErrNotExist
 		}
+		s3logger.Errorw("Failed to perform HEAD", "key", relPath, "err", err)
 		return nil, err
 	}
 
@@ -149,7 +160,7 @@ func (s *S3) Head(ctx context.Context, relPath string) (*File, error) {
 	if rsp.LastModified != nil {
 		file.Modified = *rsp.LastModified
 	}
-
+	s3logger.Debugw("Successfully performed HEAD", "key", relPath)
 	return file, nil
 }
 
@@ -220,15 +231,17 @@ func (s *S3) Put(ctx context.Context, relPath string, reader io.Reader) (*File, 
 		ContentType: aws.String("application/octet-stream"),
 	})
 	if err != nil {
+		s3logger.Errorw("Failed to perform PUT", "key", relPath, "err", err)
 		return nil, err
 	}
 
 	file, err := s.Head(ctx, relPath)
 	if err != nil {
+		s3logger.Errorw("Failed to perform HEAD as part of PUT", "key", relPath, "err", err)
 		return nil, err
 	}
 	file.URL = rsp.Location
-
+	s3logger.Debugw("Successfully performed PUT", "key", relPath)
 	return file, nil
 }
 

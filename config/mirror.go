@@ -16,8 +16,10 @@ type Mirror struct {
 	// Compress specifies how to compress files. One of: "gzip", "none".
 	// Defaults to "gzip" if unspecified.
 	Compress string
-	// Storage configures the backing file store for the mirror.
+	// Storage configures the backing file store for the mirror write operations.
 	Storage filestore.Config
+	// Retrieval configures the backing file store for the mirror read operations.
+	Retrieval filestore.Config
 }
 
 // NewMirror returns Mirror with values set to their defaults.

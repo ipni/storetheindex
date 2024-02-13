@@ -146,7 +146,7 @@ func providerAction(cctx *cli.Context) error {
 
 	var fileStore filestore.Interface
 	cfgMirror := cfg.Ingest.AdvertisementMirror
-	if cfgMirror.Read || cfgMirror.Write {
+	if cfgMirror.Write {
 		fileStore, err = filestore.MakeFilestore(cfgMirror.Storage)
 		if err != nil {
 			return err
