@@ -1182,7 +1182,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			"progress", fmt.Sprintf("%d of %d", count, total),
 			"lag", lag)
 
-		hasEnts, err := ing.ingestAd(ctx, assignment.publisher, ai.cid, ai.resync, frozen, lag, headProvider)
+		hasEnts, fromMirror, err := ing.ingestAd(ctx, assignment.publisher, ai.cid, ai.resync, frozen, lag, headProvider)
 		if err != nil {
 			var adIngestErr adIngestError
 			if errors.As(err, &adIngestErr) {
@@ -1234,21 +1234,27 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 
 		ing.reg.SetLastError(provider, nil)
 
-		mirrored := hasEnts && ing.mirror.canWrite()
-		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, mirrored); markErr != nil {
+		putMirror := hasEnts && ing.mirror.canWrite()
+		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, putMirror); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
 
-		if !frozen && mirrored {
-			overwrite := ai.resync && ing.overwriteMirrorOnResync
-			carInfo, err := ing.mirror.write(ctx, ai.cid, false, overwrite)
+		if putMirror {
+			var preventOverwrite bool
+			cleanupOnly := fromMirror && ing.mirror.readWriteSame()
+			if !cleanupOnly {
+				// If resyncing and not overwriting, then do not overwrite the
+				// destination file if it already exists.
+				preventOverwrite = ai.resync && !ing.overwriteMirrorOnResync
+			}
+
+			carInfo, err := ing.mirror.write(ctx, ai.cid, false, cleanupOnly, preventOverwrite)
 			if err != nil {
 				if !errors.Is(err, fs.ErrExist) {
 					// Log the error, but do not return. Continue on to save the procesed ad.
 					log.Errorw("Cannot write advertisement to CAR file", "err", err)
 				}
-				// else car file already exists
-			} else {
+			} else if !cleanupOnly {
 				log.Infow("Wrote CAR for advertisement", "path", carInfo.Path, "size", carInfo.Size)
 			}
 		}

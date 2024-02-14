@@ -78,15 +78,15 @@ func (cw *CarWriter) Compression() string {
 // of this to create a CAR file, to maintain the link in the advertisement
 // chain, when it is know that a later advertisement deletes this
 // advertisement's entries.
-func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries, overWrite bool) (*filestore.File, error) {
+func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries, cleanupOnly, noOverwrite bool) (*filestore.File, error) {
 	ad, data, err := cw.loadAd(ctx, adCid)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load advertisement: %w", err)
 	}
-	return cw.write(ctx, adCid, ad, data, skipEntries, overWrite)
+	return cw.write(ctx, adCid, ad, data, skipEntries, cleanupOnly, noOverwrite)
 }
 
-func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Advertisement, data []byte, skipEntries, overWrite bool) (*filestore.File, error) {
+func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Advertisement, data []byte, skipEntries, cleanupOnly, noOverwrite bool) (*filestore.File, error) {
 	fileName := adCid.String() + CarFileSuffix
 	carPath := cw.CarPath(adCid)
 	roots := make([]cid.Cid, 1, 2)
@@ -109,17 +109,23 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 		cw.deleteCids(delCids)
 	}()
 
-	// If the destination file already exists, do not rewrite it.
-	fileInfo, err := cw.fileStore.Head(ctx, carPath)
-	if err != nil {
-		if err != fs.ErrNotExist {
-			return nil, err
+	if cleanupOnly {
+		return nil, nil
+	}
+
+	if noOverwrite {
+		// If the destination file already exists, do not rewrite it.
+		fileInfo, err := cw.fileStore.Head(ctx, carPath)
+		if err != nil {
+			if err != fs.ErrNotExist {
+				return nil, err
+			}
+			// OK, car file does not exist.
+		} else {
+			// If overWrite is false then only do datastore cleanup without
+			// overwriting car file.
+			return fileInfo, fs.ErrExist
 		}
-		// OK, car file does not exist.
-	} else if !overWrite {
-		// If overWrite is false then only do datastore cleanup without
-		// overwriting car file.
-		return fileInfo, fs.ErrExist
 	}
 
 	carTmpName := filepath.Join(os.TempDir(), fileName)
@@ -256,7 +262,7 @@ func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid, overWrite bo
 		ctxIdStr := string(ad.ContextID)
 		_, skipEnts := rmCtxID[ctxIdStr]
 
-		_, err = cw.write(ctx, adCid, ad, data, skipEnts, overWrite)
+		_, err = cw.write(ctx, adCid, ad, data, skipEnts, false, !overWrite)
 		if err != nil {
 			return 0, err
 		}
