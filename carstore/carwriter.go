@@ -264,7 +264,7 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 // previous advertisement, then it is written also. This continues until there
 // are no more previous advertisements in the datastore or until an
 // advertisement does not have a previous.
-func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid, overWrite bool) (int, error) {
+func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid, noOverwrite bool) (int, error) {
 	rmCtxID := make(map[string]struct{})
 	var count int
 
@@ -280,7 +280,7 @@ func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid, overWrite bo
 		ctxIdStr := string(ad.ContextID)
 		_, skipEnts := rmCtxID[ctxIdStr]
 
-		_, err = cw.write(ctx, adCid, ad, data, skipEnts, !overWrite)
+		_, err = cw.write(ctx, adCid, ad, data, skipEnts, noOverwrite)
 		if err != nil {
 			return 0, err
 		}
