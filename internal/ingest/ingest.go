@@ -1240,22 +1240,25 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 		}
 
 		if putMirror {
-			var preventOverwrite bool
-			cleanupOnly := fromMirror && ing.mirror.readWriteSame()
-			if !cleanupOnly {
+			if fromMirror && ing.mirror.readWriteSame() {
+				err = ing.mirror.cleanupAdData(ctx, ai.cid, false)
+				if err != nil {
+					log.Errorw("Cannot remove advertisement data from datastore", "err", err)
+				}
+			} else {
 				// If resyncing and not overwriting, then do not overwrite the
 				// destination file if it already exists.
-				preventOverwrite = ai.resync && !ing.overwriteMirrorOnResync
-			}
+				preventOverwrite := ai.resync && !ing.overwriteMirrorOnResync
 
-			carInfo, err := ing.mirror.write(ctx, ai.cid, false, cleanupOnly, preventOverwrite)
-			if err != nil {
-				if !errors.Is(err, fs.ErrExist) {
-					// Log the error, but do not return. Continue on to save the procesed ad.
-					log.Errorw("Cannot write advertisement to CAR file", "err", err)
+				carInfo, err := ing.mirror.write(ctx, ai.cid, false, preventOverwrite)
+				if err != nil {
+					if !errors.Is(err, fs.ErrExist) {
+						// Log the error, but do not return. Continue on to save the procesed ad.
+						log.Errorw("Cannot write advertisement to CAR file", "err", err)
+					}
+				} else {
+					log.Infow("Wrote CAR for advertisement", "path", carInfo.Path, "size", carInfo.Size)
 				}
-			} else if !cleanupOnly {
-				log.Infow("Wrote CAR for advertisement", "path", carInfo.Path, "size", carInfo.Size)
 			}
 		}
 

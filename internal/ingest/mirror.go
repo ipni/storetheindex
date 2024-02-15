@@ -25,12 +25,16 @@ func (m adMirror) canWrite() bool {
 	return m.carWriter != nil
 }
 
+func (m adMirror) cleanupAdData(ctx context.Context, adCid cid.Cid, skipEntries bool) error {
+	return m.carWriter.CleanupAdData(ctx, adCid, skipEntries)
+}
+
 func (m adMirror) read(ctx context.Context, adCid cid.Cid, skipEntries bool) (*carstore.AdBlock, error) {
 	return m.carReader.Read(ctx, adCid, skipEntries)
 }
 
-func (m adMirror) write(ctx context.Context, adCid cid.Cid, skipEntries, cleanupOnly, noOoverwrite bool) (*filestore.File, error) {
-	return m.carWriter.Write(ctx, adCid, skipEntries, cleanupOnly, noOoverwrite)
+func (m adMirror) write(ctx context.Context, adCid cid.Cid, skipEntries, noOoverwrite bool) (*filestore.File, error) {
+	return m.carWriter.Write(ctx, adCid, skipEntries, noOoverwrite)
 }
 
 func (m adMirror) writeHead(ctx context.Context, adCid cid.Cid, publisher peer.ID) (*filestore.File, error) {

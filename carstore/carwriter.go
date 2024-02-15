@@ -59,6 +59,24 @@ func (cw *CarWriter) CarPath(adCid cid.Cid) string {
 	return carFilePath(adCid, cw.compAlg)
 }
 
+func (cw *CarWriter) CleanupAdData(ctx context.Context, adCid cid.Cid, skipEntries bool) error {
+	ad, _, err := cw.loadAd(ctx, adCid)
+	if err != nil {
+		return fmt.Errorf("cannot load advertisement: %w", err)
+	}
+
+	roots := make([]cid.Cid, 1, 2)
+	roots[0] = adCid
+
+	var entriesCid cid.Cid
+	if !skipEntries && ad.Entries != nil && ad.Entries != schema.NoEntries {
+		entriesCid = ad.Entries.(cidlink.Link).Cid
+		roots = append(roots, entriesCid)
+	}
+
+	return cw.removeAdData(roots)
+}
+
 // Compression returns the name of the compression used to compress CAR files.
 func (cw *CarWriter) Compression() string {
 	return cw.compAlg
@@ -78,15 +96,15 @@ func (cw *CarWriter) Compression() string {
 // of this to create a CAR file, to maintain the link in the advertisement
 // chain, when it is know that a later advertisement deletes this
 // advertisement's entries.
-func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries, cleanupOnly, noOverwrite bool) (*filestore.File, error) {
+func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries, noOverwrite bool) (*filestore.File, error) {
 	ad, data, err := cw.loadAd(ctx, adCid)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load advertisement: %w", err)
 	}
-	return cw.write(ctx, adCid, ad, data, skipEntries, cleanupOnly, noOverwrite)
+	return cw.write(ctx, adCid, ad, data, skipEntries, noOverwrite)
 }
 
-func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Advertisement, data []byte, skipEntries, cleanupOnly, noOverwrite bool) (*filestore.File, error) {
+func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Advertisement, data []byte, skipEntries, noOverwrite bool) (*filestore.File, error) {
 	fileName := adCid.String() + CarFileSuffix
 	carPath := cw.CarPath(adCid)
 	roots := make([]cid.Cid, 1, 2)
@@ -100,18 +118,18 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 
 	var delCids []cid.Cid
 	defer func() {
+		// If roots is not empty, then it is necessary to collect the entries
+		// CIDs to delete.
 		if len(roots) != 0 {
 			if err := cw.removeAdData(roots); err != nil {
 				log.Errorw("Cannot remove advertisement data from datastore", "err", err)
 			}
 			return
 		}
+		// If roots is empty, then individual entries CIDs are already
+		// retrieved, so delete those directly.
 		cw.deleteCids(delCids)
 	}()
-
-	if cleanupOnly {
-		return nil, nil
-	}
 
 	if noOverwrite {
 		// If the destination file already exists, do not rewrite it.
@@ -262,7 +280,7 @@ func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid, overWrite bo
 		ctxIdStr := string(ad.ContextID)
 		_, skipEnts := rmCtxID[ctxIdStr]
 
-		_, err = cw.write(ctx, adCid, ad, data, skipEnts, false, !overWrite)
+		_, err = cw.write(ctx, adCid, ad, data, skipEnts, !overWrite)
 		if err != nil {
 			return 0, err
 		}

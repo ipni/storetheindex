@@ -31,7 +31,7 @@ func TestRead(t *testing.T) {
 	ctx := context.Background()
 
 	// Create car file
-	_, err = carw.Write(ctx, adCid, false, false, false)
+	_, err = carw.Write(ctx, adCid, false, false)
 	require.NoError(t, err)
 
 	// Create reader.
