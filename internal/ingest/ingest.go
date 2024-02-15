@@ -1241,6 +1241,9 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 
 		if putMirror {
 			if fromMirror && ing.mirror.readWriteSame() {
+				// If ad data retrieved from same mirror that is being written
+				// to, then only clean up the data from local datastore, but do
+				// not rewrite it to the mirror.
 				err = ing.mirror.cleanupAdData(ctx, ai.cid, false)
 				if err != nil {
 					log.Errorw("Cannot remove advertisement data from datastore", "err", err)
