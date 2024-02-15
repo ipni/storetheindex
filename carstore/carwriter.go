@@ -55,10 +55,13 @@ func NewWriter(dstore datastore.Batching, fileStore filestore.Interface, options
 	}, nil
 }
 
+// CarPath returns the name of the CAR file being written.
 func (cw *CarWriter) CarPath(adCid cid.Cid) string {
 	return carFilePath(adCid, cw.compAlg)
 }
 
+// CleanupAdData removes advertisement and associated entries block data from
+// the data store.
 func (cw *CarWriter) CleanupAdData(ctx context.Context, adCid cid.Cid, skipEntries bool) error {
 	ad, _, err := cw.loadAd(ctx, adCid)
 	if err != nil {
@@ -88,9 +91,10 @@ func (cw *CarWriter) Compression() string {
 // when the CarWriter was created. The advertisement and entries data are
 // always removed from the datastore.
 //
-// If the CAR file already exists, it is not overwritten and fs.ErrExist is
-// returned. When this happens the filestore.File information describing the
-// existing file is also returned.
+// If the CAR file already exists, it is overwritten unless noOverwrite is
+// true. If noOverwrite is true, and the file exists, then fs.ErrExist is
+// returned along with the filestore File information describing the existing
+// file.
 //
 // The CAR file is written without entries if skipEntries is true. The purpose
 // of this to create a CAR file, to maintain the link in the advertisement
@@ -134,14 +138,12 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 	if noOverwrite {
 		// If the destination file already exists, do not rewrite it.
 		fileInfo, err := cw.fileStore.Head(ctx, carPath)
-		if err != nil {
-			if err != fs.ErrNotExist {
+		if err != fs.ErrNotExist {
+			if err != nil {
 				return nil, err
 			}
-			// OK, car file does not exist.
-		} else {
-			// If overWrite is false then only do datastore cleanup without
-			// overwriting car file.
+			// File exists, so only do datastore cleanup without overwriting
+			// car file.
 			return fileInfo, fs.ErrExist
 		}
 	}

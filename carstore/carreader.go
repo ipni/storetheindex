@@ -93,10 +93,12 @@ func carFilePath(adCid cid.Cid, compAlg string) string {
 	return carPath
 }
 
+// CarPath returns the name of the CAR file being read.
 func (cr CarReader) CarPath(adCid cid.Cid) string {
 	return carFilePath(adCid, cr.compAlg)
 }
 
+// Compression returns the name of the compression used to compress CAR files.
 func (cr CarReader) Compression() string {
 	return cr.compAlg
 }
