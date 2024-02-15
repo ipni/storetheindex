@@ -1182,7 +1182,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			"progress", fmt.Sprintf("%d of %d", count, total),
 			"lag", lag)
 
-		hasEnts, err := ing.ingestAd(ctx, assignment.publisher, ai.cid, ai.resync, frozen, lag, headProvider)
+		hasEnts, fromMirror, err := ing.ingestAd(ctx, assignment.publisher, ai.cid, ai.resync, frozen, lag, headProvider)
 		if err != nil {
 			var adIngestErr adIngestError
 			if errors.As(err, &adIngestErr) {
@@ -1234,22 +1234,34 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 
 		ing.reg.SetLastError(provider, nil)
 
-		mirrored := hasEnts && ing.mirror.canWrite()
-		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, mirrored); markErr != nil {
+		putMirror := hasEnts && ing.mirror.canWrite()
+		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, putMirror); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
 
-		if !frozen && mirrored {
-			overwrite := ai.resync && ing.overwriteMirrorOnResync
-			carInfo, err := ing.mirror.write(ctx, ai.cid, false, overwrite)
-			if err != nil {
-				if !errors.Is(err, fs.ErrExist) {
-					// Log the error, but do not return. Continue on to save the procesed ad.
-					log.Errorw("Cannot write advertisement to CAR file", "err", err)
+		if putMirror {
+			if fromMirror && ing.mirror.readWriteSame() {
+				// If ad data retrieved from same mirror that is being written
+				// to, then only clean up the data from local datastore, but do
+				// not rewrite it to the mirror.
+				err = ing.mirror.cleanupAdData(ctx, ai.cid, false)
+				if err != nil {
+					log.Errorw("Cannot remove advertisement data from datastore", "err", err)
 				}
-				// else car file already exists
 			} else {
-				log.Infow("Wrote CAR for advertisement", "path", carInfo.Path, "size", carInfo.Size)
+				// If resyncing and not overwriting, then do not overwrite the
+				// destination file if it already exists.
+				preventOverwrite := ai.resync && !ing.overwriteMirrorOnResync
+
+				carInfo, err := ing.mirror.write(ctx, ai.cid, false, preventOverwrite)
+				if err != nil {
+					if !errors.Is(err, fs.ErrExist) {
+						// Log the error, but do not return. Continue on to save the procesed ad.
+						log.Errorw("Cannot write advertisement to CAR file", "err", err)
+					}
+				} else {
+					log.Infow("Wrote CAR for advertisement", "path", carInfo.Path, "size", carInfo.Size)
+				}
 			}
 		}
 

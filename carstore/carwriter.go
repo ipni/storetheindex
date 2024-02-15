@@ -55,8 +55,29 @@ func NewWriter(dstore datastore.Batching, fileStore filestore.Interface, options
 	}, nil
 }
 
+// CarPath returns the name of the CAR file being written.
 func (cw *CarWriter) CarPath(adCid cid.Cid) string {
 	return carFilePath(adCid, cw.compAlg)
+}
+
+// CleanupAdData removes advertisement and associated entries block data from
+// the data store.
+func (cw *CarWriter) CleanupAdData(ctx context.Context, adCid cid.Cid, skipEntries bool) error {
+	ad, _, err := cw.loadAd(ctx, adCid)
+	if err != nil {
+		return fmt.Errorf("cannot load advertisement: %w", err)
+	}
+
+	roots := make([]cid.Cid, 1, 2)
+	roots[0] = adCid
+
+	var entriesCid cid.Cid
+	if !skipEntries && ad.Entries != nil && ad.Entries != schema.NoEntries {
+		entriesCid = ad.Entries.(cidlink.Link).Cid
+		roots = append(roots, entriesCid)
+	}
+
+	return cw.removeAdData(roots)
 }
 
 // Compression returns the name of the compression used to compress CAR files.
@@ -70,23 +91,24 @@ func (cw *CarWriter) Compression() string {
 // when the CarWriter was created. The advertisement and entries data are
 // always removed from the datastore.
 //
-// If the CAR file already exists, it is not overwritten and fs.ErrExist is
-// returned. When this happens the filestore.File information describing the
-// existing file is also returned.
+// If the CAR file already exists, it is overwritten unless noOverwrite is
+// true. If noOverwrite is true, and the file exists, then fs.ErrExist is
+// returned along with the filestore File information describing the existing
+// file.
 //
 // The CAR file is written without entries if skipEntries is true. The purpose
 // of this to create a CAR file, to maintain the link in the advertisement
 // chain, when it is know that a later advertisement deletes this
 // advertisement's entries.
-func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries, overWrite bool) (*filestore.File, error) {
+func (cw *CarWriter) Write(ctx context.Context, adCid cid.Cid, skipEntries, noOverwrite bool) (*filestore.File, error) {
 	ad, data, err := cw.loadAd(ctx, adCid)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load advertisement: %w", err)
 	}
-	return cw.write(ctx, adCid, ad, data, skipEntries, overWrite)
+	return cw.write(ctx, adCid, ad, data, skipEntries, noOverwrite)
 }
 
-func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Advertisement, data []byte, skipEntries, overWrite bool) (*filestore.File, error) {
+func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Advertisement, data []byte, skipEntries, noOverwrite bool) (*filestore.File, error) {
 	fileName := adCid.String() + CarFileSuffix
 	carPath := cw.CarPath(adCid)
 	roots := make([]cid.Cid, 1, 2)
@@ -100,26 +122,30 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 
 	var delCids []cid.Cid
 	defer func() {
+		// If roots is not empty, then it is necessary to collect the entries
+		// CIDs to delete.
 		if len(roots) != 0 {
 			if err := cw.removeAdData(roots); err != nil {
 				log.Errorw("Cannot remove advertisement data from datastore", "err", err)
 			}
 			return
 		}
+		// If roots is empty, then individual entries CIDs are already
+		// retrieved, so delete those directly.
 		cw.deleteCids(delCids)
 	}()
 
-	// If the destination file already exists, do not rewrite it.
-	fileInfo, err := cw.fileStore.Head(ctx, carPath)
-	if err != nil {
+	if noOverwrite {
+		// If the destination file already exists, do not rewrite it.
+		fileInfo, err := cw.fileStore.Head(ctx, carPath)
 		if err != fs.ErrNotExist {
-			return nil, err
+			if err != nil {
+				return nil, err
+			}
+			// File exists, so only do datastore cleanup without overwriting
+			// car file.
+			return fileInfo, fs.ErrExist
 		}
-		// OK, car file does not exist.
-	} else if !overWrite {
-		// If overWrite is false then only do datastore cleanup without
-		// overwriting car file.
-		return fileInfo, fs.ErrExist
 	}
 
 	carTmpName := filepath.Join(os.TempDir(), fileName)
@@ -240,7 +266,7 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 // previous advertisement, then it is written also. This continues until there
 // are no more previous advertisements in the datastore or until an
 // advertisement does not have a previous.
-func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid, overWrite bool) (int, error) {
+func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid, noOverwrite bool) (int, error) {
 	rmCtxID := make(map[string]struct{})
 	var count int
 
@@ -256,7 +282,7 @@ func (cw *CarWriter) WriteChain(ctx context.Context, adCid cid.Cid, overWrite bo
 		ctxIdStr := string(ad.ContextID)
 		_, skipEnts := rmCtxID[ctxIdStr]
 
-		_, err = cw.write(ctx, adCid, ad, data, skipEnts, overWrite)
+		_, err = cw.write(ctx, adCid, ad, data, skipEnts, noOverwrite)
 		if err != nil {
 			return 0, err
 		}

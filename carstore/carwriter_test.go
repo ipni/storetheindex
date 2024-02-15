@@ -178,7 +178,7 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
 	require.NoError(t, err)
 
-	carInfo, err := carw.Write(ctx, adCid, false, false)
+	carInfo, err := carw.Write(ctx, adCid, false, true)
 	require.ErrorIs(t, err, fs.ErrExist)
 	require.Zero(t, carInfo.Size)
 
