@@ -1,4 +1,4 @@
-package main
+package gc
 
 import (
 	"errors"
@@ -11,16 +11,17 @@ import (
 	"github.com/ipni/go-libipni/pcache"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
-	"github.com/ipni/storetheindex/ipni-gc/reaper"
+	"github.com/ipni/storetheindex/gc/reaper"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/urfave/cli/v2"
 )
 
-var log = logging.Logger("ipni-gc")
-
 const defaultIndexerURL = "http://localhost:3000"
+const gcLoggerName = "ipni-gc"
 
-var providerCmd = &cli.Command{
+var log = logging.Logger(gcLoggerName)
+
+var ProviderCmd = &cli.Command{
 	Name:   "provider",
 	Usage:  "Run ipni garbage collection for specified providers",
 	Flags:  providerFlags,
@@ -58,13 +59,13 @@ var providerFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:    "log-level",
 		Aliases: []string{"ll"},
-		Usage:   "Set log level for ipni-gc",
+		Usage:   "Set log level for gc",
 		Value:   "info",
 	},
 	&cli.StringFlag{
 		Name:    "log-level-other",
 		Aliases: []string{"llo"},
-		Usage:   "Set log level for other loggers that are not ipni-gc",
+		Usage:   "Set log level for other loggers that are not gc",
 		Value:   "error",
 	},
 	&cli.IntFlag{
@@ -182,7 +183,7 @@ func providerAction(cctx *cli.Context) error {
 				fmt.Fprintln(os.Stderr, "Provider", pid, "not found.")
 				fmt.Fprintln(os.Stderr, "To delete providers that is not found use the -dnf flag.")
 			} else {
-				fmt.Fprintf(os.Stderr, "ipni-gc failed for provider %s: %s\n", pid, err)
+				fmt.Fprintf(os.Stderr, "gc failed for provider %s: %s\n", pid, err)
 			}
 			continue
 		}
@@ -217,7 +218,7 @@ func setLoggingConfig(level, otherLevel string) error {
 		return err
 	}
 
-	err = logging.SetLogLevel("ipni-gc", level)
+	err = logging.SetLogLevel(gcLoggerName, level)
 	if err != nil {
 		return err
 	}

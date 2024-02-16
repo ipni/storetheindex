@@ -5,12 +5,11 @@ COPY go.* .
 RUN go mod download
 COPY . .
 
-RUN CGO_ENABLED=0 go build && CGO_ENABLED=0 go build ./ipni-gc/cmd/ipnigc
+RUN CGO_ENABLED=0 go build
 
 # Debug non-root image used as base in order to provide easier administration and debugging.
 FROM gcr.io/distroless/static-debian12:debug-nonroot
 COPY --from=builder /storetheindex/storetheindex /usr/local/bin/
-COPY --from=builder /storetheindex/ipnigc /usr/local/bin/
 
 # Default port configuration:
 #  - 3000 Finder interface

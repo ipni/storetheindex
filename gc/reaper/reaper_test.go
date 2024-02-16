@@ -14,7 +14,7 @@ import (
 	"github.com/ipni/go-libipni/pcache"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/filestore"
-	"github.com/ipni/storetheindex/ipni-gc/reaper"
+	"github.com/ipni/storetheindex/gc/reaper"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
