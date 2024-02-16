@@ -71,9 +71,15 @@
   "Ingest": {
     "AdvertisementDepthLimit": 33554432,
     "AdvertisementMirror": {
-      "Read": true,
+      "Read": false,
       "Write": true,
       "Compress": "gzip",
+      "Retrieval": {
+        "Type": "s3",
+        "S3": {
+          "BucketName": "prod-sti-adstore"
+        }
+      },
       "Storage": {
         "Type": "s3",
         "S3": {
