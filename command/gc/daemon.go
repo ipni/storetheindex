@@ -1,4 +1,4 @@
-package main
+package gc
 
 import (
 	"context"
@@ -10,14 +10,14 @@ import (
 	"github.com/ipni/go-libipni/pcache"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
-	"github.com/ipni/storetheindex/ipni-gc/reaper"
+	"github.com/ipni/storetheindex/gc/reaper"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/urfave/cli/v2"
 )
 
-var daemonCmd = &cli.Command{
+var DaemonCmd = &cli.Command{
 	Name:   "daemon",
-	Usage:  "Run ipni-gc daemon to do periocid GC for all providers",
+	Usage:  "Run gc daemon to do periocid GC for all providers",
 	Flags:  daemonFlags,
 	Action: daemonAction,
 }
@@ -50,13 +50,13 @@ var daemonFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:    "log-level",
 		Aliases: []string{"ll"},
-		Usage:   "Set log level for ipni-gc",
+		Usage:   "Set log level for gc",
 		Value:   "info",
 	},
 	&cli.StringFlag{
 		Name:    "log-level-other",
 		Aliases: []string{"llo"},
-		Usage:   "Set log level for other loggers that are not ipni-gc",
+		Usage:   "Set log level for other loggers that are not gc",
 		Value:   "error",
 	},
 	&cli.IntFlag{

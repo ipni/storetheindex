@@ -5,7 +5,7 @@ COPY go.* .
 RUN go mod download
 COPY . .
 
-RUN CGO_ENABLED=0 go build && CGO_ENABLED=0 go build ./ipni-gc/cmd/ipnigc
+RUN CGO_ENABLED=0 go build
 
 # Debug non-root image used as base in order to provide easier administration and debugging.
 FROM gcr.io/distroless/static-debian12:debug-nonroot

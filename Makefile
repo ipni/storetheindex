@@ -2,16 +2,13 @@ BIN := storetheindex
 
 .PHONY: all build clean test
 
-all: vet test build gc
+all: vet test build
 
 build:
 	go build
 
 docker: Dockerfile clean
 	docker build . --force-rm -f Dockerfile -t storetheindex:$(shell git rev-parse --short HEAD)
-
-gc:
-	go build ./ipni-gc/cmd/ipnigc
 
 install:
 	go install
@@ -27,4 +24,3 @@ vet:
 
 clean:
 	go clean
-	rm -f ipnigc

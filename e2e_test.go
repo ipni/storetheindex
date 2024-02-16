@@ -75,12 +75,10 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	// install storetheindex
 	indexer := filepath.Join(e.Dir, "storetheindex")
 	e.Run("go", "install", ".")
-	e.Run("go", "install", "./ipni-gc/cmd/ipnigc")
 
 	provider := filepath.Join(e.Dir, "provider")
 	dhstore := filepath.Join(e.Dir, "dhstore")
 	ipni := filepath.Join(e.Dir, "ipni")
-	ipnigc := filepath.Join(e.Dir, "ipnigc")
 
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
@@ -200,7 +198,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
 			findOutput := e.Run(ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
-			t.Logf("import output:\n%s\n", findOutput)
+			t.Logf("find output:\n%s\n", findOutput)
 
 			if bytes.Contains(findOutput, []byte("not found")) {
 				return false
@@ -333,7 +331,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
 			findOutput := e.Run(ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
-			t.Logf("import output:\n%s\n", findOutput)
+			t.Logf("find output:\n%s\n", findOutput)
 			if !bytes.Contains(findOutput, []byte("not found")) {
 				return false
 			}
@@ -359,7 +357,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	if testing.Verbose() {
 		logLevel = "debug"
 	}
-	outgc := string(e.Run(ipnigc, "provider", "-pid", providerID, "-ll", logLevel,
+	outgc := string(e.Run(indexer, "gc", "provider", "-pid", providerID, "-ll", logLevel,
 		"-i", "http://localhost:3200",
 		"-i", "http://localhost:3000",
 		"-sync-segment-size", "2",
