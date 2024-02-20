@@ -47,6 +47,7 @@ type PublishersPolicy struct {
 // NewPolicy returns Policy with values set to their defaults.
 func NewPolicy() Policy {
 	return Policy{
-		Allow: true,
+		Allow:   true,
+		Publish: true,
 	}
 }
