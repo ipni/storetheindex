@@ -21,16 +21,27 @@ type Policy struct {
 	// in Except. in other words, Allow=true means that Except is a deny-list
 	// and Allow=false means that Except is an allow-list.
 	Except []string
-
-	// Publish determines whether or not peers are allowed to publish
+	// Publish is the default Allow policy when a provider has no policy in
+	// PublisherForProviders. It determines if any peers are allowed to publish
 	// advertisements for a provider with a differen peer ID.
 	Publish bool
-	// PublisherExcept is a list of peer IDs that are exceptions to the Publish
-	// policy. If Publish is false, then all allowed peers cannot publish
-	// advertisements for providers with a different peer ID, unless listed in
-	// PublishExcept. If Publish is true, then all allowed peers can publish
-	// advertisements for any provider, unless listed in PublishExcept.
+	// PublisherExcept is a list of peer IDs that are exceptions to the default
+	// Publish policy.
 	PublishExcept []string
+	// PublishersForProvider is a list of policies specifying which publishers
+	// are allowed to publish advertisements on behalf of a specified provider.
+	PublishersForProvider []PublishersPolicy
+}
+
+type PublishersPolicy struct {
+	// Provider is the provider peer ID this policy pertains to.
+	Provider string
+	// Allow determines whether a peer is allowed or blocked from publishing
+	// advertisements on behalf of a provider with a differen peer ID.
+	Allow bool
+	// Except is a list of peer IDs that are exceptions to the Allow
+	// policy.
+	Except []string
 }
 
 // NewPolicy returns Policy with values set to their defaults.

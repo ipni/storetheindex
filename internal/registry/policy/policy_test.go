@@ -119,3 +119,59 @@ func TestPolicyAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, p.NoneAllowed(), "expected inaccessible policy")
 }
+
+func TestPublishersForProvider(t *testing.T) {
+	prov1Str := "12D3KooWPMGfQs5CaJKG4yCxVWizWBRtB85gEUwiX2ekStvYvqgp"
+	prov1, err := peer.Decode(prov1Str)
+	if err != nil {
+		panic(err)
+	}
+	prov2Str := "12D3KooWNH73Z4oxej8u6NzYswQxH7Cd92U2aUYUsxX9mKr5SMuj"
+	prov2, err := peer.Decode(prov2Str)
+	if err != nil {
+		panic(err)
+	}
+
+	policyCfg := config.Policy{
+		Allow:   true,
+		Publish: false,
+		PublishersForProvider: []config.PublishersPolicy{
+			{
+				Provider: prov1Str,
+				Allow:    false,
+				Except:   []string{exceptIDStr},
+			},
+			{
+				Provider: prov2Str,
+				Allow:    true,
+				Except:   []string{exceptIDStr},
+			},
+		},
+	}
+
+	p, err := New(policyCfg)
+	require.NoError(t, err)
+
+	require.True(t, p.PublishAllowed(prov1, prov1), "should be allowed to publish to self")
+	require.False(t, p.PublishAllowed(exceptID, otherID))
+
+	// Test publishing for prov1.
+	require.False(t, p.PublishAllowed(otherID, prov1))
+	require.True(t, p.PublishAllowed(exceptID, prov1))
+	require.False(t, p.PublishAllowed(prov2, prov1))
+
+	// Test publishing for prov1.
+	require.True(t, p.PublishAllowed(otherID, prov2))
+	require.False(t, p.PublishAllowed(exceptID, prov2))
+	require.True(t, p.PublishAllowed(prov1, prov2))
+
+	// Test with default policy set to default allow true.
+	policyCfg.Publish = true
+	p, err = New(policyCfg)
+	require.NoError(t, err)
+
+	require.True(t, p.PublishAllowed(exceptID, otherID))
+	require.False(t, p.PublishAllowed(exceptID, prov2))
+	require.True(t, p.PublishAllowed(otherID, prov2))
+	require.False(t, p.PublishAllowed(otherID, prov1))
+}

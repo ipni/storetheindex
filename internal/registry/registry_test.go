@@ -569,7 +569,9 @@ func TestPollProviderOverrides(t *testing.T) {
 
 func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 	ctx := context.Background()
-	subject, err := New(ctx, config.NewDiscovery(), datastore.NewMapDatastore())
+	cfg := config.NewDiscovery()
+	cfg.Policy.Publish = true
+	subject, err := New(ctx, cfg, datastore.NewMapDatastore())
 	require.NoError(t, err)
 	t.Cleanup(func() { subject.Close() })
 
@@ -607,6 +609,7 @@ func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 
 func TestFilterIPs(t *testing.T) {
 	cfg := config.NewDiscovery()
+	cfg.Policy.Publish = true
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

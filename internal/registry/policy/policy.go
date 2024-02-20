@@ -12,7 +12,9 @@ import (
 type Policy struct {
 	allow   peerutil.Policy
 	publish peerutil.Policy
-	rwmutex sync.RWMutex
+	// publishForProvider contains a publish policy for a specific provider.
+	publishForProvider map[peer.ID]peerutil.Policy
+	rwmutex            sync.RWMutex
 }
 
 func New(cfg config.Policy) (*Policy, error) {
@@ -26,9 +28,26 @@ func New(cfg config.Policy) (*Policy, error) {
 		return nil, fmt.Errorf("bad publish policy: %s", err)
 	}
 
+	var pubForProvider map[peer.ID]peerutil.Policy
+	if len(cfg.PublishersForProvider) != 0 {
+		pubForProvider = make(map[peer.ID]peerutil.Policy, len(cfg.PublishersForProvider))
+		for i, pubPolicyCfg := range cfg.PublishersForProvider {
+			providerID, err := peer.Decode(pubPolicyCfg.Provider)
+			if err != nil {
+				return nil, fmt.Errorf("error decoding provider id in publisher policy %d: %s", i+1, err)
+			}
+			pubPolicy, err := peerutil.NewPolicyStrings(pubPolicyCfg.Allow, pubPolicyCfg.Except)
+			if err != nil {
+				return nil, fmt.Errorf("bad publisher policy for provider %s: %s", pubPolicyCfg.Provider, err)
+			}
+			pubForProvider[providerID] = pubPolicy
+		}
+	}
+
 	return &Policy{
-		allow:   allow,
-		publish: publish,
+		allow:              allow,
+		publish:            publish,
+		publishForProvider: pubForProvider,
 	}, nil
 }
 
@@ -54,7 +73,13 @@ func (p *Policy) PublishAllowed(publisherID, providerID peer.ID) bool {
 	if !p.allow.Eval(providerID) {
 		return false
 	}
-	return p.publish.Eval(publisherID)
+
+	pubPolicy, found := p.publishForProvider[providerID]
+	if !found {
+		// Use default publish policy.
+		pubPolicy = p.publish
+	}
+	return pubPolicy.Eval(publisherID)
 }
 
 // Allow alters the policy to allow the specified peer. Returns true if the
@@ -93,8 +118,14 @@ func (p *Policy) Copy(other *Policy) {
 	defer p.rwmutex.Unlock()
 
 	other.rwmutex.RLock()
-	p.allow = other.allow
-	p.publish = other.publish
+	p.allow = peerutil.NewPolicy(other.allow.Default(), other.allow.Except()...)
+	p.publish = peerutil.NewPolicy(other.publish.Default(), other.publish.Except()...)
+	if len(other.publishForProvider) != 0 {
+		p.publishForProvider = make(map[peer.ID]peerutil.Policy, len(other.publishForProvider))
+		for k, v := range other.publishForProvider {
+			p.publishForProvider[k] = peerutil.NewPolicy(v.Default(), v.Except()...)
+		}
+	}
 	other.rwmutex.RUnlock()
 }
 
