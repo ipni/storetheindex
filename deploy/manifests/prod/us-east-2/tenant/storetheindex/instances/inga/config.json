@@ -41,7 +41,7 @@
     "Policy": {
       "Allow": true,
       "Except": null,
-      "Publish": true,
+      "Publish": false,
       "PublishExcept": null,
       "PublishersForProvider": [
         {
