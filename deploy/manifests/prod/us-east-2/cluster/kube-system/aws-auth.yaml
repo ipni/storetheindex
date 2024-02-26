@@ -103,11 +103,3 @@ data:
       username: will.scott
       groups:
         - system:masters
-    - userarn: arn:aws:iam::407967248065:user/mayank.pandey
-      username: mayank.pandey
-      groups:
-        - system:masters
-    - userarn: arn:aws:iam::407967248065:user/ischasny
-      username: ischasny
-      groups:
-        - system:masters

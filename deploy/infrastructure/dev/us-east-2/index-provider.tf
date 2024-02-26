@@ -34,7 +34,6 @@ data "aws_iam_policy_document" "kms_index_provider" {
         "arn:aws:iam::407967248065:user/masih",
         "arn:aws:iam::407967248065:user/gammazero",
         "arn:aws:iam::407967248065:user/will.scott",
-        "arn:aws:iam::407967248065:user/ischasny",
       ]
     }
 
