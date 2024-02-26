@@ -71,7 +71,6 @@ module "eks" {
       subnet_ids     = [data.aws_subnet.ue2c1.id, data.aws_subnet.ue2c2.id]
     }
 
-    # Node group primarily used by tornado with PVC in us-east2a availability zone.
     dev-ue2a-r5a-2xl = {
       min_size       = 1
       max_size       = 7
