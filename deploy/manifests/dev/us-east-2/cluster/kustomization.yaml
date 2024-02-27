@@ -13,6 +13,5 @@ resources:
   - aws-ebs-csi-driver
   - promtail
   - index-observer
-  - index-provider
   - external-snapshotter
   - snapshots
