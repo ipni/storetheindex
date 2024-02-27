@@ -27,3 +27,10 @@ spec:
             - --balance-similar-node-groups
             - --scale-down-delay-after-add=90m
             - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/dev
+          resources:
+            limits:
+              cpu: 100m
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 1Gi
