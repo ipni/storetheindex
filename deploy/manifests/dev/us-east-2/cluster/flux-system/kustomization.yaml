@@ -10,3 +10,8 @@ resources:
 patchesStrategicMerge:
   - sa-patch.yaml
 
+replicas:
+  - name: helm-controller
+    count: 0
+  - name: notification-controller
+    count: 0
