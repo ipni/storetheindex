@@ -7,3 +7,7 @@ resources:
 patchesStrategicMerge:
   - patch.yaml
   - prometheus-patch.yaml
+
+replicas:
+  - name: grafana
+    count: 0
