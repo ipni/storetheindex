@@ -11,3 +11,5 @@ patchesStrategicMerge:
 replicas:
   - name: grafana
     count: 0
+  - name: prometheus-adapter
+    count: 1

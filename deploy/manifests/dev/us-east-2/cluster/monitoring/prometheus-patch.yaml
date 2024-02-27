@@ -4,6 +4,8 @@ metadata:
   name: k8s
   namespace: monitoring
 spec:
+  alerting: { }
+  replicas: 1
   # Do not include prometheus_replica label in metrics. Because, running more than one replicas
   # results in duplicate metrics.
   replicaExternalLabelName: ""

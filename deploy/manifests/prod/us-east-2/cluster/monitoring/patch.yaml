@@ -32,3 +32,11 @@ metadata:
   namespace: monitoring
   annotations:
     eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/prod/us-east-2/monitoring"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Alertmanager
+metadata:
+  name: main
+  namespace: monitoring
+spec:
+  replicas: 0
