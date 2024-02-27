@@ -27,10 +27,10 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "5"
+              cpu: "3"
               memory: 20Gi
             requests:
-              cpu: "5"
+              cpu: "3"
               memory: 20Gi
           ports:
             - containerPort: 40081
@@ -40,10 +40,6 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: node.kubernetes.io/instance-type
-                    operator: In
-                    values:
-                      - r5n.2xlarge
                   - key: topology.kubernetes.io/zone
                     operator: In
                     values:
