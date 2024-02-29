@@ -523,22 +523,21 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 
 		// Default options copied from cockroachdb with the addition of 1GiB cache.
 		// See:
-		// - https://github.com/cockroachdb/cockroach/blob/v22.1.6/pkg/storage/pebble.go#L479
+		// - https://github.com/cockroachdb/cockroach/blob/14d19acfdfbc8eb5074ddb38f29ed92c40fac35b/pkg/storage/pebble.go#L701
 		pebbleOpts := &pbl.Options{
 			BytesPerSync:                10 << 20, // 10 MiB
-			WALBytesPerSync:             10 << 20, // 10 MiB
-			MaxConcurrentCompactions:    10,
-			MemTableSize:                64 << 20, // 64 MiB
-			MemTableStopWritesThreshold: 4,
-			LBaseMaxBytes:               64 << 20, // 64 MiB
+			DisableWAL:                  cfgIndexer.PebbleDisableWAL,
 			L0CompactionThreshold:       2,
 			L0StopWritesThreshold:       1000,
-			DisableWAL:                  cfgIndexer.PebbleDisableWAL,
+			LBaseMaxBytes:               64 << 20, // 64 MiB
+			MaxConcurrentCompactions:    func() int { return 10 },
+			MemTableSize:                64 << 20, // 64 MiB
+			MemTableStopWritesThreshold: 4,
+			WALBytesPerSync:             10 << 20, // 10 MiB
 			WALMinSyncInterval:          func() time.Duration { return 30 * time.Second },
 		}
 
 		pebbleOpts.Experimental.ReadCompactionRate = 10 << 20 // 20 MiB
-		pebbleOpts.Experimental.MinDeletionRate = 128 << 20   // 128 MiB
 
 		const numLevels = 7
 		pebbleOpts.Levels = make([]pbl.LevelOptions, numLevels)
