@@ -97,9 +97,9 @@
       "basichost": "info",
       "bootstrap": "warn",
       "dt-impl": "info",
-      "dt_graphsync": "warn",
-      "graphsync": "into",
-      "libp2phttp": "info"
+      "dt_graphsync": "info",
+      "graphsync": "info",
+      "libp2phttp": "debug"
     }
   },
   "Peering": {
