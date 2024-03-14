@@ -94,11 +94,12 @@
   "Logging": {
     "Level": "info",
     "Loggers": {
-      "basichost": "warn",
+      "basichost": "info",
       "bootstrap": "warn",
-      "dt-impl": "warn",
+      "dt-impl": "info",
       "dt_graphsync": "warn",
-      "graphsync": "warn"
+      "graphsync": "into",
+      "libp2phttp": "info"
     }
   },
   "Peering": {
