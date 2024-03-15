@@ -92,7 +92,7 @@
     "SyncTimeout": "2h0m0s"
   },
   "Logging": {
-    "Level": "info",
+    "Level": "debug",
     "Loggers": {
       "basichost": "info",
       "bootstrap": "warn",
