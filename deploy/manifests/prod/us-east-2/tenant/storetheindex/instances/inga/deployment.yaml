@@ -7,9 +7,6 @@ spec:
     spec:
       serviceAccountName: storetheindex
       # Wait at most 3 minutes for storetheindex process to exit.
-      # This value used to be 10 minutes which we hit every time the shutdown took longer than 3 minutes.
-      # The most likely cause for this is lingering GraphSync syncs which do not clear after 10 minutes of wait,
-      # hence no point to wait that long.
       terminationGracePeriodSeconds: 180
       containers:
         - name: indexer
