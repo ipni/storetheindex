@@ -57,7 +57,7 @@ var (
 	defaultTestIngestConfig = config.Ingest{
 		AdvertisementDepthLimit: 100,
 		EntriesDepthLimit:       100,
-		IngestWorkerCount:       1,
+		IngestWorkerCount:       2,
 		PubSubTopic:             "test/ingest",
 		SyncTimeout:             config.Duration(time.Minute),
 		SyncSegmentDepthLimit:   1, // By default run all tests using segmented sync.
@@ -176,9 +176,9 @@ func (e *errReader) Read([]byte) (int, error) {
 }
 
 func failBlockedRead() (io.Reader, error) {
-	// Returning an error here will cause a "content not found" graphsync error
-	// and the ad will be skipped without failing the sync. So, return an
-	// io.Reader that will return an error on calling Read.
+	// Returning an error here will cause a "content not found" will cause the
+	// ad will be skipped without failing the sync. So, return an io.Reader
+	// that will return an error on calling Read.
 	return &errReader{}, nil
 }
 

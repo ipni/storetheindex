@@ -98,7 +98,6 @@ type Reaper struct {
 	stats       GCStats
 	statsMutex  sync.Mutex
 	syncSegSize int
-	topic       string
 }
 
 type scythe struct {
@@ -193,7 +192,6 @@ func New(idxr indexer.Interface, fileStore filestore.Interface, options ...Optio
 		pcache:      opts.pcache,
 		segmentSize: opts.segmentSize,
 		syncSegSize: opts.syncSegSize,
-		topic:       opts.topic,
 	}, nil
 }
 
@@ -616,7 +614,7 @@ func (r *Reaper) makeSubscriber(dstoreTmp datastore.Batching) (*dagsync.Subscrib
 		}, nil
 	}
 
-	return dagsync.NewSubscriber(r.host, dstoreTmp, linksys, r.topic,
+	return dagsync.NewSubscriber(r.host, linksys,
 		dagsync.HttpTimeout(r.httpTimeout),
 		dagsync.SegmentDepthLimit(int64(r.syncSegSize)))
 }

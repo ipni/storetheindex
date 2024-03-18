@@ -66,11 +66,6 @@ func TestEndToEndWithAllProviderTypes(t *testing.T) {
 	t.Run("Libp2pWithHTTPProvider", func(t *testing.T) {
 		testEndToEndWithReferenceProvider(t, "libp2phttp")
 	})
-
-	// Test with publisher running dtsync over libp2p.
-	t.Run("DTSyncProvider", func(t *testing.T) {
-		testEndToEndWithReferenceProvider(t, "dtsync")
-	})
 }
 
 func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
@@ -99,13 +94,10 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 
 	// install index-provider
 	switch publisherProto {
-	case "dtsync":
-		// Install index-provider that supports dtsync.
-		rnr.Run(ctx, "go", "install", "github.com/ipni/index-provider/cmd/provider@v0.13.6")
 	case "libp2p", "libp2phttp", "http":
 		rnr.Run(ctx, "go", "install", "github.com/ipni/index-provider/cmd/provider@latest")
 	default:
-		panic("providerProto must be one of: libp2phttp, http, dtsync")
+		panic("providerProto must be one of: libp2p, libp2phttp, http")
 	}
 	// install dhstore
 	rnr.Run(ctx, "go", "install", "-tags", "nofdb", "github.com/ipni/dhstore/cmd/dhstore@latest")
@@ -118,8 +110,6 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 
 	// initialize index-provider
 	switch publisherProto {
-	case "dtsync":
-		rnr.Run(ctx, provider, "init")
 	case "http":
 		rnr.Run(ctx, provider, "init", "--pubkind=http")
 	case "libp2p":
