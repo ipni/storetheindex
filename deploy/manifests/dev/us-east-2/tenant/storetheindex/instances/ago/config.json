@@ -96,7 +96,7 @@
     "Loggers": {
       "basichost": "warn",
       "bootstrap": "warn",
-      "libp2phttp": "debug"
+      "libp2phttp": "info"
     }
   },
   "Peering": {
