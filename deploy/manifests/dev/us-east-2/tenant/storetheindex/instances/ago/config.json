@@ -92,14 +92,11 @@
     "SyncTimeout": "2h0m0s"
   },
   "Logging": {
-    "Level": "debug",
+    "Level": "info",
     "Loggers": {
-      "basichost": "info",
+      "basichost": "warn",
       "bootstrap": "warn",
-      "dt-impl": "info",
-      "dt_graphsync": "info",
-      "graphsync": "info",
-      "libp2phttp": "debug"
+      "libp2phttp": "info"
     }
   },
   "Peering": {
