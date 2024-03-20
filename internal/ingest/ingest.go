@@ -135,9 +135,9 @@ type Ingester struct {
 
 	// A map of providers currently being processed. A worker holds the lock of
 	// a provider while ingesting ads for that provider.
-	providersBeingProcessed   map[peer.ID]chan struct{}
-	providersBeingProcessedMu sync.Mutex
-	providerWorkAssignment    map[peer.ID]*atomic.Value
+	providersBusy          map[peer.ID]chan struct{}
+	providersBusyMu        sync.Mutex
+	providerWorkAssignment map[peer.ID]*atomic.Value
 
 	// Used to stop watching for sync finished events from dagsync.
 	cancelOnSyncFinished context.CancelFunc
@@ -192,7 +192,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		closePendingSyncs: make(chan struct{}),
 
 		overwriteMirrorOnResync: cfg.OverwriteMirrorOnResync,
-		providersBeingProcessed: make(map[peer.ID]chan struct{}),
+		providersBusy:           make(map[peer.ID]chan struct{}),
 		providerWorkAssignment:  make(map[peer.ID]*atomic.Value),
 		stopWorker:              make(chan struct{}),
 
@@ -512,9 +512,9 @@ func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, pubAddrInfo 
 	// If the publisher is not the same as the provider, then this will not
 	// wait for the provider to be done processing the ad chain it is working
 	// on.
-	ing.providersBeingProcessedMu.Lock()
-	pc, ok := ing.providersBeingProcessed[pubAddrInfo.ID]
-	ing.providersBeingProcessedMu.Unlock()
+	ing.providersBusyMu.Lock()
+	provBusy, ok := ing.providersBusy[pubAddrInfo.ID]
+	ing.providersBusyMu.Unlock()
 	if !ok {
 		return ing.sub.Announce(ctx, nextCid, pubAddrInfo)
 	}
@@ -522,10 +522,10 @@ func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, pubAddrInfo 
 	// The publisher in the announce message has the same ID as a known
 	// provider, so defer handling the announce if that provider is busy.
 	select {
-	case pc <- struct{}{}:
+	case provBusy <- struct{}{}:
 		log.Info("Handling direct announce request")
 		err := ing.sub.Announce(ctx, nextCid, pubAddrInfo)
-		<-pc
+		<-provBusy
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
@@ -868,7 +868,7 @@ func (ing *Ingester) RunWorkers(n int) {
 	for n > ing.workerPoolSize {
 		// Start worker.
 		ing.waitForWorkers.Add(1)
-		go ing.ingestWorker(ing.workersCtx, ing.syncFinishedEvents)
+		go ing.ingestWorker(ing.workersCtx, ing.syncFinishedEvents, ing.workerPoolSize)
 		ing.workerPoolSize++
 	}
 	for n < ing.workerPoolSize {
@@ -882,27 +882,33 @@ func (ing *Ingester) RunWorkers(n int) {
 // advertisement chain has been synced. Provider work assignments are created
 // from raw advertisement chains, and processed by ingestWorker. Work
 // assignments are processed preferentially over new advertisement chains.
-func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan dagsync.SyncFinished) {
-	log.Debug("started ingest worker")
+func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan dagsync.SyncFinished, wkrNum int) {
+	log := log.With("worker", wkrNum)
+
+	log.Info("started ingest worker")
 	defer ing.waitForWorkers.Done()
 
 	for {
+		log.Info("ingest worker waiting for event")
+
 		// Wait for work only. Work assignments take priority over new
 		// advertisement chains.
 		select {
 		case provider := <-ing.workReady:
-			ing.handleWorkReady(ctx, provider)
+			log.Info("ingest worker handling work ready")
+			ing.handleWorkReady(ctx, provider, wkrNum)
 		case <-ctx.Done():
 			log.Info("ingest worker canceled")
 			return
 		case <-ing.stopWorker:
-			log.Debug("stopped ingest worker")
+			log.Info("ingest worker stopped")
 			return
 		default:
 			// No work assignments, so also check for new advertisement chains.
 			select {
 			case provider := <-ing.workReady:
-				ing.handleWorkReady(ctx, provider)
+				log.Info("ingest worker handling work ready")
+				ing.handleWorkReady(ctx, provider, wkrNum)
 			case event, ok := <-syncFinishedEvents:
 				if !ok {
 					log.Info("ingest worker exiting, sync finished events closed")
@@ -912,12 +918,13 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 					ing.reg.SetLastError(event.PeerID, event.Err)
 					continue
 				}
-				ing.processRawAdChain(ctx, event)
+				log.Info("ingest worker processing raw ad chain")
+				ing.processRawAdChain(ctx, event, wkrNum)
 			case <-ctx.Done():
 				log.Info("ingest worker canceled")
 				return
 			case <-ing.stopWorker:
-				log.Debug("stopped ingest worker")
+				log.Info("ingest worker stopped")
 				return
 			}
 		}
@@ -928,7 +935,7 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 // create provider work assignments. When not workers are working on a work
 // assignment for a provider, then workers are given the next work assignment
 // for that provider.
-func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync.SyncFinished) {
+func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync.SyncFinished, wkrNum int) {
 	if syncFinished.Count == 0 {
 		// Attempted sync, but already up to data. Nothing to do.
 		return
@@ -973,7 +980,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		ad, err := ing.loadAd(c)
 		if err != nil {
 			stats.Record(context.Background(), metrics.AdLoadError.M(1))
-			log.Errorw("Failed to load advertisement CID, skipping", "cid", c, "err", err)
+			log.Errorw("Failed to load advertisement CID, skipping all remaining", "cid", c, "err", err)
 			break
 		}
 		if ad.PreviousID != nil {
@@ -985,7 +992,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 
 		providerID, err := peer.Decode(ad.Provider)
 		if err != nil {
-			log.Errorf("Failed to get provider from ad CID: %s skipping", err)
+			log.Errorw("Failed to get provider from ad CID, skipping", "cid", c, "err", err)
 			continue
 		}
 		// If this is the first ad for this provider, then save the provider
@@ -1021,16 +1028,16 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 	// 2. For each provider put the ad stack to the worker msg channel. Each ad
 	// stack contains ads for a single provider, from a single publisher.
 	for providerID, adInfos := range adsGroupedByProvider {
-		ing.providersBeingProcessedMu.Lock()
-		if _, ok := ing.providersBeingProcessed[providerID]; !ok {
-			ing.providersBeingProcessed[providerID] = make(chan struct{}, 1)
+		ing.providersBusyMu.Lock()
+		if _, ok := ing.providersBusy[providerID]; !ok {
+			ing.providersBusy[providerID] = make(chan struct{}, 1)
 		}
 		wa, ok := ing.providerWorkAssignment[providerID]
 		if !ok {
 			wa = &atomic.Value{}
 			ing.providerWorkAssignment[providerID] = wa
 		}
-		ing.providersBeingProcessedMu.Unlock()
+		ing.providersBusyMu.Unlock()
 
 		oldAssignment := wa.Swap(workerAssignment{
 			adInfos:   adInfos,
@@ -1043,25 +1050,29 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 			// schedule one.
 			ing.reg.Saw(providerID, false)
 
+			log.Infow("ingest worker scheduling work ready", "provider", providerID, "worker", wkrNum)
 			go func(provID peer.ID) {
-				ing.providersBeingProcessedMu.Lock()
-				provBusy := ing.providersBeingProcessed[provID]
-				ing.providersBeingProcessedMu.Unlock()
+				ing.providersBusyMu.Lock()
+				provBusy := ing.providersBusy[provID]
+				ing.providersBusyMu.Unlock()
 
 				stats.Record(ctx,
 					metrics.AdIngestQueued.M(int64(workersQueued.Add(1))))
 				// Wait until the no workers are doing work for the provider
 				// before notifying that another work assignment is available.
+				log.Infow("ingest worker scheduler setting provider busy", "provider", provID)
 				select {
 				case provBusy <- struct{}{}:
 				case <-ctx.Done():
 					return
 				}
+				log.Infow("ingest worker scheduler sending work ready event", "provider", provID)
 				select {
 				case ing.workReady <- provID:
 				case <-ctx.Done():
 					return
 				}
+				log.Infow("ingest worker scheduler sent work ready event", "provider", provID)
 			}(providerID)
 		}
 		// If oldAssignment has adInfos, it is not necessary to merge the old
@@ -1073,12 +1084,14 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 	}
 }
 
-func (ing *Ingester) handleWorkReady(ctx context.Context, provider peer.ID) {
-	ing.providersBeingProcessedMu.Lock()
-	provBusy := ing.providersBeingProcessed[provider]
+func (ing *Ingester) handleWorkReady(ctx context.Context, provider peer.ID, wkrNum int) {
+	log := log.With("provider", provider, "worker", wkrNum)
+
+	ing.providersBusyMu.Lock()
+	provBusy := ing.providersBusy[provider]
 	// Pull out the assignment for this provider, which was populated by processAdChain.
 	wa := ing.providerWorkAssignment[provider]
-	ing.providersBeingProcessedMu.Unlock()
+	ing.providersBusyMu.Unlock()
 
 	stats.Record(context.Background(),
 		metrics.AdIngestQueued.M(int64(workersQueued.Add(-1))),
@@ -1086,13 +1099,16 @@ func (ing *Ingester) handleWorkReady(ctx context.Context, provider peer.ID) {
 
 	assignmentInterface := wa.Swap(workerAssignment{none: true})
 	if assignmentInterface != nil {
+		log.Info("ingest worker processing ads")
 		ing.ingestWorkerLogic(ctx, provider, assignmentInterface.(workerAssignment))
 	}
 
+	log.Info("ingest worker handling pending announce")
 	ing.handlePendingAnnounce(ctx, provider)
 
 	// Signal that the worker is done with the provider.
 	<-provBusy
+	log.Info("ingest worker cleared busy status")
 
 	stats.Record(ctx, metrics.AdIngestActive.M(int64(workersActive.Add(-1))))
 }
