@@ -149,6 +149,7 @@ type Ingester struct {
 	// Context and cancel function used to cancel all workers.
 	cancelWorkers context.CancelFunc
 	workersCtx    context.Context
+	nextWorkerNum int
 
 	// Worker pool resizing.
 	stopWorker     chan struct{}
@@ -868,8 +869,9 @@ func (ing *Ingester) RunWorkers(n int) {
 	for n > ing.workerPoolSize {
 		// Start worker.
 		ing.waitForWorkers.Add(1)
-		go ing.ingestWorker(ing.workersCtx, ing.syncFinishedEvents, ing.workerPoolSize)
+		go ing.ingestWorker(ing.workersCtx, ing.syncFinishedEvents, ing.nextWorkerNum)
 		ing.workerPoolSize++
+		ing.nextWorkerNum++
 	}
 	for n < ing.workerPoolSize {
 		// Stop worker.
