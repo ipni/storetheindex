@@ -1102,7 +1102,7 @@ func (ing *Ingester) handleWorkReady(ctx context.Context, provider peer.ID, wkrN
 	assignmentInterface := wa.Swap(workerAssignment{none: true})
 	if assignmentInterface != nil {
 		log.Info("ingest worker processing ads")
-		ing.ingestWorkerLogic(ctx, provider, assignmentInterface.(workerAssignment))
+		ing.ingestWorkerLogic(ctx, provider, assignmentInterface.(workerAssignment), wkrNum)
 	}
 
 	log.Info("ingest worker handling pending announce")
@@ -1115,14 +1115,14 @@ func (ing *Ingester) handleWorkReady(ctx context.Context, provider peer.ID, wkrN
 	stats.Record(ctx, metrics.AdIngestActive.M(int64(workersActive.Add(-1))))
 }
 
-func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, assignment workerAssignment) {
+func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, assignment workerAssignment, wkrNum int) {
 	if assignment.none {
 		// Nothing to do.
 		return
 	}
 	frozen := ing.reg.Frozen()
 
-	log := log.With("publisher", assignment.publisher)
+	log := log.With("publisher", assignment.publisher, "worker", wkrNum)
 	// Log provider ID if not the same as publisher ID.
 	if provider != assignment.publisher {
 		log = log.With("provider", provider)
@@ -1242,6 +1242,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 					adCid:     ai.cid,
 					err:       err,
 				}
+				log.Info("ingest worker sent ad processed event with error")
 				return
 			}
 		} else {
@@ -1282,12 +1283,15 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			}
 		}
 
+		log.Info("ingest worker ingested ad")
+
 		// Distribute the atProcessedEvent notices to waiting Sync calls.
 		ing.inEvents <- adProcessedEvent{
 			publisher: assignment.publisher,
 			headAdCid: headAdCid,
 			adCid:     ai.cid,
 		}
+		log.Info("ingest worker sent ad processed event")
 	}
 }
 
