@@ -970,8 +970,8 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 
 	for c := syncFinished.Cid; c != cid.Undef; c = nextAdCid {
 		if _, ok := seen[c]; ok {
-			log.Errorw("Detected loop in advertisement chain. Cannot process chain.")
-			return
+			log.Errorw("Detected cycle, cannot process remaining chain", "cid", c)
+			break
 		}
 		seen[c] = struct{}{}
 
