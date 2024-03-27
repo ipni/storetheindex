@@ -966,15 +966,8 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 	provAddrs := map[peer.ID][]string{}
 	var totalAds int64
 	var nextAdCid cid.Cid
-	seen := map[cid.Cid]struct{}{}
 
 	for c := syncFinished.Cid; c != cid.Undef; c = nextAdCid {
-		if _, ok := seen[c]; ok {
-			log.Errorw("Detected cycle, cannot process remaining chain", "cid", c)
-			break
-		}
-		seen[c] = struct{}{}
-
 		// Group the CIDs by the provider. Most of the time a publisher will
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
@@ -1028,6 +1021,9 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		}
 
 		adsGroupedByProvider[providerID] = append(adsGroupedByProvider[providerID], ai)
+		if totalAds%1000 == 0 {
+			log.Debugf("Added %d ads to stack", totalAds)
+		}
 	}
 
 	nonRmCount := totalAds - rmCount
