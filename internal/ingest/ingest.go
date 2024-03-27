@@ -966,8 +966,15 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 	provAddrs := map[peer.ID][]string{}
 	var totalAds int64
 	var nextAdCid cid.Cid
+	seen := map[cid.Cid]struct{}{}
 
 	for c := syncFinished.Cid; c != cid.Undef; c = nextAdCid {
+		if _, ok := seen[c]; ok {
+			log.Errorw("Detected loop in advertisement chain. Cannot process chain.")
+			return
+		}
+		seen[c] = struct{}{}
+
 		// Group the CIDs by the provider. Most of the time a publisher will
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
@@ -976,6 +983,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		if processed {
 			// This ad has been processed so all earlier ads already have been
 			// processed.
+			log.Infow("Remainder of ad chain already processed", "cid", c)
 			break
 		}
 
@@ -1002,6 +1010,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		_, ok := provAddrs[providerID]
 		if !ok && len(ad.Addresses) != 0 {
 			provAddrs[providerID] = ad.Addresses
+			log.Debugw("New provider seen in ad stack", "provider", providerID)
 		}
 
 		ai := adInfo{
@@ -1022,6 +1031,8 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 	}
 
 	nonRmCount := totalAds - rmCount
+
+	log.Debugw("Created ad stack", "providers", len(adsGroupedByProvider), "ads", totalAds, "rmCount", rmCount)
 
 	stats.Record(ctx,
 		metrics.RemoveAdCount.M(totalRmAds.Add(rmCount)),
@@ -1081,6 +1092,8 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 				}
 				log.Debug("ingest worker scheduler sent work ready event")
 			}(providerID)
+		} else {
+			log.Debug("Replaced previous ad stack work assignment")
 		}
 		// If oldAssignment has adInfos, it is not necessary to merge the old
 		// and new assignments because the new assignment will already have all
