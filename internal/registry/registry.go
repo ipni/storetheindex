@@ -1054,6 +1054,24 @@ func (r *Registry) RemoveProvider(ctx context.Context, providerID peer.ID) error
 	return nil
 }
 
+func (r *Registry) ProviderByPublisher(pubID peer.ID) (peer.ID, bool) {
+	r.provMutex.Lock()
+	defer r.provMutex.Unlock()
+
+	pinfo, ok := r.providers[pubID]
+	if ok && pinfo.Publisher == pubID {
+		return pubID, true
+	}
+
+	for provID, pinfo := range r.providers {
+		if pinfo.Publisher == pubID {
+			return provID, true
+		}
+	}
+
+	return "", false
+}
+
 func (r *Registry) SetLastError(providerID peer.ID, err error) {
 	var now time.Time
 	if err != nil {
