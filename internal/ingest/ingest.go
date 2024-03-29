@@ -47,13 +47,6 @@ const (
 	metricsUpdateInterval = time.Minute
 )
 
-// Metrics
-var (
-	totalNonRmAds atomic.Int64
-	totalRmAds    atomic.Int64
-	workersActive atomic.Int32
-)
-
 type adProcessedEvent struct {
 	publisher peer.ID
 	// Head of the chain being processed.
@@ -149,6 +142,11 @@ type Ingester struct {
 	ingestRates *rate.Map
 
 	skip500EntsErr atomic.Bool
+
+	// metrics
+	totalNonRmAds atomic.Int64
+	totalRmAds    atomic.Int64
+	workersActive atomic.Int32
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
@@ -869,13 +867,13 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 				continue
 			}
 
-			stats.Record(ctx, metrics.AdIngestActive.M(int64(workersActive.Add(1))))
+			stats.Record(ctx, metrics.AdIngestActive.M(int64(ing.workersActive.Add(1))))
 
 			for syncFin := ing.getNextSyncFin(pubID); syncFin != nil; syncFin = ing.getNextSyncFin(pubID) {
 				ing.processRawAdChain(ctx, *syncFin, wkrNum)
 			}
 
-			stats.Record(ctx, metrics.AdIngestActive.M(int64(workersActive.Add(-1))))
+			stats.Record(ctx, metrics.AdIngestActive.M(int64(ing.workersActive.Add(-1))))
 		case <-ctx.Done():
 			log.Info("ingest worker canceled")
 			return
@@ -1011,8 +1009,8 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 	log.Debugw("Created ad stack", "providers", len(adsGroupedByProvider), "ads", totalAds, "rmCount", rmCount)
 
 	stats.Record(ctx,
-		metrics.RemoveAdCount.M(totalRmAds.Add(rmCount)),
-		metrics.NonRemoveAdCount.M(totalNonRmAds.Add(nonRmCount)))
+		metrics.RemoveAdCount.M(ing.totalRmAds.Add(rmCount)),
+		metrics.NonRemoveAdCount.M(ing.totalNonRmAds.Add(nonRmCount)))
 
 	// 2. For each provider put the ad stack to the worker msg channel. Each ad
 	// stack contains ads for a single provider, from a single publisher.
