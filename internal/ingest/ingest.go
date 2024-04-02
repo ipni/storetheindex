@@ -835,7 +835,6 @@ func (ing *Ingester) RunWorkers(n int) {
 // assignments are processed preferentially over new advertisement chains.
 func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan dagsync.SyncFinished, wkrNum int) {
 	log := log.With("worker", wkrNum)
-
 	log.Info("started ingest worker")
 	defer ing.waitForWorkers.Done()
 
@@ -921,7 +920,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 	}
 
 	publisher := syncFinished.PeerID
-	log := log.With("publisher", publisher)
+	log := log.With("publisher", publisher, "worker", wkrNum)
 	log.Infow("Advertisement chain synced", "length", syncFinished.Count)
 
 	var rmCount int64
@@ -1066,13 +1065,14 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		count++
 
 		if ctx.Err() != nil {
-			log.Infow("Ingest worker canceled while processing ads", "err", ctx.Err())
+			log.Infow("Ingest canceled while processing ads", "err", ctx.Err())
 			ing.inEvents <- adProcessedEvent{
 				publisher: publisher,
 				headAdCid: headAdCid,
 				adCid:     ai.cid,
 				err:       ctx.Err(),
 			}
+			log.Debug("Sent ad processed event for canceled processing")
 			return
 		}
 
@@ -1103,6 +1103,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 				headAdCid: headAdCid,
 				adCid:     ai.cid,
 			}
+			log.Debug("Sent ad processed event for skipped ad")
 			continue
 		}
 
@@ -1112,7 +1113,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			"progress", fmt.Sprintf("%d of %d", count, total),
 			"lag", lag)
 
-		hasEnts, fromMirror, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider)
+		hasEnts, fromMirror, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider, wkrNum)
 		if err != nil {
 			var adIngestErr adIngestError
 			if errors.As(err, &adIngestErr) {
@@ -1141,11 +1142,13 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 
 			// If err still not nil, then this is a non-permanent type of error.
 			if err != nil {
-				errText := err.Error()
-				if errors.Is(err, errInternal) {
-					errText = errInternal.Error()
+				if !errors.Is(err, context.Canceled) {
+					errText := err.Error()
+					if errors.Is(err, errInternal) {
+						errText = errInternal.Error()
+					}
+					ing.reg.SetLastError(provider, fmt.Errorf("error while ingesting ad %s: %s", ai.cid, errText))
 				}
-				ing.reg.SetLastError(provider, fmt.Errorf("error while ingesting ad %s: %s", ai.cid, errText))
 				log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err, "adsLeftToProcess", i+1)
 				// Tell anyone waiting that the sync finished for this head because
 				// of error.  TODO(mm) would be better to propagate the error.
@@ -1155,6 +1158,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 					adCid:     ai.cid,
 					err:       err,
 				}
+				log.Debug("Sent ad processed event with error")
 				return
 			}
 		} else {
@@ -1171,6 +1175,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 
 		if putMirror {
 			if fromMirror && ing.mirror.readWriteSame() {
+				log.Debug("Removing temporary ad data")
 				// If ad data retrieved from same mirror that is being written
 				// to, then only clean up the data from local datastore, but do
 				// not rewrite it to the mirror.
@@ -1179,6 +1184,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 					log.Errorw("Cannot remove advertisement data from datastore", "err", err)
 				}
 			} else {
+				log.Debug("Writing ad to CAR mirror")
 				// If resyncing and not overwriting, then do not overwrite the
 				// destination file if it already exists.
 				preventOverwrite := ai.resync && !ing.overwriteMirrorOnResync
@@ -1195,11 +1201,14 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			}
 		}
 
+		log.Debug("Done processing ad")
+
 		// Distribute the atProcessedEvent notices to waiting Sync calls.
 		ing.inEvents <- adProcessedEvent{
 			publisher: publisher,
 			headAdCid: headAdCid,
 			adCid:     ai.cid,
 		}
+		log.Debug("Sent ad processed event")
 	}
 }

@@ -138,8 +138,8 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // is the source of the indexed content, the provider is where content can be
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid cid.Cid, resync, frozen bool, lag int, headProvider peer.AddrInfo) (bool, bool, error) {
-	log := log.With("publisher", publisherID, "adCid", adCid)
+func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid cid.Cid, resync, frozen bool, lag int, headProvider peer.AddrInfo, wkrNum int) (bool, bool, error) {
+	log := log.With("publisher", publisherID, "adCid", adCid, "worker", wkrNum)
 
 	ad, err := ing.loadAd(adCid)
 	if err != nil {
@@ -202,6 +202,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 
 	var extendedProviders *registry.ExtendedProviders
 	if ad.ExtendedProvider != nil {
+		log.Debug("Advertisement has extended providers")
 		if ad.IsRm {
 			return false, false, adIngestError{adIngestIndexerErr, fmt.Errorf("rm ads can not have extended providers")}
 		}
@@ -263,7 +264,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	log = log.With("contextID", base64.StdEncoding.EncodeToString(ad.ContextID))
 
 	if ad.IsRm {
-		log.Infow("Advertisement is for removal by context id")
+		log.Info("Advertisement is for removal by context id")
 		err = ing.indexer.RemoveProviderContext(providerID, ad.ContextID)
 		if err != nil {
 			return false, false, adIngestError{adIngestIndexerErr, fmt.Errorf("%w: failed to remove provider context: %w", errInternal, err)}
@@ -277,6 +278,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		if ad.Entries != schema.NoEntries {
 			return false, false, adIngestError{adIngestMalformedErr, fmt.Errorf("advertisement missing metadata")}
 		}
+		log.Info("Advertisement is for removal by context id")
 		return false, false, nil
 	}
 
@@ -290,9 +292,9 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 
 		if frozen {
-			log.Infow("Indexer frozen, advertisement only updates metadata")
+			log.Info("Indexer frozen, advertisement only updates metadata")
 		} else {
-			log.Infow("Advertisement is metadata update only")
+			log.Info("Advertisement is for metadata update only")
 		}
 		err = ing.indexer.Put(value)
 		if err != nil {
@@ -306,6 +308,8 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		return false, false, adIngestError{adIngestMalformedErr, errors.New("advertisement entries link is undefined")}
 	}
 
+	log.Debug("Advertisement has entries to sync")
+
 	if ing.syncTimeout != 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, ing.syncTimeout)
@@ -316,6 +320,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 
 	// If using a CAR reader, then try to get the advertisement CAR file first.
 	if ing.mirror.canRead() {
+		log.Debug("Attempting to fetch entries from CAR mirror")
 		mhCount, err = ing.ingestEntriesFromCar(ctx, ad, providerID, adCid, entriesCid, log)
 		hasEnts := mhCount != 0
 		// If entries data successfully read from CAR file.
@@ -324,6 +329,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 			return hasEnts, true, nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
+			log.Errorw("Cannot get advertisement from CAR mirror", "err", err)
 			var adIngestErr adIngestError
 			if errors.As(err, &adIngestErr) {
 				switch adIngestErr.state {
@@ -336,10 +342,15 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 					// serving entries data.
 					return hasEnts, false, err
 				}
+			} else if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return hasEnts, false, err
 			}
-			log.Errorw("Cannot get advertisement from car store", "err", err)
+			// If any other error, proceed and try to fetch from publisher.
+		} else {
+			log.Debug("Advertisement not found in CAR mirror")
 		}
 	}
+	log.Debug("Fetching entries from publisher")
 
 	// The ad.Entries link can point to either a chain of EntryChunks or a
 	// HAMT. Sync the very first entry so that we can check which type it is.
@@ -373,8 +384,10 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	}
 
 	if isHAMT(node) {
+		log.Info("syncing hamt entries")
 		mhCount, err = ing.ingestHamtFromPublisher(ctx, ad, publisherID, providerID, entriesCid, log)
 	} else {
+		log.Info("syncing entries")
 		mhCount, err = ing.ingestEntriesFromPublisher(ctx, ad, publisherID, providerID, entriesCid, log)
 	}
 	return mhCount != 0, false, err
