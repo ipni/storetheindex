@@ -594,9 +594,8 @@ func loadConfig(filePath string) (*config.Config, error) {
 	if cfg.Version != config.Version {
 		log.Warn("Configuration file out-of-date. Upgrade by running: storetheindex init --upgrade")
 	}
-
-	if cfg.Datastore.Type != "levelds" {
-		return nil, fmt.Errorf("only levelds datastore type supported, %q not supported", cfg.Datastore.Type)
+	if err = checkDatastoreType(cfg.Datastore.Type); err != nil {
+		return nil, err
 	}
 
 	return cfg, nil

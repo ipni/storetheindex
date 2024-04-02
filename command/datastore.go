@@ -12,6 +12,7 @@ import (
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	leveldb "github.com/ipfs/go-ds-leveldb"
+	pebbledb "github.com/ipfs/go-ds-pebble"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/fsutil"
 )
@@ -25,9 +26,18 @@ const (
 	updateBatchSize = 500000
 )
 
+func checkDatastoreType(dsType string) error {
+	switch dsType {
+	case "levelds", "pebble":
+		return nil
+	}
+	return fmt.Errorf("only levelds and pebble datastore types supported, %q not supported", dsType)
+}
+
 func createDatastore(ctx context.Context, dir, dsType string, rmExisting bool) (datastore.Batching, string, error) {
-	if dsType != "levelds" {
-		return nil, "", fmt.Errorf("only levelds datastore type supported, %q not supported", dsType)
+	err := checkDatastoreType(dsType)
+	if err != nil {
+		return nil, "", err
 	}
 	dataStorePath, err := config.Path("", dir)
 	if err != nil {
@@ -41,7 +51,13 @@ func createDatastore(ctx context.Context, dir, dsType string, rmExisting bool) (
 	if err = fsutil.DirWritable(dataStorePath); err != nil {
 		return nil, "", err
 	}
-	ds, err := leveldb.NewDatastore(dataStorePath, nil)
+	var ds datastore.Batching
+	switch dsType {
+	case "levelds":
+		ds, err = leveldb.NewDatastore(dataStorePath, nil)
+	case "pebble":
+		ds, err = pebbledb.NewDatastore(dataStorePath, nil)
+	}
 	if err != nil {
 		return nil, "", err
 	}

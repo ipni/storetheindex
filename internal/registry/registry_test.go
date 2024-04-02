@@ -11,7 +11,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
-	leveldb "github.com/ipfs/go-ds-leveldb"
+	pebbledb "github.com/ipfs/go-ds-pebble"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/config"
@@ -142,7 +142,7 @@ func TestDatastore(t *testing.T) {
 	}
 
 	// Create datastore
-	dstore, err := leveldb.NewDatastore(dataStorePath, nil)
+	dstore, err := pebbledb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
 
 	r, err := New(ctx, discoveryCfg, dstore)
@@ -172,7 +172,7 @@ func TestDatastore(t *testing.T) {
 	require.NoError(t, dstore.Close())
 
 	// Create datastore
-	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
+	dstore, err = pebbledb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
 
 	r, err = New(ctx, discoveryCfg, dstore)
@@ -222,7 +222,7 @@ func TestDatastore(t *testing.T) {
 	t.Log("Converted registry to work with assigner service")
 	discoveryCfg.UseAssigner = true
 	discoveryCfg.UnassignedPublishers = true
-	dstore, err = leveldb.NewDatastore(dataStorePath, nil)
+	dstore, err = pebbledb.NewDatastore(dataStorePath, nil)
 	require.NoError(t, err)
 	r, err = New(ctx, discoveryCfg, dstore)
 	require.NoError(t, err)
