@@ -14,7 +14,6 @@ on:
       - 'doc/**'
     branches:
       - main
-      - port-fixes-from-no-gs
 
 jobs:
   publisher:
