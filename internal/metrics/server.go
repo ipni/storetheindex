@@ -25,7 +25,6 @@ var (
 	IngestChange         = stats.Int64("ingest/change", "Number of syncAdEntries started", stats.UnitDimensionless)
 	AdIngestLatency      = stats.Float64("ingest/adsynclatency", "latency of syncAdEntries completed successfully", stats.UnitDimensionless)
 	AdIngestErrorCount   = stats.Int64("ingest/adingestError", "Number of errors encountered while processing an ad", stats.UnitDimensionless)
-	AdIngestQueued       = stats.Int64("ingest/adingestqueued", "Number of queued advertisements", stats.UnitDimensionless)
 	AdIngestActive       = stats.Int64("ingest/adactive", "Active ingest workers", stats.UnitDimensionless)
 	AdIngestSuccessCount = stats.Int64("ingest/adingestSuccess", "Number of successful ad ingest", stats.UnitDimensionless)
 	AdIngestSkippedCount = stats.Int64("ingest/adingestSkipped", "Number of ads skipped during ingest", stats.UnitDimensionless)
@@ -65,10 +64,6 @@ var (
 		Measure:     AdIngestErrorCount,
 		Aggregation: view.Count(),
 		TagKeys:     []tag.Key{ErrKind},
-	}
-	adIngestQueued = &view.View{
-		Measure:     AdIngestQueued,
-		Aggregation: view.Count(),
 	}
 	adIngestActive = &view.View{
 		Measure:     AdIngestActive,
@@ -112,7 +107,6 @@ func Start(views []*view.View) http.Handler {
 		entriesSyncLatencyView,
 		adIngestLatencyView,
 		adIngestError,
-		adIngestQueued,
 		adIngestActive,
 		adIngestSkipped,
 		adIngestSuccess,

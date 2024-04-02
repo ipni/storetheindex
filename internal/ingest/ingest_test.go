@@ -46,8 +46,8 @@ import (
 )
 
 const (
-	testRetryInterval = 2 * time.Second
-	testRetryTimeout  = 15 * time.Second
+	testRetryInterval = 100 * time.Millisecond
+	testRetryTimeout  = 5 * time.Second
 
 	testEntriesChunkCount = 3
 	testEntriesChunkSize  = 15
@@ -752,11 +752,11 @@ func TestRmWithNoEntries(t *testing.T) {
 	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 	var lcid cid.Cid
-	requireTrueEventually(t, func() bool {
+	require.Eventually(t, func() bool {
 		lcid, err = te.ingester.GetLatestSync(te.pubHost.ID())
 		require.NoError(t, err)
 		return chainHead.(cidlink.Link).Cid == lcid
-	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", chainHead, lcid)
+	}, testRetryTimeout, testRetryInterval, "Expected %s but got %s", chainHead, lcid)
 
 	allMhs := typehelpers.AllMultihashesFromAdChain(t, prevAd, te.publisherLinkSys)
 
@@ -806,11 +806,11 @@ func TestSync(t *testing.T) {
 	lcid := lnk.(cidlink.Link).Cid
 	require.Equal(t, lcid, c1)
 	// Check that latest sync recorded in datastore
-	requireTrueEventually(t, func() bool {
+	require.Eventually(t, func() bool {
 		lcid, err = i.GetLatestSync(pubHost.ID())
 		require.NoError(t, err)
 		return c1.Equals(lcid)
-	}, testRetryInterval, testRetryTimeout, "Expected %s but got %s", c1, lcid)
+	}, testRetryTimeout, testRetryInterval, "Expected %s but got %s", c1, lcid)
 
 	// Checking providerID, since that was what was put in the advertisement, not pubhost.ID()
 	requireIndexedEventually(t, i.indexer, providerID, mhs)
@@ -1409,16 +1409,16 @@ func TestMultiplePublishers(t *testing.T) {
 	requireIndexedEventually(t, i.indexer, pubHost2.ID(), mhs)
 
 	// Assert that the latest processed ad cid eventually matches the expected cid.
-	requireTrueEventually(t, func() bool {
+	require.Eventually(t, func() bool {
 		gotLatestSync, err := i.GetLatestSync(pubHost1.ID())
 		require.NoError(t, err)
 		return headAd1Cid.Equals(gotLatestSync)
-	}, testRetryInterval, testRetryTimeout, "Expected latest processed ad cid to be headAd1 for publisher 1.")
-	requireTrueEventually(t, func() bool {
+	}, testRetryTimeout, testRetryInterval, "Expected latest processed ad cid to be headAd1 for publisher 1.")
+	require.Eventually(t, func() bool {
 		gotLatestSync, err := i.GetLatestSync(pubHost2.ID())
 		require.NoError(t, err)
 		return headAd2Cid.Equals(gotLatestSync)
-	}, testRetryInterval, testRetryTimeout, "Expected latest processed ad cid to be headAd2 for publisher 2.")
+	}, testRetryTimeout, testRetryInterval, "Expected latest processed ad cid to be headAd2 for publisher 2.")
 
 	// Assert that getting the latest synced from dagsync publisher matches the
 	// latest processed.
@@ -1455,7 +1455,7 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
-	// Instantiate a sync
+
 	wait := make(chan cid.Cid, 1)
 	go func() {
 		syncCid, err := te.ingester.Sync(context.Background(), peerInfo, 0, false)
@@ -1468,39 +1468,38 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 	// Asset that the head ad multihash is not indexed.
 	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), mhs[3:])
 
+	require.Equal(t, 1, int(te.ingester.workersActive.Load()))
+
 	// Announce an ad CID and assert that call to announce is deferred since
 	// we have blocked the processing.
 	ad2Cid := ads[2].(cidlink.Link).Cid
+	// Blocked in sync handler.
 	err := te.ingester.Announce(context.Background(), ad2Cid, pubAddrInfo)
 	require.NoError(t, err)
-	gotPendingAnnounce, found := te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
-	require.True(t, found)
-	require.Equal(t, pendingAnnounce{
-		addrInfo: pubAddrInfo,
-		nextCid:  ad2Cid,
-	}, gotPendingAnnounce)
+	// Verify sync has not completed.
+	require.Eventually(t, func() bool {
+		te.ingester.syncInProgressMu.Lock()
+		_, found := te.ingester.syncInProgress[pubAddrInfo.ID]
+		te.ingester.syncInProgressMu.Unlock()
+		return found
+	}, testRetryTimeout, testRetryInterval)
 
-	// Announce another CID and assert the pending announce is updated to the latest announced CID.
 	ad3Cid := ads[3].(cidlink.Link).Cid
+	// Blocked waiting for previous async ad chain sync.
 	err = te.ingester.Announce(context.Background(), ad3Cid, pubAddrInfo)
 	require.NoError(t, err)
-	gotPendingAnnounce, found = te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
-	require.True(t, found)
-	require.Equal(t, pendingAnnounce{
-		addrInfo: pubAddrInfo,
-		nextCid:  ad3Cid,
-	}, gotPendingAnnounce)
 
 	// Unblock the processing and assert that everything is indexed.
 	<-hitBlockedRead
 	require.Equal(t, headCid, <-wait)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
 
-	// Assert that there is no pending announce.
-	requireTrueEventually(t, func() bool {
-		_, found := te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
+	require.Eventually(t, func() bool {
+		te.ingester.syncInProgressMu.Lock()
+		_, found := te.ingester.syncInProgress[te.pubHost.ID()]
+		te.ingester.syncInProgressMu.Unlock()
 		return !found
-	}, testRetryInterval, testRetryTimeout, "Expected the pending announce to have been processed")
+	}, testRetryTimeout, testRetryInterval, "Expected the pending announce to have been processed")
 }
 
 func TestAnnounceIsNotDeferredOnNoInProgressIngest(t *testing.T) {
@@ -1519,13 +1518,21 @@ func TestAnnounceIsNotDeferredOnNoInProgressIngest(t *testing.T) {
 	// Announce the head ad CID.
 	err := te.ingester.Announce(context.Background(), headCid, pubAddrInfo)
 	require.NoError(t, err)
-	// Assert that there is no pending announce.
-	_, found := te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
-	require.False(t, found)
 
 	// Assert that all multihashes in ad chain are indexed eventually, since Announce triggers
 	// a background sync and should eventually process the ads.
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+
+	require.Eventually(t, func() bool {
+		te.ingester.syncInProgressMu.Lock()
+		_, found := te.ingester.syncInProgress[te.pubHost.ID()]
+		te.ingester.syncInProgressMu.Unlock()
+		return !found
+	}, testRetryTimeout, testRetryInterval)
+
+	require.Eventually(t, func() bool {
+		return te.ingester.workersActive.Load() == 0
+	}, testRetryTimeout, testRetryInterval)
 }
 
 func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *testing.T) {
@@ -1559,7 +1566,9 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 
 	// Assert that there is no announce pending processing since no explicit announce was made to
 	// storetheindex ingester.
-	_, found := te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
+	te.ingester.syncInProgressMu.Lock()
+	_, found := te.ingester.syncInProgress[te.pubHost.ID()]
+	te.ingester.syncInProgressMu.Unlock()
 	require.False(t, found)
 
 	// This sleep is required to make sure that the messages arrive to the blocking channel in the intended order
@@ -1568,15 +1577,12 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 	// Block head ad which should block explicit Announce call made to the ingester.
 	blockedReads.add(headCid)
 
-	// Make an explicit announcement of head ad and assert that it was handled immediately since
-	// there is no in-progress entries processing yet; remember ad sync triggered by
-	// publisher.UpdateRoot is still blocked.
-	// Note that the background handling of the announce should get blocked since headCid is also
-	// in the block list.
+	// Make an explicit announcement of head ad while ad sync triggered by
+	// publisher.UpdateRoot is still blocked. Note that the background handling
+	// of the announce should get blocked since headCid is also in the block
+	// list.
 	err = te.ingester.Announce(context.Background(), headCid, pubAddrInfo)
 	require.NoError(t, err)
-	_, found = te.ingester.providersPendingAnnounce.Load(te.pubHost.ID())
-	require.False(t, found)
 
 	// Unblock the sync triggered by publisher.UpdateRoot which should:
 	// 1. cause the ad chain C->B->A to be downloaded.
@@ -2018,28 +2024,9 @@ func checkAllIndexed(ix indexer.Interface, p peer.ID, mhs []multihash.Multihash)
 
 func requireIndexedEventually(t *testing.T, ix indexer.Interface, p peer.ID, mhs []multihash.Multihash) {
 	t.Helper()
-	requireTrueEventually(t, func() bool {
+	require.Eventually(t, func() bool {
 		return checkAllIndexed(ix, p, mhs) == nil
-	}, testRetryInterval, testRetryTimeout, "Expected all multihashes from %s to have been indexed eventually", p.String())
-}
-
-func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Duration, timeout time.Duration, msgAndArgs ...interface{}) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		if attempt() {
-			return
-		}
-		select {
-		case <-ctx.Done():
-			require.FailNow(t, "timed out awaiting eventual success", msgAndArgs...)
-			return
-		case <-ticker.C:
-		}
-	}
+	}, testRetryTimeout, testRetryInterval, "Expected all multihashes from %s to have been indexed eventually", p.String())
 }
 
 type testEnv struct {

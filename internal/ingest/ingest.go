@@ -47,14 +47,6 @@ const (
 	metricsUpdateInterval = time.Minute
 )
 
-// Metrics
-var (
-	totalNonRmAds atomic.Int64
-	totalRmAds    atomic.Int64
-	workersActive atomic.Int32
-	workersQueued atomic.Int32
-)
-
 type adProcessedEvent struct {
 	publisher peer.ID
 	// Head of the chain being processed.
@@ -65,26 +57,10 @@ type adProcessedEvent struct {
 	err error
 }
 
-// pendingAnnounce captures an announcement received from a provider that await processing.
-type pendingAnnounce struct {
-	addrInfo peer.AddrInfo
-	nextCid  cid.Cid
-}
-
 type adInfo struct {
 	cid    cid.Cid
 	resync bool
 	skip   bool
-}
-
-type workerAssignment struct {
-	// none represents a nil assignment. Used because a nil in atomic.Value
-	// cannot be stored.
-	none      bool
-	addresses []string
-	adInfos   []adInfo
-	publisher peer.ID
-	provider  peer.ID
 }
 
 // Ingester is a type that uses dagsync for the ingestion protocol.
@@ -133,31 +109,28 @@ type Ingester struct {
 
 	overwriteMirrorOnResync bool
 
-	// A map of providers currently being processed. A worker holds the lock of
-	// a provider while ingesting ads for that provider.
-	providersBeingProcessed   map[peer.ID]chan struct{}
-	providersBeingProcessedMu sync.Mutex
-	providerWorkAssignment    map[peer.ID]*atomic.Value
+	// A map of providers currently being processed. Used to detect if multiple
+	// publishers are supplying ads for the same provide at the same time.
+	providersBusy   map[peer.ID]struct{}
+	providersBusyMu sync.Mutex
 
 	// Used to stop watching for sync finished events from dagsync.
 	cancelOnSyncFinished context.CancelFunc
 
 	// Channels that workers read from.
 	syncFinishedEvents <-chan dagsync.SyncFinished
-	workReady          chan peer.ID
+	syncInProgressMu   sync.Mutex
+	syncInProgress     map[peer.ID]*dagsync.SyncFinished
 
 	// Context and cancel function used to cancel all workers.
 	cancelWorkers context.CancelFunc
 	workersCtx    context.Context
 
 	// Worker pool resizing.
+	nextWorkerNum  int
 	stopWorker     chan struct{}
 	waitForWorkers sync.WaitGroup
 	workerPoolSize int
-
-	// providersPendingAnnounce maps the provider ID to the latest announcement
-	// received from the provider that is waiting to be processed.
-	providersPendingAnnounce sync.Map
 
 	// Multihash minimum length
 	minKeyLen int
@@ -169,6 +142,11 @@ type Ingester struct {
 	ingestRates *rate.Map
 
 	skip500EntsErr atomic.Bool
+
+	// metrics
+	totalNonRmAds atomic.Int64
+	totalRmAds    atomic.Int64
+	workersActive atomic.Int32
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
@@ -192,11 +170,10 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		closePendingSyncs: make(chan struct{}),
 
 		overwriteMirrorOnResync: cfg.OverwriteMirrorOnResync,
-		providersBeingProcessed: make(map[peer.ID]chan struct{}),
-		providerWorkAssignment:  make(map[peer.ID]*atomic.Value),
+		providersBusy:           make(map[peer.ID]struct{}),
 		stopWorker:              make(chan struct{}),
 
-		workReady: make(chan peer.ID, 1),
+		syncInProgress: make(map[peer.ID]*dagsync.SyncFinished),
 
 		minKeyLen: cfg.MinimumKeyLength,
 
@@ -508,36 +485,8 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 // Announce sends an announce message to directly to dagsync, instead of
 // through pubsub.
 func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, pubAddrInfo peer.AddrInfo) error {
-	log := log.With("peer", pubAddrInfo.ID, "cid", nextCid, "addrs", pubAddrInfo.Addrs)
-
-	// If the publisher is not the same as the provider, then this will not
-	// wait for the provider to be done processing the ad chain it is working
-	// on.
-	ing.providersBeingProcessedMu.Lock()
-	pc, ok := ing.providersBeingProcessed[pubAddrInfo.ID]
-	ing.providersBeingProcessedMu.Unlock()
-	if !ok {
-		return ing.sub.Announce(ctx, nextCid, pubAddrInfo)
-	}
-
-	// The publisher in the announce message has the same ID as a known
-	// provider, so defer handling the announce if that provider is busy.
-	select {
-	case pc <- struct{}{}:
-		log.Info("Handling direct announce request")
-		err := ing.sub.Announce(ctx, nextCid, pubAddrInfo)
-		<-pc
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		ing.providersPendingAnnounce.Store(pubAddrInfo.ID, pendingAnnounce{
-			addrInfo: pubAddrInfo,
-			nextCid:  nextCid,
-		})
-		log.Info("Deferred handling direct announce request")
-		return nil
-	}
+	log.Infow("Handling direct announce request", "peer", pubAddrInfo.ID, "cid", nextCid, "addrs", pubAddrInfo.Addrs)
+	return ing.sub.Announce(ctx, nextCid, pubAddrInfo)
 }
 
 // markAdUnprocessed takes an advertisement CID and marks it as unprocessed.
@@ -651,7 +600,7 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 		defer ing.outEventsMutex.Unlock()
 		pubEventsChans, ok := ing.outEventsChans[peerID]
 		if !ok {
-			log.Warnw("Advertisement processed notification already cancelled", "peer", peerID)
+			log.Warnw("Advertisement processed notification already canceled", "peer", peerID)
 			return
 		}
 
@@ -869,8 +818,9 @@ func (ing *Ingester) RunWorkers(n int) {
 	for n > ing.workerPoolSize {
 		// Start worker.
 		ing.waitForWorkers.Add(1)
-		go ing.ingestWorker(ing.workersCtx, ing.syncFinishedEvents)
+		go ing.ingestWorker(ing.workersCtx, ing.syncFinishedEvents, ing.nextWorkerNum)
 		ing.workerPoolSize++
+		ing.nextWorkerNum++
 	}
 	for n < ing.workerPoolSize {
 		// Stop worker.
@@ -883,57 +833,93 @@ func (ing *Ingester) RunWorkers(n int) {
 // advertisement chain has been synced. Provider work assignments are created
 // from raw advertisement chains, and processed by ingestWorker. Work
 // assignments are processed preferentially over new advertisement chains.
-func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan dagsync.SyncFinished) {
-	log.Debug("started ingest worker")
+func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan dagsync.SyncFinished, wkrNum int) {
+	log := log.With("worker", wkrNum)
+
+	log.Info("started ingest worker")
 	defer ing.waitForWorkers.Done()
 
 	for {
-		// Wait for work only. Work assignments take priority over new
-		// advertisement chains.
+		log.Debug("ingest worker waiting for event")
 		select {
-		case provider := <-ing.workReady:
-			ing.handleWorkReady(ctx, provider)
+		case event, ok := <-syncFinishedEvents:
+			if !ok {
+				log.Info("ingest worker exiting, sync finished events closed")
+				return
+			}
+
+			pubID := event.PeerID
+
+			if event.Err != nil {
+				provID, ok := ing.reg.ProviderByPublisher(pubID)
+				if ok {
+					log.Debug("Setting last error for provider", "provider", provID, "publisher", pubID)
+					ing.reg.SetLastError(provID, event.Err)
+				}
+				continue
+			}
+
+			log.Debugw("ingest worker processing raw ad chain", "publisher", pubID)
+
+			if ing.putNextSyncFin(event) {
+				// Ad chain is already being processed.
+				log.Debugw("Ad chain already being processed, queued ad chain event", "publisher", pubID)
+				continue
+			}
+
+			stats.Record(ctx, metrics.AdIngestActive.M(int64(ing.workersActive.Add(1))))
+
+			for syncFin := ing.getNextSyncFin(pubID); syncFin != nil; syncFin = ing.getNextSyncFin(pubID) {
+				ing.processRawAdChain(ctx, *syncFin, wkrNum)
+			}
+
+			stats.Record(ctx, metrics.AdIngestActive.M(int64(ing.workersActive.Add(-1))))
 		case <-ctx.Done():
 			log.Info("ingest worker canceled")
 			return
 		case <-ing.stopWorker:
-			log.Debug("stopped ingest worker")
+			log.Info("ingest worker stopped")
 			return
-		default:
-			// No work assignments, so also check for new advertisement chains.
-			select {
-			case provider := <-ing.workReady:
-				ing.handleWorkReady(ctx, provider)
-			case event, ok := <-syncFinishedEvents:
-				if !ok {
-					log.Info("ingest worker exiting, sync finished events closed")
-					return
-				}
-				if event.Err != nil {
-					ing.reg.SetLastError(event.PeerID, event.Err)
-					continue
-				}
-				ing.processRawAdChain(ctx, event)
-			case <-ctx.Done():
-				log.Info("ingest worker canceled")
-				return
-			case <-ing.stopWorker:
-				log.Debug("stopped ingest worker")
-				return
-			}
 		}
 	}
+}
+
+func (ing *Ingester) putNextSyncFin(event dagsync.SyncFinished) bool {
+	pubID := event.PeerID
+
+	ing.syncInProgressMu.Lock()
+	defer ing.syncInProgressMu.Unlock()
+
+	_, inProgress := ing.syncInProgress[pubID]
+	ing.syncInProgress[pubID] = &event
+
+	return inProgress
+}
+
+func (ing *Ingester) getNextSyncFin(pubID peer.ID) *dagsync.SyncFinished {
+	ing.syncInProgressMu.Lock()
+	defer ing.syncInProgressMu.Unlock()
+
+	syncFin := ing.syncInProgress[pubID]
+	if syncFin == nil {
+		delete(ing.syncInProgress, pubID)
+	} else {
+		ing.syncInProgress[pubID] = nil
+	}
+
+	return syncFin
 }
 
 // processRawAdChain processes a raw advertisement chain from a publisher to
 // create provider work assignments. When not workers are working on a work
 // assignment for a provider, then workers are given the next work assignment
 // for that provider.
-func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync.SyncFinished) {
+func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync.SyncFinished, wkrNum int) {
 	if syncFinished.Count == 0 {
 		// Attempted sync, but already up to data. Nothing to do.
 		return
 	}
+
 	publisher := syncFinished.PeerID
 	log := log.With("publisher", publisher)
 	log.Infow("Advertisement chain synced", "length", syncFinished.Count)
@@ -968,13 +954,14 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		if processed {
 			// This ad has been processed so all earlier ads already have been
 			// processed.
+			log.Infow("Remainder of ad chain already processed", "cid", c)
 			break
 		}
 
 		ad, err := ing.loadAd(c)
 		if err != nil {
 			stats.Record(context.Background(), metrics.AdLoadError.M(1))
-			log.Errorw("Failed to load advertisement CID, skipping", "cid", c, "err", err)
+			log.Errorw("Failed to load advertisement CID, skipping all remaining", "cid", c, "err", err)
 			break
 		}
 		if ad.PreviousID != nil {
@@ -986,7 +973,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 
 		providerID, err := peer.Decode(ad.Provider)
 		if err != nil {
-			log.Errorf("Failed to get provider from ad CID: %s skipping", err)
+			log.Errorw("Failed to get provider from ad CID, skipping", "cid", c, "err", err)
 			continue
 		}
 		// If this is the first ad for this provider, then save the provider
@@ -994,6 +981,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		_, ok := provAddrs[providerID]
 		if !ok && len(ad.Addresses) != 0 {
 			provAddrs[providerID] = ad.Addresses
+			log.Debugw("New provider seen in ad stack", "provider", providerID)
 		}
 
 		ai := adInfo{
@@ -1011,134 +999,76 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		}
 
 		adsGroupedByProvider[providerID] = append(adsGroupedByProvider[providerID], ai)
+		if totalAds%1000 == 0 {
+			log.Debugf("Added %d ads to stack", totalAds)
+		}
 	}
 
 	nonRmCount := totalAds - rmCount
 
+	log.Debugw("Created ad stack", "providers", len(adsGroupedByProvider), "ads", totalAds, "rmCount", rmCount)
+
 	stats.Record(ctx,
-		metrics.RemoveAdCount.M(totalRmAds.Add(rmCount)),
-		metrics.NonRemoveAdCount.M(totalNonRmAds.Add(nonRmCount)))
+		metrics.RemoveAdCount.M(ing.totalRmAds.Add(rmCount)),
+		metrics.NonRemoveAdCount.M(ing.totalNonRmAds.Add(nonRmCount)))
 
 	// 2. For each provider put the ad stack to the worker msg channel. Each ad
 	// stack contains ads for a single provider, from a single publisher.
 	for providerID, adInfos := range adsGroupedByProvider {
-		ing.providersBeingProcessedMu.Lock()
-		if _, ok := ing.providersBeingProcessed[providerID]; !ok {
-			ing.providersBeingProcessed[providerID] = make(chan struct{}, 1)
+		ing.providersBusyMu.Lock()
+		if _, ok := ing.providersBusy[providerID]; ok {
+			ing.providersBusyMu.Unlock()
+			log.Errorw("Other worker already ingesting for same provider. Provider ad chain may by published at multiple locations.", "provider", providerID)
+			return
 		}
-		wa, ok := ing.providerWorkAssignment[providerID]
-		if !ok {
-			wa = &atomic.Value{}
-			ing.providerWorkAssignment[providerID] = wa
-		}
-		ing.providersBeingProcessedMu.Unlock()
+		ing.providersBusy[providerID] = struct{}{}
+		ing.providersBusyMu.Unlock()
 
-		oldAssignment := wa.Swap(workerAssignment{
-			adInfos:   adInfos,
-			addresses: provAddrs[providerID],
-			publisher: publisher,
-			provider:  providerID,
-		})
-		if oldAssignment == nil || oldAssignment.(workerAssignment).none {
-			// No previous run scheduled a worker to handle this provider, so
-			// schedule one.
-			ing.reg.Saw(providerID, false)
+		ing.reg.Saw(providerID, false)
+		ing.ingestWorkerLogic(ctx, providerID, publisher, provAddrs[providerID], adInfos, wkrNum)
 
-			go func(provID peer.ID) {
-				ing.providersBeingProcessedMu.Lock()
-				provBusy := ing.providersBeingProcessed[provID]
-				ing.providersBeingProcessedMu.Unlock()
-
-				stats.Record(ctx,
-					metrics.AdIngestQueued.M(int64(workersQueued.Add(1))))
-				// Wait until the no workers are doing work for the provider
-				// before notifying that another work assignment is available.
-				select {
-				case provBusy <- struct{}{}:
-				case <-ctx.Done():
-					return
-				}
-				select {
-				case ing.workReady <- provID:
-				case <-ctx.Done():
-					return
-				}
-			}(providerID)
-		}
-		// If oldAssignment has adInfos, it is not necessary to merge the old
-		// and new assignments because the new assignment will already have all
-		// the adInfos that the old assignment does. If the old assignment was
-		// not processed yet, then the sync that created the new assignment
-		// would have traversed the same chain as the old. In other words, any
-		// existing old assignment is always a subset of a new assignment.
+		ing.providersBusyMu.Lock()
+		delete(ing.providersBusy, providerID)
+		ing.providersBusyMu.Unlock()
 	}
 }
 
-func (ing *Ingester) handleWorkReady(ctx context.Context, provider peer.ID) {
-	ing.providersBeingProcessedMu.Lock()
-	provBusy := ing.providersBeingProcessed[provider]
-	// Pull out the assignment for this provider, which was populated by processAdChain.
-	wa := ing.providerWorkAssignment[provider]
-	ing.providersBeingProcessedMu.Unlock()
-
-	stats.Record(context.Background(),
-		metrics.AdIngestQueued.M(int64(workersQueued.Add(-1))),
-		metrics.AdIngestActive.M(int64(workersActive.Add(1))))
-
-	assignmentInterface := wa.Swap(workerAssignment{none: true})
-	if assignmentInterface != nil {
-		ing.ingestWorkerLogic(ctx, provider, assignmentInterface.(workerAssignment))
-	}
-
-	ing.handlePendingAnnounce(ctx, provider)
-
-	// Signal that the worker is done with the provider.
-	<-provBusy
-
-	stats.Record(ctx, metrics.AdIngestActive.M(int64(workersActive.Add(-1))))
-}
-
-func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, assignment workerAssignment) {
-	if assignment.none {
-		// Nothing to do.
-		return
-	}
-	frozen := ing.reg.Frozen()
-
-	log := log.With("publisher", assignment.publisher)
+func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher peer.ID, addresses []string, adInfos []adInfo, wkrNum int) {
+	log := log.With("publisher", publisher, "worker", wkrNum)
 	// Log provider ID if not the same as publisher ID.
-	if provider != assignment.publisher {
+	if provider != publisher {
 		log = log.With("provider", provider)
 	}
 
 	headProvider := peer.AddrInfo{
 		ID:    provider,
-		Addrs: stringsToMultiaddrs(assignment.addresses),
+		Addrs: stringsToMultiaddrs(addresses),
 	}
-	headAdCid := assignment.adInfos[0].cid
+	headAdCid := adInfos[0].cid
 
-	if ing.mirror.canWrite() && !assignment.adInfos[0].resync {
+	if ing.mirror.canWrite() && !adInfos[0].resync {
 		_, err := ing.mirror.writeHead(ctx, headAdCid, provider)
 		if err != nil {
 			log.Errorw("Cannot write publisher head", "err", err)
 		}
 	}
 
+	frozen := ing.reg.Frozen()
 	skip500EntsErr := ing.skip500EntsErr.Load()
 
-	total := len(assignment.adInfos)
+	total := len(adInfos)
 	log.Infow("Running worker on ad stack", "headAdCid", headAdCid, "numAdsToProcess", total)
 	var count int
-	for i := len(assignment.adInfos) - 1; i >= 0; i-- {
+	for i := len(adInfos) - 1; i >= 0; i-- {
 		// Note that iteration proceeds backwards here. Earliest to newest.
-		ai := assignment.adInfos[i]
-		assignment.adInfos[i] = adInfo{} // Clear the adInfo to free memory.
+		ai := adInfos[i]
+		adInfos[i] = adInfo{} // Clear the adInfo to free memory.
 		count++
 
 		if ctx.Err() != nil {
 			log.Infow("Ingest worker canceled while processing ads", "err", ctx.Err())
 			ing.inEvents <- adProcessedEvent{
-				publisher: assignment.publisher,
+				publisher: publisher,
 				headAdCid: headAdCid,
 				adCid:     ai.cid,
 				err:       ctx.Err(),
@@ -1161,7 +1091,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 				"adCid", ai.cid,
 				"progress", fmt.Sprintf("%d of %d", count, total))
 
-			if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, false); markErr != nil {
+			if markErr := ing.markAdProcessed(publisher, ai.cid, frozen, false); markErr != nil {
 				log.Errorw("Failed to mark ad as processed", "err", markErr)
 			}
 			// Do not write removed ads to mirror. They are not read during
@@ -1169,7 +1099,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 
 			// Distribute the atProcessedEvent notices to waiting Sync calls.
 			ing.inEvents <- adProcessedEvent{
-				publisher: assignment.publisher,
+				publisher: publisher,
 				headAdCid: headAdCid,
 				adCid:     ai.cid,
 			}
@@ -1182,7 +1112,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 			"progress", fmt.Sprintf("%d of %d", count, total),
 			"lag", lag)
 
-		hasEnts, fromMirror, err := ing.ingestAd(ctx, assignment.publisher, ai.cid, ai.resync, frozen, lag, headProvider)
+		hasEnts, fromMirror, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider)
 		if err != nil {
 			var adIngestErr adIngestError
 			if errors.As(err, &adIngestErr) {
@@ -1220,7 +1150,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 				// Tell anyone waiting that the sync finished for this head because
 				// of error.  TODO(mm) would be better to propagate the error.
 				ing.inEvents <- adProcessedEvent{
-					publisher: assignment.publisher,
+					publisher: publisher,
 					headAdCid: headAdCid,
 					adCid:     ai.cid,
 					err:       err,
@@ -1235,7 +1165,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 		ing.reg.SetLastError(provider, nil)
 
 		putMirror := hasEnts && ing.mirror.canWrite()
-		if markErr := ing.markAdProcessed(assignment.publisher, ai.cid, frozen, putMirror); markErr != nil {
+		if markErr := ing.markAdProcessed(publisher, ai.cid, frozen, putMirror); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
 
@@ -1267,36 +1197,9 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider peer.ID, as
 
 		// Distribute the atProcessedEvent notices to waiting Sync calls.
 		ing.inEvents <- adProcessedEvent{
-			publisher: assignment.publisher,
+			publisher: publisher,
 			headAdCid: headAdCid,
 			adCid:     ai.cid,
 		}
 	}
-}
-
-func (ing *Ingester) handlePendingAnnounce(ctx context.Context, pubID peer.ID) {
-	if ctx.Err() != nil {
-		return
-	}
-	log := log.With("publisher", pubID)
-	// Process pending announce request if any.
-	// Note that the pending announce is deleted regardless of whether it was successfully
-	// processed or not. Because, the cause of failure may be non-recoverable e.g. address
-	// change and not removing it will block processing of future pending announces.
-	v, found := ing.providersPendingAnnounce.LoadAndDelete(pubID)
-	if !found {
-		return
-	}
-	pa, ok := v.(pendingAnnounce)
-	if !ok {
-		log.Errorw("Cannot handle pending announce; unexpected type", "got", v)
-		return
-	}
-	log = log.With("cid", pa.nextCid, "addrinfo", pa.addrInfo)
-	err := ing.sub.Announce(ctx, pa.nextCid, pa.addrInfo)
-	if err != nil {
-		log.Errorw("Failed to handle pending announce", "err", err)
-		return
-	}
-	log.Info("Successfully handled pending announce")
 }

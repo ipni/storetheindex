@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.51
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.2
 	github.com/aws/smithy-go v1.13.5
-	github.com/cockroachdb/pebble v0.0.0-20240229012220-7531ef4d20c9
+	github.com/cockroachdb/pebble v0.0.0-20240328175803-1dc54dfdc519
 	github.com/filecoin-project/go-dagaggregator-unixfs v0.3.0
 	github.com/gammazero/channelqueue v0.2.1
 	github.com/gammazero/deque v0.2.1
@@ -24,12 +24,12 @@ require (
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
-	github.com/ipni/go-indexer-core v0.8.9
-	github.com/ipni/go-libipni v0.5.14
-	github.com/libp2p/go-libp2p v0.33.0
+	github.com/ipni/go-indexer-core v0.8.10
+	github.com/ipni/go-libipni v0.5.16
+	github.com/libp2p/go-libp2p v0.33.2
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/multiformats/go-multiaddr v0.12.2
+	github.com/multiformats/go-multiaddr v0.12.3
 	github.com/multiformats/go-multicodec v0.9.0
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/multiformats/go-varint v0.0.7
@@ -46,7 +46,7 @@ require (
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
-	github.com/DataDog/zstd v1.4.5 // indirect
+	github.com/DataDog/zstd v1.5.6-0.20230824185856-869dae002e5e // indirect
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/aws/aws-sdk-go v1.44.312 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10 // indirect
@@ -69,6 +69,7 @@ require (
 	github.com/cockroachdb/errors v1.11.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
+	github.com/cockroachdb/swiss v0.0.0-20240303172742-c161743eb608 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/containerd/cgroups v1.1.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
@@ -183,7 +184,7 @@ require (
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect
-	github.com/quic-go/quic-go v0.41.0 // indirect
+	github.com/quic-go/quic-go v0.42.0 // indirect
 	github.com/quic-go/webtransport-go v0.6.0 // indirect
 	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
