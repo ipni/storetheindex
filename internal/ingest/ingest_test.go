@@ -2029,11 +2029,6 @@ func requireIndexedEventually(t *testing.T, ix indexer.Interface, p peer.ID, mhs
 	}, testRetryTimeout, testRetryInterval, "Expected all multihashes from %s to have been indexed eventually", p.String())
 }
 
-func requireTrueEventually(t *testing.T, attempt func() bool, interval time.Duration, timeout time.Duration, msgAndArgs ...interface{}) {
-	t.Helper()
-	require.Eventually(t, attempt, timeout, interval, msgAndArgs...)
-}
-
 type testEnv struct {
 	publisher        dagsync.Publisher
 	pubHost          host.Host

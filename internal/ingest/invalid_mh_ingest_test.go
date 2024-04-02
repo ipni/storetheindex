@@ -42,15 +42,15 @@ func TestInvalidMultihashesAreNotIngested(t *testing.T) {
 
 	require.Equal(t, headAdCid, gotHeadAd, "Expected latest synced cid to match head of ad chain")
 
-	requireTrueEventually(t, func() bool {
+	require.Eventually(t, func() bool {
 		return checkAllIndexed(subject.indexer, pubInfo.ID, validMhs) == nil
-	}, testRetryInterval, testRetryTimeout, "Expected only valid multihashes to be indexed")
+	}, testRetryTimeout, testRetryInterval, "Expected only valid multihashes to be indexed")
 
-	requireTrueEventually(t, func() bool {
+	require.Eventually(t, func() bool {
 		latestSync, err := subject.GetLatestSync(pubInfo.ID)
 		require.NoError(t, err)
 		return latestSync.Equals(headAdCid)
-	}, testRetryInterval, testRetryTimeout, "Expected all ads from publisher to have been indexed")
+	}, testRetryTimeout, testRetryInterval, "Expected all ads from publisher to have been indexed")
 
 	// Assert valid multihash indices correspond to the expected provider.
 	for _, mh := range validMhs {

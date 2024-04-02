@@ -45,16 +45,16 @@ func TestIngester_IngestsMixedEntriesTypeSuccessfully(t *testing.T) {
 	require.Equal(t, headAdCid, gotHeadAd, "Expected latest synced cid to match head of ad chain")
 
 	// Assert all indices are processed eventually
-	requireTrueEventually(t, func() bool {
+	require.Eventually(t, func() bool {
 		return checkAllIndexed(subject.indexer, pubInfo.ID, mhs) == nil
-	}, testRetryInterval, testRetryTimeout, "Expected all multihashes to have been indexed eventually")
+	}, testRetryTimeout, testRetryInterval, "Expected all multihashes to have been indexed eventually")
 
 	// Assert All ads are processed eventually
-	requireTrueEventually(t, func() bool {
+	require.Eventually(t, func() bool {
 		latestSync, err := subject.GetLatestSync(pubInfo.ID)
 		require.NoError(t, err)
 		return latestSync.Equals(headAdCid)
-	}, testRetryInterval, testRetryTimeout, "Expected all ads from publisher to have been indexed eventually")
+	}, testRetryTimeout, testRetryInterval, "Expected all ads from publisher to have been indexed eventually")
 
 	// Assert multihash indices correspond to the single expected provider.
 	for _, mh := range mhs {

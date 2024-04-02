@@ -53,13 +53,13 @@ func TestAdsSyncedViaSegmentsAreProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, headAdCid, gotHeadAd, "Expected latest synced cid to match head of ad chain")
 
-	requireTrueEventually(t, func() bool {
+	require.Eventually(t, func() bool {
 		return checkAllIndexed(subject.indexer, pubInfo.ID, mhs) == nil
-	}, testRetryInterval, testRetryTimeout, "Expected all ads from publisher to have been indexed.")
+	}, testRetryTimeout, testRetryInterval, "Expected all ads from publisher to have been indexed.")
 
-	requireTrueEventually(t, func() bool {
+	require.Eventually(t, func() bool {
 		latestSync, err := subject.GetLatestSync(pubInfo.ID)
 		require.NoError(t, err)
 		return latestSync.Equals(headAdCid)
-	}, testRetryInterval, testRetryTimeout, "Expected all ads from publisher to have been indexed.")
+	}, testRetryTimeout, testRetryInterval, "Expected all ads from publisher to have been indexed.")
 }

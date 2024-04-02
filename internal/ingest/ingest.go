@@ -1018,7 +1018,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		ing.providersBusyMu.Lock()
 		if _, ok := ing.providersBusy[providerID]; ok {
 			ing.providersBusyMu.Unlock()
-			log.Errorw("Other worker already ingesting for same provider", "provider", providerID)
+			log.Errorw("Other worker already ingesting for same provider. Provider ad chain may by published at multiple locations.", "provider", providerID)
 			return
 		}
 		ing.providersBusy[providerID] = struct{}{}
