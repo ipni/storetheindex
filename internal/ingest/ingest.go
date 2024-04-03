@@ -1065,7 +1065,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		count++
 
 		if ctx.Err() != nil {
-			log.Infow("Ingest canceled while processing ads", "err", ctx.Err())
+			log.Infow("Ingest worker canceled while processing ads", "err", ctx.Err())
 			ing.inEvents <- adProcessedEvent{
 				publisher: publisher,
 				headAdCid: headAdCid,
