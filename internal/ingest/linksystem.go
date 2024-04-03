@@ -251,6 +251,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 
 	// Register provider or update existing registration. The provider must be
 	// allowed by policy to be registered.
+	log.Debug("Updating provider registry with latest ad info")
 	err = ing.reg.Update(ctx, headProvider, publisher, adCid, extendedProviders, lag)
 	if err != nil {
 		// A registry.ErrMissingProviderAddr error is not considered a
@@ -278,7 +279,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		if ad.Entries != schema.NoEntries {
 			return false, false, adIngestError{adIngestMalformedErr, fmt.Errorf("advertisement missing metadata")}
 		}
-		log.Info("Advertisement is for removal by context id")
+		log.Info("Advertisement is for provider address update only")
 		return false, false, nil
 	}
 
