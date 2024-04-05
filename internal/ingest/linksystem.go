@@ -400,8 +400,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 
 	log = log.With("entriesKind", "hamt")
 	// Keep track of all CIDs in the HAMT to remove them later when the
-	// processing is done. This is equivalent behavior to ingestEntryChunk
-	// which removes an entry chunk right afrer it is processed.
+	// processing is done.
 	hamtCids := []cid.Cid{entsCid}
 	gatherCids := func(_ peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
 		hamtCids = append(hamtCids, c)
@@ -503,13 +502,19 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 		return 0, adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to load first entry chunk: %w", err)}
 	}
 
-	err = ing.ingestEntryChunk(ctx, ad, providerID, entsCid, chunk, log)
+	err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
 	if err != nil {
 		// There was an error storing the multihashes.
 		return 0, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest first entry chunk: %w", err)}
 	}
-
 	mhCount := len(chunk.Entries)
+
+	if !ing.mirror.canWrite() {
+		// Done processing entries chunk, so remove from datastore.
+		if err = ing.dsTmp.Delete(ctx, datastore.NewKey(entsCid.String())); err != nil {
+			log.Errorw("Error deleting first entries chunk from datastore", "err", err)
+		}
+	}
 
 	// Sync all remaining entry chunks.
 	if chunk.Next != nil {
@@ -520,12 +525,19 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 				actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entry chunk: %w", err)})
 				return
 			}
-			err = ing.ingestEntryChunk(ctx, ad, providerID, c, chunk, log)
+			err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
 			if err != nil {
 				actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)})
 				return
 			}
 			mhCount += len(chunk.Entries)
+
+			if !ing.mirror.canWrite() {
+				// Done processing entries chunk, so remove from datastore.
+				if err = ing.dsTmp.Delete(ctx, datastore.NewKey(c.String())); err != nil {
+					log.Errorw("Error deleting entries chunk from datastore", "err", err)
+				}
+			}
 
 			if chunk.Next == nil {
 				actions.SetNextSyncCid(cid.Undef)
@@ -589,11 +601,20 @@ func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Adverti
 
 	log = log.With("entriesKind", "CarEntryChunk")
 
-	err = ing.ingestEntryChunk(ctx, ad, providerID, entsCid, *chunk, log)
+	err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
 	if err != nil {
 		return 0, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
 	}
 	mhCount := len(chunk.Entries)
+
+	// If got data from a mirror, and writing to a different mirror, then put
+	// data into temp datastore for creation of new mirror file to write.
+	copyMirrorData := ing.mirror.canWrite() && !ing.mirror.readWriteSame()
+	if copyMirrorData {
+		if err = ing.dsTmp.Put(ctx, datastore.NewKey(entsCid.String()), firstEntryBlock.Data); err != nil {
+			return mhCount, fmt.Errorf("cannot write first entry chunk data from mirror to datastore: %w", err)
+		}
+	}
 
 	for entryBlock := range adBlock.Entries {
 		if entryBlock.Err != nil {
@@ -603,35 +624,20 @@ func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Adverti
 		if err != nil {
 			return mhCount, fmt.Errorf("failed to decode entry chunk from car file data: %w", err)
 		}
-		err = ing.ingestEntryChunk(ctx, ad, providerID, entryBlock.Cid, *chunk, log)
+		err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
 		if err != nil {
 			return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
 		}
 		mhCount += len(chunk.Entries)
+
+		if copyMirrorData {
+			if err = ing.dsTmp.Put(ctx, datastore.NewKey(entryBlock.Cid.String()), entryBlock.Data); err != nil {
+				return mhCount, fmt.Errorf("cannot write entry chunk data from mirror to datastore: %w", err)
+			}
+		}
 	}
 
 	return mhCount, nil
-}
-
-// ingestEntryChunk ingests a block of entries as that block is received
-// through graphsync.
-//
-// When each advertisement on a chain is processed by ingestAd, that
-// advertisement's entries are synced in a separate dagsync.Subscriber.Sync
-// operation. This function is used as a scoped block hook, and is called for
-// each block that is received.
-func (ing *Ingester) ingestEntryChunk(ctx context.Context, ad schema.Advertisement, providerID peer.ID, entryChunkCid cid.Cid, chunk schema.EntryChunk, log *zap.SugaredLogger) error {
-	err := ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
-	if !ing.mirror.canWrite() {
-		// Done processing entries chunk, so remove from datastore.
-		if err := ing.dsTmp.Delete(ctx, datastore.NewKey(entryChunkCid.String())); err != nil {
-			log.Errorw("Error deleting index from datastore", "err", err)
-		}
-	}
-	if err != nil {
-		return fmt.Errorf("failed processing entries for advertisement: %w", err)
-	}
-	return nil
 }
 
 // indexAdMultihashes filters out invalid multihashes and indexes those

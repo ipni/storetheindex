@@ -43,6 +43,7 @@ func main() {
 			command.InitCmd,
 			command.LoadtestCmd,
 			command.LogCmd,
+			command.UpdateMirrorCmd,
 		},
 	}
 
