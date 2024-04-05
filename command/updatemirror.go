@@ -1,6 +1,7 @@
 package command
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -80,13 +81,21 @@ func updateMirrorAction(cctx *cli.Context) error {
 			totalSize += rdFile.Size
 		}
 	}
+	elapsed := time.Since(start)
+
 	err = <-errs
 	if err != nil {
-		return fmt.Errorf("error listing files in read mirror: %w", err)
+		if errors.Is(err, context.Canceled) {
+			fmt.Println("Mirror update canceled")
+			err = nil
+		} else {
+			fmt.Println("Mirror update ended due to error")
+			err = fmt.Errorf("error listing files in read mirror: %w", err)
+		}
+	} else {
+		fmt.Println("Mirror update complete")
 	}
 
-	elapsed := time.Since(start)
-	fmt.Println("Mirror update complete")
 	fmt.Println("   Elapsed:     ", elapsed.String())
 	fmt.Println("   Checked:     ", checked)
 	fmt.Println("   Read errors: ", rdErrs)
@@ -94,7 +103,7 @@ func updateMirrorAction(cctx *cli.Context) error {
 	fmt.Println("   Bytes copied:", totalSize)
 	fmt.Println("   Updated CARs:", updates)
 
-	return nil
+	return err
 }
 
 func getMirrorStores(cfgMirror config.Mirror) (filestore.Interface, filestore.Interface, error) {
