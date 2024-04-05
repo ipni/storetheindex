@@ -138,6 +138,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 			},
 		},
 	}
+	rdMirrorDir := e.Dir
 	cfg.Save(stiCfgPath)
 
 	// start provider
@@ -248,7 +249,14 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	indexer2ID := cfg.Identity.PeerID
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
 		Compress: "gzip",
+		Read:     true,
 		Write:    true,
+		Retrieval: filestore.Config{
+			Type: "local",
+			Local: filestore.LocalConfig{
+				BasePath: rdMirrorDir,
+			},
+		},
 		Storage: filestore.Config{
 			Type: "local",
 			Local: filestore.LocalConfig{
@@ -257,6 +265,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 		},
 	}
 	cfg.Save(sti2CfgPath)
+	wrMirrorDir := e.Dir
 
 	indexerReady2 := test.NewStdoutWatcher(test.IndexerReadyMatch)
 	cmdIndexer2 := e.Start(test.NewExecution(indexer, "daemon").WithWatcher(indexerReady2))
@@ -313,6 +322,19 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	require.Equal(t, dhResp.MultihashResults[0].Multihash, mh)
 	require.Equal(t, 1, len(dhResp.MultihashResults[0].ProviderResults))
 	require.Equal(t, providerID, dhResp.MultihashResults[0].ProviderResults[0].Provider.ID.String())
+
+	// Get the CAR file from the read mirror.
+	rdCarFile, err := carFromMirror(e.Ctx, rdMirrorDir)
+	require.NoError(t, err)
+	require.NotZero(t, rdCarFile.Size)
+
+	// Get the CAR file from the write mirror and compare size.
+	wrCarFS, err := filestore.NewLocal(wrMirrorDir)
+	require.NoError(t, err)
+	wrCarFile, err := wrCarFS.Head(e.Ctx, rdCarFile.Path)
+	require.NoError(t, err)
+	require.Equal(t, rdCarFile.Size, wrCarFile.Size)
+	t.Logf("CAR file %q is same size in read and write mirror: %d bytes", wrCarFile.Path, wrCarFile.Size)
 
 	// Remove a car file from the provider. This will cause the provider to
 	// publish an advertisement that tells the indexer to remove the car file
@@ -391,4 +413,20 @@ func downloadFile(fileURL, filePath string) error {
 
 	_, err = io.Copy(file, rsp.Body)
 	return err
+}
+
+func carFromMirror(ctx context.Context, mirrorDir string) (*filestore.File, error) {
+	listCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	mirrorFS, err := filestore.NewLocal(mirrorDir)
+	if err != nil {
+		return nil, err
+	}
+	files, errs := mirrorFS.List(listCtx, "/", false)
+	for f := range files {
+		if strings.HasSuffix(f.Path, ".car.gz") {
+			return f, nil
+		}
+	}
+	return nil, <-errs
 }
