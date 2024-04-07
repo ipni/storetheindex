@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"reflect"
+	"runtime"
 	"strings"
 	"time"
 
@@ -18,7 +19,22 @@ import (
 var UpdateMirrorCmd = &cli.Command{
 	Name:   "update-mirror",
 	Usage:  "Update CAR files from read mirror to write mirror",
+	Flags:  updateMirrorFlags,
 	Action: updateMirrorAction,
+}
+
+var updateMirrorFlags = []cli.Flag{
+	&cli.IntFlag{
+		Name:    "concurrency",
+		Usage:   "Number of concurrent operations. Setting 0 uses number of cores.",
+		Aliases: []string{"c"},
+		Value:   0,
+	},
+}
+
+type stats struct {
+	totalSize                        int64
+	checked, updates, rdErrs, wrErrs int
 }
 
 func updateMirrorAction(cctx *cli.Context) error {
@@ -37,49 +53,71 @@ func updateMirrorAction(cctx *cli.Context) error {
 		return err
 	}
 
-	fmt.Println("Updating existing CARs in", writeStore.Type(), "write mirror from CARs in", readStore.Type(), "read mirror")
-
 	ctx := cctx.Context
+	concurrency := cctx.Int("concurrency")
+	if concurrency < 0 {
+		return errors.New("concurrency value must be greater than 0")
+	}
+	if concurrency == 0 {
+		concurrency = runtime.NumCPU()
+	}
 
-	var totalSize int64
-	var checked, updates, rdErrs, wrErrs int
+	fmt.Println("Updating existing CARs in", writeStore.Type(), "write mirror from CARs in", readStore.Type(), "read mirror. concurrency =", concurrency)
+
+	statsOut := make(chan stats)
 	start := time.Now()
 
-	files, errs := writeStore.List(ctx, "/", false)
-	for wrFile := range files {
-		if !strings.HasSuffix(wrFile.Path, carSuffix) {
-			continue
-		}
-		checked++
+	filesChan, errs := writeStore.List(ctx, "/", false)
+	for g := 0; g < concurrency; g++ {
+		go func(files <-chan *filestore.File) {
+			var st stats
+			for wrFile := range files {
+				if !strings.HasSuffix(wrFile.Path, carSuffix) {
+					continue
+				}
+				st.checked++
 
-		rdFile, err := readStore.Head(ctx, wrFile.Path)
-		if err != nil {
-			if !errors.Is(err, fs.ErrNotExist) {
-				fmt.Println("Cannot get info for file in read mirror:", err)
-				rdErrs++
-			}
-			// else CAR file not found in read store.
-			continue
-		}
+				rdFile, err := readStore.Head(ctx, wrFile.Path)
+				if err != nil {
+					if !errors.Is(err, fs.ErrNotExist) {
+						fmt.Println("Cannot get info for file in read mirror:", err)
+						st.rdErrs++
+					}
+					// else CAR file not found in read store.
+					continue
+				}
 
-		if rdFile.Size != wrFile.Size {
-			fmt.Println("Updating CAR", wrFile.Path, "to size", rdFile.Size)
-			_, rc, err := readStore.Get(ctx, rdFile.Path)
-			if err != nil {
-				fmt.Println("Cannot read from read mirror:", err)
-				rdErrs++
-				continue
+				if rdFile.Size != wrFile.Size {
+					fmt.Println("Updating CAR", wrFile.Path, "to size", rdFile.Size)
+					_, rc, err := readStore.Get(ctx, rdFile.Path)
+					if err != nil {
+						fmt.Println("Cannot read from read mirror:", err)
+						st.rdErrs++
+						continue
+					}
+					_, err = writeStore.Put(ctx, wrFile.Path, rc)
+					rc.Close()
+					if err != nil {
+						fmt.Println("Failed to update CAR in write mirror:", err)
+						st.wrErrs++
+						continue
+					}
+					st.updates++
+					st.totalSize += rdFile.Size
+				}
 			}
-			_, err = writeStore.Put(ctx, wrFile.Path, rc)
-			rc.Close()
-			if err != nil {
-				fmt.Println("Failed to update CAR in write mirror:", err)
-				wrErrs++
-				continue
-			}
-			updates++
-			totalSize += rdFile.Size
-		}
+			statsOut <- st
+		}(filesChan)
+	}
+
+	var statsSum stats
+	for g := 0; g < concurrency; g++ {
+		st := <-statsOut
+		statsSum.checked += st.checked
+		statsSum.updates += st.updates
+		statsSum.rdErrs += st.rdErrs
+		statsSum.wrErrs += st.wrErrs
+		statsSum.totalSize += st.totalSize
 	}
 	elapsed := time.Since(start)
 
@@ -97,11 +135,11 @@ func updateMirrorAction(cctx *cli.Context) error {
 	}
 
 	fmt.Println("   Elapsed:     ", elapsed.String())
-	fmt.Println("   Checked:     ", checked)
-	fmt.Println("   Read errors: ", rdErrs)
-	fmt.Println("   Write errors:", wrErrs)
-	fmt.Println("   Bytes copied:", totalSize)
-	fmt.Println("   Updated CARs:", updates)
+	fmt.Println("   Checked:     ", statsSum.checked)
+	fmt.Println("   Read errors: ", statsSum.rdErrs)
+	fmt.Println("   Write errors:", statsSum.wrErrs)
+	fmt.Println("   Bytes copied:", statsSum.totalSize)
+	fmt.Println("   Updated CARs:", statsSum.updates)
 
 	return err
 }
