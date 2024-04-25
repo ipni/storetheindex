@@ -8,4 +8,8 @@ spec:
   resources:
     requests:
       storage: 16Ti
+  dataSource:
+    name: dhstore-20230427
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io
   storageClassName: gp3-iops5k-t300
