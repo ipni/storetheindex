@@ -51,13 +51,13 @@
     "ValueStoreDir": "/data/valuestore",
     "ValueStoreType": "none",
     "DHBatchSize": 16384,
-    "DHStoreURL": "http://dhstore-tetra:40080",
+    "DHStoreURL": "http://dhstore.internal.prod.cid.contact",
     "DHStoreClusterURLs": [
+      "http://dhstore-tetra:40080",          
       "http://dhstore-seka:40080",
       "http://dhstore-ravi:40080",
       "http://dhstore-qiu:40080",
       "http://dhstore-helga.internal.prod.cid.contact",
-      "http://dhstore.internal.prod.cid.contact",
       "http://dhstore-porvy.internal.prod.cid.contact"
     ],
     "DHStoreHttpClientTimeout": "60s"
