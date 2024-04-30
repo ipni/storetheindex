@@ -1,5 +1,5 @@
 # DHStore internal service, accessible only within K8S cluster VPC via:
-#  - http://dhstore.internal.dev.cid.contact
+#  - http://dhstore.internal.prod.cid.contact
 #
 # See: https://github.com/ipni/dhstore
 kind: Service

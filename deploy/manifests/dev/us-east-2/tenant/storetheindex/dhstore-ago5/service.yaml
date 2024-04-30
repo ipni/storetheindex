@@ -1,9 +1,0 @@
-kind: Service
-apiVersion: v1
-metadata:
-  name: dhstore
-  labels:
-    app: dhstore-ago5
-spec:
-  selector:
-    app: dhstore-ago5
