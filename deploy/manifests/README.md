@@ -10,7 +10,7 @@ the encryption/decryption that under the hood uses designated KMS keys.
 
 The key designated to storetheindex is specified in a SOPS configuration file in the folder that
 contains its manifests for each of the runtime environments. For example, the SOPS config file for
-the `dev` environment can be found [here](dev/us-east-2/tenant/storetheindex/.sops.yaml). The
+the `prod` environment can be found [here](prod/us-east-2/tenant/storetheindex/.sops.yaml). The
 presence of that file instructs all `sops` commands _executed in that directory_ to use the
 configured key.
 
@@ -31,7 +31,7 @@ To encrypt a file containing sensitive information, e.g. `my-secret.txt`:
 
 * `cd` into the `storetheindex` directory corresponding to the environment you want to make that
   secret available in.
-    * For example, `dev/us-east-2/tenant/storetheindex` for the `dev` environment
+    * For example, `prod/us-east-2/tenant/storetheindex` for the `prod` environment
 * Execute `sops -e my-secret.txt > my-secret.encrypted`
     * This command would encrypt the content of `my-secret.txt` and stores the encrypted value to a
       file named `my-secret.encrypted`.
@@ -43,7 +43,7 @@ To encrypt a file containing sensitive information, e.g. `my-secret.txt`:
 
 You can now include the encrypted value in your `kustomization.yaml` using `secretGenerator` to
 create K8S `Secret` object. An example of this technique can be found in `storetheindex`
-Kustomization file in both `dev` and `prod` environments.
+Kustomization file in `prod` environments.
 
 It is also possible to define K8S `Secret` object directly, and encrypt its content (i.e. at
 key `data` or `stringData`) using SOPS.

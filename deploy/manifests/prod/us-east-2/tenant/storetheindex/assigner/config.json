@@ -39,8 +39,7 @@
   },
   "Peering": {
     "Peers": [
-      "/dns4/inga-indexer/tcp/3003/p2p/12D3KooWGRNQLAeMZ658jcuCkVBcVnCkxVYT4GqknQV2tRwDXfRT",
-      "/dns4/assigner-peer.dev.cid.contact/tcp/3003/p2p/12D3KooWDBjcDRQ7CKJeF9Yy3UKbriHfyETDrXKzTDB6biH3ibBd"
+      "/dns4/inga-indexer/tcp/3003/p2p/12D3KooWGRNQLAeMZ658jcuCkVBcVnCkxVYT4GqknQV2tRwDXfRT"
     ]
   }
 }
