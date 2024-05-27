@@ -13,7 +13,6 @@ resources:
 - dhstore
 - dhstore-helga
 - dhstore-porvy
-- cassette
 - dhstore-qiu
 - dhstore-ravi
 - dhstore-seka
