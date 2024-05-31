@@ -35,7 +35,7 @@ func TestS3(t *testing.T) {
 	const bucketName = "testbucket"
 
 	tempDir := t.TempDir()
-	err := os.MkdirAll(fmt.Sprintf("%s/%s", tempDir, bucketName), 0755)
+	err := os.MkdirAll(filepath.Join(tempDir, bucketName), 0755)
 	require.NoError(t, err)
 
 	p := localstack.Preset(
