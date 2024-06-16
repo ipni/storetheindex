@@ -25,7 +25,7 @@ require (
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
-	github.com/ipni/go-indexer-core v0.8.12
+	github.com/ipni/go-indexer-core v0.8.14
 	github.com/ipni/go-libipni v0.6.8
 	github.com/libp2p/go-libp2p v0.35.1
 	github.com/libp2p/go-msgio v0.3.0
@@ -66,7 +66,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cockroachdb/errors v1.11.1 // indirect
+	github.com/cockroachdb/errors v1.11.3 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
 	github.com/cockroachdb/swiss v0.0.0-20240303172742-c161743eb608 // indirect
