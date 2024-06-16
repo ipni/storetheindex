@@ -40,8 +40,8 @@ type Indexer struct {
 	// the location is relative to the indexer repo directory.
 	ValueStoreDir string
 	// ValueStoreType specifies type of valuestore to use, such as "dhstore" or
-	// "pebble". If no set, then defaults to "dhstore" if DHStoreURL is
-	// configures, otherwise defaults to "pebble".
+	// "pebble". If not set, then defaults to "dhstore" when DHStoreURL is
+	// configured. Otherwise defaults to "pebble".
 	ValueStoreType string
 	// PebbleDisableWAL sets whether to disable write-ahead-log in Pebble which
 	// can offer better performance in specific cases. Enabled by default. This
