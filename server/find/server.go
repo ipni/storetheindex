@@ -14,7 +14,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
-	indexer "github.com/ipni/go-indexer-core"
+	"github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/go-libipni/apierror"
 	"github.com/ipni/go-libipni/find/model"
@@ -179,7 +179,7 @@ func (s *Server) findMultihash(w http.ResponseWriter, r *http.Request) {
 	stream := match == mediaTypeNDJson
 
 	mhVar := path.Base(r.URL.Path)
-	m, err := multihash.FromB58String(mhVar)
+	m, err := caseMHString(mhVar)
 	if err != nil {
 		log.Errorw("error decoding multihash", "multihash", mhVar, "err", err)
 		httpserver.HandleError(w, err, "find")
@@ -515,4 +515,16 @@ func createExtendedProviderResult(epInfo registry.ExtendedProviderInfo, iVal ind
 			Addrs: epInfo.Addrs,
 		},
 	}
+}
+
+func caseMHString(s string) (multihash.Multihash, error) {
+	mh, err := multihash.FromHexString(s)
+	if err != nil {
+		mh, err := multihash.FromB58String(s)
+		if err != nil {
+			return multihash.Multihash{}, err
+		}
+		return mh, nil
+	}
+	return mh, nil
 }
