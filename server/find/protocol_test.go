@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-test/random"
 	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/cache/radixcache"
 	"github.com/ipni/go-indexer-core/engine"
@@ -16,7 +17,6 @@ import (
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/go-libipni/find/model"
-	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/registry"
 	httpserver "github.com/ipni/storetheindex/server/find"
@@ -228,7 +228,7 @@ func populateIndex(ind indexer.Interface, mhs []multihash.Multihash, v indexer.V
 
 func findIndexTest(ctx context.Context, t *testing.T, f client.Finder, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
-	mhs := test.RandomMultihashes(2)
+	mhs := random.Multihashes(2)
 	p, err := peer.Decode(providerID)
 	require.NoError(t, err)
 	ctxID := []byte("test-context-id")
@@ -355,7 +355,7 @@ func verifyProviderInfo(t *testing.T, provInfo *model.ProviderInfo) {
 
 func removeProviderTest(ctx context.Context, t *testing.T, c *client.Client, ind indexer.Interface, reg *registry.Registry) {
 	// Generate some multihashes and populate indexer
-	mhs := test.RandomMultihashes(15)
+	mhs := random.Multihashes(15)
 	p, err := peer.Decode(providerID)
 	require.NoError(t, err)
 	ctxID := []byte("test-context-id")
@@ -410,7 +410,7 @@ func removeProviderTest(ctx context.Context, t *testing.T, c *client.Client, ind
 
 func getStatsTest(ctx context.Context, t *testing.T, ind indexer.Interface, refreshStats func(), c *client.Client) {
 	t.Parallel()
-	mhs := test.RandomMultihashes(15)
+	mhs := random.Multihashes(15)
 	p, err := peer.Decode(providerID)
 	require.NoError(t, err)
 	ctxID := []byte("test-context-id")
@@ -438,15 +438,15 @@ func register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID
 	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	require.NoError(t, err)
 
-	ep1, _, _ := test.RandomIdentity()
-	ep2, _, _ := test.RandomIdentity()
+	ep1, _, _ := random.Identity()
+	ep2, _, _ := random.Identity()
 
 	provider := peer.AddrInfo{
 		ID:    peerID,
 		Addrs: []multiaddr.Multiaddr{maddr},
 	}
 
-	maddrs := test.RandomMultiaddrs(2)
+	maddrs := random.Multiaddrs(2)
 	provAddrs := maddrs[:1]
 	ctxAddrs := maddrs[1:]
 

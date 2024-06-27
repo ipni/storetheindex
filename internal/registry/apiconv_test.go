@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipni/go-libipni/test"
+	"github.com/ipfs/go-test/random"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -37,14 +37,14 @@ func TestRegToApiProviderInfo(t *testing.T) {
 	frozenAtCid := cid.NewCidV1(cid.Raw, mh)
 	frozenAtTime := lastAdTime.Add(-time.Hour)
 
-	maddrs := test.RandomMultiaddrs(2)
+	maddrs := random.Multiaddrs(2)
 	ep1Addrs := maddrs[:1]
 	ep2Addrs := maddrs[1:]
 
 	epContextId := []byte("ep-context-id")
-	ep1, _, _ := test.RandomIdentity()
+	ep1, _, _ := random.Identity()
 	ep1Metadata := []byte("ep1-metadata")
-	ep2, _, _ := test.RandomIdentity()
+	ep2, _, _ := random.Identity()
 	ep2Metadata := []byte("ep2-metadata")
 
 	regPI := ProviderInfo{

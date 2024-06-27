@@ -16,6 +16,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
+	"github.com/ipfs/go-test/random"
 	"github.com/ipld/go-ipld-prime"
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -31,7 +32,6 @@ import (
 	dstest "github.com/ipni/go-libipni/dagsync/test"
 	schema "github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/go-libipni/mautil"
-	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/registry"
@@ -1790,7 +1790,7 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 	var out []multihash.Multihash
 	var nextLnk ipld.Link
 	for i := 0; i < size; i++ {
-		mhs := test.RandomMultihashes(testEntriesChunkSize)
+		mhs := random.Multihashes(testEntriesChunkSize)
 		chunk := &schema.EntryChunk{
 			Entries: mhs,
 			Next:    nextLnk,
@@ -1898,7 +1898,7 @@ func publishAdvWithExtendedProviders(t *testing.T,
 		epKeys[epID.String()] = epPriv
 		adv.ExtendedProvider.Providers = append(adv.ExtendedProvider.Providers, schema.Provider{
 			ID:        epID.String(),
-			Addresses: test.RandomAddrs(1),
+			Addresses: random.Addrs(1),
 			Metadata:  []byte(fmt.Sprintf("test-metadata-%d", i)),
 		})
 	}

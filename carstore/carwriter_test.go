@@ -9,18 +9,17 @@ import (
 	"testing"
 
 	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-test/random"
 	car "github.com/ipld/go-car/v2"
 	carblockstore "github.com/ipld/go-car/v2/blockstore"
 	carindex "github.com/ipld/go-car/v2/index"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/go-libipni/ingest/schema"
-	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/filestore"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
@@ -233,7 +232,7 @@ func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Lin
 	var out []multihash.Multihash
 	var nextLnk ipld.Link
 	for i := 0; i < size; i++ {
-		mhs := test.RandomMultihashes(testEntriesChunkSize)
+		mhs := random.Multihashes(testEntriesChunkSize)
 		chunk := &schema.EntryChunk{
 			Entries: mhs,
 			Next:    nextLnk,
@@ -271,11 +270,7 @@ func mkProvLinkSystem(ds datastore.Datastore) ipld.LinkSystem {
 func storeRandomIndexAndAd(t *testing.T, eChunkCount int, metadata []byte, prevLink ipld.Link, dstore datastore.Datastore) (ipld.Link, *schema.Advertisement, []multihash.Multihash, peer.ID, crypto.PrivKey) {
 	lsys := mkProvLinkSystem(dstore)
 
-	priv, pubKey, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
-	require.NoError(t, err)
-
-	p, err := peer.IDFromPublicKey(pubKey)
-	require.NoError(t, err)
+	p, priv, _ := random.Identity()
 
 	ctxID := []byte("test-context-id")
 	if metadata == nil {
@@ -297,7 +292,7 @@ func storeRandomIndexAndAd(t *testing.T, eChunkCount int, metadata []byte, prevL
 		adv.Entries, mhs = newRandomLinkedList(t, lsys, eChunkCount)
 	}
 
-	err = adv.Sign(priv)
+	err := adv.Sign(priv)
 	require.NoError(t, err)
 
 	node, err := adv.ToNode()

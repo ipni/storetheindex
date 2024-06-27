@@ -30,7 +30,6 @@ type Identity struct {
 }
 
 func (i Identity) Decode() (peer.ID, ic.PrivKey, error) {
-
 	privKey, err := i.DecodePrivateKey("")
 	if err != nil {
 		return "", nil, fmt.Errorf("could not decode private key: %w", err)

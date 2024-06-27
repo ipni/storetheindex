@@ -9,7 +9,7 @@ import (
 
 	agg "github.com/filecoin-project/go-dagaggregator-unixfs"
 	"github.com/ipfs/go-cid"
-	"github.com/ipni/go-libipni/test"
+	"github.com/ipfs/go-test/random"
 	"github.com/urfave/cli/v2"
 )
 
@@ -131,7 +131,7 @@ func writeCidFile(fileName string, num int) error {
 	for curr < num {
 		if i == len(cids) {
 			// Refil cids
-			cids = test.RandomCids(100)
+			cids = random.Cids(100)
 			i = 0
 		}
 		if _, err = w.WriteString(cids[i].String()); err != nil {
@@ -171,7 +171,7 @@ func writeCidFileOfSize(fileName string, size int) error {
 	for curr < size {
 		if i == len(cids) {
 			// Refil cids
-			cids = test.RandomCids(100)
+			cids = random.Cids(100)
 			i = 0
 		}
 		c := cids[i]
@@ -212,7 +212,7 @@ func writeManifest(fileName string, num int) error {
 	for curr < num {
 		if i == len(cids) {
 			// Refil cids
-			cids = test.RandomCids(100)
+			cids = random.Cids(100)
 			i = 0
 		}
 
@@ -257,7 +257,7 @@ func writeManifestOfSize(fileName string, size int) error {
 	for curr < size {
 		if i == len(cids) {
 			// Refil cids
-			cids = test.RandomCids(100)
+			cids = random.Cids(100)
 			i = 0
 		}
 		c := cids[i]

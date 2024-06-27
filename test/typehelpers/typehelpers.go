@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/ipfs/go-test/random"
 	hamt "github.com/ipld/go-ipld-adl-hamt"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -16,7 +17,6 @@ import (
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	"github.com/ipni/go-libipni/ingest/schema"
-	"github.com/ipni/go-libipni/test"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
@@ -145,7 +145,7 @@ func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datam
 				mhs = append(mhs, badmh)
 			}
 		} else {
-			mhs = test.RandomMultihashes(int(b.EntriesPerChunk))
+			mhs = random.Multihashes(int(b.EntriesPerChunk))
 		}
 
 		var err error
