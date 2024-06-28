@@ -192,15 +192,14 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 
 	// Create and start subscriber. This also registers the storage hook to
 	// index data as it is received.
-	sub, err := dagsync.NewSubscriber(h, ing.dsTmp, ing.lsys, cfg.PubSubTopic,
+	sub, err := dagsync.NewSubscriber(h, ing.lsys,
 		dagsync.AdsDepthLimit(int64(cfg.AdvertisementDepthLimit)),
 		dagsync.EntriesDepthLimit(int64(cfg.EntriesDepthLimit)),
 		dagsync.FirstSyncDepth(int64(cfg.FirstSyncDepth)),
 		dagsync.WithLastKnownSync(ing.getLastKnownSync),
 		dagsync.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
 		dagsync.BlockHook(ing.generalDagsyncBlockHook),
-		dagsync.WithMaxGraphsyncRequests(cfg.GsMaxInRequests, cfg.GsMaxOutRequests),
-		dagsync.RecvAnnounce(
+		dagsync.RecvAnnounce(cfg.PubSubTopic,
 			announce.WithAllowPeer(reg.Allowed),
 			announce.WithFilterIPs(reg.FilterIPsEnabled()),
 			announce.WithResend(cfg.ResendDirectAnnounce),
