@@ -16,14 +16,25 @@ import (
 	"testing"
 	"time"
 
+	testcmd "github.com/ipfs/go-test/cmd"
 	findclient "github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
-	"github.com/ipni/storetheindex/test"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	// When this environ var is set to a value and running tests with -v flag,
+	// then TestIpniRunner output is logged.
+	envTestIpniRunnerOutput = "TEST_IPNI_RUNNER_OUTPUT"
+
+	indexerReadyMatch    = "Indexer is ready"
+	providerHasPeerMatch = "connected to peer successfully"
+	providerReadyMatch   = "admin http server listening"
+	dhstoreReady         = "Store opened."
 )
 
 // This is a full end-to-end test with storetheindex as the indexer daemon,
@@ -66,41 +77,41 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	e := test.NewTestIpniRunner(t, ctx, t.TempDir())
+	rnr := testcmd.NewRunner(t, t.TempDir())
 
-	carPath := filepath.Join(e.Dir, "sample-wrapped-v2.car")
+	carPath := filepath.Join(rnr.Dir, "sample-wrapped-v2.car")
 	err := downloadFile("https://github.com/ipni/index-provider/raw/main/testdata/sample-wrapped-v2.car", carPath)
 	require.NoError(t, err)
 
 	// install storetheindex
-	indexer := filepath.Join(e.Dir, "storetheindex")
-	e.Run("go", "install", ".")
+	indexer := filepath.Join(rnr.Dir, "storetheindex")
+	rnr.Run(ctx, "go", "install", ".")
 
-	provider := filepath.Join(e.Dir, "provider")
-	dhstore := filepath.Join(e.Dir, "dhstore")
-	ipni := filepath.Join(e.Dir, "ipni")
+	provider := filepath.Join(rnr.Dir, "provider")
+	dhstore := filepath.Join(rnr.Dir, "dhstore")
+	ipni := filepath.Join(rnr.Dir, "ipni")
 
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 
-	err = os.Chdir(e.Dir)
+	err = os.Chdir(rnr.Dir)
 	require.NoError(t, err)
 
 	// install index-provider
 	switch publisherProto {
 	case "dtsync":
 		// Install index-provider that supports dtsync.
-		e.Run("go", "install", "github.com/ipni/index-provider/cmd/provider@v0.13.6")
+		rnr.Run(ctx, "go", "install", "github.com/ipni/index-provider/cmd/provider@v0.13.6")
 	case "libp2p", "libp2phttp", "http":
-		e.Run("go", "install", "github.com/ipni/index-provider/cmd/provider@latest")
+		rnr.Run(ctx, "go", "install", "github.com/ipni/index-provider/cmd/provider@latest")
 	default:
 		panic("providerProto must be one of: libp2phttp, http, dtsync")
 	}
 	// install dhstore
-	e.Run("go", "install", "-tags", "nofdb", "github.com/ipni/dhstore/cmd/dhstore@latest")
+	rnr.Run(ctx, "go", "install", "-tags", "nofdb", "github.com/ipni/dhstore/cmd/dhstore@latest")
 
 	// install ipni-cli
-	e.Run("go", "install", "github.com/ipni/ipni-cli/cmd/ipni@latest")
+	rnr.Run(ctx, "go", "install", "github.com/ipni/ipni-cli/cmd/ipni@latest")
 
 	err = os.Chdir(cwd)
 	require.NoError(t, err)
@@ -108,23 +119,23 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	// initialize index-provider
 	switch publisherProto {
 	case "dtsync":
-		e.Run(provider, "init")
+		rnr.Run(ctx, provider, "init")
 	case "http":
-		e.Run(provider, "init", "--pubkind=http")
+		rnr.Run(ctx, provider, "init", "--pubkind=http")
 	case "libp2p":
-		e.Run(provider, "init", "--pubkind=libp2p")
+		rnr.Run(ctx, provider, "init", "--pubkind=libp2p")
 	case "libp2phttp":
-		e.Run(provider, "init", "--pubkind=libp2phttp")
+		rnr.Run(ctx, provider, "init", "--pubkind=libp2phttp")
 	}
-	providerCfgPath := filepath.Join(e.Dir, ".index-provider", "config")
+	providerCfgPath := filepath.Join(rnr.Dir, ".index-provider", "config")
 	cfg, err := config.Load(providerCfgPath)
 	require.NoError(t, err)
 	providerID := cfg.Identity.PeerID
 	t.Logf("Initialized provider ID: %s", providerID)
 
 	// initialize indexer
-	e.Run(indexer, "init", "--store", "pebble", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap")
-	stiCfgPath := filepath.Join(e.Dir, ".storetheindex", "config")
+	rnr.Run(ctx, indexer, "init", "--store", "pebble", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap")
+	stiCfgPath := filepath.Join(rnr.Dir, ".storetheindex", "config")
 	cfg, err = config.Load(stiCfgPath)
 	require.NoError(t, err)
 	indexerID := cfg.Identity.PeerID
@@ -134,63 +145,51 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 		Storage: filestore.Config{
 			Type: "local",
 			Local: filestore.LocalConfig{
-				BasePath: e.Dir,
+				BasePath: rnr.Dir,
 			},
 		},
 	}
-	rdMirrorDir := e.Dir
+	rdMirrorDir := rnr.Dir
 	cfg.Save(stiCfgPath)
 
 	// start provider
-	providerReady := test.NewStdoutWatcher(test.ProviderReadyMatch)
-	providerHasPeer := test.NewStdoutWatcher(test.ProviderHasPeerMatch)
-	cmdProvider := e.Start(test.NewExecution(provider, "daemon").WithWatcher(providerReady).WithWatcher(providerHasPeer))
-	select {
-	case <-providerReady.Signal:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for provider to start")
-	}
+	providerReady := testcmd.NewStderrWatcher(providerReadyMatch)
+	providerHasPeer := testcmd.NewStderrWatcher(providerHasPeerMatch)
+	cmdProvider := rnr.Start(ctx, testcmd.Args(provider, "daemon"), providerReady, providerHasPeer)
+	err = providerReady.Wait(ctx)
+	require.NoError(t, err, "timed out waiting for provider to start")
 
 	// start dhstore
-	dhstoreReady := test.NewStdoutWatcher(test.DhstoreReady)
-	cmdDhstore := e.Start(test.NewExecution(dhstore, "--storePath", e.Dir).WithWatcher(dhstoreReady))
-	select {
-	case <-dhstoreReady.Signal:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for dhstore to start")
-	}
+	dhstoreReady := testcmd.NewStderrWatcher(dhstoreReady)
+	cmdDhstore := rnr.Start(ctx, testcmd.Args(dhstore, "--storePath", rnr.Dir), dhstoreReady)
+	err = dhstoreReady.Wait(ctx)
+	require.NoError(t, err, "timed out waiting for dhstore to start")
 
 	// start indexer
-	indexerReady := test.NewStdoutWatcher(test.IndexerReadyMatch)
-	cmdIndexer := e.Start(test.NewExecution(indexer, "daemon").WithWatcher(indexerReady))
-	select {
-	case <-indexerReady.Signal:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for indexer to start")
-	}
+	indexerReady := testcmd.NewStdoutWatcher(indexerReadyMatch)
+	cmdIndexer := rnr.Start(ctx, testcmd.Args(indexer, "daemon"), indexerReady)
+	err = indexerReady.Wait(ctx)
+	require.NoError(t, err, "timed out waiting for indexer to start")
 
 	// connect provider to the indexer
-	e.Run(provider, "connect",
+	rnr.Run(ctx, provider, "connect",
 		"--imaddr", fmt.Sprintf("/dns/localhost/tcp/3003/p2p/%s", indexerID),
 		"--listen-admin", "http://localhost:3102",
 	)
-	select {
-	case <-providerHasPeer.Signal:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for provider to connect to indexer")
-	}
+	err = providerHasPeer.Wait(ctx)
+	require.NoError(t, err, "timed out waiting for provider to connect to indexer")
 
 	// Allow provider advertisements, regardless of default policy.
-	e.Run(indexer, "admin", "allow", "-i", "http://localhost:3002", "--peer", providerID)
+	rnr.Run(ctx, indexer, "admin", "allow", "-i", "http://localhost:3002", "--peer", providerID)
 
 	// Import a car file into the provider.  This will cause the provider to
 	// publish an advertisement that the indexer will read.  The indexer will
 	// then import the advertised content.
-	outImport := e.Run(provider, "import", "car",
+	outImport := rnr.Run(ctx, provider, "import", "car",
 		"-i", carPath,
 		"--listen-admin", "http://localhost:3102",
 	)
-	t.Logf("import output:\n%s\n", outImport)
+	t.Logf("import output:\n%s\n", string(outImport))
 
 	// Wait for the CAR to be indexed
 	require.Eventually(t, func() bool {
@@ -198,7 +197,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
-			findOutput := e.Run(ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
+			findOutput := rnr.Run(ctx, ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
 			t.Logf("find output:\n%s\n", findOutput)
 
 			if bytes.Contains(findOutput, []byte("not found")) {
@@ -212,10 +211,10 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 		return true
 	}, 10*time.Second, time.Second)
 
-	e.Run("sync")
+	rnr.Run(ctx, "sync")
 
 	// Check that ad was saved as CAR file.
-	dir, err := os.Open(e.Dir)
+	dir, err := os.Open(rnr.Dir)
 	require.NoError(t, err)
 	names, err := dir.Readdirnames(-1)
 	dir.Close()
@@ -233,19 +232,20 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	require.Equal(t, 1, carCount)
 	require.Equal(t, 1, headCount)
 
-	outRates := e.Run(indexer, "admin", "telemetry", "-i", "http://localhost:3002")
+	outRates := rnr.Run(ctx, indexer, "admin", "telemetry", "-i", "http://localhost:3002")
 	require.Contains(t, string(outRates), "1043 multihashes from 1 ads")
 	t.Logf("Telemetry:\n%s", outRates)
 
-	root2 := filepath.Join(e.Dir, ".storetheindex2")
-	e.Env = append(e.Env, fmt.Sprintf("%s=%s", config.EnvDir, root2))
-	e.Run(indexer, "init", "--store", "dhstore", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap", "--dhstore", "http://127.0.0.1:40080",
+	root2 := filepath.Join(rnr.Dir, ".storetheindex2")
+	rnr.Env = append(rnr.Env, fmt.Sprintf("%s=%s", config.EnvDir, root2))
+	rnr.Run(ctx, indexer, "init", "--store", "dhstore", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap", "--dhstore", "http://127.0.0.1:40080",
 		"--listen-admin", "/ip4/127.0.0.1/tcp/3202", "--listen-finder", "/ip4/127.0.0.1/tcp/3200", "--listen-ingest", "/ip4/127.0.0.1/tcp/3201",
 		"--listen-p2p", "/ip4/127.0.0.1/tcp/3203")
 
 	sti2CfgPath := filepath.Join(root2, "config")
 	cfg, err = config.Load(sti2CfgPath)
 	require.NoError(t, err)
+
 	indexer2ID := cfg.Identity.PeerID
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
 		Compress: "gzip",
@@ -260,49 +260,43 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 		Storage: filestore.Config{
 			Type: "local",
 			Local: filestore.LocalConfig{
-				BasePath: e.Dir,
+				BasePath: rnr.Dir,
 			},
 		},
 	}
 	cfg.Save(sti2CfgPath)
-	wrMirrorDir := e.Dir
+	wrMirrorDir := rnr.Dir
 
-	indexerReady2 := test.NewStdoutWatcher(test.IndexerReadyMatch)
-	cmdIndexer2 := e.Start(test.NewExecution(indexer, "daemon").WithWatcher(indexerReady2))
-	select {
-	case <-indexerReady2.Signal:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for indexer2 to start")
-	}
+	indexerReady2 := testcmd.NewStdoutWatcher(indexerReadyMatch)
+	cmdIndexer2 := rnr.Start(ctx, testcmd.Args(indexer, "daemon"), indexerReady2)
+	err = indexerReady2.Wait(ctx)
+	require.NoError(t, err, "timed out waiting for indexer2 to start")
 
-	outProviders := e.Run(ipni, "provider", "--all", "--indexer", "http://localhost:3200")
+	outProviders := rnr.Run(ctx, ipni, "provider", "--all", "--indexer", "http://localhost:3200")
 	require.Contains(t, string(outProviders), "No providers registered with indexer",
 		"expected no providers message")
 
 	// import providers from first indexer.
-	e.Run(indexer, "admin", "import-providers", "--indexer", "http://localhost:3202", "--from", "localhost:3000")
+	rnr.Run(ctx, indexer, "admin", "import-providers", "--indexer", "http://localhost:3202", "--from", "localhost:3000")
 
 	// Check that provider ID now appears in providers output.
-	outProviders = e.Run(ipni, "provider", "--all", "--indexer", "http://localhost:3200", "--id-only")
+	outProviders = rnr.Run(ctx, ipni, "provider", "--all", "--indexer", "http://localhost:3200", "--id-only")
 	require.Contains(t, string(outProviders), providerID, "expected provider id in providers output after import-providers")
 
 	// Connect provider to the 2nd indexer.
-	e.Run(provider, "connect",
+	rnr.Run(ctx, provider, "connect",
 		"--imaddr", fmt.Sprintf("/dns/localhost/tcp/3203/p2p/%s", indexer2ID),
 		"--listen-admin", "http://localhost:3102",
 	)
-	select {
-	case <-providerHasPeer.Signal:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for provider to connect to indexer")
-	}
+	err = providerHasPeer.Wait(ctx)
+	require.NoError(t, err, "timed out waiting for provider to connect to indexer")
 
 	// Tell provider to send direct announce to 2nd indexer.
-	out := e.Run(provider, "announce-http",
+	out := rnr.Run(ctx, provider, "announce-http",
 		"-i", "http://localhost:3201",
 		"--listen-admin", "http://localhost:3102",
 	)
-	t.Logf("announce output:\n%s\n", out)
+	t.Logf("announce output:\n%s\n", string(out))
 
 	// Create double hashed client and verify that 2nd indexer wrote
 	// multihashes to dhstore.
@@ -314,7 +308,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 
 	var dhResp *model.FindResponse
 	require.Eventually(t, func() bool {
-		dhResp, err = client.Find(e.Ctx, mh)
+		dhResp, err = client.Find(ctx, mh)
 		return err == nil && len(dhResp.MultihashResults) != 0
 	}, 10*time.Second, time.Second)
 
@@ -324,14 +318,14 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	require.Equal(t, providerID, dhResp.MultihashResults[0].ProviderResults[0].Provider.ID.String())
 
 	// Get the CAR file from the read mirror.
-	rdCarFile, err := carFromMirror(e.Ctx, rdMirrorDir)
+	rdCarFile, err := carFromMirror(ctx, rdMirrorDir)
 	require.NoError(t, err)
 	require.NotZero(t, rdCarFile.Size)
 
 	// Get the CAR file from the write mirror and compare size.
 	wrCarFS, err := filestore.NewLocal(wrMirrorDir)
 	require.NoError(t, err)
-	wrCarFile, err := wrCarFS.Head(e.Ctx, rdCarFile.Path)
+	wrCarFile, err := wrCarFS.Head(ctx, rdCarFile.Path)
 	require.NoError(t, err)
 	require.Equal(t, rdCarFile.Size, wrCarFile.Size)
 	t.Logf("CAR file %q is same size in read and write mirror: %d bytes", wrCarFile.Path, wrCarFile.Size)
@@ -340,7 +334,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	// publish an advertisement that tells the indexer to remove the car file
 	// content by contextID. The indexer will then import the advertisement and
 	// remove content.
-	outRemove := e.Run(provider, "remove", "car",
+	outRemove := rnr.Run(ctx, provider, "remove", "car",
 		"-i", carPath,
 		"--listen-admin", "http://localhost:3102",
 	)
@@ -352,7 +346,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
-			findOutput := e.Run(ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
+			findOutput := rnr.Run(ctx, ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
 			t.Logf("find output:\n%s\n", findOutput)
 			if !bytes.Contains(findOutput, []byte("not found")) {
 				return false
@@ -362,24 +356,24 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	}, 10*time.Second, time.Second)
 
 	// Check that status is not frozen.
-	outStatus := e.Run(indexer, "admin", "status", "--indexer", "http://localhost:3202")
+	outStatus := rnr.Run(ctx, indexer, "admin", "status", "--indexer", "http://localhost:3202")
 	require.Contains(t, string(outStatus), "Frozen: false", "expected indexer to be frozen")
 
-	e.Run(indexer, "admin", "freeze", "--indexer", "http://localhost:3202")
-	outProviders = e.Run(ipni, "provider", "--all", "--indexer", "http://localhost:3200")
+	rnr.Run(ctx, indexer, "admin", "freeze", "--indexer", "http://localhost:3202")
+	outProviders = rnr.Run(ctx, ipni, "provider", "--all", "--indexer", "http://localhost:3200")
 
 	// Check that provider ID now appears as frozen in providers output.
 	require.Contains(t, string(outProviders), "FrozenAtTime", "expected provider to be frozen")
 
 	// Check that status is frozen.
-	outStatus = e.Run(indexer, "admin", "status", "--indexer", "http://localhost:3202")
+	outStatus = rnr.Run(ctx, indexer, "admin", "status", "--indexer", "http://localhost:3202")
 	require.Contains(t, string(outStatus), "Frozen: true", "expected indexer to be frozen")
 
 	logLevel := "info"
 	if testing.Verbose() {
 		logLevel = "debug"
 	}
-	outgc := string(e.Run(indexer, "gc", "provider", "-pid", providerID, "-ll", logLevel,
+	outgc := string(rnr.Run(ctx, indexer, "gc", "provider", "-pid", providerID, "-ll", logLevel,
 		"-i", "http://localhost:3200",
 		"-i", "http://localhost:3000",
 		"-sync-segment-size", "2",
@@ -387,11 +381,10 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	t.Logf("GC Results:\n%s\n", outgc)
 	require.Contains(t, outgc, `"count": 1043, "total": 1043, "source": "CAR"`)
 
-	e.Stop(cmdIndexer2, time.Second)
-
-	e.Stop(cmdIndexer, time.Second)
-	e.Stop(cmdProvider, time.Second)
-	e.Stop(cmdDhstore, time.Second)
+	rnr.Stop(cmdIndexer2, time.Second)
+	rnr.Stop(cmdIndexer, time.Second)
+	rnr.Stop(cmdProvider, time.Second)
+	rnr.Stop(cmdDhstore, time.Second)
 }
 
 func downloadFile(fileURL, filePath string) error {

@@ -10,6 +10,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
+	"github.com/ipfs/go-test/random"
 	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
@@ -17,7 +18,6 @@ import (
 	"github.com/ipni/go-libipni/announce/httpsender"
 	"github.com/ipni/go-libipni/announce/message"
 	"github.com/ipni/go-libipni/ingest/client"
-	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
@@ -154,7 +154,7 @@ func announceTest(t *testing.T, peerID peer.ID, sender announce.Sender) {
 	p2pAddrs, err := peer.AddrInfoToP2pAddrs(ai)
 	require.NoError(t, err)
 
-	mhs := test.RandomMultihashes(1)
+	mhs := random.Multihashes(1)
 
 	msg := message.Message{
 		Cid: cid.NewCidV1(22, mhs[0]),
@@ -190,7 +190,7 @@ func indexContent(t *testing.T, cl client.Interface, providerID peer.ID, private
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs := test.RandomMultihashes(1)
+	mhs := random.Multihashes(1)
 
 	contextID := []byte("test-context-id")
 	metadata := []byte("test-metadata")
@@ -222,7 +222,7 @@ func indexContentNewAddr(t *testing.T, cl client.Interface, providerID peer.ID, 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs := test.RandomMultihashes(1)
+	mhs := random.Multihashes(1)
 
 	ctxID := []byte("test-context-id")
 	metadata := []byte("test-metadata")
@@ -245,7 +245,7 @@ func indexContentFail(t *testing.T, cl client.Interface, providerID peer.ID, pri
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mhs := test.RandomMultihashes(1)
+	mhs := random.Multihashes(1)
 
 	contextID := make([]byte, schema.MaxContextIDLen+1)
 	metadata := []byte("test-metadata")

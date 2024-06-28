@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-test/random"
 	"github.com/ipni/go-indexer-core"
-	"github.com/ipni/go-libipni/test"
 	"github.com/ipni/storetheindex/server/find"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -57,7 +57,7 @@ iframe {
 </html>`
 
 func TestServer_CORSWithExpectedContentType(t *testing.T) {
-	mhs := test.RandomMultihashes(10)
+	mhs := random.Multihashes(10)
 	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	require.NoError(t, err)
 	c := cid.NewCidV1(cid.Raw, mhs[0])
@@ -164,7 +164,7 @@ func TestServer_StreamingResponse(t *testing.T) {
 		landing = strings.ReplaceAll(landingRendered, "\n", "\r\n")
 	}
 
-	mhs := test.RandomMultihashes(10)
+	mhs := random.Multihashes(10)
 	p, err := peer.Decode("12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA")
 	require.NoError(t, err)
 
