@@ -179,11 +179,15 @@ func (s *Server) findMultihash(w http.ResponseWriter, r *http.Request) {
 	stream := match == mediaTypeNDJson
 
 	mhVar := path.Base(r.URL.Path)
-	m, err := caseMHString(mhVar)
+	m, err := multihash.FromB58String(mhVar)
 	if err != nil {
-		log.Errorw("error decoding multihash", "multihash", mhVar, "err", err)
-		httpserver.HandleError(w, err, "find")
-		return
+		var hexErr error
+		m, hexErr = multihash.FromHexString(mhVar)
+		if hexErr != nil {
+			log.Errorw("error decoding multihash", "multihash", mhVar, "b58Err", err, "hexErr", hexErr)
+			httpserver.HandleError(w, err, "find")
+			return
+		}
 	}
 	s.getIndexes(w, []multihash.Multihash{m}, stream)
 }
@@ -515,16 +519,4 @@ func createExtendedProviderResult(epInfo registry.ExtendedProviderInfo, iVal ind
 			Addrs: epInfo.Addrs,
 		},
 	}
-}
-
-func caseMHString(s string) (multihash.Multihash, error) {
-	mh, err := multihash.FromHexString(s)
-	if err != nil {
-		mh, err := multihash.FromB58String(s)
-		if err != nil {
-			return multihash.Multihash{}, err
-		}
-		return mh, nil
-	}
-	return mh, nil
 }

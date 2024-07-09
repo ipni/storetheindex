@@ -115,6 +115,12 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 			reqUrl:          "/",
 			wantContentType: "text/html",
 		},
+		{
+			reqMethod:       http.MethodGet,
+			reqUrl:          "/multihash/1qaai0lO_aa^",
+			wantContentType: "application/json",
+			statusCode:      http.StatusBadRequest,
+		},
 	}
 
 	cl := http.DefaultClient
