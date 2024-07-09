@@ -26,7 +26,7 @@ require (
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
 	github.com/ipni/go-indexer-core v0.8.16
-	github.com/ipni/go-libipni v0.5.22
+	github.com/ipni/go-libipni v0.6.9
 	github.com/libp2p/go-libp2p v0.36.1
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
@@ -83,11 +83,6 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/elastic/gosigar v0.14.3 // indirect
-	github.com/filecoin-project/go-cbor-util v0.0.1 // indirect
-	github.com/filecoin-project/go-data-transfer/v2 v2.0.0-rc8 // indirect
-	github.com/filecoin-project/go-ds-versioning v0.1.2 // indirect
-	github.com/filecoin-project/go-statemachine v1.0.2 // indirect
-	github.com/filecoin-project/go-statestore v0.2.0 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
@@ -106,8 +101,6 @@ require (
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/hannahhoward/cbor-gen-for v0.0.0-20230214144701-5d17c9d5243c // indirect
-	github.com/hannahhoward/go-pubsub v0.0.0-20200423002714-8d62886cc36e // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
@@ -139,7 +132,6 @@ require (
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
 	github.com/koron/go-ssdp v0.0.4 // indirect
