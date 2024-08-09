@@ -562,8 +562,8 @@ github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd/go.mod h1:9DD/GM0JNPoisgR09F62kbBi7kHa4eDIea4XshXYOVc=
 github.com/ipni/go-indexer-core v0.8.16 h1:VairtOb5YI8tshg45H5BWnG6RknsAX0khdrco03essg=
 github.com/ipni/go-indexer-core v0.8.16/go.mod h1:mlO1tJ4wqJiOdaPHrOxay6XP0HPdWtNtYgGtFR4SNKU=
-github.com/ipni/go-libipni v0.6.9 h1:eoV+7RjJVEqvBgJFZPU5BrlAjzItLnPcJ43zbSnvDjs=
-github.com/ipni/go-libipni v0.6.9/go.mod h1:ejZ1Q67X3Id9/mQ1VTUQ7aFhCofaAxUTPSYHzQKPwXg=
+github.com/ipni/go-libipni v0.6.10 h1:Au/k/g9PI8NBKWAdN6T7ac+QqG6Tfz7aTTetUGpm1lg=
+github.com/ipni/go-libipni v0.6.10/go.mod h1:cLl7MZwdy8wEeWZTb+ytu+5vkyV1PLdzZD2La5z7nPo=
 github.com/jackpal/gateway v1.0.5/go.mod h1:lTpwd4ACLXmpyiCTRtfiNyVnUmqT9RivzCDQetPfnjA=
 github.com/jackpal/go-nat-pmp v1.0.1/go.mod h1:QPH045xvCAeXUZOxsnwmrtiCoxIr9eob+4orBN1SBKc=
 github.com/jackpal/go-nat-pmp v1.0.2 h1:KzKSgb7qkJvOUTqYl9/Hg/me3pWgBmERKrTGD7BdWus=
