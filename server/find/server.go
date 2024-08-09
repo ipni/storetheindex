@@ -14,7 +14,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
-	indexer "github.com/ipni/go-indexer-core"
+	"github.com/ipni/go-indexer-core"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/go-libipni/apierror"
 	"github.com/ipni/go-libipni/find/model"
@@ -181,9 +181,14 @@ func (s *Server) findMultihash(w http.ResponseWriter, r *http.Request) {
 	mhVar := path.Base(r.URL.Path)
 	m, err := multihash.FromB58String(mhVar)
 	if err != nil {
-		log.Errorw("error decoding multihash", "multihash", mhVar, "err", err)
-		httpserver.HandleError(w, err, "find")
-		return
+		var hexErr error
+		m, hexErr = multihash.FromHexString(mhVar)
+		if hexErr != nil {
+			msg := "find: input is not a valid base58 or hex encoded multihash"
+			log.Errorw(msg, "multihash", mhVar, "err", err, "hexErr", hexErr)
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
 	}
 	s.getIndexes(w, []multihash.Multihash{m}, stream)
 }
