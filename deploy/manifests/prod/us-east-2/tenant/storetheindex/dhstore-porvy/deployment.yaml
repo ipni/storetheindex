@@ -27,10 +27,10 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "7"
+              cpu: "28"
               memory: 58Gi
             requests:
-              cpu: "7"
+              cpu: "28"
               memory: 58Gi
           ports:
             - containerPort: 40081
@@ -43,7 +43,7 @@ spec:
                   - key: node.kubernetes.io/instance-type
                     operator: In
                     values:
-                      - r6a.2xlarge
+                      - c6a.8xlarge
                   - key: topology.kubernetes.io/zone
                     operator: In
                     values:
