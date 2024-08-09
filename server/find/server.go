@@ -184,8 +184,9 @@ func (s *Server) findMultihash(w http.ResponseWriter, r *http.Request) {
 		var hexErr error
 		m, hexErr = multihash.FromHexString(mhVar)
 		if hexErr != nil {
-			log.Errorw("error decoding multihash", "multihash", mhVar, "b58Err", err, "hexErr", hexErr)
-			httpserver.HandleError(w, err, "find")
+			msg := "find: input is not a valid base58 or hex encoded multihash"
+			log.Errorw(msg, "multihash", mhVar, "err", err, "hexErr", hexErr)
+			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
 	}
