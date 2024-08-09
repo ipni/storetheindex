@@ -49,6 +49,6 @@ spec:
       tolerations:
         - key: dedicated
           operator: Equal
-          value: c6a-8xl
+          value: r6a-2xl
           effect: NoSchedule
 
