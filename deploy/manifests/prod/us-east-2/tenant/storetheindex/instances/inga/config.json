@@ -35,8 +35,105 @@
     "Policy": {
       "Allow": true,
       "Except": null,
-      "Publish": true,
-      "PublishExcept": null
+      "Publish": false,
+      "PublishExcept": null,
+      "PublishersForProvider": [
+        {
+          "Provider": "12D3KooWCRhLQ8HxdPv5Azg644vsruoVaUhNBpsZDzmbtvs9UyWH",
+          "Allow": false,
+          "Except": ["12D3KooWS1c6L92541K31kQs5k4vh3U6o54fJQaZi5kgFWkuseut"]
+        },
+        {
+          "Provider": "12D3KooWSDj6JM2JmoHwE9AUUwqAFUEg9ndd3pMA8aF2bkYckZfo",
+          "Allow": false,
+          "Except": ["12D3KooWBJN1nuu7ExpAV2WtMEKwDvpadYNmm6JRrnvgFak31kmp"]
+        },
+        {
+          "Provider": "12D3KooWLM3msbEREtvUAJ9KpEwb4D8kiQhjAp3ZMTamSRUyVrhv",
+          "Allow": false,
+          "Except": ["12D3KooWCHBQ8oMMqSCAx5BDMaCAQjYy4HZfwvKv5KoK33fEZNeM"]
+        },
+        {
+          "Provider": "12D3KooWAcP9UCqSZLduu4NZnNbw4FMcsTwhDiNfURAn4eDxcaHu",
+          "Allow": false,
+          "Except": ["12D3KooWCjiNfuraH6B1ZSUV44P2U5id8PZgDNBMqsfUpWPHrgr3"]
+        },
+        {
+          "Provider": "12D3KooWJA2ETdy5wYTbCHVqKdgrqtmuNEwjMVMwEtMrNugrsGkZ",
+          "Allow": false,
+          "Except": ["12D3KooWNd4VUv8bamTw4NCmBJzhDak68u6uAA42XgQY4Bs7gStG"]
+        },
+        {
+          "Provider": "12D3KooWHBPdmAtM8WUgzbB9HLaD2KNNc2k4WJmumBSEXrVjE7Wy",
+          "Allow": false,
+          "Except": ["12D3KooWCsugqL4pXijwEMkBi9RsQoGdu9sV1UTvQheDDav4RNKs"]
+        },
+        {
+          "Provider": "12D3KooWJK672LPXGUs2HWbg6FD1GKtWDfjUkwdNxAuES9iT2a6k",
+          "Allow": false,
+          "Except": ["12D3KooWQyCReAuteHXMppMiHqbjGwas8DMyCFoKrmzLVDpH17Ci"]
+        },
+        {
+          "Provider": "12D3KooWANxm3rxtQK5T1TG22kNTj53rcinFuratoqsoQo8r52bh",
+          "Allow": false,
+          "Except": ["12D3KooWKtjxgHrtUAEvEeVUpPGK9HDBaaPYqYFrhM5C1w1aZBZf"]
+        },
+        {
+          "Provider": "12D3KooWSW4hoHmDXmY5rW7nCi9XmGTy3foFt72u86jNP53LTNBJ",
+          "Allow": false,
+          "Except": ["12D3KooWADx3W54PG7vALbRf9e1j2em22tSMC7jopVAVpCgCb75t"]
+        },
+        {
+          "Provider": "12D3KooWHH1Jnvb9kgdBJ66dQrpSc597qfZGKgPLQ25vCQMX3PDB",
+          "Allow": false,
+          "Except": ["12D3KooWE7kwp6m2d5jnGP448gLHWeUKNuSFdK7kNpJ1W5jnsqXu"]
+        },
+        {
+          "Provider": "12D3KooW9sTYseyNvQgAnpuoCpanE519KkTYdQ27CewWWUkzZjs9",
+          "Allow": false,
+          "Except": ["12D3KooWLoDE3K2vjPLj11KsyarVXCpim52noL81LFmpPyWbuh9L"]
+        },
+        {
+          "Provider": "12D3KooWFFhc8fPYnQXdWBCowxSV21EFYin3rU27p3NVgSMjN41k",
+          "Allow": false,
+          "Except": ["12D3KooWJqwGxy7SgrPKv2WucoY4KPSGfqHu1NwmYvfXRddAcapK"]
+        },
+        {
+          "Provider": "12D3KooWSXwKLQXhigGxKzzvx2ae5QbdHDbCdwwg7rjYqT7ZiXE9",
+          "Allow": false,
+          "Except": ["12D3KooWRfbtX2FxtxqDWq22WUNpCgoHFEHtBoxEVLVz3isn1XCF"]
+        },
+        {
+          "Provider": "12D3KooWDjLvUUZPz6qG9mtr3idaDCv6r8hsRG1Rq6Dj66RhqVPD",
+          "Allow": false,
+          "Except": ["12D3KooWLdvq6AD5soT38SY2Pe6ksaoLXfh52UM1Nv5ERRbeaUPz"]
+        },
+        {
+          "Provider": "12D3KooWJhMGqgHNbNRKmDmpK9LGNshAs2cMjypC4VdkbBB4pn2Q",
+          "Allow": false,
+          "Except": ["12D3KooWMSd4ZKYuWPBMBVT5wds7hBDs5rmiDAmn6HkycAsMWWC8"]
+        },
+        {
+          "Provider": "12D3KooWJ9pVwLW7Mr9t7Ri8P2wjioy3yw82296DmCx2QXnut7hK",
+          "Allow": false,
+          "Except": ["12D3KooWJFeoBixrAFY7tHs4PqriJktAhea12zfmGA9tcaBQ9p7p"]
+        },
+        {
+          "Provider": "12D3KooWRDfE78Em2vofVTrCHUYeGDH1Nqgf6NyngzS9iqCM83e8",
+          "Allow": false,
+          "Except": ["12D3KooWJFeoBixrAFY7tHs4PqriJktAhea12zfmGA9tcaBQ9p7p"]
+        },
+        {
+          "Provider": "12D3KooWBw2BuZW83r175iDXeUQQ626ivZpv4UadNJgiGcu3tZoC",
+          "Allow": false,
+          "Except": ["12D3KooWPbezLYkcGLY993DVw7HzdvFBunnzgvEnutSeMSLdSYTW"]
+        },
+        {
+          "Provider": "12D3KooWL9zu7RJMSgzyLuDUMZJzYAVXsrYuXqMkpedpYeytcUWo",
+          "Allow": false,
+          "Except": ["12D3KooWPbezLYkcGLY993DVw7HzdvFBunnzgvEnutSeMSLdSYTW"]
+        }
+      ]
     },
     "PollInterval": "6h0m0s",
     "PollRetryAfter": "5m0s",
