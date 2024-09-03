@@ -410,9 +410,7 @@ func TestPollProvider(t *testing.T) {
 	case <-timeout.C:
 		t.Fatal("Expected sync channel to be written")
 	}
-	if !timeout.Stop() {
-		<-timeout.C
-	}
+	timeout.Stop()
 
 	// Check that registry is not blocked by unread auto-sync channel.
 	poll.retryAfter = 0

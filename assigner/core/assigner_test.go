@@ -141,9 +141,7 @@ func TestAssignerAll(t *testing.T) {
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	if !timeout.Stop() {
-		<-timeout.C
-	}
+	timeout.Stop()
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 0, assigns[0])
 
@@ -178,9 +176,7 @@ func TestAssignerAll(t *testing.T) {
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	if !timeout.Stop() {
-		<-timeout.C
-	}
+	timeout.Stop()
 	sort.Ints(assigns)
 	require.Equal(t, []int{0, 1}, assigns)
 
@@ -271,9 +267,7 @@ func TestAssignerOne(t *testing.T) {
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	if !timeout.Stop() {
-		<-timeout.C
-	}
+	timeout.Stop()
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 0, assigns[0])
 
@@ -306,9 +300,7 @@ func TestAssignerOne(t *testing.T) {
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	if !timeout.Stop() {
-		<-timeout.C
-	}
+	timeout.Stop()
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 1, assigns[0])
 
@@ -431,9 +423,7 @@ func TestAssignerPreferred(t *testing.T) {
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	if !timeout.Stop() {
-		<-timeout.C
-	}
+	timeout.Stop()
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 1, assigns[0], "expected assignment to indexer 1")
 
@@ -466,9 +456,7 @@ func TestAssignerPreferred(t *testing.T) {
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	if !timeout.Stop() {
-		<-timeout.C
-	}
+	timeout.Stop()
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 1, assigns[0], "expected assignment to indexer 1")
 
@@ -743,9 +731,7 @@ func TestFreezeHandoff(t *testing.T) {
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	if !timeout.Stop() {
-		<-timeout.C
-	}
+	timeout.Stop()
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 0, assigns[0])
 
@@ -770,9 +756,6 @@ func TestFreezeHandoff(t *testing.T) {
 		case <-timeout.C:
 			t.Fatal("timed out waiting for handoff")
 		}
-	}
-	if !timeout.Stop() {
-		<-timeout.C
 	}
 
 	timeout.Reset(time.Second)
