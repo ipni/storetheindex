@@ -10,6 +10,5 @@ var LoadtestCmd = &cli.Command{
 	Subcommands: []*cli.Command{
 		loadGenCmd,
 		loadGenVerifyCmd,
-		syntheticCmd,
 	},
 }

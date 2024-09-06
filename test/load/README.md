@@ -10,15 +10,27 @@ export STORETHEINDEX_PATH=/tmp/sti_test
 ./storetheindex daemon --cachesize <cache_size> --dir <data-dir>
 ```
 
-### Generate cid test data:
+### Initialize and start an `index-provider` daemon
 ```
-./storetheindex synthetic --file /tmp/cids.data --type cidlist -num 278000
+./provider init
+edit ~/.index-provider/config
 ```
-If testing on a different indexer node, generate the data on that node or copy the file to that node.
 
-### Import cid data into the indexer:
+Configure the provider to announce to the indexer.
+```json
+  "DirectAnnounce": {
+    "URLs": ["http://127.0.0.1:3001"]
+  }
 ```
-./storetheindex import cidlist --file /tmp/cids.data --provider 12D3KooWKRyzVWW6ChFjQjK4miCty85Niy48tpPV95XdKu1BcvMA --metadata <metadata>
+
+Start the daemon
+```
+./provider daemon
+```
+
+### Import sample car files into the provider, which will then go to the indexer indexer:
+```
+./provider import car -i testdata/sample-v1.car 
 ``` 
 
 ## Run the test

@@ -42,35 +42,15 @@ After a configured amount of time without any updates from a provider (`PollInte
 
 The configuration values that control this are documented [here](https://pkg.go.dev/github.com/ipni/storetheindex/config#Discovery), and their default values are specified [here](https://github.com/ipni/storetheindex/blob/main/doc/config.md#discovery). A custom polling configuration may be applied for specific providers using the `PollOverrides` configuration value to specify per-provider [Polling configuration](https://pkg.go.dev/github.com/ipni/storetheindex/config#Polling).
 
-## Indexer CLI Commands
-There are a number of client commands included with storetheindex. Their purpose is to perform simple indexing and lookup actions against a running daemon.  These can be helpful to test that an indexer is working. These include the following commands:
+## Indexer Administration CLI Commands
+There are a number of administrative commands supported by storetheindex. These commands allow you to perform operations on a running indexer daemon. For a list of admin commands, see:
 
-Informational:
-
-- `find` Find value by CID or multihash in indexer
-- `providers` Show information about providers known to the indexer
-  - `get` Get information about a specified provider
-  - `list` List the known providers
-
-Administrative:
-
-- `admin` Perform admin activities with an indexer
-  - `allow` Allow advertisements and content from peer
-  - `block` Block advertisements and content from peer
-  - `import-providers` Import provider information from another indexer
-  - `reload-config` Reload various settings from the configuration file
-  - `sync` Sync indexer with provider
-- `init` Initialize or upgrade indexer node config file
-
-Testing:
-
-- `import` Imports data to indexer from different sources
-- `register` Register provider information with an indexer
-- `synthetic` Generate synthetic load to import in indexer
+```
+./storetheindex admin -help
+```
 
 ## Help
 To see a list of available commands, see `storetheindex --help`. For help with command usage, see `storetheindex <command> --help`.
-
 
 ## Configuration
 The storetheindex config file [documentation](https://github.com/ipni/storetheindex/blob/main/doc/config.md#the-storetheindex-config-file)
