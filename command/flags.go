@@ -22,13 +22,6 @@ var cacheSizeFlag = &cli.Int64Flag{
 	Required: false,
 }
 
-var fileFlag = &cli.StringFlag{
-	Name:     "file",
-	Usage:    "Source file for import",
-	Aliases:  []string{"f"},
-	Required: true,
-}
-
 var listenAdminFlag = &cli.StringFlag{
 	Name:     "listen-admin",
 	Usage:    "Admin HTTP API listen address or 'none' to disable, overrides config",
