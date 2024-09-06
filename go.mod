@@ -14,7 +14,7 @@ require (
 	github.com/gammazero/channelqueue v0.2.2
 	github.com/gammazero/deque v0.2.1
 	github.com/gammazero/targz v0.0.3
-	github.com/ipfs/boxo v0.22.0
+	github.com/ipfs/boxo v0.23.0
 	github.com/ipfs/go-cid v0.4.1
 	github.com/ipfs/go-datastore v0.6.0
 	github.com/ipfs/go-ds-leveldb v0.5.0
