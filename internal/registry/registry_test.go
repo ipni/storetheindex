@@ -431,7 +431,7 @@ func TestPollProvider(t *testing.T) {
 	case pinfo := <-r.SyncChan():
 		require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel, expected %q got %q", peerID.String(), pinfo.AddrInfo.ID.String())
 		require.True(t, pinfo.Inactive(), "Expected provider to be marked inactive")
-	case <-timeout.C:
+	case <-time.After(2 * time.Second):
 		t.Fatal("Expected sync channel to be written")
 	}
 
