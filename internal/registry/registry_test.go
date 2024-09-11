@@ -699,12 +699,13 @@ func TestFreezeUnfreeze(t *testing.T) {
 			Publish: true,
 		},
 	}
+	const freezeAt = 99.0
 
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	dstore := datastore.NewMapDatastore()
 	freezeDirs := []string{tempDir}
-	r, err := New(ctx, cfg, dstore, WithFreezer(freezeDirs, 99.0))
+	r, err := New(ctx, cfg, dstore, WithFreezer(freezeDirs, freezeAt))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
@@ -771,7 +772,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 
 	// Stop and restart registry and check providers are still frozen.
 	r.Close()
-	r, err = New(ctx, cfg, dstore, WithFreezer(freezeDirs, 90.0))
+	r, err = New(ctx, cfg, dstore, WithFreezer(freezeDirs, freezeAt))
 	require.NoError(t, err)
 	require.True(t, r.Frozen())
 	infos = r.AllProviderInfo()
@@ -781,7 +782,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 	}
 	r.Close()
 
-	unfrozen, err := Unfreeze(ctx, freezeDirs, 90.0, dstore)
+	unfrozen, err := Unfreeze(ctx, freezeDirs, freezeAt, dstore)
 	require.NoError(t, err)
 	require.Equal(t, len(infos), len(unfrozen))
 	for i := range infos {
@@ -790,7 +791,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 		require.Equal(t, infos[i].FrozenAt, frozenAt)
 	}
 
-	r, err = New(ctx, cfg, dstore, WithFreezer(freezeDirs, 90.0))
+	r, err = New(ctx, cfg, dstore, WithFreezer(freezeDirs, freezeAt))
 	require.NoError(t, err)
 	require.False(t, r.Frozen())
 	infos = r.AllProviderInfo()
@@ -800,7 +801,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 	}
 	r.Close()
 
-	unfrozen, err = Unfreeze(ctx, freezeDirs, 90.0, dstore)
+	unfrozen, err = Unfreeze(ctx, freezeDirs, freezeAt, dstore)
 	require.NoError(t, err)
 	require.Zero(t, len(unfrozen))
 }
@@ -813,11 +814,12 @@ func TestHandoff(t *testing.T) {
 		},
 		UseAssigner: true,
 	}
+	const freezeAt = 99.0
 
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	dstore := datastore.NewMapDatastore()
-	r, err := New(ctx, cfg, dstore, WithFreezer([]string{tempDir}, 90.0))
+	r, err := New(ctx, cfg, dstore, WithFreezer([]string{tempDir}, freezeAt))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
@@ -899,7 +901,7 @@ func TestHandoff(t *testing.T) {
 	r.Close()
 
 	// Check assigned info it persisted and reloaded.
-	r, err = New(ctx, cfg, dstore, WithFreezer([]string{tempDir}, 90.0))
+	r, err = New(ctx, cfg, dstore, WithFreezer([]string{tempDir}, freezeAt))
 	require.NoError(t, err)
 	pubs, froms, err = r.ListAssignedPeers()
 	require.NoError(t, err)
