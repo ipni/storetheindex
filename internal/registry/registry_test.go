@@ -704,7 +704,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 	tempDir := t.TempDir()
 	dstore := datastore.NewMapDatastore()
 	freezeDirs := []string{tempDir}
-	r, err := New(ctx, cfg, dstore, WithFreezer(freezeDirs, 90.0))
+	r, err := New(ctx, cfg, dstore, WithFreezer(freezeDirs, 99.0))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
