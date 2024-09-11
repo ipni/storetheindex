@@ -401,16 +401,14 @@ func TestPollProvider(t *testing.T) {
 
 	// Check for auto-sync after pollInterval 0.
 	r.pollProviders(poll, nil, 1)
-	timeout := time.NewTimer(time.Second)
 	select {
 	case pinfo := <-r.SyncChan():
 		require.Equal(t, pinfo.AddrInfo.ID, peerID, "Wrong provider ID")
 		require.Equal(t, pinfo.Publisher, pubID, "Wrong publisher ID")
 		require.False(t, pinfo.Inactive(), "Expected provider not to be marked inactive")
-	case <-timeout.C:
+	case <-time.After(time.Second):
 		t.Fatal("Expected sync channel to be written")
 	}
-	timeout.Stop()
 
 	// Check that registry is not blocked by unread auto-sync channel.
 	poll.retryAfter = 0
@@ -424,10 +422,9 @@ func TestPollProvider(t *testing.T) {
 		close(done)
 	}()
 
-	timeout.Reset(2 * time.Second)
 	select {
 	case <-done:
-	case <-timeout.C:
+	case <-time.After(2 * time.Second):
 		t.Fatal("actions channel blocked")
 	}
 	select {
@@ -437,7 +434,6 @@ func TestPollProvider(t *testing.T) {
 	case <-timeout.C:
 		t.Fatal("Expected sync channel to be written")
 	}
-	timeout.Stop()
 
 	// Inactive provider should not be returned.
 	pinfo, _ := r.ProviderInfo(peerID)
@@ -520,12 +516,11 @@ func TestPollProviderOverrides(t *testing.T) {
 
 	// Check for auto-sync after pollInterval 0.
 	r.pollProviders(poll, overrides, 1)
-	timeout := time.After(2 * time.Second)
 	select {
 	case pinfo := <-r.SyncChan():
 		require.Equal(t, pinfo.AddrInfo.ID, peerID, "Wrong provider ID")
 		require.Equal(t, pinfo.Publisher, pubID, "Wrong publisher ID")
-	case <-timeout:
+	case <-time.After(2 * time.Second):
 		t.Fatal("Expected sync channel to be written")
 	}
 
