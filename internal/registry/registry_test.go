@@ -401,16 +401,14 @@ func TestPollProvider(t *testing.T) {
 
 	// Check for auto-sync after pollInterval 0.
 	r.pollProviders(poll, nil, 1)
-	timeout := time.NewTimer(time.Second)
 	select {
 	case pinfo := <-r.SyncChan():
 		require.Equal(t, pinfo.AddrInfo.ID, peerID, "Wrong provider ID")
 		require.Equal(t, pinfo.Publisher, pubID, "Wrong publisher ID")
 		require.False(t, pinfo.Inactive(), "Expected provider not to be marked inactive")
-	case <-timeout.C:
+	case <-time.After(time.Second):
 		t.Fatal("Expected sync channel to be written")
 	}
-	timeout.Stop()
 
 	// Check that registry is not blocked by unread auto-sync channel.
 	poll.retryAfter = 0
@@ -424,20 +422,18 @@ func TestPollProvider(t *testing.T) {
 		close(done)
 	}()
 
-	timeout.Reset(2 * time.Second)
 	select {
 	case <-done:
-	case <-timeout.C:
+	case <-time.After(2 * time.Second):
 		t.Fatal("actions channel blocked")
 	}
 	select {
 	case pinfo := <-r.SyncChan():
 		require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel, expected %q got %q", peerID.String(), pinfo.AddrInfo.ID.String())
 		require.True(t, pinfo.Inactive(), "Expected provider to be marked inactive")
-	case <-timeout.C:
+	case <-time.After(2 * time.Second):
 		t.Fatal("Expected sync channel to be written")
 	}
-	timeout.Stop()
 
 	// Inactive provider should not be returned.
 	pinfo, _ := r.ProviderInfo(peerID)
@@ -520,12 +516,11 @@ func TestPollProviderOverrides(t *testing.T) {
 
 	// Check for auto-sync after pollInterval 0.
 	r.pollProviders(poll, overrides, 1)
-	timeout := time.After(2 * time.Second)
 	select {
 	case pinfo := <-r.SyncChan():
 		require.Equal(t, pinfo.AddrInfo.ID, peerID, "Wrong provider ID")
 		require.Equal(t, pinfo.Publisher, pubID, "Wrong publisher ID")
-	case <-timeout:
+	case <-time.After(2 * time.Second):
 		t.Fatal("Expected sync channel to be written")
 	}
 
@@ -704,12 +699,13 @@ func TestFreezeUnfreeze(t *testing.T) {
 			Publish: true,
 		},
 	}
+	const freezeAt = 99.0
 
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	dstore := datastore.NewMapDatastore()
 	freezeDirs := []string{tempDir}
-	r, err := New(ctx, cfg, dstore, WithFreezer(freezeDirs, 90.0))
+	r, err := New(ctx, cfg, dstore, WithFreezer(freezeDirs, freezeAt))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
@@ -776,7 +772,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 
 	// Stop and restart registry and check providers are still frozen.
 	r.Close()
-	r, err = New(ctx, cfg, dstore, WithFreezer(freezeDirs, 90.0))
+	r, err = New(ctx, cfg, dstore, WithFreezer(freezeDirs, freezeAt))
 	require.NoError(t, err)
 	require.True(t, r.Frozen())
 	infos = r.AllProviderInfo()
@@ -786,7 +782,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 	}
 	r.Close()
 
-	unfrozen, err := Unfreeze(ctx, freezeDirs, 90.0, dstore)
+	unfrozen, err := Unfreeze(ctx, freezeDirs, freezeAt, dstore)
 	require.NoError(t, err)
 	require.Equal(t, len(infos), len(unfrozen))
 	for i := range infos {
@@ -795,7 +791,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 		require.Equal(t, infos[i].FrozenAt, frozenAt)
 	}
 
-	r, err = New(ctx, cfg, dstore, WithFreezer(freezeDirs, 90.0))
+	r, err = New(ctx, cfg, dstore, WithFreezer(freezeDirs, freezeAt))
 	require.NoError(t, err)
 	require.False(t, r.Frozen())
 	infos = r.AllProviderInfo()
@@ -805,7 +801,7 @@ func TestFreezeUnfreeze(t *testing.T) {
 	}
 	r.Close()
 
-	unfrozen, err = Unfreeze(ctx, freezeDirs, 90.0, dstore)
+	unfrozen, err = Unfreeze(ctx, freezeDirs, freezeAt, dstore)
 	require.NoError(t, err)
 	require.Zero(t, len(unfrozen))
 }
@@ -818,11 +814,12 @@ func TestHandoff(t *testing.T) {
 		},
 		UseAssigner: true,
 	}
+	const freezeAt = 99.0
 
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	dstore := datastore.NewMapDatastore()
-	r, err := New(ctx, cfg, dstore, WithFreezer([]string{tempDir}, 90.0))
+	r, err := New(ctx, cfg, dstore, WithFreezer([]string{tempDir}, freezeAt))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
@@ -904,7 +901,7 @@ func TestHandoff(t *testing.T) {
 	r.Close()
 
 	// Check assigned info it persisted and reloaded.
-	r, err = New(ctx, cfg, dstore, WithFreezer([]string{tempDir}, 90.0))
+	r, err = New(ctx, cfg, dstore, WithFreezer([]string{tempDir}, freezeAt))
 	require.NoError(t, err)
 	pubs, froms, err = r.ListAssignedPeers()
 	require.NoError(t, err)

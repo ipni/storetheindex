@@ -127,7 +127,6 @@ func TestAssignerAll(t *testing.T) {
 
 	var assignNum int
 	var assigns []int
-	timeout := time.NewTimer(3 * time.Second)
 	open := true
 	for open {
 		select {
@@ -137,11 +136,10 @@ func TestAssignerAll(t *testing.T) {
 			}
 			t.Log("Publisher", peer2IDStr, "assigned to indexer", assignNum)
 			assigns = append(assigns, assignNum)
-		case <-timeout.C:
+		case <-time.After(3 * time.Second):
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	timeout.Stop()
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 0, assigns[0])
 
@@ -162,7 +160,6 @@ func TestAssignerAll(t *testing.T) {
 	require.NoError(t, err)
 
 	assigns = assigns[:0]
-	timeout.Reset(3 * time.Second)
 	open = true
 	for open {
 		select {
@@ -172,11 +169,10 @@ func TestAssignerAll(t *testing.T) {
 			}
 			assigns = append(assigns, assignNum)
 			t.Log("Publisher", peer3IDStr, "assigned to indexer", assignNum)
-		case <-timeout.C:
+		case <-time.After(3 * time.Second):
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	timeout.Stop()
 	sort.Ints(assigns)
 	require.Equal(t, []int{0, 1}, assigns)
 
@@ -253,7 +249,6 @@ func TestAssignerOne(t *testing.T) {
 
 	var assignNum int
 	var assigns []int
-	timeout := time.NewTimer(3 * time.Second)
 	open := true
 	for open {
 		select {
@@ -263,11 +258,10 @@ func TestAssignerOne(t *testing.T) {
 			}
 			t.Log("Publisher", peer2IDStr, "assigned to indexer", assignNum)
 			assigns = append(assigns, assignNum)
-		case <-timeout.C:
+		case <-time.After(3 * time.Second):
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	timeout.Stop()
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 0, assigns[0])
 
@@ -286,7 +280,6 @@ func TestAssignerOne(t *testing.T) {
 	require.NoError(t, err)
 
 	assigns = assigns[:0]
-	timeout.Reset(3 * time.Second)
 	open = true
 	for open {
 		select {
@@ -296,11 +289,10 @@ func TestAssignerOne(t *testing.T) {
 			}
 			assigns = append(assigns, assignNum)
 			t.Log("Publisher", peer3IDStr, "assigned to indexer", assignNum)
-		case <-timeout.C:
+		case <-time.After(3 * time.Second):
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	timeout.Stop()
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 1, assigns[0])
 
@@ -409,7 +401,6 @@ func TestAssignerPreferred(t *testing.T) {
 
 	var assignNum int
 	var assigns []int
-	timeout := time.NewTimer(3 * time.Second)
 	open := true
 	for open {
 		select {
@@ -419,11 +410,10 @@ func TestAssignerPreferred(t *testing.T) {
 			}
 			t.Log("Publisher", peer2IDStr, "assigned to indexer", assignNum)
 			assigns = append(assigns, assignNum)
-		case <-timeout.C:
+		case <-time.After(3 * time.Second):
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	timeout.Stop()
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 1, assigns[0], "expected assignment to indexer 1")
 
@@ -442,7 +432,6 @@ func TestAssignerPreferred(t *testing.T) {
 	require.NoError(t, err)
 
 	assigns = assigns[:0]
-	timeout.Reset(3 * time.Second)
 	open = true
 	for open {
 		select {
@@ -452,11 +441,10 @@ func TestAssignerPreferred(t *testing.T) {
 			}
 			assigns = append(assigns, assignNum)
 			t.Log("Publisher", peer3IDStr, "assigned to indexer", assignNum)
-		case <-timeout.C:
+		case <-time.After(3 * time.Second):
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	timeout.Stop()
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 1, assigns[0], "expected assignment to indexer 1")
 
@@ -551,11 +539,10 @@ func TestPoolIndexerOffline(t *testing.T) {
 	err = assigner.Announce(ctx, adCid, addrInfo)
 	require.NoError(t, err)
 
-	timeout := time.NewTimer(2 * time.Second)
 	select {
 	case <-asmtChan:
 		t.Fatal("shouold not see assignment with offline indexer")
-	case <-timeout.C:
+	case <-time.After(2 * time.Second):
 	}
 	require.False(t, assigner.InitDone())
 
@@ -566,13 +553,11 @@ func TestPoolIndexerOffline(t *testing.T) {
 	err = assigner.Announce(ctx, adCid, addrInfo)
 	require.NoError(t, err)
 
-	timeout.Reset(2 * time.Second)
 	select {
 	case <-asmtChan:
-	case <-timeout.C:
+	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for assignment")
 	}
-	timeout.Stop()
 
 	require.True(t, assigner.InitDone())
 
@@ -717,7 +702,6 @@ func TestFreezeHandoff(t *testing.T) {
 
 	var assignNum int
 	var assigns []int
-	timeout := time.NewTimer(3 * time.Second)
 	open := true
 	for open {
 		select {
@@ -727,11 +711,10 @@ func TestFreezeHandoff(t *testing.T) {
 			}
 			t.Log("Publisher", peer3IDStr, "assigned to indexer", assignNum)
 			assigns = append(assigns, assignNum)
-		case <-timeout.C:
+		case <-time.After(3 * time.Second):
 			t.Fatal("timed out waiting for assignment")
 		}
 	}
-	timeout.Stop()
 	require.Equal(t, 1, len(assigns))
 	require.Equal(t, 0, assigns[0])
 
@@ -744,7 +727,6 @@ func TestFreezeHandoff(t *testing.T) {
 	assigner.PollNow()
 	var handoffCount int
 
-	timeout.Reset(5 * time.Second)
 	for handoffCount < 2 {
 		select {
 		case handoff := <-handoffChan:
@@ -753,16 +735,15 @@ func TestFreezeHandoff(t *testing.T) {
 			pubID := <-handoffPubs
 			require.True(t, peer1IDStr == pubID || peer3IDStr == pubID)
 			handoffCount++
-		case <-timeout.C:
+		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for handoff")
 		}
 	}
 
-	timeout.Reset(time.Second)
 	select {
 	case <-handoffChan:
 		t.Fatal("should not have another")
-	case <-timeout.C:
+	case <-time.After(time.Second):
 	}
 
 	require.NoError(t, assigner.Close())
@@ -803,12 +784,10 @@ func TestAssignerNoIndexers(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that channel is closed without receiving anything.
-	timeout := time.NewTimer(3 * time.Second)
-	defer timeout.Stop()
 	select {
 	case _, open := <-asmtChan:
 		require.False(t, open)
-	case <-timeout.C:
+	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for assignment")
 	}
 }

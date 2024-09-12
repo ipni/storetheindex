@@ -80,9 +80,12 @@ func TestAssignOnAnnounce(t *testing.T) {
 		"--listen-ingest=/ip4/127.0.0.1/tcp/3601",
 		"--listen-p2p=/ip4/127.0.0.1/tcp/3603",
 	)
-	stiCfg, err := sticfg.Load(filepath.Join(rnr.Dir, ".storetheindex", "config"))
+	stiCfgPath := filepath.Join(rnr.Dir, ".storetheindex", "config")
+	stiCfg, err := sticfg.Load(stiCfgPath)
 	require.NoError(t, err)
 	indexerID := stiCfg.Identity.PeerID
+	stiCfg.Indexer.FreezeAtPercent = 99.0
+	stiCfg.Save(stiCfgPath)
 	t.Log("Initialized indexer", indexerID)
 
 	indexerReady := testcmd.NewStdoutWatcher(indexerReadyMatch)
