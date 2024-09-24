@@ -99,7 +99,7 @@ func TestExpand(t *testing.T) {
 	defer func() {
 		os.Setenv(homeEnv, origHome)
 	}()
-	homeDir := filepath.FromSlash("/tmp/testhome")
+	homeDir := filepath.Join(t.TempDir(), "testhome")
 	os.Setenv(homeEnv, homeDir)
 
 	const subDir = "mytmp"
