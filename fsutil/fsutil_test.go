@@ -94,7 +94,10 @@ func TestExpand(t *testing.T) {
 	_, err = fsutil.Expand(filepath.FromSlash("~nosuchuser/somedir"))
 	require.Error(t, err)
 
-	const homeEnv = "HOME"
+	homeEnv := "HOME"
+	if runtime.GOOS == "windows" {
+		homeEnv = "USERPROFILE"
+	}
 	origHome := os.Getenv(homeEnv)
 	defer func() {
 		os.Setenv(homeEnv, origHome)
