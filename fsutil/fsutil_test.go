@@ -99,9 +99,7 @@ func TestExpand(t *testing.T) {
 		homeEnv = "USERPROFILE"
 	}
 	origHome := os.Getenv(homeEnv)
-	defer func() {
-		os.Setenv(homeEnv, origHome)
-	}()
+	defer os.Setenv(homeEnv, origHome)
 	homeDir := filepath.Join(t.TempDir(), "testhome")
 	os.Setenv(homeEnv, homeDir)
 
