@@ -80,3 +80,36 @@ func TestFileExists(t *testing.T) {
 
 	require.True(t, fsutil.FileExists(fileName))
 }
+
+func TestExpand(t *testing.T) {
+	dir, err := fsutil.Expand("")
+	require.NoError(t, err)
+	require.Equal(t, "", dir)
+
+	origDir := filepath.Join("somedir", "somesub")
+	dir, err = fsutil.Expand(origDir)
+	require.NoError(t, err)
+	require.Equal(t, origDir, dir)
+
+	_, err = fsutil.Expand(filepath.FromSlash("~nosuchuser/somedir"))
+	require.Error(t, err)
+
+	homeEnv := "HOME"
+	if runtime.GOOS == "windows" {
+		homeEnv = "USERPROFILE"
+	}
+	origHome := os.Getenv(homeEnv)
+	defer os.Setenv(homeEnv, origHome)
+	homeDir := filepath.Join(t.TempDir(), "testhome")
+	os.Setenv(homeEnv, homeDir)
+
+	const subDir = "mytmp"
+	origDir = filepath.Join("~", subDir)
+	dir, err = fsutil.Expand(origDir)
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(homeDir, subDir), dir)
+
+	os.Unsetenv(homeEnv)
+	_, err = fsutil.Expand(origDir)
+	require.Error(t, err)
+}

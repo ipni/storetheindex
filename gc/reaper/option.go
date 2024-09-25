@@ -7,6 +7,7 @@ import (
 
 	"github.com/ipni/go-libipni/pcache"
 	"github.com/ipni/storetheindex/carstore"
+	"github.com/ipni/storetheindex/fsutil"
 	"github.com/libp2p/go-libp2p/core/host"
 )
 
@@ -89,6 +90,11 @@ func WithCarDelete(del bool) Option {
 // provider-specific datastores.
 func WithDatastoreDir(dir string) Option {
 	return func(c *config) error {
+		var err error
+		dir, err = fsutil.Expand(dir)
+		if err != nil {
+			return err
+		}
 		c.dstoreDir = dir
 		return nil
 	}
@@ -98,6 +104,11 @@ func WithDatastoreDir(dir string) Option {
 // provider-specific temproary datastores.
 func WithDatastoreTempDir(dir string) Option {
 	return func(c *config) error {
+		var err error
+		dir, err = fsutil.Expand(dir)
+		if err != nil {
+			return err
+		}
 		c.dstoreTmpDir = dir
 		return nil
 	}

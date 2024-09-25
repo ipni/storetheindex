@@ -150,7 +150,8 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 		},
 	}
 	rdMirrorDir := rnr.Dir
-	cfg.Save(stiCfgPath)
+	err = cfg.Save(stiCfgPath)
+	require.NoError(t, err)
 
 	// start provider
 	providerReady := testcmd.NewStderrWatcher(providerReadyMatch)
@@ -264,7 +265,8 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 			},
 		},
 	}
-	cfg.Save(sti2CfgPath)
+	err = cfg.Save(sti2CfgPath)
+	require.NoError(t, err)
 	wrMirrorDir := rnr.Dir
 
 	indexerReady2 := testcmd.NewStdoutWatcher(indexerReadyMatch)

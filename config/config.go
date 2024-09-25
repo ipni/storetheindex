@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mitchellh/go-homedir"
+	"github.com/ipni/storetheindex/fsutil"
 )
 
 // Config is used to load config files.
@@ -53,14 +53,25 @@ func Marshal(value interface{}) ([]byte, error) {
 // empty string is provided for `configRoot`, the default root is used. If
 // configFile is an absolute path, then configRoot is ignored.
 func Path(configRoot, configFile string) (string, error) {
+	var err error
 	if configFile == "" {
 		configFile = DefaultConfigFile
-	} else if filepath.IsAbs(configFile) {
-		return filepath.Clean(configFile), nil
+	} else {
+		configFile, err = fsutil.Expand(configFile)
+		if err != nil {
+			return "", err
+		}
+		if filepath.IsAbs(configFile) {
+			return filepath.Clean(configFile), nil
+		}
 	}
 	if configRoot == "" {
-		var err error
 		configRoot, err = PathRoot()
+		if err != nil {
+			return "", err
+		}
+	} else {
+		configRoot, err = fsutil.Expand(configRoot)
 		if err != nil {
 			return "", err
 		}
@@ -71,10 +82,10 @@ func Path(configRoot, configFile string) (string, error) {
 // PathRoot returns the default configuration root directory.
 func PathRoot() (string, error) {
 	dir := os.Getenv(EnvDir)
-	if dir != "" {
-		return dir, nil
+	if dir == "" {
+		dir = DefaultPathRoot
 	}
-	return homedir.Expand(DefaultPathRoot)
+	return fsutil.Expand(dir)
 }
 
 // Load reads the json-serialized config at the specified path.
@@ -82,9 +93,11 @@ func Load(filePath string) (*Config, error) {
 	var err error
 	if filePath == "" {
 		filePath, err = Path("", "")
-		if err != nil {
-			return nil, err
-		}
+	} else {
+		filePath, err = fsutil.Expand(filePath)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	f, err := os.Open(filePath)
@@ -141,9 +154,11 @@ func (c *Config) Save(filePath string) error {
 	var err error
 	if filePath == "" {
 		filePath, err = Path("", "")
-		if err != nil {
-			return err
-		}
+	} else {
+		filePath, err = fsutil.Expand(filePath)
+	}
+	if err != nil {
+		return err
 	}
 
 	err = os.MkdirAll(filepath.Dir(filePath), 0755)

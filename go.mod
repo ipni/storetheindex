@@ -28,7 +28,6 @@ require (
 	github.com/ipni/go-libipni v0.5.25
 	github.com/libp2p/go-libp2p v0.36.3
 	github.com/libp2p/go-msgio v0.3.0
-	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-multiaddr v0.13.0
 	github.com/multiformats/go-multicodec v0.9.0
 	github.com/multiformats/go-multihash v0.2.3
