@@ -3,10 +3,10 @@ package fsutil
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"time"
-
-	"github.com/mitchellh/go-homedir"
 )
 
 // DirWritable checks if a directory is writable. If the directory does
@@ -17,35 +17,62 @@ func DirWritable(dir string) error {
 	}
 
 	var err error
-	dir, err = homedir.Expand(dir)
+	dir, err = ExpandHome(dir)
 	if err != nil {
 		return err
 	}
-
-	if _, err = os.Stat(dir); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// dir doesn't exist, check that we can create it
-			err = os.Mkdir(dir, 0o775)
+	fi, err := os.Stat(dir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// Directory does not exist, so create it.
+			err = os.Mkdir(dir, 0775)
 			if err == nil {
 				return nil
 			}
 		}
-		if errors.Is(err, os.ErrPermission) {
-			err = os.ErrPermission
+		if errors.Is(err, fs.ErrPermission) {
+			err = fs.ErrPermission
 		}
-		return fmt.Errorf("cannot write to %s: %w", dir, err)
+		return fmt.Errorf("directory not writable: %s: %w", dir, err)
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("not a directory: %s", dir)
 	}
 
-	// dir exists, make sure we can write to it
-	file, err := os.CreateTemp(dir, "test")
+	// Directory exists, check that a file can be written.
+	file, err := os.CreateTemp(dir, "writetest")
 	if err != nil {
-		if errors.Is(err, os.ErrPermission) {
-			err = os.ErrPermission
+		if errors.Is(err, fs.ErrPermission) {
+			err = fs.ErrPermission
 		}
-		return fmt.Errorf("cannot write to %s: %w", dir, err)
+		return fmt.Errorf("directory not writable: %s: %w", dir, err)
 	}
 	file.Close()
 	return os.Remove(file.Name())
+}
+
+// ExpandHome expands the path to include the home directory if the path is
+// prefixed with `~`. If it isn't prefixed with `~`, the path is returned
+// as-is.
+func ExpandHome(path string) (string, error) {
+	if path == "" {
+		return path, nil
+	}
+
+	if path[0] != '~' {
+		return path, nil
+	}
+
+	if len(path) > 1 && path[1] != '/' && path[1] != '\\' {
+		return "", errors.New("cannot expand user-specific home dir")
+	}
+
+	dir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, path[1:]), nil
 }
 
 // FileChanged returns the modification time of a file and true if different
