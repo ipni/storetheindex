@@ -10,7 +10,6 @@ var (
 	ErrMissingProviderAddr = errors.New("advertisement missing provider address")
 	ErrNotAllowed          = errors.New("peer not allowed by policy")
 	ErrNoDiscovery         = errors.New("discovery not available")
-	ErrNoFreeze            = errors.New("freeze not configured")
 	ErrNotVerified         = errors.New("provider cannot be verified")
 	ErrPublisherNotAllowed = errors.New("publisher not allowed by policy")
 	ErrTooSoon             = errors.New("not enough time since previous discovery")
