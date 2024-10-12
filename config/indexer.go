@@ -27,9 +27,11 @@ type Indexer struct {
 	DHStoreClusterURLs []string
 	// DHStoreHttpClientTimeout is a timeout for the DHStore http client
 	DHStoreHttpClientTimeout Duration
-	// FreezeAtPercent is the percent used, of the file system that
-	// ValueStoreDir is on, at which to trigger the indexer to enter frozen
-	// mode. A zero value uses the default. A negative value disables freezing.
+	// FreezeAtPercent is the filesystem percent used at which to trigger the
+	// indexer to enter frozen mode. The indexer checks the file system of
+	// ValueStoreDir, Datastore.Dir, and Datastore.TmpDir and enters frozen
+	// mode if any one's usage is at or above FreezeAtPercent. A zero value
+	// uses the default. A negative value disables freezing.
 	FreezeAtPercent float64
 	// ShutdownTimeout is the duration that a graceful shutdown has to complete
 	// before the daemon process is terminated. If unset or zero, configures no
@@ -62,7 +64,7 @@ func NewIndexer() Indexer {
 		CacheSize:            300000,
 		PebbleBlockCacheSize: 1 << 30, // 1 Gi
 		ConfigCheckInterval:  Duration(30 * time.Second),
-		FreezeAtPercent:      90.0,
+		FreezeAtPercent:      95.0,
 		ShutdownTimeout:      0,
 		ValueStoreDir:        "valuestore",
 		ValueStoreType:       "pebble",

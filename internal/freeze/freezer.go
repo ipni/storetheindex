@@ -2,6 +2,7 @@ package freeze
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -14,6 +15,8 @@ import (
 var log = logging.Logger("indexer/freezer")
 
 const (
+	defaultFreezeAtPercent = 99.0
+
 	frozenKey = "/freeze/frozen"
 
 	maxCheckInterval = time.Hour
@@ -27,6 +30,8 @@ const (
 	logCriticalRemaining = 2.0
 )
 
+var ErrNoFreeze = errors.New("freezing disabled")
+
 // Freezer monitors disk usage and triggers a freeze if the usage reaches a
 // specified threshold.
 type Freezer struct {
@@ -37,6 +42,7 @@ type Freezer struct {
 	freezeAtStr string
 	freezeFunc  func() error
 	frozen      chan struct{}
+	noFreeze    bool
 	trigger     chan struct{}
 	triggerErr  chan error
 	paths       []string
@@ -48,14 +54,27 @@ func New(dirPaths []string, freezeAtPercent float64, dstore datastore.Datastore,
 	if err != nil {
 		return nil, err
 	}
+
 	f := &Freezer{
-		dstore:      dstore,
-		freezeAt:    freezeAtPercent,
-		freezeAtStr: fmt.Sprintf("%s%%", strconv.FormatFloat(freezeAtPercent, 'f', -1, 64)),
-		freezeFunc:  freezeFunc,
-		frozen:      make(chan struct{}),
-		paths:       dirPaths,
+		dstore: dstore,
+		frozen: make(chan struct{}),
+		paths:  dirPaths,
 	}
+
+	if freezeAtPercent < 0 {
+		f.noFreeze = true
+	} else {
+		if freezeAtPercent == 0 {
+			freezeAtPercent = defaultFreezeAtPercent
+		}
+
+		f.freezeAt = freezeAtPercent
+		f.freezeFunc = freezeFunc
+		f.freezeAtStr = fmt.Sprintf("%s%%", strconv.FormatFloat(freezeAtPercent, 'f', -1, 64))
+
+		log.Infow("freezing enabled", "freezeAt", f.freezeAtStr)
+	}
+
 	frozen, err := f.loadFrozenState()
 	if err != nil {
 		return nil, err
@@ -63,6 +82,10 @@ func New(dirPaths []string, freezeAtPercent float64, dstore datastore.Datastore,
 
 	if frozen {
 		log.Info("Indexer already frozen")
+		return f, nil
+	}
+
+	if f.noFreeze {
 		return f, nil
 	}
 
@@ -85,6 +108,9 @@ func New(dirPaths []string, freezeAtPercent float64, dstore datastore.Datastore,
 
 // Freeze manually triggers the indexer to enter frozen mode.
 func (f *Freezer) Freeze() error {
+	if f.noFreeze {
+		return ErrNoFreeze
+	}
 	select {
 	case f.trigger <- struct{}{}:
 		return <-f.triggerErr
@@ -107,6 +133,9 @@ func (f *Freezer) Frozen() bool {
 func (f *Freezer) CheckNow() bool {
 	if f.Frozen() {
 		return true
+	}
+	if f.noFreeze {
+		return false
 	}
 	checkDone := make(chan struct{})
 	select {
@@ -165,13 +194,20 @@ func Unfreeze(ctx context.Context, dirPaths []string, freezeAtPercent float64, d
 		return nil
 	}
 
-	for _, dirPath := range dirPaths {
-		du, err := disk.Usage(dirPath)
-		if err != nil {
-			return fmt.Errorf("cannot get disk usage for freeze check at path %q: %w", dirPath, err)
+	// If freezing enabled, then check for sufficient space to unfreeze.
+	if freezeAtPercent >= 0 {
+		if freezeAtPercent == 0 {
+			freezeAtPercent = defaultFreezeAtPercent
 		}
-		if du.Percent >= freezeAtPercent {
-			return fmt.Errorf("cannot unfreeze: disk usage above %f", freezeAtPercent)
+
+		for _, dirPath := range dirPaths {
+			du, err := disk.Usage(dirPath)
+			if err != nil {
+				return fmt.Errorf("cannot get disk usage for freeze check at path %q: %w", dirPath, err)
+			}
+			if du.Percent >= freezeAtPercent {
+				return fmt.Errorf("cannot unfreeze: disk usage above %f", freezeAtPercent)
+			}
 		}
 	}
 

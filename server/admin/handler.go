@@ -16,6 +16,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/storetheindex/admin/model"
+	"github.com/ipni/storetheindex/internal/freeze"
 	"github.com/ipni/storetheindex/internal/httpserver"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
@@ -468,7 +469,7 @@ func (h *adminHandler) freeze(w http.ResponseWriter, r *http.Request) {
 
 	err := h.reg.Freeze()
 	if err != nil {
-		if errors.Is(err, registry.ErrNoFreeze) {
+		if errors.Is(err, freeze.ErrNoFreeze) {
 			log.Infow("Cannot freeze indexer", "reason", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

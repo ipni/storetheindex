@@ -324,11 +324,9 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		}
 	}
 
-	if opts.freezeAtPercent >= 0 {
-		r.freezer, err = freeze.New(opts.freezeDirs, opts.freezeAtPercent, dstore, r.freeze)
-		if err != nil {
-			return nil, fmt.Errorf("cannot create freezer: %s", err)
-		}
+	r.freezer, err = freeze.New(opts.freezeDirs, opts.freezeAtPercent, dstore, r.freeze)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create freezer: %s", err)
 	}
 
 	if cfg.PollInterval != 0 {
@@ -411,9 +409,7 @@ func makePollOverrideMap(poll polling, cfgPollOverrides []config.Polling) (map[p
 // Close stops the registry and waits for polling to finish.
 func (r *Registry) Close() {
 	r.closeOnce.Do(func() {
-		if r.freezer != nil {
-			r.freezer.Close()
-		}
+		r.freezer.Close()
 		close(r.closing)
 		<-r.tmpBlockCheckDone
 		if r.pollDone != nil {
@@ -1114,9 +1110,6 @@ func (r *Registry) CheckSequence(peerID peer.ID, seq uint64) error {
 //
 // The registry in not frozen directly, but the Freezer is triggered instead.
 func (r *Registry) Freeze() error {
-	if r.freezer == nil {
-		return ErrNoFreeze
-	}
 	return r.freezer.Freeze()
 }
 
@@ -1168,16 +1161,10 @@ func (r *Registry) freezeProviders() error {
 
 // Frozen returns true if indexer is frozen.
 func (r *Registry) Frozen() bool {
-	if r.freezer == nil {
-		return false
-	}
 	return r.freezer.Frozen()
 }
 
 func (r *Registry) ValueStoreUsage() (*disk.UsageStats, error) {
-	if r.freezer == nil {
-		return nil, ErrNoFreeze
-	}
 	return r.freezer.Usage()
 }
 

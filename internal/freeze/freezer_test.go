@@ -48,26 +48,26 @@ func TestCheckFreeze(t *testing.T) {
 	}
 	f.Close()
 
+	// Check that freeze does not happen when enough storage.
 	f, err = freeze.New(dirs, du.Percent*2.0, dstore, freezeFunc)
 	require.NoError(t, err)
 	require.False(t, f.Frozen())
 	f.Close()
-
 	require.Zero(t, freezeCount)
 
+	// Check that freeze happens when insufficient storage.
 	f, err = freeze.New(dirs, du.Percent/2.0, dstore, freezeFunc)
 	require.NoError(t, err)
 	require.True(t, f.Frozen())
 	require.True(t, f.CheckNow())
 	f.Close()
-
 	require.Equal(t, 1, freezeCount)
 
+	// Check that freeze does not happen again.
 	f, err = freeze.New(dirs, du.Percent/2.0, dstore, freezeFunc)
 	require.NoError(t, err)
 	require.True(t, f.Frozen())
 	f.Close()
-
 	require.Equal(t, 1, freezeCount)
 
 	// Unfreeze no directories.
@@ -89,6 +89,16 @@ func TestCheckFreeze(t *testing.T) {
 
 	// Unfreeze already unfrozen.
 	err = freeze.Unfreeze(context.Background(), dirs, du.Percent*2.0, dstore)
+	require.NoError(t, err)
+
+	// Freeze and check that unfreeze works when freeze is disabled.
+	f, err = freeze.New(dirs, du.Percent/2.0, dstore, freezeFunc)
+	require.NoError(t, err)
+	require.True(t, f.Frozen())
+	f.Close()
+	require.Equal(t, 2, freezeCount)
+
+	err = freeze.Unfreeze(context.Background(), dirs, -1, dstore)
 	require.NoError(t, err)
 }
 
@@ -119,6 +129,12 @@ func TestManualFreeze(t *testing.T) {
 	f, err = freeze.New(dirs, du.Percent*2.0, dstore, freezeFunc)
 	require.NoError(t, err)
 	require.NoError(t, f.Freeze())
+	f.Close()
+
+	f, err = freeze.New(dirs, -1, dstore, freezeFunc)
+	require.NoError(t, err)
+	require.ErrorIs(t, f.Freeze(), freeze.ErrNoFreeze)
+	require.True(t, f.Frozen())
 	f.Close()
 
 	require.Equal(t, 1, freezeCount)
