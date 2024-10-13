@@ -85,7 +85,8 @@ func TestAssignOnAnnounce(t *testing.T) {
 	require.NoError(t, err)
 	indexerID := stiCfg.Identity.PeerID
 	stiCfg.Indexer.FreezeAtPercent = 99.0
-	stiCfg.Save(stiCfgPath)
+	err = stiCfg.Save(stiCfgPath)
+	require.NoError(t, err)
 	t.Log("Initialized indexer", indexerID)
 
 	indexerReady := testcmd.NewStdoutWatcher(indexerReadyMatch)
