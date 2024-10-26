@@ -24,7 +24,7 @@ import (
 	"github.com/ipni/storetheindex/fsutil/disk"
 	"github.com/ipni/storetheindex/internal/freeze"
 	"github.com/ipni/storetheindex/internal/metrics"
-	"github.com/ipni/storetheindex/internal/registry/policy"
+	"github.com/ipni/storetheindex/registry/policy"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"go.opencensus.io/stats"

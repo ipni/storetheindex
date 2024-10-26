@@ -25,7 +25,7 @@ import (
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/internal/metrics"
-	"github.com/ipni/storetheindex/internal/registry"
+	"github.com/ipni/storetheindex/registry"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
