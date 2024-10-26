@@ -1,8 +1,6 @@
 module github.com/ipni/storetheindex
 
-go 1.22.0
-
-toolchain go1.23.2
+go 1.23.2
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
