@@ -70,10 +70,7 @@
   "Logging": {
     "Level": "info",
     "Loggers": {
-      "bootstrap": "warn",
-      "dt-impl": "warn",
-      "dt_graphsync": "warn",
-      "graphsync": "warn"
+      "bootstrap": "warn"
     }
   },
   "Peering": {

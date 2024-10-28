@@ -359,21 +359,8 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	// configured max depth.
 	err = ing.sub.SyncOneEntry(ctx, publisher, entriesCid)
 	if err != nil {
-		// TODO: A "content not found" error from graphsync does not have a
-		// graphsync.RequestFailedContentNotFoundErr in the error chain. Need
-		// to apply an upstream fix so that the following can be done:
-		//
-		//   var cnfErr *graphsync.RequestFailedContentNotFoundErr
-		//   if errors.As(err, &cnfErr) {
-		//
-		// Use string search until then.
 		wrappedErr := fmt.Errorf("failed to sync first entry while checking entries type: %w", err)
-		msg := err.Error()
-		switch {
-		case
-			errors.Is(err, ipld.ErrNotExists{}),
-			strings.Contains(msg, "content not found"),
-			strings.Contains(msg, "graphsync request failed to complete: skip"):
+		if errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found") {
 			return false, false, adIngestError{adIngestContentNotFound, wrappedErr}
 		}
 		return false, false, adIngestError{adIngestSyncEntriesErr, wrappedErr}

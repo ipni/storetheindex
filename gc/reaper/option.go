@@ -15,7 +15,6 @@ const (
 	defaultHttpTimeout = 10 * time.Second
 	defaultSegmentSize = 16384
 	defaultSyncSegSize = 4096
-	defaultTopic       = "/indexer/ingest/mainnet"
 )
 
 type config struct {
@@ -32,7 +31,6 @@ type config struct {
 	pcache            *pcache.ProviderCache
 	segmentSize       int
 	syncSegSize       int
-	topic             string
 }
 
 // Option is a function that sets a value in a config.
@@ -47,7 +45,6 @@ func getOpts(opts []Option) (config, error) {
 		httpTimeout: defaultHttpTimeout,
 		segmentSize: defaultSegmentSize,
 		syncSegSize: defaultSyncSegSize,
-		topic:       defaultTopic,
 	}
 
 	for i, opt := range opts {
@@ -165,15 +162,6 @@ func WithSyncSegmentSize(size int) Option {
 		if size > 0 {
 			c.syncSegSize = size
 		}
-		return nil
-	}
-}
-
-// WithTopicName sets the topic name on which the provider announces advertised
-// content. Defaults to '/indexer/ingest/mainnet'.
-func WithTopicName(topic string) Option {
-	return func(c *config) error {
-		c.topic = topic
 		return nil
 	}
 }
