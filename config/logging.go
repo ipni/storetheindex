@@ -16,11 +16,8 @@ func NewLogging() Logging {
 	return Logging{
 		Level: "info",
 		Loggers: map[string]string{
-			"basichost":    "warn",
-			"bootstrap":    "warn",
-			"dt_graphsync": "warn",
-			"dt-impl":      "warn",
-			"graphsync":    "warn",
+			"basichost": "warn",
+			"bootstrap": "warn",
 		},
 	}
 }
