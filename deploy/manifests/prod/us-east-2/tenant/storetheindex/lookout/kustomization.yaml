@@ -20,3 +20,7 @@ images:
   - name: lookout
     newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/ipni/lookout
     newTag: 20230511104023-2cb718182431d507d5ee33defde11dedad466bd1
+
+replicas:
+  - name: lookout
+    count: 0

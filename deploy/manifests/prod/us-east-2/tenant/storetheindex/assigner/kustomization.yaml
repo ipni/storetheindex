@@ -22,6 +22,10 @@ configMapGenerator:
     files:
       - config=config.json
 
+replicas:
+  - name: assigner
+    count: 0
+
 images:
 - name: storetheindex
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex

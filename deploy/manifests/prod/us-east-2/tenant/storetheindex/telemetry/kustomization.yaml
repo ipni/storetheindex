@@ -16,3 +16,6 @@ images:
     newTag: 20240308135359-c8e7f0dd9599b74c64b2247580de5987f56ecbd7
 
 
+replicas:
+  - name: telemetry
+    count: 0

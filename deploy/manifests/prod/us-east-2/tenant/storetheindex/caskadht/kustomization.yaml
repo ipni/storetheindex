@@ -24,7 +24,7 @@ configMapGenerator:
 
 replicas:
   - name: caskadht
-    count: 1
+    count: 0
 
 images:
   - name: caskadht
