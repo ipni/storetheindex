@@ -9,7 +9,7 @@ import (
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/go-libipni/find/model"
-	"github.com/ipni/storetheindex/internal/registry"
+	"github.com/ipni/storetheindex/registry"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"

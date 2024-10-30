@@ -34,7 +34,7 @@ import (
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/internal/registry"
+	"github.com/ipni/storetheindex/registry"
 	"github.com/ipni/storetheindex/test/typehelpers"
 	"github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
