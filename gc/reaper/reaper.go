@@ -664,7 +664,8 @@ func (s *scythe) reap(ctx context.Context, latestAdCid cid.Cid) error {
 	}()
 
 	segSize := s.reaper.segmentSize
-	segment := deque.New[adInfo](segSize, segSize)
+	segment := new(deque.Deque[adInfo])
+	segment.SetBaseCap(segSize)
 
 	for segEnd := gcState.LastProcessedAdCid; segEnd != latestAdCid; {
 		for adCid := latestAdCid; adCid != segEnd; {
