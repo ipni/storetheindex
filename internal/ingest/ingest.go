@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gammazero/channelqueue"
+	"github.com/gammazero/chanqueue"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
@@ -587,7 +587,7 @@ func (ing *Ingester) onAdProcessed(peerID peer.ID) (<-chan adProcessedEvent, con
 	// before being read. If this channel blocked and then caused
 	// distributeEvents to block, that could prevent this channel from being
 	// read, causing deadlock.
-	cq := channelqueue.New[adProcessedEvent](-1)
+	cq := chanqueue.New[adProcessedEvent]()
 	events := cq.In()
 	cancel := func() {
 		// Drain channel to prevent deadlock if blocked writes are preventing

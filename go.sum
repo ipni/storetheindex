@@ -216,8 +216,10 @@ github.com/fsnotify/fsnotify v1.6.0 h1:n+5WquG0fcWoWp6xPWfHdbskMCQaFnG6PfBrh1Ky4
 github.com/fsnotify/fsnotify v1.6.0/go.mod h1:sl3t1tCWJFWoRz9R8WJCbQihKKwmorjAbSClcnxKAGw=
 github.com/gammazero/channelqueue v0.2.2 h1:ufNzIbeDBxNfHj0m5uwUfOwvTmHF/O40hu2ZNnvF+/8=
 github.com/gammazero/channelqueue v0.2.2/go.mod h1:824o5HHE+yO1xokh36BIuSv8YWwXW0364ku91eRMFS4=
-github.com/gammazero/deque v0.2.1 h1:qSdsbG6pgp6nL7A0+K/B7s12mcCY/5l5SIUpMOl+dC0=
-github.com/gammazero/deque v0.2.1/go.mod h1:LFroj8x4cMYCukHJDbxFCkT+r9AndaJnFMuZDV34tuU=
+github.com/gammazero/chanqueue v1.0.0 h1:FER/sMailGFA3DDvFooEkipAMU+3c9Bg3bheloPSz6o=
+github.com/gammazero/chanqueue v1.0.0/go.mod h1:fMwpwEiuUgpab0sH4VHiVcEoji1pSi+EIzeG4TPeKPc=
+github.com/gammazero/deque v1.0.0 h1:LTmimT8H7bXkkCy6gZX7zNLtkbz4NdS2z8LZuor3j34=
+github.com/gammazero/deque v1.0.0/go.mod h1:iflpYvtGfM3U8S8j+sZEKIak3SAKYpA5/SQewgfXDKo=
 github.com/gammazero/radixtree v0.3.1 h1:kYVZUH/XgIktiGjUBERExxP6Ock7epWuCAlrB2FKsmk=
 github.com/gammazero/radixtree v0.3.1/go.mod h1:wcCpc8wCLVlPg2FVRYQLtBCnj9MNHQI1qB1hVrHvEDs=
 github.com/gammazero/targz v0.0.3 h1:vlODyfU9QdRgD1AgdEgLQ7lhg+rc4eDQVoSoMoC1ruc=
