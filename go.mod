@@ -11,8 +11,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.2
 	github.com/aws/smithy-go v1.13.5
 	github.com/cockroachdb/pebble v0.0.0-20240822181941-1b4021bcfe22
-	github.com/gammazero/channelqueue v0.2.2
-	github.com/gammazero/deque v0.2.1
+	github.com/gammazero/chanqueue v1.0.0
+	github.com/gammazero/deque v1.0.0
 	github.com/gammazero/targz v0.0.3
 	github.com/ipfs/boxo v0.24.2
 	github.com/ipfs/go-cid v0.4.1
@@ -91,6 +91,7 @@ require (
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/gammazero/channelqueue v0.2.2 // indirect
 	github.com/gammazero/radixtree v0.3.1 // indirect
 	github.com/getsentry/sentry-go v0.27.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
