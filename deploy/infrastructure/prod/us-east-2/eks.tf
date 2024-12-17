@@ -28,7 +28,7 @@ module "eks" {
   eks_managed_node_groups = {
     # Node groups for running dhstore nodes
     prod-ue2c-r5n-2xl = {
-      min_size       = 1
+      min_size       = 0
       max_size       = 3
       desired_size   = 1
       instance_types = ["r5n.2xlarge"]
@@ -42,7 +42,7 @@ module "eks" {
       }
     }
     prod-ue2a-r5n-2xl = {
-      min_size       = 1
+      min_size       = 0
       max_size       = 3
       desired_size   = 1
       instance_types = ["r5n.2xlarge"]
