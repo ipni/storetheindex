@@ -6,3 +6,7 @@ resources:
 
 patchesStrategicMerge:
   - patch.yaml
+
+replicas:
+  - count: 0
+    name: ebs-csi-controller
