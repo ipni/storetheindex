@@ -1,0 +1,92 @@
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: GitRepository
+metadata:
+  name: storetheindex
+spec:
+  interval: 5m
+  url: https://github.com/filecoin-project/storetheindex.git
+  ref:
+    branch: main
+  secretRef:
+    name: github-auth
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
+kind: Kustomization
+metadata:
+  name: storetheindex
+spec:
+  serviceAccountName: flux
+  decryption:
+    provider: sops
+  interval: 5m
+  path: "./deploy/manifests/prod/us-east-2/tenant/storetheindex"
+  sourceRef:
+    kind: GitRepository
+    name: storetheindex
+  prune: true
+
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta1
+kind: ImageRepository
+metadata:
+  name: storetheindex
+spec:
+  interval: 5m
+  image: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex
+
+---
+apiVersion: image.toolkit.fluxcd.io/v1alpha1
+kind: ImagePolicy
+metadata:
+  name: storetheindex
+spec:
+  # Filter tags that match a concrete semver format.
+  filterTags:
+    pattern: '^\d+\.\d+\.\d+$'
+  policy:
+    # Select the latest semver in any range.
+    semver:
+      range: '*'
+  imageRepositoryRef:
+    name: storetheindex
+
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta1
+kind: ImageUpdateAutomation
+metadata:
+  name: storetheindex
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: storetheindex
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        name: sti-bot
+        email: sti-bot@protocol.ai
+      messageTemplate: |
+        Update {{ .AutomationObject.Namespace }}/{{ .AutomationObject.Name }} in `prod` environment
+        
+        Files:
+        {{ range $filename, $_ := .Updated.Files -}}
+        - {{ $filename }}
+        {{ end -}}
+        
+        Objects:
+        {{ range $resource, $_ := .Updated.Objects -}}
+        - {{ $resource.Kind }} {{ $resource.Name }}
+        {{ end -}}
+        
+        Images:
+        {{ range .Updated.Images -}}
+        - {{.}}
+        {{ end -}}
+    push:
+      branch: 'cd/prod'
+  update:
+    strategy: Setters
+    path: "./deploy/manifests/prod/us-east-2/tenant/storetheindex"

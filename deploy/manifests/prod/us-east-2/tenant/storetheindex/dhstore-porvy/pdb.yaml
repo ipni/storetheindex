@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dhstore
+  labels:
+    app: dhstore-porvy
+spec:
+  selector:
+    matchLabels:
+      app: dhstore-porvy

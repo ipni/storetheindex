@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dhstore
+spec:
+  selector:
+    matchLabels:
+      app: dhstore-helga
+  template:
+    metadata:
+      labels:
+        app: dhstore-helga
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+      containers:
+        - name: dhstore
+          args:
+            - '--providersURL=http://inga-indexer:3000/'
+            - '--storePath=/data'
+            - '--disableWAL'
+            - '--blockCacheSize=2Gi'
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            limits:
+              cpu: "7"
+              memory: 58Gi
+            requests:
+              cpu: "7"
+              memory: 58Gi
+          ports:
+            - containerPort: 40081
+              name: metrics
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.kubernetes.io/instance-type
+                    operator: In
+                    values:
+                      - r6a.2xlarge
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - us-east-2a
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: dhstore-data-helga
+

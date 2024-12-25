@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: indexstar
+  labels:
+    app: indexstar
+spec:
+  selector:
+    matchLabels:
+      app: indexstar
+  namespaceSelector:
+    matchNames:
+      - storetheindex
+  podMetricsEndpoints:
+    - path: /metrics
+      port: metrics

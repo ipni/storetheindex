@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: storetheindex
+resources:
+- service-account.yaml
+- assigner
+- instances
+- indexstar
+- heyfil
+- snapshots
+- caskadht
+- lookout
+- dhstore
+- dhstore-helga
+- dhstore-porvy
+- dhstore-qiu
+- dhstore-ravi
+- dhstore-seka
+- dhstore-tetra
+- telemetry
+images:
+- name: storetheindex
+  newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/storetheindex/storetheindex # {"$imagepolicy": "storetheindex:storetheindex:name"}
+  newTag: 0.8.36 # {"$imagepolicy": "storetheindex:storetheindex:tag"}

@@ -1,0 +1,9 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: dhstore
+  labels:
+    app: dhstore-porvy
+spec:
+  selector:
+    app: dhstore-porvy
