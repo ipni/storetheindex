@@ -3,3 +3,7 @@ kind: Kustomization
 
 resources:
   - ../../../../base/external-snapshotter
+
+replicas:
+  - count: 0
+    name: snapshot-controller
