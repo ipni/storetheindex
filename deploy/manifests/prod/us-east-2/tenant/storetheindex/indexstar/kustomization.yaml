@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storetheindex
+
+resources:
+  - ../../../../../base/indexstar
+  - ingress.yaml
+  - pod-monitor.yaml
+  - berg-ingress.yaml
+
+patchesStrategicMerge:
+  - deployment.yaml
+
+replicas:
+  - name: indexstar
+    count: 0
+
+images:
+  - name: indexstar
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/indexstar/indexstar
+    newTag: 20241013090428-5ea99e81778c7337eb3173aeea8edee9413fefe9

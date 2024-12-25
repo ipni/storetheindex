@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: dhstore
+  labels:
+    app: dhstore
+spec:
+  selector:
+    matchLabels:
+      app: dhstore
+  namespaceSelector:
+    matchNames:
+      - storetheindex
+  podMetricsEndpoints:
+    - path: /metrics
+      port: metrics

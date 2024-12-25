@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: heyfil
+spec:
+  template:
+    spec:
+      containers:
+        - name: heyfil
+          args:
+            - '--httpIndexerEndpoint=https://cid.contact'
+            - '--storePath=/store'
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi
+            requests:
+              cpu: "2"
+              memory: 4Gi
+          volumeMounts:
+            - name: store
+              mountPath: /store
+      volumes:
+        - name: store
+          persistentVolumeClaim:
+            claimName: heyfil

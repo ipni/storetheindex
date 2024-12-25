@@ -7,8 +7,10 @@ resources:
   - flux-system
   - external-dns
   - cert-manager
+  - storetheindex
   - cluster-autoscaler
   - monitoring
   - aws-ebs-csi-driver
   - promtail
   - external-snapshotter
+  - ../../../base/foundationdb/crds

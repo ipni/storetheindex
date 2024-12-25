@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caskadht
+spec:
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.kubernetes.io/instance-type
+                    operator: In
+                    values:
+                      - c6a.8xlarge
+      containers:
+        - name: caskadht
+          args:
+            - '--libp2pIdentityPath=/identity/identity.key'
+            - '--libp2pListenAddrs=/ip4/0.0.0.0/tcp/40090,/ip4/0.0.0.0/udp/40090/quic,/ip4/0.0.0.0/udp/40090/quic-v1'
+            - '--useResourceManager=false'
+            # Respond with 404 if `?cascade=ipfs-dht` is not specified as URL query parameter.
+            - '--ipniRequireQueryParam'
+            - '--libp2pConMgrLow=200'
+            - '--libp2pConMgrHigh=5000'
+          ports:
+            - containerPort: 40090
+              name: libp2p
+          volumeMounts:
+            - name: identity
+              mountPath: /identity
+          resources:
+            limits:
+              cpu: "30"
+              memory: 58Gi
+            requests:
+              cpu: "30"
+              memory: 58Gi
+      volumes:
+        - name: identity
+          secret:
+            secretName: caskadht-identity
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: c6a-8xl
+          effect: NoSchedule
