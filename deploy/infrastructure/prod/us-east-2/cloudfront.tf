@@ -1,11 +1,11 @@
 locals {
-  indexstar_origin_id     = "${local.environment_name}_${local.region}_indexstar"
-  indexstar_berg_origin_id     = "${local.environment_name}_${local.region}_indexstar_berg"
-  indexstar_sf_origin_id     = "${local.environment_name}_${local.region}_indexstar_sf"
-  indexstar_primary = local.indexstar_berg_origin_id
-  http_announce_origin_id = "${local.environment_name}_${local.region}_assigner"
-  cdn_subdomain           = "cdn"
-  cf_log_bucket           = "${local.environment_name}-${local.region}-cf-log"
+  indexstar_origin_id      = "${local.environment_name}_${local.region}_indexstar"
+  indexstar_berg_origin_id = "${local.environment_name}_${local.region}_indexstar_berg"
+  indexstar_sf_origin_id   = "${local.environment_name}_${local.region}_indexstar_sf"
+  indexstar_primary        = local.indexstar_sf_origin_id
+  http_announce_origin_id  = "${local.environment_name}_${local.region}_assigner"
+  cdn_subdomain            = "cdn"
+  cf_log_bucket            = "${local.environment_name}-${local.region}-cf-log"
 }
 
 resource "aws_s3_bucket" "cf_logs" {
@@ -47,7 +47,7 @@ resource "aws_cloudfront_distribution" "cdn" {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
     }
     origin_shield {
       enabled              = true
@@ -68,7 +68,7 @@ resource "aws_cloudfront_distribution" "cdn" {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
     }
     origin_shield {
       enabled              = true
@@ -84,7 +84,7 @@ resource "aws_cloudfront_distribution" "cdn" {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
     }
     origin_shield {
       enabled              = true
@@ -100,7 +100,7 @@ resource "aws_cloudfront_distribution" "cdn" {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
     }
     origin_shield {
       enabled              = true
@@ -116,8 +116,8 @@ resource "aws_cloudfront_distribution" "cdn" {
   default_cache_behavior {
     # We need to allow GET and PUT. CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
-    allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
-    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
+    cached_methods = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.indexstar_primary
 
     forwarded_values {
@@ -138,8 +138,8 @@ resource "aws_cloudfront_distribution" "cdn" {
     path_pattern     = "multihash/*"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
-    allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
-    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
+    cached_methods = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.indexstar_primary
     cache_policy_id  = aws_cloudfront_cache_policy.lookup.id
 
@@ -149,8 +149,8 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   ordered_cache_behavior {
     path_pattern     = "cid/*"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods = ["GET", "HEAD", "OPTIONS"]
+    cached_methods = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.indexstar_primary
     cache_policy_id  = aws_cloudfront_cache_policy.lookup.id
 
@@ -160,8 +160,8 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   ordered_cache_behavior {
     path_pattern     = "providers"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods = ["GET", "HEAD", "OPTIONS"]
+    cached_methods = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.indexstar_primary
     forwarded_values {
       query_string = false
@@ -180,8 +180,8 @@ resource "aws_cloudfront_distribution" "cdn" {
     path_pattern     = "ingest/*"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
-    allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
-    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
+    cached_methods = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.indexstar_primary
     forwarded_values {
       query_string = false
@@ -244,7 +244,7 @@ provider "aws" {
 }
 
 module "cdn_cert" {
-  source  = "registry.terraform.io/terraform-aws-modules/acm/aws"
+  source = "registry.terraform.io/terraform-aws-modules/acm/aws"
   version = "4.3.2"
 
   #  Certificate must be in us-east-1 as dictated by CloudFront
@@ -252,8 +252,8 @@ module "cdn_cert" {
     aws = aws.use1
   }
 
-  domain_name               = aws_route53_zone.prod_external.name
-  zone_id                   = aws_route53_zone.prod_external.zone_id
+  domain_name = aws_route53_zone.prod_external.name
+  zone_id     = aws_route53_zone.prod_external.zone_id
   subject_alternative_names = ["*.${aws_route53_zone.prod_external.name}"]
 
   tags = local.tags
@@ -267,8 +267,8 @@ module "records" {
 
   records = [
     {
-      name  = local.cdn_subdomain
-      type  = "A"
+      name = local.cdn_subdomain
+      type = "A"
       alias = {
         name    = aws_cloudfront_distribution.cdn.domain_name
         zone_id = aws_cloudfront_distribution.cdn.hosted_zone_id
@@ -278,7 +278,7 @@ module "records" {
 }
 
 module "cid_contact_cert" {
-  source  = "registry.terraform.io/terraform-aws-modules/acm/aws"
+  source = "registry.terraform.io/terraform-aws-modules/acm/aws"
   version = "4.3.2"
 
   #  Certificate must be in us-east-1 as dictated by CloudFront
