@@ -386,21 +386,20 @@ func newAddrsFactory(ipMapping map[string]string) libp2pconfig.AddrsFactory {
 				continue
 			}
 
-			var mappedComponents []multiaddr.Multiaddr
-			multiaddr.ForEach(ma, func(c multiaddr.Component) bool {
+			var mappedComponents multiaddr.Multiaddr
+			//multiaddr.ForEach(ma, func(c multiaddr.Component) bool {
+			for _, c := range ma {
 				if c.Protocol().Code == multiaddr.P_IP4 && ipMapping[c.Value()] != "" {
 					nextComponent, err := multiaddr.NewComponent(c.Protocol().Name, ipMapping[c.Value()])
 					if err != nil {
 						panic("Failed to map multiaddr")
 					}
-					mappedComponents = append(mappedComponents, nextComponent)
-
+					mappedComponents = append(mappedComponents, *nextComponent)
 				} else {
-					mappedComponents = append(mappedComponents, &c)
+					mappedComponents = append(mappedComponents, c)
 				}
-				return true
-			})
-			out = append(out, multiaddr.Join(mappedComponents...))
+			}
+			out = append(out, mappedComponents)
 		}
 		return out
 	}
