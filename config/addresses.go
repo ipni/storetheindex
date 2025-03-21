@@ -14,6 +14,9 @@ type Addresses struct {
 	// P2PMaddr is the libp2p host multiaddr for all servers. Set to "none" to
 	// disable libp2p hosting.
 	P2PAddr string
+	// ReverseIndexer is the reverse indexer http listen address. Set to "none" to
+	// disable this server for both http and libp2p.
+	ReverseIndexer string
 	// NoResourceManager disables the libp2p resource manager when true.
 	NoResourceManager bool
 }
@@ -21,10 +24,11 @@ type Addresses struct {
 // NewAddresses returns Addresses with values set to their defaults.
 func NewAddresses() Addresses {
 	return Addresses{
-		Admin:   "/ip4/127.0.0.1/tcp/3002",
-		Finder:  "/ip4/0.0.0.0/tcp/3000",
-		Ingest:  "/ip4/0.0.0.0/tcp/3001",
-		P2PAddr: "/ip4/0.0.0.0/tcp/3003",
+		Admin:          "/ip4/127.0.0.1/tcp/3002",
+		Finder:         "/ip4/0.0.0.0/tcp/3000",
+		Ingest:         "/ip4/0.0.0.0/tcp/3001",
+		P2PAddr:        "/ip4/0.0.0.0/tcp/3003",
+		ReverseIndexer: "0.0.0.0:3004",
 	}
 }
 
@@ -43,5 +47,8 @@ func (c *Addresses) populateUnset() {
 	}
 	if c.P2PAddr == "" {
 		c.P2PAddr = def.P2PAddr
+	}
+	if c.ReverseIndexer == "" {
+		c.ReverseIndexer = def.ReverseIndexer
 	}
 }

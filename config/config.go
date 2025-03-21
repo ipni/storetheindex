@@ -12,17 +12,18 @@ import (
 
 // Config is used to load config files.
 type Config struct {
-	Version   int       // config version
-	Identity  Identity  // peer identity
-	Addresses Addresses // addresses to listen on
-	Bootstrap Bootstrap // Peers to connect to for gossip
-	Datastore Datastore // datastore config
-	Discovery Discovery // provider pubsub peers
-	Finder    Finder    // finder code configuration
-	Indexer   Indexer   // indexer code configuration
-	Ingest    Ingest    // ingestion related configuration.
-	Logging   Logging   // logging configuration.
-	Peering   Peering   // peering service configuration.
+	Version        int            // config version
+	Identity       Identity       // peer identity
+	Addresses      Addresses      // addresses to listen on
+	Bootstrap      Bootstrap      // Peers to connect to for gossip
+	Datastore      Datastore      // datastore config
+	Discovery      Discovery      // provider pubsub peers
+	Finder         Finder         // finder code configuration
+	Indexer        Indexer        // indexer code configuration
+	ReverseIndexer ReverseIndexer // reverse indexer configuration
+	Ingest         Ingest         // ingestion related configuration.
+	Logging        Logging        // logging configuration.
+	Peering        Peering        // peering service configuration.
 }
 
 const (
@@ -108,15 +109,16 @@ func Load(filePath string) (*Config, error) {
 
 	// Populate with initial values in case they are not present in config.
 	cfg := Config{
-		Addresses: NewAddresses(),
-		Bootstrap: NewBootstrap(),
-		Datastore: NewDatastore(),
-		Discovery: NewDiscovery(),
-		Finder:    NewFinder(),
-		Indexer:   NewIndexer(),
-		Ingest:    NewIngest(),
-		Logging:   NewLogging(),
-		Peering:   NewPeering(),
+		Addresses:      NewAddresses(),
+		Bootstrap:      NewBootstrap(),
+		Datastore:      NewDatastore(),
+		Discovery:      NewDiscovery(),
+		Finder:         NewFinder(),
+		Indexer:        NewIndexer(),
+		ReverseIndexer: NewReverseIndexer(),
+		Ingest:         NewIngest(),
+		Logging:        NewLogging(),
+		Peering:        NewPeering(),
 	}
 
 	if err = json.NewDecoder(f).Decode(&cfg); err != nil {
@@ -192,6 +194,7 @@ func (c *Config) populateUnset() {
 	c.Discovery.populateUnset()
 	c.Finder.populateUnset()
 	c.Indexer.populateUnset()
+	c.ReverseIndexer.populateUnset()
 	c.Ingest.populateUnset()
 	c.Logging.populateUnset()
 }

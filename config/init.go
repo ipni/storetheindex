@@ -21,16 +21,17 @@ func Init(out io.Writer) (*Config, error) {
 
 func InitWithIdentity(identity Identity) (*Config, error) {
 	conf := &Config{
-		Version:   Version,
-		Addresses: NewAddresses(),
-		Bootstrap: NewBootstrap(),
-		Datastore: NewDatastore(),
-		Discovery: NewDiscovery(),
-		Finder:    NewFinder(),
-		Identity:  identity,
-		Indexer:   NewIndexer(),
-		Ingest:    NewIngest(),
-		Logging:   NewLogging(),
+		Version:        Version,
+		Addresses:      NewAddresses(),
+		Bootstrap:      NewBootstrap(),
+		Datastore:      NewDatastore(),
+		Discovery:      NewDiscovery(),
+		Finder:         NewFinder(),
+		Identity:       identity,
+		Indexer:        NewIndexer(),
+		ReverseIndexer: NewReverseIndexer(),
+		Ingest:         NewIngest(),
+		Logging:        NewLogging(),
 	}
 
 	return conf, nil
