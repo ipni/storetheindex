@@ -4,4 +4,5 @@ namespace: ipni
 resources:
   - berg-ingress.yaml
   - sf-ingress.yaml
+  - sf2-ingress.yaml
   - namespace.yaml
