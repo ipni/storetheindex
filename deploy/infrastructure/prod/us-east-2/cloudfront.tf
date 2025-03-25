@@ -2,6 +2,7 @@ locals {
   indexstar_origin_id      = "${local.environment_name}_${local.region}_indexstar"
   indexstar_berg_origin_id = "${local.environment_name}_${local.region}_indexstar_berg"
   indexstar_sf_origin_id   = "${local.environment_name}_${local.region}_indexstar_sf"
+  indexstar_sf2_origin_id  = "${local.environment_name}_${local.region}_indexstar_sf2"
   indexstar_primary        = local.indexstar_sf_origin_id
   http_announce_origin_id  = "${local.environment_name}_${local.region}_assigner"
   cdn_subdomain            = "cdn"
@@ -108,6 +109,21 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
   }
 
+  origin {
+    domain_name = "indexstar-sf2.${aws_route53_zone.prod_external.name}"
+    origin_id   = local.indexstar_sf2_origin_id
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+    }
+    origin_shield {
+      enabled              = true
+      origin_shield_region = local.region
+    }
+  }
+
   custom_error_response {
     error_code            = 404
     error_caching_min_ttl = 300
@@ -185,6 +201,29 @@ resource "aws_cloudfront_distribution" "cdn" {
     target_origin_id = local.indexstar_primary
     forwarded_values {
       query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
+  }
+
+  ordered_cache_behavior {
+    path_pattern     = "/routing/v1/*"
+    allowed_methods = ["GET", "HEAD", "OPTIONS"]
+    cached_methods = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = local.indexstar_primary
+    forwarded_values {
+      query_string = true
+      query_string_cache_keys = [
+        # See: https://specs.ipfs.tech/routing/http-routing-v1/#content-routing-api
+        "filter-addrs",
+        "filter-protocols",
+      ]
       cookies {
         forward = "none"
       }
