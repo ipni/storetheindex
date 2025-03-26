@@ -234,6 +234,30 @@ resource "aws_cloudfront_distribution" "cdn" {
     default_ttl            = 3600
     max_ttl                = 86400
   }
+  
+  ordered_cache_behavior {
+    path_pattern     = "/ipni/v0/sample/*"
+    allowed_methods = ["GET", "HEAD", "OPTIONS"]
+    cached_methods = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = local.indexstar_primary
+    forwarded_values {
+      query_string = true
+      query_string_cache_keys = [
+        # See: https://github.com/ipni/specs/blob/main/IPNI_MH_SAMPLING.md#api
+        "beacon",
+        "max",
+        "federation_epoch",
+      ]
+      cookies {
+        forward = "none"
+      }
+    }
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
+  }
 
   restrictions {
     geo_restriction {
