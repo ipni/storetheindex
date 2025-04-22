@@ -3,7 +3,7 @@ locals {
   indexstar_berg_origin_id = "${local.environment_name}_${local.region}_indexstar_berg"
   indexstar_sf_origin_id   = "${local.environment_name}_${local.region}_indexstar_sf"
   indexstar_sf2_origin_id  = "${local.environment_name}_${local.region}_indexstar_sf2"
-  indexstar_primary        = local.indexstar_sf_origin_id
+  indexstar_primary        = local.indexstar_berg_origin_id
   http_announce_origin_id  = "${local.environment_name}_${local.region}_assigner"
   cdn_subdomain            = "cdn"
   cf_log_bucket            = "${local.environment_name}-${local.region}-cf-log"
