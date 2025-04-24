@@ -26,11 +26,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	// When this environ var is set to a value and running tests with -v flag,
-	// then TestIpniRunner output is logged.
-	envTestIpniRunnerOutput = "TEST_IPNI_RUNNER_OUTPUT"
+// When the environ var "TEST_RUNNER_OUTPUT" is set to a value and running
+// tests with -v flag, then testcmd.Runner output is logged.
 
+const (
 	indexerReadyMatch    = "Indexer is ready"
 	providerHasPeerMatch = "connected to peer successfully"
 	providerReadyMatch   = "admin http server listening"

@@ -51,6 +51,12 @@ type Indexer struct {
 	PebbleDisableWAL bool
 	// PebbleBlockCacheSize is a size of pebble block cache in bytes
 	PebbleBlockCacheSize ByteSize
+	// PebbleFormatMajorVersion sets the format of on-disk files. It is
+	// recommended to set the format major version to an explicit version, as
+	// the default may change over time. When unset or 0, use the current
+	// format version. When set to -1 update the format to the latest supported
+	// version.
+	PebbleFormatMajorVersion int
 	// UnfreezeOnStart tells that indexer to unfreeze itself on startup if it
 	// is frozen. This reverts the indexer to the state it was in before it was
 	// frozen. It only retains the most recent provider and publisher
