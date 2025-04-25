@@ -571,6 +571,22 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 			WALBytesPerSync:             10 << 20, // 10 MiB
 			WALMinSyncInterval:          func() time.Duration { return 30 * time.Second },
 		}
+		switch cfgIndexer.PebbleFormatMajorVersion {
+		case 0: // Use current format.
+		case -1:
+			// Pebble DB format configured to use latest. Automatically ratchet
+			// the database to the latest format. This may prevent downgrade.
+			pebbleOpts.FormatMajorVersion = pbl.FormatNewest
+		default:
+			// Use configured format.
+			pebbleOpts.FormatMajorVersion = pbl.FormatMajorVersion(cfgIndexer.PebbleFormatMajorVersion)
+			if pebbleOpts.FormatMajorVersion < pbl.FormatNewest {
+				// Pebble DB format is configured, but is not the latest.
+				log.Warnf("A newer pebble db format is available.\n"+
+					"  To upgrade, set the following in the Indexer config:\n"+
+					"    \"PebbleFormatMajorVersion\": %d", int(pbl.FormatNewest))
+			}
+		}
 
 		pebbleOpts.Experimental.ReadCompactionRate = 10 << 20 // 20 MiB
 

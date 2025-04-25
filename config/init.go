@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/cockroachdb/pebble"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -32,6 +33,10 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 		ReverseIndexer: NewReverseIndexer(),
 		Ingest:         NewIngest(),
 		Logging:        NewLogging(),
+	}
+
+	if conf.Indexer.ValueStoreType == "pebble" {
+		conf.Indexer.PebbleFormatMajorVersion = int(pebble.FormatNewest)
 	}
 
 	return conf, nil
