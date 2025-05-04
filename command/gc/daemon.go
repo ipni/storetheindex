@@ -128,7 +128,6 @@ func daemonAction(cctx *cli.Context) error {
 		reaper.WithDatastoreDir(dsDir),
 		reaper.WithDatastoreTempDir(dsTmpDir),
 		reaper.WithPCache(pc),
-		reaper.WithTopicName(cfg.Ingest.PubSubTopic),
 		reaper.WithHttpTimeout(time.Duration(cfg.Ingest.HttpSyncTimeout)),
 		reaper.WithSyncSegmentSize(cctx.Int("sync-segment-size")),
 	)
