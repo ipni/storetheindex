@@ -1,0 +1,12 @@
+# Deployment
+deploy/.env.production.local.tpl
+deploy/.env.terraform.tpl
+deploy/.env.terraform
+deploy/Makefile
+.terraform
+deploy/.tfworkspace
+deploy/app
+deploy/shared
+.github
+.git
+.gitignore

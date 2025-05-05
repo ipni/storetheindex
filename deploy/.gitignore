@@ -1,0 +1,8 @@
+# Deployment
+.env.production.local
+.env.terraform
+.terraform
+.tfworkspace
+app/code_deploy.sh
+shared/builds
+app/builds

@@ -1,7 +1,0 @@
-# Envoy config; see:  https://www.envoyproxy.io/docs/envoy/latest/configuration/configuration
-# Override this file in your kustomization overlay; example:
-# configMapGenerator:
-#   - name: envoy-config
-#     behavior: replace
-#     files:
-#       - envoy-config.yaml

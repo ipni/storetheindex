@@ -1,0 +1,16 @@
+{
+  "app": "ipni",
+  "privateKeyEnvVar": "",
+  "didEnvVar": "",
+  "port": 0,
+  "js": null,
+  "domainBase": "",
+  "cloudflare": true,
+  "createDB": false,
+  "caches": null,
+  "topics": null,
+  "queues": null,
+  "buckets": null,
+  "secrets": null,
+  "tables": null
+}

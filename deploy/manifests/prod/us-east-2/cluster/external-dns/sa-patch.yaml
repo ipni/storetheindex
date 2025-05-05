@@ -1,6 +1,0 @@
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: external-dns
-  annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::407967248065:role/prod/us-east-2/external_dns"

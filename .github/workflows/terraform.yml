@@ -1,0 +1,97 @@
+name: Terraform
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        required: true
+        type: string
+      workspace:
+        required: true
+        type: string
+      did:
+        required: true
+        type: string
+      apply:
+        required: true
+        type: boolean
+    secrets:
+      aws-account-id:
+        required: true
+      aws-region:
+        required: true
+      private-key:
+        required: true
+      region:
+        required: true
+        
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.workspace }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_ACCOUNT_ID: ${{ secrets.aws-account-id }}
+  AWS_REGION: ${{ secrets.aws-region }}
+  ENV: ${{ inputs.env }}
+  TF_WORKSPACE: ${{ inputs.workspace }}
+  TF_VAR_private_key: ${{ secrets.private-key }}
+  TF_VAR_did: ${{ inputs.did }}
+  TF_VAR_app: ipni
+  TF_VAR_domain_base: 
+  TF_VAR_allowed_account_id: ${{ secrets.aws-account-id }}
+  TF_VAR_region: ${{ secrets.region }}
+  DEPLOY_ENV: ci
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read # This is required for actions/checkout
+
+jobs:
+  terraform:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/terraform-ci
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - uses: opentofu/setup-opentofu@v1
+
+      - name: Tofu Init
+        run: |
+          touch .tfworkspace
+          make init
+        working-directory: deploy
+
+      - name: Build + Push Docker ECR
+        run: |
+          make docker-push
+        working-directory: deploy
+
+      - name: Terraform Plan
+        if: ${{ !inputs.apply }}
+        run: |
+          make plan
+        working-directory: deploy
+
+      - name: Terraform Apply
+        if: ${{ inputs.apply }}
+        run: |
+          make apply
+        working-directory: deploy
+
+      - name: Wait For Deployment
+        if: ${{ inputs.apply }}
+        run: |
+          make wait-deploy
+        working-directory: deploy
+      
+      
+      
+          

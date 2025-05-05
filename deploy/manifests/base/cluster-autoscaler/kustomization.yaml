@@ -1,5 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-resources:
-  - https://raw.githubusercontent.com/kubernetes/autoscaler/cluster-autoscaler-chart-9.16.2/cluster-autoscaler/cloudprovider/aws/examples/cluster-autoscaler-autodiscover.yaml
