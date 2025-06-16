@@ -22,6 +22,7 @@ import (
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/go-libipni/mautil"
+	"github.com/ipni/relayx"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/fsutil"
 	"github.com/ipni/storetheindex/internal/ingest"
@@ -42,6 +43,7 @@ const (
 	vstoreDHStore = "dhstore"
 	vstoreMemory  = "memory"
 	vstorePebble  = "pebble"
+	vstoreRelayx  = "relayx"
 )
 
 var log = logging.Logger("indexer")
@@ -607,6 +609,12 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		pebbleOpts.Cache = pbl.NewCache(int64(cfgIndexer.PebbleBlockCacheSize))
 
 		vs, err = pebble.New(dir, pebbleOpts)
+	case vstoreRelayx:
+		if cfgIndexer.RelayX != nil {
+			vs, err = relayx.NewClient(relayx.WithServerAddr(cfgIndexer.RelayX.ServerAddr))
+		} else {
+			vs, err = relayx.NewClient()
+		}
 	default:
 		err = fmt.Errorf("unrecognized store type: %s", cfgIndexer.ValueStoreType)
 	}

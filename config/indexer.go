@@ -62,6 +62,15 @@ type Indexer struct {
 	// frozen. It only retains the most recent provider and publisher
 	// addresses.
 	UnfreezeOnStart bool
+
+	// RelayX is the configuration for the RelayX service.
+	RelayX *RelayX
+}
+
+type RelayX struct {
+	// ServerAddr is the address of the RelayX server to which the KV interaction is
+	// relayed.
+	ServerAddr string
 }
 
 // NewIndexer returns Indexer with values set to their defaults.
