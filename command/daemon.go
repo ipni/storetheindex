@@ -40,10 +40,10 @@ import (
 
 // Recognized valuestore type names.
 const (
-	vstoreDHStore      = "dhstore"
-	vstoreMemory       = "memory"
-	vstorePebble       = "pebble"
-	vstoreRelayxPebble = "relayx"
+	vstoreDHStore = "dhstore"
+	vstoreMemory  = "memory"
+	vstorePebble  = "pebble"
+	vstoreRelayx  = "relayx"
 )
 
 var log = logging.Logger("indexer")
@@ -609,7 +609,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		pebbleOpts.Cache = pbl.NewCache(int64(cfgIndexer.PebbleBlockCacheSize))
 
 		vs, err = pebble.New(dir, pebbleOpts)
-	case vstoreRelayxPebble:
+	case vstoreRelayx:
 		if cfgIndexer.RelayX != nil {
 			vs, err = relayx.NewClient(relayx.WithServerAddr(cfgIndexer.RelayX.ServerAddr))
 		} else {
