@@ -481,6 +481,8 @@ github.com/ipni/go-indexer-core v0.8.22 h1:v+aIC1Zx+5PbisC3rd5SyqZvEWmjbU7AdEnDK
 github.com/ipni/go-indexer-core v0.8.22/go.mod h1:OdV+M1X9KCES6qbi0EYWYBsCk+1dAkShtxzlsmqlUjY=
 github.com/ipni/go-libipni v0.5.29 h1:yi5XCDkowZYxunXD1Afhkesk+umcqr/epN5plsOUF2A=
 github.com/ipni/go-libipni v0.5.29/go.mod h1:dL1JA1KANrF45qPSAJeYVpC0g/n2BL/o3AMw45SDnwA=
+github.com/ipni/relayx v0.0.1 h1:N6e9+RwR1tqYhMIlaLO4GAbjeBlOr62oXLy6rh3weuU=
+github.com/ipni/relayx v0.0.1/go.mod h1:FPzE2u4dabuSM9wFseULf1CqiOziHK9XvJbJvm9LBXo=
 github.com/ipni/xedni v0.0.1 h1:U61WHuHzqkJfgP8q2ULoApOb94NDMg83vCbv69F2RXU=
 github.com/ipni/xedni v0.0.1/go.mod h1:uDP4JANAjbmZ4YXgCCY6o+F5xGVAG27cHo6Rgt0uf60=
 github.com/jackpal/go-nat-pmp v1.0.2 h1:KzKSgb7qkJvOUTqYl9/Hg/me3pWgBmERKrTGD7BdWus=
@@ -864,8 +866,8 @@ github.com/twmb/murmur3 v1.1.6/go.mod h1:Qq/R7NUyOfr65zD+6Q5IHKsJLwP7exErjN6lyyq
 github.com/urfave/cli v1.22.2/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtXRu0=
 github.com/urfave/cli v1.22.10/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtXRu0=
 github.com/urfave/cli/v2 v2.0.0/go.mod h1:SE9GqnLQmjVa0iPEY0f1w3ygNIYcIJ0OKPMoW2caLfQ=
-github.com/urfave/cli/v2 v2.27.5 h1:WoHEJLdsXr6dDWoJgMq/CboDmyY/8HMMH1fTECbih+w=
-github.com/urfave/cli/v2 v2.27.5/go.mod h1:3Sevf16NykTbInEnD0yKkjDAeZDS0A6bzhBH5hrMvTQ=
+github.com/urfave/cli/v2 v2.27.6 h1:VdRdS98FNhKZ8/Az8B7MTyGQmpIr36O1EHybx/LaZ4g=
+github.com/urfave/cli/v2 v2.27.6/go.mod h1:3Sevf16NykTbInEnD0yKkjDAeZDS0A6bzhBH5hrMvTQ=
 github.com/viant/assertly v0.4.8/go.mod h1:aGifi++jvCrUaklKEKT0BU95igDNaqkvz+49uaYMPRU=
 github.com/viant/toolbox v0.24.0/go.mod h1:OxMCG57V0PXuIP2HNQrtJf2CjqdmbrOx5EkMILuUhzM=
 github.com/warpfork/go-testmark v0.12.1 h1:rMgCpJfwy1sJ50x0M0NgyphxYYPMOODIJHhsXyEHU0s=

@@ -1,6 +1,6 @@
 module github.com/ipni/storetheindex
 
-go 1.24
+go 1.24.3
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
@@ -26,6 +26,7 @@ require (
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20230102063945-1a409dc236dd
 	github.com/ipni/go-indexer-core v0.8.22
 	github.com/ipni/go-libipni v0.5.29
+	github.com/ipni/relayx v0.0.1
 	github.com/ipni/xedni v0.0.1
 	github.com/libp2p/go-libp2p v0.41.1
 	github.com/libp2p/go-msgio v0.3.0
@@ -36,7 +37,7 @@ require (
 	github.com/orlangure/gnomock v0.31.0
 	github.com/prometheus/client_golang v1.21.1
 	github.com/stretchr/testify v1.10.0
-	github.com/urfave/cli/v2 v2.27.5
+	github.com/urfave/cli/v2 v2.27.6
 	go.opencensus.io v0.24.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.39.0
