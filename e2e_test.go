@@ -197,7 +197,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
-			findOutput := rnr.Run(ctx, ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
+			findOutput := rnr.Run(ctx, ipni, "find", "--private=false", "-i", "http://localhost:3000", "-mh", mh)
 			t.Logf("find output:\n%s\n", findOutput)
 
 			if bytes.Contains(findOutput, []byte("not found")) {
@@ -347,7 +347,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
 			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
 		} {
-			findOutput := rnr.Run(ctx, ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
+			findOutput := rnr.Run(ctx, ipni, "find", "--private=false", "-i", "http://localhost:3000", "-mh", mh)
 			t.Logf("find output:\n%s\n", findOutput)
 			if !bytes.Contains(findOutput, []byte("not found")) {
 				return false
