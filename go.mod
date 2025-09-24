@@ -25,7 +25,7 @@ require (
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20250821084354-a425e60cd714
 	github.com/ipni/go-indexer-core v0.8.23
-	github.com/ipni/go-libipni v0.6.19
+	github.com/ipni/go-libipni v0.7.0
 	github.com/ipni/relayx v0.0.4
 	github.com/ipni/xedni v0.0.1
 	github.com/libp2p/go-libp2p v0.44.0
@@ -82,6 +82,7 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/filecoin-project/go-clock v0.1.0 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
@@ -104,7 +105,6 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/ipfs/go-block-format v0.2.3 // indirect
-	github.com/ipfs/go-ipfs-util v0.0.3 // indirect
 	github.com/ipfs/go-ipld-cbor v0.2.1 // indirect
 	github.com/ipfs/go-ipld-format v0.6.3 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
