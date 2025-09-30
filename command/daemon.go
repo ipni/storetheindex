@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	pbl "github.com/cockroachdb/pebble"
-	"github.com/cockroachdb/pebble/bloom"
+	pbl "github.com/cockroachdb/pebble/v2"
+	"github.com/cockroachdb/pebble/v2/bloom"
 	"github.com/ipfs/boxo/bootstrap"
 	"github.com/ipfs/boxo/peering"
 	logging "github.com/ipfs/go-log/v2"
@@ -567,7 +567,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 			L0CompactionThreshold:       2,
 			L0StopWritesThreshold:       1000,
 			LBaseMaxBytes:               64 << 20, // 64 MiB
-			MaxConcurrentCompactions:    func() int { return 10 },
+			CompactionConcurrencyRange:  func() (int, int) { return 1, 10 },
 			MemTableSize:                64 << 20, // 64 MiB
 			MemTableStopWritesThreshold: 4,
 			WALBytesPerSync:             10 << 20, // 10 MiB
@@ -592,21 +592,15 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 
 		pebbleOpts.Experimental.ReadCompactionRate = 10 << 20 // 20 MiB
 
-		const numLevels = 7
-		pebbleOpts.Levels = make([]pbl.LevelOptions, numLevels)
-		for i := 0; i < numLevels; i++ {
-			l := &pebbleOpts.Levels[i]
-			l.BlockSize = 32 << 10       // 32 KiB
-			l.IndexBlockSize = 256 << 10 // 256 KiB
-			l.FilterPolicy = bloom.FilterPolicy(10)
-			l.FilterType = pbl.TableFilter
-			if i > 0 {
-				l.TargetFileSize = pebbleOpts.Levels[i-1].TargetFileSize * 2
-			}
-			l.EnsureDefaults()
+		for i := range pebbleOpts.Levels {
+			pebbleOpts.Levels[i].BlockSize = 32 << 10       // 32 KiB
+			pebbleOpts.Levels[i].IndexBlockSize = 256 << 10 // 256 KiB
+			pebbleOpts.Levels[i].FilterPolicy = bloom.FilterPolicy(10)
+			pebbleOpts.Levels[i].FilterType = pbl.TableFilter
 		}
-		pebbleOpts.Levels[numLevels-1].FilterPolicy = nil
+		pebbleOpts.Levels[len(pebbleOpts.Levels)-1].FilterPolicy = nil
 		pebbleOpts.Cache = pbl.NewCache(int64(cfgIndexer.PebbleBlockCacheSize))
+		pebbleOpts.EnsureDefaults()
 
 		vs, err = pebble.New(dir, pebbleOpts)
 	case vstoreRelayx:
