@@ -146,6 +146,10 @@ func rmOldTempRecords(ctx context.Context, ds datastore.Batching) error {
 				return fmt.Errorf("cannot commit datastore updates: %w", err)
 			}
 			log.Infow("Datastore update removed old records", "fsmData", dtKeyCount, "adData", cidCount)
+			batch, err = ds.Batch(ctx)
+			if err != nil {
+				return fmt.Errorf("cannot create datastore batch: %w", err)
+			}
 		}
 		if result.Error != nil {
 			return fmt.Errorf("cannot read query result from datastore: %w", result.Error)
@@ -225,6 +229,10 @@ func deletePrefix(ctx context.Context, ds datastore.Batching, prefix string) (in
 				return 0, fmt.Errorf("cannot commit datastore: %w", err)
 			}
 			log.Infow("Removed datastore records", "count", keyCount)
+			batch, err = ds.Batch(ctx)
+			if err != nil {
+				return 0, fmt.Errorf("cannot create datastore batch: %w", err)
+			}
 		}
 		if result.Error != nil {
 			return 0, fmt.Errorf("cannot read query result from datastore: %w", result.Error)
