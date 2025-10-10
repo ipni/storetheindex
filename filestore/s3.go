@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
+	smithyendpoints "github.com/aws/smithy-go/endpoints"
 	"github.com/ipfs/go-log/v2"
 )
 
@@ -31,14 +32,15 @@ type S3 struct {
 	uploader   *manager.Uploader
 }
 
-type epResolver struct {
+type resolverV2 struct {
 	endpoint string
 }
 
-func (r epResolver) ResolveEndpoint(service, region string, options ...interface{}) (aws.Endpoint, error) {
-	return aws.Endpoint{
-		URL: r.endpoint,
-	}, nil
+func (r *resolverV2) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (smithyendpoints.Endpoint, error) {
+	if r.endpoint != "" {
+		params.Endpoint = &r.endpoint
+	}
+	return s3.NewDefaultEndpointResolverV2().ResolveEndpoint(ctx, params)
 }
 
 func NewS3(bucketName string, options ...S3Option) (*S3, error) {
@@ -57,12 +59,11 @@ func NewS3(bucketName string, options ...S3Option) (*S3, error) {
 	if opts.region != "" {
 		cfgOpts = append(cfgOpts, awsconfig.WithRegion(opts.region))
 	}
+
+	epr := &resolverV2{}
 	if opts.endpoint != "" {
-		epr := epResolver{
-			endpoint: opts.endpoint,
-		}
+		epr.endpoint = opts.endpoint
 		usePathStyle = true
-		cfgOpts = append(cfgOpts, awsconfig.WithEndpointResolverWithOptions(epr))
 	}
 	if opts.accessKey != "" && opts.secretKey != "" {
 		staticCreds := credentials.StaticCredentialsProvider{
@@ -82,6 +83,7 @@ func NewS3(bucketName string, options ...S3Option) (*S3, error) {
 
 	client := s3.NewFromConfig(awscfg, func(o *s3.Options) {
 		o.UsePathStyle = usePathStyle
+		o.EndpointResolverV2 = epr
 	})
 	return &S3{
 		bucketName: bucketName,
