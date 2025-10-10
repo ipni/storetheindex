@@ -31,6 +31,16 @@ type S3 struct {
 	uploader   *manager.Uploader
 }
 
+type epResolver struct {
+	endpoint string
+}
+
+func (r epResolver) ResolveEndpoint(service, region string, options ...interface{}) (aws.Endpoint, error) {
+	return aws.Endpoint{
+		URL: r.endpoint,
+	}, nil
+}
+
 func NewS3(bucketName string, options ...S3Option) (*S3, error) {
 	if bucketName == "" {
 		return nil, errors.New("s3 filestore requires bucket name")
@@ -48,12 +58,11 @@ func NewS3(bucketName string, options ...S3Option) (*S3, error) {
 		cfgOpts = append(cfgOpts, awsconfig.WithRegion(opts.region))
 	}
 	if opts.endpoint != "" {
-		epResolverFunc := aws.EndpointResolverWithOptionsFunc(
-			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-				return aws.Endpoint{URL: opts.endpoint}, nil
-			})
+		epr := epResolver{
+			endpoint: opts.endpoint,
+		}
 		usePathStyle = true
-		cfgOpts = append(cfgOpts, awsconfig.WithEndpointResolverWithOptions(epResolverFunc))
+		cfgOpts = append(cfgOpts, awsconfig.WithEndpointResolverWithOptions(epr))
 	}
 	if opts.accessKey != "" && opts.secretKey != "" {
 		staticCreds := credentials.StaticCredentialsProvider{
