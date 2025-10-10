@@ -82,6 +82,8 @@ github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.9 h1:Mv4Bc0mWmv6oDuSWTKnk+wg
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.9/go.mod h1:IKlKfRppK2a1y0gy1yH6zD+yX5uplJ6UuPlgd48dJiQ=
 github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.51 h1:iTFYCAdKzSAjGnVIUe88Hxvix0uaBqr0Rv7qJEOX5hE=
 github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.51/go.mod h1:7Grl2gV+dx9SWrUIgwwlUvU40t7+lOSbx34XwfmsTkY=
+github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.19.12 h1:ofHawDLJTI6ytDIji+g4dXQ6u2idzTb04tDlN9AS614=
+github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.19.12/go.mod h1:f5pL4iLDfbcxj1SZcdRdIokBB5eHbuYPS/Fs9DwUPRQ=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.28/go.mod h1:3lwChorpIM/BhImY/hy+Z6jekmN92cXGPI1QJasVPYY=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.9 h1:se2vOWGD3dWQUtfn4wEjRQJb1HK1XsNIt825gskZ970=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.9/go.mod h1:hijCGH2VfbZQxqCDN7bwz/4dzxV+hkyhjawAtdPWKZA=

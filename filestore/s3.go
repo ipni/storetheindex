@@ -115,7 +115,9 @@ func (s *S3) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, err
 
 	file := &File{
 		Path: relPath,
-		Size: rsp.ContentLength,
+	}
+	if rsp.ContentLength != nil {
+		file.Size = *rsp.ContentLength
 	}
 	if rsp.LastModified != nil {
 		file.Modified = *rsp.LastModified
@@ -155,7 +157,9 @@ func (s *S3) Head(ctx context.Context, relPath string) (*File, error) {
 
 	file := &File{
 		Path: relPath,
-		Size: rsp.ContentLength,
+	}
+	if rsp.ContentLength != nil {
+		file.Size = *rsp.ContentLength
 	}
 	if rsp.LastModified != nil {
 		file.Modified = *rsp.LastModified
@@ -198,7 +202,9 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 
 				file := &File{
 					Path: *content.Key,
-					Size: content.Size,
+				}
+				if content.Size != nil {
+					file.Size = *content.Size
 				}
 				if content.LastModified != nil {
 					file.Modified = *content.LastModified
@@ -212,7 +218,7 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 				}
 			}
 
-			if !rsp.IsTruncated {
+			if rsp.IsTruncated == nil || !*rsp.IsTruncated {
 				break
 			}
 
