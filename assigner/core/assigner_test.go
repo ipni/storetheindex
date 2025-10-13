@@ -183,10 +183,13 @@ func TestAssignerAll(t *testing.T) {
 	require.Equal(t, 3, counts[0])
 	require.Equal(t, 2, counts[1])
 
-	require.Equal(t, 2, fakeIndexer1.announceCount, "indexer 0 received wrong number of announcements")
-	require.Equal(t, 1, fakeIndexer2.announceCount, "indexer 1 received wrong number of announcements")
-	t.Log("indexer 0 announces:", fakeIndexer1.announceCount)
-	t.Log("indexer 1 announces:", fakeIndexer2.announceCount)
+	time.Sleep(100 * time.Millisecond)
+	announces := int(fakeIndexer1.announceCount.Load())
+	require.Equal(t, 2, announces, "indexer 0 received wrong number of announcements")
+	t.Log("indexer 0 announces:", announces)
+	announces = int(fakeIndexer2.announceCount.Load())
+	require.Equal(t, 1, announces, "indexer 1 received wrong number of announcements")
+	t.Log("indexer 1 announces:", announces)
 
 	// Send new add for peer2 to make sure the announce is forwarded to only indexer1
 	adCid, _ = cid.Decode("QmSFT5pQ15uxjjrmSKQA9yMrKJ95UZgddZpuhziSDnWfLZ")
@@ -209,11 +212,13 @@ func TestAssignerAll(t *testing.T) {
 		}
 	}
 
-	time.Sleep(time.Second)
-	require.Equal(t, 3, fakeIndexer1.announceCount, "indexer 0 received wrong number of announcements")
-	require.Equal(t, 1, fakeIndexer2.announceCount, "indexer 1 received wrong number of announcements")
-	t.Log("indexer 0 announces:", fakeIndexer1.announceCount)
-	t.Log("indexer 1 announces:", fakeIndexer2.announceCount)
+	time.Sleep(100 * time.Millisecond)
+	announces = int(fakeIndexer1.announceCount.Load())
+	require.Equal(t, 3, announces, "indexer 0 received wrong number of announcements")
+	t.Log("indexer 0 announces:", announces)
+	announces = int(fakeIndexer2.announceCount.Load())
+	require.Equal(t, 1, announces, "indexer 1 received wrong number of announcements")
+	t.Log("indexer 1 announces:", announces)
 
 	// Send new add for peer3 to make sure the announce is forwarded to both indexers.
 	adCid, _ = cid.Decode("Qmejoony52NYREWv3e9Ap6Uvg29GmJKJpxaDgAbzzYL9kX")
@@ -236,11 +241,13 @@ func TestAssignerAll(t *testing.T) {
 		}
 	}
 
-	time.Sleep(time.Second)
-	require.Equal(t, 4, fakeIndexer1.announceCount, "indexer 0 received wrong number of announcements")
-	require.Equal(t, 2, fakeIndexer2.announceCount, "indexer 1 received wrong number of announcements")
-	t.Log("indexer 0 announces:", fakeIndexer1.announceCount)
-	t.Log("indexer 1 announces:", fakeIndexer2.announceCount)
+	time.Sleep(100 * time.Millisecond)
+	announces = int(fakeIndexer1.announceCount.Load())
+	require.Equal(t, 4, announces, "indexer 0 received wrong number of announcements")
+	t.Log("indexer 0 announces:", announces)
+	announces = int(fakeIndexer2.announceCount.Load())
+	require.Equal(t, 2, announces, "indexer 1 received wrong number of announcements")
+	t.Log("indexer 1 announces:", announces)
 
 	_, lateCancel := assigner.OnAssignment(peer2ID)
 	require.NoError(t, assigner.Close())
@@ -858,7 +865,7 @@ type testIndexer struct {
 	findServer   *httptest.Server
 	ingestServer *httptest.Server
 
-	announceCount int
+	announceCount atomic.Int32
 }
 
 func testStatusHandler(id peer.ID, frozen bool, w http.ResponseWriter, r *http.Request) {
@@ -918,7 +925,7 @@ func newTestIndexer(adminHandler func(http.ResponseWriter, *http.Request)) *test
 		defer req.Body.Close()
 		switch req.URL.String() {
 		case "/ingest/announce":
-			ti.announceCount++
+			ti.announceCount.Add(1)
 		}
 		w.WriteHeader(http.StatusOK)
 	}))
