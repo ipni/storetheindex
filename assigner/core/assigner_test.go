@@ -899,11 +899,6 @@ func defaultTestAdminHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func testIngestHandler(w http.ResponseWriter, req *http.Request) {
-	defer req.Body.Close()
-	w.WriteHeader(http.StatusOK)
-}
-
 func testFindHandler(w http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 	w.WriteHeader(http.StatusOK)
