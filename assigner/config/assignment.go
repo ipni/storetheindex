@@ -29,6 +29,10 @@ type Assignment struct {
 	// the publisher does not have a preset assignment. A value <= 0 assigns
 	// each publisher to one indexer.
 	Replication int
+	// ResendHttp, if true, resends announcements directly to assigned insexers.
+	ResendHttp bool
+	// ResendPubsub, if true, resends announcements over libp2p pubsub.
+	ResendPubsub bool
 }
 
 type Indexer struct {

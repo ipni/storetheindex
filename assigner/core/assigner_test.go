@@ -84,8 +84,10 @@ func TestAssignerAll(t *testing.T) {
 		Policy: config.Policy{
 			Allow: true,
 		},
-		PubSubTopic: "testtopic",
-		Replication: 2,
+		PubSubTopic:  "testtopic",
+		Replication:  2,
+		ResendPubsub: false,
+		ResendHttp:   true,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -168,7 +170,7 @@ func TestAssignerAll(t *testing.T) {
 				break
 			}
 			assigns = append(assigns, assignNum)
-			t.Log("Publisher", peer3IDStr, "assigned to indexer", assignNum)
+			t.Log("Publisher", addrInfo.ID, "assigned to indexer", assignNum)
 		case <-time.After(3 * time.Second):
 			t.Fatal("timed out waiting for assignment")
 		}
@@ -180,6 +182,72 @@ func TestAssignerAll(t *testing.T) {
 	require.Equal(t, 2, len(counts))
 	require.Equal(t, 3, counts[0])
 	require.Equal(t, 2, counts[1])
+
+	time.Sleep(100 * time.Millisecond)
+	announces := int(fakeIndexer1.announceCount.Load())
+	require.Equal(t, 2, announces, "indexer 0 received wrong number of announcements")
+	t.Log("indexer 0 announces:", announces)
+	announces = int(fakeIndexer2.announceCount.Load())
+	require.Equal(t, 1, announces, "indexer 1 received wrong number of announcements")
+	t.Log("indexer 1 announces:", announces)
+
+	// Send new add for peer2 to make sure the announce is forwarded to only indexer1
+	adCid, _ = cid.Decode("QmSFT5pQ15uxjjrmSKQA9yMrKJ95UZgddZpuhziSDnWfLZ")
+	addrInfo.ID = peer2ID
+	err = assigner.Announce(ctx, adCid, addrInfo)
+	require.NoError(t, err)
+
+	assigns = assigns[:0]
+	open = true
+	for open {
+		select {
+		case assignNum, open = <-asmtChan:
+			if !open {
+				break
+			}
+			assigns = append(assigns, assignNum)
+			t.Log("Publisher", peer3IDStr, "assigned to indexer", assignNum)
+		case <-time.After(3 * time.Second):
+			t.Fatal("timed out waiting for assignment")
+		}
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	announces = int(fakeIndexer1.announceCount.Load())
+	require.Equal(t, 3, announces, "indexer 0 received wrong number of announcements")
+	t.Log("indexer 0 announces:", announces)
+	announces = int(fakeIndexer2.announceCount.Load())
+	require.Equal(t, 1, announces, "indexer 1 received wrong number of announcements")
+	t.Log("indexer 1 announces:", announces)
+
+	// Send new add for peer3 to make sure the announce is forwarded to both indexers.
+	adCid, _ = cid.Decode("Qmejoony52NYREWv3e9Ap6Uvg29GmJKJpxaDgAbzzYL9kX")
+	addrInfo.ID = peer3ID
+	err = assigner.Announce(ctx, adCid, addrInfo)
+	require.NoError(t, err)
+
+	assigns = assigns[:0]
+	open = true
+	for open {
+		select {
+		case assignNum, open = <-asmtChan:
+			if !open {
+				break
+			}
+			assigns = append(assigns, assignNum)
+			t.Log("Publisher", peer3IDStr, "assigned to indexer", assignNum)
+		case <-time.After(3 * time.Second):
+			t.Fatal("timed out waiting for assignment")
+		}
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	announces = int(fakeIndexer1.announceCount.Load())
+	require.Equal(t, 4, announces, "indexer 0 received wrong number of announcements")
+	t.Log("indexer 0 announces:", announces)
+	announces = int(fakeIndexer2.announceCount.Load())
+	require.Equal(t, 2, announces, "indexer 1 received wrong number of announcements")
+	t.Log("indexer 1 announces:", announces)
 
 	_, lateCancel := assigner.OnAssignment(peer2ID)
 	require.NoError(t, assigner.Close())
@@ -796,6 +864,8 @@ type testIndexer struct {
 	adminServer  *httptest.Server
 	findServer   *httptest.Server
 	ingestServer *httptest.Server
+
+	announceCount atomic.Int32
 }
 
 func testStatusHandler(id peer.ID, frozen bool, w http.ResponseWriter, r *http.Request) {
@@ -836,11 +906,6 @@ func defaultTestAdminHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func testIngestHandler(w http.ResponseWriter, req *http.Request) {
-	defer req.Body.Close()
-	w.WriteHeader(http.StatusOK)
-}
-
 func testFindHandler(w http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 	w.WriteHeader(http.StatusOK)
@@ -852,11 +917,19 @@ func newTestIndexer(adminHandler func(http.ResponseWriter, *http.Request)) *test
 		ah = adminHandler
 	}
 
-	return &testIndexer{
-		adminServer:  httptest.NewServer(http.HandlerFunc(ah)),
-		findServer:   httptest.NewServer(http.HandlerFunc(testFindHandler)),
-		ingestServer: httptest.NewServer(http.HandlerFunc(testIngestHandler)),
+	ti := &testIndexer{
+		adminServer: httptest.NewServer(http.HandlerFunc(ah)),
+		findServer:  httptest.NewServer(http.HandlerFunc(testFindHandler)),
 	}
+	ti.ingestServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		defer req.Body.Close()
+		switch req.URL.String() {
+		case "/ingest/announce":
+			ti.announceCount.Add(1)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	return ti
 }
 
 func (ti *testIndexer) close() {

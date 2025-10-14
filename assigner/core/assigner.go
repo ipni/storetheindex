@@ -58,6 +58,8 @@ type Assigner struct {
 	// waitingNotice are channels waiting for a specific peer to be assigned
 	waitingNotice map[peer.ID]chan int
 	noticeMutex   sync.Mutex
+	// resendHttp, if true, resends announcements directly to assigned insexers.
+	resendHttp bool
 }
 
 // assignment holds the indexers that a publisher is assigned to. The indexer
@@ -141,7 +143,7 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 	rcvr, err := announce.NewReceiver(p2pHost, cfg.PubSubTopic,
 		announce.WithAllowPeer(policy.Eval),
 		announce.WithFilterIPs(cfg.FilterIPs),
-		announce.WithResend(true),
+		announce.WithResend(cfg.ResendPubsub),
 	)
 	if err != nil {
 		return nil, err
@@ -171,6 +173,7 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 		presetRepl:  presetRepl,
 		receiver:    rcvr,
 		replication: replication,
+		resendHttp:  cfg.ResendHttp,
 		watchDone:   make(chan struct{}),
 	}
 
@@ -575,7 +578,6 @@ func (a *Assigner) poll(ctx context.Context, interval time.Duration) {
 // watch fetches announce messages from the Receiver.
 func (a *Assigner) watch() {
 	defer close(a.watchDone)
-	var pending sync.WaitGroup
 
 	// Cancel any pending messages if this function exits.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -598,14 +600,21 @@ func (a *Assigner) watch() {
 		a.mutex.Lock()
 
 		asmt, need := a.checkAssignment(amsg.PeerID)
+		if asmt != nil {
+			for _, idxr := range asmt.indexers {
+				idxrInfo := a.indexerPool[idxr]
+				err = resendAnnounce(ctx, amsg, idxrInfo.ingestURL)
+				if err != nil {
+					log.Error(err)
+				}
+			}
+		}
 		if need != 0 {
 			a.makeAssignments(ctx, amsg, asmt, need)
 		}
 
 		a.mutex.Unlock()
 	}
-	// Wait for pending assignments in to complete.
-	pending.Wait()
 }
 
 // checkAssignment checks if a publisher is assigned to sufficient indexers.
@@ -619,7 +628,7 @@ func (a *Assigner) checkAssignment(pubID peer.ID) (*assignment, int) {
 	if found {
 		if len(asmt.indexers) >= required {
 			log.Debug("Publisher already assigned to all required indexers")
-			return nil, 0
+			return asmt, 0
 		}
 
 		need := required - len(asmt.indexers)
@@ -632,7 +641,7 @@ func (a *Assigner) checkAssignment(pubID peer.ID) (*assignment, int) {
 			// assigned to offline indexers.
 			need -= downCount
 			if need <= 0 {
-				return nil, 0
+				return asmt, 0
 			}
 		}
 
@@ -949,17 +958,9 @@ func (a *Assigner) assignIndexer(ctx context.Context, indexerNum int, amsg annou
 
 	// Send announce instead of sync request in case indexer is already syncing
 	// due to receiving announce after immediately allowing the publisher.
-	icl, err := ingestclient.New(indexer.ingestURL)
+	err = resendAnnounce(ctx, amsg, indexer.ingestURL)
 	if err != nil {
-		log.Errorw("Error creating ingest client", "err", err)
-		return nil
-	}
-	pubInfo := peer.AddrInfo{
-		ID:    amsg.PeerID,
-		Addrs: amsg.Addrs,
-	}
-	if err = icl.Announce(ctx, &pubInfo, amsg.Cid); err != nil {
-		log.Errorw("Error sending announce message", "err", err)
+		log.Error(err)
 	}
 	return nil
 }
@@ -990,4 +991,20 @@ func (a *Assigner) getAssignments(ctx context.Context, indexerNum int) (peer.ID,
 		log.Errorw("Cannot get preferred assignments from indexer", "err", err, "indexer", indexerNum)
 	}
 	return status.ID, false, assigned, preferred, nil
+}
+
+func resendAnnounce(ctx context.Context, amsg announce.Announce, ingestURL string) error {
+	icl, err := ingestclient.New(ingestURL)
+	if err != nil {
+		return fmt.Errorf("error creating ingest client: %w", err)
+	}
+	pubInfo := peer.AddrInfo{
+		ID:    amsg.PeerID,
+		Addrs: amsg.Addrs,
+	}
+	if err = icl.Announce(ctx, &pubInfo, amsg.Cid); err != nil {
+		return fmt.Errorf("error sending announce message: %w", err)
+	}
+	log.Debug("Resent direct announce to:", ingestURL)
+	return nil
 }
