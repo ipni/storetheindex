@@ -600,7 +600,7 @@ func (a *Assigner) watch() {
 		a.mutex.Lock()
 
 		asmt, need := a.checkAssignment(amsg.PeerID)
-		if asmt != nil {
+		if a.resendHttp && asmt != nil {
 			for _, idxr := range asmt.indexers {
 				idxrInfo := a.indexerPool[idxr]
 				err = resendAnnounce(ctx, amsg, idxrInfo.ingestURL)
