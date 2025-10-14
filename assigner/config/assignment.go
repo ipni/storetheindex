@@ -60,6 +60,7 @@ func NewAssignment() Assignment {
 		PubSubTopic:       "/indexer/ingest/mainnet",
 		PresetReplication: 1,
 		Replication:       1,
+		ResendHttp:        true,
 	}
 }
 
