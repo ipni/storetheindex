@@ -201,7 +201,11 @@ func setLoggingConfig(cfgLogging config.Logging) error {
 	for loggerName, level := range cfgLogging.Loggers {
 		err = logging.SetLogLevel(loggerName, level)
 		if err != nil {
-			return err
+			if errors.Is(err, logging.ErrNoSuchLogger) {
+				log.Warnf("Ignoring configuration for nonexistent logger: %s", loggerName)
+				continue
+			}
+			return fmt.Errorf("Failed to set log level %q for logger %q: %s", level, loggerName, err)
 		}
 	}
 	return nil

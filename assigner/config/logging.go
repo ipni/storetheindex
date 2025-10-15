@@ -16,7 +16,6 @@ func NewLogging() Logging {
 	return Logging{
 		Level: "info",
 		Loggers: map[string]string{
-			"basichost": "warn",
 			"bootstrap": "warn",
 		},
 	}

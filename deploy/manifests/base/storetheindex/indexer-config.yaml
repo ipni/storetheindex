@@ -80,7 +80,6 @@ data:
       "Logging": {
         "Level": "info",
           "Loggers": {
-          "basichost": "warn",
           "bootstrap": "warn",
           "dt-impl": "warn",
           "dt_graphsync": "warn",
