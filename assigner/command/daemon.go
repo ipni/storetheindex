@@ -205,7 +205,7 @@ func setLoggingConfig(cfgLogging config.Logging) error {
 				log.Warnf("Ignoring configuration for nonexistent logger: %s", loggerName)
 				continue
 			}
-			return fmt.Errorf("Failed to set log level %q for logger %q: %s", level, loggerName, err)
+			return fmt.Errorf("failed to set log level %q for logger %q: %s", level, loggerName, err)
 		}
 	}
 	return nil
