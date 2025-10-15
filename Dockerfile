@@ -1,4 +1,4 @@
-FROM golang:1.25-bullseye as builder
+FROM golang:1.25-rc-bullseye as builder
 
 WORKDIR /storetheindex
 COPY go.* .
