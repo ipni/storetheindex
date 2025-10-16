@@ -20,8 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testTopic = "/indexer/ingest/test"
-
 var pid1, pid2, pid3 peer.ID
 var adCid cid.Cid
 
@@ -68,7 +66,6 @@ func TestReaper(t *testing.T) {
 		reaper.WithDatastoreDir(dsDir),
 		reaper.WithDatastoreTempDir(dsTmpDir),
 		reaper.WithPCache(pc),
-		reaper.WithTopicName(testTopic),
 	)
 	require.NoError(t, err)
 	defer gc.Close()
@@ -94,7 +91,6 @@ func TestReaper(t *testing.T) {
 		reaper.WithDatastoreTempDir(dsTmpDir),
 		reaper.WithDeleteNotFound(true),
 		reaper.WithPCache(pc),
-		reaper.WithTopicName(testTopic),
 	)
 	require.NoError(t, err)
 	defer gc2.Close()
@@ -116,7 +112,6 @@ func TestReaper(t *testing.T) {
 		reaper.WithDatastoreTempDir(dsTmpDir),
 		reaper.WithDeleteNotFound(true),
 		reaper.WithPCache(pc),
-		reaper.WithTopicName(testTopic),
 	)
 	require.NoError(t, err)
 
