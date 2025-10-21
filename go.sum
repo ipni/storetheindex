@@ -423,8 +423,8 @@ github.com/ipni/go-indexer-core v0.8.22 h1:v+aIC1Zx+5PbisC3rd5SyqZvEWmjbU7AdEnDK
 github.com/ipni/go-indexer-core v0.8.22/go.mod h1:OdV+M1X9KCES6qbi0EYWYBsCk+1dAkShtxzlsmqlUjY=
 github.com/ipni/go-libipni v0.5.32 h1:ZzRgYT2kGX0NTj0b1vVENmYMqWSCJXqlx0z31jjLF6g=
 github.com/ipni/go-libipni v0.5.32/go.mod h1:ojmUP3z0TxLHlLv1pQAa8yLwCsACtoy3Xz1zZLWC2Dk=
-github.com/ipni/relayx v0.0.1 h1:N6e9+RwR1tqYhMIlaLO4GAbjeBlOr62oXLy6rh3weuU=
-github.com/ipni/relayx v0.0.1/go.mod h1:FPzE2u4dabuSM9wFseULf1CqiOziHK9XvJbJvm9LBXo=
+github.com/ipni/relayx v0.0.2 h1:lJBrySc35bXk/3sINRjw61XsgodEa/xdP9DiC+jT70M=
+github.com/ipni/relayx v0.0.2/go.mod h1:FPzE2u4dabuSM9wFseULf1CqiOziHK9XvJbJvm9LBXo=
 github.com/ipni/xedni v0.0.1 h1:U61WHuHzqkJfgP8q2ULoApOb94NDMg83vCbv69F2RXU=
 github.com/ipni/xedni v0.0.1/go.mod h1:uDP4JANAjbmZ4YXgCCY6o+F5xGVAG27cHo6Rgt0uf60=
 github.com/jackpal/go-nat-pmp v1.0.2 h1:KzKSgb7qkJvOUTqYl9/Hg/me3pWgBmERKrTGD7BdWus=
