@@ -4,12 +4,12 @@ go 1.25
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
-	github.com/aws/aws-sdk-go-v2 v1.17.4
+	github.com/aws/aws-sdk-go-v2 v1.39.4
 	github.com/aws/aws-sdk-go-v2/config v1.18.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.12
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.51
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.2
-	github.com/aws/smithy-go v1.13.5
+	github.com/aws/smithy-go v1.23.1
 	github.com/cockroachdb/pebble v1.1.5
 	github.com/gammazero/chanqueue v1.1.1
 	github.com/gammazero/deque v1.1.0
