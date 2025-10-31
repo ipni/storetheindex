@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.51
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.2
 	github.com/aws/smithy-go v1.13.5
-	github.com/cockroachdb/pebble/v2 v2.1.0
+	github.com/cockroachdb/pebble/v2 v2.1.1
 	github.com/gammazero/chanqueue v1.1.1
 	github.com/gammazero/deque v1.1.0
 	github.com/gammazero/targz v0.0.3
@@ -24,7 +24,7 @@ require (
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20250821073235-1979ffd425aa
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20250821084354-a425e60cd714
-	github.com/ipni/go-indexer-core v0.8.24-0.20251010172708-02628c9163dc
+	github.com/ipni/go-indexer-core v0.8.24-0.20251031033056-1a253159e353
 	github.com/ipni/go-libipni v0.7.1
 	github.com/ipni/relayx v0.0.4
 	github.com/ipni/xedni v0.0.1
