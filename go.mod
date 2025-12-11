@@ -10,25 +10,25 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.51
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.2
 	github.com/aws/smithy-go v1.13.5
-	github.com/cockroachdb/pebble/v2 v2.1.1
+	github.com/cockroachdb/pebble/v2 v2.1.2
 	github.com/gammazero/chanqueue v1.1.1
 	github.com/gammazero/deque v1.1.0
 	github.com/gammazero/targz v0.0.3
 	github.com/ipfs/boxo v0.35.0
-	github.com/ipfs/go-cid v0.5.0
+	github.com/ipfs/go-cid v0.6.0
 	github.com/ipfs/go-datastore v0.9.0
 	github.com/ipfs/go-ds-leveldb v0.5.2
-	github.com/ipfs/go-log/v2 v2.8.2
+	github.com/ipfs/go-log/v2 v2.9.0
 	github.com/ipfs/go-test v0.2.3
 	github.com/ipld/go-car/v2 v2.16.0
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20250821073235-1979ffd425aa
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20250821084354-a425e60cd714
-	github.com/ipni/go-indexer-core v0.8.24-0.20251031033056-1a253159e353
-	github.com/ipni/go-libipni v0.7.1
-	github.com/ipni/relayx v0.0.4
-	github.com/ipni/xedni v0.0.1
-	github.com/libp2p/go-libp2p v0.44.0
+	github.com/ipni/go-indexer-core v0.9.0
+	github.com/ipni/go-libipni v0.7.2
+	github.com/ipni/relayx v1.0.1
+	github.com/ipni/xedni v0.0.2
+	github.com/libp2p/go-libp2p v0.45.0
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/multiformats/go-multicodec v0.9.2
@@ -40,8 +40,8 @@ require (
 	github.com/urfave/cli/v2 v2.27.7
 	go.opencensus.io v0.24.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/net v0.46.0
-	golang.org/x/sys v0.37.0
+	golang.org/x/net v0.47.0
+	golang.org/x/sys v0.38.0
 	google.golang.org/protobuf v1.36.10
 )
 
@@ -128,7 +128,6 @@ require (
 	github.com/marcboeker/go-duckdb v1.8.5 // indirect
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/miekg/dns v1.1.68 // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
@@ -143,11 +142,10 @@ require (
 	github.com/multiformats/go-multibase v0.2.0 // indirect
 	github.com/multiformats/go-multistream v0.6.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/onsi/gomega v1.36.3 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
-	github.com/parquet-go/parquet-go v0.25.0 // indirect
+	github.com/parquet-go/parquet-go v0.25.1 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/petar/GoLLRB v0.0.0-20210522233825-ae3b015fd3e9 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
@@ -180,7 +178,6 @@ require (
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.55.0 // indirect
 	github.com/quic-go/webtransport-go v0.9.0 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
@@ -201,12 +198,12 @@ require (
 	go.uber.org/mock v0.5.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/crypto v0.43.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b // indirect
 	golang.org/x/mod v0.29.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/telemetry v0.0.0-20251008203120-078029d740a8 // indirect
-	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
