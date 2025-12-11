@@ -2120,5 +2120,4 @@ func (vs *errorValueStore) RemoveProviderContext(_ peer.ID, _ []byte) error     
 func (vs *errorValueStore) Size() (int64, error)                                   { return 0, vs.err }
 func (vs *errorValueStore) Flush() error                                           { return vs.err }
 func (vs *errorValueStore) Close() error                                           { return vs.err }
-func (vs *errorValueStore) Iter() (indexer.Iterator, error)                        { return nil, vs.err }
 func (vs *errorValueStore) Stats() (*indexer.Stats, error)                         { return nil, vs.err }

@@ -61,7 +61,7 @@ func TestEndToEndWithAllProviderTypes(t *testing.T) {
 		testEndToEndWithReferenceProvider(t, "http")
 	})
 
-	// Test with publisher running plain HTTP only, not over libp2p.
+	// Test with publisher running both plain HTTP, and HTTP over libp2p.
 	t.Run("Libp2pWithHTTPProvider", func(t *testing.T) {
 		testEndToEndWithReferenceProvider(t, "libp2phttp")
 	})
