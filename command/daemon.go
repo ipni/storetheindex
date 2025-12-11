@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -34,9 +35,21 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/gologshim"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 )
+
+func init() {
+	// Set go-log's slog handler as the application-wide default. This ensures
+	// all slog-based logging uses go-log's formatting.
+	slog.SetDefault(slog.New(logging.SlogHandler()))
+
+	// Wire go-log's slog bridge to go-libp2p's gologshim. This provides
+	// go-libp2p loggers with the "logger" attribute for per-subsystem level
+	// control.
+	gologshim.SetDefaultHandler(logging.SlogHandler())
+}
 
 // Recognized valuestore type names.
 const (
