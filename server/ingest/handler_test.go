@@ -54,7 +54,6 @@ func (m *mockIndexer) RemoveProviderContext(peer.ID, []byte) error        { retu
 func (m *mockIndexer) Size() (int64, error)                               { return 0, nil }
 func (m *mockIndexer) Flush() error                                       { return nil }
 func (m *mockIndexer) Close() error                                       { return nil }
-func (m *mockIndexer) Iter() (indexer.Iterator, error)                    { return nil, nil }
 func (m *mockIndexer) Stats() (*indexer.Stats, error)                     { return nil, indexer.ErrStatsNotSupported }
 
 func TestHandleRegisterProvider(t *testing.T) {
