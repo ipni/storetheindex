@@ -3,7 +3,7 @@ package admin
 import (
 	"fmt"
 	"net/http"
-	"sort"
+	"slices"
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/storetheindex/internal/httpserver"
@@ -52,9 +52,9 @@ func listLogSubSystems(w http.ResponseWriter, r *http.Request) {
 	}
 
 	subsystems := logging.GetSubsystems()
-	sort.Strings(subsystems)
+	slices.Sort(subsystems)
 	for _, ss := range subsystems {
-		_, _ = fmt.Fprintln(w, ss)
+		fmt.Fprintln(w, ss)
 	}
 	log.Debugw("Listed logging subsystems", "subsystems", subsystems)
 }
