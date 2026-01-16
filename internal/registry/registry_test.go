@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -364,109 +365,165 @@ func TestPollProvider(t *testing.T) {
 			Allow:   true,
 			Publish: true,
 		},
-		PollInterval:   config.Duration(time.Hour),
-		PollRetryAfter: config.Duration(time.Millisecond),
-		PollStopAfter:  config.Duration(time.Millisecond),
+		PollRetryAfter: config.Duration(100 * time.Hour),
 	}
 
-	ctx := context.Background()
-	r, err := New(ctx, cfg, datastore.NewMapDatastore())
-	require.NoError(t, err)
-	t.Cleanup(func() { r.Close() })
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		r, err := New(ctx, cfg, datastore.NewMapDatastore())
+		require.NoError(t, err)
+		t.Cleanup(func() { r.Close() })
 
-	peerID, err := peer.Decode(limitedID)
-	require.NoError(t, err)
+		peerID, err := peer.Decode(limitedID)
+		require.NoError(t, err)
 
-	pubID, err := peer.Decode(publisherID)
-	require.NoError(t, err)
+		pubID, err := peer.Decode(publisherID)
+		require.NoError(t, err)
 
-	maddr, err := multiaddr.NewMultiaddr(minerAddr)
-	require.NoError(t, err)
+		maddr, err := multiaddr.NewMultiaddr(minerAddr)
+		require.NoError(t, err)
 
-	prov := peer.AddrInfo{
-		ID:    peerID,
-		Addrs: []multiaddr.Multiaddr{maddr},
-	}
-	pub := peer.AddrInfo{
-		ID: pubID,
-	}
-	err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
-	require.NoError(t, err)
+		prov := peer.AddrInfo{
+			ID:    peerID,
+			Addrs: []multiaddr.Multiaddr{maddr},
+		}
+		pub := peer.AddrInfo{
+			ID: pubID,
+		}
+		err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
+		require.NoError(t, err)
 
-	poll := polling{
-		retryAfter:      time.Minute,
-		stopAfter:       time.Hour,
-		deactivateAfter: time.Hour,
-	}
+		poll := polling{
+			interval:        time.Second,
+			retryAfter:      time.Minute,
+			stopAfter:       2 * time.Hour,
+			deactivateAfter: time.Hour,
+		}
 
-	// Check for auto-sync after pollInterval 0.
-	r.pollProviders(poll, nil, 1)
-	select {
-	case pinfo := <-r.SyncChan():
-		require.Equal(t, pinfo.AddrInfo.ID, peerID, "Wrong provider ID")
-		require.Equal(t, pinfo.Publisher, pubID, "Wrong publisher ID")
-		require.False(t, pinfo.Inactive(), "Expected provider not to be marked inactive")
-	case <-time.After(time.Second):
-		t.Fatal("Expected sync channel to be written")
-	}
+		// Check for auto-sync after pollInterval.
+		time.Sleep(poll.interval + 1)
+		r.pollProviders(poll, nil, 1)
+		select {
+		case pinfo := <-r.SyncChan():
+			require.Equal(t, pinfo.AddrInfo.ID, peerID, "wrong provider ID")
+			require.Equal(t, pinfo.Publisher, pubID, "wrong publisher ID")
+			require.False(t, pinfo.Inactive(), "expected provider not to be marked inactive")
+		case <-time.After(time.Second):
+			t.Fatal("expected sync channel to be written")
+		}
 
-	// Check that registry is not blocked by unread auto-sync channel.
-	poll.retryAfter = 0
-	poll.deactivateAfter = 0
-	done := make(chan struct{})
-	go func() {
-		r.pollProviders(poll, nil, 2)
-		r.pollProviders(poll, nil, 3)
-		_, ok := r.ProviderInfo(peerID)
-		require.True(t, ok)
-		close(done)
-	}()
+		// Check that registry is not blocked by unread auto-sync channel.
+		time.Sleep(poll.deactivateAfter + 1)
+		done := make(chan struct{})
+		go func() {
+			r.pollProviders(poll, nil, 2)
+			time.Sleep(poll.interval + 1)
+			r.pollProviders(poll, nil, 3)
+			_, ok := r.ProviderInfo(peerID)
+			require.True(t, ok)
+			close(done)
+		}()
+		// Check that goroutine completed (registry not blocked).
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("actions channel blocked")
+		}
+		// Check that expected info was written to sync channel.
+		select {
+		case pinfo := <-r.SyncChan():
+			require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel")
+			require.True(t, pinfo.Inactive(), "expected provider to be marked inactive")
+		case <-time.After(2 * time.Second):
+			t.Fatal("Expected sync channel to be written")
+		}
 
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("actions channel blocked")
-	}
-	select {
-	case pinfo := <-r.SyncChan():
-		require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel, expected %q got %q", peerID.String(), pinfo.AddrInfo.ID.String())
-		require.True(t, pinfo.Inactive(), "Expected provider to be marked inactive")
-	case <-time.After(2 * time.Second):
-		t.Fatal("Expected sync channel to be written")
-	}
+		// Inactive provider should be returned, but marked inactive.
+		pinfo, ok := r.ProviderInfo(peerID)
+		require.True(t, ok, "expected inactive provider to still be present")
+		require.NotNil(t, pinfo)
+		require.True(t, pinfo.Inactive(), "expected provider to be inactive")
 
-	// Inactive provider should not be returned.
-	pinfo, _ := r.ProviderInfo(peerID)
-	require.NotNil(t, pinfo, "expected inactive provider to still be present")
-	require.True(t, pinfo.Inactive(), "expected provider to be inactive")
+		// Check that update brings inactive provider back.
+		err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
+		require.NoError(t, err)
+		pinfo, ok = r.ProviderInfo(peerID)
+		require.True(t, ok, "expected provider to be present")
+		require.NotNil(t, pinfo)
+		require.False(t, pinfo.Inactive(), "expected provider to be active")
+		// Check that auto sync works for revived provider.
+		time.Sleep(poll.interval + 1)
+		r.pollProviders(poll, nil, 4)
+		select {
+		case pinfo := <-r.SyncChan():
+			require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel")
+			require.False(t, pinfo.Inactive(), "expected provider to be active")
+		case <-time.After(2 * time.Second):
+			t.Fatal("expected sync channel to be written")
+		}
 
-	// Set stopAfter to 0 so that stopAfter will have elapsed since last
-	// contact. This will make publisher appear unresponsive and polling will
-	// stop.
-	poll.stopAfter = 0
-	r.pollProviders(poll, nil, 4)
-	// wait some time to pass poll interval (for low-res timers)
-	time.Sleep(time.Second)
-	r.pollProviders(poll, nil, 5)
-	r.pollProviders(poll, nil, 6)
+		// Advance clock so that stopAfter has elapsed since last contact. This
+		// will make publisher appear unresponsive and polling will stop.
+		time.Sleep(poll.stopAfter + 1)
+		r.pollProviders(poll, nil, 5)
 
-	// Check that provider has been removed from registry after provider
-	// appeared non-responsive.
-	pinfo, _ = r.ProviderInfo(peerID)
-	require.Nil(t, pinfo, "expected provider to be removed from registry")
+		// Check that provider has been removed from registry after provider
+		// appeared non-responsive.
+		pinfo, ok = r.ProviderInfo(peerID)
+		require.False(t, ok, "expected provider to be removed from registry")
+		require.Nil(t, pinfo)
 
-	// Check that delete provider sent over sync channel.
-	select {
-	case pinfo = <-r.SyncChan():
-		require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel, expected %q got %q", peerID.String(), pinfo.AddrInfo.ID.String())
-		require.True(t, pinfo.Deleted(), "expected delete request for unresponsive provider")
-	default:
-		t.Fatal("sync channel should have deleted provider")
-	}
+		// Check that delete provider sent over sync channel.
+		select {
+		case pinfo = <-r.SyncChan():
+			require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel")
+			require.True(t, pinfo.Deleted(), "expected delete request for unresponsive provider")
+		default:
+			t.Fatal("sync channel should have deleted provider")
+		}
 
-	// This should still be ok to call even after provider is removed.
-	err = r.RemoveProvider(context.Background(), peerID)
-	require.NoError(t, err)
+		// Poll again to make sure that removed provider is not auto-synced.
+		time.Sleep(poll.interval + 1)
+		r.pollProviders(poll, nil, 6)
+
+		select {
+		case <-r.SyncChan():
+			t.Error("should not have received auto-sync")
+		default:
+		}
+
+		// This should still be ok to call even after provider is removed.
+		err = r.RemoveProvider(context.Background(), peerID)
+		require.NoError(t, err)
+
+		// Check that update brings deleted provider back.
+		err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
+		require.NoError(t, err)
+
+		pinfo, ok = r.ProviderInfo(peerID)
+		require.True(t, ok, "expected provider to be present")
+		require.NotNil(t, pinfo)
+		require.False(t, pinfo.Inactive(), "expected provider to be active")
+
+		// Check that auto sync works for revived provider.
+		time.Sleep(poll.interval + 1)
+		r.pollProviders(poll, nil, 7)
+		select {
+		case pinfo := <-r.SyncChan():
+			require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel")
+			require.False(t, pinfo.Inactive(), "expected provider to be active")
+		case <-time.After(2 * time.Second):
+			t.Fatal("expected sync channel to be written")
+		}
+
+		// Poll again to make sure nothing happens to provider.
+		time.Sleep(poll.interval + 1)
+		r.pollProviders(poll, nil, 8)
+		pinfo, ok = r.ProviderInfo(peerID)
+		require.True(t, ok, "expected provider to be present")
+		require.NotNil(t, pinfo)
+		require.False(t, pinfo.Inactive(), "expected provider to be active")
+	})
 }
 
 func TestPollProviderOverrides(t *testing.T) {
@@ -477,87 +534,89 @@ func TestPollProviderOverrides(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
-	r, err := New(ctx, cfg, datastore.NewMapDatastore())
-	t.Cleanup(func() { r.Close() })
-	require.NoError(t, err)
-	defer r.Close()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		r, err := New(ctx, cfg, datastore.NewMapDatastore())
+		require.NoError(t, err)
+		defer r.Close()
 
-	peerID, err := peer.Decode(limitedID)
-	require.NoError(t, err)
-	pubID, err := peer.Decode(publisherID)
-	require.NoError(t, err)
+		peerID, err := peer.Decode(limitedID)
+		require.NoError(t, err)
+		pubID, err := peer.Decode(publisherID)
+		require.NoError(t, err)
 
-	maddr, err := multiaddr.NewMultiaddr(minerAddr)
-	require.NoError(t, err)
+		maddr, err := multiaddr.NewMultiaddr(minerAddr)
+		require.NoError(t, err)
 
-	prov := peer.AddrInfo{
-		ID:    peerID,
-		Addrs: []multiaddr.Multiaddr{maddr},
-	}
-	pub := peer.AddrInfo{
-		ID: pubID,
-	}
-	err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
-	require.NoError(t, err)
+		prov := peer.AddrInfo{
+			ID:    peerID,
+			Addrs: []multiaddr.Multiaddr{maddr},
+		}
+		pub := peer.AddrInfo{
+			ID: pubID,
+		}
+		err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
+		require.NoError(t, err)
 
-	poll := polling{
-		interval:   2 * time.Hour,
-		retryAfter: time.Hour,
-		stopAfter:  5 * time.Hour,
-	}
+		poll := polling{
+			interval:   time.Minute,
+			retryAfter: time.Hour,
+			stopAfter:  24 * time.Hour,
+		}
 
-	overrides := make(map[peer.ID]polling)
-	overrides[peerID] = polling{
-		interval:   0,
-		retryAfter: time.Minute,
-		stopAfter:  time.Hour,
-	}
+		overrides := make(map[peer.ID]polling)
+		overridePoll := polling{
+			interval:   time.Second,
+			retryAfter: time.Minute,
+			stopAfter:  time.Hour,
+		}
+		overrides[peerID] = overridePoll
 
-	// Check for auto-sync after pollInterval 0.
-	r.pollProviders(poll, overrides, 1)
-	select {
-	case pinfo := <-r.SyncChan():
-		require.Equal(t, pinfo.AddrInfo.ID, peerID, "Wrong provider ID")
-		require.Equal(t, pinfo.Publisher, pubID, "Wrong publisher ID")
-	case <-time.After(2 * time.Second):
-		t.Fatal("Expected sync channel to be written")
-	}
+		// Check for auto-sync after pollInterval.
+		time.Sleep(overridePoll.interval + 1)
+		r.pollProviders(poll, overrides, 1)
+		select {
+		case pinfo := <-r.SyncChan():
+			require.Equal(t, pinfo.AddrInfo.ID, peerID, "Wrong provider ID")
+			require.Equal(t, pinfo.Publisher, pubID, "Wrong publisher ID")
+		case <-time.After(2 * time.Second):
+			t.Fatal("Expected sync channel to be written")
+		}
 
-	// Set stopAfter to 0 so that stopAfter will have elapsed since last
-	// contact. This will make publisher appear unresponsive and polling will
-	// stop.
-	overrides[peerID] = polling{
-		retryAfter: time.Minute,
-		stopAfter:  0,
-	}
-	r.pollProviders(poll, overrides, 2)
-	// wait some time to pass poll interval (for low-res timers)
-	time.Sleep(time.Second)
-	r.pollProviders(poll, overrides, 3)
-	r.pollProviders(poll, overrides, 4)
+		// Advance clock so that stopAfter has elapsed since last contact. This
+		// will make publisher appear unresponsive and polling will stop.
+		time.Sleep(overridePoll.stopAfter + 1)
+		r.pollProviders(poll, overrides, 2)
 
-	// Check that provider has been removed from registry after provider
-	// appeared non-responsive.
-	pinfo, _ := r.ProviderInfo(peerID)
-	require.Nil(t, pinfo, "expected provider to be removed from registry")
+		// Check that provider has been removed from registry after provider
+		// appeared non-responsive.
+		pinfo, _ := r.ProviderInfo(peerID)
+		require.Nil(t, pinfo, "expected provider to be removed from registry")
 
-	// Check that delete provider sent over sync channel.
-	select {
-	case pinfo = <-r.SyncChan():
-		require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel, expected %q got %q", peerID.String(), pinfo.AddrInfo.ID.String())
-		require.True(t, pinfo.Deleted(), "expected delete request for unresponsive provider")
-	default:
-		t.Fatal("sync channel should have deleted provider")
-	}
+		// Check that delete provider sent over sync channel.
+		select {
+		case pinfo = <-r.SyncChan():
+			require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel")
+			require.True(t, pinfo.Deleted(), "expected delete request for unresponsive provider")
+		default:
+			t.Fatal("sync channel should have deleted provider")
+		}
 
-	// Check that sync channel was not written since polling should have
-	// stopped.
-	select {
-	case <-r.SyncChan():
-		t.Fatal("sync channel should not have been written to for override peer")
-	default:
-	}
+		// Advance time and try polling a couple of times to make sure that
+		// auto-sync does not happen.
+		time.Sleep(overridePoll.interval + 1)
+		r.pollProviders(poll, overrides, 3)
+		time.Sleep(overridePoll.interval + 1)
+		r.pollProviders(poll, overrides, 4)
+
+		// Check that sync channel was not written since polling should have
+		// stopped.
+		select {
+		case <-r.SyncChan():
+			t.Fatal("sync channel should not have been written to for override peer")
+		default:
+		}
+	})
 }
 
 func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
@@ -920,50 +979,52 @@ func TestIgnoreBadAds(t *testing.T) {
 			Publish: true,
 		},
 	}
-	tmpBlockCheckInterval = 2 * time.Second
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
 
-	ctx := context.Background()
+		r, err := New(ctx, cfg, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { r.Close() })
 
-	r, err := New(ctx, cfg, nil)
-	require.NoError(t, err)
-	t.Cleanup(func() { r.Close() })
+		provID, err := peer.Decode(limitedID)
+		require.NoError(t, err)
+		maddr, err := multiaddr.NewMultiaddr(minerAddr)
+		require.NoError(t, err)
+		provider := peer.AddrInfo{
+			ID: provID,
+		}
 
-	provID, err := peer.Decode(limitedID)
-	require.NoError(t, err)
-	maddr, err := multiaddr.NewMultiaddr(minerAddr)
-	require.NoError(t, err)
-	provider := peer.AddrInfo{
-		ID: provID,
-	}
+		pubID, err := peer.Decode(publisherID)
+		require.NoError(t, err)
+		pubAddr, err := multiaddr.NewMultiaddr(publisherAddr)
+		require.NoError(t, err)
+		publisher := peer.AddrInfo{
+			ID:    pubID,
+			Addrs: []multiaddr.Multiaddr{pubAddr},
+		}
 
-	pubID, err := peer.Decode(publisherID)
-	require.NoError(t, err)
-	pubAddr, err := multiaddr.NewMultiaddr(publisherAddr)
-	require.NoError(t, err)
-	publisher := peer.AddrInfo{
-		ID:    pubID,
-		Addrs: []multiaddr.Multiaddr{pubAddr},
-	}
+		err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
+		require.ErrorIs(t, err, ErrMissingProviderAddr)
+		require.False(t, r.Allowed(pubID), "publisher should be blocked")
+		require.True(t, r.Allowed(provID), "provider should be allowed")
 
-	err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
-	require.ErrorIs(t, err, ErrMissingProviderAddr)
-	require.False(t, r.Allowed(pubID), "publisher should be blocked")
-	require.True(t, r.Allowed(provID), "provider should be allowed")
+		// Still not allowed after half the check interval.
+		time.Sleep(tmpBlockCheckInterval / 2)
+		synctest.Wait()
+		require.False(t, r.Allowed(pubID), "publisher should be blocked")
 
-	// Still not allowed after 1 second.
-	time.Sleep(time.Second)
-	require.False(t, r.Allowed(pubID), "publisher should be blocked")
+		// Allowed once after check interval.
+		time.Sleep(tmpBlockCheckInterval)
+		synctest.Wait()
+		require.True(t, r.Allowed(pubID), "publisher should be allowed")
+		require.False(t, r.Allowed(pubID), "publisher should be blocked")
 
-	// Allowed once after 2 more seconds.
-	time.Sleep(time.Second * 2)
-	require.True(t, r.Allowed(pubID), "publisher should be not allowed")
-	require.False(t, r.Allowed(pubID), "publisher should be blocked")
-
-	// Allowed after good update.
-	provider.Addrs = []multiaddr.Multiaddr{maddr}
-	err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
-	require.NoError(t, err)
-	require.True(t, r.Allowed(pubID), "publisher should be not allowed")
+		// Allowed after good update.
+		provider.Addrs = []multiaddr.Multiaddr{maddr}
+		err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
+		require.NoError(t, err)
+		require.True(t, r.Allowed(pubID), "publisher should be not allowed")
+	})
 }
 
 func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
