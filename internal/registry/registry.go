@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -41,7 +42,7 @@ var log = logging.Logger("indexer/registry")
 
 // tmpBlockCheckInterval is how often to check the temporary block cache for
 // expired entries.
-var tmpBlockCheckInterval = 5 * time.Minute
+const tmpBlockCheckInterval = 5 * time.Minute
 
 // Registry stores information about discovered providers
 type Registry struct {
@@ -860,9 +861,12 @@ func (r *Registry) ProviderInfo(providerID peer.ID) (*ProviderInfo, bool) {
 // active and allowed.
 func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	r.provMutex.Lock()
+
 	infos := make([]*ProviderInfo, 0, len(r.providers))
-	for _, info := range r.providers {
-		if r.assigned != nil {
+
+	// If using assigner.
+	if r.assigned != nil {
+		for _, info := range r.providers {
 			r.assignMutex.Lock()
 			_, ok := r.assigned[info.Publisher]
 			r.assignMutex.Unlock()
@@ -871,9 +875,14 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 				// assigner service.
 				continue
 			}
+			infos = append(infos, info)
 		}
-		infos = append(infos, info)
+	} else {
+		for _, info := range r.providers {
+			infos = append(infos, info)
+		}
 	}
+
 	r.provMutex.Unlock()
 
 	// Stats tracks the number of active, allowed providers.
@@ -1317,8 +1326,8 @@ func (r *Registry) pollProviders(normalPoll polling, pollOverrides map[peer.ID]p
 	}
 
 	// Sort from least to most recently polled.
-	sort.Slice(needPoll, func(i, j int) bool {
-		return needPoll[i].lastPoll < needPoll[j].lastPoll
+	slices.SortFunc(needPoll, func(a, b *ProviderInfo) int {
+		return cmp.Compare(a.lastPoll, b.lastPoll)
 	})
 
 	// Do not poll more than the max when set to non-zero.

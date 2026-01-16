@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"sort"
+	"slices"
 	"strconv"
 	"sync"
 
@@ -387,7 +387,7 @@ func (h *adminHandler) handleGetSyncs(w http.ResponseWriter, r *http.Request) {
 	}
 	h.pendingSyncsLock.Unlock()
 
-	sort.Strings(peers)
+	slices.Sort(peers)
 	marshalled, err := json.Marshal(peers)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

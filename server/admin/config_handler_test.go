@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -28,7 +28,7 @@ func Test_ListLoggingSubsystems(t *testing.T) {
 
 	scanner := bufio.NewScanner(rr.Body)
 	subsystems := logging.GetSubsystems()
-	sort.Strings(subsystems)
+	slices.Sort(subsystems)
 	for _, ss := range subsystems {
 		eof := scanner.Scan()
 		require.True(t, eof)
