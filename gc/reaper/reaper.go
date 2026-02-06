@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -34,11 +35,23 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/gologshim"
 
 	// Import so these codecs get registered.
 	_ "github.com/ipld/go-ipld-prime/codec/dagcbor"
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 )
+
+func init() {
+	// Set go-log's slog handler as the application-wide default. This ensures
+	// all slog-based logging uses go-log's formatting.
+	slog.SetDefault(slog.New(logging.SlogHandler()))
+
+	// Wire go-log's slog bridge to go-libp2p's gologshim. This provides
+	// go-libp2p loggers with the "logger" attribute for per-subsystem level
+	// control.
+	gologshim.SetDefaultHandler(logging.SlogHandler())
+}
 
 var log = logging.Logger("ipni-gc")
 
@@ -98,7 +111,6 @@ type Reaper struct {
 	stats       GCStats
 	statsMutex  sync.Mutex
 	syncSegSize int
-	topic       string
 }
 
 type scythe struct {
@@ -193,7 +205,6 @@ func New(idxr indexer.Interface, fileStore filestore.Interface, options ...Optio
 		pcache:      opts.pcache,
 		segmentSize: opts.segmentSize,
 		syncSegSize: opts.syncSegSize,
-		topic:       opts.topic,
 	}, nil
 }
 
@@ -616,7 +627,7 @@ func (r *Reaper) makeSubscriber(dstoreTmp datastore.Batching) (*dagsync.Subscrib
 		}, nil
 	}
 
-	return dagsync.NewSubscriber(r.host, dstoreTmp, linksys, r.topic,
+	return dagsync.NewSubscriber(r.host, linksys,
 		dagsync.HttpTimeout(r.httpTimeout),
 		dagsync.SegmentDepthLimit(int64(r.syncSegSize)))
 }

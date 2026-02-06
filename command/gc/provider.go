@@ -164,7 +164,6 @@ func providerAction(cctx *cli.Context) error {
 		reaper.WithEntriesFromPublisher(cctx.Bool("ents-from-pub")),
 		reaper.WithPCache(pc),
 		reaper.WithSegmentSize(cctx.Int("segment-size")),
-		reaper.WithTopicName(cfg.Ingest.PubSubTopic),
 		reaper.WithHttpTimeout(time.Duration(cfg.Ingest.HttpSyncTimeout)),
 		reaper.WithSyncSegmentSize(cctx.Int("sync-segment-size")),
 	)
