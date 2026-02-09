@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.12
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.51
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.2
-	github.com/aws/smithy-go v1.13.5
+	github.com/aws/smithy-go v1.24.0
 	github.com/cockroachdb/pebble/v2 v2.1.4
 	github.com/gammazero/chanqueue v1.1.1
 	github.com/gammazero/deque v1.2.0
