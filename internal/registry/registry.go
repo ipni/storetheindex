@@ -83,7 +83,7 @@ type ProviderInfo struct {
 	// AddrInfo contains a peer.ID and set of Multiaddr addresses.
 	AddrInfo peer.AddrInfo
 	// LastAdvertisement identifies the latest advertisement the indexer has ingested.
-	LastAdvertisement cid.Cid `json:",omitempty"`
+	LastAdvertisement cid.Cid
 	// LastAdvertisementTime is the time the latest advertisement was received.
 	LastAdvertisementTime time.Time
 	// Lag is how far the indexer is behing in processing the ad chain.
@@ -98,7 +98,7 @@ type ProviderInfo struct {
 
 	// FrozenAt identifies the last advertisement that was received before the
 	// indexer became frozen.
-	FrozenAt cid.Cid `json:",omitempty"`
+	FrozenAt cid.Cid
 	// FrozenAtTime is the time that the FrozenAt advertisement was received.
 	FrozenAtTime time.Time
 

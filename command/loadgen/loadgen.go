@@ -248,7 +248,7 @@ func (p *providerLoadGen) runUpdater(afterEachUpdate func()) func() {
 					isRm:            false,
 					provider:        p.h.ID().String(),
 					providerAddrs:   addrs,
-					metadata:        []byte(fmt.Sprintf("providerSeed=%d,entriesGenerated=%d", p.config.Seed, p.entriesGenerated)),
+					metadata:        fmt.Appendf(nil, "providerSeed=%d,entriesGenerated=%d", p.config.Seed, p.entriesGenerated),
 				}
 
 				nextAdHead, err := adBuilder.build(p.lsys, p.signingKey, p.currentHead)
@@ -314,7 +314,7 @@ type adBuilder struct {
 }
 
 func (b adBuilder) build(lsys ipld.LinkSystem, signingKey crypto.PrivKey, prevAd ipld.Link) (ipld.Link, error) {
-	contextID := []byte(fmt.Sprintf("%d", b.contextID))
+	contextID := fmt.Appendf(nil, "%d", b.contextID)
 	metadata := b.metadata
 	var entriesLink ipld.Link
 	if b.entryCount == 0 {
@@ -329,10 +329,7 @@ func (b adBuilder) build(lsys ipld.LinkSystem, signingKey crypto.PrivKey, prevAd
 			allMhs = append(allMhs, mh)
 		}
 		for len(allMhs) > 0 {
-			splitIdx := len(allMhs) - int(b.entriesPerChunk)
-			if splitIdx < 0 {
-				splitIdx = 0
-			}
+			splitIdx := max(len(allMhs)-int(b.entriesPerChunk), 0)
 			mhChunk := allMhs[splitIdx:]
 			allMhs = allMhs[:splitIdx]
 			var err error

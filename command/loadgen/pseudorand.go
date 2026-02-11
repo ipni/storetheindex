@@ -14,7 +14,7 @@ func newPseudoRandReaderFrom(src rand.Source) io.Reader {
 }
 
 func (r *pr) Read(p []byte) (n int, err error) {
-	for i := 0; i < len(p); i++ {
+	for i := range p {
 		p[i] = byte(r.Int63())
 	}
 	return len(p), nil

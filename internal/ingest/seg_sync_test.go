@@ -23,7 +23,7 @@ func TestAdsSyncedViaSegmentsAreProcessed(t *testing.T) {
 	})
 	rng := rand.New(rand.NewSource(1413))
 	var cb []typehelpers.EntryBuilder
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		chunkCount := rng.Int31n(50)
 		ePerChunk := rng.Int31n(50)
 		seed := rng.Int63()

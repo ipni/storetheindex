@@ -1,7 +1,6 @@
 package command
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -12,8 +11,7 @@ import (
 
 func TestInit(t *testing.T) {
 	// Set up a context that is canceled when the command is interrupted
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	tempDir := t.TempDir()
 	t.Setenv(config.EnvDir, tempDir)

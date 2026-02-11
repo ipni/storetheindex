@@ -231,7 +231,7 @@ func TestWriteChain(t *testing.T) {
 func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash) {
 	var out []multihash.Multihash
 	var nextLnk ipld.Link
-	for i := 0; i < size; i++ {
+	for range size {
 		mhs := random.Multihashes(testEntriesChunkSize)
 		chunk := &schema.EntryChunk{
 			Entries: mhs,

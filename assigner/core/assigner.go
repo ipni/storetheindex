@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -232,14 +233,7 @@ func (a *Assigner) initAssignments(ctx context.Context) int {
 	wrongPreset := func(pubID peer.ID, indexerNum int) bool {
 		preset, usesPreset := a.presets[pubID]
 		if usesPreset {
-			for _, p := range preset {
-				if p == indexerNum {
-					// Indexer is a preset, keep assignment.
-					return false
-				}
-			}
-			// Publisher uses presets, but indexer is not one of them; ignore.
-			return true
+			return !slices.Contains(preset, indexerNum)
 		}
 		// Publisher does not use presets, keep assignment.
 		return false

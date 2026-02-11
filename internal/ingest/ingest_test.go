@@ -1289,7 +1289,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 
 	entriesCid := getAdEntriesCid(t, srcStore, adCid)
 	nextChunkCid := entriesCid
-	for i := 0; i < totalChunkCount; i++ {
+	for i := range totalChunkCount {
 		mhs, nextChunkCid = decodeEntriesChunk(t, srcStore, nextChunkCid)
 		// If chunk depth is within limit
 		// Note that 1 is added to the entries depth because the entries sync process peaks the
@@ -1308,7 +1308,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	require.Equal(t, cid.Undef, nextChunkCid)
 }
 
-func requireNotIndexed(t *testing.T, ix indexer.Interface, p peer.ID, mhs []multihash.Multihash, msgAndArgs ...interface{}) {
+func requireNotIndexed(t *testing.T, ix indexer.Interface, p peer.ID, mhs []multihash.Multihash, msgAndArgs ...any) {
 	t.Helper()
 	for _, mh := range mhs {
 		vs, exists, err := ix.Get(mh)
@@ -1789,7 +1789,7 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash) {
 	var out []multihash.Multihash
 	var nextLnk ipld.Link
-	for i := 0; i < size; i++ {
+	for range size {
 		mhs := random.Multihashes(testEntriesChunkSize)
 		chunk := &schema.EntryChunk{
 			Entries: mhs,
@@ -1889,7 +1889,7 @@ func publishAdvWithExtendedProviders(t *testing.T,
 
 	// Generating extended providers
 	epKeys := map[string]crypto.PrivKey{}
-	for i := 0; i < extProvsNum; i++ {
+	for i := range extProvsNum {
 		epPriv, epPub, err := p2ptest.RandTestKeyPair(crypto.Ed25519, 256)
 		require.NoError(t, err)
 		epID, err := peer.IDFromPublicKey(epPub)
@@ -1899,7 +1899,7 @@ func publishAdvWithExtendedProviders(t *testing.T,
 		adv.ExtendedProvider.Providers = append(adv.ExtendedProvider.Providers, schema.Provider{
 			ID:        epID.String(),
 			Addresses: random.Addrs(1),
-			Metadata:  []byte(fmt.Sprintf("test-metadata-%d", i)),
+			Metadata:  fmt.Appendf(nil, "test-metadata-%d", i),
 		})
 	}
 

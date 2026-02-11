@@ -49,7 +49,7 @@ func NewS3(bucketName string, options ...S3Option) (*S3, error) {
 	}
 	if opts.endpoint != "" {
 		epResolverFunc := aws.EndpointResolverWithOptionsFunc(
-			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			func(service, region string, options ...any) (aws.Endpoint, error) {
 				return aws.Endpoint{URL: opts.endpoint}, nil
 			})
 		usePathStyle = true

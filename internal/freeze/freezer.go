@@ -300,10 +300,7 @@ func (f *Freezer) check() (time.Duration, bool, error) {
 
 	// Next check interval is proportional to the storage remaining until
 	// reaching the freeze-at point.
-	nextCheck := time.Duration(float64(maxCheckInterval) * (f.freezeAt - mostUsed) / 100.0)
-	if nextCheck < minCheckInterval {
-		nextCheck = minCheckInterval
-	}
+	nextCheck := max(time.Duration(float64(maxCheckInterval)*(f.freezeAt-mostUsed)/100.0), minCheckInterval)
 	return nextCheck, false, nil
 }
 

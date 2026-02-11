@@ -128,7 +128,7 @@ func loadGenVerifyAction(cctx *cli.Context) error {
 
 	numberOfMhsToQuery := cctx.Uint64("numberOfRandomQueries")
 	for i := uint64(0); i < cctx.Uint64("concurrentProviders"); i++ {
-		for j := uint64(0); j < numberOfMhsToQuery; j++ {
+		for range numberOfMhsToQuery {
 			multihashIndex := uint64(mathrand.Int63n(int64(cctx.Uint64("maxEntryNumber"))))
 			mh, err := loadgen.GenerateMH(i, multihashIndex)
 			if err != nil {
@@ -192,8 +192,8 @@ func parseKVs(kvs string) map[string]string {
 	if kvs == "" {
 		return out
 	}
-	kvSlice := strings.Split(kvs, ",")
-	for _, kv := range kvSlice {
+	kvSlice := strings.SplitSeq(kvs, ",")
+	for kv := range kvSlice {
 		parts := strings.Split(kv, "=")
 		k := parts[0]
 		v := parts[1]
