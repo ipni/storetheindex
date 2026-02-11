@@ -22,8 +22,8 @@ func acceptsAnyOf(w http.ResponseWriter, r *http.Request, strict bool, mts ...st
 	}
 	mtSet := make(map[string]struct{})
 	for _, accept := range values {
-		amts := strings.Split(accept, ",")
-		for _, amt := range amts {
+		amts := strings.SplitSeq(accept, ",")
+		for amt := range amts {
 			mt, _, err := mime.ParseMediaType(amt)
 			if err != nil {
 				err = fmt.Errorf("invalid accept header: %s", err)

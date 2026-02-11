@@ -19,7 +19,7 @@ type bufferedDelimitedWriter struct {
 }
 
 var writerPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		w := bufio.NewWriter(nil)
 		return &bufferedDelimitedWriter{
 			Writer:      w,

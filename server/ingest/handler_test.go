@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/ipfs/go-datastore"
@@ -37,10 +38,8 @@ func (m *mockIndexer) Put(value indexer.Value, mhs ...multihash.Multihash) error
 		k := mh.B58String()
 		vals, ok := m.store[k]
 		if ok {
-			for i := range vals {
-				if value.Match(vals[i]) {
-					return nil
-				}
+			if slices.ContainsFunc(vals, value.Match) {
+				return nil
 			}
 		}
 		m.store[k] = append(vals, value)
