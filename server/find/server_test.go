@@ -114,7 +114,7 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 			reqMethod:       http.MethodPost,
 			reqUrl:          "/multihash",
 			wantContentType: "application/json",
-			statusCode:      http.StatusBadRequest,
+			statusCode:      http.StatusBadRequest, // This should fail with 405 Method Not Allowed
 		},
 		{
 			reqMethod:       http.MethodGet,
