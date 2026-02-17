@@ -153,6 +153,9 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 			require.NoError(t, err)
 			res.Body.Close()
 			require.Equal(t, tt.statusCode, res.StatusCode)
+			if tt.reqMethod == http.MethodPost {
+				fmt.Println("---> find POST returned status:", res.StatusCode)
+			}
 			if res.StatusCode != http.StatusOK {
 				return
 			}
