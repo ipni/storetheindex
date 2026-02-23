@@ -110,11 +110,23 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 			wantContentType: "application/json",
 			statusCode:      http.StatusBadRequest,
 		},
+		/*
+			// This test works in go1.25 becuase there is no handler for
+			// `/multihash` (no trailing slash). This test fails in go1.26 because
+			// the request for `/multihash` is redirected to the handler for
+			// `/multihash/` which checks the method.
+			{
+				reqMethod:       http.MethodPost,
+				reqUrl:          "/multihash",
+				wantContentType: "application/json",
+				statusCode:      http.StatusBadRequest,
+			},
+		*/
 		{
 			reqMethod:       http.MethodPost,
-			reqUrl:          "/multihash",
+			reqUrl:          "/multihash/",
 			wantContentType: "application/json",
-			statusCode:      http.StatusBadRequest,
+			statusCode:      http.StatusMethodNotAllowed,
 		},
 		{
 			reqMethod:       http.MethodGet,
