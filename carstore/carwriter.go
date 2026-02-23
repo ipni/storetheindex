@@ -148,12 +148,17 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 		}
 	}
 
-	carTmpName := filepath.Join(os.TempDir(), fileName)
+	tempDir, err := os.MkdirTemp("", "carstore-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tempDir)
+
+	carTmpName := filepath.Join(tempDir, fileName)
 	carFile, err := os.Create(carTmpName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create car file: %w", err)
 	}
-	defer os.Remove(carTmpName)
 	defer carFile.Close()
 
 	carStore, err := storage.NewWritable(carFile, roots)
@@ -218,7 +223,6 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 		if err != nil {
 			return nil, fmt.Errorf("cannot create gzip file: %w", err)
 		}
-		defer os.Remove(gzTmpName)
 		defer gzFile.Close()
 
 		wbuf := bufio.NewWriter(gzFile)
