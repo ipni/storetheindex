@@ -175,8 +175,7 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	// Create indexer core
-	var indexerCore *engine.Engine
-	indexerCore = engine.New(valueStore, engine.WithCache(resultCache))
+	indexerCore := engine.New(valueStore, engine.WithCache(resultCache))
 
 	// Create registry
 	reg, err := registry.New(cctx.Context, cfg.Discovery, dstore,
