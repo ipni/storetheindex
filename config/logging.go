@@ -16,7 +16,8 @@ func NewLogging() Logging {
 	return Logging{
 		Level: "info",
 		Loggers: map[string]string{
-			"bootstrap": "warn",
+			"bootstrap":  "warn",
+			"p2p-config": "error",
 		},
 	}
 }
