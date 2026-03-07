@@ -31,7 +31,6 @@ import (
 	httpadmin "github.com/ipni/storetheindex/server/admin"
 	httpfind "github.com/ipni/storetheindex/server/find"
 	httpingest "github.com/ipni/storetheindex/server/ingest"
-	"github.com/ipni/xedni"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -113,19 +112,6 @@ func daemonAction(cctx *cli.Context) error {
 	}
 	log.Info("Valuestore initialized")
 
-	// Create reverse indexer if enabled
-	var rx *xedni.Xedni
-	if cfg.ReverseIndexer.Enabled {
-		rx, err = xedni.New(
-			xedni.WithDelegateIndexer(valueStore),
-			xedni.WithStorePath(cfg.ReverseIndexer.StorePath),
-			xedni.WithHTTPServerListenAddr(cfg.Addresses.ReverseIndexer))
-		if err != nil {
-			return fmt.Errorf("cannot create reverse indexer: %w", err)
-		}
-		log.Info("Reverse indexer initialized")
-	}
-
 	// If the value store requires a minimum key length, make sure the
 	// ingester is configured with at least the minimum.
 	if minKeyLen > cfg.Ingest.MinimumKeyLength {
@@ -190,11 +176,7 @@ func daemonAction(cctx *cli.Context) error {
 
 	// Create indexer core
 	var indexerCore *engine.Engine
-	if rx != nil {
-		indexerCore = engine.New(rx.Store(), engine.WithCache(resultCache))
-	} else {
-		indexerCore = engine.New(valueStore, engine.WithCache(resultCache))
-	}
+	indexerCore = engine.New(valueStore, engine.WithCache(resultCache))
 
 	// Create registry
 	reg, err := registry.New(cctx.Context, cfg.Discovery, dstore,
@@ -360,15 +342,6 @@ func daemonAction(cctx *cli.Context) error {
 	} else {
 		fmt.Println("Ingest server:\t disabled")
 	}
-	if rx != nil {
-		err := rx.Start(cctx.Context)
-		if err != nil {
-			return fmt.Errorf("failed to start reverse indexer: %s", err)
-		}
-		fmt.Println("Reverse Indexer server:\t", cfg.Addresses.ReverseIndexer)
-	} else {
-		fmt.Println("Reverse Indexer server:\t disabled")
-	}
 	if adminSvr != nil {
 		go func() {
 			svrErrChan <- adminSvr.Start()
@@ -503,12 +476,6 @@ func daemonAction(cctx *cli.Context) error {
 	if ingestSvr != nil {
 		if err = ingestSvr.Close(); err != nil {
 			log.Errorw("Error shutting down ingest server", "err", err)
-			finalErr = ErrDaemonStop
-		}
-	}
-	if rx != nil {
-		if err = rx.Shutdown(cctx.Context); err != nil {
-			log.Errorw("Error shutting down reverse indexer server", "err", err)
 			finalErr = ErrDaemonStop
 		}
 	}
