@@ -86,6 +86,7 @@ func New(dirPaths []string, freezeAtPercent float64, dstore datastore.Datastore,
 	}
 
 	if f.noFreeze {
+		log.Info("freezing disabled")
 		return f, nil
 	}
 
