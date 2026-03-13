@@ -8,7 +8,6 @@ import (
 
 	logging "github.com/ipfs/go-log/v2"
 	indexer "github.com/ipni/go-indexer-core"
-	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/metrics/pprof"
@@ -78,7 +77,7 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	mux.HandleFunc("/ingest/preferred", h.listPreferredPeers)
 
 	// Metrics routes
-	mux.Handle("/metrics/", metrics.Start(append(coremetrics.DefaultViews, coremetrics.PebbleViews...)))
+	mux.Handle("/metrics/", metrics.Start(nil))
 	mux.Handle("/debug/pprof/", pprof.WithProfile())
 
 	// Telemetry routes

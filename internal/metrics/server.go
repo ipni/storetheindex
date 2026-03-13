@@ -3,13 +3,12 @@ package metrics
 import (
 	"net/http"
 
+	"contrib.go.opencensus.io/exporter/prometheus"
 	logging "github.com/ipfs/go-log/v2"
+	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
-
-	"contrib.go.opencensus.io/exporter/prometheus"
-	promclient "github.com/prometheus/client_golang/prometheus"
 )
 
 // Global Tags
@@ -118,17 +117,16 @@ func Start(views []*view.View) http.Handler {
 	if err != nil {
 		log.Errorf("cannot register metrics default views: %s", err)
 	}
-	// Register other views
-	err = view.Register(views...)
-	if err != nil {
-		log.Errorf("cannot register metrics views: %s", err)
+	if len(views) != 0 {
+		// Register other views
+		err = view.Register(views...)
+		if err != nil {
+			log.Errorf("cannot register metrics views: %s", err)
+		}
 	}
-	registry, ok := promclient.DefaultRegisterer.(*promclient.Registry)
-	if !ok {
-		log.Warnf("failed to export default prometheus registry; some metrics will be unavailable; unexpected type: %T", promclient.DefaultRegisterer)
-	}
+
 	exporter, err := prometheus.NewExporter(prometheus.Options{
-		Registry:  registry,
+		Registry:  coremetrics.PromRegistry,
 		Namespace: "storetheindex",
 	})
 	if err != nil {
