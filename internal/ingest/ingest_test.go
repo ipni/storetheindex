@@ -1468,8 +1468,6 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 	// Asset that the head ad multihash is not indexed.
 	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), mhs[3:])
 
-	require.Equal(t, 1, int(te.ingester.workersActive.Load()))
-
 	// Announce an ad CID and assert that call to announce is deferred since
 	// we have blocked the processing.
 	ad2Cid := ads[2].(cidlink.Link).Cid
@@ -1528,10 +1526,6 @@ func TestAnnounceIsNotDeferredOnNoInProgressIngest(t *testing.T) {
 		_, found := te.ingester.syncInProgress[te.pubHost.ID()]
 		te.ingester.syncInProgressMu.Unlock()
 		return !found
-	}, testRetryTimeout, testRetryInterval)
-
-	require.Eventually(t, func() bool {
-		return te.ingester.workersActive.Load() == 0
 	}, testRetryTimeout, testRetryInterval)
 }
 

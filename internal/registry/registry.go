@@ -28,7 +28,6 @@ import (
 	"github.com/ipni/storetheindex/internal/registry/policy"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
-	"go.opencensus.io/stats"
 )
 
 const (
@@ -886,7 +885,7 @@ func (r *Registry) AllProviderInfo() []*ProviderInfo {
 	r.provMutex.Unlock()
 
 	// Stats tracks the number of active, allowed providers.
-	stats.Record(context.Background(), metrics.ProviderCount.M(int64(len(infos))))
+	metrics.ProviderCount.Set(float64(len(infos)))
 	return infos
 }
 

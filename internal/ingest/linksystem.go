@@ -29,7 +29,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
-	"go.opencensus.io/stats"
 	"go.uber.org/zap"
 
 	// Import so these codecs get registered.
@@ -143,14 +142,12 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 
 	ad, err := ing.loadAd(adCid)
 	if err != nil {
-		stats.Record(context.Background(), metrics.AdLoadError.M(1))
 		log.Errorw("Failed to load advertisement, skipping", "err", err)
 		// The ad cannot be loaded, so we cannot process it. Return nil so that
 		// the ad is marked as processed and is removed from the datastore.
 		return false, false, nil
 	}
 
-	stats.Record(ctx, metrics.IngestChange.M(1))
 	var mhCount int
 	var entsSyncStart time.Time
 	ingestStart := time.Now()
@@ -161,7 +158,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		// Record how long ad sync took.
 		elapsed := now.Sub(ingestStart)
 		elapsedMsec := float64(elapsed.Nanoseconds()) / 1e6
-		stats.Record(ctx, metrics.AdIngestLatency.M(elapsedMsec))
+		metrics.AdIngestLatency.Set(elapsedMsec)
 		log.Infow("Finished syncing advertisement", "elapsed", elapsed.String(), "multihashes", mhCount)
 
 		if mhCount != 0 {
@@ -171,7 +168,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 
 			// Record how long entries sync took.
 			elapsedMsec = float64(elapsed.Nanoseconds()) / 1e6
-			stats.Record(ctx, metrics.EntriesSyncLatency.M(elapsedMsec))
+			metrics.EntriesSyncLatency.Set(elapsedMsec)
 		}
 	}()
 

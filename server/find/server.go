@@ -23,8 +23,6 @@ import (
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
-	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
 	xnet "golang.org/x/net/netutil"
 )
 
@@ -304,9 +302,13 @@ func (s *Server) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, st
 	var found bool
 	defer func() {
 		msecPerMh := coremetrics.MsecSince(startTime) / float64(len(mhs))
-		_ = stats.RecordWithOptions(context.Background(),
-			stats.WithTags(tag.Insert(metrics.Found, fmt.Sprintf("%v", found))),
-			stats.WithMeasurements(metrics.FindLatency.M(msecPerMh)))
+		var foundLabel string
+		if found {
+			foundLabel = "true"
+		} else {
+			foundLabel = "false"
+		}
+		metrics.FindLatency.WithLabelValues(foundLabel).Set(float64(msecPerMh))
 	}()
 
 	response, err := s.find(mhs)

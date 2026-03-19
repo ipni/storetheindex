@@ -77,7 +77,7 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	mux.HandleFunc("/ingest/preferred", h.listPreferredPeers)
 
 	// Metrics routes
-	mux.Handle("/metrics/", metrics.Start(nil))
+	mux.Handle("/metrics/", metrics.Start())
 	mux.Handle("/debug/pprof/", pprof.WithProfile())
 
 	// Telemetry routes
