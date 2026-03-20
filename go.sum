@@ -399,10 +399,10 @@ github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20250821084354-a425e60cd7
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20250821084354-a425e60cd714/go.mod h1:ZEUdra3CoqRVRYgAX/jAJO9aZGz6SKtKEG628fHHktY=
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20260216055925-75f643e10510 h1:OYzls31vqs4eMqJFsFRGW0yJkYLi75y7TNmXJ43dUL4=
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20260216055925-75f643e10510/go.mod h1:WPBfUR8Brtxbz4tMhugDhA/IlAFMik8DjLExAO3bj8k=
-github.com/ipni/go-indexer-core v0.9.4 h1:KdSnzjf1X1PV2RIwPf0PxRt7GMTIIGwojAZaZeQpH00=
-github.com/ipni/go-indexer-core v0.9.4/go.mod h1:UUcfV9UCdNlv7ws2/M9fU6BgDr/yJpe6EUrQvrujqy8=
-github.com/ipni/go-libipni v0.7.5 h1:IpEjuYhhUXhB6FFSOzyyXgqJ8v0TH6h4FkFSF2jYvs8=
-github.com/ipni/go-libipni v0.7.5/go.mod h1:Dnx4ojxBI/TwVgngsa+M/zzNeKxqY0hiwqip0PObYhc=
+github.com/ipni/go-indexer-core v0.9.5 h1:/YfsT57N1bK+ndOwW0edASndAIyL6wHL3982OUmaEos=
+github.com/ipni/go-indexer-core v0.9.5/go.mod h1:t4lRT19oOpMWU+aMTlfT8OgEnmDkINZvpjEToatf53U=
+github.com/ipni/go-libipni v0.7.6 h1:ffZx2FBxIMdsnMXCHsSrQeB6AZnoD4fRJNA1iQZ2Ub4=
+github.com/ipni/go-libipni v0.7.6/go.mod h1:C1/NRygiDEo4QHygqdpvC+7Y+UJQNL0NIyCi4FjMQWU=
 github.com/ipni/relayx v1.0.3 h1:1t1whldzA7W+S+juuuJTT8hJ0nHaZreve2g2yR1pIiI=
 github.com/ipni/relayx v1.0.3/go.mod h1:GaDJngYWNeYSzEiYCg8i1WoqDBDoqU2yDm5+HoRsXyQ=
 github.com/jackpal/go-nat-pmp v1.0.2 h1:KzKSgb7qkJvOUTqYl9/Hg/me3pWgBmERKrTGD7BdWus=

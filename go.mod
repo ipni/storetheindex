@@ -24,8 +24,8 @@ require (
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20250821073235-1979ffd425aa
 	github.com/ipld/go-ipld-prime v0.22.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20260216055925-75f643e10510
-	github.com/ipni/go-indexer-core v0.9.4
-	github.com/ipni/go-libipni v0.7.5
+	github.com/ipni/go-indexer-core v0.9.5
+	github.com/ipni/go-libipni v0.7.6
 	github.com/ipni/relayx v1.0.3
 	github.com/libp2p/go-libp2p v0.48.0
 	github.com/libp2p/go-msgio v0.3.0
