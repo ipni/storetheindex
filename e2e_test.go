@@ -68,10 +68,21 @@ func TestEndToEndWithAllProviderTypes(t *testing.T) {
 }
 
 func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
 
+	if testing.Verbose() {
+		os.Setenv(testcmd.EnvTestRunnerOutput, "YES")
+	}
+
 	rnr := testcmd.NewRunner(t, t.TempDir())
+	rnr.Env = append(rnr.Env,
+		"TMP="+rnr.Dir,
+		"TEMP="+rnr.Dir,
+		"TMPDIR="+rnr.Dir,
+		"USERPROFILE="+rnr.Dir, // for windows
+		"HOME="+rnr.Dir,
+	)
 
 	carPath := filepath.Join(rnr.Dir, "sample-wrapped-v2.car")
 	err := downloadFile("https://github.com/ipni/index-provider/raw/main/testdata/sample-wrapped-v2.car", carPath)
@@ -108,14 +119,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	require.NoError(t, err)
 
 	// initialize index-provider
-	switch publisherProto {
-	case "http":
-		rnr.Run(ctx, provider, "init", "--pubkind=http")
-	case "libp2p":
-		rnr.Run(ctx, provider, "init", "--pubkind=libp2p")
-	case "libp2phttp":
-		rnr.Run(ctx, provider, "init", "--pubkind=libp2phttp")
-	}
+	rnr.Run(ctx, provider, "init", "--pubkind="+publisherProto, "--listen=/ip4/127.0.0.1/tcp/3103", "--http-listen=/ip4/127.0.0.1/tcp/3104/http")
 	providerCfgPath := filepath.Join(rnr.Dir, ".index-provider", "config")
 	cfg, err := config.Load(providerCfgPath)
 	require.NoError(t, err)
