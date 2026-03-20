@@ -8,7 +8,7 @@ import (
 // to their zero-value configures the default value.
 type Indexer struct {
 	// CacheSize is the maximum number of CIDs that cache can hold. Setting to
-	// -1 disables the cache.
+	// 0 or a negative value disables the cache.
 	CacheSize int
 	// ConfigCheckInterval is the time between config file update checks.
 	ConfigCheckInterval Duration
@@ -76,7 +76,6 @@ type RelayX struct {
 // NewIndexer returns Indexer with values set to their defaults.
 func NewIndexer() Indexer {
 	return Indexer{
-		CacheSize:            300000,
 		PebbleBlockCacheSize: 1 << 30, // 1 Gi
 		ConfigCheckInterval:  Duration(30 * time.Second),
 		FreezeAtPercent:      95.0,
@@ -93,9 +92,6 @@ func NewIndexer() Indexer {
 func (c *Indexer) populateUnset() {
 	def := NewIndexer()
 
-	if c.CacheSize == 0 {
-		c.CacheSize = def.CacheSize
-	}
 	if c.ConfigCheckInterval == 0 {
 		c.ConfigCheckInterval = def.ConfigCheckInterval
 	}

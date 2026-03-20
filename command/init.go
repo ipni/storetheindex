@@ -103,7 +103,7 @@ func initAction(cctx *cli.Context) error {
 
 	// Use values from flags to override defaults
 	cacheSize := int(cctx.Int64("cachesize"))
-	if cacheSize >= 0 {
+	if cacheSize > 0 {
 		cfg.Indexer.CacheSize = cacheSize
 	}
 
