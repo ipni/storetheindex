@@ -15,6 +15,14 @@ const (
 	foundTag   = "found"
 )
 
+func init() {
+	coremetrics.PromRegistry.MustRegister(
+		FindLatency, AdIngestLatency, AdIngestErrorCount, AdIngestActive, AdIngestSuccessCount,
+		AdIngestSkippedCount, ProviderCount, EntriesSyncLatency, PercentUsage,
+		NonRemoveAdCount, RemoveAdCount,
+	)
+}
+
 // Measures
 var (
 	FindLatency = prometheus.NewGaugeVec(
@@ -110,12 +118,6 @@ var (
 
 // Start creates an HTTP router for serving metric info
 func Start() http.Handler {
-	coremetrics.PromRegistry.MustRegister(
-		FindLatency, AdIngestLatency, AdIngestErrorCount, AdIngestActive, AdIngestSuccessCount,
-		AdIngestSkippedCount, ProviderCount, EntriesSyncLatency, PercentUsage,
-		NonRemoveAdCount, RemoveAdCount,
-	)
-
 	// Bitswap metrics (via go-metrics-interface) register with the default
 	// registry, so we gather from both our custom registry and the default.
 	gatherers := prometheus.Gatherers{
