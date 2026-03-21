@@ -3,7 +3,6 @@ package metrics
 import (
 	"net/http"
 
-	logging "github.com/ipfs/go-log/v2"
 	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -108,8 +107,6 @@ var (
 		},
 	)
 )
-
-var log = logging.Logger("indexer/metrics")
 
 // Start creates an HTTP router for serving metric info
 func Start() http.Handler {
