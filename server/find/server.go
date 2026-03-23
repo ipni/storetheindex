@@ -302,13 +302,7 @@ func (s *Server) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, st
 	var found bool
 	defer func() {
 		msecPerMh := coremetrics.MsecSince(startTime) / float64(len(mhs))
-		var foundLabel string
-		if found {
-			foundLabel = "true"
-		} else {
-			foundLabel = "false"
-		}
-		metrics.FindLatency.WithLabelValues(foundLabel).Set(float64(msecPerMh))
+		metrics.FindLatency.WithLabelValues(strconv.FormatBool(found)).Set(float64(msecPerMh))
 	}()
 
 	response, err := s.find(mhs)
