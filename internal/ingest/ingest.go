@@ -28,8 +28,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
-	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
 )
 
 var log = logging.Logger("indexer/ingest")
@@ -142,11 +140,6 @@ type Ingester struct {
 	ingestRates *rate.Map
 
 	skip500EntsErr atomic.Bool
-
-	// metrics
-	totalNonRmAds atomic.Int64
-	totalRmAds    atomic.Int64
-	workersActive atomic.Int32
 }
 
 // NewIngester creates a new Ingester that uses a dagsync Subscriber to handle
@@ -652,9 +645,7 @@ func (ing *Ingester) metricsUpdater() {
 				usage = usageStats.Percent
 			}
 
-			stats.Record(context.Background(),
-				metrics.PercentUsage.M(usage))
-
+			metrics.PercentUsage.Set(float64(usage))
 			if ing.mirror.canRead() {
 				mhsFromMirror := ing.MultihashesFromMirror()
 				if mhsFromMirror != prevMhsFromMirror {
@@ -865,13 +856,13 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 				continue
 			}
 
-			stats.Record(ctx, metrics.AdIngestActive.M(int64(ing.workersActive.Add(1))))
+			metrics.AdIngestActive.Inc()
 
 			for syncFin := ing.getNextSyncFin(pubID); syncFin != nil; syncFin = ing.getNextSyncFin(pubID) {
 				ing.processRawAdChain(ctx, *syncFin, wkrNum)
 			}
 
-			stats.Record(ctx, metrics.AdIngestActive.M(int64(ing.workersActive.Add(-1))))
+			metrics.AdIngestActive.Dec()
 		case <-ctx.Done():
 			log.Info("ingest worker canceled")
 			return
@@ -958,7 +949,6 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 
 		ad, err := ing.loadAd(c)
 		if err != nil {
-			stats.Record(context.Background(), metrics.AdLoadError.M(1))
 			log.Errorw("Failed to load advertisement CID, skipping all remaining", "cid", c, "err", err)
 			break
 		}
@@ -1006,9 +996,8 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 
 	log.Debugw("Created ad stack", "providers", len(adsGroupedByProvider), "ads", totalAds, "rmCount", rmCount)
 
-	stats.Record(ctx,
-		metrics.RemoveAdCount.M(ing.totalRmAds.Add(rmCount)),
-		metrics.NonRemoveAdCount.M(ing.totalNonRmAds.Add(nonRmCount)))
+	metrics.RemoveAdCount.Add(float64(rmCount))
+	metrics.NonRemoveAdCount.Add(float64(nonRmCount))
 
 	// 2. For each provider put the ad stack to the worker msg channel. Each ad
 	// stack contains ads for a single provider, from a single publisher.
@@ -1121,22 +1110,18 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 					// These error cases are permanent. If retried later the same
 					// error will happen. So log and drop this error.
 					log.Errorw("Skipping ad because of a permanent error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
-					stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
+					metrics.AdIngestSkippedCount.Inc()
 					err = nil
 				case adIngestSyncEntriesErr:
 					if skip500EntsErr && strings.Contains(err.Error(), "failed to sync first entry") && strings.Contains(err.Error(), ": 500") {
 						log.Errorw("Skipping ad because of a permanent 500 error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
-						stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
+						metrics.AdIngestSkippedCount.Inc()
 						err = nil
 					}
 				}
-				stats.RecordWithOptions(context.Background(),
-					stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
-					stats.WithTags(tag.Insert(metrics.ErrKind, string(adIngestErr.state))))
+				metrics.AdIngestErrorCount.WithLabelValues(string(adIngestErr.state)).Inc()
 			} else {
-				stats.RecordWithOptions(context.Background(),
-					stats.WithMeasurements(metrics.AdIngestErrorCount.M(1)),
-					stats.WithTags(tag.Insert(metrics.ErrKind, "other error")))
+				metrics.AdIngestErrorCount.WithLabelValues("other error").Inc()
 			}
 
 			// If err still not nil, then this is a non-permanent type of error.
@@ -1162,7 +1147,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			}
 		} else {
 			// No error at all, this ad was processed successfully.
-			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))
+			metrics.AdIngestSuccessCount.Inc()
 		}
 
 		ing.reg.SetLastError(provider, nil)
