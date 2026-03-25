@@ -746,15 +746,14 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 			info.AddrInfo.Addrs = provider.Addrs
 		}
 
+		// If extendedProviders is not nil then update existing extended provider info.
 		if extendedProviders != nil {
 			if extendedProviders.Empty() {
-				info.ExtendedProviders = nil
-			} else {
-				if err := validateExtProviders(extendedProviders); err != nil {
-					return err
-				}
-				info.ExtendedProviders = extendedProviders
+				extendedProviders = nil
+			} else if err := validateExtProviders(extendedProviders); err != nil {
+				return err
 			}
+			info.ExtendedProviders = extendedProviders
 		}
 
 		// If publisher ID changed.
