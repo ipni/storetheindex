@@ -163,6 +163,10 @@ type ExtendedProviders struct {
 	ContextualProviders map[string]ContextualExtendedProviders `json:",omitempty"`
 }
 
+func (xp *ExtendedProviders) Empty() bool {
+	return len(xp.Providers) == 0 && len(xp.ContextualProviders) == 0
+}
+
 type polling struct {
 	interval        time.Duration
 	retryAfter      time.Duration
@@ -743,10 +747,14 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 		}
 
 		if extendedProviders != nil {
-			if err := validateExtProviders(extendedProviders); err != nil {
-				return err
+			if extendedProviders.Empty() {
+				info.ExtendedProviders = nil
+			} else {
+				if err := validateExtProviders(extendedProviders); err != nil {
+					return err
+				}
+				info.ExtendedProviders = extendedProviders
 			}
-			info.ExtendedProviders = extendedProviders
 		}
 
 		// If publisher ID changed.
@@ -778,7 +786,7 @@ func (r *Registry) Update(ctx context.Context, provider, publisher peer.AddrInfo
 		info = &ProviderInfo{
 			AddrInfo: provider,
 		}
-		if extendedProviders != nil {
+		if extendedProviders != nil && !extendedProviders.Empty() {
 			if err = validateExtProviders(extendedProviders); err != nil {
 				return err
 			}
@@ -1004,6 +1012,10 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 			log.Infow("Cannot register provider", "err", ErrCannotPublish,
 				"provider", regInfo.AddrInfo.ID, "publisher", regInfo.Publisher)
 			continue
+		}
+
+		if regInfo.ExtendedProviders != nil && regInfo.ExtendedProviders.Empty() {
+			regInfo.ExtendedProviders = nil
 		}
 
 		err = r.register(ctx, regInfo)
@@ -1497,6 +1509,10 @@ func loadPersistedProviders(ctx context.Context, dstore datastore.Datastore, fil
 		if pinfo.Publisher.Validate() == nil && pinfo.PublisherAddr == nil && pinfo.Publisher == pinfo.AddrInfo.ID &&
 			len(pinfo.AddrInfo.Addrs) != 0 {
 			pinfo.PublisherAddr = pinfo.AddrInfo.Addrs[0]
+		}
+
+		if pinfo.ExtendedProviders != nil && pinfo.ExtendedProviders.Empty() {
+			pinfo.ExtendedProviders = nil
 		}
 
 		providers[peerID] = pinfo
