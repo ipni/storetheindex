@@ -395,7 +395,7 @@ func removeProviderTest(ctx context.Context, t *testing.T, c *client.Client, ind
 	require.NoError(t, err)
 
 	t.Log("removing provider from registry")
-	err = reg.RemoveProvider(ctx, p)
+	err = reg.RemoveProvider(ctx, p, false)
 	require.NoError(t, err)
 
 	// Get single multihash
