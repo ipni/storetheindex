@@ -714,13 +714,13 @@ func (ing *Ingester) autoSync() {
 		}
 
 		if provInfo.Deleted() {
-			if err := ing.removePublisher(ctx, provInfo.Publisher); err != nil {
+			err := ing.removePublisher(ctx, provInfo.Publisher)
+			if err != nil {
+				log.Errorw("Error removing publisher", "err", err, "provider", provInfo.AddrInfo.ID)
+			}
+			if err = ing.indexer.RemoveProvider(ctx, provInfo.AddrInfo.ID); err != nil {
 				log.Errorw("Error removing provider", "err", err, "provider", provInfo.AddrInfo.ID)
 			}
-			// Do not remove provider info from core, because that requires
-			// scanning the entire core valuestore. Instead, let the finder
-			// delete provider contexts as deleted providers appear in find
-			// results.
 			continue
 		}
 
