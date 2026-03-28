@@ -1,7 +1,6 @@
 package ingest
 
 import (
-	"context"
 	"math/rand"
 	"testing"
 
@@ -40,7 +39,7 @@ func TestAdsSyncedViaSegmentsAreProcessed(t *testing.T) {
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 	headAdCid := headAd.(cidlink.Link).Cid
 
-	ctx := context.Background()
+	ctx := t.Context()
 	te.publisher.SetRoot(headAdCid)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, headAd, te.publisherLinkSys)
 

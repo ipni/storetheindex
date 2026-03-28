@@ -1,7 +1,6 @@
 package freeze_test
 
 import (
-	"context"
 	"io/fs"
 	"path/filepath"
 	"testing"
@@ -70,25 +69,27 @@ func TestCheckFreeze(t *testing.T) {
 	f.Close()
 	require.Equal(t, 1, freezeCount)
 
+	ctx := t.Context()
+
 	// Unfreeze no directories.
-	err = freeze.Unfreeze(context.Background(), nil, du.Percent/2.0, dstore)
+	err = freeze.Unfreeze(ctx, nil, du.Percent/2.0, dstore)
 	require.NoError(t, err)
 
 	// Unfreeze with insufficient storage.
-	err = freeze.Unfreeze(context.Background(), dirs, du.Percent/2.0, dstore)
+	err = freeze.Unfreeze(ctx, dirs, du.Percent/2.0, dstore)
 	require.ErrorContains(t, err, "cannot unfreeze")
 
 	// Unfreeze with bad directory.
 	badDir := filepath.Join(tempDir, "baddir")
-	err = freeze.Unfreeze(context.Background(), []string{badDir}, du.Percent*2.0, dstore)
+	err = freeze.Unfreeze(ctx, []string{badDir}, du.Percent*2.0, dstore)
 	require.ErrorIs(t, err, fs.ErrNotExist)
 
 	// Unfreze should work here.
-	err = freeze.Unfreeze(context.Background(), dirs, du.Percent*2.0, dstore)
+	err = freeze.Unfreeze(ctx, dirs, du.Percent*2.0, dstore)
 	require.NoError(t, err)
 
 	// Unfreeze already unfrozen.
-	err = freeze.Unfreeze(context.Background(), dirs, du.Percent*2.0, dstore)
+	err = freeze.Unfreeze(ctx, dirs, du.Percent*2.0, dstore)
 	require.NoError(t, err)
 
 	// Freeze and check that unfreeze works when freeze is disabled.
@@ -98,7 +99,7 @@ func TestCheckFreeze(t *testing.T) {
 	f.Close()
 	require.Equal(t, 2, freezeCount)
 
-	err = freeze.Unfreeze(context.Background(), dirs, -1, dstore)
+	err = freeze.Unfreeze(ctx, dirs, -1, dstore)
 	require.NoError(t, err)
 }
 

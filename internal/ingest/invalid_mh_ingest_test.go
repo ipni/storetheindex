@@ -1,7 +1,6 @@
 package ingest
 
 import (
-	"context"
 	"testing"
 
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -25,7 +24,7 @@ func TestInvalidMultihashesAreNotIngested(t *testing.T) {
 		},
 	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 	headAdCid := headAd.(cidlink.Link).Cid
-	ctx := context.Background()
+	ctx := t.Context()
 	te.publisher.SetRoot(headAdCid)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, headAd, te.publisherLinkSys)
 	require.Len(t, mhs, 6) // 6 ads; one mh each.

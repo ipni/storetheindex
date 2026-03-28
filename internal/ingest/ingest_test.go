@@ -80,7 +80,7 @@ func TestSubscribe(t *testing.T) {
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err := te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
@@ -221,7 +221,7 @@ func TestFailDuringResync(t *testing.T) {
 			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 2},
 		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	te.publisher.SetRoot(adHead.(cidlink.Link).Cid)
@@ -290,7 +290,7 @@ func TestFirstAdMissingAddrs(t *testing.T) {
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
@@ -328,10 +328,10 @@ func TestRestartDuringSync(t *testing.T) {
 
 	bCid := cAd.PreviousID
 
-	ctx := context.Background()
+	ctx := t.Context()
 	te.publisher.SetRoot(bCid.(cidlink.Link).Cid)
 
-	sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	sctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	peerInfo := peer.AddrInfo{
@@ -419,7 +419,7 @@ func TestFailDuringSync(t *testing.T) {
 
 	te.publisher.SetRoot(bCid.(cidlink.Link).Cid)
 
-	sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	sctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 	defer cancel()
 
 	peerInfo := peer.AddrInfo{
@@ -505,7 +505,7 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	bCid := cAd.PreviousID
 	aCid := bAd.PreviousID
 
-	ctx := context.Background()
+	ctx := t.Context()
 	te.publisher.SetRoot(cCid.(cidlink.Link).Cid)
 
 	syncFinishedCh, cncl := te.ingester.sub.OnSyncFinished()
@@ -592,7 +592,7 @@ func TestWithDuplicatedEntryChunks(t *testing.T) {
 		Addrs: te.publisher.Addrs(),
 	}
 
-	c, err := te.ingester.Sync(context.Background(), peerInfo, 0, false)
+	c, err := te.ingester.Sync(t.Context(), peerInfo, 0, false)
 	require.NoError(t, err)
 
 	lcid, err := te.ingester.GetLatestSync(te.pubHost.ID())
@@ -625,7 +625,7 @@ func TestSyncWithDepth(t *testing.T) {
 		Addrs: te.publisher.Addrs(),
 	}
 
-	c, err := te.ingester.Sync(context.Background(), peerInfo, 1, false)
+	c, err := te.ingester.Sync(t.Context(), peerInfo, 1, false)
 	require.NoError(t, err)
 
 	lcid, err := te.ingester.GetLatestSync(te.pubHost.ID())
@@ -653,7 +653,7 @@ func TestFreeze(t *testing.T) {
 		Addrs: te.publisher.Addrs(),
 	}
 
-	_, err := te.ingester.Sync(context.Background(), peerInfo, 0, false)
+	_, err := te.ingester.Sync(t.Context(), peerInfo, 0, false)
 	require.NoError(t, err)
 	mhs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
@@ -676,7 +676,7 @@ func TestFreeze(t *testing.T) {
 
 	te.publisher.SetRoot(adHead.(cidlink.Link).Cid)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 
@@ -748,7 +748,7 @@ func TestRmWithNoEntries(t *testing.T) {
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
 	require.NoError(t, err)
 	var lcid cid.Cid
@@ -786,7 +786,7 @@ func TestSync(t *testing.T) {
 	connectHosts(t, h, pubHost)
 
 	c1, mhs, providerID, privKey := publishRandomIndexAndAdv(t, pub, lsys, false, nil, cid.Undef)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	// The explicit sync will happen concurrently with the sycn triggered by
@@ -900,7 +900,7 @@ func TestSyncWithContextualExtendedProviders(t *testing.T) {
 
 		adv1, _, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id", nil, false)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 
 		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1)
@@ -925,7 +925,7 @@ func TestSyncWithChainLevelExtendedProviders(t *testing.T) {
 
 		adv1, _, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "", nil, false)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 
 		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1)
@@ -951,7 +951,7 @@ func TestSyncExtendedProvidersShouldBeOverridednOnEachAd(t *testing.T) {
 		_, ad1Cid, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id", nil, false)
 		adv2, _, mhs2 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, ad1Cid, "", nil, false)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 
 		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1, mhs2)
@@ -978,7 +978,7 @@ func TestSyncSupplyEmpyExtendedProvidersActsAsRemove(t *testing.T) {
 		_, ad1Cid, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "test-context-id", nil, false)
 		_, _, mhs2 := publishAdWithEmptyExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, ad1Cid, "", nil)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 
 		syncIngester(t, ctx, ingester, providerID, pubHost, mhs1, mhs2)
@@ -999,7 +999,7 @@ func TestSyncNilExtendedProvidersDontOverrideTheExistingOnes(t *testing.T) {
 		pubHost host.Host,
 		ingester *Ingester, pub dagsync.Publisher) {
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 
 		ad1, ad1Cid, mhs1 := publishAdvWithExtendedProviders(t, providerID, privKey, pubKey, pub, lsys, cid.Undef, "", nil, false)
@@ -1091,7 +1091,7 @@ func TestSyncTooLargeMetadata(t *testing.T) {
 	copy(metadata, []byte("too-long"))
 
 	publishRandomIndexAndAdv(t, pub, lsys, false, metadata, cid.Undef)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	// The explicit sync will happen concurrently with the sycn triggered by
@@ -1126,7 +1126,7 @@ func TestSyncSkipNoMetadata(t *testing.T) {
 
 	// Test ad that has no entries and no metadata.
 	adCid, _, providerID, _ := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, 0, []byte{}, cid.Undef)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	peerInfo := peer.AddrInfo{
@@ -1179,20 +1179,20 @@ func TestReSyncWithDepth(t *testing.T) {
 		ID:    te.publisher.ID(),
 		Addrs: te.publisher.Addrs(),
 	}
-	_, err := te.ingester.Sync(context.Background(), peerInfo, 1, false)
+	_, err := te.ingester.Sync(t.Context(), peerInfo, 1, false)
 	require.NoError(t, err)
 	allMHs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs[1:])
 	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), allMHs[0:1])
 
 	// When not resync, check that nothing beyond the latest is synced.
-	_, err = te.ingester.Sync(context.Background(), peerInfo, 0, false)
+	_, err = te.ingester.Sync(t.Context(), peerInfo, 0, false)
 	require.NoError(t, err)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs[1:])
 	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), allMHs[0:1])
 
 	// When resync with greater depth, check that everything in synced.
-	_, err = te.ingester.Sync(context.Background(), peerInfo, 0, true)
+	_, err = te.ingester.Sync(t.Context(), peerInfo, 0, true)
 	require.NoError(t, err)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs)
 }
@@ -1211,7 +1211,7 @@ func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 	bLink := allAdLinks[1]
 	cLink := allAdLinks[2]
 	allMHs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
-	ctx := context.Background()
+	ctx := t.Context()
 	te.publisher.SetRoot(bLink.(cidlink.Link).Cid)
 	peerInfo := peer.AddrInfo{
 		ID:    te.publisher.ID(),
@@ -1249,7 +1249,7 @@ func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	totalChunkCount := entriesDepth * 2
 
 	adCid, _, providerID, _ := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, totalChunkCount, nil, cid.Undef)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	peerInfo := peer.AddrInfo{
@@ -1320,7 +1320,7 @@ func requireNotIndexed(t *testing.T, ix indexer.Interface, p peer.ID, mhs []mult
 }
 
 func getAdEntriesCid(t *testing.T, store datastore.Batching, ad cid.Cid) cid.Cid {
-	ctx := context.TODO()
+	ctx := t.Context()
 	val, err := store.Get(ctx, datastore.NewKey(ad.String()))
 	require.NoError(t, err)
 	nad, err := decodeIPLDNode(ad.Prefix().Codec, bytes.NewBuffer(val), schema.AdvertisementPrototype)
@@ -1331,7 +1331,7 @@ func getAdEntriesCid(t *testing.T, store datastore.Batching, ad cid.Cid) cid.Cid
 }
 
 func decodeEntriesChunk(t *testing.T, store datastore.Batching, c cid.Cid) ([]multihash.Multihash, cid.Cid) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	val, err := store.Get(ctx, datastore.NewKey(c.String()))
 	require.NoError(t, err)
 	nentries, err := decodeIPLDNode(c.Prefix().Codec, bytes.NewBuffer(val), schema.EntryChunkPrototype)
@@ -1362,7 +1362,7 @@ func TestMultiplePublishers(t *testing.T) {
 	connectHosts(t, h, pubHost1)
 	connectHosts(t, h, pubHost2)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Test with two random advertisement publications for each of them.
 	headAd1 := typehelpers.RandomAdBuilder{
@@ -1456,7 +1456,7 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 
 	wait := make(chan cid.Cid, 1)
 	go func() {
-		syncCid, err := te.ingester.Sync(context.Background(), peerInfo, 0, false)
+		syncCid, err := te.ingester.Sync(t.Context(), peerInfo, 0, false)
 		require.NoError(t, err)
 		wait <- syncCid
 	}()
@@ -1472,7 +1472,7 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 	// we have blocked the processing.
 	ad2Cid := ads[2].(cidlink.Link).Cid
 	// Blocked in sync handler.
-	err := te.ingester.Announce(context.Background(), ad2Cid, pubAddrInfo)
+	err := te.ingester.Announce(t.Context(), ad2Cid, pubAddrInfo)
 	require.NoError(t, err)
 	// Verify sync has not completed.
 	require.Eventually(t, func() bool {
@@ -1484,7 +1484,7 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 
 	ad3Cid := ads[3].(cidlink.Link).Cid
 	// Blocked waiting for previous async ad chain sync.
-	err = te.ingester.Announce(context.Background(), ad3Cid, pubAddrInfo)
+	err = te.ingester.Announce(t.Context(), ad3Cid, pubAddrInfo)
 	require.NoError(t, err)
 
 	// Unblock the processing and assert that everything is indexed.
@@ -1514,7 +1514,7 @@ func TestAnnounceIsNotDeferredOnNoInProgressIngest(t *testing.T) {
 	pubAddrInfo := te.pubHost.Peerstore().PeerInfo(te.pubHost.ID())
 
 	// Announce the head ad CID.
-	err := te.ingester.Announce(context.Background(), headCid, pubAddrInfo)
+	err := te.ingester.Announce(t.Context(), headCid, pubAddrInfo)
 	require.NoError(t, err)
 
 	// Assert that all multihashes in ad chain are indexed eventually, since Announce triggers
@@ -1559,7 +1559,7 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 	require.NoError(t, err)
 	defer p2pSender.Close()
 	te.publisher.SetRoot(adCCid)
-	err = announce.Send(context.Background(), adCCid, te.publisher.Addrs(), p2pSender)
+	err = announce.Send(t.Context(), adCCid, te.publisher.Addrs(), p2pSender)
 	require.NoError(t, err)
 
 	// Assert that there is no announce pending processing since no explicit announce was made to
@@ -1579,7 +1579,7 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 	// publisher.UpdateRoot is still blocked. Note that the background handling
 	// of the announce should get blocked since headCid is also in the block
 	// list.
-	err = te.ingester.Announce(context.Background(), headCid, pubAddrInfo)
+	err = te.ingester.Announce(t.Context(), headCid, pubAddrInfo)
 	require.NoError(t, err)
 
 	// Unblock the sync triggered by publisher.UpdateRoot which should:
@@ -1632,7 +1632,7 @@ func TestGetEntryDataFromCar(t *testing.T) {
 	rootAd := allAds[len(allAds)-1]
 	rootAd.Addresses = nil
 
-	ctx := context.Background()
+	ctx := t.Context()
 	te.publisher.SetRoot(cCid.(cidlink.Link).Cid)
 
 	peerInfo := peer.AddrInfo{
@@ -1721,7 +1721,7 @@ func mkRegistry(t *testing.T) *registry.Registry {
 			Publish: true,
 		},
 	}
-	reg, err := registry.New(context.Background(), discoveryCfg, nil)
+	reg, err := registry.New(t.Context(), discoveryCfg, nil)
 	require.NoError(t, err)
 	return reg
 }
@@ -1780,7 +1780,7 @@ func mkIngestWithConfig(t *testing.T, h host.Host, cfg config.Ingest) (*Ingester
 func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 	srcHost.Peerstore().AddAddrs(dstHost.ID(), dstHost.Addrs(), time.Hour)
 	dstHost.Peerstore().AddAddrs(srcHost.ID(), srcHost.Addrs(), time.Hour)
-	err := srcHost.Connect(context.Background(), dstHost.Peerstore().PeerInfo(dstHost.ID()))
+	err := srcHost.Connect(t.Context(), dstHost.Peerstore().PeerInfo(dstHost.ID()))
 	require.NoError(t, err)
 }
 

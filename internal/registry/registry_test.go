@@ -22,54 +22,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	exceptID   = "12D3KooWK7CTS7cyWi51PeNE3cTjS2F2kDCZaQVU4A5xBmb9J1do"
-	limitedID  = "12D3KooWSG3JuvEjRkSxt93ADTjQxqe4ExbBwSkQ9Zyk1WfBaZJF"
-	limitedID2 = "12D3KooWKSNuuq77xqnpPLnU3fq1bTQW2TwSZL2Z4QTHEYpUVzfr"
-	limitedID3 = "12D3KooWLjeDyvuv7rbfG2wWNvWn7ybmmU88PirmSckuqCgXBAph"
-
-	minerDiscoAddr = "stitest999999"
-	minerAddr      = "/ip4/127.0.0.1/tcp/9999"
-	minerAddr2     = "/ip4/127.0.0.2/tcp/9999"
-
-	publisherID   = "12D3KooWFNkdmdb38g4VVCGaJsKin4BzGpP4bedfxU76PF2AahoP"
-	publisherAddr = "/ip4/127.0.0.3/tcp/1234"
-)
-
-var discoveryCfg = config.Discovery{
-	Policy: config.Policy{
-		Allow:         false,
-		Except:        []string{exceptID, limitedID, limitedID2, publisherID},
-		Publish:       false,
-		PublishExcept: []string{publisherID},
-	},
-}
-
 func TestUpdateNewProvider(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	addrInfos := random.AddrInfos(2, 1)
+	provider := addrInfos[0]
+	publisher := addrInfos[1]
+
+	discoveryCfg := config.Discovery{
+		Policy: config.Policy{
+			Allow:         false,
+			Except:        []string{provider.ID.String(), publisher.ID.String()},
+			Publish:       false,
+			PublishExcept: []string{publisher.ID.String()},
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	r, err := New(ctx, discoveryCfg, nil)
 	require.NoError(t, err)
-
-	peerID, err := peer.Decode(limitedID)
-	require.NoError(t, err)
-	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/3002")
-	require.NoError(t, err)
-	pubID, err := peer.Decode(publisherID)
-	require.NoError(t, err)
-	pubAddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
-	require.NoError(t, err)
-
-	provider := peer.AddrInfo{
-		ID:    peerID,
-		Addrs: []multiaddr.Multiaddr{maddr},
-	}
-
-	publisher := peer.AddrInfo{
-		ID:    pubID,
-		Addrs: []multiaddr.Multiaddr{pubAddr},
-	}
 
 	err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
 	require.NoError(t, err)
@@ -81,44 +52,35 @@ func TestUpdateNewProvider(t *testing.T) {
 }
 
 func TestDatastore(t *testing.T) {
+	addrInfos := random.AddrInfos(3, 1)
+	provider1 := addrInfos[0]
+	provider2 := addrInfos[1]
+	publisher := addrInfos[2]
+
+	discoveryCfg := config.Discovery{
+		Policy: config.Policy{
+			Allow:         false,
+			Except:        []string{provider1.ID.String(), provider2.ID.String(), publisher.ID.String()},
+			Publish:       false,
+			PublishExcept: []string{publisher.ID.String()},
+		},
+	}
+
 	dataStorePath := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
-	provID1, err := peer.Decode(limitedID)
-	require.NoError(t, err)
-	maddr1, err := multiaddr.NewMultiaddr(minerAddr)
-	require.NoError(t, err)
-	provider1 := peer.AddrInfo{
-		ID:    provID1,
-		Addrs: []multiaddr.Multiaddr{maddr1},
-	}
-
-	provID2, err := peer.Decode(limitedID2)
-	require.NoError(t, err)
-	maddr2, err := multiaddr.NewMultiaddr(minerAddr2)
-	require.NoError(t, err)
-	pubID, err := peer.Decode(publisherID)
-	require.NoError(t, err)
-	pubAddr, err := multiaddr.NewMultiaddr(publisherAddr)
-	require.NoError(t, err)
-
 	maddrs := random.Multiaddrs(2)
+	peerIDs := random.Peers(2)
+
+	ep1 := peerIDs[0]
 	ep1Addrs := maddrs[:1]
-	ep2Addrs := maddrs[1:]
-	epContextId := []byte("ep-context-id")
-	ep1, _, _ := random.Identity()
 	ep1Metadata := []byte("ep1-metadata")
-	ep2, _, _ := random.Identity()
+	ep2 := peerIDs[1]
+	ep2Addrs := maddrs[1:]
 	ep2Metadata := []byte("ep2-metadata")
-	provider2 := peer.AddrInfo{
-		ID:    provID2,
-		Addrs: []multiaddr.Multiaddr{maddr2},
-	}
-	publisher := peer.AddrInfo{
-		ID:    pubID,
-		Addrs: []multiaddr.Multiaddr{pubAddr},
-	}
+	epContextId := []byte("ep-context-id")
+
 	extProviders := &ExtendedProviders{
 		Providers: []ExtendedProviderInfo{
 			{
@@ -153,18 +115,16 @@ func TestDatastore(t *testing.T) {
 	err = r.Update(ctx, provider1, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err)
 
-	mh, err := multihash.Sum([]byte("somedata"), multihash.SHA2_256, -1)
-	require.NoError(t, err)
-	adCid := cid.NewCidV1(cid.Raw, mh)
+	adCid := random.Cids(1)[0]
 	err = r.Update(ctx, provider2, publisher, adCid, extProviders, 0)
 	require.NoError(t, err)
 
-	pinfo, allowed := r.ProviderInfo(provID1)
+	pinfo, allowed := r.ProviderInfo(provider1.ID)
 	require.NotNil(t, pinfo, "did not find registered provider")
 	require.True(t, allowed)
 	require.Nil(t, pinfo.ExtendedProviders)
 
-	pinfo, allowed = r.ProviderInfo(provID2)
+	pinfo, allowed = r.ProviderInfo(provider2.ID)
 	require.NotNil(t, pinfo, "did not find registered provider")
 	require.True(t, allowed)
 	require.NotNil(t, pinfo.ExtendedProviders, "did not find registered extended provider")
@@ -181,7 +141,7 @@ func TestDatastore(t *testing.T) {
 	t.Log("re-created new registry with datastore")
 
 	infos := r.AllProviderInfo()
-	require.Equal(t, 2, len(infos))
+	require.Len(t, infos, 2)
 
 	for _, provInfo := range infos {
 		switch provInfo.AddrInfo.ID {
@@ -197,8 +157,8 @@ func TestDatastore(t *testing.T) {
 		}
 	}
 
-	require.ErrorIs(t, r.AssignPeer(pubID), ErrNoAssigner)
-	_, err = r.UnassignPeer(pubID)
+	require.ErrorIs(t, r.AssignPeer(publisher.ID), ErrNoAssigner)
+	_, err = r.UnassignPeer(publisher.ID)
 	require.ErrorIs(t, err, ErrNoAssigner)
 
 	// Check that extended provider missing address is caught.
@@ -253,19 +213,19 @@ func TestDatastore(t *testing.T) {
 	// There should not be any assigned yet.
 	assigned, _, err := r.ListAssignedPeers()
 	require.NoError(t, err)
-	require.Zero(t, len(assigned))
+	require.Len(t, assigned, 0)
 
 	// There should be 1 preferred publisher.
 	preferred, err := r.ListPreferredPeers()
 	require.NoError(t, err)
-	require.Equal(t, 1, len(preferred))
+	require.Len(t, preferred, 1)
 
 	// Assign peer and check that it is assigned.
 	err = r.AssignPeer(preferred[0])
 	require.NoError(t, err)
 	assigned, _, err = r.ListAssignedPeers()
 	require.NoError(t, err)
-	require.Equal(t, 1, len(assigned))
+	require.Len(t, assigned, 1)
 
 	// Unassign peer and check that it is not assigned.
 	ok, err := r.UnassignPeer(preferred[0])
@@ -273,7 +233,7 @@ func TestDatastore(t *testing.T) {
 	require.True(t, ok)
 	assigned, _, err = r.ListAssignedPeers()
 	require.NoError(t, err)
-	require.Zero(t, len(assigned))
+	require.Len(t, assigned, 0)
 	ok, err = r.UnassignPeer(preferred[0])
 	require.NoError(t, err)
 	require.False(t, ok)
@@ -291,7 +251,7 @@ func TestDatastore(t *testing.T) {
 	// There should be one assigned peer.
 	assigned, _, err = r.ListAssignedPeers()
 	require.NoError(t, err)
-	require.Equal(t, 1, len(assigned))
+	require.Len(t, assigned, 1)
 
 	r.Close()
 
@@ -306,29 +266,17 @@ func TestAllowed(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	r, err := New(ctx, cfg, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
-	provID, err := peer.Decode(limitedID)
-	require.NoError(t, err)
-	maddr, err := multiaddr.NewMultiaddr(minerAddr)
-	require.NoError(t, err)
-	provider := peer.AddrInfo{
-		ID:    provID,
-		Addrs: []multiaddr.Multiaddr{maddr},
-	}
-
-	pubID, err := peer.Decode(publisherID)
-	require.NoError(t, err)
-	pubAddr, err := multiaddr.NewMultiaddr(publisherAddr)
-	require.NoError(t, err)
-	publisher := peer.AddrInfo{
-		ID:    pubID,
-		Addrs: []multiaddr.Multiaddr{pubAddr},
-	}
+	addrInfos := random.AddrInfos(2, 1)
+	provider := addrInfos[0]
+	provID := provider.ID
+	publisher := addrInfos[1]
+	pubID := publisher.ID
 
 	err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
 	require.NoError(t, err)
@@ -374,7 +322,7 @@ func TestAllowed(t *testing.T) {
 
 	err = r.SetPolicy(config.Policy{
 		Allow:  true,
-		Except: []string{publisherID},
+		Except: []string{pubID.String()},
 	})
 	require.NoError(t, err)
 
@@ -390,45 +338,34 @@ func TestPollProvider(t *testing.T) {
 		PollRetryAfter: config.Duration(100 * time.Hour),
 	}
 
+	prov := random.AddrInfos(1, 1)[0]
+	pub := peer.AddrInfo{
+		ID: random.Peers(1)[0],
+	}
+
+	poll := polling{
+		interval:        time.Second,
+		retryAfter:      time.Minute,
+		stopAfter:       2 * time.Hour,
+		deactivateAfter: time.Hour,
+	}
+
 	synctest.Test(t, func(t *testing.T) {
 		ctx := context.Background()
 		r, err := New(ctx, cfg, datastore.NewMapDatastore())
 		require.NoError(t, err)
 		t.Cleanup(func() { r.Close() })
 
-		peerID, err := peer.Decode(limitedID)
-		require.NoError(t, err)
-
-		pubID, err := peer.Decode(publisherID)
-		require.NoError(t, err)
-
-		maddr, err := multiaddr.NewMultiaddr(minerAddr)
-		require.NoError(t, err)
-
-		prov := peer.AddrInfo{
-			ID:    peerID,
-			Addrs: []multiaddr.Multiaddr{maddr},
-		}
-		pub := peer.AddrInfo{
-			ID: pubID,
-		}
 		err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
 		require.NoError(t, err)
-
-		poll := polling{
-			interval:        time.Second,
-			retryAfter:      time.Minute,
-			stopAfter:       2 * time.Hour,
-			deactivateAfter: time.Hour,
-		}
 
 		// Check for auto-sync after pollInterval.
 		time.Sleep(poll.interval + 1)
 		r.pollProviders(poll, nil, 1)
 		select {
 		case pinfo := <-r.SyncChan():
-			require.Equal(t, pinfo.AddrInfo.ID, peerID, "wrong provider ID")
-			require.Equal(t, pinfo.Publisher, pubID, "wrong publisher ID")
+			require.Equal(t, pinfo.AddrInfo.ID, prov.ID, "wrong provider ID")
+			require.Equal(t, pinfo.Publisher, pub.ID, "wrong publisher ID")
 			require.False(t, pinfo.Inactive(), "expected provider not to be marked inactive")
 		case <-time.After(time.Second):
 			t.Fatal("expected sync channel to be written")
@@ -441,7 +378,7 @@ func TestPollProvider(t *testing.T) {
 			r.pollProviders(poll, nil, 2)
 			time.Sleep(poll.interval + 1)
 			r.pollProviders(poll, nil, 3)
-			_, ok := r.ProviderInfo(peerID)
+			_, ok := r.ProviderInfo(prov.ID)
 			require.True(t, ok)
 			close(done)
 		}()
@@ -454,14 +391,14 @@ func TestPollProvider(t *testing.T) {
 		// Check that expected info was written to sync channel.
 		select {
 		case pinfo := <-r.SyncChan():
-			require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel")
+			require.Equal(t, pinfo.AddrInfo.ID, prov.ID, "unexpected provider info on sync channel")
 			require.True(t, pinfo.Inactive(), "expected provider to be marked inactive")
 		case <-time.After(2 * time.Second):
 			t.Fatal("Expected sync channel to be written")
 		}
 
 		// Inactive provider should be returned, but marked inactive.
-		pinfo, ok := r.ProviderInfo(peerID)
+		pinfo, ok := r.ProviderInfo(prov.ID)
 		require.True(t, ok, "expected inactive provider to still be present")
 		require.NotNil(t, pinfo)
 		require.True(t, pinfo.Inactive(), "expected provider to be inactive")
@@ -469,7 +406,7 @@ func TestPollProvider(t *testing.T) {
 		// Check that update brings inactive provider back.
 		err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
 		require.NoError(t, err)
-		pinfo, ok = r.ProviderInfo(peerID)
+		pinfo, ok = r.ProviderInfo(prov.ID)
 		require.True(t, ok, "expected provider to be present")
 		require.NotNil(t, pinfo)
 		require.False(t, pinfo.Inactive(), "expected provider to be active")
@@ -478,7 +415,7 @@ func TestPollProvider(t *testing.T) {
 		r.pollProviders(poll, nil, 4)
 		select {
 		case pinfo := <-r.SyncChan():
-			require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel")
+			require.Equal(t, pinfo.AddrInfo.ID, prov.ID, "unexpected provider info on sync channel")
 			require.False(t, pinfo.Inactive(), "expected provider to be active")
 		case <-time.After(2 * time.Second):
 			t.Fatal("expected sync channel to be written")
@@ -491,14 +428,14 @@ func TestPollProvider(t *testing.T) {
 
 		// Check that provider has been removed from registry after provider
 		// appeared non-responsive.
-		pinfo, ok = r.ProviderInfo(peerID)
+		pinfo, ok = r.ProviderInfo(prov.ID)
 		require.False(t, ok, "expected provider to be removed from registry")
 		require.Nil(t, pinfo)
 
 		// Check that delete provider sent over sync channel.
 		select {
 		case pinfo = <-r.SyncChan():
-			require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel")
+			require.Equal(t, pinfo.AddrInfo.ID, prov.ID, "unexpected provider info on sync channel")
 			require.True(t, pinfo.Deleted(), "expected delete request for unresponsive provider")
 		default:
 			t.Fatal("sync channel should have deleted provider")
@@ -515,7 +452,7 @@ func TestPollProvider(t *testing.T) {
 		}
 
 		// Check that provider not found error is returned.
-		err = r.RemoveProvider(t.Context(), peerID, false)
+		err = r.RemoveProvider(t.Context(), prov.ID, false)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "provider not found")
 
@@ -523,7 +460,7 @@ func TestPollProvider(t *testing.T) {
 		err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
 		require.NoError(t, err)
 
-		pinfo, ok = r.ProviderInfo(peerID)
+		pinfo, ok = r.ProviderInfo(prov.ID)
 		require.True(t, ok, "expected provider to be present")
 		require.NotNil(t, pinfo)
 		require.False(t, pinfo.Inactive(), "expected provider to be active")
@@ -533,7 +470,7 @@ func TestPollProvider(t *testing.T) {
 		r.pollProviders(poll, nil, 7)
 		select {
 		case pinfo := <-r.SyncChan():
-			require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel")
+			require.Equal(t, pinfo.AddrInfo.ID, prov.ID, "unexpected provider info on sync channel")
 			require.False(t, pinfo.Inactive(), "expected provider to be active")
 		case <-time.After(2 * time.Second):
 			t.Fatal("expected sync channel to be written")
@@ -542,7 +479,7 @@ func TestPollProvider(t *testing.T) {
 		// Poll again to make sure nothing happens to provider.
 		time.Sleep(poll.interval + 1)
 		r.pollProviders(poll, nil, 8)
-		pinfo, ok = r.ProviderInfo(peerID)
+		pinfo, ok = r.ProviderInfo(prov.ID)
 		require.True(t, ok, "expected provider to be present")
 		require.NotNil(t, pinfo)
 		require.False(t, pinfo.Inactive(), "expected provider to be active")
@@ -557,51 +494,41 @@ func TestPollProviderOverrides(t *testing.T) {
 		},
 	}
 
+	prov := random.AddrInfos(1, 1)[0]
+	pub := peer.AddrInfo{
+		ID: random.Peers(1)[0],
+	}
+
+	poll := polling{
+		interval:   time.Minute,
+		retryAfter: time.Hour,
+		stopAfter:  24 * time.Hour,
+	}
+
+	overrides := make(map[peer.ID]polling)
+	overridePoll := polling{
+		interval:   time.Second,
+		retryAfter: time.Minute,
+		stopAfter:  time.Hour,
+	}
+	overrides[prov.ID] = overridePoll
+
 	synctest.Test(t, func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		r, err := New(ctx, cfg, datastore.NewMapDatastore())
 		require.NoError(t, err)
 		defer r.Close()
 
-		peerID, err := peer.Decode(limitedID)
-		require.NoError(t, err)
-		pubID, err := peer.Decode(publisherID)
-		require.NoError(t, err)
-
-		maddr, err := multiaddr.NewMultiaddr(minerAddr)
-		require.NoError(t, err)
-
-		prov := peer.AddrInfo{
-			ID:    peerID,
-			Addrs: []multiaddr.Multiaddr{maddr},
-		}
-		pub := peer.AddrInfo{
-			ID: pubID,
-		}
 		err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)
 		require.NoError(t, err)
-
-		poll := polling{
-			interval:   time.Minute,
-			retryAfter: time.Hour,
-			stopAfter:  24 * time.Hour,
-		}
-
-		overrides := make(map[peer.ID]polling)
-		overridePoll := polling{
-			interval:   time.Second,
-			retryAfter: time.Minute,
-			stopAfter:  time.Hour,
-		}
-		overrides[peerID] = overridePoll
 
 		// Check for auto-sync after pollInterval.
 		time.Sleep(overridePoll.interval + 1)
 		r.pollProviders(poll, overrides, 1)
 		select {
 		case pinfo := <-r.SyncChan():
-			require.Equal(t, pinfo.AddrInfo.ID, peerID, "Wrong provider ID")
-			require.Equal(t, pinfo.Publisher, pubID, "Wrong publisher ID")
+			require.Equal(t, pinfo.AddrInfo.ID, prov.ID, "Wrong provider ID")
+			require.Equal(t, pinfo.Publisher, pub.ID, "Wrong publisher ID")
 		case <-time.After(2 * time.Second):
 			t.Fatal("Expected sync channel to be written")
 		}
@@ -613,13 +540,13 @@ func TestPollProviderOverrides(t *testing.T) {
 
 		// Check that provider has been removed from registry after provider
 		// appeared non-responsive.
-		pinfo, _ := r.ProviderInfo(peerID)
+		pinfo, _ := r.ProviderInfo(prov.ID)
 		require.Nil(t, pinfo, "expected provider to be removed from registry")
 
 		// Check that delete provider sent over sync channel.
 		select {
 		case pinfo = <-r.SyncChan():
-			require.Equal(t, pinfo.AddrInfo.ID, peerID, "unexpected provider info on sync channel")
+			require.Equal(t, pinfo.AddrInfo.ID, prov.ID, "unexpected provider info on sync channel")
 			require.True(t, pinfo.Deleted(), "expected delete request for unresponsive provider")
 		default:
 			t.Fatal("sync channel should have deleted provider")
@@ -643,42 +570,37 @@ func TestPollProviderOverrides(t *testing.T) {
 }
 
 func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg := config.NewDiscovery()
 	cfg.Policy.Publish = true
 	subject, err := New(ctx, cfg, datastore.NewMapDatastore())
 	require.NoError(t, err)
 	t.Cleanup(func() { subject.Close() })
 
+	addrInfos := random.DnsAddrInfos(2, 1)
+	provider := addrInfos[0]
+	publisher := addrInfos[1]
+
 	// Register a provider first
-	provId, err := peer.Decode(exceptID)
-	require.NoError(t, err)
-	ma, err := multiaddr.NewMultiaddr(publisherAddr)
-	require.NoError(t, err)
-	provider := peer.AddrInfo{
-		ID:    provId,
-		Addrs: []multiaddr.Multiaddr{ma},
-	}
 	err = subject.Update(ctx, provider, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err)
 
 	// Assert that updating publisher for the registered provider with empty addrs does not panic.
-	mh, err := multihash.Sum([]byte("fish"), multihash.SHA2_256, -1)
-	require.NoError(t, err)
-	c := cid.NewCidV1(cid.Raw, mh)
-	err = subject.Update(ctx, provider, peer.AddrInfo{ID: publisherID}, c, nil, 0)
+	c := random.Cids(1)[0]
+	err = subject.Update(ctx, provider, peer.AddrInfo{ID: publisher.ID}, c, nil, 0)
 	require.NoError(t, err)
 
-	info, _ := subject.ProviderInfo(provId)
+	info, _ := subject.ProviderInfo(provider.ID)
 	require.NotNil(t, info)
 	require.Nil(t, info.PublisherAddr)
 
 	// Register a publisher that has no addresses, but publisherID is same as
 	// provider. Registry should use provider's address as publisher.
-	err = subject.Update(ctx, provider, peer.AddrInfo{ID: provId}, c, nil, 0)
-	info, _ = subject.ProviderInfo(provId)
+	err = subject.Update(ctx, provider, peer.AddrInfo{ID: provider.ID}, c, nil, 0)
+	info, _ = subject.ProviderInfo(provider.ID)
 	require.NoError(t, err)
 	require.NotNil(t, info)
+	require.Equal(t, provider.Addrs, info.AddrInfo.Addrs)
 	require.Equal(t, info.AddrInfo.Addrs[0], info.PublisherAddr)
 }
 
@@ -686,23 +608,20 @@ func TestFilterIPs(t *testing.T) {
 	cfg := config.NewDiscovery()
 	cfg.Policy.Publish = true
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
-	maddrLocal, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
-	require.NoError(t, err)
-	maddrPvt, err := multiaddr.NewMultiaddr("/ip4/10.0.1.1/tcp/9999")
-	require.NoError(t, err)
+	maddrLocal, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	maddrPvt, _ := multiaddr.NewMultiaddr("/ip4/10.0.1.1/tcp/9999")
 
-	provID, err := peer.Decode(limitedID)
-	require.NoError(t, err)
-	provAddr, err := multiaddr.NewMultiaddr("/dns4/provider.example.com/tcp/12345")
-	require.NoError(t, err)
+	peerIDs := random.Peers(3)
+	maddrs := random.DnsMultiaddrs(3)
 
-	pubID, err := peer.Decode(publisherID)
-	require.NoError(t, err)
-	pubAddr, err := multiaddr.NewMultiaddr("/dns4/publisher.example.com/tcp/9876")
-	require.NoError(t, err)
+	provID := peerIDs[0]
+	provAddr := maddrs[0]
+
+	pubID := peerIDs[1]
+	pubAddr := maddrs[1]
 
 	dstore := datastore.NewMapDatastore()
 	reg, err := New(ctx, cfg, dstore)
@@ -746,32 +665,32 @@ func TestFilterIPs(t *testing.T) {
 	require.Equal(t, provAddr, pinfo.AddrInfo.Addrs[0])
 	require.Equal(t, pubAddr.String(), pinfo.PublisherAddr.String())
 
+	prov2Addr := maddrs[2]
 	provider2 := peer.AddrInfo{
-		ID:    pubID,
-		Addrs: []multiaddr.Multiaddr{maddrPvt, pubAddr, maddrLocal},
+		ID:    peerIDs[2],
+		Addrs: []multiaddr.Multiaddr{maddrPvt, prov2Addr, maddrLocal},
 	}
 	// Check the Register filters IPs.
 	err = reg.Update(ctx, provider2, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err)
-	pinfo, _ = reg.ProviderInfo(pubID)
+	pinfo, _ = reg.ProviderInfo(provider2.ID)
 	require.NotNil(t, pinfo)
 	require.Equal(t, 1, len(pinfo.AddrInfo.Addrs))
-	require.Equal(t, pubAddr, pinfo.AddrInfo.Addrs[0])
+	require.Equal(t, prov2Addr, pinfo.AddrInfo.Addrs[0])
 }
 
 func TestRegistry_loadPersistedProvidersFiltersNilAddrGracefully(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ds := datastore.NewMapDatastore()
-	pid, err := peer.Decode("12D3KooWK7CTS7cyWi51PeNE3cTjS2F2kDCZaQVU4A5xBmb9J1do")
-	require.NoError(t, err)
+	pid := random.Peers(1)[0]
 
-	err = ds.Put(ctx, peerIDToDsKey(providerKeyPath, pid), []byte(`{"PublisherAddr": null,"AddrInfo": {},"LastAdvertisement":null,"LastAdvertisementTime":"0001-01-01T00:00:00Z","Publisher":"`+pid.String()+`"}`))
+	err := ds.Put(ctx, peerIDToDsKey(providerKeyPath, pid), []byte(`{"PublisherAddr": null,"AddrInfo": {},"LastAdvertisement":null,"LastAdvertisementTime":"0001-01-01T00:00:00Z","Publisher":"`+pid.String()+`"}`))
 	require.NoError(t, err)
 	cfg := config.NewDiscovery()
 	cfg.FilterIPs = true
 	r, err := New(ctx, cfg, ds)
 	require.NoError(t, err)
-	t.Cleanup(func() { r.Close() })
+	r.Close()
 }
 
 func TestFreezeUnfreeze(t *testing.T) {
@@ -791,14 +710,12 @@ func TestFreezeUnfreeze(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
-	peerID, err := peer.Decode(limitedID)
-	require.NoError(t, err)
+	peerIDs := random.Peers(4)
+	peerID := peerIDs[0]
+	pubID := peerIDs[1]
 
-	pubID, err := peer.Decode(publisherID)
-	require.NoError(t, err)
-
-	maddr, err := multiaddr.NewMultiaddr(minerAddr)
-	require.NoError(t, err)
+	maddrs := random.Multiaddrs(2)
+	maddr := maddrs[0]
 
 	prov := peer.AddrInfo{
 		ID:    peerID,
@@ -832,16 +749,15 @@ func TestFreezeUnfreeze(t *testing.T) {
 	}
 
 	// Check that a new provider cannot be registered with a frozen publisher.
-	peerID2, err := peer.Decode(limitedID2)
-	require.NoError(t, err)
-	maddr2, err := multiaddr.NewMultiaddr(minerAddr2)
+	peerID2 := peerIDs[2]
+	maddr2 := maddrs[1]
+
 	require.NoError(t, err)
 	prov2 := peer.AddrInfo{
 		ID:    peerID2,
 		Addrs: []multiaddr.Multiaddr{maddr2},
 	}
-	pubID2, err := peer.Decode(limitedID3)
-	require.NoError(t, err)
+	pubID2 := peerIDs[3]
 	pub2 := peer.AddrInfo{
 		ID: pubID2,
 	}
@@ -898,31 +814,21 @@ func TestHandoff(t *testing.T) {
 	}
 	const freezeAt = 99.0
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tempDir := t.TempDir()
 	dstore := datastore.NewMapDatastore()
 	r, err := New(ctx, cfg, dstore, WithFreezer([]string{tempDir}, freezeAt))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
-	pubID, err := peer.Decode(publisherID)
-	require.NoError(t, err)
-	pubAddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
-	require.NoError(t, err)
-
-	pubAddrInfo := peer.AddrInfo{
-		ID:    pubID,
-		Addrs: []multiaddr.Multiaddr{pubAddr},
-	}
-
-	mh, err := multihash.Sum([]byte("somedata"), multihash.SHA2_256, -1)
-	require.NoError(t, err)
-	adCid := cid.NewCidV1(cid.Raw, mh)
+	pubAddrInfo := random.AddrInfos(1, 1)[0]
+	pubID := pubAddrInfo.ID
+	adCid := random.Cids(1)[0]
 	lastAdTime := time.Now()
 
 	frozenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
-		t.Log("Frozen indexer received", req.Method, "request at", req.URL.String())
+		t.Log("OK, Frozen indexer received", req.Method, "request at", req.URL.String())
 		pInfos := []model.ProviderInfo{{
 			AddrInfo:              pubAddrInfo,
 			LastAdvertisement:     adCid,
@@ -942,8 +848,7 @@ func TestHandoff(t *testing.T) {
 	frozenURL, err := url.Parse(frozenServer.URL)
 	require.NoError(t, err)
 
-	peerID, err := peer.Decode(limitedID)
-	require.NoError(t, err)
+	peerID := random.Peers(1)[0]
 
 	err = r.Handoff(ctx, pubID, peerID, frozenURL)
 	require.NoError(t, err)
@@ -976,8 +881,7 @@ func TestHandoff(t *testing.T) {
 
 	// Freeze the indexer and check that a new publisher cannot be assigned.
 	require.NoError(t, r.Freeze())
-	pubID2, err := peer.Decode(limitedID3)
-	require.NoError(t, err)
+	pubID2 := random.Peers(1)[0]
 	require.ErrorIs(t, r.AssignPeer(pubID2), ErrFrozen)
 
 	r.Close()
@@ -1002,34 +906,25 @@ func TestIgnoreBadAds(t *testing.T) {
 			Publish: true,
 		},
 	}
+	addrInfos := random.DnsAddrInfos(2, 1)
+	provider := addrInfos[0]
+	providerBad := provider
+	providerBad.Addrs = nil
+
+	publisher := addrInfos[1]
+	pubID := publisher.ID
+
 	synctest.Test(t, func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		r, err := New(ctx, cfg, nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { r.Close() })
 
-		provID, err := peer.Decode(limitedID)
-		require.NoError(t, err)
-		maddr, err := multiaddr.NewMultiaddr(minerAddr)
-		require.NoError(t, err)
-		provider := peer.AddrInfo{
-			ID: provID,
-		}
-
-		pubID, err := peer.Decode(publisherID)
-		require.NoError(t, err)
-		pubAddr, err := multiaddr.NewMultiaddr(publisherAddr)
-		require.NoError(t, err)
-		publisher := peer.AddrInfo{
-			ID:    pubID,
-			Addrs: []multiaddr.Multiaddr{pubAddr},
-		}
-
-		err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
+		err = r.Update(ctx, providerBad, publisher, cid.Undef, nil, 0)
 		require.ErrorIs(t, err, ErrMissingProviderAddr)
 		require.False(t, r.Allowed(pubID), "publisher should be blocked")
-		require.True(t, r.Allowed(provID), "provider should be allowed")
+		require.True(t, r.Allowed(provider.ID), "provider should be allowed")
 
 		// Still not allowed after half the check interval.
 		time.Sleep(tmpBlockCheckInterval / 2)
@@ -1043,7 +938,6 @@ func TestIgnoreBadAds(t *testing.T) {
 		require.False(t, r.Allowed(pubID), "publisher should be blocked")
 
 		// Allowed after good update.
-		provider.Addrs = []multiaddr.Multiaddr{maddr}
 		err = r.Update(ctx, provider, publisher, cid.Undef, nil, 0)
 		require.NoError(t, err)
 		require.True(t, r.Allowed(pubID), "publisher should be not allowed")
