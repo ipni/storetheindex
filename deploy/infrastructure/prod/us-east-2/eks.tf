@@ -3,7 +3,7 @@ module "eks" {
   version = "18.20.2"
 
   cluster_name    = local.environment_name
-  cluster_version = "1.23"
+  cluster_version = "1.30"
 
   cluster_endpoint_private_access = true
   cluster_endpoint_public_access  = true
@@ -40,6 +40,7 @@ module "eks" {
           effect = "NO_SCHEDULE"
         }
       }
+      cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2a-r5n-2xl = {
       min_size       = 0
@@ -54,6 +55,7 @@ module "eks" {
           effect = "NO_SCHEDULE"
         }
       }
+      cluster_version = "1.25" # Note: temporary overwrite
     }
 
 
@@ -64,6 +66,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["r6a.xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
+      cluster_version = "1.25" # Note: temporary overwrite
     }
 
     # General purpose node-group.
@@ -73,6 +76,7 @@ module "eks" {
       desired_size   = 0
       subnet_ids     = [data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
       instance_types = ["m4.xlarge"]
+      cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2b-m4-xl = {
       min_size       = 0
@@ -80,6 +84,7 @@ module "eks" {
       desired_size   = 0
       subnet_ids     = [data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
       instance_types = ["m4.xlarge"]
+      cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2c-m4-xl = {
       min_size       = 0
@@ -87,6 +92,7 @@ module "eks" {
       desired_size   = 0
       subnet_ids     = [data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
       instance_types = ["m4.xlarge"]
+      cluster_version = "1.23" # Note: temporary overwrite
     }
 
     prod-ue2a-c6a-8xl-2 = {
@@ -95,6 +101,7 @@ module "eks" {
       desired_size   = 0
       instance_types = ["c6a.8xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
+      cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2b-c6a-8xl-2 = {
       min_size       = 0
@@ -102,6 +109,7 @@ module "eks" {
       desired_size   = 0
       instance_types = ["c6a.8xlarge"]
       subnet_ids     = [data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
+      cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2c-c6a-8xl-2 = {
       min_size       = 0
@@ -109,6 +117,7 @@ module "eks" {
       desired_size   = 0
       instance_types = ["c6a.8xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
+      cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2a-r6a-2xl = {
       min_size       = 0
@@ -116,6 +125,7 @@ module "eks" {
       desired_size   = 0
       instance_types = ["r6a.2xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a1.id, data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
+      cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2b-r6a-2xl = {
       min_size       = 0
@@ -123,6 +133,7 @@ module "eks" {
       desired_size   = 0
       instance_types = ["r6a.2xlarge"]
       subnet_ids     = [data.aws_subnet.ue2b1.id, data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
+      cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2c-r6a-2xl = {
       min_size       = 0
@@ -130,6 +141,7 @@ module "eks" {
       desired_size   = 0
       instance_types = ["r6a.2xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c1.id, data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
+      cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2-c6a-8xl = {
       min_size       = 0
@@ -141,6 +153,7 @@ module "eks" {
         data.aws_subnet.ue2b1.id, data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id,
         data.aws_subnet.ue2c1.id, data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id
       ]
+      cluster_version = "1.25" # Note: temporary overwrite
     }
   }
 }
