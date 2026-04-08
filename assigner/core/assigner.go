@@ -622,10 +622,7 @@ func (a *Assigner) watch() {
 		log.Debugw("Received announce", "publisher", amsg.PeerID)
 
 		for _, fwdURL := range a.fwdURLs {
-			err = resendAnnounce(ctx, amsg, fwdURL)
-			if err != nil {
-				log.Errorf("sending announce to %q: %s", fwdURL, err)
-			}
+			go resendAnnounce(ctx, amsg, fwdURL)
 		}
 
 		// If no indexers to assign to, ignore announcement.
@@ -639,10 +636,7 @@ func (a *Assigner) watch() {
 		if a.resendHttp && asmt != nil {
 			for _, idxr := range asmt.indexers {
 				idxrInfo := a.indexerPool[idxr]
-				err = resendAnnounce(ctx, amsg, idxrInfo.ingestURL)
-				if err != nil {
-					log.Error(err)
-				}
+				go resendAnnounce(ctx, amsg, idxrInfo.ingestURL)
 			}
 		}
 		if need != 0 {
@@ -994,10 +988,7 @@ func (a *Assigner) assignIndexer(ctx context.Context, indexerNum int, amsg annou
 
 	// Send announce instead of sync request in case indexer is already syncing
 	// due to receiving announce after immediately allowing the publisher.
-	err = resendAnnounce(ctx, amsg, indexer.ingestURL)
-	if err != nil {
-		log.Error(err)
-	}
+	go resendAnnounce(ctx, amsg, indexer.ingestURL)
 	return nil
 }
 
@@ -1029,18 +1020,19 @@ func (a *Assigner) getAssignments(ctx context.Context, indexerNum int) (peer.ID,
 	return status.ID, false, assigned, preferred, nil
 }
 
-func resendAnnounce(ctx context.Context, amsg announce.Announce, ingestURL string) error {
+func resendAnnounce(ctx context.Context, amsg announce.Announce, ingestURL string) {
 	icl, err := ingestclient.New(ingestURL)
 	if err != nil {
-		return fmt.Errorf("error creating ingest client: %w", err)
+		log.Errorw("error creating ingest client", "err", err)
+		return
 	}
 	pubInfo := peer.AddrInfo{
 		ID:    amsg.PeerID,
 		Addrs: amsg.Addrs,
 	}
 	if err = icl.Announce(ctx, &pubInfo, amsg.Cid); err != nil {
-		return fmt.Errorf("error sending announce message: %w", err)
+		log.Errorw("error sending announce message", "err", err, "url", ingestURL)
+		return
 	}
 	log.Debug("Resent direct announce to:", ingestURL)
-	return nil
 }
