@@ -860,6 +860,47 @@ func TestAssignerNoIndexers(t *testing.T) {
 	}
 }
 
+func TestForwardAnnounce(t *testing.T) {
+	fakeIndexer := newTestIndexer(nil)
+	defer fakeIndexer.close()
+
+	cfgAssignment := config.Assignment{
+		ForwardAnnounceURLs: []string{
+			"xyz://example.com:12345",
+			fakeIndexer.ingestServer.URL,
+			fakeIndexer.ingestServer.URL,
+		},
+		Policy: config.Policy{
+			Allow: true,
+		},
+		PubSubTopic: "testtopic",
+		Replication: 1,
+	}
+
+	ctx := t.Context()
+
+	assigner, err := core.NewAssigner(ctx, cfgAssignment, nil)
+	require.NoError(t, err)
+	defer assigner.Close()
+
+	// Send announce message for publisher peer2. It has a preset assignment to
+	// indexer0, so should only be assigned to that indexer.
+	adCid, _ := cid.Decode("bafybeigvgzoolc3drupxhlevdp2ugqcrbcsqfmcek2zxiw5wctk3xjpjwy")
+	a, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
+	addrInfo := peer.AddrInfo{
+		ID:    peer2ID,
+		Addrs: []multiaddr.Multiaddr{a},
+	}
+	err = assigner.Announce(ctx, adCid, addrInfo)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return fakeIndexer.announceCount.Load() == 1
+	}, 2*time.Second, 100*time.Millisecond)
+
+	require.Equal(t, 1, int(fakeIndexer.announceCount.Load()), "wrong number of forwards")
+}
+
 type testIndexer struct {
 	adminServer  *httptest.Server
 	findServer   *httptest.Server

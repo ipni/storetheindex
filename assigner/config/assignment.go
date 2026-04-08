@@ -13,6 +13,10 @@ type Assignment struct {
 	// FilterIPs, when true, removes any private, loopback, or unspecified IP
 	// addresses from provider and publisher addresses.
 	FilterIPs bool
+	// ForwardAnnounceURLs is a list of URLs to forward announce messages to.
+	// These URL should not appear in the indexer pool. Usually these URLs are
+	// other indexers' ingest interfaces.
+	ForwardAnnounceURLs []string
 	// PoolInterval is how often to poll indexers for status.
 	PollInterval sticfg.Duration
 	// IndexerPool is the set of indexers the pool.

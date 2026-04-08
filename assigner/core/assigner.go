@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"slices"
 	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,6 +30,8 @@ const pollFrozenTimeout = 2 * time.Minute
 type Assigner struct {
 	// assigned maps a publisher to a set of indexers.
 	assigned map[peer.ID]*assignment
+	// fwdURLs is a list of URLs to forward announcements to.
+	fwdURLs []string
 	// indexerPool is the set of indexers to assign publishers to.
 	indexerPool []indexerInfo
 	// initDone is true when assignments have been read from all indexers.
@@ -167,6 +168,7 @@ func NewAssigner(ctx context.Context, cfg config.Assignment, p2pHost host.Host) 
 
 	a := &Assigner{
 		assigned:    make(map[peer.ID]*assignment),
+		fwdURLs:     configForwardURLs(cfg.ForwardAnnounceURLs),
 		indexerPool: indexerPool,
 		p2pHost:     p2pHost,
 		policy:      policy,
@@ -407,20 +409,53 @@ func indexersFromConfig(cfgIndexerPool []config.Indexer) ([]indexerInfo, map[pee
 	return indexers, presets, nil
 }
 
-func configURL(urlStr, name string, indexerNum int, seen map[string]struct{}) (string, error) {
-	if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
-		urlStr = "http://" + urlStr
-	}
+func checkURL(urlStr string) (string, error) {
 	u, err := url.Parse(urlStr)
+	if err != nil {
+		return "", err
+	}
+	switch u.Scheme {
+	case "https", "http":
+	case "":
+		u.Scheme = "http"
+	default:
+		return "", fmt.Errorf("unspported scheme: %s", u.Scheme)
+	}
+	return u.String(), nil
+}
+
+func configURL(urlStr, name string, indexerNum int, seen map[string]struct{}) (string, error) {
+	urlStr, err := checkURL(urlStr)
 	if err != nil {
 		return "", fmt.Errorf("indexer %d has bad %s url: %s: %w", indexerNum, name, urlStr, err)
 	}
-	urlStr = u.String()
 	if _, found := seen[urlStr]; found {
 		return "", fmt.Errorf("indexer %d has non-unique %s url %s", indexerNum, name, urlStr)
 	}
 	seen[urlStr] = struct{}{}
 	return urlStr, nil
+}
+
+func configForwardURLs(fwdURLs []string) []string {
+	if len(fwdURLs) == 0 {
+		return nil
+	}
+	urls := make([]string, 0, len(fwdURLs))
+	var err error
+	for _, fwdURL := range fwdURLs {
+		fwdURL, err = checkURL(fwdURL)
+		if err != nil {
+			log.Errorf("Ignoring forward announce URL: %s", err)
+			continue
+		}
+		urls = append(urls, fwdURL)
+	}
+	if len(fwdURLs) == 0 {
+		return nil
+	}
+
+	slices.Sort(urls)
+	return slices.Clip(slices.Compact(urls))
 }
 
 // Allowed determines whether the assigner is accepting announce messages from
@@ -585,6 +620,13 @@ func (a *Assigner) watch() {
 			break
 		}
 		log.Debugw("Received announce", "publisher", amsg.PeerID)
+
+		for _, fwdURL := range a.fwdURLs {
+			err = resendAnnounce(ctx, amsg, fwdURL)
+			if err != nil {
+				log.Errorf("sending announce to %q: %s", fwdURL, err)
+			}
+		}
 
 		// If no indexers to assign to, ignore announcement.
 		if len(a.indexerPool) == 0 {
