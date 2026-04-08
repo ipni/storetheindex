@@ -343,6 +343,8 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		}
 		if poll.deactivateAfter == 0 {
 			poll.deactivateAfter = poll.stopAfter
+		} else if poll.stopAfter < poll.deactivateAfter {
+			poll.stopAfter = poll.deactivateAfter
 		}
 		if err = validatePolling(poll); err != nil {
 			return nil, fmt.Errorf("invalid polling config: %s", err)
@@ -405,6 +407,9 @@ func makePollOverrideMap(poll polling, cfgPollOverrides []config.Polling) (map[p
 		}
 		if override.deactivateAfter == 0 {
 			override.deactivateAfter = poll.deactivateAfter
+		}
+		if override.stopAfter < override.deactivateAfter {
+			override.stopAfter = override.deactivateAfter
 		}
 		pollOverrides[peerID] = override
 	}
