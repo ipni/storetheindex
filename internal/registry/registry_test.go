@@ -215,6 +215,28 @@ func TestDatastore(t *testing.T) {
 	require.ErrorContains(t, err, "missing address")
 	extProviders.ContextualProviders[string(epContextId)].Providers[0].Addrs = prevAddrs
 
+	// Check that extended provider information can be deleted.
+	extProviders.ContextualProviders = nil
+	extProviders.Providers = nil
+	var emptyExtProviders ExtendedProviders
+	err = r.Update(ctx, provider2, publisher, adCid, &emptyExtProviders, 0)
+	require.NoError(t, err)
+	infos = r.AllProviderInfo()
+	require.Equal(t, 2, len(infos))
+	for _, provInfo := range infos {
+		switch provInfo.AddrInfo.ID {
+		case provider1.ID:
+			require.NotNil(t, provInfo.Publisher.Validate())
+		case provider2.ID:
+			require.Equal(t, provInfo.Publisher, publisher.ID, "info2 has wrong publisher ID")
+			require.NotNil(t, provInfo.PublisherAddr, "info2 missing publisher address")
+			require.True(t, provInfo.PublisherAddr.Equal(publisher.Addrs[0]), "provider2 has wrong publisher ID %q, expected %q", provInfo.PublisherAddr, publisher.Addrs[0])
+			require.Nil(t, provInfo.ExtendedProviders)
+		default:
+			t.Fatalf("loaded invalid provider ID: %q", provInfo.AddrInfo.ID)
+		}
+	}
+
 	r.Close()
 	require.NoError(t, dstore.Close())
 

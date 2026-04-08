@@ -986,9 +986,7 @@ func TestSyncSupplyEmpyExtendedProvidersActsAsRemove(t *testing.T) {
 		// there should be no extended providers
 		pInfo, _ := reg.ProviderInfo(providerID)
 		extendedProviders := pInfo.ExtendedProviders
-		require.NotNil(t, extendedProviders)
-		require.Equal(t, 0, len(extendedProviders.Providers))
-		require.Equal(t, 0, len(extendedProviders.ContextualProviders))
+		require.Nil(t, extendedProviders)
 	})
 }
 
