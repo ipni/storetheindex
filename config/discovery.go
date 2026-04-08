@@ -90,14 +90,19 @@ type Polling struct {
 
 // NewDiscovery returns Discovery with values set to their defaults.
 func NewDiscovery() Discovery {
-	const defaultStopAfter = Duration(7 * 24 * time.Hour)
+	const (
+		// Stop returning results for dead provider after 1 week.
+		defaultDeactivateAfter = Duration(7 * 24 * time.Hour)
+		// Remove dead provider after 2 weeks.
+		defaultStopAfter = 2 * defaultDeactivateAfter
+	)
 	return Discovery{
 		IgnoreBadAdsTime: Duration(2 * time.Hour),
 		Policy:           NewPolicy(),
 		PollInterval:     Duration(24 * time.Hour),
 		PollRetryAfter:   Duration(5 * time.Hour),
 		PollStopAfter:    defaultStopAfter,
-		DeactivateAfter:  defaultStopAfter,
+		DeactivateAfter:  defaultDeactivateAfter,
 	}
 }
 
@@ -118,8 +123,6 @@ func (c *Discovery) populateUnset() {
 		c.PollStopAfter = def.PollStopAfter
 	}
 	if c.DeactivateAfter == 0 {
-		// Set deactivation to the same value as PollStopAfter.
-		// This means no inactive grace period for providers by default.
 		c.DeactivateAfter = def.PollStopAfter
 	}
 }
