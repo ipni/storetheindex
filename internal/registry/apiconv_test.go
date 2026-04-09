@@ -6,53 +6,39 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-test/random"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
-	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRegToApiProviderInfo(t *testing.T) {
-	peerID, err := peer.Decode(limitedID)
-	require.NoError(t, err)
-	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/3002")
-	require.NoError(t, err)
-	provAddrInfo := peer.AddrInfo{
-		ID:    peerID,
-		Addrs: []multiaddr.Multiaddr{maddr},
-	}
+	addrInfos := random.AddrInfos(2, 1)
+	provider := addrInfos[0]
+	publisher := addrInfos[1]
 
-	pubID, err := peer.Decode(publisherID)
-	require.NoError(t, err)
-	pubAddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
-	require.NoError(t, err)
-
-	mh, err := multihash.Sum([]byte("somedata"), multihash.SHA2_256, -1)
-	require.NoError(t, err)
-	lastAdCid := cid.NewCidV1(cid.Raw, mh)
+	cids := random.Cids(2)
+	lastAdCid := cids[0]
 	lastAdTime := time.Now()
 
-	mh, err = multihash.Sum([]byte("somedata"), multihash.SHA2_256, -1)
-	require.NoError(t, err)
-	frozenAtCid := cid.NewCidV1(cid.Raw, mh)
+	frozenAtCid := cids[1]
 	frozenAtTime := lastAdTime.Add(-time.Hour)
 
+	peerIDs := random.Peers(2)
 	maddrs := random.Multiaddrs(2)
-	ep1Addrs := maddrs[:1]
-	ep2Addrs := maddrs[1:]
-
 	epContextId := []byte("ep-context-id")
-	ep1, _, _ := random.Identity()
+
+	ep1 := peerIDs[0]
+	ep1Addrs := maddrs[:1]
 	ep1Metadata := []byte("ep1-metadata")
-	ep2, _, _ := random.Identity()
+
+	ep2 := peerIDs[1]
+	ep2Addrs := maddrs[1:]
 	ep2Metadata := []byte("ep2-metadata")
 
 	regPI := ProviderInfo{
-		AddrInfo:              provAddrInfo,
+		AddrInfo:              provider,
 		LastAdvertisement:     lastAdCid,
 		LastAdvertisementTime: lastAdTime,
-		Publisher:             pubID,
-		PublisherAddr:         pubAddr,
+		Publisher:             publisher.ID,
+		PublisherAddr:         publisher.Addrs[0],
 		ExtendedProviders: &ExtendedProviders{
 			Providers: []ExtendedProviderInfo{
 				{
@@ -86,7 +72,7 @@ func TestRegToApiProviderInfo(t *testing.T) {
 	require.Equal(t, regPI.LastAdvertisement, apiPI.LastAdvertisement)
 	require.Equal(t, regPI.LastAdvertisementTime.Format(time.RFC3339), apiPI.LastAdvertisementTime)
 	require.Equal(t, regPI.Publisher, apiPI.Publisher.ID)
-	require.Equal(t, 1, len(apiPI.Publisher.Addrs))
+	require.Len(t, apiPI.Publisher.Addrs, 1)
 	require.Equal(t, regPI.PublisherAddr, apiPI.Publisher.Addrs[0])
 	require.Equal(t, regPI.FrozenAt, apiPI.FrozenAt)
 	require.Equal(t, regPI.FrozenAtTime.Format(time.RFC3339), apiPI.FrozenAtTime)

@@ -1,7 +1,6 @@
 package ingest
 
 import (
-	"context"
 	"testing"
 
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -11,7 +10,7 @@ import (
 )
 
 func TestIngester_IngestsMixedEntriesTypeSuccessfully(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	te := setupTestEnv(t, true)
 
 	// Generate an ad chain with mixed entries type and different shape HAMT.

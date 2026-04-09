@@ -1,5 +1,4 @@
-// Package httpserver provides functionality common to all storetheindex HTTP
-// servers
+// Package httpserver provides common HTTP server functionality.
 package httpserver
 
 import (

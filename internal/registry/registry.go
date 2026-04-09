@@ -1031,7 +1031,7 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 
 		newProvs = append(newProvs, regInfo)
 	}
-	log.Infow("Imported new providers from other indexer", "from", fromURL.String(), "count", len(newProvs))
+	log.Infow("Imported new providers", "from", fromURL.String(), "count", len(newProvs))
 
 	// Start goroutine to sync with all the new providers.
 	go func() {
