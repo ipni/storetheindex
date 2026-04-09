@@ -1,33 +1,28 @@
-package policy
+package policy_test
 
 import (
 	"testing"
 
+	"github.com/ipfs/go-test/random"
 	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/internal/registry/policy"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	exceptIDStr = "12D3KooWK7CTS7cyWi51PeNE3cTjS2F2kDCZaQVU4A5xBmb9J1do"
-	otherIDStr  = "12D3KooWSG3JuvEjRkSxt93ADTjQxqe4ExbBwSkQ9Zyk1WfBaZJF"
-)
-
 var (
-	exceptID peer.ID
-	otherID  peer.ID
+	exceptID    peer.ID
+	exceptIDStr string
+	otherID     peer.ID
+	otherIDStr  string
 )
 
 func init() {
-	var err error
-	exceptID, err = peer.Decode(exceptIDStr)
-	if err != nil {
-		panic(err)
-	}
-	otherID, err = peer.Decode(otherIDStr)
-	if err != nil {
-		panic(err)
-	}
+	peers := random.Peers(2)
+	exceptID = peers[0]
+	otherID = peers[1]
+	exceptIDStr = exceptID.String()
+	otherIDStr = otherID.String()
 }
 
 func TestNewPolicy(t *testing.T) {
@@ -38,29 +33,29 @@ func TestNewPolicy(t *testing.T) {
 		PublishExcept: []string{exceptIDStr},
 	}
 
-	_, err := New(policyCfg)
+	_, err := policy.New(policyCfg)
 	require.NoError(t, err)
 
 	policyCfg.Allow = true
-	_, err = New(policyCfg)
+	_, err = policy.New(policyCfg)
 	require.NoError(t, err)
 
 	policyCfg.Allow = false
 	policyCfg.PublishExcept = append(policyCfg.PublishExcept, "bad ID")
-	_, err = New(policyCfg)
+	_, err = policy.New(policyCfg)
 	require.Error(t, err, "expected error with bad PublishExcept ID")
 	policyCfg.PublishExcept = nil
 
 	policyCfg.Except = append(policyCfg.Except, "bad ID")
-	_, err = New(policyCfg)
+	_, err = policy.New(policyCfg)
 	require.Error(t, err, "expected error with bad except ID")
 	policyCfg.Except = nil
 
-	_, err = New(policyCfg)
+	_, err = policy.New(policyCfg)
 	require.NoError(t, err)
 
 	policyCfg.Allow = true
-	_, err = New(policyCfg)
+	_, err = policy.New(policyCfg)
 	require.NoError(t, err)
 }
 
@@ -72,7 +67,7 @@ func TestPolicyAccess(t *testing.T) {
 		PublishExcept: []string{exceptIDStr},
 	}
 
-	p, err := New(policyCfg)
+	p, err := policy.New(policyCfg)
 	require.NoError(t, err)
 
 	require.False(t, p.Allowed(otherID), "peer ID should not be allowed by policy")
@@ -91,7 +86,7 @@ func TestPolicyAccess(t *testing.T) {
 	policyCfg.Allow = true
 	policyCfg.Publish = true
 
-	newPol, err := New(policyCfg)
+	newPol, err := policy.New(policyCfg)
 	require.NoError(t, err)
 	p.Copy(newPol)
 
@@ -111,45 +106,38 @@ func TestPolicyAccess(t *testing.T) {
 	cfg := p.ToConfig()
 	require.True(t, cfg.Allow)
 	require.True(t, cfg.Publish)
-	require.Equal(t, 1, len(cfg.Except))
+	require.Len(t, cfg.Except, 1)
 	require.Equal(t, otherIDStr, cfg.Except[0])
-	require.Equal(t, 1, len(cfg.PublishExcept))
+	require.Len(t, cfg.PublishExcept, 1)
 
-	p, err = New(config.Policy{})
+	p, err = policy.New(config.Policy{})
 	require.NoError(t, err)
 	require.True(t, p.NoneAllowed(), "expected inaccessible policy")
 }
 
 func TestPublishersForProvider(t *testing.T) {
-	prov1Str := "12D3KooWPMGfQs5CaJKG4yCxVWizWBRtB85gEUwiX2ekStvYvqgp"
-	prov1, err := peer.Decode(prov1Str)
-	if err != nil {
-		panic(err)
-	}
-	prov2Str := "12D3KooWNH73Z4oxej8u6NzYswQxH7Cd92U2aUYUsxX9mKr5SMuj"
-	prov2, err := peer.Decode(prov2Str)
-	if err != nil {
-		panic(err)
-	}
+	peers := random.Peers(2)
+	prov1 := peers[0]
+	prov2 := peers[1]
 
 	policyCfg := config.Policy{
 		Allow:   true,
 		Publish: false,
 		PublishersForProvider: []config.PublishersPolicy{
 			{
-				Provider: prov1Str,
+				Provider: prov1.String(),
 				Allow:    false,
 				Except:   []string{exceptIDStr},
 			},
 			{
-				Provider: prov2Str,
+				Provider: prov2.String(),
 				Allow:    true,
 				Except:   []string{exceptIDStr},
 			},
 		},
 	}
 
-	p, err := New(policyCfg)
+	p, err := policy.New(policyCfg)
 	require.NoError(t, err)
 
 	require.True(t, p.PublishAllowed(prov1, prov1), "should be allowed to publish to self")
@@ -167,7 +155,7 @@ func TestPublishersForProvider(t *testing.T) {
 
 	// Test with default policy set to default allow true.
 	policyCfg.Publish = true
-	p, err = New(policyCfg)
+	p, err = policy.New(policyCfg)
 	require.NoError(t, err)
 
 	require.True(t, p.PublishAllowed(exceptID, otherID))
