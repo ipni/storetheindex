@@ -38,6 +38,8 @@ var log = logging.Logger("indexer/ingest")
 const (
 	// syncPrefix identifies the latest sync for each provider.
 	syncPrefix = "/sync/"
+	// deepestSyncPrefix identifies the oldest (deepest) ad reached per peer.
+	deepestSyncPrefix = "/deepestSync/"
 	// adProcessedPrefix identifies all processed advertisements.
 	adProcessedPrefix = "/adProcessed/"
 	// adProcessedFrozenPrefix identifies all advertisements processed while in
@@ -143,6 +145,9 @@ type Ingester struct {
 
 	skip500EntsErr atomic.Bool
 
+	// extendBatchSize is the number of ads walked per backward scan batch.
+	extendBatchSize int
+
 	// metrics
 	totalNonRmAds atomic.Int64
 	totalRmAds    atomic.Int64
@@ -176,6 +181,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		syncInProgress: make(map[peer.ID]*dagsync.SyncFinished),
 
 		minKeyLen: cfg.MinimumKeyLength,
+
+		extendBatchSize: cfg.SyncSegmentDepthLimit,
 
 		ingestRates: rate.NewMap(),
 	}
@@ -485,6 +492,108 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 	}
 }
 
+// RunBackwardScan walks backward from the deepest known ad toward genesis,
+// processing ads in bounded batches. If no previous deepestSync exists, it
+// bootstraps with a single forward sync to establish the frontier. Loops
+// continuously until genesis, depth limit, or context cancellation.
+//
+// This is a long-running operation meant to be called from a background
+// goroutine via POST /ingest/scan/{peerID}. Forward syncs via Sync() can
+// interleave between batches because dagsync serializes per-peer via
+// syncMutex and processRawAdChain serializes per-provider via providerMus.
+//
+// depth bounds the total number of ads walked across all batches. depth=0
+// means unbounded (walk to genesis).
+func (ing *Ingester) RunBackwardScan(ctx context.Context, peerInfo peer.AddrInfo, depth int) error {
+	batchSize := int64(ing.extendBatchSize)
+
+	// Resolve provider ID for deepestSync lookups. processRawAdChain stores
+	// deepestSync under the provider ID (from the ad), which may differ from
+	// the publisher ID (peerInfo.ID) used for syncing.
+	syncStateID := peerInfo.ID
+	if provID, ok := ing.reg.ProviderByPublisher(peerInfo.ID); ok && provID != peerInfo.ID {
+		syncStateID = provID
+	}
+	log := log.With("peer", peerInfo.ID, "provider", syncStateID, "mode", "backward-scan")
+
+	var totalWalked int64
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		prevCid, err := ing.GetDeepestSyncPrevious(syncStateID)
+		if err != nil {
+			return fmt.Errorf("failed to get deepest sync previous: %w", err)
+		}
+		if prevCid == cid.Undef {
+			deepest, err := ing.GetDeepestSync(syncStateID)
+			if err != nil {
+				return fmt.Errorf("failed to get deepest sync: %w", err)
+			}
+			if deepest != cid.Undef {
+				log.Infow("Backward scan reached genesis", "totalWalked", totalWalked)
+				return nil
+			}
+			// No deepest sync recorded. Bootstrap with a bounded forward sync
+			// so processRawAdChain establishes a deepestSync.
+			log.Infow("No previous sync, bootstrapping", "batchSize", batchSize)
+			_, err = ing.Sync(ctx, peerInfo, int(batchSize), false)
+			if err != nil {
+				return fmt.Errorf("bootstrap sync failed: %w", err)
+			}
+			deepest, _ = ing.GetDeepestSync(syncStateID)
+			if deepest == cid.Undef {
+				log.Info("Bootstrap did not establish deepestSync, nothing to extend")
+				return nil
+			}
+			continue
+		}
+
+		effectiveDepth := batchSize
+		if depth > 0 {
+			remaining := int64(depth) - totalWalked
+			if remaining <= 0 {
+				log.Infow("Backward scan reached depth limit", "totalWalked", totalWalked, "depth", depth)
+				return nil
+			}
+			if remaining < effectiveDepth {
+				effectiveDepth = remaining
+			}
+		}
+
+		log.Infow("Starting backward batch", "from", prevCid, "batchSize", effectiveDepth, "totalWalked", totalWalked)
+
+		var adCount int
+		_, err = ing.sub.SyncAdChain(ctx, peerInfo,
+			dagsync.WithHeadAdCid(prevCid),
+			dagsync.ScopedDepthLimit(effectiveDepth),
+			dagsync.ScopedBlockHook(func(pid peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
+				adCount++
+				ing.generalDagsyncBlockHook(pid, c, actions)
+			}))
+		if err != nil {
+			return fmt.Errorf("backward sync failed: %w", err)
+		}
+		if adCount == 0 {
+			log.Infow("Backward batch returned no ads, stopping", "totalWalked", totalWalked)
+			return nil
+		}
+
+		// Process the ads we just fetched. SyncAdChain with WithHeadAdCid
+		// does not fire the SyncFinished event, so call processRawAdChain
+		// directly here in extendMode=true.
+		syncFin := dagsync.SyncFinished{Cid: prevCid, PeerID: peerInfo.ID, Count: adCount}
+		ing.processRawAdChain(ctx, syncFin, -1, true)
+		totalWalked += int64(adCount)
+
+		log.Infow("Backward batch complete",
+			"batchAds", adCount,
+			"totalWalked", totalWalked,
+			"batchHead", prevCid)
+	}
+}
+
 // Announce sends an announce message to directly to dagsync, instead of
 // through pubsub.
 func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, pubAddrInfo peer.AddrInfo) error {
@@ -529,10 +638,14 @@ func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool) {
 // MarkAdProcessed explicitly marks an advertisement as processed. This is used
 // to avoid ingesting this and previous advertisements.
 func (ing *Ingester) MarkAdProcessed(publisher peer.ID, adCid cid.Cid) error {
-	return ing.markAdProcessed(publisher, adCid, false, false)
+	return ing.markAdProcessed(publisher, adCid, false, false, false)
 }
 
-func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, mirrored bool) error {
+// markAdProcessed records the ad as processed and removes it from tmpstore.
+// When skipLatestUpdate is true, the per-publisher latestSync pointer is not
+// updated -- used by backward scan in extend mode where the walk is going
+// older, not newer, and must not clobber the newer latestSync.
+func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, mirrored, skipLatestUpdate bool) error {
 	cidStr := adCid.String()
 	ctx := context.Background()
 	if frozen {
@@ -556,6 +669,9 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, m
 		}
 	}
 
+	if skipLatestUpdate {
+		return nil
+	}
 	return ing.ds.Put(ctx, datastore.NewKey(syncPrefix+publisher.String()), adCid.Bytes())
 }
 
@@ -732,7 +848,7 @@ func (ing *Ingester) autoSync() {
 		// handoff from. Mark that advertisement as processed so that future
 		// indexing will proceed from that point forward.
 		if stopCid := provInfo.StopCid(); stopCid != cid.Undef {
-			err := ing.markAdProcessed(provInfo.Publisher, stopCid, false, false)
+			err := ing.markAdProcessed(provInfo.Publisher, stopCid, false, false, false)
 			if err != nil {
 				// This error would cause the ingestion of everything from the
 				// publisher from the handoff, and is a critical failure. It
@@ -805,6 +921,49 @@ func (ing *Ingester) GetLatestSync(publisherID peer.ID) (cid.Cid, error) {
 	return c, err
 }
 
+// GetDeepestSync gets the deepest (oldest) ad CID reached for the peer
+// during a backward scan.
+func (ing *Ingester) GetDeepestSync(peerID peer.ID) (cid.Cid, error) {
+	b, err := ing.ds.Get(context.Background(), datastore.NewKey(deepestSyncPrefix+peerID.String()))
+	if err != nil {
+		if err == datastore.ErrNotFound {
+			return cid.Undef, nil
+		}
+		return cid.Undef, err
+	}
+	_, c, err := cid.CidFromBytes(b)
+	return c, err
+}
+
+// GetDeepestSyncPrevious returns the PreviousID of the deepest synced ad.
+// This is the starting point for the next backward scan batch. Returns
+// cid.Undef if genesis has been reached or no backward scan has run.
+func (ing *Ingester) GetDeepestSyncPrevious(peerID peer.ID) (cid.Cid, error) {
+	b, err := ing.ds.Get(context.Background(), datastore.NewKey(deepestSyncPrefix+"prev/"+peerID.String()))
+	if err != nil {
+		if err == datastore.ErrNotFound {
+			return cid.Undef, nil
+		}
+		return cid.Undef, err
+	}
+	_, c, err := cid.CidFromBytes(b)
+	return c, err
+}
+
+// setDeepestSync records both the deepest ad CID reached and its PreviousID
+// (the next ad to walk in a future batch). When previousCid is cid.Undef the
+// "prev" key is deleted, signaling that genesis has been reached.
+func (ing *Ingester) setDeepestSync(peerID peer.ID, adCid cid.Cid, previousCid cid.Cid) error {
+	if err := ing.ds.Put(context.Background(), datastore.NewKey(deepestSyncPrefix+peerID.String()), adCid.Bytes()); err != nil {
+		return err
+	}
+	prevKey := datastore.NewKey(deepestSyncPrefix + "prev/" + peerID.String())
+	if previousCid != cid.Undef {
+		return ing.ds.Put(context.Background(), prevKey, previousCid.Bytes())
+	}
+	return ing.ds.Delete(context.Background(), prevKey)
+}
+
 // getLastKnownSync returns the CID of the last fully processed advertisement
 // and a boolean indicating that a defined CID was successfully found.
 func (ing *Ingester) getLastKnownSync(publisherID peer.ID) (cid.Cid, bool) {
@@ -872,7 +1031,7 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 			stats.Record(ctx, metrics.AdIngestActive.M(int64(ing.workersActive.Add(1))))
 
 			for syncFin := ing.getNextSyncFin(pubID); syncFin != nil; syncFin = ing.getNextSyncFin(pubID) {
-				ing.processRawAdChain(ctx, *syncFin, wkrNum)
+				ing.processRawAdChain(ctx, *syncFin, wkrNum, false)
 			}
 
 			stats.Record(ctx, metrics.AdIngestActive.M(int64(ing.workersActive.Add(-1))))
@@ -916,7 +1075,12 @@ func (ing *Ingester) getNextSyncFin(pubID peer.ID) *dagsync.SyncFinished {
 // create provider work assignments. When not workers are working on a work
 // assignment for a provider, then workers are given the next work assignment
 // for that provider.
-func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync.SyncFinished, wkrNum int) {
+//
+// extendMode is set by the backward scan path. In extend mode the walk does
+// not stop at the first already-processed ad: it skips processed ads but
+// keeps following PreviousID, advancing deepestSync past cached territory.
+// Skipped ads are not added to adsGroupedByProvider and are not re-ingested.
+func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync.SyncFinished, wkrNum int, extendMode bool) {
 	if syncFinished.Count == 0 {
 		// Attempted sync, but already up to data. Nothing to do.
 		return
@@ -946,6 +1110,16 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 	provAddrs := map[peer.ID][]string{}
 	var totalAds int64
 	var nextAdCid cid.Cid
+	// Tracks the deepest already-processed ad walked through during a backward
+	// scan, so deepestSync can advance even when the entire batch was already
+	// ingested. Only set in extend mode.
+	var lastSkippedCid cid.Cid
+	var lastSkippedProvID peer.ID
+	// Tracks the deepest cid walked in this batch (any ad, processed or not).
+	// Used to advance the publisher-keyed deepestSync state regardless of
+	// which provider IDs appear in the chain. nextAdCid (loop variable) is
+	// always the PreviousID of this when the loop exits.
+	var lastWalkedCid cid.Cid
 
 	for c := syncFinished.Cid; c != cid.Undef; c = nextAdCid {
 		// Group the CIDs by the provider. Most of the time a publisher will
@@ -954,10 +1128,30 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 
 		processed, resync := ing.adAlreadyProcessed(c)
 		if processed {
-			// This ad has been processed so all earlier ads already have been
-			// processed.
-			log.Infow("Remainder of ad chain already processed", "cid", c)
-			break
+			if !extendMode {
+				// forward sync: this ad is processed so all earlier
+				// ads have been too. stop here.
+				log.Infow("Remainder of ad chain already processed", "cid", c)
+				break
+			}
+			// backward scan: skip already-processed ads but keep
+			// walking to advance deepestSync past cached territory.
+			ad, err := ing.loadAd(c)
+			if err != nil {
+				break
+			}
+			if ad.PreviousID != nil {
+				nextAdCid = ad.PreviousID.(cidlink.Link).Cid
+			} else {
+				nextAdCid = cid.Undef
+			}
+			lastSkippedCid = c
+			if pid, pidErr := peer.Decode(ad.Provider); pidErr == nil {
+				lastSkippedProvID = pid
+			}
+			lastWalkedCid = c
+			totalAds++
+			continue
 		}
 
 		ad, err := ing.loadAd(c)
@@ -971,6 +1165,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		} else {
 			nextAdCid = cid.Undef
 		}
+		lastWalkedCid = c
 		totalAds++
 
 		providerID, err := peer.Decode(ad.Provider)
@@ -1008,6 +1203,47 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 
 	nonRmCount := totalAds - rmCount
 
+	// Save the deepest point reached for each provider so the next backward
+	// scan batch picks up from here. If the batch was entirely skipped (all
+	// ads already processed) advance using lastSkippedCid; otherwise use the
+	// deepest cid in adsGroupedByProvider for each provider.
+	if extendMode && lastSkippedCid.Defined() && len(adsGroupedByProvider) == 0 {
+		if err := ing.setDeepestSync(lastSkippedProvID, lastSkippedCid, nextAdCid); err != nil {
+			log.Errorw("Failed to save deepest sync for skipped batch", "err", err)
+		}
+	}
+	// Always advance deepestSync for the publisher peer ID too. RunBackwardScan
+	// keys its loop on the publisher (or a provider resolved from publisher
+	// via registry). When the chain has ads with a provider field different
+	// from the publisher, the per-provider updates above don't advance the
+	// publisher-keyed state, causing the loop to spin re-walking the same
+	// range.
+	if extendMode && lastWalkedCid.Defined() {
+		if err := ing.setDeepestSync(publisher, lastWalkedCid, nextAdCid); err != nil {
+			log.Errorw("Failed to save deepest sync for publisher", "err", err, "publisher", publisher)
+		}
+	}
+	for providerID, adInfos := range adsGroupedByProvider {
+		if len(adInfos) > 0 {
+			deepest := adInfos[len(adInfos)-1].cid
+			if extendMode {
+				// backward scan: always update deepestSync
+				if err := ing.setDeepestSync(providerID, deepest, nextAdCid); err != nil {
+					log.Errorw("Failed to save deepest sync", "err", err, "provider", providerID)
+				}
+			} else {
+				// forward sync: only set deepestSync if not already set
+				// (bootstrap for backward scan, don't overwrite deeper values).
+				existing, _ := ing.GetDeepestSync(providerID)
+				if !existing.Defined() {
+					if err := ing.setDeepestSync(providerID, deepest, nextAdCid); err != nil {
+						log.Errorw("Failed to save deepest sync", "err", err, "provider", providerID)
+					}
+				}
+			}
+		}
+	}
+
 	log.Debugw("Created ad stack", "providers", len(adsGroupedByProvider), "ads", totalAds, "rmCount", rmCount)
 
 	stats.Record(ctx,
@@ -1024,16 +1260,18 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		mu.Lock()
 
 		ing.reg.Saw(providerID, false)
-		ing.ingestWorkerLogic(ctx, providerID, publisher, provAddrs[providerID], adInfos, wkrNum)
+		ing.ingestWorkerLogic(ctx, providerID, publisher, provAddrs[providerID], adInfos, wkrNum, extendMode)
 
 		mu.Unlock()
 	}
 
 	// If no provider had any ads to process (e.g. the entire chain was
-	// already processed by a concurrent sync), no ingestWorkerLogic runs and
-	// no adProcessedEvent is ever sent. Notify any waiting Sync() so it
-	// doesn't hang on syncDone forever.
-	if len(adsGroupedByProvider) == 0 {
+	// already processed by a concurrent sync, or extend mode skipped the
+	// whole batch), no ingestWorkerLogic runs and no adProcessedEvent is
+	// ever sent. Notify any waiting Sync() so it doesn't hang on syncDone
+	// forever. Skip in extend mode -- backward scan does not have a Sync()
+	// caller waiting on syncDone.
+	if !extendMode && len(adsGroupedByProvider) == 0 {
 		ing.inEvents <- adProcessedEvent{
 			publisher: publisher,
 			headAdCid: syncFinished.Cid,
@@ -1056,7 +1294,12 @@ func (ing *Ingester) getProviderMu(providerID peer.ID) *sync.Mutex {
 	return mu
 }
 
-func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher peer.ID, addresses []string, adInfos []adInfo, wkrNum int) {
+// ingestWorkerLogic processes a batch of ads for a single provider. extendMode
+// is set when called from RunBackwardScan: in extend mode, no adProcessedEvent
+// is sent (no Sync() caller is waiting), and markAdProcessed is called with
+// skipLatestUpdate=true so the per-publisher latestSync pointer is not clobbered
+// by ads that are older than the current latestSync.
+func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher peer.ID, addresses []string, adInfos []adInfo, wkrNum int, extendMode bool) {
 	log := log.With("publisher", publisher, "worker", wkrNum)
 	// Log provider ID if not the same as publisher ID.
 	if provider != publisher {
@@ -1090,11 +1333,13 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 
 		if ctx.Err() != nil {
 			log.Infow("Ingest worker canceled while processing ads", "err", ctx.Err())
-			ing.inEvents <- adProcessedEvent{
-				publisher: publisher,
-				headAdCid: headAdCid,
-				adCid:     ai.cid,
-				err:       ctx.Err(),
+			if !extendMode {
+				ing.inEvents <- adProcessedEvent{
+					publisher: publisher,
+					headAdCid: headAdCid,
+					adCid:     ai.cid,
+					err:       ctx.Err(),
+				}
 			}
 			log.Debug("Sent ad processed event for canceled processing")
 			return
@@ -1115,17 +1360,19 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 				"adCid", ai.cid,
 				"progress", fmt.Sprintf("%d of %d", count, total))
 
-			if markErr := ing.markAdProcessed(publisher, ai.cid, frozen, false); markErr != nil {
+			if markErr := ing.markAdProcessed(publisher, ai.cid, frozen, false, extendMode); markErr != nil {
 				log.Errorw("Failed to mark ad as processed", "err", markErr)
 			}
 			// Do not write removed ads to mirror. They are not read during
 			// indexing, and those deleted in the future are removed by GC.
 
 			// Distribute the atProcessedEvent notices to waiting Sync calls.
-			ing.inEvents <- adProcessedEvent{
-				publisher: publisher,
-				headAdCid: headAdCid,
-				adCid:     ai.cid,
+			if !extendMode {
+				ing.inEvents <- adProcessedEvent{
+					publisher: publisher,
+					headAdCid: headAdCid,
+					adCid:     ai.cid,
+				}
 			}
 			log.Debug("Sent ad processed event for skipped ad")
 			continue
@@ -1176,11 +1423,13 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 				log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err, "adsLeftToProcess", i+1)
 				// Tell anyone waiting that the sync finished for this head because
 				// of error.  TODO(mm) would be better to propagate the error.
-				ing.inEvents <- adProcessedEvent{
-					publisher: publisher,
-					headAdCid: headAdCid,
-					adCid:     ai.cid,
-					err:       err,
+				if !extendMode {
+					ing.inEvents <- adProcessedEvent{
+						publisher: publisher,
+						headAdCid: headAdCid,
+						adCid:     ai.cid,
+						err:       err,
+					}
 				}
 				log.Debug("Sent ad processed event with error")
 				return
@@ -1193,7 +1442,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		ing.reg.SetLastError(provider, nil)
 
 		putMirror := hasEnts && ing.mirror.canWrite()
-		if markErr := ing.markAdProcessed(publisher, ai.cid, frozen, putMirror); markErr != nil {
+		if markErr := ing.markAdProcessed(publisher, ai.cid, frozen, putMirror, extendMode); markErr != nil {
 			log.Errorw("Failed to mark ad as processed", "err", markErr)
 		}
 
@@ -1228,11 +1477,13 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		log.Debug("Done processing ad")
 
 		// Distribute the atProcessedEvent notices to waiting Sync calls.
-		ing.inEvents <- adProcessedEvent{
-			publisher: publisher,
-			headAdCid: headAdCid,
-			adCid:     ai.cid,
+		if !extendMode {
+			ing.inEvents <- adProcessedEvent{
+				publisher: publisher,
+				headAdCid: headAdCid,
+				adCid:     ai.cid,
+			}
+			log.Debug("Sent ad processed event")
 		}
-		log.Debug("Sent ad processed event")
 	}
 }

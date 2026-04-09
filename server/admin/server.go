@@ -69,6 +69,8 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	mux.HandleFunc("/ingest/allow/", h.allowPeer)
 	mux.HandleFunc("/ingest/block/", h.blockPeer)
 	mux.HandleFunc("/ingest/sync/", h.sync)
+	mux.HandleFunc("/ingest/syncstate", h.syncState)
+	mux.HandleFunc("/ingest/scan/", h.scan)
 
 	// Assignment routes
 	mux.HandleFunc("/ingest/assign/", h.assignPeer)

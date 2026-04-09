@@ -407,6 +407,147 @@ func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// syncState returns latestSync, deepestSync, and atGenesis for all known
+// providers. Used to monitor backward scan progress.
+func (h *adminHandler) syncState(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+	if h.ingester == nil {
+		http.Error(w, "ingester disabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	providers := h.reg.AllProviderInfo()
+	type providerSyncState struct {
+		LatestSync  string `json:"latestSync,omitempty"`
+		DeepestSync string `json:"deepestSync,omitempty"`
+		AtGenesis   bool   `json:"atGenesis"`
+	}
+	result := make(map[string]providerSyncState, len(providers))
+	for _, p := range providers {
+		pid := p.AddrInfo.ID
+		var s providerSyncState
+
+		// latestSync is stored under publisher ID.
+		pubID := p.Publisher
+		if pubID == "" {
+			pubID = pid
+		}
+		if c, err := h.ingester.GetLatestSync(pubID); err == nil && c.Defined() {
+			s.LatestSync = c.String()
+		}
+
+		// deepestSync is stored under provider ID by processRawAdChain;
+		// try provider ID first, fall back to publisher ID.
+		if c, err := h.ingester.GetDeepestSync(pid); err == nil && c.Defined() {
+			s.DeepestSync = c.String()
+		} else if pid != pubID {
+			if c, err := h.ingester.GetDeepestSync(pubID); err == nil && c.Defined() {
+				s.DeepestSync = c.String()
+			}
+		}
+
+		if s.DeepestSync != "" {
+			// Check genesis using the same ID that found deepestSync.
+			checkID := pid
+			if _, err := h.ingester.GetDeepestSync(pid); err != nil {
+				checkID = pubID
+			}
+			prev, err := h.ingester.GetDeepestSyncPrevious(checkID)
+			if err == nil && !prev.Defined() {
+				s.AtGenesis = true
+			}
+		}
+
+		result[pid.String()] = s
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
+// scan starts a long-running backward scan for a provider. The scan walks
+// backward from the deepest known ad toward genesis, processing ads in
+// batches. It runs independently of forward sync operations.
+func (h *adminHandler) scan(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodPost) {
+		return
+	}
+	if h.ingester == nil {
+		http.Error(w, "ingester disabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
+	if !ok {
+		return
+	}
+	log := log.With("peerID", peerID)
+
+	query := r.URL.Query()
+	var depth int64
+	depthStr := query.Get("depth")
+	if depthStr != "" {
+		var err error
+		depth, err = strconv.ParseInt(depthStr, 10, 0)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Resolve peer ID: accept either provider or publisher ID. SyncAdChain
+	// needs the publisher ID + address to connect.
+	publisherID := peerID
+	if info, ok := h.reg.ProviderInfo(peerID); ok {
+		if info.Publisher != "" && info.Publisher != peerID {
+			publisherID = info.Publisher
+			log = log.With("publisher", publisherID)
+		}
+	}
+
+	peerInfo := peer.AddrInfo{ID: publisherID}
+
+	// Use address from request body if provided.
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	if len(data) != 0 {
+		var v string
+		if err := json.Unmarshal(data, &v); err == nil {
+			if addr, err := multiaddr.NewMultiaddr(v); err == nil {
+				peerInfo.Addrs = []multiaddr.Multiaddr{addr}
+			}
+		}
+	}
+
+	// Fall back to publisher address from registry if not in request.
+	if len(peerInfo.Addrs) == 0 {
+		if info, ok := h.reg.ProviderInfo(peerID); ok && info.PublisherAddr != nil {
+			peerInfo.Addrs = []multiaddr.Multiaddr{info.PublisherAddr}
+		}
+	}
+
+	log.Infow("Starting backward scan", "depth", depth, "addrs", peerInfo.Addrs)
+	go func() {
+		err := h.ingester.RunBackwardScan(h.ctx, peerInfo, int(depth))
+		if err != nil {
+			log.Errorw("Backward scan failed", "err", err)
+		} else {
+			log.Info("Backward scan completed")
+		}
+	}()
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
 func (h *adminHandler) importProviders(w http.ResponseWriter, r *http.Request) {
 	if !httpserver.MethodOK(w, r, http.MethodPost) {
 		return
