@@ -470,8 +470,12 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 			} else if adProcessedEvent.adCid == c {
 				return c, nil
 			}
-		case <-ctx.Done():
-			return cid.Undef, ctx.Err()
+		case <-syncCtx.Done():
+			// Use syncCtx (not the original ctx) so the configured syncTimeout
+			// actually bounds the wait loop. Previously this listened on ctx,
+			// which had no timeout, so any dropped or never-arriving
+			// adProcessedEvent would block this select indefinitely.
+			return cid.Undef, syncCtx.Err()
 		case <-ing.closePendingSyncs:
 			// When shutting down the ingester, calls to Sync may return "sync
 			// closed" error, or this error may be returned first depending on
