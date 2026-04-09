@@ -109,10 +109,10 @@ type Ingester struct {
 
 	overwriteMirrorOnResync bool
 
-	// A map of providers currently being processed. Used to detect if multiple
-	// publishers are supplying ads for the same provide at the same time.
-	providersBusy   map[peer.ID]struct{}
-	providersBusyMu sync.Mutex
+	// Per-provider serialization mutex. Concurrent processRawAdChain calls
+	// for the same provider wait here instead of dropping work.
+	providerMus   map[peer.ID]*sync.Mutex
+	providerMusMu sync.Mutex
 
 	// Used to stop watching for sync finished events from dagsync.
 	cancelOnSyncFinished context.CancelFunc
@@ -170,7 +170,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		closePendingSyncs: make(chan struct{}),
 
 		overwriteMirrorOnResync: cfg.OverwriteMirrorOnResync,
-		providersBusy:           make(map[peer.ID]struct{}),
+		providerMus:             make(map[peer.ID]*sync.Mutex),
 		stopWorker:              make(chan struct{}),
 
 		syncInProgress: make(map[peer.ID]*dagsync.SyncFinished),
@@ -1016,23 +1016,44 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 
 	// 2. For each provider put the ad stack to the worker msg channel. Each ad
 	// stack contains ads for a single provider, from a single publisher.
+	// Serialize per-provider via providerMus so concurrent processRawAdChain
+	// calls (e.g. two publishers racing for the same provider, or gossip and
+	// manual sync racing) wait their turn instead of dropping work.
 	for providerID, adInfos := range adsGroupedByProvider {
-		ing.providersBusyMu.Lock()
-		if _, ok := ing.providersBusy[providerID]; ok {
-			ing.providersBusyMu.Unlock()
-			log.Errorw("Other worker already ingesting for same provider. Provider ad chain may by published at multiple locations.", "provider", providerID)
-			return
-		}
-		ing.providersBusy[providerID] = struct{}{}
-		ing.providersBusyMu.Unlock()
+		mu := ing.getProviderMu(providerID)
+		mu.Lock()
 
 		ing.reg.Saw(providerID, false)
 		ing.ingestWorkerLogic(ctx, providerID, publisher, provAddrs[providerID], adInfos, wkrNum)
 
-		ing.providersBusyMu.Lock()
-		delete(ing.providersBusy, providerID)
-		ing.providersBusyMu.Unlock()
+		mu.Unlock()
 	}
+
+	// If no provider had any ads to process (e.g. the entire chain was
+	// already processed by a concurrent sync), no ingestWorkerLogic runs and
+	// no adProcessedEvent is ever sent. Notify any waiting Sync() so it
+	// doesn't hang on syncDone forever.
+	if len(adsGroupedByProvider) == 0 {
+		ing.inEvents <- adProcessedEvent{
+			publisher: publisher,
+			headAdCid: syncFinished.Cid,
+			adCid:     syncFinished.Cid,
+		}
+	}
+}
+
+// getProviderMu returns the per-provider serialization mutex, creating one
+// on first use. Used to serialize concurrent processRawAdChain calls for the
+// same provider without dropping work.
+func (ing *Ingester) getProviderMu(providerID peer.ID) *sync.Mutex {
+	ing.providerMusMu.Lock()
+	defer ing.providerMusMu.Unlock()
+	mu, ok := ing.providerMus[providerID]
+	if !ok {
+		mu = &sync.Mutex{}
+		ing.providerMus[providerID] = mu
+	}
+	return mu
 }
 
 func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher peer.ID, addresses []string, adInfos []adInfo, wkrNum int) {
