@@ -718,9 +718,11 @@ func (ing *Ingester) autoSync() {
 			if err != nil {
 				log.Errorw("Error removing publisher", "err", err, "provider", provInfo.AddrInfo.ID)
 			}
-			if err = ing.indexer.RemoveProvider(ctx, provInfo.AddrInfo.ID); err != nil {
-				log.Errorw("Error removing provider", "err", err, "provider", provInfo.AddrInfo.ID)
-			}
+			go func(provID peer.ID) {
+				if err = ing.indexer.RemoveProvider(ctx, provID); err != nil {
+					log.Errorw("Error removing provider", "err", err, "provider", provID)
+				}
+			}(provInfo.AddrInfo.ID)
 			continue
 		}
 
