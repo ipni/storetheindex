@@ -26,6 +26,7 @@ var AdminCmd = &cli.Command{
 		listPreferredCmd,
 		markAdProcessedCmd,
 		reloadCmd,
+		removeProviderCmd,
 		statusCmd,
 		syncCmd,
 		unassignCmd,
@@ -176,6 +177,26 @@ var reloadCmd = &cli.Command{
 		indexerHostFlag,
 	},
 	Action: reloadConfigAction,
+}
+
+var removeProviderCmd = &cli.Command{
+	Name:   "rm-provider",
+	Usage:  "Remove the specified provider",
+	Action: removeProviderAction,
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:     "provider",
+			Usage:    "Provider ID of provider to remove",
+			Aliases:  []string{"pid"},
+			Required: true,
+		},
+		&cli.BoolFlag{
+			Name:    "block",
+			Usage:   "block provider to prevent it from re-registering",
+			Aliases: []string{"b"},
+		},
+		indexerHostFlag,
+	},
 }
 
 var statusCmd = &cli.Command{
@@ -399,6 +420,28 @@ func reloadConfigAction(cctx *cli.Context) error {
 		return err
 	}
 	fmt.Println("Reloaded indexer configuration")
+	return nil
+}
+
+func removeProviderAction(cctx *cli.Context) error {
+	cl, err := client.New(cliIndexer(cctx, "admin"))
+	if err != nil {
+		return err
+	}
+	providerID, err := peer.Decode(cctx.String("pid"))
+	if err != nil {
+		return err
+	}
+	block := cctx.Bool("block")
+	err = cl.RemoveProvider(cctx.Context, providerID, block)
+	if err != nil {
+		return err
+	}
+	if block {
+		fmt.Println("Removed and blocked provider", providerID)
+	} else {
+		fmt.Println("Removed provider", providerID)
+	}
 	return nil
 }
 

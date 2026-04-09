@@ -29,6 +29,7 @@ const (
 	ingestPath          = "ingest"
 	preferredPath       = "preferred"
 	reloadConfigPath    = "reloadconfig"
+	removeProviderPath  = "removeprovider"
 	statusPath          = "status"
 	telemetryPath       = "telemetry/providers"
 )
@@ -60,6 +61,40 @@ func New(baseURL string, options ...Option) (*Client, error) {
 		c:       opts.httpClient,
 		baseURL: u,
 	}, nil
+}
+
+// RemoveProvider deletes a provide from the bridge and from the router.
+func (c *Client) RemoveProvider(ctx context.Context, providerID peer.ID, block bool) error {
+	u := c.baseURL.JoinPath(removeProviderPath, providerID.String())
+
+	blockVal := "f"
+	if block {
+		blockVal = "t"
+	}
+	values := url.Values{}
+	values.Set("block", blockVal)
+	u.RawQuery = values.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return apierror.FromResponse(resp.StatusCode, body)
+	}
+
+	return nil
 }
 
 func (c *Client) Freeze(ctx context.Context) error {

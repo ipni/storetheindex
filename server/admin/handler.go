@@ -11,6 +11,7 @@ import (
 	"path"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/ipfs/go-cid"
@@ -461,6 +462,42 @@ func (h *adminHandler) reloadConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // ----- admin handlers -----
+
+func (h *adminHandler) removeProvider(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodDelete) {
+		return
+	}
+
+	providerID, ok := decodePeerID(path.Base(r.URL.Path), w)
+	if !ok {
+		return
+	}
+
+	query := r.URL.Query()
+	var block bool
+	blockStr := query.Get("block")
+	if blockStr != "" {
+		var err error
+		block, err = strconv.ParseBool(blockStr)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("bad value for block: %s", blockStr), http.StatusBadRequest)
+			return
+		}
+	}
+
+	log.Infow("Removing provider", "provider", providerID, "block", block)
+
+	err := h.reg.RemoveProvider(r.Context(), providerID, block)
+	if err != nil {
+		log.Errorw("Failed to remove provider", "err", err, "provider", providerID)
+		if strings.HasSuffix(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, "", http.StatusInternalServerError)
+		}
+		return
+	}
+}
 
 func (h *adminHandler) freeze(w http.ResponseWriter, r *http.Request) {
 	if !httpserver.MethodOK(w, r, http.MethodPut) {

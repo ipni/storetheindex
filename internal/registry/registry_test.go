@@ -514,9 +514,10 @@ func TestPollProvider(t *testing.T) {
 		default:
 		}
 
-		// This should still be ok to call even after provider is removed.
-		err = r.RemoveProvider(context.Background(), peerID)
-		require.NoError(t, err)
+		// Check that provider not found error is returned.
+		err = r.RemoveProvider(t.Context(), peerID, false)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "provider not found")
 
 		// Check that update brings deleted provider back.
 		err = r.Update(ctx, prov, pub, cid.Undef, nil, 0)

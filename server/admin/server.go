@@ -58,6 +58,7 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	}
 
 	// Admin routes
+	mux.HandleFunc("/removeprovider/", h.removeProvider)
 	mux.HandleFunc("/freeze", h.freeze)
 	mux.HandleFunc("/status", h.status)
 	mux.HandleFunc("/healthcheck", h.healthCheckHandler)

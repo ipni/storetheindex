@@ -1047,7 +1047,11 @@ func (r *Registry) ImportProviders(ctx context.Context, fromURL *url.URL) (int, 
 	return len(newProvs), nil
 }
 
-func (r *Registry) RemoveProvider(ctx context.Context, providerID peer.ID) error {
+// RemoveProvider removes the provider and all of its data from the indexer and
+// backend value store. If block is true, then block the provider from
+// re-registering. Blocking is not persisted across indexer restarts. Update
+// the indexer config file to persist blocking the peer.
+func (r *Registry) RemoveProvider(ctx context.Context, providerID peer.ID, block bool) error {
 	var pinfo *ProviderInfo
 	var err error
 
@@ -1055,7 +1059,10 @@ func (r *Registry) RemoveProvider(ctx context.Context, providerID peer.ID) error
 	pinfo, ok := r.providers[providerID]
 	if !ok {
 		r.provMutex.Unlock()
-		return nil
+		return errors.New("provider not found")
+	}
+	if block {
+		r.BlockPeer(providerID)
 	}
 	// Remove provider from datastore and memory.
 	err = r.syncRemoveProvider(ctx, providerID)
