@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -45,6 +46,9 @@ const (
 	// adProcessedFrozenPrefix identifies all advertisements processed while in
 	// frozen mode. Used for unfreezing.
 	adProcessedFrozenPrefix = "/adF/"
+	// ctxStatePrefix tracks cross-batch contextID state for phantom prevention.
+	// Only populated for contextIDs involved in removes (sparse).
+	ctxStatePrefix = "/ctxState/"
 	// metricsUpdateInterval determines how ofter to update ingestion metrics.
 	metricsUpdateInterval = time.Minute
 )
@@ -407,6 +411,14 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 	var opts []dagsync.SyncOption
 	var latest cid.Cid
 	if resync {
+		// Clear cross-batch contextID state so the resync starts from a
+		// clean slate. ctxState records survive normal sync but a resync
+		// is meant to rebuild from scratch.
+		if provID, ok := ing.reg.ProviderByPublisher(peerInfo.ID); ok {
+			_ = ing.clearCtxState(provID)
+		}
+		_ = ing.clearCtxState(peerInfo.ID)
+
 		// If this is a resync, then it is necessary to mark the ad as
 		// unprocessed so that everything can be reingested from the start of
 		// this sync. Create a scoped block-hook to do this.
@@ -964,6 +976,42 @@ func (ing *Ingester) setDeepestSync(peerID peer.ID, adCid cid.Cid, previousCid c
 	return ing.ds.Delete(context.Background(), prevKey)
 }
 
+// getCtxState returns the cross-batch contextID state for phantom prevention.
+// Returns (state, true) if an entry exists, (0, false) otherwise.
+// state: 0=ADD, 1=RM.
+func (ing *Ingester) getCtxState(providerID peer.ID, contextID []byte) (byte, bool) {
+	key := ctxStatePrefix + providerID.String() + "/" + base64.RawStdEncoding.EncodeToString(contextID)
+	v, err := ing.ds.Get(context.Background(), datastore.NewKey(key))
+	if err != nil {
+		return 0, false
+	}
+	return v[0], true
+}
+
+func (ing *Ingester) setCtxState(providerID peer.ID, contextID []byte, state byte) error {
+	key := ctxStatePrefix + providerID.String() + "/" + base64.RawStdEncoding.EncodeToString(contextID)
+	return ing.ds.Put(context.Background(), datastore.NewKey(key), []byte{state})
+}
+
+// clearCtxState removes all ctxState entries for a provider. Used by resync
+// to start with a clean slate.
+func (ing *Ingester) clearCtxState(providerID peer.ID) error {
+	prefix := ctxStatePrefix + providerID.String() + "/"
+	q := query.Query{Prefix: prefix, KeysOnly: true}
+	results, err := ing.ds.Query(context.Background(), q)
+	if err != nil {
+		return err
+	}
+	defer results.Close()
+	for r := range results.Next() {
+		if r.Error != nil {
+			break
+		}
+		_ = ing.ds.Delete(context.Background(), datastore.NewKey(r.Key))
+	}
+	return nil
+}
+
 // getLastKnownSync returns the CID of the last fully processed advertisement
 // and a boolean indicating that a defined CID was successfully found.
 func (ing *Ingester) getLastKnownSync(publisherID peer.ID) (cid.Cid, bool) {
@@ -1384,7 +1432,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			"progress", fmt.Sprintf("%d of %d", count, total),
 			"lag", lag)
 
-		hasEnts, fromMirror, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider, wkrNum)
+		hasEnts, fromMirror, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, extendMode, lag, headProvider, wkrNum)
 		if err != nil {
 			var adIngestErr adIngestError
 			if errors.As(err, &adIngestErr) {
