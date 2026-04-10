@@ -965,7 +965,7 @@ func newTestIndexer(adminHandler func(http.ResponseWriter, *http.Request)) *test
 	ti.ingestServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
 		switch req.URL.String() {
-		case "/ingest/announce":
+		case "/announce":
 			ti.announceCount.Add(1)
 		}
 		w.WriteHeader(http.StatusOK)
