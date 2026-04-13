@@ -307,22 +307,6 @@ provider "aws" {
   region = "us-east-1"
 }
 
-module "cdn_cert" {
-  source = "registry.terraform.io/terraform-aws-modules/acm/aws"
-  version = "4.3.2"
-
-  #  Certificate must be in us-east-1 as dictated by CloudFront
-  providers = {
-    aws = aws.use1
-  }
-
-  domain_name = aws_route53_zone.prod_external.name
-  zone_id     = aws_route53_zone.prod_external.zone_id
-  subject_alternative_names = ["*.${aws_route53_zone.prod_external.name}"]
-
-  tags = local.tags
-}
-
 module "records" {
   source  = "registry.terraform.io/terraform-aws-modules/route53/aws//modules/records"
   version = "2.10.2"
