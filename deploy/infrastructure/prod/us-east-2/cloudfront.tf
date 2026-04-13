@@ -9,7 +9,7 @@ locals {
   direct_sf2_cid_contact_origin_id  = "${local.environment_name}_${local.region}_direct_sf2"
   direct_berg_cid_contact_origin_id = "${local.environment_name}_${local.region}_direct_berg"
 
-  primary_origin_id        = local.indexstar_sf2_origin_id
+  primary_origin_id        = local.direct_sf2_cid_contact_origin_id
   primary_domain           = "cid.contact"
   cdn_subdomain            = "cdn"
   cf_log_bucket            = "${local.environment_name}-${local.region}-cf-log"
