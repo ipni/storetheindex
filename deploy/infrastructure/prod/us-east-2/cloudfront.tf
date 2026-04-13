@@ -3,7 +3,7 @@ locals {
   indexstar_berg_origin_id = "${local.environment_name}_${local.region}_indexstar_berg"
   indexstar_sf_origin_id   = "${local.environment_name}_${local.region}_indexstar_sf"
   indexstar_sf2_origin_id  = "${local.environment_name}_${local.region}_indexstar_sf2"
-  indexstar_primary        = local.indexstar_sf_origin_id
+  indexstar_primary        = local.indexstar_sf2_origin_id
   http_announce_origin_id  = "${local.environment_name}_${local.region}_assigner"
   cdn_subdomain            = "cdn"
   cf_log_bucket            = "${local.environment_name}-${local.region}-cf-log"
@@ -126,7 +126,8 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   custom_error_response {
     error_code            = 404
-    error_caching_min_ttl = 300
+    error_caching_min_ttl = 1200
+    response_code         = 0
   }
 
   default_cache_behavior {
@@ -145,8 +146,8 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
+    min_ttl                = 1200
+    default_ttl            = 7200
     max_ttl                = 86400
   }
 
@@ -187,9 +188,9 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
+    min_ttl                = 300
+    default_ttl            = 300
+    max_ttl                = 300
   }
 
   ordered_cache_behavior {
@@ -207,8 +208,8 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
+    min_ttl                = 1200
+    default_ttl            = 7200
     max_ttl                = 86400
   }
 
@@ -230,8 +231,8 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
+    min_ttl                = 1200
+    default_ttl            = 7200
     max_ttl                = 86400
   }
   
@@ -245,8 +246,8 @@ resource "aws_cloudfront_distribution" "cdn" {
       query_string_cache_keys = [
         # See: https://github.com/ipni/specs/blob/main/IPNI_MH_SAMPLING.md#api
         "beacon",
-        "max",
         "federation_epoch",
+        "max",
       ]
       cookies {
         forward = "none"
@@ -254,8 +255,8 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
+    min_ttl                = 1200
+    default_ttl            = 7200
     max_ttl                = 86400
   }
 
@@ -275,8 +276,8 @@ resource "aws_cloudfront_cache_policy" "lookup" {
 
   # We have to set non-zero TTL values because otherwise CloudFront won't let 
   # the query strings settings to be configured.
-  min_ttl     = 0
-  default_ttl = 3600
+  min_ttl     = 1200
+  default_ttl = 7200
   max_ttl     = 86400
 
   parameters_in_cache_key_and_forwarded_to_origin {
@@ -304,22 +305,6 @@ resource "aws_cloudfront_cache_policy" "lookup" {
 provider "aws" {
   alias  = "use1"
   region = "us-east-1"
-}
-
-module "cdn_cert" {
-  source = "registry.terraform.io/terraform-aws-modules/acm/aws"
-  version = "4.3.2"
-
-  #  Certificate must be in us-east-1 as dictated by CloudFront
-  providers = {
-    aws = aws.use1
-  }
-
-  domain_name = aws_route53_zone.prod_external.name
-  zone_id     = aws_route53_zone.prod_external.zone_id
-  subject_alternative_names = ["*.${aws_route53_zone.prod_external.name}"]
-
-  tags = local.tags
 }
 
 module "records" {
