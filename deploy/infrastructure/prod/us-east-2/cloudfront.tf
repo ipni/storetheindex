@@ -3,8 +3,14 @@ locals {
   indexstar_berg_origin_id = "${local.environment_name}_${local.region}_indexstar_berg"
   indexstar_sf_origin_id   = "${local.environment_name}_${local.region}_indexstar_sf"
   indexstar_sf2_origin_id  = "${local.environment_name}_${local.region}_indexstar_sf2"
-  indexstar_primary        = local.indexstar_sf2_origin_id
   http_announce_origin_id  = "${local.environment_name}_${local.region}_assigner"
+
+  direct_sf_cid_contact_origin_id   = "${local.environment_name}_${local.region}_direct_sf"
+  direct_sf2_cid_contact_origin_id  = "${local.environment_name}_${local.region}_direct_sf2"
+  direct_berg_cid_contact_origin_id = "${local.environment_name}_${local.region}_direct_berg"
+
+  primary_origin_id        = local.direct_sf2_cid_contact_origin_id
+  primary_domain           = "cid.contact"
   cdn_subdomain            = "cdn"
   cf_log_bucket            = "${local.environment_name}-${local.region}-cf-log"
 }
@@ -23,8 +29,8 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   aliases = [
     "${local.cdn_subdomain}.${aws_route53_zone.prod_external.name}",
-    "infra.cid.contact",
-    "cid.contact",
+    "infra.${local.primary_domain}",
+    "${local.primary_domain}",
   ]
   price_class = "PriceClass_All"
 
@@ -39,6 +45,55 @@ resource "aws_cloudfront_distribution" "cdn" {
   #    bucket          = aws_s3_bucket.cf_logs.bucket_domain_name
   #    prefix          = "${local.environment_name}_${local.region}"
   #  }
+
+
+  # sf - direct origin
+  origin {
+    domain_name = "sf.${local.primary_domain}"
+    origin_id   = local.direct_sf_cid_contact_origin_id
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+    }
+    origin_shield {
+      enabled              = true
+      origin_shield_region = local.region
+    }
+  }
+
+  # sf2 - direct origin
+  origin {
+    domain_name = "sf2.${local.primary_domain}"
+    origin_id   = local.direct_sf2_cid_contact_origin_id
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+    }
+    origin_shield {
+      enabled              = true
+      origin_shield_region = local.region
+    }
+  }
+
+  # berg - direct origin
+  origin {
+    domain_name = "berg.${local.primary_domain}"
+    origin_id   = local.direct_berg_cid_contact_origin_id
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+    }
+    origin_shield {
+      enabled              = true
+      origin_shield_region = local.region
+    }
+  }
 
   # storetheindex/indexstar ingress.
   origin {
@@ -135,7 +190,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     # Hence the complete method list.
     allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
     cached_methods = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = local.indexstar_primary
+    target_origin_id = local.primary_origin_id
 
     forwarded_values {
       query_string = false
@@ -157,7 +212,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     # Hence the complete method list.
     allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
     cached_methods = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = local.indexstar_primary
+    target_origin_id = local.primary_origin_id
     cache_policy_id  = aws_cloudfront_cache_policy.lookup.id
 
     compress               = true
@@ -168,7 +223,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     path_pattern     = "cid/*"
     allowed_methods = ["GET", "HEAD", "OPTIONS"]
     cached_methods = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = local.indexstar_primary
+    target_origin_id = local.primary_origin_id
     cache_policy_id  = aws_cloudfront_cache_policy.lookup.id
 
     compress               = true
@@ -179,7 +234,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     path_pattern     = "providers"
     allowed_methods = ["GET", "HEAD", "OPTIONS"]
     cached_methods = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = local.indexstar_primary
+    target_origin_id = local.primary_origin_id
     forwarded_values {
       query_string = false
       cookies {
@@ -199,7 +254,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     # Hence the complete method list.
     allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
     cached_methods = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = local.indexstar_primary
+    target_origin_id = local.primary_origin_id
     forwarded_values {
       query_string = false
       cookies {
@@ -217,7 +272,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     path_pattern     = "/routing/v1/*"
     allowed_methods = ["GET", "HEAD", "OPTIONS"]
     cached_methods = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = local.indexstar_primary
+    target_origin_id = local.primary_origin_id
     forwarded_values {
       query_string = true
       query_string_cache_keys = [
@@ -240,7 +295,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     path_pattern     = "/ipni/v0/sample/*"
     allowed_methods = ["GET", "HEAD", "OPTIONS"]
     cached_methods = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = local.indexstar_primary
+    target_origin_id = local.primary_origin_id
     forwarded_values {
       query_string = true
       query_string_cache_keys = [
