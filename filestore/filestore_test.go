@@ -106,6 +106,126 @@ func TestLocal(t *testing.T) {
 	})
 }
 
+func TestLocalWithPathSplit(t *testing.T) {
+	carDir := t.TempDir()
+
+	fileStore, err := filestore.NewLocal(carDir, filestore.WithDefaultPathSplit(2, 1))
+	require.NoError(t, err)
+	require.Equal(t, "local", fileStore.Type())
+
+	t.Run("test-Local-Put", func(t *testing.T) {
+		testPut(t, fileStore)
+	})
+
+	require.FileExists(t,
+		filepath.Join(carDir, filestore.ConfigMetadataFileName),
+		"path split requires metadata file",
+	)
+	require.FileExists(t, filepath.Join(carDir, fileName[:2], fileName[2:3], fileName))
+
+	t.Run("test-Local-Head", func(t *testing.T) {
+		testHead(t, fileStore)
+	})
+
+	t.Run("test-Local-Get", func(t *testing.T) {
+		testGet(t, fileStore)
+	})
+
+	// Some extra bogus filesystem entries that should be skipped
+	for data, fName := range map[string]string{
+		"no-path-prefix":              filepath.Join(carDir, fileName),
+		"wrong-path-prefix":           filepath.Join(carDir, fileName[:2], fileName),
+		"prefix-not-on-path-boundary": filepath.Join(carDir, "corner-"+fileName[:2], fileName[2:3], fileName),
+	} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(fName), 0700))
+		require.NoError(t, os.WriteFile(fName, []byte(data), 0600))
+	}
+
+	t.Run("test-Local-List", func(t *testing.T) {
+		testList(t, fileStore)
+	})
+
+	t.Run("test-Local-Delete", func(t *testing.T) {
+		testDelete(t, fileStore)
+	})
+}
+
+func TestLocalMetadata(t *testing.T) {
+	t.Run("legacy format detection", func(t *testing.T) {
+		carDir := t.TempDir()
+
+		// Prepare legacy, flat structure
+		require.NoError(t, os.WriteFile(filepath.Join(carDir, fileName), []byte(data), 0666))
+		require.NoError(t, os.WriteFile(filepath.Join(carDir, fileName1), []byte(data1), 0666))
+
+		// Create filestore with default path split, it should be overwritten though
+		fileStore, err := filestore.NewLocal(carDir, filestore.WithDefaultPathSplit(2, 1))
+		require.NoError(t, err)
+
+		fi, err := fileStore.Head(t.Context(), fileName)
+		require.NoError(t, err)
+		require.NotNil(t, fi)
+
+		fi, err = fileStore.Put(t.Context(), fileName2, strings.NewReader(data2))
+		require.NoError(t, err)
+		require.NotNil(t, fi)
+
+		require.FileExists(t, filepath.Join(carDir, fileName2))
+		require.NoFileExists(t, filepath.Join(carDir, filestore.ConfigMetadataFileName))
+	})
+
+	t.Run("reopen local filestore with metadata", func(t *testing.T) {
+		carDir := t.TempDir()
+
+		_, err := filestore.NewLocal(carDir, filestore.WithDefaultPathSplit(2, 1))
+		require.NoError(t, err)
+
+		// Reopen must read the metadata file and read config from it
+		fileStore, err := filestore.NewLocal(carDir)
+		require.NoError(t, err)
+
+		require.FileExists(t, filepath.Join(carDir, filestore.ConfigMetadataFileName))
+
+		_, err = fileStore.Put(t.Context(), fileName, strings.NewReader(data))
+		require.NoError(t, err)
+
+		require.FileExists(t, filepath.Join(carDir, fileName[:2], fileName[2:3], fileName))
+	})
+
+	t.Run("invalid metadata file", func(t *testing.T) {
+		carDir := t.TempDir()
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(carDir, filestore.ConfigMetadataFileName),
+			[]byte("not a valid json file"),
+			0666,
+		))
+
+		_, err := filestore.NewLocal(carDir)
+		require.ErrorContains(t, err, "failed to decode filestore configuration file")
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(carDir, filestore.ConfigMetadataFileName),
+			[]byte(`{"Version": "bogus"}`),
+			0666,
+		))
+
+		_, err = filestore.NewLocal(carDir)
+		require.ErrorContains(t, err, "invalid filestore configuration file")
+		require.ErrorContains(t, err, "unknown version")
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(carDir, filestore.ConfigMetadataFileName),
+			[]byte(`{"Version": "v1", "PathSplit": [-1]}`),
+			0666,
+		))
+
+		_, err = filestore.NewLocal(carDir)
+		require.ErrorContains(t, err, "invalid filestore configuration file")
+		require.ErrorContains(t, err, "invalid path split config")
+	})
+}
+
 func TestMakeFilestore(t *testing.T) {
 	cfg := filestore.Config{
 		Type: "none",
@@ -127,6 +247,15 @@ func TestMakeFilestore(t *testing.T) {
 	require.ErrorContains(t, err, "base path")
 
 	cfg.Local.BasePath = t.TempDir()
+	fs, err = filestore.MakeFilestore(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, fs)
+
+	cfg.Local.DefaultPathSplit = []int{0, -1}
+	_, err = filestore.MakeFilestore(cfg)
+	require.ErrorContains(t, err, "invalid path split")
+
+	cfg.Local.DefaultPathSplit = []int{7, 5}
 	fs, err = filestore.MakeFilestore(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, fs)

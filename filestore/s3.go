@@ -36,7 +36,7 @@ func NewS3(bucketName string, options ...S3Option) (*S3, error) {
 		return nil, errors.New("s3 filestore requires bucket name")
 	}
 
-	opts, err := getOpts(options)
+	opts, err := getS3Opts(options)
 	if err != nil {
 		return nil, err
 	}
