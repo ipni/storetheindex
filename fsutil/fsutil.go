@@ -3,7 +3,9 @@ package fsutil
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"iter"
 	"os"
 	"path/filepath"
 	"time"
@@ -92,4 +94,37 @@ func FileChanged(filePath string, modTime time.Time) (time.Time, bool, error) {
 func FileExists(filename string) bool {
 	_, err := os.Lstat(filename)
 	return !errors.Is(err, os.ErrNotExist)
+}
+
+// DirIter returns iterator over directory entries
+//
+// This method of directory iteration can be especially useful for iteration
+// over directories with large number of entries. It does not read all entries
+// upfront working on at most `batchSize` entries at a time
+func DirIter(path string, batchSize int) iter.Seq2[os.DirEntry, error] {
+	return func(yield func(os.DirEntry, error) bool) {
+		dir, err := os.Open(path)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+
+		defer dir.Close()
+
+		for {
+			entries, err := dir.ReadDir(batchSize)
+			if errors.Is(err, io.EOF) {
+				return
+			} else if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			for _, entry := range entries {
+				if !yield(entry, nil) {
+					return
+				}
+			}
+		}
+	}
 }
