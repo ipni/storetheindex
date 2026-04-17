@@ -18,6 +18,8 @@ type Config struct {
 type LocalConfig struct {
 	// BasePath is the filesystem directory where files are stored.
 	BasePath string
+	// DefaultPathSplit determines how the car name is split into subdirectories
+	DefaultPathSplit []int
 }
 
 type S3Config struct {
@@ -38,7 +40,9 @@ type S3Config struct {
 func MakeFilestore(cfg Config) (Interface, error) {
 	switch cfg.Type {
 	case "local":
-		return NewLocal(cfg.Local.BasePath)
+		return NewLocal(cfg.Local.BasePath,
+			WithDefaultPathSplit(cfg.Local.DefaultPathSplit...),
+		)
 	case "s3":
 		return NewS3(cfg.S3.BucketName,
 			WithEndpoint(cfg.S3.Endpoint),

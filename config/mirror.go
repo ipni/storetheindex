@@ -26,6 +26,16 @@ type Mirror struct {
 func NewMirror() Mirror {
 	return Mirror{
 		Compress: "gzip",
+		Retrieval: filestore.Config{
+			Local: filestore.LocalConfig{
+				DefaultPathSplit: []int{11, 2},
+			},
+		},
+		Storage: filestore.Config{
+			Local: filestore.LocalConfig{
+				DefaultPathSplit: []int{11, 2},
+			},
+		},
 	}
 }
 
