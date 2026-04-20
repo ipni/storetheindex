@@ -528,6 +528,26 @@ func (ing *Ingester) RunBackwardScan(ctx context.Context, peerInfo peer.AddrInfo
 	}
 	log := log.With("peer", peerInfo.ID, "provider", syncStateID, "mode", "backward-scan")
 
+	const (
+		minBackoff = 30 * time.Second
+		maxBackoff = 30 * time.Minute
+	)
+	backoff := minBackoff
+	sleepBackoff := func(reason string, err error) bool {
+		log.Warnw("backward scan retrying", "reason", reason, "err", err, "backoff", backoff)
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(backoff):
+		}
+		backoff *= 2
+		if backoff > maxBackoff {
+			backoff = maxBackoff
+		}
+		return true
+	}
+	resetBackoff := func() { backoff = minBackoff }
+
 	var totalWalked int64
 	for {
 		if ctx.Err() != nil {
@@ -536,12 +556,18 @@ func (ing *Ingester) RunBackwardScan(ctx context.Context, peerInfo peer.AddrInfo
 
 		prevCid, err := ing.GetDeepestSyncPrevious(syncStateID)
 		if err != nil {
-			return fmt.Errorf("failed to get deepest sync previous: %w", err)
+			if !sleepBackoff("GetDeepestSyncPrevious failed", err) {
+				return ctx.Err()
+			}
+			continue
 		}
 		if prevCid == cid.Undef {
 			deepest, err := ing.GetDeepestSync(syncStateID)
 			if err != nil {
-				return fmt.Errorf("failed to get deepest sync: %w", err)
+				if !sleepBackoff("GetDeepestSync failed", err) {
+					return ctx.Err()
+				}
+				continue
 			}
 			if deepest != cid.Undef {
 				log.Infow("Backward scan reached genesis", "totalWalked", totalWalked)
@@ -552,13 +578,18 @@ func (ing *Ingester) RunBackwardScan(ctx context.Context, peerInfo peer.AddrInfo
 			log.Infow("No previous sync, bootstrapping", "batchSize", batchSize)
 			_, err = ing.Sync(ctx, peerInfo, int(batchSize), false)
 			if err != nil {
-				return fmt.Errorf("bootstrap sync failed: %w", err)
+				if !sleepBackoff("bootstrap sync failed", err) {
+					return ctx.Err()
+				}
+				continue
 			}
 			deepest, _ = ing.GetDeepestSync(syncStateID)
 			if deepest == cid.Undef {
+				// publisher gave us nothing; operator can re-trigger later
 				log.Info("Bootstrap did not establish deepestSync, nothing to extend")
 				return nil
 			}
+			resetBackoff()
 			continue
 		}
 
@@ -585,11 +616,16 @@ func (ing *Ingester) RunBackwardScan(ctx context.Context, peerInfo peer.AddrInfo
 				ing.generalDagsyncBlockHook(pid, c, actions)
 			}))
 		if err != nil {
-			return fmt.Errorf("backward sync failed: %w", err)
+			if !sleepBackoff("SyncAdChain failed", err) {
+				return ctx.Err()
+			}
+			continue
 		}
 		if adCount == 0 {
-			log.Infow("Backward batch returned no ads, stopping", "totalWalked", totalWalked)
-			return nil
+			if !sleepBackoff("backward batch returned no ads", nil) {
+				return ctx.Err()
+			}
+			continue
 		}
 
 		// Process the ads we just fetched. SyncAdChain with WithHeadAdCid
@@ -598,6 +634,7 @@ func (ing *Ingester) RunBackwardScan(ctx context.Context, peerInfo peer.AddrInfo
 		syncFin := dagsync.SyncFinished{Cid: prevCid, PeerID: peerInfo.ID, Count: adCount}
 		ing.processRawAdChain(ctx, syncFin, -1, true)
 		totalWalked += int64(adCount)
+		resetBackoff()
 
 		log.Infow("Backward batch complete",
 			"batchAds", adCount,
