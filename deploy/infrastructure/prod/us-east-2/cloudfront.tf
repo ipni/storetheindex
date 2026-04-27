@@ -270,27 +270,15 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   ordered_cache_behavior {
     path_pattern     = "/routing/v1/*"
-    allowed_methods = ["GET", "HEAD", "OPTIONS"]
-    cached_methods = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.primary_origin_id
-    forwarded_values {
-      query_string = true
-      query_string_cache_keys = [
-        # See: https://specs.ipfs.tech/routing/http-routing-v1/#content-routing-api
-        "filter-addrs",
-        "filter-protocols",
-      ]
-      cookies {
-        forward = "none"
-      }
-    }
+    cache_policy_id  = aws_cloudfront_cache_policy.delegated_routing.id
+
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 1200
-    default_ttl            = 7200
-    max_ttl                = 86400
   }
-  
+
   ordered_cache_behavior {
     path_pattern     = "/ipni/v0/sample/*"
     allowed_methods = ["GET", "HEAD", "OPTIONS"]
@@ -349,6 +337,39 @@ resource "aws_cloudfront_cache_policy" "lookup" {
       query_string_behavior = "whitelist"
       query_strings {
         items = ["cascade"]
+      }
+    }
+
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+  }
+}
+
+resource "aws_cloudfront_cache_policy" "delegated_routing" {
+  name = "delegated_routing"
+
+  min_ttl     = 1200
+  default_ttl = 7200
+  max_ttl     = 86400
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "whitelist"
+      headers {
+        items = ["Accept"]
+      }
+    }
+    query_strings_config {
+      query_string_behavior = "whitelist"
+      query_strings {
+        items = [
+          # See: https://specs.ipfs.tech/routing/http-routing-v1/#content-routing-api
+          "filter-addrs",
+          "filter-protocols",
+        ]
       }
     }
 
