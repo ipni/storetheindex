@@ -10,10 +10,6 @@ output "kustomize_controller_role_arn" {
   value = module.kustomize_controller_role.iam_role_arn
 }
 
-output "cert_manager_role_arn" {
-  value = module.cert_manager_role.iam_role_arn
-}
-
 output "cluster_autoscaler_role_arn" {
   value = module.cluster_autoscaler_role.iam_role_arn
 }
