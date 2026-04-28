@@ -33,7 +33,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["r5n.2xlarge"]
       subnet_ids     = [data.aws_subnet.ue2c2.id]
-      taints         = {
+      taints = {
         dedicated = {
           key    = "dedicated"
           value  = "r5n-2xl"
@@ -48,7 +48,7 @@ module "eks" {
       desired_size   = 1
       instance_types = ["r5n.2xlarge"]
       subnet_ids     = [data.aws_subnet.ue2a1.id]
-      taints         = {
+      taints = {
         dedicated = {
           key    = "dedicated"
           value  = "r5n-2xl"
@@ -61,86 +61,86 @@ module "eks" {
 
     # Node group for running double hashed indexer nodes
     prod-ue2c-r6a-xl = {
-      min_size       = 0
-      max_size       = 5
-      desired_size   = 1
-      instance_types = ["r6a.xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
+      min_size        = 0
+      max_size        = 5
+      desired_size    = 1
+      instance_types  = ["r6a.xlarge"]
+      subnet_ids      = [data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
       cluster_version = "1.25" # Note: temporary overwrite
     }
 
     # General purpose node-group.
     prod-ue2a-m4-xl = {
-      min_size       = 0
-      max_size       = 10
-      desired_size   = 0
-      subnet_ids     = [data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
-      instance_types = ["m4.xlarge"]
+      min_size        = 0
+      max_size        = 10
+      desired_size    = 0
+      subnet_ids      = [data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
+      instance_types  = ["m4.xlarge"]
       cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2b-m4-xl = {
-      min_size       = 0
-      max_size       = 10
-      desired_size   = 0
-      subnet_ids     = [data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
-      instance_types = ["m4.xlarge"]
+      min_size        = 0
+      max_size        = 10
+      desired_size    = 0
+      subnet_ids      = [data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
+      instance_types  = ["m4.xlarge"]
       cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2c-m4-xl = {
-      min_size       = 0
-      max_size       = 10
-      desired_size   = 0
-      subnet_ids     = [data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
-      instance_types = ["m4.xlarge"]
+      min_size        = 0
+      max_size        = 10
+      desired_size    = 0
+      subnet_ids      = [data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
+      instance_types  = ["m4.xlarge"]
       cluster_version = "1.23" # Note: temporary overwrite
     }
 
     prod-ue2a-c6a-8xl-2 = {
-      min_size       = 0
-      max_size       = 5
-      desired_size   = 0
-      instance_types = ["c6a.8xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
+      min_size        = 0
+      max_size        = 5
+      desired_size    = 0
+      instance_types  = ["c6a.8xlarge"]
+      subnet_ids      = [data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
       cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2b-c6a-8xl-2 = {
-      min_size       = 0
-      max_size       = 5
-      desired_size   = 0
-      instance_types = ["c6a.8xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
+      min_size        = 0
+      max_size        = 5
+      desired_size    = 0
+      instance_types  = ["c6a.8xlarge"]
+      subnet_ids      = [data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
       cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2c-c6a-8xl-2 = {
-      min_size       = 0
-      max_size       = 5
-      desired_size   = 0
-      instance_types = ["c6a.8xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
+      min_size        = 0
+      max_size        = 5
+      desired_size    = 0
+      instance_types  = ["c6a.8xlarge"]
+      subnet_ids      = [data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
       cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2a-r6a-2xl = {
-      min_size       = 0
-      max_size       = 10
-      desired_size   = 0
-      instance_types = ["r6a.2xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2a1.id, data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
+      min_size        = 0
+      max_size        = 10
+      desired_size    = 0
+      instance_types  = ["r6a.2xlarge"]
+      subnet_ids      = [data.aws_subnet.ue2a1.id, data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id]
       cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2b-r6a-2xl = {
-      min_size       = 0
-      max_size       = 10
-      desired_size   = 0
-      instance_types = ["r6a.2xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2b1.id, data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
+      min_size        = 0
+      max_size        = 10
+      desired_size    = 0
+      instance_types  = ["r6a.2xlarge"]
+      subnet_ids      = [data.aws_subnet.ue2b1.id, data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id]
       cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2c-r6a-2xl = {
-      min_size       = 0
-      max_size       = 10
-      desired_size   = 0
-      instance_types = ["r6a.2xlarge"]
-      subnet_ids     = [data.aws_subnet.ue2c1.id, data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
+      min_size        = 0
+      max_size        = 10
+      desired_size    = 0
+      instance_types  = ["r6a.2xlarge"]
+      subnet_ids      = [data.aws_subnet.ue2c1.id, data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id]
       cluster_version = "1.25" # Note: temporary overwrite
     }
     prod-ue2-c6a-8xl = {
@@ -148,7 +148,7 @@ module "eks" {
       max_size       = 10
       desired_size   = 1
       instance_types = ["c6a.8xlarge"]
-      subnet_ids     = [
+      subnet_ids = [
         data.aws_subnet.ue2a1.id, data.aws_subnet.ue2a2.id, data.aws_subnet.ue2a3.id,
         data.aws_subnet.ue2b1.id, data.aws_subnet.ue2b2.id, data.aws_subnet.ue2b3.id,
         data.aws_subnet.ue2c1.id, data.aws_subnet.ue2c2.id, data.aws_subnet.ue2c3.id

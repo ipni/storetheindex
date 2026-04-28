@@ -16,7 +16,7 @@ module "vpc" {
   azs                    = data.aws_availability_zones.available.names
   one_nat_gateway_per_az = true
 
-  cidr                  = "20.10.0.0/16"
+  cidr = "20.10.0.0/16"
   secondary_cidr_blocks = [
     "20.0.0.0/16"
   ]

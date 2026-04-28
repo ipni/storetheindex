@@ -9,10 +9,10 @@ locals {
   direct_sf2_cid_contact_origin_id  = "${local.environment_name}_${local.region}_direct_sf2"
   direct_berg_cid_contact_origin_id = "${local.environment_name}_${local.region}_direct_berg"
 
-  primary_origin_id        = local.direct_sf2_cid_contact_origin_id
-  primary_domain           = "cid.contact"
-  cdn_subdomain            = "cdn"
-  cf_log_bucket            = "${local.environment_name}-${local.region}-cf-log"
+  primary_origin_id = local.direct_sf2_cid_contact_origin_id
+  primary_domain    = "cid.contact"
+  cdn_subdomain     = "cdn"
+  cf_log_bucket     = "${local.environment_name}-${local.region}-cf-log"
 }
 
 resource "aws_s3_bucket" "cf_logs" {
@@ -55,7 +55,7 @@ resource "aws_cloudfront_distribution" "cdn" {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
-      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
     }
     origin_shield {
       enabled              = true
@@ -71,7 +71,7 @@ resource "aws_cloudfront_distribution" "cdn" {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
-      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
     }
     origin_shield {
       enabled              = true
@@ -87,7 +87,7 @@ resource "aws_cloudfront_distribution" "cdn" {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
-      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
     }
     origin_shield {
       enabled              = true
@@ -103,7 +103,7 @@ resource "aws_cloudfront_distribution" "cdn" {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
-      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
     }
     origin_shield {
       enabled              = true
@@ -124,7 +124,7 @@ resource "aws_cloudfront_distribution" "cdn" {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
-      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
     }
     origin_shield {
       enabled              = true
@@ -140,7 +140,7 @@ resource "aws_cloudfront_distribution" "cdn" {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
-      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
     }
     origin_shield {
       enabled              = true
@@ -156,7 +156,7 @@ resource "aws_cloudfront_distribution" "cdn" {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
-      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
     }
     origin_shield {
       enabled              = true
@@ -171,7 +171,7 @@ resource "aws_cloudfront_distribution" "cdn" {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
-      origin_ssl_protocols = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
+      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
     }
     origin_shield {
       enabled              = true
@@ -188,8 +188,8 @@ resource "aws_cloudfront_distribution" "cdn" {
   default_cache_behavior {
     # We need to allow GET and PUT. CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
-    allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
-    cached_methods = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.primary_origin_id
 
     forwarded_values {
@@ -207,11 +207,11 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   ordered_cache_behavior {
-    path_pattern     = "multihash/*"
+    path_pattern = "multihash/*"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
-    allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
-    cached_methods = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.primary_origin_id
     cache_policy_id  = aws_cloudfront_cache_policy.lookup.id
 
@@ -221,8 +221,8 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   ordered_cache_behavior {
     path_pattern     = "cid/*"
-    allowed_methods = ["GET", "HEAD", "OPTIONS"]
-    cached_methods = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.primary_origin_id
     cache_policy_id  = aws_cloudfront_cache_policy.lookup.id
 
@@ -232,8 +232,8 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   ordered_cache_behavior {
     path_pattern     = "providers"
-    allowed_methods = ["GET", "HEAD", "OPTIONS"]
-    cached_methods = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.primary_origin_id
     forwarded_values {
       query_string = false
@@ -249,11 +249,11 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   ordered_cache_behavior {
-    path_pattern     = "ingest/*"
+    path_pattern = "ingest/*"
     # CloudFront does not support configuring allowed methods selectively.
     # Hence the complete method list.
-    allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
-    cached_methods = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "POST"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.primary_origin_id
     forwarded_values {
       query_string = false
@@ -270,8 +270,8 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   ordered_cache_behavior {
     path_pattern     = "/routing/v1/*"
-    allowed_methods = ["GET", "HEAD", "OPTIONS"]
-    cached_methods = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.primary_origin_id
     forwarded_values {
       query_string = true
@@ -290,11 +290,11 @@ resource "aws_cloudfront_distribution" "cdn" {
     default_ttl            = 7200
     max_ttl                = 86400
   }
-  
+
   ordered_cache_behavior {
     path_pattern     = "/ipni/v0/sample/*"
-    allowed_methods = ["GET", "HEAD", "OPTIONS"]
-    cached_methods = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.primary_origin_id
     forwarded_values {
       query_string = true
@@ -381,7 +381,7 @@ module "records" {
 }
 
 module "cid_contact_cert" {
-  source = "registry.terraform.io/terraform-aws-modules/acm/aws"
+  source  = "registry.terraform.io/terraform-aws-modules/acm/aws"
   version = "4.3.2"
 
   #  Certificate must be in us-east-1 as dictated by CloudFront

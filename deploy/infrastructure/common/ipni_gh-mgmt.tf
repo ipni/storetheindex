@@ -65,7 +65,7 @@ data "aws_iam_policy_document" "ipni_gh_mgmt_rw" {
     resources = ["arn:aws:s3:::sti-dev-terraform-state"]
   }
   statement {
-    effect  = "Allow"
+    effect = "Allow"
     actions = [
       "s3:PutObject",
       "s3:GetObject",
@@ -74,7 +74,7 @@ data "aws_iam_policy_document" "ipni_gh_mgmt_rw" {
     resources = ["arn:aws:s3:::sti-dev-terraform-state/github-mgmt/*"]
   }
   statement {
-    effect  = "Allow"
+    effect = "Allow"
     actions = [
       "dynamodb:GetItem",
       "dynamodb:PutItem",
