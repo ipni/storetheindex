@@ -1,10 +1,4 @@
 locals {
-  indexstar_origin_id      = "${local.environment_name}_${local.region}_indexstar"
-  indexstar_berg_origin_id = "${local.environment_name}_${local.region}_indexstar_berg"
-  indexstar_sf_origin_id   = "${local.environment_name}_${local.region}_indexstar_sf"
-  indexstar_sf2_origin_id  = "${local.environment_name}_${local.region}_indexstar_sf2"
-  http_announce_origin_id  = "${local.environment_name}_${local.region}_assigner"
-
   direct_sf_cid_contact_origin_id   = "${local.environment_name}_${local.region}_direct_sf"
   direct_sf2_cid_contact_origin_id  = "${local.environment_name}_${local.region}_direct_sf2"
   direct_berg_cid_contact_origin_id = "${local.environment_name}_${local.region}_direct_berg"
@@ -83,90 +77,6 @@ resource "aws_cloudfront_distribution" "cdn" {
   origin {
     domain_name = "berg.${local.primary_domain}"
     origin_id   = local.direct_berg_cid_contact_origin_id
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
-    }
-    origin_shield {
-      enabled              = true
-      origin_shield_region = local.region
-    }
-  }
-
-  # storetheindex/indexstar ingress.
-  origin {
-    domain_name = "indexstar.${aws_route53_zone.prod_external.name}"
-    origin_id   = local.indexstar_origin_id
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
-    }
-    origin_shield {
-      enabled              = true
-      origin_shield_region = local.region
-    }
-  }
-
-  # The node named `assigner` in prod environment uses an identity that is whitelisted by Lotus 
-  # bootstrap nodes in order to relay gossipsub. That node is also configured to re-propagate 
-  # HTTP announces over gossipsub.
-  # Therefore, all HTTP announce requests are routed to it. 
-  # 
-  # See: storetheindex/assigner ingress object.
-  origin {
-    domain_name = "assigner.${aws_route53_zone.prod_external.name}"
-    origin_id   = local.http_announce_origin_id
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
-    }
-    origin_shield {
-      enabled              = true
-      origin_shield_region = local.region
-    }
-  }
-
-  // A local load balancer which hooked up to berg.cid.contact under the hood.
-  origin {
-    domain_name = "indexstar-berg.${aws_route53_zone.prod_external.name}"
-    origin_id   = local.indexstar_berg_origin_id
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
-    }
-    origin_shield {
-      enabled              = true
-      origin_shield_region = local.region
-    }
-  }
-
-  // A local load balancer which hooked up to sf.cid.contact under the hood.
-  origin {
-    domain_name = "indexstar-sf.${aws_route53_zone.prod_external.name}"
-    origin_id   = local.indexstar_sf_origin_id
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2"]
-    }
-    origin_shield {
-      enabled              = true
-      origin_shield_region = local.region
-    }
-  }
-
-  origin {
-    domain_name = "indexstar-sf2.${aws_route53_zone.prod_external.name}"
-    origin_id   = local.indexstar_sf2_origin_id
     custom_origin_config {
       http_port              = 80
       https_port             = 443
