@@ -1,19 +1,3 @@
-output "kms_sti_ailas_arn" {
-  value = aws_kms_alias.kms_sti.arn
-}
-
-output "kms_cluster_ailas_arn" {
-  value = aws_kms_alias.kms_cluster.arn
-}
-
-output "kustomize_controller_role_arn" {
-  value = module.kustomize_controller_role.iam_role_arn
-}
-
-output "cluster_autoscaler_role_arn" {
-  value = module.cluster_autoscaler_role.iam_role_arn
-}
-
 output "monitoring_role_arn" {
   value = module.monitoring_role.iam_role_arn
 }
