@@ -1,9 +1,11 @@
 package filestore_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,6 +74,87 @@ func TestS3(t *testing.T) {
 	})
 
 	t.Run("test-S3-Delete", func(t *testing.T) {
+		testDelete(t, fileStore)
+	})
+}
+
+// splitFilestore sends write operations to write and read operations to read.
+type splitFilestore struct {
+	read  filestore.Interface
+	write filestore.Interface
+}
+
+func newSplitFilestore(read, write filestore.Interface) splitFilestore {
+	return splitFilestore{read: read, write: write}
+}
+
+func (s splitFilestore) Delete(ctx context.Context, path string) error {
+	return s.write.Delete(ctx, path)
+}
+
+func (s splitFilestore) Get(ctx context.Context, path string) (*filestore.File, io.ReadCloser, error) {
+	return s.read.Get(ctx, path)
+}
+
+func (s splitFilestore) Head(ctx context.Context, path string) (*filestore.File, error) {
+	return s.read.Head(ctx, path)
+}
+
+func (s splitFilestore) List(ctx context.Context, path string, recursive bool) (<-chan *filestore.File, <-chan error) {
+	return s.read.List(ctx, path, recursive)
+}
+
+func (s splitFilestore) Put(ctx context.Context, path string, reader io.Reader) (*filestore.File, error) {
+	return s.write.Put(ctx, path, reader)
+}
+
+func (s splitFilestore) Type() string {
+	return s.read.Type()
+}
+
+func setupHTTPFilestore(t *testing.T) (splitFilestore, string) {
+	t.Helper()
+
+	carDir := t.TempDir()
+
+	backend, err := filestore.NewLocal(carDir)
+	require.NoError(t, err)
+
+	handler, err := filestore.NewHTTPHandler(backend)
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+
+	client, err := filestore.NewHTTP(srv.URL + "/")
+	require.NoError(t, err)
+
+	return newSplitFilestore(client, backend), carDir
+}
+
+func TestHTTP(t *testing.T) {
+	fileStore, carDir := setupHTTPFilestore(t)
+	require.Equal(t, "http", fileStore.Type())
+
+	t.Run("test-HTTP-Put", func(t *testing.T) {
+		testPut(t, fileStore)
+	})
+
+	require.FileExists(t, filepath.Join(carDir, fileName))
+
+	t.Run("test-HTTP-Head", func(t *testing.T) {
+		testHead(t, fileStore)
+	})
+
+	t.Run("test-HTTP-Get", func(t *testing.T) {
+		testGet(t, fileStore)
+	})
+
+	t.Run("test-HTTP-List", func(t *testing.T) {
+		testList(t, fileStore)
+	})
+
+	t.Run("test-HTTP-Delete", func(t *testing.T) {
 		testDelete(t, fileStore)
 	})
 }
