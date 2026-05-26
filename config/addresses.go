@@ -19,6 +19,9 @@ type Addresses struct {
 	ReverseIndexer string
 	// NoResourceManager disables the libp2p resource manager when true.
 	NoResourceManager bool
+	// CarMirror is the CAR mirror HTTP listen address. Set to "none" to
+	// disable.
+	CarMirror string
 }
 
 // NewAddresses returns Addresses with values set to their defaults.
@@ -29,6 +32,7 @@ func NewAddresses() Addresses {
 		Ingest:         "/ip4/0.0.0.0/tcp/3001",
 		P2PAddr:        "/ip4/0.0.0.0/tcp/3003",
 		ReverseIndexer: "0.0.0.0:3004",
+		CarMirror:      "/ip4/0.0.0.0/tcp/3005",
 	}
 }
 

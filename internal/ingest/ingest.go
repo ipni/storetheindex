@@ -22,6 +22,7 @@ import (
 	"github.com/ipni/go-libipni/announce"
 	"github.com/ipni/go-libipni/dagsync"
 	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/filestore"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/rate"
@@ -1211,4 +1212,9 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		}
 		log.Debug("Sent ad processed event")
 	}
+}
+
+// GetExposableFilestore returns the filestore that can be exposed to other indexers for reading CAR files.
+func (ing *Ingester) GetExposableFilestore() filestore.Interface {
+	return ing.mirror.exposableFilestore
 }

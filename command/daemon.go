@@ -29,6 +29,7 @@ import (
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
 	httpadmin "github.com/ipni/storetheindex/server/admin"
+	"github.com/ipni/storetheindex/server/carmirror"
 	httpfind "github.com/ipni/storetheindex/server/find"
 	httpingest "github.com/ipni/storetheindex/server/ingest"
 	"github.com/libp2p/go-libp2p"
@@ -78,6 +79,7 @@ var daemonFlags = []cli.Flag{
 	listenFindFlag,
 	listenIngestFlag,
 	listenP2PFlag,
+	listenCarMirrorFlag,
 	&cli.BoolFlag{
 		Name:     "watch-config",
 		Usage:    "Watch for changes to config file and automatically reload",
@@ -303,6 +305,36 @@ func daemonAction(cctx *cli.Context) error {
 		}
 	}
 
+	// Create CAR mirror HTTP server
+	var carMirrorSvr *carmirror.Server
+	carMirrorAddr := cfg.Addresses.CarMirror
+	if cctx.String("listen-car-mirror") != "" {
+		carMirrorAddr = cctx.String("listen-car-mirror")
+	}
+	if carMirrorAddr != "" && carMirrorAddr != "none" {
+		carMirrorNetAddr, err := mautil.MultiaddrStringToNetAddr(carMirrorAddr)
+		if err != nil {
+			return fmt.Errorf("bad car mirror address %s: %s", carMirrorAddr, err)
+		}
+		if ingester == nil {
+			log.Warnw(
+				"ingester is not initialized, cannot create car mirror server",
+				"car_mirror_address", carMirrorAddr,
+			)
+		} else if ingester.GetExposableFilestore() == nil {
+			log.Warnw(
+				"ingester does not have storage advertisement mirror configured, cannot create car mirror server, "+
+					"to enable, configure AdvertisementMirror.Storage in the config",
+				"car_mirror_address", carMirrorAddr,
+			)
+		} else {
+			carMirrorSvr, err = carmirror.New(carMirrorNetAddr.String(), ingester.GetExposableFilestore())
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	reloadErrsChan := make(chan chan error, 1)
 
 	// Create admin HTTP server
@@ -322,7 +354,7 @@ func daemonAction(cctx *cli.Context) error {
 		}
 	}
 
-	svrErrChan := make(chan error, 3)
+	svrErrChan := make(chan error, 4)
 
 	log.Info("Starting http servers")
 	if findSvr != nil {
@@ -348,6 +380,14 @@ func daemonAction(cctx *cli.Context) error {
 		fmt.Println("Admin server:\t", cfg.Addresses.Admin)
 	} else {
 		fmt.Println("Admin server:\t disabled")
+	}
+	if carMirrorSvr != nil {
+		go func() {
+			svrErrChan <- carMirrorSvr.Start()
+		}()
+		fmt.Println("CAR mirror server:\t", cfg.Addresses.CarMirror)
+	} else {
+		fmt.Println("CAR mirror server:\t disabled")
 	}
 
 	reloadSig := make(chan os.Signal, 1)
@@ -466,6 +506,13 @@ func daemonAction(cctx *cli.Context) error {
 				os.Exit(-1)
 			}
 		}()
+	}
+
+	if carMirrorSvr != nil {
+		if err = carMirrorSvr.Close(); err != nil {
+			log.Errorw("Error shutting down car mirror server", "err", err)
+			finalErr = ErrDaemonStop
+		}
 	}
 
 	if peeringService != nil {

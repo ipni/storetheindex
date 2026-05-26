@@ -14,9 +14,10 @@ import (
 )
 
 type adMirror struct {
-	carReader *carstore.CarReader
-	carWriter *carstore.CarWriter
-	rdWrSame  bool
+	carReader          *carstore.CarReader
+	carWriter          *carstore.CarWriter
+	rdWrSame           bool
+	exposableFilestore filestore.Interface
 }
 
 func (m adMirror) canRead() bool {
@@ -57,6 +58,7 @@ func newMirror(cfgMirror config.Mirror, dstore datastore.Batching) (adMirror, er
 			if err != nil {
 				return m, fmt.Errorf("cannot create mirror car file writer: %w", err)
 			}
+			m.exposableFilestore = writeStore
 		default:
 			log.Warnw("Mirror write is enabled with no storage backend", "backendType", cfgMirror.Storage.Type)
 		}

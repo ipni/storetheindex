@@ -232,9 +232,18 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 
 	root2 := filepath.Join(rnr.Dir, ".storetheindex2")
 	rnr.Env = append(rnr.Env, fmt.Sprintf("%s=%s", config.EnvDir, root2))
-	rnr.Run(ctx, indexer, "init", "--store", "dhstore", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap", "--dhstore", "http://127.0.0.1:40080",
-		"--listen-admin", "/ip4/127.0.0.1/tcp/3202", "--listen-finder", "/ip4/127.0.0.1/tcp/3200", "--listen-ingest", "/ip4/127.0.0.1/tcp/3201",
-		"--listen-p2p", "/ip4/127.0.0.1/tcp/3203")
+	rnr.Run(ctx, indexer,
+		"init",
+		"--store", "dhstore",
+		"--pubsub-topic", "/indexer/ingest/mainnet",
+		"--no-bootstrap",
+		"--dhstore", "http://127.0.0.1:40080",
+		"--listen-admin", "/ip4/127.0.0.1/tcp/3202",
+		"--listen-finder", "/ip4/127.0.0.1/tcp/3200",
+		"--listen-ingest", "/ip4/127.0.0.1/tcp/3201",
+		"--listen-p2p", "/ip4/127.0.0.1/tcp/3203",
+		"--listen-car-mirror", "/ip4/127.0.0.1/tcp/3205",
+	)
 
 	sti2CfgPath := filepath.Join(root2, "config")
 	cfg, err = config.Load(sti2CfgPath)

@@ -46,6 +46,12 @@ var listenP2PFlag = &cli.StringFlag{
 	EnvVars:  []string{"STORETHEINDEX_LISTEN_P2P"},
 	Required: false,
 }
+var listenCarMirrorFlag = &cli.StringFlag{
+	Name:     "listen-car-mirror",
+	Usage:    "CAR mirror HTTP listen address or 'none' to disable, overrides config",
+	EnvVars:  []string{"STORETHEINDEX_LISTEN_CAR_MIRROR"},
+	Required: false,
+}
 
 // cliIndexer reads the indexer host from CLI flag or from config.
 func cliIndexer(cctx *cli.Context, addrType string) string {
