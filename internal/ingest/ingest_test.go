@@ -1666,7 +1666,7 @@ func TestGetEntryDataFromCar(t *testing.T) {
 	require.Equal(t, 1, headCount)
 
 	// Read and read CAR file.
-	adBlock, err := te.ingester.mirror.read(ctx, cCid.(cidlink.Link).Cid, false)
+	adBlock, _, err := te.ingester.mirror.read(ctx, cCid.(cidlink.Link).Cid, false)
 	require.NoError(t, err)
 	require.NotZero(t, len(adBlock.Data))
 

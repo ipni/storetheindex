@@ -20,6 +20,8 @@ type Mirror struct {
 	Retrieval filestore.Config
 	// Storage configures the backing file store for mirror write operations.
 	Storage filestore.Config
+	// FallbackRetrieval configures the fallback file store for mirror read operations.
+	FallbackRetrieval *filestore.Config
 }
 
 // NewMirror returns Mirror with values set to their defaults.
