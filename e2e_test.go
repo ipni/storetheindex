@@ -16,6 +16,9 @@ import (
 	"testing"
 	"time"
 
+	ds "github.com/ipfs/go-datastore"
+	dsquery "github.com/ipfs/go-datastore/query"
+	dsleveldb "github.com/ipfs/go-ds-leveldb"
 	testcmd "github.com/ipfs/go-test/cmd"
 	findclient "github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/go-libipni/find/model"
@@ -35,6 +38,12 @@ const (
 	providerReadyMatch   = "admin http server listening"
 	dhstoreReady         = "Store opened."
 )
+
+// sampleCarMultihashes are multihashes from testdata/sample-wrapped-v2.car.
+var sampleCarMultihashes = []string{
+	"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
+	"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
+}
 
 // This is a full end-to-end test with storetheindex as the indexer daemon,
 // and index-provider/cmd/provider as a client.
@@ -187,10 +196,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 
 	// Wait for the CAR to be indexed
 	require.Eventually(t, func() bool {
-		for _, mh := range []string{
-			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
-			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
-		} {
+		for _, mh := range sampleCarMultihashes {
 			findOutput := rnr.Run(ctx, ipni, "find", "--private=false", "-i", "http://localhost:3000", "-mh", mh)
 			t.Logf("find output:\n%s\n", findOutput)
 
@@ -307,7 +313,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	client, err := findclient.NewDHashClient(findclient.WithProvidersURL("http://127.0.0.1:3000"), findclient.WithDHStoreURL("http://127.0.0.1:40080"))
 	require.NoError(t, err)
 
-	mh, err := multihash.FromB58String("2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj")
+	mh, err := multihash.FromB58String(sampleCarMultihashes[0])
 	require.NoError(t, err)
 
 	var dhResp *model.FindResponse
@@ -346,10 +352,7 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 
 	// Wait for the CAR indexes to be removed
 	require.Eventually(t, func() bool {
-		for _, mh := range []string{
-			"2DrjgbFdhNiSJghFWcQbzw6E8y4jU1Z7ZsWo3dJbYxwGTNFmAj",
-			"2DrjgbFY1BnkgZwA3oL7ijiDn7sJMf4bhhQNTtDqgZP826vGzv",
-		} {
+		for _, mh := range sampleCarMultihashes {
 			findOutput := rnr.Run(ctx, ipni, "find", "--private=false", "-i", "http://localhost:3000", "-mh", mh)
 			t.Logf("find output:\n%s\n", findOutput)
 			if !bytes.Contains(findOutput, []byte("not found")) {
@@ -389,6 +392,355 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	rnr.Stop(cmdIndexer, time.Second)
 	rnr.Stop(cmdProvider, time.Second)
 	rnr.Stop(cmdDhstore, time.Second)
+}
+
+// TestEndToEndCarMirrorFallback checks that an indexer with an empty local CAR
+// mirror can ingest entries from another indexer's CAR mirror over HTTP.
+//
+// Indexer 1 writes ads to a local mirror and exposes it via the carmirror HTTP
+// server. After the provider can no longer serve entry data, indexer 2 (no
+// fallback) is verified first and must fail to index. Indexer 3 then uses
+// indexer 1 as FallbackRetrieval and must succeed under the same provider state.
+func TestEndToEndCarMirrorFallback(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("Skipping e2e test in CI environment")
+	}
+	switch runtime.GOOS {
+	case "windows":
+		t.Skip("skipping test on", runtime.GOOS)
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	defer cancel()
+
+	if testing.Verbose() {
+		os.Setenv(testcmd.EnvTestRunnerOutput, "YES")
+	}
+
+	const (
+		indexer1CarMirrorURL = "http://127.0.0.1:3005/carmirror/"
+		indexer2FinderURL    = "http://127.0.0.1:3200"
+		indexer2AdminURL     = "http://127.0.0.1:3202"
+		indexer3FinderURL    = "http://127.0.0.1:3300"
+		indexer3AdminURL     = "http://127.0.0.1:3302"
+	)
+
+	rnr := testcmd.NewRunner(t, t.TempDir())
+	rnr.Env = append(rnr.Env,
+		"TMP="+rnr.Dir,
+		"TEMP="+rnr.Dir,
+		"TMPDIR="+rnr.Dir,
+		"USERPROFILE="+rnr.Dir,
+		"HOME="+rnr.Dir,
+	)
+
+	carPath := filepath.Join(rnr.Dir, "sample-wrapped-v2.car")
+	err := downloadFile("https://github.com/ipni/index-provider/raw/main/testdata/sample-wrapped-v2.car", carPath)
+	require.NoError(t, err)
+
+	indexerBin := filepath.Join(rnr.Dir, "storetheindex")
+	providerBin := filepath.Join(rnr.Dir, "provider")
+	ipniBin := filepath.Join(rnr.Dir, "ipni")
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	rnr.Run(ctx, "go", "install", ".")
+	err = os.Chdir(rnr.Dir)
+	require.NoError(t, err)
+	rnr.Run(ctx, "go", "install", "github.com/ipni/index-provider/cmd/provider@latest")
+	rnr.Run(ctx, "go", "install", "github.com/ipni/ipni-cli/cmd/ipni@latest")
+	err = os.Chdir(cwd)
+	require.NoError(t, err)
+
+	indexer1MirrorDir := filepath.Join(rnr.Dir, "indexer1-mirror")
+	indexer2MirrorDir := filepath.Join(rnr.Dir, "indexer2-mirror")
+	indexer3MirrorDir := filepath.Join(rnr.Dir, "indexer3-mirror")
+	require.NoError(t, os.Mkdir(indexer2MirrorDir, 0755))
+	require.NoError(t, os.Mkdir(indexer3MirrorDir, 0755))
+
+	rnr.Run(ctx, providerBin,
+		"init",
+		"--pubkind", "libp2p",
+		"--listen", "/ip4/127.0.0.1/tcp/3103",
+		"--http-listen", "/ip4/127.0.0.1/tcp/3104/http",
+	)
+	providerCfgPath := filepath.Join(rnr.Dir, ".index-provider", "config")
+	cfg, err := config.Load(providerCfgPath)
+	require.NoError(t, err)
+	providerID := cfg.Identity.PeerID
+	t.Logf("Initialized provider ID: %s", providerID)
+
+	rnr.Run(ctx, indexerBin,
+		"init",
+		"--store", "pebble",
+		"--pubsub-topic", "/indexer/ingest/mainnet",
+		"--no-bootstrap",
+	)
+
+	stiCfgPath := filepath.Join(rnr.Dir, ".storetheindex", "config")
+	cfg, err = config.Load(stiCfgPath)
+	require.NoError(t, err)
+	indexer1ID := cfg.Identity.PeerID
+	cfg.Ingest.AdvertisementMirror = config.Mirror{
+		Compress: "gzip",
+		Write:    true,
+		// We don't need the read storage at this point, car mirror is exposed
+		// from the write one only.
+		Storage: filestore.Config{
+			Type: "local",
+			Local: filestore.LocalConfig{
+				BasePath: indexer1MirrorDir,
+			},
+		},
+	}
+	require.NoError(t, cfg.Save(stiCfgPath))
+
+	providerReady := testcmd.NewStderrWatcher(providerReadyMatch)
+	providerHasPeer := testcmd.NewStderrWatcher(providerHasPeerMatch)
+	cmdProvider := rnr.Start(ctx, testcmd.Args(providerBin, "daemon"), providerReady, providerHasPeer)
+	require.NoError(t, providerReady.Wait(ctx))
+
+	indexerReady := testcmd.NewStdoutWatcher(indexerReadyMatch)
+	cmdIndexer1 := rnr.Start(ctx, testcmd.Args(indexerBin, "daemon"), indexerReady)
+	require.NoError(t, indexerReady.Wait(ctx))
+
+	rnr.Run(ctx, providerBin,
+		"connect",
+		"--imaddr", fmt.Sprintf("/dns/localhost/tcp/3003/p2p/%s", indexer1ID),
+		"--listen-admin", "http://localhost:3102",
+	)
+	require.NoError(t, providerHasPeer.Wait(ctx))
+
+	rnr.Run(ctx, indexerBin,
+		"admin", "allow",
+		"-i", "http://localhost:3002",
+		"--peer", providerID,
+	)
+
+	outImport := rnr.Run(ctx, providerBin,
+		"import", "car",
+		"-i", carPath,
+		"--listen-admin", "http://localhost:3102",
+	)
+	t.Logf("import output:\n%s\n", string(outImport))
+
+	require.Eventually(t, func() bool {
+		return mustihashesExist(ctx, t, rnr, ipniBin, "http://localhost:3000", sampleCarMultihashes)
+	}, 30*time.Second, time.Second)
+
+	require.Eventually(t, func() bool {
+		idx1Car, err := carFromMirror(ctx, indexer1MirrorDir)
+		require.NoError(t, err, "indexer 1 should have written a CAR to its mirror")
+		return idx1Car.Size > 0
+	}, 5*time.Second, time.Second)
+
+	// Provider can no longer serve entry data (CAR file and cached entry chunks
+	// removed). It can still serve advertisements. Indexer 1's CAR mirror remains
+	// available for indexer 3 fallback retrieval.
+	rnr.Stop(cmdProvider, time.Second)
+	require.NoError(t, os.Remove(carPath))
+	require.NoError(t, purgeProviderLinkCache(filepath.Join(rnr.Dir, ".index-provider", "datastore")))
+	cmdProvider = rnr.Start(ctx, testcmd.Args(providerBin, "daemon"), providerReady, providerHasPeer)
+	require.NoError(t, providerReady.Wait(ctx))
+
+	root2 := filepath.Join(rnr.Dir, ".storetheindex2")
+	rnr.Env = append(rnr.Env, fmt.Sprintf("%s=%s", config.EnvDir, root2))
+	rnr.Run(ctx, indexerBin,
+		"init",
+		"--store", "pebble",
+		"--pubsub-topic", "/indexer/ingest/mainnet",
+		"--no-bootstrap",
+		"--listen-admin", "/ip4/127.0.0.1/tcp/3202",
+		"--listen-finder", "/ip4/127.0.0.1/tcp/3200",
+		"--listen-ingest", "/ip4/127.0.0.1/tcp/3201",
+		"--listen-p2p", "/ip4/127.0.0.1/tcp/3203",
+		"--listen-car-mirror", "/ip4/127.0.0.1/tcp/3205",
+	)
+
+	sti2CfgPath := filepath.Join(root2, "config")
+	cfg, err = config.Load(sti2CfgPath)
+	require.NoError(t, err)
+
+	// Indexer 2: local mirror only, no fallback to indexer 1.
+	cfg.Ingest.AdvertisementMirror = config.Mirror{
+		Compress: "gzip",
+		Read:     true,
+		Write:    true,
+		Retrieval: filestore.Config{
+			Type: "local",
+			Local: filestore.LocalConfig{
+				BasePath: indexer2MirrorDir,
+			},
+		},
+		Storage: filestore.Config{
+			Type: "local",
+			Local: filestore.LocalConfig{
+				BasePath: indexer2MirrorDir,
+			},
+		},
+	}
+	require.NoError(t, cfg.Save(sti2CfgPath))
+
+	indexerReady2 := testcmd.NewStdoutWatcher(indexerReadyMatch)
+	cmdIndexer2 := rnr.Start(ctx, testcmd.Args(indexerBin, "daemon"), indexerReady2)
+	require.NoError(t, indexerReady2.Wait(ctx))
+
+	rnr.Run(ctx, indexerBin, "admin", "allow", "-i", indexer2AdminURL, "--peer", providerID)
+
+	// Indexer 3: same local mirror setup plus HTTP fallback to indexer 1.
+	root3 := filepath.Join(rnr.Dir, ".storetheindex3")
+	rnr.Env = append(rnr.Env, fmt.Sprintf("%s=%s", config.EnvDir, root3))
+	rnr.Run(ctx, indexerBin,
+		"init",
+		"--store", "pebble",
+		"--pubsub-topic", "/indexer/ingest/mainnet",
+		"--no-bootstrap",
+		"--listen-admin", "/ip4/127.0.0.1/tcp/3302",
+		"--listen-finder", "/ip4/127.0.0.1/tcp/3300",
+		"--listen-ingest", "/ip4/127.0.0.1/tcp/3301",
+		"--listen-p2p", "/ip4/127.0.0.1/tcp/3303",
+		"--listen-car-mirror", "/ip4/127.0.0.1/tcp/3305",
+	)
+
+	sti3CfgPath := filepath.Join(root3, "config")
+	cfg, err = config.Load(sti3CfgPath)
+	require.NoError(t, err)
+	cfg.Ingest.AdvertisementMirror = config.Mirror{
+		Compress: "gzip",
+		Read:     true,
+		Write:    true,
+		Retrieval: filestore.Config{
+			Type: "local",
+			Local: filestore.LocalConfig{
+				BasePath: indexer3MirrorDir,
+			},
+		},
+		Storage: filestore.Config{
+			Type: "local",
+			Local: filestore.LocalConfig{
+				BasePath: indexer3MirrorDir,
+			},
+		},
+		FallbackRetrieval: &filestore.Config{
+			Type: "http",
+			HTTP: filestore.HTTPConfig{
+				BaseURL: indexer1CarMirrorURL,
+			},
+		},
+	}
+	require.NoError(t, cfg.Save(sti3CfgPath))
+
+	indexerReady3 := testcmd.NewStdoutWatcher(indexerReadyMatch)
+	cmdIndexer3 := rnr.Start(ctx, testcmd.Args(indexerBin, "daemon"), indexerReady3)
+	require.NoError(t, indexerReady3.Wait(ctx))
+
+	rnr.Run(ctx, indexerBin, "admin", "allow", "-i", indexer3AdminURL, "--peer", providerID)
+
+	// Indexer 2 first: no fallback, must not index while provider cannot serve entries.
+	rnr.Run(ctx, indexerBin, "admin", "import-providers",
+		"--indexer", indexer2AdminURL,
+		"--from", "localhost:3000",
+	)
+
+	require.Eventually(t, func() bool {
+		lastErr := providerLastError(ctx, t, indexer2FinderURL, providerID)
+		if lastErr != "" {
+			t.Logf("indexer 2 provider LastError: %s", lastErr)
+			return true
+		}
+		return false
+	}, 60*time.Second, time.Second)
+
+	require.False(t, mustihashesExist(ctx, t, rnr, ipniBin, indexer2FinderURL, sampleCarMultihashes))
+
+	idx2Car, err := carFromMirror(ctx, indexer2MirrorDir)
+	require.NoError(t, err)
+	require.Nil(t, idx2Car, "indexer 2 should not write a CAR without fallback or provider entries")
+
+	// Indexer 3: with fallback to indexer 1, must index under the same provider state.
+	rnr.Run(ctx, indexerBin, "admin", "import-providers",
+		"--indexer", indexer3AdminURL,
+		"--from", "localhost:3000",
+	)
+
+	require.Eventually(t, func() bool {
+		return mustihashesExist(ctx, t, rnr, ipniBin, indexer3FinderURL, sampleCarMultihashes)
+	}, 60*time.Second, time.Second)
+
+	rnr.Run(ctx, "sync")
+
+	idx3Car, err := carFromMirror(ctx, indexer3MirrorDir)
+	require.NoError(t, err, "indexer 3 should copy CAR from fallback into write mirror")
+
+	idx1Car, err := carFromMirror(ctx, indexer1MirrorDir)
+	require.NoError(t, err)
+
+	require.Equal(t, idx1Car.Path, idx3Car.Path)
+	require.Equal(t, idx1Car.Size, idx3Car.Size)
+
+	rnr.Stop(cmdProvider, time.Second)
+	rnr.Stop(cmdIndexer3, time.Second)
+	rnr.Stop(cmdIndexer2, time.Second)
+	rnr.Stop(cmdIndexer1, time.Second)
+}
+
+// purgeProviderLinkCache removes cached entry chunks from the provider datastore
+// while leaving advertisements intact.
+func purgeProviderLinkCache(datastoreDir string) error {
+	d, err := dsleveldb.NewDatastore(datastoreDir, nil)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+
+	ctx := context.Background()
+	res, err := d.Query(ctx, dsquery.Query{Prefix: "/cache/links"})
+	if err != nil {
+		return err
+	}
+	defer res.Close()
+
+	for r := range res.Next() {
+		if r.Error != nil {
+			return r.Error
+		}
+		if err := d.Delete(ctx, ds.NewKey(r.Entry.Key)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func providerLastError(ctx context.Context, t *testing.T, finderURL, providerID string) string {
+	cl, err := findclient.New(finderURL)
+	require.NoError(t, err)
+
+	provs, err := cl.ListProviders(ctx)
+	require.NoError(t, err)
+
+	for _, p := range provs {
+		if p.AddrInfo.ID.String() == providerID {
+			return p.LastError
+		}
+	}
+
+	require.FailNowf(t, "provider %q not listed on indexer", providerID)
+	return ""
+}
+
+func mustihashesExist(ctx context.Context, t *testing.T, rnr *testcmd.Runner, ipni, indexerURL string, mhs []string) bool {
+	t.Helper()
+	for _, mh := range mhs {
+		findOutput := rnr.Run(ctx, ipni, "find", "--private=false", "-i", indexerURL, "-mh", mh)
+		t.Logf("find output (%s):\n%s\n", mh, findOutput)
+		if bytes.Contains(findOutput, []byte("not found")) {
+			return false
+		}
+		if !bytes.Contains(findOutput, []byte("Provider:")) {
+			return false
+		}
+	}
+	return true
 }
 
 func downloadFile(fileURL, filePath string) error {
