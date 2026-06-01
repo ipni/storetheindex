@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
@@ -28,7 +28,7 @@ var s3logger = log.Logger("filestore/s3")
 type S3 struct {
 	bucketName string
 	client     *s3.Client
-	uploader   *manager.Uploader
+	transfer   *transfermanager.Client
 }
 
 func NewS3(bucketName string, options ...S3Option) (*S3, error) {
@@ -48,12 +48,7 @@ func NewS3(bucketName string, options ...S3Option) (*S3, error) {
 		cfgOpts = append(cfgOpts, awsconfig.WithRegion(opts.region))
 	}
 	if opts.endpoint != "" {
-		epResolverFunc := aws.EndpointResolverWithOptionsFunc(
-			func(service, region string, options ...any) (aws.Endpoint, error) {
-				return aws.Endpoint{URL: opts.endpoint}, nil
-			})
 		usePathStyle = true
-		cfgOpts = append(cfgOpts, awsconfig.WithEndpointResolverWithOptions(epResolverFunc))
 	}
 	if opts.accessKey != "" && opts.secretKey != "" {
 		staticCreds := credentials.StaticCredentialsProvider{
@@ -70,14 +65,32 @@ func NewS3(bucketName string, options ...S3Option) (*S3, error) {
 	if err != nil {
 		return nil, err
 	}
+	if awscfg.Region == "" {
+		if opts.endpoint != "" {
+			// Custom endpoints (e.g. LocalStack) still require a region for SigV4 and
+			// endpoint resolution in AWS SDK v2; the value is not used for routing.
+			awscfg.Region = "us-east-1"
+		} else {
+			return nil, errors.New("AWS region is required for S3; set AWS_REGION, WithRegion, or config region")
+		}
+	}
 
-	client := s3.NewFromConfig(awscfg, func(o *s3.Options) {
-		o.UsePathStyle = usePathStyle
-	})
+	clientOpts := []func(*s3.Options){
+		func(o *s3.Options) {
+			o.UsePathStyle = usePathStyle
+		},
+	}
+	if opts.endpoint != "" {
+		endpoint := opts.endpoint
+		clientOpts = append(clientOpts, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(endpoint)
+		})
+	}
+	client := s3.NewFromConfig(awscfg, clientOpts...)
 	return &S3{
 		bucketName: bucketName,
 		client:     client,
-		uploader:   manager.NewUploader(client),
+		transfer:   transfermanager.New(client),
 	}, nil
 }
 
@@ -254,7 +267,7 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 }
 
 func (s *S3) Put(ctx context.Context, relPath string, reader io.Reader) (*File, error) {
-	rsp, err := s.uploader.Upload(ctx, &s3.PutObjectInput{
+	rsp, err := s.transfer.UploadObject(ctx, &transfermanager.UploadObjectInput{
 		Bucket:      aws.String(s.bucketName),
 		Key:         aws.String(relPath),
 		Body:        reader,
@@ -270,7 +283,7 @@ func (s *S3) Put(ctx context.Context, relPath string, reader io.Reader) (*File, 
 		s3logger.Errorw("Failed to perform HEAD as part of PUT", "key", relPath, "err", err)
 		return nil, err
 	}
-	file.URL = rsp.Location
+	file.URL = aws.ToString(rsp.Location)
 	s3logger.Debugw("Successfully performed PUT", "key", relPath)
 	return file, nil
 }
