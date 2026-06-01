@@ -115,10 +115,18 @@ func (s *S3) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, err
 
 	file := &File{
 		Path: relPath,
-		Size: rsp.ContentLength,
 	}
+
+	if rsp.ContentLength != nil {
+		file.Size = *rsp.ContentLength
+	} else {
+		s3logger.Warnw("ContentLength is nil", "key", relPath)
+	}
+
 	if rsp.LastModified != nil {
 		file.Modified = *rsp.LastModified
+	} else {
+		s3logger.Warnw("LastModified is nil", "key", relPath)
 	}
 
 	s3logger.Debugw("Successfully performed GET", "key", relPath)
@@ -155,11 +163,20 @@ func (s *S3) Head(ctx context.Context, relPath string) (*File, error) {
 
 	file := &File{
 		Path: relPath,
-		Size: rsp.ContentLength,
 	}
+
+	if rsp.ContentLength != nil {
+		file.Size = *rsp.ContentLength
+	} else {
+		s3logger.Warnw("ContentLength is nil", "key", relPath)
+	}
+
 	if rsp.LastModified != nil {
 		file.Modified = *rsp.LastModified
+	} else {
+		s3logger.Warnw("LastModified is nil", "key", relPath)
 	}
+
 	s3logger.Debugw("Successfully performed HEAD", "key", relPath)
 	return file, nil
 }
@@ -198,10 +215,18 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 
 				file := &File{
 					Path: *content.Key,
-					Size: content.Size,
 				}
+
+				if content.Size != nil {
+					file.Size = *content.Size
+				} else {
+					s3logger.Warnw("Size is nil", "key", *content.Key)
+				}
+
 				if content.LastModified != nil {
 					file.Modified = *content.LastModified
+				} else {
+					s3logger.Warnw("LastModified is nil", "key", *content.Key)
 				}
 
 				select {
@@ -212,7 +237,12 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 				}
 			}
 
-			if !rsp.IsTruncated {
+			if rsp.IsTruncated == nil {
+				s3logger.Errorw("IsTruncated is nil", "key", relPath)
+				break
+			}
+
+			if !*rsp.IsTruncated {
 				break
 			}
 
