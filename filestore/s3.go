@@ -27,6 +27,7 @@ var s3logger = log.Logger("filestore/s3")
 // assuming a role, which is handled by infrastructure.
 type S3 struct {
 	bucketName string
+	pageSize   int
 	client     *s3.Client
 	transfer   *transfermanager.Client
 }
@@ -91,6 +92,7 @@ func NewS3(bucketName string, options ...S3Option) (*S3, error) {
 		bucketName: bucketName,
 		client:     client,
 		transfer:   transfermanager.New(client),
+		pageSize:   opts.pageSize,
 	}, nil
 }
 
@@ -204,6 +206,10 @@ func (s *S3) List(ctx context.Context, relPath string, recursive bool) (<-chan *
 		req := &s3.ListObjectsV2Input{
 			Bucket: aws.String(s.bucketName),
 			Prefix: aws.String(relPath),
+		}
+
+		if s.pageSize > 0 {
+			req.MaxKeys = aws.Int32(int32(s.pageSize))
 		}
 
 		for {

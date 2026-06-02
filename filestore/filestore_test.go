@@ -51,7 +51,9 @@ func TestS3(t *testing.T) {
 
 	fileStore, err := filestore.NewS3(bucketName,
 		filestore.WithEndpoint(fmt.Sprintf("http://%s/", localS3.Address(localstack.APIPort))),
-		filestore.WithKeys("abcd1234", "1qaz2wsx"))
+		filestore.WithKeys("abcd1234", "1qaz2wsx"),
+		filestore.WithPageSize(5),
+	)
 	require.NoError(t, err)
 	require.Equal(t, "s3", fileStore.Type())
 
@@ -407,6 +409,40 @@ func testList(t *testing.T, fileStore filestore.Interface) {
 		require.NoError(t, err)
 		require.Equal(t, 1, len(infos))
 		require.Equal(t, fileName3, infos[0].Path)
+	})
+
+	t.Run("list larger dataset", func(t *testing.T) {
+		const entriesCount = 20
+		const path = "largeset/"
+
+		fileNames := make([]string, 0, entriesCount)
+		fileContents := make([]string, 0, entriesCount)
+		for i := range entriesCount {
+			fileNames = append(fileNames, fmt.Sprintf("%stestfile-%05d.txt", path, i))
+			fileContents = append(fileContents, fmt.Sprintf("data-%05d", i))
+		}
+
+		for i := range entriesCount {
+			_, err = fileStore.Put(t.Context(), fileNames[i], strings.NewReader(fileContents[i]))
+			require.NoError(t, err)
+		}
+
+		fileCh, errCh = fileStore.List(t.Context(), path, false)
+		infos := make([]*filestore.File, 0, entriesCount)
+		for fileInfo := range fileCh {
+			infos = append(infos, fileInfo)
+		}
+		err = <-errCh
+		require.NoError(t, err)
+		require.Equal(t, entriesCount, len(infos))
+
+		fetchedFileNames := make([]string, 0, entriesCount)
+
+		for i := range infos {
+			fetchedFileNames = append(fetchedFileNames, infos[i].Path)
+		}
+
+		require.ElementsMatch(t, fileNames, fetchedFileNames)
 	})
 }
 
