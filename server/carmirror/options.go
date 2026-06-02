@@ -1,4 +1,4 @@
-package admin
+package carmirror
 
 import (
 	"fmt"
@@ -6,15 +6,11 @@ import (
 )
 
 const (
-	defaultWriteTimeout    = 30 * time.Second
-	defaultReadTimeout     = 30 * time.Second
-	defaultShutdownTimeout = 30 * time.Second
+	defaultShutdownTimeout = 120 * time.Second
 )
 
 // config contains all options for the server.
 type config struct {
-	readTimeout     time.Duration
-	writeTimeout    time.Duration
 	shutdownTimeout time.Duration
 }
 
@@ -24,8 +20,6 @@ type Option func(*config) error
 // getOpts creates a config and applies Options to it.
 func getOpts(opts []Option) (config, error) {
 	cfg := config{
-		readTimeout:     defaultReadTimeout,
-		writeTimeout:    defaultWriteTimeout,
 		shutdownTimeout: defaultShutdownTimeout,
 	}
 
@@ -35,22 +29,6 @@ func getOpts(opts []Option) (config, error) {
 		}
 	}
 	return cfg, nil
-}
-
-// WithReadTimeout configures server read timeout.
-func WithReadTimeout(t time.Duration) Option {
-	return func(c *config) error {
-		c.readTimeout = t
-		return nil
-	}
-}
-
-// WithWriteTimeout configures server write timeout.
-func WithWriteTimeout(t time.Duration) Option {
-	return func(c *config) error {
-		c.writeTimeout = t
-		return nil
-	}
 }
 
 // WithShutdownTimeout configures server shutdown timeout.

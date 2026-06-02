@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/storetheindex/filestore"
@@ -15,15 +16,21 @@ var log = logging.Logger("indexer/carmirror")
 const pathPrefix = "/carmirror/"
 
 type Server struct {
-	server   *http.Server
-	listener net.Listener
+	server          *http.Server
+	listener        net.Listener
+	shutdownTimeout time.Duration
 }
 
 func (s *Server) URL() string {
 	return fmt.Sprint("http://", s.listener.Addr().String())
 }
 
-func New(listen string, fs filestore.Interface) (*Server, error) {
+func New(listen string, fs filestore.Interface, options ...Option) (*Server, error) {
+	opts, err := getOpts(options)
+	if err != nil {
+		return nil, err
+	}
+
 	handler, err := filestore.NewHTTPHandler(fs)
 	if err != nil {
 		return nil, err
@@ -39,7 +46,8 @@ func New(listen string, fs filestore.Interface) (*Server, error) {
 		server: &http.Server{
 			Handler: mux,
 		},
-		listener: l,
+		listener:        l,
+		shutdownTimeout: opts.shutdownTimeout,
 	}
 
 	mux.Handle(pathPrefix, http.StripPrefix("/carmirror", handler))
@@ -54,5 +62,13 @@ func (s *Server) Start() error {
 
 func (s *Server) Close() error {
 	log.Info("carmirror http server shutdown")
-	return s.server.Shutdown(context.Background())
+
+	ctx := context.Background()
+	if s.shutdownTimeout > 0 {
+		tctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
+		defer cancel()
+		ctx = tctx
+	}
+
+	return s.server.Shutdown(ctx)
 }

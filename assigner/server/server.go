@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/go-libipni/announce/message"
@@ -15,10 +16,11 @@ import (
 var log = logging.Logger("assigner/server")
 
 type Server struct {
-	assigner  *core.Assigner
-	server    *http.Server
-	listener  net.Listener
-	healthMsg string
+	assigner        *core.Assigner
+	server          *http.Server
+	listener        net.Listener
+	healthMsg       string
+	shutdownTimeout time.Duration
 }
 
 func New(listen string, assigner *core.Assigner, options ...Option) (*Server, error) {
@@ -39,9 +41,10 @@ func New(listen string, assigner *core.Assigner, options ...Option) (*Server, er
 		ReadTimeout:  opts.readTimeout,
 	}
 	s := &Server{
-		assigner: assigner,
-		server:   server,
-		listener: l,
+		assigner:        assigner,
+		server:          server,
+		listener:        l,
+		shutdownTimeout: opts.shutdownTimeout,
 	}
 
 	s.healthMsg = "assigner ready"
@@ -71,7 +74,15 @@ func (s *Server) Start() error {
 
 func (s *Server) Close() error {
 	log.Info("http server shutdown")
-	return s.server.Shutdown(context.Background())
+
+	ctx := context.Background()
+	if s.shutdownTimeout > 0 {
+		tctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
+		defer cancel()
+		ctx = tctx
+	}
+
+	return s.server.Shutdown(ctx)
 }
 
 // PUT /announce

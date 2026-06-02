@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	logging "github.com/ipfs/go-log/v2"
 	indexer "github.com/ipni/go-indexer-core"
@@ -19,10 +20,11 @@ import (
 var log = logging.Logger("indexer/admin")
 
 type Server struct {
-	cancel   context.CancelFunc
-	handler  *adminHandler
-	listener net.Listener
-	server   *http.Server
+	cancel          context.CancelFunc
+	handler         *adminHandler
+	listener        net.Listener
+	server          *http.Server
+	shutdownTimeout time.Duration
 }
 
 func (s *Server) URL() string {
@@ -51,10 +53,11 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	h := newHandler(ctx, id, indexer, ingester, reg, reloadErrChan)
 
 	s := &Server{
-		cancel:   cancel,
-		handler:  h,
-		listener: l,
-		server:   server,
+		cancel:          cancel,
+		handler:         h,
+		listener:        l,
+		server:          server,
+		shutdownTimeout: opts.shutdownTimeout,
 	}
 
 	// Admin routes
@@ -102,5 +105,13 @@ func (s *Server) Close() error {
 	log.Info("admin http server shutdown")
 	s.cancel() // stop any sync in progress
 	s.handler.pendingSyncs.Wait()
-	return s.server.Shutdown(context.Background())
+
+	ctx := context.Background()
+	if s.shutdownTimeout > 0 {
+		tctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
+		defer cancel()
+		ctx = tctx
+	}
+
+	return s.server.Shutdown(ctx)
 }
