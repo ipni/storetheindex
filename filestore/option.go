@@ -9,6 +9,7 @@ type s3Config struct {
 	region    string
 	accessKey string
 	secretKey string
+	pageSize  int
 }
 
 type S3Option func(*s3Config) error
@@ -41,6 +42,13 @@ func WithKeys(accessKey, secretKey string) S3Option {
 	return func(c *s3Config) error {
 		c.accessKey = accessKey
 		c.secretKey = secretKey
+		return nil
+	}
+}
+
+func WithPageSize(pageSize int) S3Option {
+	return func(c *s3Config) error {
+		c.pageSize = pageSize
 		return nil
 	}
 }
