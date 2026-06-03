@@ -4,12 +4,12 @@ go 1.26
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
-	github.com/aws/aws-sdk-go-v2 v1.41.9
+	github.com/aws/aws-sdk-go-v2 v1.41.11
 	github.com/aws/aws-sdk-go-v2/config v1.32.20
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.19
 	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.2.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.102.2
-	github.com/aws/smithy-go v1.26.0
+	github.com/aws/smithy-go v1.27.0
 	github.com/cockroachdb/pebble/v2 v2.1.6
 	github.com/gammazero/chanqueue v1.1.2
 	github.com/gammazero/deque v1.2.1
