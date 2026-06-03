@@ -138,7 +138,11 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // is the source of the indexed content, the provider is where content can be
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid cid.Cid, resync, frozen bool, lag int, headProvider peer.AddrInfo, wkrNum int) (bool, bool, error) {
+// ingestAd processes a single advertisement. extendMode is set when called
+// from the backward scan path. In extend mode, ingestAd consults the
+// per-provider ctxState map to suppress phantoms from out-of-order processing
+// (older ads being processed after newer ads for the same contextID).
+func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid cid.Cid, resync, frozen, extendMode bool, lag int, headProvider peer.AddrInfo, wkrNum int) (bool, bool, error) {
 	log := log.With("publisher", publisherID, "adCid", adCid, "worker", wkrNum)
 
 	ad, err := ing.loadAd(adCid)
@@ -264,11 +268,41 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 
 	log = log.With("contextID", base64.StdEncoding.EncodeToString(ad.ContextID))
 
+	// Cross-batch phantom prevention. In backward scan mode the chain is
+	// walked from newest to oldest, so any pre-existing ctxState entry was
+	// recorded by a NEWER ad. Use it to suppress phantoms:
+	//   - older ADD with newer entry: skip (newer state wins)
+	//   - older REMOVE with newer ADD: skip the remove call but still
+	//     record the RM so even older ADDs are also suppressed
+	// Forward sync (extendMode=false) ignores the map: it processes ads
+	// in chronological order so its writes are always authoritative.
+	if extendMode && len(ad.ContextID) != 0 {
+		if priorState, exists := ing.getCtxState(providerID, ad.ContextID); exists {
+			if !ad.IsRm {
+				log.Debug("Skipping older ADD: newer state recorded for contextID")
+				return false, false, nil
+			}
+			if priorState == 0 { // ADD
+				log.Debug("Skipping older REMOVE: newer ADD recorded for contextID")
+				if err := ing.setCtxState(providerID, ad.ContextID, 1); err != nil {
+					log.Errorw("Failed to record ctxState", "err", err)
+				}
+				return false, false, nil
+			}
+		}
+	}
+
 	if ad.IsRm {
 		log.Info("Advertisement is for removal by context id")
 		err = ing.indexer.RemoveProviderContext(providerID, ad.ContextID)
 		if err != nil {
 			return false, false, adIngestError{adIngestIndexerErr, fmt.Errorf("%w: failed to remove provider context: %w", errInternal, err)}
+		}
+		// Record the removal so older ADDs for this contextID get suppressed.
+		if extendMode && len(ad.ContextID) != 0 {
+			if err := ing.setCtxState(providerID, ad.ContextID, 1); err != nil {
+				log.Errorw("Failed to record ctxState", "err", err)
+			}
 		}
 		return false, false, nil
 	}
@@ -377,6 +411,17 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	} else {
 		log.Info("syncing entries")
 		mhCount, err = ing.ingestEntriesFromPublisher(ctx, ad, publisherID, providerID, entriesCid, log)
+	}
+	// Record ADD state for this contextID so older ads in future backward
+	// scan batches see it and get suppressed. Only write when a prior RM
+	// already exists for this contextID (keeping the map sparse -- most
+	// contextIDs never see a remove, so no entry is needed).
+	if extendMode && len(ad.ContextID) != 0 && err == nil {
+		if _, exists := ing.getCtxState(providerID, ad.ContextID); exists {
+			if setErr := ing.setCtxState(providerID, ad.ContextID, 0); setErr != nil {
+				log.Errorw("Failed to record ctxState ADD", "err", setErr)
+			}
+		}
 	}
 	return mhCount != 0, false, err
 }
