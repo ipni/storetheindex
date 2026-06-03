@@ -6,19 +6,21 @@ import (
 )
 
 const (
-	defaultHomepage     = "https://web-ipni.cid.contact/"
-	defaultMaxConns     = 8_000
-	defaultReadTimeout  = 30 * time.Second
-	defaultWriteTimeout = 30 * time.Second
+	defaultHomepage        = "https://web-ipni.cid.contact/"
+	defaultMaxConns        = 8_000
+	defaultReadTimeout     = 30 * time.Second
+	defaultWriteTimeout    = 30 * time.Second
+	defaultShutdownTimeout = 30 * time.Second
 )
 
 // config contains all options for the server.
 type config struct {
-	homepageURL  string
-	maxConns     int
-	readTimeout  time.Duration
-	writeTimeout time.Duration
-	version      string
+	homepageURL     string
+	maxConns        int
+	readTimeout     time.Duration
+	writeTimeout    time.Duration
+	shutdownTimeout time.Duration
+	version         string
 }
 
 // Option is a function that sets a value in a config.
@@ -27,10 +29,11 @@ type Option func(*config) error
 // getOpts creates a config and applies Options to it.
 func getOpts(opts []Option) (config, error) {
 	cfg := config{
-		homepageURL:  defaultHomepage,
-		maxConns:     defaultMaxConns,
-		readTimeout:  defaultReadTimeout,
-		writeTimeout: defaultWriteTimeout,
+		homepageURL:     defaultHomepage,
+		maxConns:        defaultMaxConns,
+		readTimeout:     defaultReadTimeout,
+		writeTimeout:    defaultWriteTimeout,
+		shutdownTimeout: defaultShutdownTimeout,
 	}
 
 	for i, opt := range opts {
@@ -69,6 +72,14 @@ func WithReadTimeout(t time.Duration) Option {
 func WithWriteTimeout(t time.Duration) Option {
 	return func(c *config) error {
 		c.writeTimeout = t
+		return nil
+	}
+}
+
+// WithShutdownTimeout configures server shutdown timeout.
+func WithShutdownTimeout(t time.Duration) Option {
+	return func(c *config) error {
+		c.shutdownTimeout = t
 		return nil
 	}
 }

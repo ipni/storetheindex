@@ -31,12 +31,13 @@ import (
 var log = logging.Logger("indexer/find")
 
 type Server struct {
-	server    *http.Server
-	listener  net.Listener
-	healthMsg string
-	indexer   indexer.Interface
-	registry  *registry.Registry
-	stats     *cachedStats
+	server          *http.Server
+	listener        net.Listener
+	healthMsg       string
+	indexer         indexer.Interface
+	registry        *registry.Registry
+	stats           *cachedStats
+	shutdownTimeout time.Duration
 }
 
 func (s *Server) URL() string {
@@ -84,11 +85,12 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 		ReadTimeout:  opts.readTimeout,
 	}
 	s := &Server{
-		server:   server,
-		listener: l,
-		indexer:  indexer,
-		registry: registry,
-		stats:    newCachedStats(indexer, time.Hour),
+		server:          server,
+		listener:        l,
+		indexer:         indexer,
+		registry:        registry,
+		stats:           newCachedStats(indexer, time.Hour),
+		shutdownTimeout: opts.shutdownTimeout,
 	}
 
 	s.healthMsg = "ready"
@@ -133,7 +135,15 @@ func (s *Server) RefreshStats() {
 func (s *Server) Close() error {
 	log.Info("find http server shutdown")
 	s.stats.close()
-	return s.server.Shutdown(context.Background())
+
+	ctx := context.Background()
+	if s.shutdownTimeout > 0 {
+		tctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
+		defer cancel()
+		ctx = tctx
+	}
+
+	return s.server.Shutdown(ctx)
 }
 
 func enableCors(w http.ResponseWriter) {

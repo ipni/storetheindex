@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
@@ -29,12 +30,13 @@ var log = logging.Logger("indexer/ingest")
 const maxBodySize = 1024 * 1024
 
 type Server struct {
-	server    *http.Server
-	listener  net.Listener
-	healthMsg string
-	indexer   indexer.Interface
-	ingester  *ingest.Ingester
-	registry  *registry.Registry
+	server          *http.Server
+	listener        net.Listener
+	healthMsg       string
+	indexer         indexer.Interface
+	ingester        *ingest.Ingester
+	registry        *registry.Registry
+	shutdownTimeout time.Duration
 }
 
 func (s *Server) URL() string {
@@ -59,11 +61,12 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 		ReadTimeout:  opts.readTimeout,
 	}
 	s := &Server{
-		server:   server,
-		listener: l,
-		indexer:  indexer,
-		ingester: ingester,
-		registry: registry,
+		server:          server,
+		listener:        l,
+		indexer:         indexer,
+		ingester:        ingester,
+		registry:        registry,
+		shutdownTimeout: opts.shutdownTimeout,
 	}
 
 	s.healthMsg = "ready"
@@ -88,7 +91,15 @@ func (s *Server) Start() error {
 
 func (s *Server) Close() error {
 	log.Info("ingest http server shutdown")
-	return s.server.Shutdown(context.Background())
+
+	ctx := context.Background()
+	if s.shutdownTimeout > 0 {
+		tctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
+		defer cancel()
+		ctx = tctx
+	}
+
+	return s.server.Shutdown(ctx)
 }
 
 func (s *Server) putAnnounce(w http.ResponseWriter, r *http.Request) {

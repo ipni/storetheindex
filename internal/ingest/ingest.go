@@ -22,6 +22,7 @@ import (
 	"github.com/ipni/go-libipni/announce"
 	"github.com/ipni/go-libipni/dagsync"
 	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/filestore"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/rate"
@@ -1113,7 +1114,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			"progress", fmt.Sprintf("%d of %d", count, total),
 			"lag", lag)
 
-		hasEnts, fromMirror, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider, wkrNum)
+		hasEnts, adDataSource, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider, wkrNum)
 		if err != nil {
 			var adIngestErr adIngestError
 			if errors.As(err, &adIngestErr) {
@@ -1174,7 +1175,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		}
 
 		if putMirror {
-			if fromMirror && ing.mirror.readWriteSame() {
+			if adDataSource == adDataSourceWriter {
 				log.Debug("Removing temporary ad data")
 				// If ad data retrieved from same mirror that is being written
 				// to, then only clean up the data from local datastore, but do
@@ -1211,4 +1212,9 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		}
 		log.Debug("Sent ad processed event")
 	}
+}
+
+// GetExposableFilestore returns the filestore that can be exposed to other indexers for reading CAR files.
+func (ing *Ingester) GetExposableFilestore() filestore.Interface {
+	return ing.mirror.exposableFilestore
 }

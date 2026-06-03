@@ -23,6 +23,7 @@ var initFlags = []cli.Flag{
 	listenFindFlag,
 	listenIngestFlag,
 	listenP2PFlag,
+	listenCarMirrorFlag,
 	&cli.StringFlag{
 		Name:     "store",
 		Usage:    "Type of value store (pebble, memory). Default is \"pebble\"",
@@ -160,6 +161,17 @@ func initAction(cctx *cli.Context) error {
 			}
 		}
 		cfg.Addresses.P2PAddr = p2pAddr
+	}
+
+	carMirrorAddr := cctx.String("listen-car-mirror")
+	if carMirrorAddr != "" {
+		if carMirrorAddr != "none" {
+			_, err := multiaddr.NewMultiaddr(carMirrorAddr)
+			if err != nil {
+				return fmt.Errorf("bad listen-car-mirror: %s", err)
+			}
+		}
+		cfg.Addresses.CarMirror = carMirrorAddr
 	}
 
 	noBootstrap := cctx.Bool("no-bootstrap")

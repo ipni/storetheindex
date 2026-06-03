@@ -6,15 +6,17 @@ import (
 )
 
 const (
-	defaultWriteTimeout = 30 * time.Second
-	defaultReadTimeout  = 30 * time.Second
+	defaultWriteTimeout    = 30 * time.Second
+	defaultReadTimeout     = 30 * time.Second
+	defaultShutdownTimeout = 30 * time.Second
 )
 
 // serverConfig contains all options for the server.
 type serverConfig struct {
-	readTimeout  time.Duration
-	writeTimeout time.Duration
-	version      string
+	readTimeout     time.Duration
+	writeTimeout    time.Duration
+	shutdownTimeout time.Duration
+	version         string
 }
 
 // Option is a function that sets a value in a serverConfig.
@@ -23,8 +25,9 @@ type Option func(*serverConfig) error
 // getOpts creates a serverConfig and applies Options to it.
 func getOpts(opts []Option) (serverConfig, error) {
 	cfg := serverConfig{
-		readTimeout:  defaultReadTimeout,
-		writeTimeout: defaultWriteTimeout,
+		readTimeout:     defaultReadTimeout,
+		writeTimeout:    defaultWriteTimeout,
+		shutdownTimeout: defaultShutdownTimeout,
 	}
 
 	for i, opt := range opts {
@@ -47,6 +50,14 @@ func WithReadTimeout(t time.Duration) Option {
 func WithWriteTimeout(t time.Duration) Option {
 	return func(c *serverConfig) error {
 		c.writeTimeout = t
+		return nil
+	}
+}
+
+// WithShutdownTimeout serverConfigures server shutdown timeout.
+func WithShutdownTimeout(t time.Duration) Option {
+	return func(c *serverConfig) error {
+		c.shutdownTimeout = t
 		return nil
 	}
 }
