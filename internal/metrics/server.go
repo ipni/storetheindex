@@ -14,9 +14,10 @@ import (
 
 // Global Tags
 var (
-	ErrKind, _ = tag.NewKey("errKind")
-	Found, _   = tag.NewKey("found")
-	Method, _  = tag.NewKey("method")
+	ErrKind, _  = tag.NewKey("errKind")
+	Found, _    = tag.NewKey("found")
+	Method, _   = tag.NewKey("method")
+	AdSource, _ = tag.NewKey("adSource")
 )
 
 // Measures
@@ -28,7 +29,11 @@ var (
 	AdIngestActive       = stats.Int64("ingest/adactive", "Active ingest workers", stats.UnitDimensionless)
 	AdIngestSuccessCount = stats.Int64("ingest/adingestSuccess", "Number of successful ad ingest", stats.UnitDimensionless)
 	AdIngestSkippedCount = stats.Int64("ingest/adingestSkipped", "Number of ads skipped during ingest", stats.UnitDimensionless)
+	AdLoadSourceCount    = stats.Int64("ingest/adloadsource", "Number of ads with entries loaded, by data source", stats.UnitDimensionless)
+	AdWriteSourceCount   = stats.Int64("ingest/adwritesource", "Number of ads written to the CAR mirror, by data source", stats.UnitDimensionless)
 	AdLoadError          = stats.Int64("ingest/adLoadError", "Number of times an ad failed to load", stats.UnitDimensionless)
+	CarMirrorReadLatency = stats.Float64("ingest/carmirrorreadlatency", "Time to read an ad's entries from a CAR mirror", stats.UnitMilliseconds)
+	ProviderFetchLatency = stats.Float64("ingest/providerfetchlatency", "Time to fetch all of an ad's entries from the publisher", stats.UnitMilliseconds)
 	ProviderCount        = stats.Int64("provider/count", "Number of known (registered) providers", stats.UnitDimensionless)
 	EntriesSyncLatency   = stats.Float64("ingest/entriessynclatency", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
 	PercentUsage         = stats.Float64("ingest/percentusage", "Percent usage of storage available in value store", stats.UnitDimensionless)
@@ -77,9 +82,28 @@ var (
 		Measure:     AdIngestSkippedCount,
 		Aggregation: view.Count(),
 	}
+	adLoadSource = &view.View{
+		Measure:     AdLoadSourceCount,
+		Aggregation: view.Count(),
+		TagKeys:     []tag.Key{AdSource},
+	}
+	adWriteSource = &view.View{
+		Measure:     AdWriteSourceCount,
+		Aggregation: view.Count(),
+		TagKeys:     []tag.Key{AdSource},
+	}
 	adLoadError = &view.View{
 		Measure:     AdLoadError,
 		Aggregation: view.Count(),
+	}
+	carMirrorReadLatencyView = &view.View{
+		Measure:     CarMirrorReadLatency,
+		Aggregation: view.Distribution(0, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 1000, 2000, 5000),
+		TagKeys:     []tag.Key{AdSource},
+	}
+	providerFetchLatencyView = &view.View{
+		Measure:     ProviderFetchLatency,
+		Aggregation: view.Distribution(0, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 1000, 2000, 5000),
 	}
 	percentUsageView = &view.View{
 		Measure:     PercentUsage,
@@ -110,7 +134,11 @@ func Start(views []*view.View) http.Handler {
 		adIngestActive,
 		adIngestSkipped,
 		adIngestSuccess,
+		adLoadSource,
+		adWriteSource,
 		adLoadError,
+		carMirrorReadLatencyView,
+		providerFetchLatencyView,
 		percentUsageView,
 		nonRemoveAdCountView,
 		removeAdCountView,

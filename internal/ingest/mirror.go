@@ -44,6 +44,23 @@ const (
 	adDataSourceProvider                     // data read from the provider
 )
 
+func (d adDataSource) String() string {
+	switch d {
+	case adDataSourceNone:
+		return "none"
+	case adDataSourceWriter:
+		return "writer"
+	case adDataSourceReader:
+		return "reader"
+	case adDataSourceFallback:
+		return "fallback"
+	case adDataSourceProvider:
+		return "provider"
+	default:
+		return fmt.Sprintf("unknown(%d)", d)
+	}
+}
+
 func (d adDataSource) canBeWritten() bool {
 	switch d {
 	case adDataSourceReader, adDataSourceFallback, adDataSourceProvider:
