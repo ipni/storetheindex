@@ -30,6 +30,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 	"go.uber.org/zap"
 
 	// Import so these codecs get registered.
@@ -322,10 +323,15 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	// If using a CAR reader, then try to get the advertisement CAR file first.
 	if ing.mirror.canRead() {
 		log.Debug("Attempting to fetch entries from CAR mirror")
+		carReadStart := time.Now()
 		mhCount, adSource, err := ing.ingestEntriesFromCar(ctx, ad, providerID, adCid, entriesCid, log)
 		hasEnts := mhCount != 0
 		// If entries data successfully read from CAR file.
 		if err == nil {
+			elapsedMsec := float64(time.Since(carReadStart).Nanoseconds()) / 1e6
+			stats.RecordWithOptions(ctx,
+				stats.WithMeasurements(metrics.CarMirrorReadLatency.M(elapsedMsec)),
+				stats.WithTags(tag.Insert(metrics.AdSource, adSource.String())))
 			ing.mhsFromMirror.Add(uint64(mhCount))
 			return hasEnts, adSource, nil
 		}
@@ -352,6 +358,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 	}
 	log.Debug("Fetching entries from publisher")
+	providerFetchStart := time.Now()
 
 	// The ad.Entries link can point to either a chain of EntryChunks or a
 	// HAMT. Sync the very first entry so that we can check which type it is.
@@ -378,7 +385,14 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		log.Info("syncing entries")
 		mhCount, err = ing.ingestEntriesFromPublisher(ctx, ad, publisherID, providerID, entriesCid, log)
 	}
-	return mhCount != 0, adDataSourceNone, err
+
+	// Record how long it took to fetch all the entries from the publisher.
+	if err == nil {
+		elapsedMsec := float64(time.Since(providerFetchStart).Nanoseconds()) / 1e6
+		stats.Record(ctx, metrics.ProviderFetchLatency.M(elapsedMsec))
+	}
+
+	return mhCount != 0, adDataSourceProvider, err
 }
 
 func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, entsCid cid.Cid, log *zap.SugaredLogger) (int, error) {

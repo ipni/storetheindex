@@ -1165,6 +1165,11 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		} else {
 			// No error at all, this ad was processed successfully.
 			stats.Record(context.Background(), metrics.AdIngestSuccessCount.M(1))
+			if hasEnts {
+				stats.RecordWithOptions(context.Background(),
+					stats.WithMeasurements(metrics.AdLoadSourceCount.M(1)),
+					stats.WithTags(tag.Insert(metrics.AdSource, adDataSource.String())))
+			}
 		}
 
 		ing.reg.SetLastError(provider, nil)
@@ -1198,6 +1203,10 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 					}
 				} else {
 					log.Infow("Wrote CAR for advertisement", "path", carInfo.Path, "size", carInfo.Size)
+					// Record where the data written to the CAR mirror came from.
+					stats.RecordWithOptions(context.Background(),
+						stats.WithMeasurements(metrics.AdWriteSourceCount.M(1)),
+						stats.WithTags(tag.Insert(metrics.AdSource, adDataSource.String())))
 				}
 			}
 		}
