@@ -69,6 +69,11 @@ type Registry struct {
 
 	syncChan chan *ProviderInfo
 
+	// syncStatus tracks live sync progress per publisher (one main provider at
+	// a time; extended providers are not tracked).
+	syncStatus   map[peer.ID]*syncTracker
+	syncStatusMu sync.Mutex
+
 	tmpBlockPeers     map[peer.ID]time.Time
 	tmpBlockCheckDone chan struct{}
 	tmpBlockMutex     sync.Mutex
@@ -296,8 +301,9 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		policy:    regPolicy,
 		sequences: newSequences(0),
 
-		dstore:   dstore,
-		syncChan: make(chan *ProviderInfo, 1),
+		dstore:     dstore,
+		syncChan:   make(chan *ProviderInfo, 1),
+		syncStatus: make(map[peer.ID]*syncTracker),
 
 		tmpBlockPeers:     make(map[peer.ID]time.Time),
 		tmpBlockCheckDone: make(chan struct{}),
@@ -1080,6 +1086,105 @@ func (r *Registry) RemoveProvider(ctx context.Context, providerID peer.ID, block
 		return errors.New("shutdown")
 	}
 	return nil
+}
+
+// RecordAdScanned records that adCid was scanned during the ad-chain walk for
+// the given publisher. providerID is the ad's main provider (ad.Provider), not
+// an extended provider. It creates and initializes the tracker while holding
+// the map mutex so readers never observe an uninitialized tracker.
+func (r *Registry) RecordAdScanned(publisherID, providerID peer.ID, adCid cid.Cid) int {
+	r.syncStatusMu.Lock()
+	defer r.syncStatusMu.Unlock()
+	st, ok := r.syncStatus[publisherID]
+	if !ok {
+		st = &syncTracker{}
+		r.syncStatus[publisherID] = st
+	}
+	return st.recordAdScanned(providerID, adCid)
+}
+
+// EndScan marks the scan phase finished for the given publisher.
+func (r *Registry) EndScan(publisherID peer.ID, err error) {
+	r.syncStatusMu.Lock()
+	defer r.syncStatusMu.Unlock()
+	st, ok := r.syncStatus[publisherID]
+	if !ok {
+		return
+	}
+	st.endScan(err)
+}
+
+// SyncStatusFor returns the live sync tracker for the given publisher, creating
+// it if it does not yet exist. One tracker per publisher; it reflects a single
+// main provider at a time.
+func (r *Registry) SyncStatusFor(publisherID peer.ID) *syncTracker {
+	r.syncStatusMu.Lock()
+	defer r.syncStatusMu.Unlock()
+	st, ok := r.syncStatus[publisherID]
+	if !ok {
+		st = &syncTracker{}
+		r.syncStatus[publisherID] = st
+	}
+	return st
+}
+
+// SyncStatusJSONFor returns a JSON snapshot of the sync status for the given
+// publisher, or nil if no sync status is tracked. Registered providers sharing
+// a publisher all receive this same snapshot.
+func (r *Registry) SyncStatusJSONFor(publisherID peer.ID) json.RawMessage {
+	r.syncStatusMu.Lock()
+	st := r.syncStatus[publisherID]
+	r.syncStatusMu.Unlock()
+	if st == nil {
+		return nil
+	}
+	data, err := json.Marshal(st)
+	if err != nil {
+		log.Errorw("Failed to marshal sync status", "err", err, "publisher", publisherID)
+		return nil
+	}
+	return data
+}
+
+// AllSyncStatuses returns JSON snapshots of all tracked sync statuses keyed by
+// publisher.
+func (r *Registry) AllSyncStatuses() map[peer.ID]json.RawMessage {
+	r.syncStatusMu.Lock()
+	ents := make([]struct {
+		pub peer.ID
+		st  *syncTracker
+	}, 0, len(r.syncStatus))
+	for pubID, st := range r.syncStatus {
+		ents = append(ents, struct {
+			pub peer.ID
+			st  *syncTracker
+		}{pub: pubID, st: st})
+	}
+	r.syncStatusMu.Unlock()
+
+	out := make(map[peer.ID]json.RawMessage, len(ents))
+	for _, e := range ents {
+		data, err := json.Marshal(e.st)
+		if err != nil {
+			log.Errorw("Failed to marshal sync status", "err", err, "publisher", e.pub)
+			continue
+		}
+		out[e.pub] = data
+	}
+	return out
+}
+
+// EndProcessing marks the processing phase finished for the given publisher and
+// closes any ongoing download run. The tracker is retained so completed stats
+// remain visible until the next sync.
+func (r *Registry) EndProcessing(pubID peer.ID, err error) {
+	r.syncStatusMu.Lock()
+	defer r.syncStatusMu.Unlock()
+	st, ok := r.syncStatus[pubID]
+	if !ok {
+		return
+	}
+	st.EndProcessing(err)
 }
 
 func (r *Registry) ProviderByPublisher(pubID peer.ID) (peer.ID, bool) {
