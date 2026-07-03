@@ -200,6 +200,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		dagsync.WithLastKnownSync(ing.getLastKnownSync),
 		dagsync.SegmentDepthLimit(int64(cfg.SyncSegmentDepthLimit)),
 		dagsync.BlockHook(ing.generalDagsyncBlockHook),
+		dagsync.BlockSyncAfterDone(),
 		dagsync.RecvAnnounce(cfg.PubSubTopic,
 			announce.WithAllowPeer(reg.Allowed),
 			announce.WithFilterIPs(reg.FilterIPsEnabled()),
@@ -841,6 +842,7 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 
 	for {
 		log.Debug("ingest worker waiting for event")
+
 		select {
 		case event, ok := <-syncFinishedEvents:
 			if !ok {
@@ -848,40 +850,55 @@ func (ing *Ingester) ingestWorker(ctx context.Context, syncFinishedEvents <-chan
 				return
 			}
 
-			pubID := event.PeerID
+			ing.ingestWorkerWorkUnit(ctx, event, wkrNum)
 
-			if event.Err != nil {
-				provID, ok := ing.reg.ProviderByPublisher(pubID)
-				if ok {
-					log.Debug("Setting last error for provider", "provider", provID, "publisher", pubID)
-					ing.reg.SetLastError(provID, event.Err)
-				}
-				continue
-			}
-
-			log.Debugw("ingest worker processing raw ad chain", "publisher", pubID)
-
-			if ing.putNextSyncFin(event) {
-				// Ad chain is already being processed.
-				log.Debugw("Ad chain already being processed, queued ad chain event", "publisher", pubID)
-				continue
-			}
-
-			stats.Record(ctx, metrics.AdIngestActive.M(int64(ing.workersActive.Add(1))))
-
-			for syncFin := ing.getNextSyncFin(pubID); syncFin != nil; syncFin = ing.getNextSyncFin(pubID) {
-				ing.processRawAdChain(ctx, *syncFin, wkrNum)
-			}
-
-			stats.Record(ctx, metrics.AdIngestActive.M(int64(ing.workersActive.Add(-1))))
 		case <-ctx.Done():
 			log.Info("ingest worker canceled")
 			return
+
 		case <-ing.stopWorker:
 			log.Info("ingest worker stopped")
 			return
 		}
 	}
+}
+
+func (ing *Ingester) ingestWorkerWorkUnit(ctx context.Context, event dagsync.SyncFinished, wkrNum int) {
+	pubID := event.PeerID
+
+	if event.Err != nil {
+		provID, ok := ing.reg.ProviderByPublisher(pubID)
+		if ok {
+			log.Debug("Setting last error for provider", "worker", wkrNum, "provider", provID, "publisher", pubID)
+			ing.reg.SetLastError(provID, event.Err)
+		}
+		ing.sub.UnblockSync(pubID)
+		return
+	}
+
+	log.Debugw("ingest worker processing raw ad chain", "worker", wkrNum, "publisher", pubID)
+
+	if ing.putNextSyncFin(event) {
+		// Ad chain for this publisher is already being processed.
+		// To avoid processing the same publisher in parallel, putNextSyncFin pushes the event to
+		// the syncInProgress map. The worker that is currently processing event of the publisher
+		// will pick up our event in the loop below through getNextSyncFin.
+		log.Debugw("Ad chain already being processed, queued ad chain event", "worker", wkrNum, "publisher", pubID)
+		return
+	}
+
+	stats.Record(ctx, metrics.AdIngestActive.M(int64(ing.workersActive.Add(1))))
+
+	for syncFin := ing.getNextSyncFin(pubID); syncFin != nil; syncFin = ing.getNextSyncFin(pubID) {
+		// Note as there's a new gate preventing sync for the same publisher from happening while
+		// the processing is in progress, the likelihood of enqueneing new event while processing is
+		// practically impossible. This code is left here so that if the gate is ever removed, the code
+		// is still correct.
+		ing.processRawAdChain(ctx, *syncFin, wkrNum)
+		ing.sub.UnblockSync(pubID)
+	}
+
+	stats.Record(ctx, metrics.AdIngestActive.M(int64(ing.workersActive.Add(-1))))
 }
 
 func (ing *Ingester) putNextSyncFin(event dagsync.SyncFinished) bool {
@@ -902,8 +919,12 @@ func (ing *Ingester) getNextSyncFin(pubID peer.ID) *dagsync.SyncFinished {
 
 	syncFin := ing.syncInProgress[pubID]
 	if syncFin == nil {
+		// Last event was processed, and the next one was not overwritten,
+		// so delete the entry as there is no next event to process.
 		delete(ing.syncInProgress, pubID)
 	} else {
+		// Do not delete yet as the existence of an entry, even if nil,
+		// indicates that the publisher is still being processed.
 		ing.syncInProgress[pubID] = nil
 	}
 

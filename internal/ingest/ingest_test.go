@@ -1660,7 +1660,7 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 	// Asset that the head ad multihash is not indexed.
 	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), mhs[3:])
 
-	require.Equal(t, 1, int(te.ingester.workersActive.Load()))
+	require.EqualValues(t, 1, te.ingester.workersActive.Load())
 
 	// Announce an ad CID and assert that call to announce is deferred since
 	// we have blocked the processing.
