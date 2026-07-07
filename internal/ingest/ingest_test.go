@@ -34,6 +34,7 @@ import (
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/filestore"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/test/typehelpers"
 	"github.com/libp2p/go-libp2p"
@@ -1426,6 +1427,199 @@ func TestMultiplePublishers(t *testing.T) {
 	require.Equal(t, gotLink2, headAd2)
 }
 
+func TestSyncGateBlocksConcurrentSyncForSamePublisher(t *testing.T) {
+	t.Parallel()
+
+	// Enable a CAR read mirror backed by an empty directory. The mirror read is
+	// attempted at the very start of processing every ad, before any entries
+	// are fetched from the publisher, and crucially while no dagsync sync mutex
+	// is held. Every read misses (the directory is empty) and processing simply
+	// falls back to the publisher as usual, so the empty mirror only serves as
+	// a deterministic, mutex-free place to stall the worker.
+	mirrorDir := t.TempDir()
+	cfg := defaultTestIngestConfig
+	cfg.AdvertisementMirror.Read = true
+	cfg.AdvertisementMirror.Retrieval.Type = "local"
+	cfg.AdvertisementMirror.Retrieval.Local.BasePath = mirrorDir
+
+	te := setupTestEnv(t, true, func(o *testEnvOpts) {
+		o.ingestConfig = &cfg
+	})
+
+	// 4-ad chain: A (tail), B, C, D (head).
+	headLink := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 1},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 2},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 3},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 4},
+		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
+	headCid := headLink.(cidlink.Link).Cid
+	ads := typehelpers.AllAdLinks(t, headLink, te.publisherLinkSys)
+	mhs := typehelpers.AllMultihashesFromAdLink(t, headLink, te.publisherLinkSys)
+	pubAddrInfo := te.pubHost.Peerstore().PeerInfo(te.pubHost.ID())
+
+	adBCid := ads[1].(cidlink.Link).Cid
+	adCCid := ads[2].(cidlink.Link).Cid
+	adDCid := ads[3].(cidlink.Link).Cid
+
+	te.publisher.SetRoot(headCid)
+
+	// Stall processing of ad C at the (mutex-free) mirror read: A and B are
+	// processed normally, then C blocks inside CarReader.Read before any of its
+	// entries are fetched or indexed. releaseC is closed on cleanup as well, so
+	// a failing assertion cannot leave the ingest worker blocked forever.
+	releaseC := make(chan struct{})
+	release := sync.OnceFunc(func() { close(releaseC) })
+	t.Cleanup(release)
+
+	mirrorFS, err := filestore.NewLocal(mirrorDir)
+	require.NoError(t, err)
+	blockPath := te.ingester.mirror.carReader.CarPath(adCCid)
+	blockingFS := &blockingMirrorFilestore{
+		Interface:           mirrorFS,
+		blockerReadPath:     blockPath,
+		releaseReadBlockade: releaseC,
+	}
+	blockingReader, err := carstore.NewReader(blockingFS)
+	require.NoError(t, err)
+	te.ingester.mirror.carReader = blockingReader
+
+	// Notify the ingester to sync through ad C.
+	err = te.ingester.Announce(t.Context(), adCCid, pubAddrInfo)
+	require.NoError(t, err)
+
+	// Wait until processing reaches C; A and B are now indexed, C is not.
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs[:2])
+	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), mhs[2:])
+	require.EqualValues(t, 1, te.ingester.workersActive.Load())
+
+	gotProcessed, err := te.ingester.GetLatestSync(te.pubHost.ID())
+	require.NoError(t, err)
+	require.Equal(t, adBCid, gotProcessed, "expected B to be the last processed ad")
+
+	// syncInProgress must contain information about the sync in progress,
+	// no new cid enqueued.
+	require.Contains(t, te.ingester.syncInProgress, te.pubHost.ID())
+	require.Nil(t, te.ingester.syncInProgress[te.pubHost.ID()])
+
+	// While still processing C, start a second ad-chain sync (for head ad D)
+	// directly via SyncAdChain. Each ad-chain sync method is independently
+	// protected against simultaneous runs of itself, so only the sync gate can
+	// keep this concurrent sync from completing a scan and enqueueing a
+	// SyncFinished event for D while C is still being processed.
+	peerInfo := peer.AddrInfo{ID: te.publisher.ID(), Addrs: te.publisher.Addrs()}
+	syncDDone := make(chan error, 1)
+	go func() {
+		_, err := te.ingester.sub.SyncAdChain(t.Context(), peerInfo)
+		syncDDone <- err
+	}()
+
+	require.Never(t, func() bool {
+		te.ingester.syncInProgressMu.Lock()
+		defer te.ingester.syncInProgressMu.Unlock()
+
+		event, isProcessing := te.ingester.syncInProgress[te.pubHost.ID()]
+		return !isProcessing || event != nil
+
+	}, time.Second, testRetryInterval, "second ad-chain sync must not enqueue a sync event while C is still processing")
+
+	gotProcessed, err = te.ingester.GetLatestSync(te.pubHost.ID())
+	require.NoError(t, err)
+	require.Equal(t, adBCid, gotProcessed, "D must not be processed before C finishes")
+
+	// Unblock C processing; both ingestion requests should complete.
+	release()
+	require.NoError(t, <-syncDDone)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhs)
+
+	gotProcessed, err = te.ingester.GetLatestSync(te.pubHost.ID())
+	require.NoError(t, err)
+	require.Equal(t, adDCid, gotProcessed, "expected head ad D to be fully processed")
+
+	require.Eventually(t, func() bool {
+		te.ingester.syncInProgressMu.Lock()
+		_, found := te.ingester.syncInProgress[te.pubHost.ID()]
+		te.ingester.syncInProgressMu.Unlock()
+		return !found
+	}, testRetryTimeout, testRetryInterval)
+}
+
+func TestSyncGateDoesNotBlockDifferentPublisher(t *testing.T) {
+	t.Parallel()
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
+	te := setupTestEnv(t, true, blockableLsysOpt)
+
+	// Publisher A: publish a chain and block head-entries processing so that
+	// A's sync gate stays held while the worker is stuck.
+	headLinkA := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 1},
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 2},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 3},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 4},
+		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
+	headCidA := headLinkA.(cidlink.Link).Cid
+	mhsA := typehelpers.AllMultihashesFromAdLink(t, headLinkA, te.publisherLinkSys)
+
+	te.publisher.SetRoot(headCidA)
+
+	headAdA := typehelpers.AdFromLink(t, headLinkA, te.publisherLinkSys)
+	blockedReads.add(headAdA.Entries.(cidlink.Link).Cid)
+
+	peerInfoA := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+
+	// Start syncing publisher A in the background; it will stall on blocked
+	// head entries while holding A's per-publisher gate.
+	syncADone := make(chan error, 1)
+	go func() {
+		_, err := te.ingester.Sync(t.Context(), peerInfoA, 0, false)
+		syncADone <- err
+	}()
+
+	require.Eventually(t, func() bool {
+		return te.ingester.workersActive.Load() == 1
+	}, testRetryTimeout, testRetryInterval, "publisher A should be processing")
+
+	// Set up a second publisher B on a separate host.
+	pubHostB, privB := dstest.MkTestHostPK(t)
+	t.Cleanup(func() {
+		pubHostB.Network().ResourceManager().Close()
+	})
+	storeB := dssync.MutexWrap(datastore.NewMapDatastore())
+	pubB, lsysB := mkMockPublisher(t, pubHostB, te.ingesterHost, storeB)
+	connectHosts(t, te.ingesterHost, pubHostB)
+
+	headLinkB := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 5},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 6},
+		}}.Build(t, lsysB, privB)
+	headCidB := headLinkB.(cidlink.Link).Cid
+	mhsB := typehelpers.AllMultihashesFromAdLink(t, headLinkB, lsysB)
+	pubB.SetRoot(headCidB)
+
+	peerInfoB := peer.AddrInfo{
+		ID:    pubB.ID(),
+		Addrs: pubB.Addrs(),
+	}
+
+	// While A is still blocked, sync B. The gate is per-publisher, so B should
+	// complete immediately on the second ingest worker.
+	gotCidB, err := te.ingester.Sync(t.Context(), peerInfoB, 0, false)
+	require.NoError(t, err)
+	require.Equal(t, headCidB, gotCidB)
+	requireIndexedEventually(t, te.ingester.indexer, pubHostB.ID(), mhsB)
+
+	// Unblock A and verify it finishes processing.
+	<-hitBlockedRead
+	require.NoError(t, <-syncADone)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), mhsA)
+}
+
 func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 	t.Parallel()
 	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
@@ -1466,7 +1660,7 @@ func TestAnnounceIsDeferredWhenProcessingAd(t *testing.T) {
 	// Asset that the head ad multihash is not indexed.
 	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), mhs[3:])
 
-	require.Equal(t, 1, int(te.ingester.workersActive.Load()))
+	require.EqualValues(t, 1, te.ingester.workersActive.Load())
 
 	// Announce an ad CID and assert that call to announce is deferred since
 	// we have blocked the processing.
@@ -2119,3 +2313,18 @@ func (vs *errorValueStore) Size() (int64, error)                                
 func (vs *errorValueStore) Flush() error                                           { return vs.err }
 func (vs *errorValueStore) Close() error                                           { return vs.err }
 func (vs *errorValueStore) Stats() (*indexer.Stats, error)                         { return nil, vs.err }
+
+// blockingMirrorFilestore wraps a filestore and blocks Get for one CAR path.
+// Used to stall ad processing inside mirror.read without holding any dagsync mutex.
+type blockingMirrorFilestore struct {
+	filestore.Interface
+	blockerReadPath     string
+	releaseReadBlockade chan struct{}
+}
+
+func (b *blockingMirrorFilestore) Get(ctx context.Context, path string) (*filestore.File, io.ReadCloser, error) {
+	if path == b.blockerReadPath {
+		<-b.releaseReadBlockade
+	}
+	return b.Interface.Get(ctx, path)
+}

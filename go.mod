@@ -16,16 +16,16 @@ require (
 	github.com/gammazero/targz v0.0.3
 	github.com/ipfs/boxo v0.40.0
 	github.com/ipfs/go-cid v0.6.1
-	github.com/ipfs/go-datastore v0.9.1
+	github.com/ipfs/go-datastore v0.9.2
 	github.com/ipfs/go-ds-leveldb v0.5.2
 	github.com/ipfs/go-log/v2 v2.9.2
 	github.com/ipfs/go-test v0.3.0
 	github.com/ipld/go-car/v2 v2.17.0
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20260222154722-ce9668eed83c
-	github.com/ipld/go-ipld-prime v0.23.0
+	github.com/ipld/go-ipld-prime v0.24.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20260601093823-bc7bf1be8a05
 	github.com/ipni/go-indexer-core v0.9.5
-	github.com/ipni/go-libipni v0.7.8
+	github.com/ipni/go-libipni v0.8.0
 	github.com/ipni/relayx v1.0.4
 	github.com/libp2p/go-libp2p v0.48.0
 	github.com/multiformats/go-multiaddr v0.16.1
@@ -39,7 +39,7 @@ require (
 	go.opencensus.io v0.24.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/net v0.55.0
-	golang.org/x/sys v0.45.0
+	golang.org/x/sys v0.46.0
 )
 
 require (
@@ -175,20 +175,20 @@ require (
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
-	go.opentelemetry.io/otel v1.43.0 // indirect
-	go.opentelemetry.io/otel/metric v1.43.0 // indirect
-	go.opentelemetry.io/otel/trace v1.43.0 // indirect
+	go.opentelemetry.io/otel v1.44.0 // indirect
+	go.opentelemetry.io/otel/metric v1.44.0 // indirect
+	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/crypto v0.52.0 // indirect
+	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/exp v0.0.0-20260529124908-c761662dc8c9 // indirect
 	golang.org/x/mod v0.36.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260527142108-59979362b252 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
