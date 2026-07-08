@@ -76,7 +76,9 @@ func (m adMirror) read(ctx context.Context, adCid cid.Cid, skipEntries bool) (ad
 		// Try the fallback reader if block is not found in the primary one
 		adBlock2, err2 := m.carFallbackReader.Read(ctx, adCid, skipEntries)
 		if err2 != nil {
-			log.Warnw("Cannot read advertisement from fallback filestore", "err", err2, "carPath", adCid)
+			if !errors.Is(err2, fs.ErrNotExist) {
+				log.Warnw("Cannot read advertisement from fallback filestore", "err", err2, "carPath", adCid)
+			}
 
 			// Return the original error here as we don't want to interrupt the ingestion process
 			// due to issues with the fallback filestore.
