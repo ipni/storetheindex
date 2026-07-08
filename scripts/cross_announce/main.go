@@ -14,6 +14,7 @@ import (
 func main() {
 	source := flag.String("source", "", "Source indexer")
 	target := flag.String("target", "", "Target indexer")
+	providerID := flag.String("pid", "", "Provider ID")
 	help := flag.Bool("help", false, "Print usage")
 
 	flag.Parse()
@@ -53,6 +54,10 @@ Simply, specify the source and target as the HTTP(S) IPNI indexer instance. Exam
 
 	var announcedSuccessfully int
 	for i, provider := range providers {
+		if *providerID != "" && provider.AddrInfo.ID.String() != *providerID {
+			continue
+		}
+
 		fmt.Printf("\t(%d/%d) ", (i + 1), totalProviders)
 		switch {
 		case provider.Publisher == nil, provider.Publisher.ID == "", len(provider.Publisher.Addrs) == 0:
