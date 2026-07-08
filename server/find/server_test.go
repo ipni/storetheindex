@@ -81,6 +81,12 @@ func TestServer_CORSWithExpectedContentType(t *testing.T) {
 		},
 		{
 			reqMethod:       http.MethodGet,
+			reqUrl:          "/sync/status",
+			wantContentType: "application/json",
+			statusCode:      http.StatusNoContent,
+		},
+		{
+			reqMethod:       http.MethodGet,
 			reqUrl:          "/health",
 			wantContentType: "text/plain",
 		},
@@ -319,6 +325,52 @@ func TestServer_Landing(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	require.NoError(t, err)
 	require.Contains(t, string(body), "https://web-ipni.cid.contact/")
+}
+
+func TestServer_SyncStatus(t *testing.T) {
+	reg := initRegistry(t)
+	ind := initIndex(t, false)
+	s := setupServer(t, ind, reg)
+	go func() {
+		err := s.Start()
+		require.ErrorIs(t, err, http.ErrServerClosed)
+	}()
+
+	pubID, err := peer.Decode("12D3KooWBckWLKiYoUX4k3HTrbrSe4DD5SPNTKgP6vKTva1NaRkJ")
+	require.NoError(t, err)
+	provID, err := peer.Decode("12D3KooWQ9j3Ur5V9U63Vi6ved72TcA3sv34k74W3wpW5rwNvDc3")
+	require.NoError(t, err)
+	ad, err := cid.Decode("baguqeeraa5mjufqdwzgafkqxmllc4hwzd4qcjqzj4tnaswgvazawepoqwzqa")
+	require.NoError(t, err)
+	require.Equal(t, 1, reg.RecordAdScanned(pubID, provID, ad))
+
+	expected := mustJSONMap(t, map[string]json.RawMessage{
+		pubID.String(): reg.SyncStatusJSONFor(pubID),
+	})
+
+	res, err := http.Get(s.URL() + "/sync/status")
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.Equal(t, "*", res.Header.Get("Access-Control-Allow-Origin"))
+	require.JSONEq(t, string(expected), string(body))
+
+	res, err = http.Get(s.URL() + "/sync/status/" + pubID.String())
+	require.NoError(t, err)
+	body, err = io.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.JSONEq(t, string(reg.SyncStatusJSONFor(pubID)), string(body))
+}
+
+func mustJSONMap(t *testing.T, m map[string]json.RawMessage) []byte {
+	t.Helper()
+	data, err := json.Marshal(m)
+	require.NoError(t, err)
+	return data
 }
 
 func setupTestServer(t *testing.T, iv indexer.Value, mhs []multihash.Multihash) *find.Server {

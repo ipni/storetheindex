@@ -46,6 +46,8 @@ const (
 	adProcessedFrozenPrefix = "/adF/"
 	// metricsUpdateInterval determines how ofter to update ingestion metrics.
 	metricsUpdateInterval = time.Minute
+	// adsScannedLogInterval is how often to log ad-chain scanning progress.
+	adsScannedLogInterval = 10000
 )
 
 type adProcessedEvent struct {
@@ -246,7 +248,7 @@ func (ing *Ingester) Skip500EntriesError(skip bool) {
 	ing.skip500EntsErr.Store(skip)
 }
 
-func (ing *Ingester) generalDagsyncBlockHook(_ peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
+func (ing *Ingester) generalDagsyncBlockHook(publisher peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
 	// The only kind of block we should get by loading CIDs here should be
 	// Advertisement.
 	//
@@ -259,9 +261,20 @@ func (ing *Ingester) generalDagsyncBlockHook(_ peer.ID, c cid.Cid, actions dagsy
 	//
 	// Therefore, we only attempt to load advertisements here and signal
 	// failure if the load fails.
-	if ad, err := ing.loadAd(c); err != nil {
+	ad, err := ing.loadAd(c)
+	if err != nil {
+		ing.reg.EndScan(publisher, err)
 		actions.FailSync(err)
-	} else if ad.PreviousID != nil {
+		return
+	}
+
+	providerID, _ := peer.Decode(ad.Provider)
+	adsScanned := ing.reg.RecordAdScanned(publisher, providerID, c)
+	if adsScanned%adsScannedLogInterval == 0 {
+		log.Infow("Scanning advertisement chain", "publisher", publisher, "adsScanned", adsScanned, "adCid", c)
+	}
+
+	if ad.PreviousID != nil {
 		actions.SetNextSyncCid(ad.PreviousID.(cidlink.Link).Cid)
 	} else {
 		actions.SetNextSyncCid(cid.Undef)
@@ -443,6 +456,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 	// by dagsync via head-publisher.
 	c, err := ing.sub.SyncAdChain(syncCtx, peerInfo, opts...)
 	if err != nil {
+		ing.reg.EndScan(peerInfo.ID, err)
 		ing.reg.SetLastError(peerInfo.ID, err)
 		return cid.Undef, fmt.Errorf("failed to sync: %w", err)
 	}
@@ -936,12 +950,14 @@ func (ing *Ingester) getNextSyncFin(pubID peer.ID) *dagsync.SyncFinished {
 // assignment for a provider, then workers are given the next work assignment
 // for that provider.
 func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync.SyncFinished, wkrNum int) {
+	publisher := syncFinished.PeerID
+	ing.reg.EndScan(publisher, nil)
+
 	if syncFinished.Count == 0 {
 		// Attempted sync, but already up to data. Nothing to do.
 		return
 	}
 
-	publisher := syncFinished.PeerID
 	log := log.With("publisher", publisher, "worker", wkrNum)
 	log.Infow("Advertisement chain synced", "length", syncFinished.Count)
 
@@ -1079,6 +1095,12 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 
 	total := len(adInfos)
 	log.Infow("Running worker on ad stack", "headAdCid", headAdCid, "numAdsToProcess", total)
+	syncStatus := ing.reg.SyncStatusFor(publisher)
+	syncStatus.BeginProcessing(total)
+	var procErr error
+	defer func() {
+		ing.reg.EndProcessing(publisher, procErr)
+	}()
 	var count int
 	for i := len(adInfos) - 1; i >= 0; i-- {
 		// Note that iteration proceeds backwards here. Earliest to newest.
@@ -1095,6 +1117,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 				err:       ctx.Err(),
 			}
 			log.Debug("Sent ad processed event for canceled processing")
+			procErr = ctx.Err()
 			return
 		}
 
@@ -1135,8 +1158,11 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			"progress", fmt.Sprintf("%d of %d", count, total),
 			"lag", lag)
 
+		syncStatus.SetCurrentAd(ai.cid, count)
+
 		hasEnts, adDataSource, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider, wkrNum)
 		if err != nil {
+			syncStatus.IncError()
 			var adIngestErr adIngestError
 			if errors.As(err, &adIngestErr) {
 				switch adIngestErr.state {
@@ -1181,6 +1207,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 					err:       err,
 				}
 				log.Debug("Sent ad processed event with error")
+				procErr = err
 				return
 			}
 		} else {

@@ -45,6 +45,11 @@ var (
 	errInternal = errors.New("internal error")
 )
 
+// syncStatusCtxKey is the context key used to carry a byte counter into the
+// link system's write opener, so that downloaded entry-block bytes can be
+// attributed to a publisher's sync status.
+type syncStatusCtxKey struct{}
+
 // mkLinkSystem makes the indexer linkSystem which checks advertisement
 // signatures at storage. If the signature is not valid the traversal/exchange
 // is terminated.
@@ -81,6 +86,11 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 					return err
 				}
 				log.Debugw("Received advertisement", "provider", provID, "cid", c)
+			}
+			// Attribute downloaded bytes to the publisher's sync status, if a
+			// counter is present in the context (set during entry sync).
+			if bc, ok := lctx.Ctx.Value(syncStatusCtxKey{}).(interface{ AddBytes(int64) }); ok && bc != nil {
+				bc.AddBytes(int64(len(origBuf)))
 			}
 			// Any other type of node (like entries) are stored right away.
 			return ds.Put(lctx.Ctx, datastore.NewKey(c.String()), origBuf)
@@ -312,6 +322,12 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 
 	log.Debug("Advertisement has entries to sync")
 
+	// Mark the downloading phase and attach a byte counter so the link system
+	// write opener can attribute downloaded entry-block bytes to this sync.
+	syncStatus := ing.reg.SyncStatusFor(publisherID)
+	syncStatus.SetDownloading()
+	ctx = context.WithValue(ctx, syncStatusCtxKey{}, syncStatus)
+
 	if ing.syncTimeout != 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, ing.syncTimeout)
@@ -324,7 +340,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	if ing.mirror.canRead() {
 		log.Debug("Attempting to fetch entries from CAR mirror")
 		carReadStart := time.Now()
-		mhCount, adSource, err := ing.ingestEntriesFromCar(ctx, ad, providerID, adCid, entriesCid, log)
+		mhCount, adSource, err := ing.ingestEntriesFromCar(ctx, ad, publisherID, providerID, adCid, entriesCid, log)
 		hasEnts := mhCount != 0
 		// If entries data successfully read from CAR file.
 		if err == nil {
@@ -400,6 +416,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	const batchSize = 4096
 
 	log = log.With("entriesKind", "hamt")
+	syncStatus := ing.reg.SyncStatusFor(publisherID)
 	// Keep track of all CIDs in the HAMT to remove them later when the
 	// processing is done.
 	hamtCids := []cid.Cid{entsCid}
@@ -478,6 +495,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 				return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 			}
 			mhCount += len(mhs)
+			syncStatus.AddHamtMultihashes(len(mhs))
 			mhs = mhs[:0]
 		}
 	}
@@ -487,6 +505,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 			return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 		}
 		mhCount += len(mhs)
+		syncStatus.AddHamtMultihashes(len(mhs))
 	}
 
 	return mhCount, nil
@@ -494,6 +513,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 
 func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, entsCid cid.Cid, log *zap.SugaredLogger) (int, error) {
 	log = log.With("entriesKind", "EntryChunk")
+	syncStatus := ing.reg.SyncStatusFor(publisherID)
 
 	// We have already peeked at the first EntryChunk as part of probing
 	// the entries type, so process that first.
@@ -509,6 +529,7 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 		return 0, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest first entry chunk: %w", err)}
 	}
 	mhCount := len(chunk.Entries)
+	syncStatus.AddChunk(len(chunk.Entries))
 
 	if !ing.mirror.canWrite() {
 		// Done processing entries chunk, so remove from datastore.
@@ -532,6 +553,7 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 				return
 			}
 			mhCount += len(chunk.Entries)
+			syncStatus.AddChunk(len(chunk.Entries))
 
 			if !ing.mirror.canWrite() {
 				// Done processing entries chunk, so remove from datastore.
@@ -569,10 +591,12 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 	return mhCount, nil
 }
 
-func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Advertisement, providerID peer.ID, adCid, entsCid cid.Cid, log *zap.SugaredLogger) (int, adDataSource, error) {
+func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, adCid, entsCid cid.Cid, log *zap.SugaredLogger) (int, adDataSource, error) {
 	// Create a context to cancel reading entries.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	syncStatus := ing.reg.SyncStatusFor(publisherID)
 
 	adBlock, adSource, err := ing.mirror.read(ctx, adCid, false)
 	if err != nil {
@@ -607,6 +631,7 @@ func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Adverti
 		return 0, adDataSourceNone, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
 	}
 	mhCount := len(chunk.Entries)
+	syncStatus.AddChunk(len(chunk.Entries))
 
 	// If got data from a mirror, and writing to a different mirror, then put
 	// data into temp datastore for creation of new mirror file to write.
@@ -630,6 +655,7 @@ func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Adverti
 			return mhCount, adDataSourceNone, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
 		}
 		mhCount += len(chunk.Entries)
+		syncStatus.AddChunk(len(chunk.Entries))
 
 		if copyMirrorData {
 			if err = ing.dsTmp.Put(ctx, datastore.NewKey(entryBlock.Cid.String()), entryBlock.Data); err != nil {
