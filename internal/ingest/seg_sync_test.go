@@ -20,7 +20,7 @@ func TestAdsSyncedViaSegmentsAreProcessed(t *testing.T) {
 	te := setupTestEnv(t, true, func(opts *testEnvOpts) {
 		opts.ingestConfig = &cfg
 	})
-	rng := random.NewSeeded(random.Uint64ToSeed(1413))
+	rng := random.New()
 	var cb []typehelpers.EntryBuilder
 	for range 50 {
 		chunkCount := rng.Int32N(50)
