@@ -52,7 +52,8 @@ func TestUpdateNewProvider(t *testing.T) {
 }
 
 func TestDatastore(t *testing.T) {
-	addrInfos := random.AddrInfos(3, 1)
+	rnd := random.New()
+	addrInfos := rnd.AddrInfos(3, 1)
 	provider1 := addrInfos[0]
 	provider2 := addrInfos[1]
 	publisher := addrInfos[2]
@@ -70,8 +71,8 @@ func TestDatastore(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
-	maddrs := random.Multiaddrs(2)
-	peerIDs := random.Peers(2)
+	maddrs := rnd.Multiaddrs(2)
+	peerIDs := rnd.Peers(2)
 
 	ep1 := peerIDs[0]
 	ep1Addrs := maddrs[:1]
@@ -115,7 +116,7 @@ func TestDatastore(t *testing.T) {
 	err = r.Update(ctx, provider1, peer.AddrInfo{}, cid.Undef, nil, 0)
 	require.NoError(t, err)
 
-	adCid := random.Cids(1)[0]
+	adCid := rnd.Cids(1)[0]
 	err = r.Update(ctx, provider2, publisher, adCid, extProviders, 0)
 	require.NoError(t, err)
 
@@ -338,9 +339,10 @@ func TestPollProvider(t *testing.T) {
 		PollRetryAfter: config.Duration(100 * time.Hour),
 	}
 
-	prov := random.AddrInfos(1, 1)[0]
+	rnd := random.New()
+	prov := rnd.AddrInfos(1, 1)[0]
 	pub := peer.AddrInfo{
-		ID: random.Peers(1)[0],
+		ID: rnd.Peers(1)[0],
 	}
 
 	poll := polling{
@@ -494,9 +496,10 @@ func TestPollProviderOverrides(t *testing.T) {
 		},
 	}
 
-	prov := random.AddrInfos(1, 1)[0]
+	rnd := random.New()
+	prov := rnd.AddrInfos(1, 1)[0]
 	pub := peer.AddrInfo{
-		ID: random.Peers(1)[0],
+		ID: rnd.Peers(1)[0],
 	}
 
 	poll := polling{
@@ -577,7 +580,8 @@ func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { subject.Close() })
 
-	addrInfos := random.DnsAddrInfos(2, 1)
+	rnd := random.New()
+	addrInfos := rnd.DnsAddrInfos(2, 1)
 	provider := addrInfos[0]
 	publisher := addrInfos[1]
 
@@ -586,7 +590,7 @@ func TestRegistry_RegisterOrUpdateToleratesEmptyPublisherAddrs(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assert that updating publisher for the registered provider with empty addrs does not panic.
-	c := random.Cids(1)[0]
+	c := rnd.Cids(1)[0]
 	err = subject.Update(ctx, provider, peer.AddrInfo{ID: publisher.ID}, c, nil, 0)
 	require.NoError(t, err)
 
@@ -614,8 +618,9 @@ func TestFilterIPs(t *testing.T) {
 	maddrLocal, _ := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	maddrPvt, _ := multiaddr.NewMultiaddr("/ip4/10.0.1.1/tcp/9999")
 
-	peerIDs := random.Peers(3)
-	maddrs := random.DnsMultiaddrs(3)
+	rnd := random.New()
+	peerIDs := rnd.Peers(3)
+	maddrs := rnd.DnsMultiaddrs(3)
 
 	provID := peerIDs[0]
 	provAddr := maddrs[0]
@@ -710,11 +715,12 @@ func TestFreezeUnfreeze(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
-	peerIDs := random.Peers(4)
+	rnd := random.New()
+	peerIDs := rnd.Peers(4)
 	peerID := peerIDs[0]
 	pubID := peerIDs[1]
 
-	maddrs := random.Multiaddrs(2)
+	maddrs := rnd.Multiaddrs(2)
 	maddr := maddrs[0]
 
 	prov := peer.AddrInfo{
@@ -821,9 +827,10 @@ func TestHandoff(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
-	pubAddrInfo := random.AddrInfos(1, 1)[0]
+	rnd := random.New()
+	pubAddrInfo := rnd.AddrInfos(1, 1)[0]
 	pubID := pubAddrInfo.ID
-	adCid := random.Cids(1)[0]
+	adCid := rnd.Cids(1)[0]
 	lastAdTime := time.Now()
 
 	frozenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -848,7 +855,7 @@ func TestHandoff(t *testing.T) {
 	frozenURL, err := url.Parse(frozenServer.URL)
 	require.NoError(t, err)
 
-	peerID := random.Peers(1)[0]
+	peerID := rnd.Peers(1)[0]
 
 	err = r.Handoff(ctx, pubID, peerID, frozenURL)
 	require.NoError(t, err)
@@ -881,7 +888,7 @@ func TestHandoff(t *testing.T) {
 
 	// Freeze the indexer and check that a new publisher cannot be assigned.
 	require.NoError(t, r.Freeze())
-	pubID2 := random.Peers(1)[0]
+	pubID2 := rnd.Peers(1)[0]
 	require.ErrorIs(t, r.AssignPeer(pubID2), ErrFrozen)
 
 	r.Close()

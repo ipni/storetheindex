@@ -438,15 +438,16 @@ func register(ctx context.Context, t *testing.T, reg *registry.Registry) peer.ID
 	maddr, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/9999")
 	require.NoError(t, err)
 
-	ep1, _, _ := random.Identity()
-	ep2, _, _ := random.Identity()
+	rnd := random.New()
+	ep1, _, _ := rnd.Identity()
+	ep2, _, _ := rnd.Identity()
 
 	provider := peer.AddrInfo{
 		ID:    peerID,
 		Addrs: []multiaddr.Multiaddr{maddr},
 	}
 
-	maddrs := random.Multiaddrs(2)
+	maddrs := rnd.Multiaddrs(2)
 	provAddrs := maddrs[:1]
 	ctxAddrs := maddrs[1:]
 

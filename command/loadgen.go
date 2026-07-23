@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	mathrand "math/rand"
+	mathrand "math/rand/v2"
 	"strings"
 	"time"
 
@@ -129,7 +129,7 @@ func loadGenVerifyAction(cctx *cli.Context) error {
 	numberOfMhsToQuery := cctx.Uint64("numberOfRandomQueries")
 	for i := uint64(0); i < cctx.Uint64("concurrentProviders"); i++ {
 		for range numberOfMhsToQuery {
-			multihashIndex := uint64(mathrand.Int63n(int64(cctx.Uint64("maxEntryNumber"))))
+			multihashIndex := uint64(mathrand.Int64N(int64(cctx.Uint64("maxEntryNumber"))))
 			mh, err := loadgen.GenerateMH(i, multihashIndex)
 			if err != nil {
 				return err
