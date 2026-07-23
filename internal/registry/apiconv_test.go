@@ -10,19 +10,20 @@ import (
 )
 
 func TestRegToApiProviderInfo(t *testing.T) {
-	addrInfos := random.AddrInfos(2, 1)
+	rnd := random.New()
+	addrInfos := rnd.AddrInfos(2, 1)
 	provider := addrInfos[0]
 	publisher := addrInfos[1]
 
-	cids := random.Cids(2)
+	cids := rnd.Cids(2)
 	lastAdCid := cids[0]
 	lastAdTime := time.Now()
 
 	frozenAtCid := cids[1]
 	frozenAtTime := lastAdTime.Add(-time.Hour)
 
-	peerIDs := random.Peers(2)
-	maddrs := random.Multiaddrs(2)
+	peerIDs := rnd.Peers(2)
+	maddrs := rnd.Multiaddrs(2)
 	epContextId := []byte("ep-context-id")
 
 	ep1 := peerIDs[0]

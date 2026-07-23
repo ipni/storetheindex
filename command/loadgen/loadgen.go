@@ -9,10 +9,9 @@ import (
 	"sync"
 	"time"
 
-	mathrand "math/rand"
-
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
+	"github.com/ipfs/go-test/random"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/storage/dsadapter"
@@ -126,8 +125,8 @@ func newProviderLoadGen(c Config, indexerHttpAddr string, addressMapping map[str
 	lsys.SetReadStorage(store)
 	lsys.SetWriteStorage(store)
 
-	pseudoRandReader := newPseudoRandReaderFrom(mathrand.NewSource(int64(c.Seed)))
-	signingKey, _, err := crypto.GenerateEd25519Key(pseudoRandReader)
+	rnd := random.NewSeeded(random.Uint64ToSeed(c.Seed))
+	signingKey, _, err := crypto.GenerateEd25519Key(rnd)
 	if err != nil {
 		panic("Failed to generate signing key")
 	}
