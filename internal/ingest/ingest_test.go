@@ -2233,6 +2233,62 @@ type testEnv struct {
 	reg              *registry.Registry
 }
 
+func TestGetAdState(t *testing.T) {
+	te := setupTestEnv(t, false)
+	publisher := te.pubHost.ID()
+	ads := random.Cids(4)
+
+	state, err := te.ingester.GetAdState(ads[0])
+	require.NoError(t, err)
+	require.Equal(t, AdState{}, state)
+	require.False(t, state.Indexed())
+
+	require.NoError(t, te.ingester.MarkAdProcessed(publisher, ads[0]))
+	state, err = te.ingester.GetAdState(ads[0])
+	require.NoError(t, err)
+	require.Equal(t, AdState{Processed: true}, state)
+	require.True(t, state.Indexed())
+
+	require.NoError(t, te.ingester.markAdUnprocessed(ads[1], true))
+	state, err = te.ingester.GetAdState(ads[1])
+	require.NoError(t, err)
+	require.Equal(t, AdState{Resync: true}, state)
+	require.False(t, state.Indexed())
+
+	require.NoError(t, te.ingester.markAdUnprocessed(ads[2], false))
+	state, err = te.ingester.GetAdState(ads[2])
+	require.NoError(t, err)
+	require.Equal(t, AdState{}, state)
+	require.False(t, state.Indexed())
+
+	require.NoError(t, te.ingester.markAdProcessed(publisher, ads[3], true, false))
+	state, err = te.ingester.GetAdState(ads[3])
+	require.NoError(t, err)
+	require.Equal(t, AdState{Processed: true, Frozen: true}, state)
+	require.False(t, state.Indexed())
+}
+
+func TestAdStateIndexed(t *testing.T) {
+	tests := []struct {
+		name  string
+		state AdState
+		want  bool
+	}{
+		{name: "empty", state: AdState{}, want: false},
+		{name: "processed", state: AdState{Processed: true}, want: true},
+		{name: "resync", state: AdState{Resync: true}, want: false},
+		{name: "processed and resync", state: AdState{Processed: true, Resync: true}, want: false},
+		{name: "frozen", state: AdState{Frozen: true}, want: false},
+		{name: "processed and frozen", state: AdState{Processed: true, Frozen: true}, want: false},
+		{name: "all flags", state: AdState{Processed: true, Resync: true, Frozen: true}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.state.Indexed())
+		})
+	}
+}
+
 type testEnvOpts struct {
 	publisherLinkSysFn func(ds datastore.Batching) ipld.LinkSystem
 	ingestConfig       *config.Ingest

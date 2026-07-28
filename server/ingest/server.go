@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"path"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -77,6 +78,7 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 	mux.HandleFunc("/announce", s.putAnnounce)
 	mux.HandleFunc("/health", s.getHealth)
 	mux.HandleFunc("/register", s.postRegisterProvider)
+	mux.HandleFunc("/sync/status/ad/", s.getAdStatus)
 
 	// Depricated
 	mux.HandleFunc("/ingest/announce", s.putAnnounce)
@@ -138,6 +140,48 @@ func (s *Server) getHealth(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Cache-Control", "no-cache")
 	http.Error(w, s.healthMsg, http.StatusOK)
+}
+
+type adStatusResponse struct {
+	Ad      string `json:"Ad"`
+	Indexed bool   `json:"Indexed"`
+}
+
+func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+
+	cidStr := path.Base(r.URL.Path)
+	adCid, err := cid.Decode(cidStr)
+	if err != nil {
+		msg := "Cannot decode advertisement cid"
+		log.Errorw(msg, "cid", cidStr, "err", err)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+
+	resp := adStatusResponse{
+		Ad: adCid.String(),
+	}
+	if s.ingester != nil {
+		adState, err := s.ingester.GetAdState(adCid)
+		if err != nil {
+			log.Errorw("Failed to read advertisement processed state", "adCid", adCid, "err", err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+		resp.Indexed = adState.Indexed()
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		log.Errorw("cannot marshal advertisement status", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
 func (s *Server) postRegisterProvider(w http.ResponseWriter, r *http.Request) {

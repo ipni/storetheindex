@@ -537,6 +537,51 @@ func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool, error) {
 	return processed, resync, nil
 }
 
+type AdState struct {
+	Processed bool
+	Resync    bool
+	Frozen    bool
+}
+
+// Indexed reports whether the advertisement's content should be considered
+// available from this indexer.
+//
+// An ad is indexed only when it was fully processed while the indexer was not
+// frozen. Ads marked for resync are treated as not indexed because a resync
+// invalidates the previous processing result until the ad is processed again.
+//
+// Note that Processed (and therefore Indexed) does not distinguish successful
+// content indexing from permanent skips such as malformed ads.
+func (s AdState) Indexed() bool {
+	return s.Processed && !s.Resync && !s.Frozen
+}
+
+// GetAdState returns the known state for an advertisement.
+//
+// Processed is true when the ad is marked fully processed (/adProcessed/ value
+// 1). Resync is true when the ad is marked for resync (value 2). Frozen is true
+// when the ad was processed while the indexer was in frozen mode (/adF/ key
+// present); frozen processing updates provider metadata but does not index
+// entry multihashes.
+func (ing *Ingester) GetAdState(adCid cid.Cid) (state AdState, err error) {
+	state.Processed, state.Resync, err = ing.adAlreadyProcessed(adCid)
+	if err != nil {
+		return state, err
+	}
+
+	_, err = ing.ds.Get(context.Background(), datastore.NewKey(adProcessedFrozenPrefix+adCid.String()))
+	switch {
+	case errors.Is(err, datastore.ErrNotFound):
+		state.Frozen = false
+	case err != nil:
+		return state, err
+	default:
+		state.Frozen = true
+	}
+
+	return state, nil
+}
+
 // MarkAdProcessed explicitly marks an advertisement as processed. This is used
 // to avoid ingesting this and previous advertisements.
 func (ing *Ingester) MarkAdProcessed(publisher peer.ID, adCid cid.Cid) error {
