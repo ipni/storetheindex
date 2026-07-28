@@ -1532,9 +1532,9 @@ func TestSyncGateBlocksConcurrentSyncForSamePublisher(t *testing.T) {
 	// a deterministic, mutex-free place to stall the worker.
 	mirrorDir := t.TempDir()
 	cfg := defaultTestIngestConfig
-	cfg.AdvertisementMirror.Read = true
-	cfg.AdvertisementMirror.Retrieval.Type = "local"
-	cfg.AdvertisementMirror.Retrieval.Local.BasePath = mirrorDir
+	cfg.AdvertisementMirror.LocalMode = config.LocalModeRead
+	cfg.AdvertisementMirror.Local.Type = "local"
+	cfg.AdvertisementMirror.Local.Local.BasePath = mirrorDir
 
 	te := setupTestEnv(t, true, func(o *testEnvOpts) {
 		o.ingestConfig = &cfg
@@ -1892,12 +1892,9 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 func TestGetEntryDataFromCar(t *testing.T) {
 	tempDir := t.TempDir()
 	cfgWithMirror := defaultTestIngestConfig
-	cfgWithMirror.AdvertisementMirror.Read = true
-	cfgWithMirror.AdvertisementMirror.Write = true
-	cfgWithMirror.AdvertisementMirror.Storage.Type = "local"
-	cfgWithMirror.AdvertisementMirror.Storage.Local.BasePath = tempDir
-	cfgWithMirror.AdvertisementMirror.Retrieval.Type = "local"
-	cfgWithMirror.AdvertisementMirror.Retrieval.Local.BasePath = tempDir
+	cfgWithMirror.AdvertisementMirror.LocalMode = config.LocalModeReadWrite
+	cfgWithMirror.AdvertisementMirror.Local.Type = "local"
+	cfgWithMirror.AdvertisementMirror.Local.Local.BasePath = tempDir
 
 	te := setupTestEnv(t, true, func(optCfg *testEnvOpts) {
 		optCfg.ingestConfig = &cfgWithMirror
