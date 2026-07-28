@@ -525,17 +525,16 @@ func (ing *Ingester) markAdUnprocessed(adCid cid.Cid, forResync bool) error {
 	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), data)
 }
 
-func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool) {
+func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool, error) {
 	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
-	if err != nil {
-		if err != datastore.ErrNotFound {
-			log.Errorw("Failed to read advertisement processed state from datastore", "err", err)
-		}
-		return false, false
+	if errors.Is(err, datastore.ErrNotFound) {
+		return false, false, nil
+	} else if err != nil {
+		return false, false, err
 	}
 	processed := v[0] == byte(1)
 	resync := v[0] == byte(2)
-	return processed, resync
+	return processed, resync, nil
 }
 
 // MarkAdProcessed explicitly marks an advertisement as processed. This is used
@@ -987,7 +986,12 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
 
-		processed, resync := ing.adAlreadyProcessed(c)
+		processed, resync, err := ing.adAlreadyProcessed(c)
+		if err != nil {
+			log.Errorw("Failed to read advertisement processed state from datastore", "err", err)
+			// Note: don't stop in case of an error in this place, the same check will be done
+			// later in a context of a specific provider.
+		}
 		if processed {
 			// This ad has been processed so all earlier ads already have been
 			// processed.
@@ -1121,7 +1125,18 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			return
 		}
 
-		processed, _ := ing.adAlreadyProcessed(ai.cid)
+		processed, _, err := ing.adAlreadyProcessed(ai.cid)
+		if err != nil {
+			log.Errorw("Failed to check if advertisement is processed. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err)
+			ing.inEvents <- adProcessedEvent{
+				publisher: publisher,
+				headAdCid: headAdCid,
+				adCid:     ai.cid,
+				err:       err,
+			}
+			procErr = err
+			return
+		}
 		if processed {
 			log.Infow("Skipping advertisement that has already been processed",
 				"adCid", ai.cid,
