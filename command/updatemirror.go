@@ -145,7 +145,7 @@ func updateMirrorAction(cctx *cli.Context) error {
 }
 
 func getMirrorStores(cfgMirror config.Mirror) (filestore.Interface, filestore.Interface, error) {
-	readStore, err := filestore.MakeFilestore(cfgMirror.Retrieval)
+	readStore, err := filestore.MakeFilestore(cfgMirror.External)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot create car file storage for read mirror: %w", err)
 	}
@@ -153,7 +153,7 @@ func getMirrorStores(cfgMirror config.Mirror) (filestore.Interface, filestore.In
 		return nil, nil, errors.New("read mirror is enabled with no storage backend")
 	}
 
-	writeStore, err := filestore.MakeFilestore(cfgMirror.Storage)
+	writeStore, err := filestore.MakeFilestore(cfgMirror.Local)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot create car file storage for write mirror: %w", err)
 	}
@@ -171,14 +171,14 @@ func getMirrorConfig() (config.Mirror, error) {
 	}
 	cfgMirror := cfg.Ingest.AdvertisementMirror
 
-	if !cfgMirror.Write {
-		return config.Mirror{}, errors.New("write mirror not enabled")
+	if !cfgMirror.LocalMode.CanWrite() {
+		return config.Mirror{}, errors.New("local write mirror not enabled")
 	}
-	if !cfgMirror.Read {
-		return config.Mirror{}, errors.New("read mirror not enabled")
+	if cfgMirror.External.Type == "" || cfgMirror.External.Type == "none" {
+		return config.Mirror{}, errors.New("external read mirror not configured")
 	}
-	if reflect.DeepEqual(cfgMirror.Storage, cfgMirror.Retrieval) {
-		return config.Mirror{}, errors.New("read and write mirrors have the same storage")
+	if reflect.DeepEqual(cfgMirror.Local, cfgMirror.External) {
+		return config.Mirror{}, errors.New("local and external mirrors have the same storage")
 	}
 
 	return cfgMirror, nil
