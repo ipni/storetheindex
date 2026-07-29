@@ -6,7 +6,7 @@ import (
 	"go/ast"
 	"go/constant"
 	"go/parser"
-	mathrand "math/rand"
+	mathrand "math/rand/v2"
 	"os"
 	"strconv"
 	"strings"
@@ -68,7 +68,7 @@ func (c *Config) ParseEntriesPerAdGenerator() bool {
 			return false
 		}
 		c.EntriesPerAdGenerator = func() uint {
-			return uint(mathrand.Intn(int(end-start)) + int(start))
+			return uint(mathrand.IntN(int(end-start)) + int(start))
 		}
 	case "Always":
 		// Always(value)

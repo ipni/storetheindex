@@ -137,6 +137,7 @@ func (b RandomEntryChunkBuilder) GetAddrs() []string {
 
 func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datamodel.Link {
 	var headLink ipld.Link
+	rnd := random.New()
 	for i := 0; i < int(b.ChunkCount); i++ {
 		var mhs []multihash.Multihash
 		if b.WithInvalidMultihashes {
@@ -145,7 +146,7 @@ func (b RandomEntryChunkBuilder) Build(t *testing.T, lsys ipld.LinkSystem) datam
 				mhs = append(mhs, badmh)
 			}
 		} else {
-			mhs = random.Multihashes(int(b.EntriesPerChunk))
+			mhs = rnd.Multihashes(int(b.EntriesPerChunk))
 		}
 
 		var err error

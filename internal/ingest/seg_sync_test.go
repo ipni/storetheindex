@@ -1,9 +1,9 @@
 package ingest
 
 import (
-	"math/rand"
 	"testing"
 
+	"github.com/ipfs/go-test/random"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/test/typehelpers"
@@ -20,12 +20,12 @@ func TestAdsSyncedViaSegmentsAreProcessed(t *testing.T) {
 	te := setupTestEnv(t, true, func(opts *testEnvOpts) {
 		opts.ingestConfig = &cfg
 	})
-	rng := rand.New(rand.NewSource(1413))
+	rng := random.New()
 	var cb []typehelpers.EntryBuilder
 	for range 50 {
-		chunkCount := rng.Int31n(50)
-		ePerChunk := rng.Int31n(50)
-		seed := rng.Int63()
+		chunkCount := rng.Int32N(50)
+		ePerChunk := rng.Int32N(50)
+		seed := rng.Int64()
 		kindChunk := rng.Float32() > 0.5 // Flip a coin to decide what kind of entries to generate.
 		if kindChunk {
 			cb = append(cb, typehelpers.RandomEntryChunkBuilder{ChunkCount: uint8(chunkCount), EntriesPerChunk: uint8(ePerChunk), Seed: seed})

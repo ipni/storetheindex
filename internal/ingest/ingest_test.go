@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"os"
 	"strings"
 	"sync"
@@ -63,7 +62,6 @@ var (
 		SyncTimeout:             config.Duration(time.Minute),
 		SyncSegmentDepthLimit:   1, // By default run all tests using segmented sync.
 	}
-	rng = rand.New(rand.NewSource(1413))
 )
 
 func TestSubscribe(t *testing.T) {
@@ -1981,8 +1979,9 @@ func connectHosts(t *testing.T, srcHost, dstHost host.Host) {
 func newRandomLinkedList(t *testing.T, lsys ipld.LinkSystem, size int) (ipld.Link, []multihash.Multihash) {
 	var out []multihash.Multihash
 	var nextLnk ipld.Link
+	rnd := random.New()
 	for range size {
-		mhs := random.Multihashes(testEntriesChunkSize)
+		mhs := rnd.Multihashes(testEntriesChunkSize)
 		chunk := &schema.EntryChunk{
 			Entries: mhs,
 			Next:    nextLnk,
@@ -2054,8 +2053,9 @@ func publishAdvWithExtendedProviders(t *testing.T,
 	metadata []byte,
 	extProvOverride bool) (*schema.Advertisement, cid.Cid, []multihash.Multihash) {
 
-	eChunkCount := rng.Int()%15 + 1
-	extProvsNum := rng.Int()%5 + 1
+	rnd := random.New()
+	eChunkCount := rnd.IntN(15) + 1
+	extProvsNum := rnd.IntN(5) + 1
 
 	if metadata == nil {
 		metadata = []byte("test-metadata")
@@ -2090,7 +2090,7 @@ func publishAdvWithExtendedProviders(t *testing.T,
 		epKeys[epID.String()] = epPriv
 		adv.ExtendedProvider.Providers = append(adv.ExtendedProvider.Providers, schema.Provider{
 			ID:        epID.String(),
-			Addresses: random.Addrs(1),
+			Addresses: rnd.Addrs(1),
 			Metadata:  fmt.Appendf(nil, "test-metadata-%d", i),
 		})
 	}
@@ -2129,7 +2129,8 @@ func publishAdWithEmptyExtendedProviders(t *testing.T,
 	contextId string,
 	metadata []byte) (*schema.Advertisement, cid.Cid, []multihash.Multihash) {
 
-	eChunkCount := rng.Int()%15 + 1
+	rnd := random.New()
+	eChunkCount := rnd.IntN(15) + 1
 
 	if metadata == nil {
 		metadata = []byte("test-metadata")
