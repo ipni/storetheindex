@@ -525,17 +525,61 @@ func (ing *Ingester) markAdUnprocessed(adCid cid.Cid, forResync bool) error {
 	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), data)
 }
 
-func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool) {
+func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool, error) {
 	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
-	if err != nil {
-		if err != datastore.ErrNotFound {
-			log.Errorw("Failed to read advertisement processed state from datastore", "err", err)
-		}
-		return false, false
+	if errors.Is(err, datastore.ErrNotFound) {
+		return false, false, nil
+	} else if err != nil {
+		return false, false, err
 	}
 	processed := v[0] == byte(1)
 	resync := v[0] == byte(2)
-	return processed, resync
+	return processed, resync, nil
+}
+
+type AdState struct {
+	Processed bool
+	Resync    bool
+	Frozen    bool
+}
+
+// Indexed reports whether the advertisement's content should be considered
+// available from this indexer.
+//
+// An ad is indexed only when it was fully processed while the indexer was not
+// frozen. Ads marked for resync are treated as not indexed because a resync
+// invalidates the previous processing result until the ad is processed again.
+//
+// Note that Processed (and therefore Indexed) does not distinguish successful
+// content indexing from permanent skips such as malformed ads.
+func (s AdState) Indexed() bool {
+	return s.Processed && !s.Resync && !s.Frozen
+}
+
+// GetAdState returns the known state for an advertisement.
+//
+// Processed is true when the ad is marked fully processed (/adProcessed/ value
+// 1). Resync is true when the ad is marked for resync (value 2). Frozen is true
+// when the ad was processed while the indexer was in frozen mode (/adF/ key
+// present); frozen processing updates provider metadata but does not index
+// entry multihashes.
+func (ing *Ingester) GetAdState(adCid cid.Cid) (state AdState, err error) {
+	state.Processed, state.Resync, err = ing.adAlreadyProcessed(adCid)
+	if err != nil {
+		return state, err
+	}
+
+	_, err = ing.ds.Get(context.Background(), datastore.NewKey(adProcessedFrozenPrefix+adCid.String()))
+	switch {
+	case errors.Is(err, datastore.ErrNotFound):
+		state.Frozen = false
+	case err != nil:
+		return state, err
+	default:
+		state.Frozen = true
+	}
+
+	return state, nil
 }
 
 // MarkAdProcessed explicitly marks an advertisement as processed. This is used
@@ -987,7 +1031,12 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
 
-		processed, resync := ing.adAlreadyProcessed(c)
+		processed, resync, err := ing.adAlreadyProcessed(c)
+		if err != nil {
+			log.Errorw("Failed to read advertisement processed state from datastore", "err", err)
+			// Note: don't stop in case of an error in this place, the same check will be done
+			// later in a context of a specific provider.
+		}
 		if processed {
 			// This ad has been processed so all earlier ads already have been
 			// processed.
@@ -1121,7 +1170,18 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			return
 		}
 
-		processed, _ := ing.adAlreadyProcessed(ai.cid)
+		processed, _, err := ing.adAlreadyProcessed(ai.cid)
+		if err != nil {
+			log.Errorw("Failed to check if advertisement is processed. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err)
+			ing.inEvents <- adProcessedEvent{
+				publisher: publisher,
+				headAdCid: headAdCid,
+				adCid:     ai.cid,
+				err:       err,
+			}
+			procErr = err
+			return
+		}
 		if processed {
 			log.Infow("Skipping advertisement that has already been processed",
 				"adCid", ai.cid,

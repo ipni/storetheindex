@@ -3,6 +3,7 @@ package ingest_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -163,6 +164,61 @@ func announceTest(t *testing.T, peerID peer.ID, sender announce.Sender) {
 
 	err = sender.Send(context.Background(), msg)
 	require.NoError(t, err, "Failed to announce")
+}
+
+func TestAdStatus(t *testing.T) {
+	ind := initIndex(t, true)
+	reg := initRegistry(t, providerIdent.PeerID)
+	ing := initIngest(t, ind, reg)
+	s := setupServer(ind, ing, reg, t)
+
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+	t.Cleanup(func() {
+		require.NoError(t, s.Close())
+		require.NoError(t, <-errChan)
+	})
+
+	pubID, _, err := providerIdent.Decode()
+	require.NoError(t, err)
+	ads := random.Cids(2)
+
+	getAdStatus := func(t *testing.T, ad cid.Cid) (int, string) {
+		t.Helper()
+		res, err := http.Get(s.URL() + "/sync/status/ad/" + ad.String())
+		require.NoError(t, err)
+		body, err := io.ReadAll(res.Body)
+		res.Body.Close()
+		require.NoError(t, err)
+		return res.StatusCode, string(body)
+	}
+
+	// Unknown ad is not indexed.
+	status, body := getAdStatus(t, ads[0])
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false}`, ads[0].String()), body)
+
+	// Fully processed ad is indexed.
+	require.NoError(t, ing.MarkAdProcessed(pubID, ads[0]))
+	status, body = getAdStatus(t, ads[0])
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true}`, ads[0].String()), body)
+
+	// A different unknown ad remains not indexed.
+	status, body = getAdStatus(t, ads[1])
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false}`, ads[1].String()), body)
+
+	res, err := http.Get(s.URL() + "/sync/status/ad/not-a-cid")
+	require.NoError(t, err)
+	res.Body.Close()
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
 }
 
 func registerProviderTest(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {

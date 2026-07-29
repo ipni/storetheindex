@@ -319,7 +319,8 @@ Ingestion markers (`ingest.go`):
 - `syncPrefix` (`/sync/<publisherID>`) -> CID bytes of the latest fully
   processed ad for a publisher (`GetLatestSync` / `getLastKnownSync`).
 - `adProcessedPrefix` (`/adProcessed/<adCid>`) -> marks an ad as processed
-  (used to stop chain walks and skip re-processing).
+  (used to stop chain walks and skip re-processing). Value is a single byte:
+  `1` = processed, `0` = explicitly unprocessed, `2` = marked for resync.
 - `adProcessedFrozenPrefix` (`/adF/<adCid>`) -> marks ads processed while
   frozen, used to roll back on unfreeze (`Unfreeze` / `removeProcessedFrozen`).
 
@@ -449,6 +450,28 @@ This status is exposed on the find HTTP API: `GET /sync/status` returns all
 publisher statuses; `GET /sync/status/<publisherID>` returns one publisher's
 status.
 
+Whether a single advertisement's content is available from this indexer is
+exposed on the ingest HTTP API as `GET /sync/status/ad/<adCid>`. The response
+includes:
+
+- `Ad` - the requested advertisement CID
+- `Indexed` - true only when the ad was fully processed while the indexer was
+  not frozen, and is not currently marked for resync
+  (`Processed && !Resync && !Frozen` from `AdState`)
+
+`Indexed` is false when:
+
+- the ad is unknown / not yet processed
+- the ad was processed in frozen mode (provider/metadata updates only; entry
+  multihashes were not indexed)
+- the ad is marked for resync (previous processing is treated as invalidated
+  until the ad is processed again)
+
+`Indexed` does not distinguish successful content indexing from permanent skips
+(malformed/decoding/content-not-found ads are still marked processed, so they
+can report `Indexed: true`). Timestamps and provider identity are not stored
+per ad and are not returned.
+
 See [`internal/registry/syncstatus.go`](../internal/registry/syncstatus.go) for
 the tracker and its JSON serialization.
 
@@ -497,7 +520,7 @@ listed in [config.md](config.md).
 | `internal/ingest/linksystem.go` | Link system (verify + store), `ingestAd`, entry/HAMT/CAR ingestion, `indexAdMultihashes`, node decoding helpers. |
 | `internal/ingest/mirror.go` | CAR mirror read/write over the filestore. |
 | `internal/ingest/error.go` | `adIngestError` states and helpers. |
-| `server/ingest/server.go` | `/announce` and `/register` HTTP handlers. |
+| `server/ingest/server.go` | `/announce`, `/register`, and `/sync/status/ad/<cid>` HTTP handlers. |
 | `internal/registry/registry.go` | Provider registry, policy, freeze, auto-sync channel, sync status. |
 | `internal/registry/syncstatus.go` | Live per-publisher sync status tracker. |
 | `config/ingest.go` | Ingestion configuration and defaults. |
