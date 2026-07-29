@@ -342,8 +342,8 @@ github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20260630010714-14607b97d3
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20260630010714-14607b97d32f/go.mod h1:/drhX2MCkUtWx5GZ4CcHHoUDbNn7tq7NNNBZ/C2uO9Q=
 github.com/ipni/go-indexer-core v0.9.5 h1:/YfsT57N1bK+ndOwW0edASndAIyL6wHL3982OUmaEos=
 github.com/ipni/go-indexer-core v0.9.5/go.mod h1:t4lRT19oOpMWU+aMTlfT8OgEnmDkINZvpjEToatf53U=
-github.com/ipni/go-libipni v0.8.0 h1:BMfxGZfMZuVMeAh/21y1DNWBdwlls3h2pYqCnJ+h9sM=
-github.com/ipni/go-libipni v0.8.0/go.mod h1:D7hQemXvrAbs1ArDAvoq1Q+Qe1aff1X8nBz60ZvO0Jg=
+github.com/ipni/go-libipni v0.8.1 h1:wp13iixG0H43Ua2xyJEx7GiRh4dVJMd00NljoVQF8i4=
+github.com/ipni/go-libipni v0.8.1/go.mod h1:pR8aPuaJ77i4mu3wa1PlQAhL7ebUpJt8/PIl746ppp4=
 github.com/ipni/relayx v1.0.4 h1:1JHxENNyOLP9lLc6qPuX6Fci8deFqaLGBxAR/9cbBp4=
 github.com/ipni/relayx v1.0.4/go.mod h1:3792181mInoL5KVQVaZ6tiKBrn0R38fOsLoOuUyCcHM=
 github.com/jackpal/go-nat-pmp v1.0.2 h1:KzKSgb7qkJvOUTqYl9/Hg/me3pWgBmERKrTGD7BdWus=
