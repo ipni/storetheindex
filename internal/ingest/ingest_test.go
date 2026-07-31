@@ -1231,6 +1231,102 @@ func TestSkipEarlierAdsIfAlreadyProcessedLaterAd(t *testing.T) {
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMHs)
 }
 
+func TestSegmentedSyncStopsAtProcessedAdOnSplitChain(t *testing.T) {
+	// Two chains share a common prefix:
+	//   a <- b <- c <- d   (synced first, all processed, latest = d)
+	//   a <- b <- c <- e   (announced second)
+	//
+	// When e is announced, scanning walks e -> c. Since c is already
+	// processed, the scan should stop there and not continue into b.
+	// We block reads of b to detect if scanning goes too far.
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
+	te := setupTestEnv(t, true, blockableLsysOpt)
+
+	adHead := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 3},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 4},
+		},
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+	allAdLinks := typehelpers.AllAdLinks(t, adHead, te.publisherLinkSys)
+	bCid := allAdLinks[1].(cidlink.Link).Cid
+	cLink := allAdLinks[2]
+	dCid := allAdLinks[3].(cidlink.Link).Cid
+	chainMHs := typehelpers.AllMultihashesFromAdLink(t, adHead, te.publisherLinkSys)
+
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+	ctx := t.Context()
+
+	// Sync the full chain a <- b <- c <- d; all four ads become processed.
+	te.publisher.SetRoot(dCid)
+	_, err := te.ingester.Sync(ctx, peerInfo, 0, false)
+	require.NoError(t, err)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), chainMHs)
+
+	// Build ad e with PreviousID = c, creating a fork off the same prefix.
+	entriesLink, eMHs := newRandomLinkedList(t, te.publisherLinkSys, 1)
+	providerID := te.pubHost.ID()
+	adE := schema.Advertisement{
+		Provider:   providerID.String(),
+		Addresses:  []string{"/ip4/127.0.0.1/tcp/9999"},
+		Entries:    entriesLink,
+		ContextID:  []byte("test-context-id-e"),
+		Metadata:   []byte("test-metadata"),
+		PreviousID: cLink,
+	}
+	require.NoError(t, adE.Sign(te.publisherPriv))
+	node, err := adE.ToNode()
+	require.NoError(t, err)
+	eLnk, err := te.publisherLinkSys.Store(ipld.LinkContext{}, schema.Linkproto, node)
+	require.NoError(t, err)
+	eCid := eLnk.(cidlink.Link).Cid
+
+	// Block reads of b. If scanning continues past c into b, the sync
+	// will hang on the blocked read, causing a timeout.
+	blockedReads.add(bCid)
+
+	var (
+		hitsMu sync.Mutex
+		hits   []cid.Cid
+		wg     sync.WaitGroup
+		done   = make(chan struct{})
+	)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case hit := <-hitBlockedRead:
+				hitsMu.Lock()
+				hits = append(hits, hit)
+				hitsMu.Unlock()
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	// Announce e. Scanning: e (new) -> c (already processed, stop).
+	te.publisher.SetRoot(eCid)
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false)
+	require.NoError(t, err)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), eMHs)
+
+	close(done)
+	wg.Wait()
+
+	for _, hit := range hits {
+		if hit.Equals(bCid) {
+			t.Fatalf("scanning reached ad %s beyond the processed boundary", bCid)
+		}
+	}
+}
+
 func TestRecursionDepthLimitsEntriesSync(t *testing.T) {
 	const entriesDepth = 10
 
