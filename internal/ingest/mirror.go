@@ -16,22 +16,21 @@ import (
 )
 
 type adMirror struct {
-	carReader          *carstore.CarReader
-	carExternalReader  *carstore.CarReader
-	carWriter          *carstore.CarWriter
-	rdWrSame           bool
+	localCarReader     *carstore.CarReader
+	localCarWriter     *carstore.CarWriter
+	externalCarReader  *carstore.CarReader
 	exposableFilestore filestore.Interface
 }
 
 func (m adMirror) canRead() bool {
-	return m.carReader != nil || m.carExternalReader != nil
+	return m.localCarReader != nil || m.externalCarReader != nil
 }
 func (m adMirror) canWrite() bool {
-	return m.carWriter != nil
+	return m.localCarWriter != nil
 }
 
 func (m adMirror) cleanupAdData(ctx context.Context, adCid cid.Cid, skipEntries bool) error {
-	return m.carWriter.CleanupAdData(ctx, adCid, skipEntries)
+	return m.localCarWriter.CleanupAdData(ctx, adCid, skipEntries)
 }
 
 type adDataSource int
@@ -50,7 +49,7 @@ func (d adDataSource) String() string {
 	case adDataSourceLocal:
 		return "local"
 	case adDataSourceExternal:
-		return "exernal"
+		return "external"
 	case adDataSourceProvider:
 		return "provider"
 	default:
@@ -59,8 +58,9 @@ func (d adDataSource) String() string {
 }
 
 func (d adDataSource) canBeWritten() bool {
+	// Local is already on the write store; do not copy it back for rewriting.
 	switch d {
-	case adDataSourceLocal, adDataSourceExternal, adDataSourceProvider:
+	case adDataSourceExternal, adDataSourceProvider:
 		return true
 	default:
 		return false
@@ -68,104 +68,95 @@ func (d adDataSource) canBeWritten() bool {
 }
 
 func (m adMirror) read(ctx context.Context, adCid cid.Cid, skipEntries bool) (adBlock *carstore.AdBlock, source adDataSource, err error) {
-	if m.carReader != nil {
-		adBlock, err = m.carReader.Read(ctx, adCid, skipEntries)
+	if m.localCarReader != nil {
+		adBlock, err = m.localCarReader.Read(ctx, adCid, skipEntries)
 		if err == nil {
+			// Local hit, no need to try External
 			return adBlock, adDataSourceLocal, nil
 		}
-		if m.carExternalReader == nil || !errors.Is(err, fs.ErrNotExist) {
+		if !errors.Is(err, fs.ErrNotExist) {
 			return nil, adDataSourceNone, err
 		}
-		// Local miss: try External below. Keep err for fallback failure handling.
 	}
 
-	if m.carExternalReader != nil {
-		adBlock2, err2 := m.carExternalReader.Read(ctx, adCid, skipEntries)
-		if err2 != nil && err != nil {
-			// Prefer the original Local miss over External errors so ingestion
-			// is not interrupted by External issues. Essential external errors
-			// are still looged.
+	if m.externalCarReader == nil {
+		return nil, adDataSourceNone, fs.ErrNotExist
+	}
+
+	adBlock2, err2 := m.externalCarReader.Read(ctx, adCid, skipEntries)
+	if err2 != nil {
+		if err != nil {
+			// err has higher priority as it indicates a failure of local mirror
 			if !errors.Is(err2, fs.ErrNotExist) {
 				log.Warnw("Cannot read advertisement from external filestore", "err", err2, "carPath", adCid)
 			}
 			return nil, adDataSourceNone, err
-		} else if err2 != nil {
-			return nil, adDataSourceNone, err2
 		}
-
-		return adBlock2, adDataSourceExternal, nil
+		return nil, adDataSourceNone, err2
 	}
 
-	return nil, adDataSourceNone, fs.ErrNotExist
+	return adBlock2, adDataSourceExternal, nil
 }
 
 func (m adMirror) write(ctx context.Context, adCid cid.Cid, skipEntries, noOverwrite bool) (*filestore.File, error) {
-	return m.carWriter.Write(ctx, adCid, skipEntries, noOverwrite)
+	return m.localCarWriter.Write(ctx, adCid, skipEntries, noOverwrite)
 }
 
 func (m adMirror) writeHead(ctx context.Context, adCid cid.Cid, publisher peer.ID) (*filestore.File, error) {
-	return m.carWriter.WriteHead(ctx, adCid, publisher)
+	return m.localCarWriter.WriteHead(ctx, adCid, publisher)
 }
 
-func newMirror(cfgMirror config.Mirror, dstore datastore.Batching) (adMirror, error) {
-	var m adMirror
-	mode := cfgMirror.LocalMode
-	if !mode.Valid() {
+func newMirror(cfgMirror config.Mirror, dstore datastore.Batching) (m adMirror, err error) {
+	if !cfgMirror.LocalMode.Valid() {
 		return m, fmt.Errorf("invalid AdvertisementMirror.LocalMode %q", cfgMirror.LocalMode)
 	}
 
-	// LocalMode only controls the Local mirror.
-	if mode.CanWrite() {
-		switch writeStore, err := filestore.MakeFilestore(cfgMirror.Local); {
+	// LocalMode controls a single Local filestore shared by reader and writer.
+	if cfgMirror.LocalMode.Enabled() {
+		switch localStore, err := filestore.MakeFilestore(cfgMirror.Local); {
 		case err != nil:
-			return m, fmt.Errorf("cannot create car file storage for mirror: %w", err)
-		case writeStore != nil:
-			m.carWriter, err = carstore.NewWriter(dstore, writeStore, carstore.WithCompress(cfgMirror.Compress))
-			if err != nil {
-				return m, fmt.Errorf("cannot create mirror car file writer: %w", err)
-			}
+			return m, fmt.Errorf("cannot create local car file store for mirror: %w", err)
+
+		case localStore == nil:
+			log.Warnw("Local mirror is enabled with no storage backend", "backendType", cfgMirror.Local.Type)
+
 		default:
-			log.Warnw("Mirror write is enabled with no storage backend", "backendType", cfgMirror.Local.Type)
-		}
-	}
-	if mode.CanRead() {
-		switch readStore, err := filestore.MakeFilestore(cfgMirror.Local); {
-		case err != nil:
-			return m, fmt.Errorf("cannot create car file retrieval for mirror: %w", err)
-		case readStore != nil:
-			m.carReader, err = carstore.NewReader(readStore, carstore.WithCompress(cfgMirror.Compress))
-			if err != nil {
-				return m, fmt.Errorf("cannot create mirror car file reader: %w", err)
+			if cfgMirror.LocalMode.CanWrite() {
+				m.localCarWriter, err = carstore.NewWriter(dstore, localStore, carstore.WithCompress(cfgMirror.Compress))
+				if err != nil {
+					return m, fmt.Errorf("cannot create mirror car file writer: %w", err)
+				}
 			}
-			m.exposableFilestore = readStore
-		default:
-			log.Warnw("Mirror read is enabled with no local backend", "backendType", cfgMirror.Local.Type)
+
+			if cfgMirror.LocalMode.CanRead() {
+				m.localCarReader, err = carstore.NewReader(localStore, carstore.WithCompress(cfgMirror.Compress))
+				if err != nil {
+					return m, fmt.Errorf("cannot create mirror car file reader: %w", err)
+				}
+				m.exposableFilestore = localStore
+			}
 		}
 	}
 
 	// External is independent of LocalMode: when configured it always provides
 	// a read source (sole source if Local read is off, otherwise a fallback).
 	if cfgMirror.External.Type != "" && cfgMirror.External.Type != "none" {
-		switch {
-		case mode.Enabled() && reflect.DeepEqual(cfgMirror.External, cfgMirror.Local):
-			log.Warnf("External retrieval cannot be the same as the local backend, disabling external retrievals")
+		if cfgMirror.LocalMode.Enabled() && reflect.DeepEqual(cfgMirror.External, cfgMirror.Local) {
+			return m, errors.New("external retrieval cannot be the same as the local backend")
+		}
 
-		default:
-			externalReadStore, err := filestore.MakeFilestore(cfgMirror.External)
+		externalReadStore, err := filestore.MakeFilestore(cfgMirror.External)
+		if err != nil {
+			return m, fmt.Errorf("cannot create external car file retrieval for mirror: %w", err)
+		}
+
+		if externalReadStore != nil {
+			m.externalCarReader, err = carstore.NewReader(externalReadStore, carstore.WithCompress(cfgMirror.Compress))
 			if err != nil {
-				return m, fmt.Errorf("cannot create external car file retrieval for mirror: %w", err)
-			}
-
-			if externalReadStore != nil {
-				m.carExternalReader, err = carstore.NewReader(externalReadStore, carstore.WithCompress(cfgMirror.Compress))
-				if err != nil {
-					return m, fmt.Errorf("cannot create mirror car file external reader: %w", err)
-				}
+				return m, fmt.Errorf("cannot create mirror car file external reader: %w", err)
 			}
 		}
 	}
 
-	// Local read and write share one backend, so readwrite mode means same store.
-	m.rdWrSame = m.carWriter != nil && m.carReader != nil
 	return m, nil
 }
