@@ -1147,7 +1147,7 @@ func (r *Reaper) unarchiveDatastore(ctx context.Context, providerID peer.ID) err
 	}
 	defer rc.Close()
 
-	err = targz.ExtractReader(rc, r.dsDir)
+	err = targz.ExtractFromReader(rc, r.dsDir)
 	if err != nil {
 		return fmt.Errorf("failed to extract datastore archive: %w", err)
 	}
@@ -1172,7 +1172,7 @@ func (s *scythe) archiveDatastore(ctx context.Context) error {
 	tarName := ArchiveName(s.providerID)
 	tarPath := filepath.Join(s.reaper.dsDir, tarName)
 
-	err := targz.Create(dstoreDir, tarPath)
+	err := targz.ArchiveToFile(dstoreDir, tarPath)
 	if err != nil {
 		return fmt.Errorf("failed to archive gc datastore: %w", err)
 	}
