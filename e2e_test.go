@@ -259,22 +259,16 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
 		Compress:  "gzip",
 		LocalMode: config.LocalModeReadWrite,
-		External: filestore.Config{
+		Local: filestore.Config{
 			Type: "local",
 			Local: filestore.LocalConfig{
 				BasePath: rdMirrorDir,
 			},
 		},
-		Local: filestore.Config{
-			Type: "local",
-			Local: filestore.LocalConfig{
-				BasePath: rnr.Dir,
-			},
-		},
 	}
 	err = cfg.Save(sti2CfgPath)
 	require.NoError(t, err)
-	wrMirrorDir := rnr.Dir
+	wrMirrorDir := rdMirrorDir
 
 	indexerReady2 := testcmd.NewStdoutWatcher(indexerReadyMatch)
 	cmdIndexer2 := rnr.Start(ctx, testcmd.Args(indexer, "daemon"), indexerReady2)

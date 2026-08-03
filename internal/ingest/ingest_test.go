@@ -1569,7 +1569,7 @@ func TestSyncGateBlocksConcurrentSyncForSamePublisher(t *testing.T) {
 
 	mirrorFS, err := filestore.NewLocal(mirrorDir)
 	require.NoError(t, err)
-	blockPath := te.ingester.mirror.carReader.CarPath(adCCid)
+	blockPath := te.ingester.mirror.localCarReader.CarPath(adCCid)
 	blockingFS := &blockingMirrorFilestore{
 		Interface:           mirrorFS,
 		blockerReadPath:     blockPath,
@@ -1577,7 +1577,7 @@ func TestSyncGateBlocksConcurrentSyncForSamePublisher(t *testing.T) {
 	}
 	blockingReader, err := carstore.NewReader(blockingFS)
 	require.NoError(t, err)
-	te.ingester.mirror.carReader = blockingReader
+	te.ingester.mirror.localCarReader = blockingReader
 
 	// Notify the ingester to sync through ad C.
 	err = te.ingester.Announce(t.Context(), adCCid, pubAddrInfo)
