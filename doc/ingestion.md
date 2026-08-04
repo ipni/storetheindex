@@ -133,6 +133,9 @@ the subscriber invokes storetheindex's block hook,
   logs every `adsScannedLogInterval` (100) ads.
 - It sets the next CID to sync from `ad.PreviousID` (or `cid.Undef` at the
   chain start), which tells the segmented sync where to continue.
+- If the current ad is already marked as processed in `/adProcessed/`,
+  the segmented sync terminates early instead of continuing into older
+  segments.
 
 Important: dagsync collects the CIDs of a segment during the IPLD traversal and
 calls the block hook for each **after** the segment's fetch completes (see

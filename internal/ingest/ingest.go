@@ -249,6 +249,20 @@ func (ing *Ingester) Skip500EntriesError(skip bool) {
 }
 
 func (ing *Ingester) generalDagsyncBlockHook(publisher peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
+	// If this ad is already fully processed, all older ads are too.
+	// Stop advancing without loading the ad data.
+	processed, _, err := ing.adAlreadyProcessed(c)
+	if err != nil {
+		ing.reg.EndScan(publisher, err)
+		actions.FailSync(err)
+		return
+	}
+	if processed {
+		log.Debugw("Reached already processed advertisement; stopping scan", "publisher", publisher, "adCid", c)
+		actions.SetNextSyncCid(cid.Undef)
+		return
+	}
+
 	// The only kind of block we should get by loading CIDs here should be
 	// Advertisement.
 	//
