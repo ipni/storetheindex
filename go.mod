@@ -13,18 +13,18 @@ require (
 	github.com/cockroachdb/pebble/v2 v2.1.6
 	github.com/gammazero/chanqueue v1.1.2
 	github.com/gammazero/deque v1.2.1
-	github.com/gammazero/targz v0.0.3
-	github.com/ipfs/boxo v0.41.0
+	github.com/gammazero/targz v0.1.0
+	github.com/ipfs/boxo v0.42.1
 	github.com/ipfs/go-cid v0.6.2
 	github.com/ipfs/go-datastore v0.9.2
-	github.com/ipfs/go-ds-leveldb v0.5.2
+	github.com/ipfs/go-ds-leveldb v0.5.3
 	github.com/ipfs/go-log/v2 v2.9.2
 	github.com/ipfs/go-test v0.4.1
 	github.com/ipld/go-car/v2 v2.17.0
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20260222154722-ce9668eed83c
 	github.com/ipld/go-ipld-prime v0.24.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20260630010714-14607b97d32f
-	github.com/ipni/go-indexer-core v0.9.5
+	github.com/ipni/go-indexer-core v0.9.6
 	github.com/ipni/go-libipni v0.8.2
 	github.com/ipni/relayx v1.0.4
 	github.com/libp2p/go-libp2p v0.49.0
@@ -86,6 +86,7 @@ require (
 	github.com/filecoin-project/go-clock v0.1.0 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/gammazero/fsutil v0.3.0 // indirect
 	github.com/gammazero/radixtree v0.4.1 // indirect
 	github.com/getsentry/sentry-go v0.46.2 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -174,7 +175,7 @@ require (
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
