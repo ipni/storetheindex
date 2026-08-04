@@ -153,7 +153,7 @@ func getMirrorStores(cfgMirror config.Mirror) (filestore.Interface, filestore.In
 		return nil, nil, errors.New("read mirror is enabled with no storage backend")
 	}
 
-	writeStore, err := filestore.MakeFilestore(cfgMirror.Local)
+	writeStore, err := filestore.MakeFilestore(cfgMirror.Main)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot create car file storage for write mirror: %w", err)
 	}
@@ -171,14 +171,14 @@ func getMirrorConfig() (config.Mirror, error) {
 	}
 	cfgMirror := cfg.Ingest.AdvertisementMirror
 
-	if !cfgMirror.LocalMode.CanWrite() {
-		return config.Mirror{}, errors.New("local write mirror not enabled")
+	if !cfgMirror.MainMode.CanWrite() {
+		return config.Mirror{}, errors.New("main write mirror not enabled")
 	}
 	if cfgMirror.External.Type == "" || cfgMirror.External.Type == "none" {
 		return config.Mirror{}, errors.New("external read mirror not configured")
 	}
-	if reflect.DeepEqual(cfgMirror.Local, cfgMirror.External) {
-		return config.Mirror{}, errors.New("local and external mirrors have the same storage")
+	if reflect.DeepEqual(cfgMirror.Main, cfgMirror.External) {
+		return config.Mirror{}, errors.New("main and external mirrors have the same storage")
 	}
 
 	return cfgMirror, nil

@@ -12,51 +12,51 @@ import (
 
 var log = logging.Logger("indexer/config")
 
-// LocalMode controls how the Local mirror backend is used.
-type LocalMode string
+// MainMode controls how the Main mirror backend is used.
+type MainMode string
 
 const (
-	// LocalModeUnspecified disables Local read and write.
-	LocalModeUnspecified LocalMode = ""
-	// LocalModeNone is an explicit alias for disabled Local mirror.
-	LocalModeNone LocalMode = "none"
-	// LocalModeRead enables reading from Local.
-	LocalModeRead LocalMode = "read"
-	// LocalModeWrite enables writing to Local.
-	LocalModeWrite LocalMode = "write"
-	// LocalModeReadWrite enables reading from and writing to Local.
-	LocalModeReadWrite LocalMode = "readwrite"
+	// MainModeUnspecified disables Main read and write.
+	MainModeUnspecified MainMode = ""
+	// MainModeNone is an explicit alias for disabled Main mirror.
+	MainModeNone MainMode = "none"
+	// MainModeRead enables reading from Main.
+	MainModeRead MainMode = "read"
+	// MainModeWrite enables writing to Main.
+	MainModeWrite MainMode = "write"
+	// MainModeReadWrite enables reading from and writing to Main.
+	MainModeReadWrite MainMode = "readwrite"
 )
 
-// CanRead reports whether LocalMode enables Local reads.
-func (m LocalMode) CanRead() bool {
+// CanRead reports whether MainMode enables Main reads.
+func (m MainMode) CanRead() bool {
 	switch m {
-	case LocalModeRead, LocalModeReadWrite:
+	case MainModeRead, MainModeReadWrite:
 		return true
 	default:
 		return false
 	}
 }
 
-// CanWrite reports whether LocalMode enables Local writes.
-func (m LocalMode) CanWrite() bool {
+// CanWrite reports whether MainMode enables Main writes.
+func (m MainMode) CanWrite() bool {
 	switch m {
-	case LocalModeWrite, LocalModeReadWrite:
+	case MainModeWrite, MainModeReadWrite:
 		return true
 	default:
 		return false
 	}
 }
 
-// Enabled reports whether Local read and/or write is enabled.
-func (m LocalMode) Enabled() bool {
+// Enabled reports whether Main read and/or write is enabled.
+func (m MainMode) Enabled() bool {
 	return m.CanRead() || m.CanWrite()
 }
 
-// Valid reports whether m is a recognized LocalMode value.
-func (m LocalMode) Valid() bool {
+// Valid reports whether m is a recognized MainMode value.
+func (m MainMode) Valid() bool {
 	switch m {
-	case LocalModeUnspecified, LocalModeNone, LocalModeRead, LocalModeWrite, LocalModeReadWrite:
+	case MainModeUnspecified, MainModeNone, MainModeRead, MainModeWrite, MainModeReadWrite:
 		return true
 	default:
 		return false
@@ -64,7 +64,7 @@ func (m LocalMode) Valid() bool {
 }
 
 // Mirror configures if, how, and where to store content advertisements data in
-// CAR files. The mirror may be readable, writable, both, or neither. If Local
+// CAR files. The mirror may be readable, writable, both, or neither. If Main
 // is unused and External is unset, or a storage type is not specified, then the
 // mirror is not used.
 type Mirror struct {
@@ -72,27 +72,27 @@ type Mirror struct {
 	// Defaults to "gzip" if unspecified.
 	Compress string
 
-	// LocalMode controls Local mirror access: "", "none", "read", "write", or
+	// MainMode controls Main mirror access: "", "none", "read", "write", or
 	// "readwrite" (lowercase). It does not affect External.
-	LocalMode LocalMode
+	MainMode MainMode
 
-	// Local configures the owned file store for mirror read and write
-	// operations. Controlled by LocalMode.
-	Local filestore.Config
+	// Main configures the owned file store for mirror read and write
+	// operations. Controlled by MainMode.
+	Main filestore.Config
 
 	// External configures an independent file store for mirror read operations.
-	// When set, it is always used for reads: as the sole source when Local read
-	// is disabled, or as a fallback when Local read misses. Not gated by
-	// LocalMode.
+	// When set, it is always used for reads: as the sole source when Main read
+	// is disabled, or as a fallback when Main read misses. Not gated by
+	// MainMode.
 	External filestore.Config
 }
 
 // NewMirror returns Mirror with values set to their defaults.
 func NewMirror() Mirror {
 	return Mirror{
-		Compress:  "gzip",
-		LocalMode: LocalModeNone,
-		Local: filestore.Config{
+		Compress: "gzip",
+		MainMode: MainModeNone,
+		Main: filestore.Config{
 			Local: filestore.LocalConfig{
 				DefaultPathSplit: []int{11, 2},
 			},
@@ -109,7 +109,7 @@ func (c *Mirror) PopulateUnset() {
 }
 
 // UnmarshalJSON loads Mirror config, accepting legacy Read/Write and
-// Retrieval/Storage fields and converting them to LocalMode/Local/External.
+// Retrieval/Storage fields and converting them to MainMode/Main/External.
 // FallbackRetrieval from unreleased configs is ignored.
 func (c *Mirror) UnmarshalJSON(data []byte) error {
 	aux := mirrorJSON{mirrorPlain: (*mirrorPlain)(c)}
@@ -119,9 +119,9 @@ func (c *Mirror) UnmarshalJSON(data []byte) error {
 	if err := c.convertLegacy(aux); err != nil {
 		return err
 	}
-	if !c.LocalMode.Valid() {
-		return fmt.Errorf("invalid AdvertisementMirror.LocalMode %q; want one of: %q, %q, %q, %q, %q",
-			c.LocalMode, LocalModeUnspecified, LocalModeNone, LocalModeRead, LocalModeWrite, LocalModeReadWrite)
+	if !c.MainMode.Valid() {
+		return fmt.Errorf("invalid AdvertisementMirror.MainMode %q; want one of: %q, %q, %q, %q, %q",
+			c.MainMode, MainModeUnspecified, MainModeNone, MainModeRead, MainModeWrite, MainModeReadWrite)
 	}
 	return nil
 }
@@ -141,16 +141,16 @@ type mirrorJSON struct {
 }
 
 // convertLegacy converts deprecated Read/Write and Retrieval/Storage into
-// LocalMode/Local/External. Read/Write filter which backends are active; the
-// remaining configured backends then determine LocalMode/Local/External.
+// MainMode/Main/External. Read/Write filter which backends are active; the
+// remaining configured backends then determine MainMode/Main/External.
 func (c *Mirror) convertLegacy(aux mirrorJSON) error {
 	hasLegacyBackends := filestoreConfigured(aux.Storage) || filestoreConfigured(aux.Retrieval)
-	hasNewBackends := filestoreConfigured(&c.Local) || filestoreConfigured(&c.External)
+	hasNewBackends := filestoreConfigured(&c.Main) || filestoreConfigured(&c.External)
 	hasLegacyMode := aux.Read || aux.Write
-	hasNewMode := c.LocalMode.Enabled()
+	hasNewMode := c.MainMode.Enabled()
 
 	if (hasLegacyMode || hasLegacyBackends) && (hasNewMode || hasNewBackends) {
-		return errors.New("advertisement mirror config mixes legacy Read/Write/Storage/Retrieval with LocalMode/Local/External; use only the new fields")
+		return errors.New("advertisement mirror config mixes legacy Read/Write/Storage/Retrieval with MainMode/Main/External; use only the new fields")
 	}
 
 	storage, retrieval := aux.Storage, aux.Retrieval
@@ -167,30 +167,30 @@ func (c *Mirror) convertLegacy(aux mirrorJSON) error {
 	case filestoreConfigured(storage) && filestoreConfigured(retrieval):
 		if reflect.DeepEqual(*storage, *retrieval) {
 			// Storage and retrieval are identical:
-			c.LocalMode = LocalModeReadWrite
-			c.Local = *storage
-			log.Warn("converted legacy AdvertisementMirror Storage/Retrieval (identical) to LocalMode/Local; please update config to use LocalMode/Local/External")
+			c.MainMode = MainModeReadWrite
+			c.Main = *storage
+			log.Warn("converted legacy AdvertisementMirror Storage/Retrieval (identical) to MainMode/Main; please update config to use MainMode/Main/External")
 		} else {
-			// Distinct backends: Storage is owned Local (write-only).
+			// Distinct backends: Storage is owned Main (write-only).
 			// Retrieval becomes External and covers reads by its presence, so
-			// LocalMode is write even when legacy Read was also set.
-			c.LocalMode = LocalModeWrite
-			c.Local = *storage
+			// MainMode is write even when legacy Read was also set.
+			c.MainMode = MainModeWrite
+			c.Main = *storage
 			c.External = *retrieval
-			log.Warn("converted legacy AdvertisementMirror Storage to Local (write) and Retrieval to External; please update config to use LocalMode/Local/External")
+			log.Warn("converted legacy AdvertisementMirror Storage to Main (write) and Retrieval to External; please update config to use MainMode/Main/External")
 		}
 
 	case filestoreConfigured(storage):
 		// Write backend only
-		c.LocalMode = LocalModeWrite
-		c.Local = *storage
-		log.Warn("converted legacy AdvertisementMirror Storage to Local (write); please update config to use LocalMode/Local/External")
+		c.MainMode = MainModeWrite
+		c.Main = *storage
+		log.Warn("converted legacy AdvertisementMirror Storage to Main (write); please update config to use MainMode/Main/External")
 
 	case filestoreConfigured(retrieval):
 		// Read backend only
-		c.LocalMode = LocalModeRead
-		c.Local = *retrieval
-		log.Warn("converted legacy AdvertisementMirror Retrieval to Local (read); please update config to use LocalMode/Local/External")
+		c.MainMode = MainModeRead
+		c.Main = *retrieval
+		log.Warn("converted legacy AdvertisementMirror Retrieval to Main (read); please update config to use MainMode/Main/External")
 	}
 
 	return nil
