@@ -142,9 +142,9 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	require.NoError(t, err)
 	indexerID := cfg.Identity.PeerID
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
-		Compress:  "gzip",
-		LocalMode: config.LocalModeWrite,
-		Local: filestore.Config{
+		Compress: "gzip",
+		MainMode: config.MainModeWrite,
+		Main: filestore.Config{
 			Type: "local",
 			Local: filestore.LocalConfig{
 				BasePath: rnr.Dir,
@@ -256,10 +256,13 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	require.NoError(t, err)
 
 	indexer2ID := cfg.Identity.PeerID
+	// Share indexer1's mirror directory as Main readwrite: indexer2 reads the
+	// CARs indexer1 wrote and can write its own. Equivalent to the legacy
+	// identical Storage/Retrieval setup (no External).
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
-		Compress:  "gzip",
-		LocalMode: config.LocalModeReadWrite,
-		Local: filestore.Config{
+		Compress: "gzip",
+		MainMode: config.MainModeReadWrite,
+		Main: filestore.Config{
 			Type: "local",
 			Local: filestore.LocalConfig{
 				BasePath: rdMirrorDir,
@@ -475,11 +478,11 @@ func TestEndToEndCarMirrorFallback(t *testing.T) {
 	require.NoError(t, err)
 	indexer1ID := cfg.Identity.PeerID
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
-		Compress:  "gzip",
-		LocalMode: config.LocalModeReadWrite,
-		// Local read enables exposing the CAR mirror HTTP server; write stores
+		Compress: "gzip",
+		MainMode: config.MainModeReadWrite,
+		// Main read enables exposing the CAR mirror HTTP server; write stores
 		// ads that other indexers will fetch via External.
-		Local: filestore.Config{
+		Main: filestore.Config{
 			Type: "local",
 			Local: filestore.LocalConfig{
 				BasePath: indexer1MirrorDir,
@@ -556,9 +559,9 @@ func TestEndToEndCarMirrorFallback(t *testing.T) {
 
 	// Indexer 2: local mirror only, no external fallback to indexer 1.
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
-		Compress:  "gzip",
-		LocalMode: config.LocalModeReadWrite,
-		Local: filestore.Config{
+		Compress: "gzip",
+		MainMode: config.MainModeReadWrite,
+		Main: filestore.Config{
 			Type: "local",
 			Local: filestore.LocalConfig{
 				BasePath: indexer2MirrorDir,
@@ -592,9 +595,9 @@ func TestEndToEndCarMirrorFallback(t *testing.T) {
 	cfg, err = config.Load(sti3CfgPath)
 	require.NoError(t, err)
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
-		Compress:  "gzip",
-		LocalMode: config.LocalModeReadWrite,
-		Local: filestore.Config{
+		Compress: "gzip",
+		MainMode: config.MainModeReadWrite,
+		Main: filestore.Config{
 			Type: "local",
 			Local: filestore.LocalConfig{
 				BasePath: indexer3MirrorDir,

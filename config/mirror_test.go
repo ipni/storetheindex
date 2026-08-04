@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMirrorUnmarshalLegacyIdenticalToLocal(t *testing.T) {
+func TestMirrorUnmarshalLegacyIdenticalToMain(t *testing.T) {
 	backend := filestore.Config{
 		Type: "local",
 		Local: filestore.LocalConfig{
@@ -26,12 +26,12 @@ func TestMirrorUnmarshalLegacyIdenticalToLocal(t *testing.T) {
 
 	var m config.Mirror
 	require.NoError(t, json.Unmarshal(data, &m))
-	require.Equal(t, config.LocalModeReadWrite, m.LocalMode)
-	require.Equal(t, backend, m.Local)
+	require.Equal(t, config.MainModeReadWrite, m.MainMode)
+	require.Equal(t, backend, m.Main)
 	require.Empty(t, m.External.Type)
 }
 
-func TestMirrorUnmarshalLegacyDistinctToLocalAndExternal(t *testing.T) {
+func TestMirrorUnmarshalLegacyDistinctToMainAndExternal(t *testing.T) {
 	storage := filestore.Config{
 		Type: "local",
 		Local: filestore.LocalConfig{
@@ -54,9 +54,9 @@ func TestMirrorUnmarshalLegacyDistinctToLocalAndExternal(t *testing.T) {
 
 	var m config.Mirror
 	require.NoError(t, json.Unmarshal(data, &m))
-	// Distinct Retrieval covers reads via External, so LocalMode is write-only.
-	require.Equal(t, config.LocalModeWrite, m.LocalMode)
-	require.Equal(t, storage, m.Local)
+	// Distinct Retrieval covers reads via External, so MainMode is write-only.
+	require.Equal(t, config.MainModeWrite, m.MainMode)
+	require.Equal(t, storage, m.Main)
 	require.Equal(t, retrieval, m.External)
 }
 
@@ -82,13 +82,13 @@ func TestMirrorUnmarshalLegacyDistinctWriteOnly(t *testing.T) {
 
 	var m config.Mirror
 	require.NoError(t, json.Unmarshal(data, &m))
-	require.Equal(t, config.LocalModeWrite, m.LocalMode)
-	require.Equal(t, storage, m.Local)
+	require.Equal(t, config.MainModeWrite, m.MainMode)
+	require.Equal(t, storage, m.Main)
 	// Retrieval is ignored when Read is false, so External is not enabled.
 	require.Empty(t, m.External.Type)
 }
 
-func TestMirrorUnmarshalLegacyDistinctReadOnlyUsesRetrievalAsLocal(t *testing.T) {
+func TestMirrorUnmarshalLegacyDistinctReadOnlyUsesRetrievalAsMain(t *testing.T) {
 	storage := filestore.Config{
 		Type: "local",
 		Local: filestore.LocalConfig{
@@ -110,9 +110,9 @@ func TestMirrorUnmarshalLegacyDistinctReadOnlyUsesRetrievalAsLocal(t *testing.T)
 
 	var m config.Mirror
 	require.NoError(t, json.Unmarshal(data, &m))
-	require.Equal(t, config.LocalModeRead, m.LocalMode)
+	require.Equal(t, config.MainModeRead, m.MainMode)
 	// Old read path used Retrieval; Storage was the unused write target.
-	require.Equal(t, retrieval, m.Local)
+	require.Equal(t, retrieval, m.Main)
 	require.Empty(t, m.External.Type)
 }
 
@@ -137,8 +137,8 @@ func TestMirrorUnmarshalLegacyDistinctUnusedSkipsConversion(t *testing.T) {
 
 	var m config.Mirror
 	require.NoError(t, json.Unmarshal(data, &m))
-	require.Equal(t, config.LocalModeUnspecified, m.LocalMode)
-	require.Empty(t, m.Local.Type)
+	require.Equal(t, config.MainModeUnspecified, m.MainMode)
+	require.Empty(t, m.Main.Type)
 	require.Empty(t, m.External.Type)
 }
 
@@ -157,8 +157,8 @@ func TestMirrorUnmarshalLegacyStorageOnly(t *testing.T) {
 
 	var m config.Mirror
 	require.NoError(t, json.Unmarshal(data, &m))
-	require.Equal(t, config.LocalModeWrite, m.LocalMode)
-	require.Equal(t, storage, m.Local)
+	require.Equal(t, config.MainModeWrite, m.MainMode)
+	require.Equal(t, storage, m.Main)
 	require.Empty(t, m.External.Type)
 }
 
@@ -178,16 +178,16 @@ func TestMirrorUnmarshalLegacyStorageOnlyMasksRead(t *testing.T) {
 
 	var m config.Mirror
 	require.NoError(t, json.Unmarshal(data, &m))
-	require.Equal(t, config.LocalModeWrite, m.LocalMode)
-	require.Equal(t, storage, m.Local)
+	require.Equal(t, config.MainModeWrite, m.MainMode)
+	require.Equal(t, storage, m.Main)
 	require.Empty(t, m.External.Type)
 }
 
 func TestMirrorUnmarshalMixedBackendStylesError(t *testing.T) {
 	data, err := json.Marshal(map[string]any{
-		"LocalMode": "write",
-		"Local":     filestore.Config{Type: "s3"},
-		"Storage":   filestore.Config{Type: "local"},
+		"MainMode": "write",
+		"Main":     filestore.Config{Type: "s3"},
+		"Storage":  filestore.Config{Type: "local"},
 	})
 	require.NoError(t, err)
 
@@ -199,9 +199,9 @@ func TestMirrorUnmarshalMixedBackendStylesError(t *testing.T) {
 
 func TestMirrorUnmarshalMixedModeStylesError(t *testing.T) {
 	data, err := json.Marshal(map[string]any{
-		"LocalMode": "write",
-		"Write":     true,
-		"Local":     filestore.Config{Type: "local"},
+		"MainMode": "write",
+		"Write":    true,
+		"Main":     filestore.Config{Type: "local"},
 	})
 	require.NoError(t, err)
 
@@ -213,8 +213,8 @@ func TestMirrorUnmarshalMixedModeStylesError(t *testing.T) {
 
 func TestMirrorUnmarshalMixedLegacyBackendWithNewModeError(t *testing.T) {
 	data, err := json.Marshal(map[string]any{
-		"LocalMode": "write",
-		"Storage":   filestore.Config{Type: "local"},
+		"MainMode": "write",
+		"Storage":  filestore.Config{Type: "local"},
 	})
 	require.NoError(t, err)
 
@@ -227,7 +227,7 @@ func TestMirrorUnmarshalMixedLegacyBackendWithNewModeError(t *testing.T) {
 func TestMirrorUnmarshalMixedLegacyModeWithNewBackendError(t *testing.T) {
 	data, err := json.Marshal(map[string]any{
 		"Write": true,
-		"Local": filestore.Config{Type: "local"},
+		"Main":  filestore.Config{Type: "local"},
 	})
 	require.NoError(t, err)
 
@@ -252,16 +252,16 @@ func TestMirrorUnmarshalLegacySkippedWhenUnused(t *testing.T) {
 
 	var m config.Mirror
 	require.NoError(t, json.Unmarshal(data, &m))
-	require.Equal(t, config.LocalModeUnspecified, m.LocalMode)
-	require.Empty(t, m.Local.Type)
+	require.Equal(t, config.MainModeUnspecified, m.MainMode)
+	require.Empty(t, m.Main.Type)
 	require.Empty(t, m.External.Type)
 }
 
 func TestMirrorUnmarshalNewStyle(t *testing.T) {
-	local := filestore.Config{
+	main := filestore.Config{
 		Type: "local",
 		Local: filestore.LocalConfig{
-			BasePath: "/local",
+			BasePath: "/main",
 		},
 	}
 	external := filestore.Config{
@@ -271,41 +271,41 @@ func TestMirrorUnmarshalNewStyle(t *testing.T) {
 		},
 	}
 	data, err := json.Marshal(map[string]any{
-		"LocalMode": "readwrite",
-		"Local":     local,
-		"External":  external,
+		"MainMode": "readwrite",
+		"Main":     main,
+		"External": external,
 	})
 	require.NoError(t, err)
 
 	var m config.Mirror
 	require.NoError(t, json.Unmarshal(data, &m))
-	require.Equal(t, config.LocalModeReadWrite, m.LocalMode)
-	require.Equal(t, local, m.Local)
+	require.Equal(t, config.MainModeReadWrite, m.MainMode)
+	require.Equal(t, main, m.Main)
 	require.Equal(t, external, m.External)
 }
 
-func TestMirrorUnmarshalInvalidLocalMode(t *testing.T) {
+func TestMirrorUnmarshalInvalidMainMode(t *testing.T) {
 	data, err := json.Marshal(map[string]any{
-		"LocalMode": "nope",
+		"MainMode": "nope",
 	})
 	require.NoError(t, err)
 
 	var m config.Mirror
 	err = json.Unmarshal(data, &m)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "invalid AdvertisementMirror.LocalMode")
+	require.Contains(t, err.Error(), "invalid AdvertisementMirror.MainMode")
 }
 
 func TestMirrorUnmarshalIgnoresFallbackRetrieval(t *testing.T) {
-	local := filestore.Config{
+	main := filestore.Config{
 		Type: "local",
 		Local: filestore.LocalConfig{
-			BasePath: "/local",
+			BasePath: "/main",
 		},
 	}
 	data, err := json.Marshal(map[string]any{
-		"LocalMode": "readwrite",
-		"Local":     local,
+		"MainMode": "readwrite",
+		"Main":     main,
 		"FallbackRetrieval": filestore.Config{
 			Type: "http",
 			HTTP: filestore.HTTPConfig{BaseURL: "http://ignored/"},
@@ -315,6 +315,6 @@ func TestMirrorUnmarshalIgnoresFallbackRetrieval(t *testing.T) {
 
 	var m config.Mirror
 	require.NoError(t, json.Unmarshal(data, &m))
-	require.Equal(t, local, m.Local)
+	require.Equal(t, main, m.Main)
 	require.Empty(t, m.External.Type)
 }

@@ -88,9 +88,9 @@ graph TD
 - **indexer core** (`go-indexer-core` engine): the value store that holds the
   actual `multihash -> value` mappings and answers finds.
 - **CAR mirror** (optional): stores advertisement + entry data as CAR files in
-  a filestore (local, S3, or HTTP). `Local` is used for read and write (gated by
-  `LocalMode`: `read` / `write` / `readwrite`); optional `External` is an
-  independent read source (sole source when Local read is off, otherwise a
+  a filestore (local, S3, or HTTP). `Main` is used for read and write (gated by
+  `MainMode`: `read` / `write` / `readwrite`); optional `External` is an
+  independent read source (sole source when Main read is off, otherwise a
   fallback).
 
 ## Entry points that trigger ingestion
@@ -509,7 +509,7 @@ Ingestion is configured by the `Ingest` section of the config file
 - `SyncTimeout` - max time for a single sync.
 - `HttpSyncTimeout`, `HttpSyncRetryMax`, `HttpSyncRetryWaitMin/Max` - HTTP sync tuning.
 - `Skip500EntriesError` - skip ads whose first entry sync returns HTTP 500 (reloadable).
-- `AdvertisementMirror` - CAR mirror configuration (`LocalMode` + `Local` for
+- `AdvertisementMirror` - CAR mirror configuration (`MainMode` + `Main` for
   owned store access, optional `External` as an independent read source). Legacy
   `Read`/`Write` and `Storage`/`Retrieval` fields in config JSON are converted
   on load.

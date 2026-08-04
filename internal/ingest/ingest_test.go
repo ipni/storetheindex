@@ -1532,9 +1532,9 @@ func TestSyncGateBlocksConcurrentSyncForSamePublisher(t *testing.T) {
 	// a deterministic, mutex-free place to stall the worker.
 	mirrorDir := t.TempDir()
 	cfg := defaultTestIngestConfig
-	cfg.AdvertisementMirror.LocalMode = config.LocalModeRead
-	cfg.AdvertisementMirror.Local.Type = "local"
-	cfg.AdvertisementMirror.Local.Local.BasePath = mirrorDir
+	cfg.AdvertisementMirror.MainMode = config.MainModeRead
+	cfg.AdvertisementMirror.Main.Type = "local"
+	cfg.AdvertisementMirror.Main.Local.BasePath = mirrorDir
 
 	te := setupTestEnv(t, true, func(o *testEnvOpts) {
 		o.ingestConfig = &cfg
@@ -1569,7 +1569,7 @@ func TestSyncGateBlocksConcurrentSyncForSamePublisher(t *testing.T) {
 
 	mirrorFS, err := filestore.NewLocal(mirrorDir)
 	require.NoError(t, err)
-	blockPath := te.ingester.mirror.localCarReader.CarPath(adCCid)
+	blockPath := te.ingester.mirror.mainCarReader.CarPath(adCCid)
 	blockingFS := &blockingMirrorFilestore{
 		Interface:           mirrorFS,
 		blockerReadPath:     blockPath,
@@ -1577,7 +1577,7 @@ func TestSyncGateBlocksConcurrentSyncForSamePublisher(t *testing.T) {
 	}
 	blockingReader, err := carstore.NewReader(blockingFS)
 	require.NoError(t, err)
-	te.ingester.mirror.localCarReader = blockingReader
+	te.ingester.mirror.mainCarReader = blockingReader
 
 	// Notify the ingester to sync through ad C.
 	err = te.ingester.Announce(t.Context(), adCCid, pubAddrInfo)
@@ -1892,9 +1892,9 @@ func TestAnnounceArrivedJustBeforeEntriesProcessingStartsDoesNotDeadlock(t *test
 func TestGetEntryDataFromCar(t *testing.T) {
 	tempDir := t.TempDir()
 	cfgWithMirror := defaultTestIngestConfig
-	cfgWithMirror.AdvertisementMirror.LocalMode = config.LocalModeReadWrite
-	cfgWithMirror.AdvertisementMirror.Local.Type = "local"
-	cfgWithMirror.AdvertisementMirror.Local.Local.BasePath = tempDir
+	cfgWithMirror.AdvertisementMirror.MainMode = config.MainModeReadWrite
+	cfgWithMirror.AdvertisementMirror.Main.Type = "local"
+	cfgWithMirror.AdvertisementMirror.Main.Local.BasePath = tempDir
 
 	te := setupTestEnv(t, true, func(optCfg *testEnvOpts) {
 		optCfg.ingestConfig = &cfgWithMirror
