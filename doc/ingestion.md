@@ -510,9 +510,10 @@ Ingestion is configured by the `Ingest` section of the config file
 - `HttpSyncTimeout`, `HttpSyncRetryMax`, `HttpSyncRetryWaitMin/Max` - HTTP sync tuning.
 - `Skip500EntriesError` - skip ads whose first entry sync returns HTTP 500 (reloadable).
 - `AdvertisementMirror` - CAR mirror configuration (`MainMode` + `Main` for
-  owned store access, optional `External` as an independent read source). Legacy
-  `Read`/`Write` and `Storage`/`Retrieval` fields in config JSON are converted
-  on load.
+  owned store access, optional `External` as an independent read source). Each
+  of `Main` and `External` is a store config with its own `Compress` setting
+  (`gzip` default). Legacy `Read`/`Write`, `Storage`/`Retrieval`, and top-level
+  `Compress` fields in config JSON are converted on load.
 - `ResendDirectAnnounce`, `OverwriteMirrorOnResync`.
 - `PubSubTopic` - gossipsub topic for announce subscription (deprecated; kept
   for backward compatibility).

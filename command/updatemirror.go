@@ -145,7 +145,7 @@ func updateMirrorAction(cctx *cli.Context) error {
 }
 
 func getMirrorStores(cfgMirror config.Mirror) (filestore.Interface, filestore.Interface, error) {
-	readStore, err := filestore.MakeFilestore(cfgMirror.External)
+	readStore, err := filestore.MakeFilestore(cfgMirror.External.Config)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot create car file storage for read mirror: %w", err)
 	}
@@ -153,7 +153,7 @@ func getMirrorStores(cfgMirror config.Mirror) (filestore.Interface, filestore.In
 		return nil, nil, errors.New("read mirror is enabled with no storage backend")
 	}
 
-	writeStore, err := filestore.MakeFilestore(cfgMirror.Main)
+	writeStore, err := filestore.MakeFilestore(cfgMirror.Main.Config)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot create car file storage for write mirror: %w", err)
 	}
@@ -180,16 +180,20 @@ func getMirrorConfig() (config.Mirror, error) {
 	if reflect.DeepEqual(cfgMirror.Main, cfgMirror.External) {
 		return config.Mirror{}, errors.New("main and external mirrors have the same storage")
 	}
+	if cfgMirror.Main.Compress != cfgMirror.External.Compress {
+		return config.Mirror{}, fmt.Errorf("main and external mirrors must use the same compression (got main=%q external=%q); conversion between compressions is not supported",
+			cfgMirror.Main.Compress, cfgMirror.External.Compress)
+	}
 
 	return cfgMirror, nil
 }
 
 func getCARSuffix(cfgMirror config.Mirror) (string, error) {
-	switch cfgMirror.Compress {
+	switch cfgMirror.Main.Compress {
 	case carstore.Gzip, "gz":
 		return carstore.CarFileSuffix + carstore.GzipFileSuffix, nil
 	case "", "none", "nil", "null":
 		return carstore.CarFileSuffix, nil
 	}
-	return "", fmt.Errorf("unsupported compression: %s", cfgMirror.Compress)
+	return "", fmt.Errorf("unsupported compression: %s", cfgMirror.Main.Compress)
 }

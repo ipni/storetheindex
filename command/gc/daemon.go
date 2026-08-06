@@ -115,14 +115,14 @@ func daemonAction(cctx *cli.Context) error {
 	var fileStore filestore.Interface
 	cfgMirror := cfg.Ingest.AdvertisementMirror
 	if cfgMirror.MainMode.CanWrite() {
-		fileStore, err = filestore.MakeFilestore(cfgMirror.Main)
+		fileStore, err = filestore.MakeFilestore(cfgMirror.Main.Config)
 		if err != nil {
 			return err
 		}
 	}
 
 	grim, err := reaper.New(dhs, fileStore,
-		reaper.WithCarCompress(cfgMirror.Compress),
+		reaper.WithCarCompress(cfgMirror.Main.Compress),
 		reaper.WithCarDelete(cfgMirror.MainMode.CanWrite()),
 		reaper.WithCarRead(true),
 		reaper.WithDatastoreDir(dsDir),

@@ -113,7 +113,7 @@ func newMirror(cfgMirror config.Mirror, dstore datastore.Batching) (m adMirror, 
 
 	// MainMode controls a single Main filestore shared by reader and writer.
 	if cfgMirror.MainMode.Enabled() {
-		switch mainStore, err := filestore.MakeFilestore(cfgMirror.Main); {
+		switch mainStore, err := filestore.MakeFilestore(cfgMirror.Main.Config); {
 		case err != nil:
 			return m, fmt.Errorf("cannot create main car file store for mirror: %w", err)
 
@@ -122,14 +122,14 @@ func newMirror(cfgMirror config.Mirror, dstore datastore.Batching) (m adMirror, 
 
 		default:
 			if cfgMirror.MainMode.CanWrite() {
-				m.mainCarWriter, err = carstore.NewWriter(dstore, mainStore, carstore.WithCompress(cfgMirror.Compress))
+				m.mainCarWriter, err = carstore.NewWriter(dstore, mainStore, carstore.WithCompress(cfgMirror.Main.Compress))
 				if err != nil {
 					return m, fmt.Errorf("cannot create mirror car file writer: %w", err)
 				}
 			}
 
 			if cfgMirror.MainMode.CanRead() {
-				m.mainCarReader, err = carstore.NewReader(mainStore, carstore.WithCompress(cfgMirror.Compress))
+				m.mainCarReader, err = carstore.NewReader(mainStore, carstore.WithCompress(cfgMirror.Main.Compress))
 				if err != nil {
 					return m, fmt.Errorf("cannot create mirror car file reader: %w", err)
 				}
@@ -145,13 +145,13 @@ func newMirror(cfgMirror config.Mirror, dstore datastore.Batching) (m adMirror, 
 			return m, errors.New("external retrieval cannot be the same as the main backend")
 		}
 
-		externalReadStore, err := filestore.MakeFilestore(cfgMirror.External)
+		externalReadStore, err := filestore.MakeFilestore(cfgMirror.External.Config)
 		if err != nil {
 			return m, fmt.Errorf("cannot create external car file retrieval for mirror: %w", err)
 		}
 
 		if externalReadStore != nil {
-			m.externalCarReader, err = carstore.NewReader(externalReadStore, carstore.WithCompress(cfgMirror.Compress))
+			m.externalCarReader, err = carstore.NewReader(externalReadStore, carstore.WithCompress(cfgMirror.External.Compress))
 			if err != nil {
 				return m, fmt.Errorf("cannot create mirror car file external reader: %w", err)
 			}

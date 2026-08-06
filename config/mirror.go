@@ -63,38 +63,44 @@ func (m MainMode) Valid() bool {
 	}
 }
 
+// StoreConfig wraps a filestore backend with optional CAR file compression.
+type StoreConfig struct {
+	filestore.Config
+	// Compress specifies how to compress files. One of: "gzip", "none".
+	// Defaults to "gzip" if unspecified.
+	Compress string
+}
+
 // Mirror configures if, how, and where to store content advertisements data in
 // CAR files. The mirror may be readable, writable, both, or neither. If Main
 // is unused and External is unset, or a storage type is not specified, then the
 // mirror is not used.
 type Mirror struct {
-	// Compress specifies how to compress files. One of: "gzip", "none".
-	// Defaults to "gzip" if unspecified.
-	Compress string
-
 	// MainMode controls Main mirror access: "", "none", "read", "write", or
 	// "readwrite" (lowercase). It does not affect External.
 	MainMode MainMode
 
 	// Main configures the owned file store for mirror read and write
 	// operations. Controlled by MainMode.
-	Main filestore.Config
+	Main StoreConfig
 
 	// External configures an independent file store for mirror read operations.
 	// When set, it is always used for reads: as the sole source when Main read
 	// is disabled, or as a fallback when Main read misses. Not gated by
 	// MainMode.
-	External filestore.Config
+	External StoreConfig
 }
 
 // NewMirror returns Mirror with values set to their defaults.
 func NewMirror() Mirror {
 	return Mirror{
-		Compress: "gzip",
 		MainMode: MainModeNone,
-		Main: filestore.Config{
-			Local: filestore.LocalConfig{
-				DefaultPathSplit: []int{11, 2},
+		Main: StoreConfig{
+			Compress: "gzip",
+			Config: filestore.Config{
+				Local: filestore.LocalConfig{
+					DefaultPathSplit: []int{11, 2},
+				},
 			},
 		},
 	}
@@ -103,13 +109,17 @@ func NewMirror() Mirror {
 // PopulateUnset replaces zero-values in the config with default values.
 func (c *Mirror) PopulateUnset() {
 	def := NewMirror()
-	if c.Compress == "" {
-		c.Compress = def.Compress
+	if c.Main.Compress == "" {
+		c.Main.Compress = def.Main.Compress
+	}
+	if filestoreConfigured(&c.External.Config) && c.External.Compress == "" {
+		c.External.Compress = c.Main.Compress
 	}
 }
 
-// UnmarshalJSON loads Mirror config, accepting legacy Read/Write and
-// Retrieval/Storage fields and converting them to MainMode/Main/External.
+// UnmarshalJSON loads Mirror config, accepting legacy Read/Write,
+// Retrieval/Storage, and top-level Compress fields and converting them to
+// MainMode/Main/External with per-store Compress.
 // FallbackRetrieval from unreleased configs is ignored.
 func (c *Mirror) UnmarshalJSON(data []byte) error {
 	aux := mirrorJSON{mirrorPlain: (*mirrorPlain)(c)}
@@ -131,26 +141,32 @@ func (c *Mirror) UnmarshalJSON(data []byte) error {
 type mirrorPlain Mirror
 
 // mirrorJSON is used only for unmarshaling: it embeds Mirror fields and carries
-// legacy Read/Write and Storage/Retrieval for convertLegacy.
+// legacy Read/Write, Storage/Retrieval, and top-level Compress for convertLegacy.
 type mirrorJSON struct {
 	*mirrorPlain
+	Compress  string            `json:"Compress,omitempty"`
 	Read      bool              `json:"Read,omitempty"`
 	Write     bool              `json:"Write,omitempty"`
 	Retrieval *filestore.Config `json:"Retrieval,omitempty"`
 	Storage   *filestore.Config `json:"Storage,omitempty"`
 }
 
-// convertLegacy converts deprecated Read/Write and Retrieval/Storage into
-// MainMode/Main/External. Read/Write filter which backends are active; the
-// remaining configured backends then determine MainMode/Main/External.
+// convertLegacy converts deprecated Read/Write, Retrieval/Storage, and
+// top-level Compress into MainMode/Main/External with per-store Compress.
+// Read/Write filter which backends are active; the remaining configured
+// backends then determine MainMode/Main/External.
 func (c *Mirror) convertLegacy(aux mirrorJSON) error {
 	hasLegacyBackends := filestoreConfigured(aux.Storage) || filestoreConfigured(aux.Retrieval)
-	hasNewBackends := filestoreConfigured(&c.Main) || filestoreConfigured(&c.External)
+	hasNewBackends := filestoreConfigured(&c.Main.Config) || filestoreConfigured(&c.External.Config)
 	hasLegacyMode := aux.Read || aux.Write
 	hasNewMode := c.MainMode.Enabled()
 
 	if (hasLegacyMode || hasLegacyBackends) && (hasNewMode || hasNewBackends) {
 		return errors.New("advertisement mirror config mixes legacy Read/Write/Storage/Retrieval with MainMode/Main/External; use only the new fields")
+	}
+
+	if aux.Compress != "" && (c.Main.Compress != "" || c.External.Compress != "") {
+		return errors.New("advertisement mirror config mixes legacy top-level Compress with Main/External.Compress; use only per-store Compress")
 	}
 
 	storage, retrieval := aux.Storage, aux.Retrieval
@@ -168,29 +184,37 @@ func (c *Mirror) convertLegacy(aux mirrorJSON) error {
 		if reflect.DeepEqual(*storage, *retrieval) {
 			// Storage and retrieval are identical:
 			c.MainMode = MainModeReadWrite
-			c.Main = *storage
+			c.Main = StoreConfig{Config: *storage}
 			log.Warn("converted legacy AdvertisementMirror Storage/Retrieval (identical) to MainMode/Main; please update config to use MainMode/Main/External")
 		} else {
 			// Distinct backends: Storage is owned Main (write-only).
 			// Retrieval becomes External and covers reads by its presence, so
 			// MainMode is write even when legacy Read was also set.
 			c.MainMode = MainModeWrite
-			c.Main = *storage
-			c.External = *retrieval
+			c.Main = StoreConfig{Config: *storage}
+			c.External = StoreConfig{Config: *retrieval}
 			log.Warn("converted legacy AdvertisementMirror Storage to Main (write) and Retrieval to External; please update config to use MainMode/Main/External")
 		}
 
 	case filestoreConfigured(storage):
 		// Write backend only
 		c.MainMode = MainModeWrite
-		c.Main = *storage
+		c.Main = StoreConfig{Config: *storage}
 		log.Warn("converted legacy AdvertisementMirror Storage to Main (write); please update config to use MainMode/Main/External")
 
 	case filestoreConfigured(retrieval):
 		// Read backend only
 		c.MainMode = MainModeRead
-		c.Main = *retrieval
+		c.Main = StoreConfig{Config: *retrieval}
 		log.Warn("converted legacy AdvertisementMirror Retrieval to Main (read); please update config to use MainMode/Main/External")
+	}
+
+	if aux.Compress != "" {
+		c.Main.Compress = aux.Compress
+		if filestoreConfigured(&c.External.Config) {
+			c.External.Compress = aux.Compress
+		}
+		log.Warn("converted legacy AdvertisementMirror.Compress to Main/External.Compress; please update config to set Compress on each store")
 	}
 
 	return nil

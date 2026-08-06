@@ -1937,7 +1937,7 @@ func TestGetEntryDataFromCar(t *testing.T) {
 	require.NoError(t, err)
 	var carCount, headCount int
 	carSuffix := carstore.CarFileSuffix
-	if cfgWithMirror.AdvertisementMirror.Compress == carstore.Gzip {
+	if cfgWithMirror.AdvertisementMirror.Main.Compress == carstore.Gzip {
 		carSuffix += carstore.GzipFileSuffix
 	}
 	for _, name := range names {
