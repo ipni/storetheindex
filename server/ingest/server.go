@@ -78,6 +78,8 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 	mux.HandleFunc("/announce", s.putAnnounce)
 	mux.HandleFunc("/health", s.getHealth)
 	mux.HandleFunc("/register", s.postRegisterProvider)
+	mux.HandleFunc("/sync/status", s.listSyncStatus)
+	mux.HandleFunc("/sync/status/", s.getSyncStatus)
 	mux.HandleFunc("/sync/status/ad/", s.getAdStatus)
 
 	// Depricated
@@ -140,6 +142,64 @@ func (s *Server) getHealth(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Cache-Control", "no-cache")
 	http.Error(w, s.healthMsg, http.StatusOK)
+}
+
+func (s *Server) listSyncStatus(w http.ResponseWriter, r *http.Request) {
+	enableCors(w)
+
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
+		return
+	}
+
+	statuses := s.registry.AllSyncStatuses()
+	if len(statuses) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	out := make(map[string]json.RawMessage, len(statuses))
+	for pubID, data := range statuses {
+		out[pubID.String()] = data
+	}
+
+	data, err := json.Marshal(out)
+	if err != nil {
+		log.Errorw("cannot marshal sync statuses", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
+func (s *Server) getSyncStatus(w http.ResponseWriter, r *http.Request) {
+	enableCors(w)
+
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
+		return
+	}
+
+	pubID, err := peer.Decode(path.Base(r.URL.Path))
+	if err != nil {
+		msg := "Cannot decode peer id"
+		log.Errorw(msg, "id", path.Base(r.URL.Path), "err", err)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+
+	data := s.registry.SyncStatusJSONFor(pubID)
+	if data == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
 type adStatusResponse struct {
