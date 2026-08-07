@@ -49,8 +49,8 @@ Top-level modules (all under module `github.com/ipni/storetheindex`):
 | [`main.go`](main.go) | CLI entry point. |
 | [`command/`](command) | CLI commands: `daemon`, `admin`, `assigner`, `gc`, `init`, `loadgen`/`loadtest`, `log`, `updatemirror`, plus shared flags. |
 | [`config/`](config) | Config file schema, defaults, load/save, upgrade. One file per section (`ingest.go`, `discovery.go`, `indexer.go`, `finder.go`, etc.). |
-| [`internal/ingest/`](internal/ingest) | Advertisement ingestion: subscriber wiring, workers, ad-chain processing, entry/HAMT/CAR indexing, CAR mirror. See [doc/ingestion.md](doc/ingestion.md). |
-| [`internal/registry/`](internal/registry) | Provider registry: known providers, allow/publish policy, freeze state, auto-sync scheduling, live sync status. |
+| [`internal/ingest/`](internal/ingest) | Advertisement ingestion: subscriber wiring, workers, ad-chain processing, entry/HAMT/CAR indexing, CAR mirror, sync status tracking. See [doc/ingestion.md](doc/ingestion.md). |
+| [`internal/registry/`](internal/registry) | Provider registry: known providers, allow/publish policy, freeze state, auto-sync scheduling. |
 | [`internal/registry/policy/`](internal/registry/policy) | Allow/publish policy evaluation. |
 | [`internal/freeze/`](internal/freeze) | Disk-usage monitoring and freezer (frozen mode). |
 | [`internal/metrics/`](internal/metrics) | OpenCensus metrics and the metrics/pprof server. |
