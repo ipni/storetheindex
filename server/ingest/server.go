@@ -154,7 +154,12 @@ func (s *Server) listSyncStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	statuses := s.registry.AllSyncStatuses()
+	if s.ingester == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	statuses := s.ingester.AllSyncStatuses()
 	if len(statuses) == 0 {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -193,7 +198,12 @@ func (s *Server) getSyncStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := s.registry.SyncStatusJSONFor(pubID)
+	if s.ingester == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	data := s.ingester.SyncStatusJSONFor(pubID)
 	if data == nil {
 		w.WriteHeader(http.StatusNoContent)
 		return

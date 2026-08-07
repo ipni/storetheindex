@@ -98,6 +98,11 @@ type Ingester struct {
 
 	reg *registry.Registry
 
+	// syncStatus tracks live sync progress per publisher (one main provider at
+	// a time; extended providers are not tracked).
+	syncStatus   map[peer.ID]*syncTracker
+	syncStatusMu sync.Mutex
+
 	// inEvents is used to send an adProcessedEvent to the distributeEvents
 	// goroutine, when an advertisement in marked complete or having an error.
 	inEvents chan adProcessedEvent
@@ -167,6 +172,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		indexer:     idxr,
 		syncTimeout: time.Duration(cfg.SyncTimeout),
 		reg:         reg,
+		syncStatus:  make(map[peer.ID]*syncTracker),
 		inEvents:    make(chan adProcessedEvent, 1),
 
 		autoSyncDone:      make(chan struct{}),
@@ -253,7 +259,7 @@ func (ing *Ingester) generalDagsyncBlockHook(publisher peer.ID, c cid.Cid, actio
 	// Stop advancing without loading the ad data.
 	processed, _, err := ing.adAlreadyProcessed(c)
 	if err != nil {
-		ing.reg.EndScan(publisher, err)
+		ing.EndScan(publisher, err)
 		actions.FailSync(err)
 		return
 	}
@@ -277,13 +283,13 @@ func (ing *Ingester) generalDagsyncBlockHook(publisher peer.ID, c cid.Cid, actio
 	// failure if the load fails.
 	ad, err := ing.loadAd(c)
 	if err != nil {
-		ing.reg.EndScan(publisher, err)
+		ing.EndScan(publisher, err)
 		actions.FailSync(err)
 		return
 	}
 
 	providerID, _ := peer.Decode(ad.Provider)
-	adsScanned := ing.reg.RecordAdScanned(publisher, providerID, c)
+	adsScanned := ing.RecordAdScanned(publisher, providerID, c)
 	if adsScanned%adsScannedLogInterval == 0 {
 		log.Infow("Scanning advertisement chain", "publisher", publisher, "adsScanned", adsScanned, "adCid", c)
 	}
@@ -470,7 +476,7 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 	// by dagsync via head-publisher.
 	c, err := ing.sub.SyncAdChain(syncCtx, peerInfo, opts...)
 	if err != nil {
-		ing.reg.EndScan(peerInfo.ID, err)
+		ing.EndScan(peerInfo.ID, err)
 		ing.reg.SetLastError(peerInfo.ID, err)
 		return cid.Undef, fmt.Errorf("failed to sync: %w", err)
 	}
@@ -1009,7 +1015,7 @@ func (ing *Ingester) getNextSyncFin(pubID peer.ID) *dagsync.SyncFinished {
 // for that provider.
 func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync.SyncFinished, wkrNum int) {
 	publisher := syncFinished.PeerID
-	ing.reg.EndScan(publisher, nil)
+	ing.EndScan(publisher, nil)
 
 	if syncFinished.Count == 0 {
 		// Attempted sync, but already up to data. Nothing to do.
@@ -1158,11 +1164,11 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 
 	total := len(adInfos)
 	log.Infow("Running worker on ad stack", "headAdCid", headAdCid, "numAdsToProcess", total)
-	syncStatus := ing.reg.SyncStatusFor(publisher)
+	syncStatus := ing.SyncStatusFor(publisher)
 	syncStatus.BeginProcessing(total)
 	var procErr error
 	defer func() {
-		ing.reg.EndProcessing(publisher, procErr)
+		ing.EndProcessing(publisher, procErr)
 	}()
 	var count int
 	for i := len(adInfos) - 1; i >= 0; i-- {
