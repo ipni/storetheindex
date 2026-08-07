@@ -88,7 +88,10 @@ graph TD
 - **indexer core** (`go-indexer-core` engine): the value store that holds the
   actual `multihash -> value` mappings and answers finds.
 - **CAR mirror** (optional): stores advertisement + entry data as CAR files in
-  a filestore (local or S3), and can serve as an alternate source for entries.
+  a filestore (local, S3, or HTTP). `Main` is used for read and write (gated by
+  `MainMode`: `read` / `write` / `readwrite`); optional `External` is an
+  independent read source (sole source when Main read is off, otherwise a
+  fallback).
 
 ## Entry points that trigger ingestion
 
@@ -506,7 +509,11 @@ Ingestion is configured by the `Ingest` section of the config file
 - `SyncTimeout` - max time for a single sync.
 - `HttpSyncTimeout`, `HttpSyncRetryMax`, `HttpSyncRetryWaitMin/Max` - HTTP sync tuning.
 - `Skip500EntriesError` - skip ads whose first entry sync returns HTTP 500 (reloadable).
-- `AdvertisementMirror` - CAR mirror configuration.
+- `AdvertisementMirror` - CAR mirror configuration (`MainMode` + `Main` for
+  owned store access, optional `External` as an independent read source). Each
+  of `Main` and `External` is a store config with its own `Compress` setting
+  (`gzip` default). Legacy `Read`/`Write`, `Storage`/`Retrieval`, and top-level
+  `Compress` fields in config JSON are converted on load.
 - `ResendDirectAnnounce`, `OverwriteMirrorOnResync`.
 - `PubSubTopic` - gossipsub topic for announce subscription (deprecated; kept
   for backward compatibility).

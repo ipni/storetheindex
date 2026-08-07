@@ -1308,7 +1308,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		}
 
 		if putMirror {
-			if adDataSource == adDataSourceWriter {
+			if adDataSource == adDataSourceMain {
 				log.Debug("Removing temporary ad data")
 				// If ad data retrieved from same mirror that is being written
 				// to, then only clean up the data from local datastore, but do
