@@ -1,4 +1,4 @@
-package registry
+package ingest
 
 import (
 	"encoding/json"
@@ -223,20 +223,21 @@ func TestSyncTrackerMarshalJSONHamtOnly(t *testing.T) {
 	}`)
 }
 
-func TestRegistrySyncStatus(t *testing.T) {
-	r := &Registry{
+func TestIngesterSyncStatus(t *testing.T) {
+	ing := &Ingester{
 		syncStatus: make(map[peer.ID]*syncTracker),
 	}
 	pubID := peer.ID("test-publisher")
 
-	require.Nil(t, r.SyncStatusJSONFor(pubID))
+	require.Nil(t, ing.SyncStatus(pubID))
 
-	st := r.SyncStatusFor(pubID)
+	st := ing.SyncStatusFor(pubID)
 	require.NotNil(t, st)
-	require.Same(t, st, r.SyncStatusFor(pubID))
+	require.Same(t, st, ing.SyncStatusFor(pubID))
+	require.Same(t, st, ing.SyncStatus(pubID))
 
 	st.BeginProcessing(3)
-	data := r.SyncStatusJSONFor(pubID)
+	data := mustMarshal(t, ing.SyncStatus(pubID))
 	m := map[string]any{}
 	require.NoError(t, json.Unmarshal(data, &m))
 	proc := m["Processing"].(map[string]any)
@@ -244,8 +245,8 @@ func TestRegistrySyncStatus(t *testing.T) {
 	require.Equal(t, true, proc["Ongoing"])
 
 	st.EndProcessing(nil)
-	require.NotNil(t, r.SyncStatusJSONFor(pubID))
-	data = r.SyncStatusJSONFor(pubID)
+	require.NotNil(t, ing.SyncStatus(pubID))
+	data = mustMarshal(t, ing.SyncStatus(pubID))
 	m = map[string]any{}
 	require.NoError(t, json.Unmarshal(data, &m))
 	require.NotContains(t, m, "Processing")
@@ -255,8 +256,8 @@ func TestRegistrySyncStatus(t *testing.T) {
 	require.NotContains(t, proc, "Ongoing")
 }
 
-func TestRegistrySyncScanned(t *testing.T) {
-	r := &Registry{
+func TestIngesterSyncScanned(t *testing.T) {
+	ing := &Ingester{
 		syncStatus: make(map[peer.ID]*syncTracker),
 	}
 	pubID := peer.ID("test-publisher")
@@ -266,10 +267,10 @@ func TestRegistrySyncScanned(t *testing.T) {
 	ad2, err := cid.Decode("baguqeerakzwmt6pkjmymlywrf27uxvdtosv6cvyissv2eqgyvy7g7p35tptq")
 	require.NoError(t, err)
 
-	require.Equal(t, 1, r.RecordAdScanned(pubID, provID, ad1))
-	require.Equal(t, 2, r.RecordAdScanned(pubID, provID, ad2))
+	require.Equal(t, 1, ing.RecordAdScanned(pubID, provID, ad1))
+	require.Equal(t, 2, ing.RecordAdScanned(pubID, provID, ad2))
 
-	data := stripDynamicTimes(t, mustMarshal(t, r.SyncStatusJSONFor(pubID)))
+	data := stripDynamicTimes(t, mustMarshal(t, ing.SyncStatus(pubID)))
 	require.JSONEq(t, fmt.Sprintf(`{
 		"Provider": %q,
 		"Scan": {
@@ -281,8 +282,8 @@ func TestRegistrySyncScanned(t *testing.T) {
 	}`, provID.String(), ad1.String(), ad2.String()), string(data))
 }
 
-func TestRegistryAllSyncStatuses(t *testing.T) {
-	r := &Registry{
+func TestIngesterAllSyncStatuses(t *testing.T) {
+	ing := &Ingester{
 		syncStatus: make(map[peer.ID]*syncTracker),
 	}
 	pubID := peer.ID("test-publisher")
@@ -290,12 +291,12 @@ func TestRegistryAllSyncStatuses(t *testing.T) {
 	ad, err := cid.Decode("baguqeeraa5mjufqdwzgafkqxmllc4hwzd4qcjqzj4tnaswgvazawepoqwzqa")
 	require.NoError(t, err)
 
-	all := r.AllSyncStatuses()
+	all := ing.AllSyncStatuses()
 	require.Empty(t, all)
 
-	r.RecordAdScanned(pubID, provID, ad)
+	ing.RecordAdScanned(pubID, provID, ad)
 
-	data := stripDynamicTimes(t, mustMarshal(t, r.SyncStatusJSONFor(pubID)))
+	data := stripDynamicTimes(t, mustMarshal(t, ing.SyncStatus(pubID)))
 	expected := fmt.Sprintf(`{
 		"Provider": %q,
 		"Scan": {
@@ -307,13 +308,13 @@ func TestRegistryAllSyncStatuses(t *testing.T) {
 	}`, provID.String(), ad.String(), ad.String())
 	require.JSONEq(t, expected, string(data))
 
-	all = r.AllSyncStatuses()
+	all = ing.AllSyncStatuses()
 	require.Len(t, all, 1)
-	require.JSONEq(t, expected, string(stripDynamicTimes(t, all[pubID])))
+	require.JSONEq(t, expected, string(stripDynamicTimes(t, mustMarshal(t, all[pubID]))))
 }
 
-func TestRegistryEndScan(t *testing.T) {
-	r := &Registry{
+func TestIngesterEndScan(t *testing.T) {
+	ing := &Ingester{
 		syncStatus: make(map[peer.ID]*syncTracker),
 	}
 	pubID := peer.ID("test-publisher")
@@ -321,10 +322,10 @@ func TestRegistryEndScan(t *testing.T) {
 	ad, err := cid.Decode("baguqeeraa5mjufqdwzgafkqxmllc4hwzd4qcjqzj4tnaswgvazawepoqwzqa")
 	require.NoError(t, err)
 
-	r.RecordAdScanned(pubID, provID, ad)
-	r.EndScan(pubID, nil)
+	ing.RecordAdScanned(pubID, provID, ad)
+	ing.EndScan(pubID, nil)
 
-	data := stripDynamicTimes(t, mustMarshal(t, r.SyncStatusJSONFor(pubID)))
+	data := stripDynamicTimes(t, mustMarshal(t, ing.SyncStatus(pubID)))
 	m := map[string]any{}
 	require.NoError(t, json.Unmarshal(data, &m))
 	require.NotContains(t, m, "Scan")
@@ -334,10 +335,9 @@ func TestRegistryEndScan(t *testing.T) {
 	require.NotContains(t, scan, "Ongoing")
 }
 
-func mustMarshal(t *testing.T, data json.RawMessage) []byte {
+func mustMarshal(t *testing.T, v any) []byte {
 	t.Helper()
-	if data == nil {
-		return []byte("null")
-	}
+	data, err := json.Marshal(v)
+	require.NoError(t, err)
 	return data
 }

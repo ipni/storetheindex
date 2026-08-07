@@ -104,7 +104,7 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 		// some backends and not others, like "/metadata" will return text/html.
 		switch r.URL.Path {
 		case "/", "/index.html":
-			enableCors(w)
+			httpserver.EnableCors(w)
 			if !httpserver.MethodOK(w, r, http.MethodGet) {
 				return
 			}
@@ -119,8 +119,6 @@ func New(listen string, indexer indexer.Interface, registry *registry.Registry, 
 	mux.HandleFunc("/providers", s.listProviders)
 	mux.HandleFunc("/providers/", s.getProvider)
 	mux.HandleFunc("/stats", s.getStats)
-	mux.HandleFunc("/sync/status", s.listSyncStatus)
-	mux.HandleFunc("/sync/status/", s.getSyncStatus)
 
 	return s, nil
 }
@@ -148,23 +146,19 @@ func (s *Server) Close() error {
 	return s.server.Shutdown(ctx)
 }
 
-func enableCors(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-}
-
 func (s *Server) findCid(w http.ResponseWriter, r *http.Request) {
-	enableCors(w)
+	httpserver.EnableCors(w)
 
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
 		return
 	}
 
-	match, ok := acceptsAnyOf(w, r, false, mediaTypeNDJson, mediaTypeJson, mediaTypeAny)
+	match, ok := httpserver.AcceptsMediaType(w, r, false, httpserver.MediaTypeNDJson, httpserver.MediaTypeJson, httpserver.MediaTypeAny)
 	if !ok {
 		return
 	}
 	// Explicitly accepts NDJson.
-	stream := match == mediaTypeNDJson
+	stream := match == httpserver.MediaTypeNDJson
 
 	cidVar := path.Base(r.URL.Path)
 	c, err := cid.Decode(cidVar)
@@ -177,18 +171,18 @@ func (s *Server) findCid(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) findMultihash(w http.ResponseWriter, r *http.Request) {
-	enableCors(w)
+	httpserver.EnableCors(w)
 
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
 		return
 	}
 
-	match, ok := acceptsAnyOf(w, r, false, mediaTypeNDJson, mediaTypeJson, mediaTypeAny)
+	match, ok := httpserver.AcceptsMediaType(w, r, false, httpserver.MediaTypeNDJson, httpserver.MediaTypeJson, httpserver.MediaTypeAny)
 	if !ok {
 		return
 	}
 	// Explicitly accepts NDJson.
-	stream := match == mediaTypeNDJson
+	stream := match == httpserver.MediaTypeNDJson
 
 	mhVar := path.Base(r.URL.Path)
 	m, err := multihash.FromB58String(mhVar)
@@ -206,13 +200,13 @@ func (s *Server) findMultihash(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listProviders(w http.ResponseWriter, r *http.Request) {
-	enableCors(w)
+	httpserver.EnableCors(w)
 
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
 		return
 	}
 
-	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
+	if _, ok := httpserver.AcceptsMediaType(w, r, false, httpserver.MediaTypeJson, httpserver.MediaTypeAny); !ok {
 		return
 	}
 
@@ -234,11 +228,11 @@ func (s *Server) listProviders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getProvider(w http.ResponseWriter, r *http.Request) {
-	enableCors(w)
+	httpserver.EnableCors(w)
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
 		return
 	}
-	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
+	if _, ok := httpserver.AcceptsMediaType(w, r, false, httpserver.MediaTypeJson, httpserver.MediaTypeAny); !ok {
 		return
 	}
 
@@ -265,12 +259,12 @@ func (s *Server) getProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
-	enableCors(w)
+	httpserver.EnableCors(w)
 
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
 		return
 	}
-	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
+	if _, ok := httpserver.AcceptsMediaType(w, r, false, httpserver.MediaTypeJson, httpserver.MediaTypeAny); !ok {
 		return
 	}
 
@@ -295,66 +289,8 @@ func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
 	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
-func (s *Server) listSyncStatus(w http.ResponseWriter, r *http.Request) {
-	enableCors(w)
-
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
-	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
-		return
-	}
-
-	statuses := s.registry.AllSyncStatuses()
-	if len(statuses) == 0 {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	out := make(map[string]json.RawMessage, len(statuses))
-	for pubID, data := range statuses {
-		out[pubID.String()] = data
-	}
-
-	data, err := json.Marshal(out)
-	if err != nil {
-		log.Errorw("cannot marshal sync statuses", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	httpserver.WriteJsonResponse(w, http.StatusOK, data)
-}
-
-func (s *Server) getSyncStatus(w http.ResponseWriter, r *http.Request) {
-	enableCors(w)
-
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
-	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
-		return
-	}
-
-	pubID, err := peer.Decode(path.Base(r.URL.Path))
-	if err != nil {
-		msg := "Cannot decode peer id"
-		log.Errorw(msg, "id", path.Base(r.URL.Path), "err", err)
-		http.Error(w, msg, http.StatusBadRequest)
-		return
-	}
-
-	data := s.registry.SyncStatusJSONFor(pubID)
-	if data == nil {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	httpserver.WriteJsonResponse(w, http.StatusOK, data)
-}
-
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
-	enableCors(w)
+	httpserver.EnableCors(w)
 
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
 		return
@@ -398,7 +334,7 @@ func (s *Server) getIndexes(w http.ResponseWriter, mhs []multihash.Multihash, st
 			http.Error(w, "no results for query", http.StatusNotFound)
 			return
 		}
-		w.Header().Set("Content-Type", mediaTypeNDJson)
+		w.Header().Set("Content-Type", httpserver.MediaTypeNDJson)
 		w.Header().Set("Connection", "Keep-Alive")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		flusher, flushable := w.(http.Flusher)

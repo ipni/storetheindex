@@ -129,7 +129,7 @@ the subscriber invokes storetheindex's block hook,
 `Ingester.generalDagsyncBlockHook` (`ingest.go`):
 
 - It loads the advertisement (`loadAd`). If loading fails, it fails the sync.
-- It records scanning progress in the registry via `reg.RecordAdScanned` and
+- It records scanning progress via `RecordAdScanned` and
   logs every `adsScannedLogInterval` (100) ads.
 - It sets the next CID to sync from `ad.PreviousID` (or `cid.Undef` at the
   chain start), which tells the segmented sync where to continue.
@@ -423,7 +423,7 @@ indexer is later unfrozen.
 
 ## Sync status tracking
 
-The registry keeps a `syncTracker` per publisher (created lazily during
+The ingester keeps a `syncTracker` per publisher (created lazily during
 scanning) that records **per-phase** statistics. Each phase has at most one
 ongoing run (`Scan`, `Processing`, `Download`) and a bounded history (up to 10
 runs, newest first) in `ScanHistory`, `ProcessingHistory`, and `DownloadHistory`.
@@ -452,13 +452,13 @@ so history remains visible until pruned by newer runs.
 When a new run of a phase starts before the previous one was ended, the
 previous run is archived defensively into that phase's history.
 
-This status is exposed on the find HTTP API: `GET /sync/status` returns all
+This status is exposed on the ingest HTTP API: `GET /sync/status` returns all
 publisher statuses; `GET /sync/status/<publisherID>` returns one publisher's
 status.
 
 Whether a single advertisement's content is available from this indexer is
-exposed on the ingest HTTP API as `GET /sync/status/ad/<adCid>`. The response
-includes:
+exposed on the same ingest HTTP API as `GET /sync/status/ad/<adCid>`. The
+response includes:
 
 - `Ad` - the requested advertisement CID
 - `Indexed` - true only when the ad was fully processed while the indexer was
@@ -478,8 +478,8 @@ includes:
 can report `Indexed: true`). Timestamps and provider identity are not stored
 per ad and are not returned.
 
-See [`internal/registry/syncstatus.go`](../internal/registry/syncstatus.go) for
-the tracker and its JSON serialization.
+See [`internal/ingest/syncstatus.go`](../internal/ingest/syncstatus.go) for
+the tracker. The ingest HTTP handlers marshal tracker snapshots to JSON.
 
 ## Advertisement ingestion invariants
 
@@ -530,9 +530,10 @@ listed in [config.md](config.md).
 | `internal/ingest/linksystem.go` | Link system (verify + store), `ingestAd`, entry/HAMT/CAR ingestion, `indexAdMultihashes`, node decoding helpers. |
 | `internal/ingest/mirror.go` | CAR mirror read/write over the filestore. |
 | `internal/ingest/error.go` | `adIngestError` states and helpers. |
-| `server/ingest/server.go` | `/announce`, `/register`, and `/sync/status/ad/<cid>` HTTP handlers. |
-| `internal/registry/registry.go` | Provider registry, policy, freeze, auto-sync channel, sync status. |
-| `internal/registry/syncstatus.go` | Live per-publisher sync status tracker. |
+| `internal/ingest/syncstatus.go` | Live per-publisher sync status tracker. |
+| `server/ingest/server.go` | `/announce`, `/register`, `/sync/status`, and `/sync/status/ad/<cid>` HTTP handlers. |
+| `internal/registry/registry.go` | Provider registry, policy, freeze, auto-sync channel. |
+| `server/find/server.go` | Find HTTP API. |
 | `config/ingest.go` | Ingestion configuration and defaults. |
 | `config/datastore.go` | Main and temp datastore configuration (dirs, types). |
 | `command/datastore.go` | Datastore creation, versioning/migration, temp cleanup. |

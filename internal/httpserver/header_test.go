@@ -1,4 +1,4 @@
-package find
+package httpserver
 
 import (
 	"net/http"
@@ -58,7 +58,7 @@ func Test_explicitlyAcceptsNDJson(t *testing.T) {
 			if tt.given != "" {
 				r.Header.Set("Accept", tt.given)
 			}
-			match, ok := acceptsAnyOf(w, r, true, mediaTypeNDJson)
+			match, ok := AcceptsMediaType(w, r, true, MediaTypeNDJson)
 			if ok == tt.wantErr {
 				t.Errorf("getAccepts() hasError = %v, wantErr %v", !ok, tt.wantErr)
 				return
@@ -69,7 +69,7 @@ func Test_explicitlyAcceptsNDJson(t *testing.T) {
 	}
 }
 
-func Test_acceptsAnyOf(t *testing.T) {
+func Test_AcceptsMediaType(t *testing.T) {
 	tests := []struct {
 		name        string
 		givenHeader string
@@ -129,7 +129,7 @@ func Test_acceptsAnyOf(t *testing.T) {
 			if tt.givenHeader != "" {
 				r.Header.Set("Accept", tt.givenHeader)
 			}
-			firstMatch, ok := acceptsAnyOf(w, r, true, tt.givenAnyOf...)
+			firstMatch, ok := AcceptsMediaType(w, r, true, tt.givenAnyOf...)
 			if ok == tt.wantErr {
 				t.Errorf("getAccepts() hasError = %v, wantErr %v", !ok, tt.wantErr)
 				return

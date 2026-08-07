@@ -2,6 +2,7 @@ package ingest_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -171,7 +172,6 @@ func TestAdStatus(t *testing.T) {
 	reg := initRegistry(t, providerIdent.PeerID)
 	ing := initIngest(t, ind, reg)
 	s := setupServer(ind, ing, reg, t)
-
 	errChan := make(chan error, 1)
 	go func() {
 		err := s.Start()
@@ -189,29 +189,32 @@ func TestAdStatus(t *testing.T) {
 	require.NoError(t, err)
 	ads := random.Cids(2)
 
-	getAdStatus := func(t *testing.T, ad cid.Cid) (int, string) {
+	getAdStatus := func(t *testing.T, ad cid.Cid) (int, http.Header, string) {
 		t.Helper()
 		res, err := http.Get(s.URL() + "/sync/status/ad/" + ad.String())
 		require.NoError(t, err)
 		body, err := io.ReadAll(res.Body)
 		res.Body.Close()
 		require.NoError(t, err)
-		return res.StatusCode, string(body)
+		return res.StatusCode, res.Header, string(body)
 	}
 
 	// Unknown ad is not indexed.
-	status, body := getAdStatus(t, ads[0])
+	status, hdr, body := getAdStatus(t, ads[0])
 	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
+	require.Equal(t, "application/json; charset=utf-8", hdr.Get("Content-Type"))
 	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false}`, ads[0].String()), body)
 
 	// Fully processed ad is indexed.
 	require.NoError(t, ing.MarkAdProcessed(pubID, ads[0]))
-	status, body = getAdStatus(t, ads[0])
+	status, hdr, body = getAdStatus(t, ads[0])
 	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
 	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true}`, ads[0].String()), body)
 
 	// A different unknown ad remains not indexed.
-	status, body = getAdStatus(t, ads[1])
+	status, _, body = getAdStatus(t, ads[1])
 	require.Equal(t, http.StatusOK, status)
 	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false}`, ads[1].String()), body)
 
@@ -219,6 +222,103 @@ func TestAdStatus(t *testing.T) {
 	require.NoError(t, err)
 	res.Body.Close()
 	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+	// OPTIONS is required for CORS preflight.
+	req, err := http.NewRequest(http.MethodOptions, s.URL()+"/sync/status/ad/"+ads[0].String(), nil)
+	require.NoError(t, err)
+	req.Header.Set("Origin", "http://example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	res, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.Equal(t, "*", res.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func TestSyncStatus(t *testing.T) {
+	ind := initIndex(t, true)
+	reg := initRegistry(t, providerIdent.PeerID)
+	ing := initIngest(t, ind, reg)
+	s := setupServer(ind, ing, reg, t)
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+	t.Cleanup(func() {
+		require.NoError(t, s.Close())
+		require.NoError(t, <-errChan)
+	})
+
+	pubID, err := peer.Decode("12D3KooWBckWLKiYoUX4k3HTrbrSe4DD5SPNTKgP6vKTva1NaRkJ")
+	require.NoError(t, err)
+	provID, err := peer.Decode("12D3KooWQ9j3Ur5V9U63Vi6ved72TcA3sv34k74W3wpW5rwNvDc3")
+	require.NoError(t, err)
+	ad, err := cid.Decode("baguqeeraa5mjufqdwzgafkqxmllc4hwzd4qcjqzj4tnaswgvazawepoqwzqa")
+	require.NoError(t, err)
+	require.Equal(t, 1, ing.RecordAdScanned(pubID, provID, ad))
+
+	st := ing.SyncStatus(pubID)
+	require.NotNil(t, st)
+	stData, err := json.Marshal(st)
+	require.NoError(t, err)
+	expected := mustJSONMap(t, map[string]json.RawMessage{
+		pubID.String(): stData,
+	})
+
+	res, err := http.Get(s.URL() + "/sync/status")
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.Equal(t, "*", res.Header.Get("Access-Control-Allow-Origin"))
+	require.Equal(t, "application/json; charset=utf-8", res.Header.Get("Content-Type"))
+	require.JSONEq(t, string(expected), string(body))
+
+	res, err = http.Get(s.URL() + "/sync/status/" + pubID.String())
+	require.NoError(t, err)
+	body, err = io.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.Equal(t, "*", res.Header.Get("Access-Control-Allow-Origin"))
+	require.JSONEq(t, string(stData), string(body))
+
+	// Empty status for unknown publisher.
+	unknownPub, err := peer.Decode("12D3KooWD1XypSuBmhebQcvq7Sf1XJZ1hKSfYCED4w6eyxhzwqnV")
+	require.NoError(t, err)
+	res, err = http.Get(s.URL() + "/sync/status/" + unknownPub.String())
+	require.NoError(t, err)
+	res.Body.Close()
+	require.Equal(t, http.StatusNoContent, res.StatusCode)
+	require.Equal(t, "*", res.Header.Get("Access-Control-Allow-Origin"))
+
+	res, err = http.Get(s.URL() + "/sync/status/not-a-peer-id")
+	require.NoError(t, err)
+	res.Body.Close()
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+	// OPTIONS is required for CORS preflight.
+	req, err := http.NewRequest(http.MethodOptions, s.URL()+"/sync/status", nil)
+	require.NoError(t, err)
+	req.Header.Set("Origin", "http://example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	res, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.Equal(t, "*", res.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func mustJSONMap(t *testing.T, m map[string]json.RawMessage) []byte {
+	t.Helper()
+	data, err := json.Marshal(m)
+	require.NoError(t, err)
+	return data
 }
 
 func registerProviderTest(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {

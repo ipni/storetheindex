@@ -1,4 +1,4 @@
-package find
+package httpserver
 
 import (
 	"fmt"
@@ -8,12 +8,21 @@ import (
 )
 
 const (
-	mediaTypeNDJson = "application/x-ndjson"
-	mediaTypeJson   = "application/json"
-	mediaTypeAny    = "*/*"
+	MediaTypeNDJson = "application/x-ndjson"
+	MediaTypeJson   = "application/json"
+	MediaTypeAny    = "*/*"
 )
 
-func acceptsAnyOf(w http.ResponseWriter, r *http.Request, strict bool, mts ...string) (string, bool) {
+// EnableCors sets Access-Control-Allow-Origin to allow any origin.
+func EnableCors(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+}
+
+// AcceptsMediaType checks whether the request Accept header matches one of the
+// given media types and returns the first match. When strict is false and
+// Accept is empty, it accepts. On mismatch or invalid Accept, it writes
+// StatusNotAcceptable and returns false.
+func AcceptsMediaType(w http.ResponseWriter, r *http.Request, strict bool, mts ...string) (string, bool) {
 	values := r.Header.Values("Accept")
 	if len(values) == 0 {
 		if !strict || len(mts) == 0 {
