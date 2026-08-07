@@ -58,6 +58,10 @@ var adminSyncFlags = []cli.Flag{
 		Aliases: []string{"p"},
 	},
 	&cli.StringFlag{
+		Name:  "adcid",
+		Usage: "Advertisement CID to begin indexing after. Index advertisements that are more recent than the one specified.",
+	},
+	&cli.StringFlag{
 		Name:  "addr",
 		Usage: "Multiaddr address of peer to sync with",
 	},
@@ -279,7 +283,17 @@ func syncAction(cctx *cli.Context) error {
 			return err
 		}
 	}
-	err = cl.Sync(cctx.Context, peerID, addr, cctx.Int64("depth"), cctx.Bool("resync"))
+
+	adCidFlag := cctx.String("adcid")
+	var adCid cid.Cid
+	if adCidFlag != "" {
+		adCid, err = cid.Decode(adCidFlag)
+		if err != nil {
+			return fmt.Errorf("error decoding cid: %s", err)
+		}
+	}
+
+	err = cl.Sync(cctx.Context, peerID, addr, cctx.Int64("depth"), cctx.Bool("resync"), adCid)
 	if err != nil {
 		return err
 	}

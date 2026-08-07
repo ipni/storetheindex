@@ -3,6 +3,7 @@ package ingest
 import (
 	"testing"
 
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-test/random"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/storetheindex/config"
@@ -48,7 +49,7 @@ func TestAdsSyncedViaSegmentsAreProcessed(t *testing.T) {
 	pubInfo := peer.AddrInfo{
 		ID: te.publisher.ID(),
 	}
-	gotHeadAd, err := subject.Sync(ctx, pubInfo, 0, false)
+	gotHeadAd, err := subject.Sync(ctx, pubInfo, 0, false, cid.Undef)
 	require.NoError(t, err)
 	require.Equal(t, headAdCid, gotHeadAd, "Expected latest synced cid to match head of ad chain")
 
