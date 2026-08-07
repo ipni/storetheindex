@@ -321,6 +321,19 @@ func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
 		log = log.With("resync", resync)
 	}
 
+	var adCid cid.Cid
+	adCidStr := query.Get("adcid")
+	if adCidStr != "" {
+		var err error
+		adCid, err = cid.Decode(adCidStr)
+		if err != nil {
+			msg := "cannot decode advertisement cid"
+			log.Errorw(msg, "value", adCidStr, "err", err)
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
+	}
+
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorw("Failed reading body", "err", err)
@@ -365,7 +378,7 @@ func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
 			peerInfo.Addrs = []multiaddr.Multiaddr{syncAddr}
 		}
 
-		_, err := h.ingester.Sync(h.ctx, peerInfo, int(depth), resync)
+		_, err := h.ingester.Sync(h.ctx, peerInfo, int(depth), resync, adCid)
 		if err != nil {
 			log.Errorw("Cannot sync with peer", "err", err)
 		}
