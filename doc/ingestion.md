@@ -476,7 +476,7 @@ can report `Indexed: true`). Timestamps and provider identity are not stored
 per ad and are not returned.
 
 See [`internal/ingest/syncstatus.go`](../internal/ingest/syncstatus.go) for
-the tracker and its JSON serialization.
+the tracker. The ingest HTTP handlers marshal tracker snapshots to JSON.
 
 ## Advertisement ingestion invariants
 

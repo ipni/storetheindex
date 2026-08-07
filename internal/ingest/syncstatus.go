@@ -13,9 +13,9 @@ const maxPhaseHistory = 10
 
 // syncTracker holds the live, mutable sync state for a single publisher. It
 // reflects progress for one main provider (ad.Provider) at a time; extended
-// providers are not tracked. Updated during ingestion and serialized for the
-// ingest sync-status HTTP API. The mutex guards concurrent access between
-// ingest writers and API readers.
+// providers are not tracked. Updated during ingestion. MarshalJSON produces a
+// consistent snapshot for API readers. The mutex guards concurrent access
+// between ingest writers and those readers.
 type syncTracker struct {
 	mu sync.Mutex
 
@@ -457,7 +457,8 @@ func (ing *Ingester) EndScan(publisherID peer.ID, err error) {
 
 // SyncStatusFor returns the live sync tracker for the given publisher, creating
 // it if it does not yet exist. One tracker per publisher; it reflects a single
-// main provider at a time.
+// main provider at a time. Prefer SyncStatus for read-only lookups that should
+// not create a tracker.
 func (ing *Ingester) SyncStatusFor(publisherID peer.ID) *syncTracker {
 	ing.syncStatusMu.Lock()
 	defer ing.syncStatusMu.Unlock()
@@ -469,47 +470,23 @@ func (ing *Ingester) SyncStatusFor(publisherID peer.ID) *syncTracker {
 	return st
 }
 
-// SyncStatusJSONFor returns a JSON snapshot of the sync status for the given
-// publisher, or nil if no sync status is tracked.
-func (ing *Ingester) SyncStatusJSONFor(publisherID peer.ID) json.RawMessage {
+// SyncStatus returns the live sync tracker for the given publisher, or nil if
+// none is tracked. It does not create a tracker.
+func (ing *Ingester) SyncStatus(publisherID peer.ID) *syncTracker {
 	ing.syncStatusMu.Lock()
-	st := ing.syncStatus[publisherID]
-	ing.syncStatusMu.Unlock()
-	if st == nil {
-		return nil
-	}
-	data, err := json.Marshal(st)
-	if err != nil {
-		log.Errorw("Failed to marshal sync status", "err", err, "publisher", publisherID)
-		return nil
-	}
-	return data
+	defer ing.syncStatusMu.Unlock()
+	return ing.syncStatus[publisherID]
 }
 
-// AllSyncStatuses returns JSON snapshots of all tracked sync statuses keyed by
-// publisher.
-func (ing *Ingester) AllSyncStatuses() map[peer.ID]json.RawMessage {
+// AllSyncStatuses returns a snapshot of all tracked sync statuses keyed by
+// publisher. The map is a copy; the trackers themselves are live and safe for
+// concurrent readers via their MarshalJSON method.
+func (ing *Ingester) AllSyncStatuses() map[peer.ID]*syncTracker {
 	ing.syncStatusMu.Lock()
-	ents := make([]struct {
-		pub peer.ID
-		st  *syncTracker
-	}, 0, len(ing.syncStatus))
+	defer ing.syncStatusMu.Unlock()
+	out := make(map[peer.ID]*syncTracker, len(ing.syncStatus))
 	for pubID, st := range ing.syncStatus {
-		ents = append(ents, struct {
-			pub peer.ID
-			st  *syncTracker
-		}{pub: pubID, st: st})
-	}
-	ing.syncStatusMu.Unlock()
-
-	out := make(map[peer.ID]json.RawMessage, len(ents))
-	for _, e := range ents {
-		data, err := json.Marshal(e.st)
-		if err != nil {
-			log.Errorw("Failed to marshal sync status", "err", err, "publisher", e.pub)
-			continue
-		}
-		out[e.pub] = data
+		out[pubID] = st
 	}
 	return out
 }

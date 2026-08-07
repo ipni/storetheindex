@@ -261,8 +261,12 @@ func TestSyncStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, ing.RecordAdScanned(pubID, provID, ad))
 
+	st := ing.SyncStatus(pubID)
+	require.NotNil(t, st)
+	stData, err := json.Marshal(st)
+	require.NoError(t, err)
 	expected := mustJSONMap(t, map[string]json.RawMessage{
-		pubID.String(): ing.SyncStatusJSONFor(pubID),
+		pubID.String(): stData,
 	})
 
 	res, err := http.Get(s.URL() + "/sync/status")
@@ -282,7 +286,7 @@ func TestSyncStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	require.Equal(t, "*", res.Header.Get("Access-Control-Allow-Origin"))
-	require.JSONEq(t, string(ing.SyncStatusJSONFor(pubID)), string(body))
+	require.JSONEq(t, string(stData), string(body))
 
 	// Empty status for unknown publisher.
 	unknownPub, err := peer.Decode("12D3KooWD1XypSuBmhebQcvq7Sf1XJZ1hKSfYCED4w6eyxhzwqnV")

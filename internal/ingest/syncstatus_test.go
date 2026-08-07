@@ -229,14 +229,15 @@ func TestIngesterSyncStatus(t *testing.T) {
 	}
 	pubID := peer.ID("test-publisher")
 
-	require.Nil(t, ing.SyncStatusJSONFor(pubID))
+	require.Nil(t, ing.SyncStatus(pubID))
 
 	st := ing.SyncStatusFor(pubID)
 	require.NotNil(t, st)
 	require.Same(t, st, ing.SyncStatusFor(pubID))
+	require.Same(t, st, ing.SyncStatus(pubID))
 
 	st.BeginProcessing(3)
-	data := ing.SyncStatusJSONFor(pubID)
+	data := mustMarshal(t, ing.SyncStatus(pubID))
 	m := map[string]any{}
 	require.NoError(t, json.Unmarshal(data, &m))
 	proc := m["Processing"].(map[string]any)
@@ -244,8 +245,8 @@ func TestIngesterSyncStatus(t *testing.T) {
 	require.Equal(t, true, proc["Ongoing"])
 
 	st.EndProcessing(nil)
-	require.NotNil(t, ing.SyncStatusJSONFor(pubID))
-	data = ing.SyncStatusJSONFor(pubID)
+	require.NotNil(t, ing.SyncStatus(pubID))
+	data = mustMarshal(t, ing.SyncStatus(pubID))
 	m = map[string]any{}
 	require.NoError(t, json.Unmarshal(data, &m))
 	require.NotContains(t, m, "Processing")
@@ -269,7 +270,7 @@ func TestIngesterSyncScanned(t *testing.T) {
 	require.Equal(t, 1, ing.RecordAdScanned(pubID, provID, ad1))
 	require.Equal(t, 2, ing.RecordAdScanned(pubID, provID, ad2))
 
-	data := stripDynamicTimes(t, mustMarshal(t, ing.SyncStatusJSONFor(pubID)))
+	data := stripDynamicTimes(t, mustMarshal(t, ing.SyncStatus(pubID)))
 	require.JSONEq(t, fmt.Sprintf(`{
 		"Provider": %q,
 		"Scan": {
@@ -295,7 +296,7 @@ func TestIngesterAllSyncStatuses(t *testing.T) {
 
 	ing.RecordAdScanned(pubID, provID, ad)
 
-	data := stripDynamicTimes(t, mustMarshal(t, ing.SyncStatusJSONFor(pubID)))
+	data := stripDynamicTimes(t, mustMarshal(t, ing.SyncStatus(pubID)))
 	expected := fmt.Sprintf(`{
 		"Provider": %q,
 		"Scan": {
@@ -309,7 +310,7 @@ func TestIngesterAllSyncStatuses(t *testing.T) {
 
 	all = ing.AllSyncStatuses()
 	require.Len(t, all, 1)
-	require.JSONEq(t, expected, string(stripDynamicTimes(t, all[pubID])))
+	require.JSONEq(t, expected, string(stripDynamicTimes(t, mustMarshal(t, all[pubID]))))
 }
 
 func TestIngesterEndScan(t *testing.T) {
@@ -324,7 +325,7 @@ func TestIngesterEndScan(t *testing.T) {
 	ing.RecordAdScanned(pubID, provID, ad)
 	ing.EndScan(pubID, nil)
 
-	data := stripDynamicTimes(t, mustMarshal(t, ing.SyncStatusJSONFor(pubID)))
+	data := stripDynamicTimes(t, mustMarshal(t, ing.SyncStatus(pubID)))
 	m := map[string]any{}
 	require.NoError(t, json.Unmarshal(data, &m))
 	require.NotContains(t, m, "Scan")
@@ -334,10 +335,9 @@ func TestIngesterEndScan(t *testing.T) {
 	require.NotContains(t, scan, "Ongoing")
 }
 
-func mustMarshal(t *testing.T, data json.RawMessage) []byte {
+func mustMarshal(t *testing.T, v any) []byte {
 	t.Helper()
-	if data == nil {
-		return []byte("null")
-	}
+	data, err := json.Marshal(v)
+	require.NoError(t, err)
 	return data
 }

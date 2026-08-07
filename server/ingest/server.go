@@ -165,9 +165,9 @@ func (s *Server) listSyncStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out := make(map[string]json.RawMessage, len(statuses))
-	for pubID, data := range statuses {
-		out[pubID.String()] = data
+	out := make(map[string]any, len(statuses))
+	for pubID, st := range statuses {
+		out[pubID.String()] = st
 	}
 
 	data, err := json.Marshal(out)
@@ -203,9 +203,16 @@ func (s *Server) getSyncStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := s.ingester.SyncStatusJSONFor(pubID)
-	if data == nil {
+	st := s.ingester.SyncStatus(pubID)
+	if st == nil {
 		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	data, err := json.Marshal(st)
+	if err != nil {
+		log.Errorw("cannot marshal sync status", "err", err, "publisher", pubID)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
