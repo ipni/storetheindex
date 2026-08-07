@@ -218,7 +218,12 @@ type adStatusResponse struct {
 }
 
 func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
+	enableCors(w)
+
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
 		return
 	}
 
