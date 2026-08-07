@@ -57,7 +57,7 @@ Top-level modules (all under module `github.com/ipni/storetheindex`):
 | [`internal/registry/policy/`](internal/registry/policy) | Allow/publish policy evaluation. |
 | [`internal/freeze/`](internal/freeze) | Disk-usage monitoring and freezer (frozen mode). |
 | [`internal/metrics/`](internal/metrics) | OpenCensus metrics and the metrics/pprof server. |
-| [`internal/httpserver/`](internal/httpserver) | Shared HTTP helpers (method checks, JSON responses, errors). |
+| [`internal/httpserver/`](internal/httpserver) | Shared HTTP helpers (method checks, JSON responses, errors, CORS, Accept negotiation). |
 | [`server/find/`](server/find) | Find (query) HTTP API: `/cid/`, `/multihash/`, `/providers`, `/providers/`, `/stats`, `/health`. |
 | [`server/ingest/`](server/ingest) | Ingest HTTP API: `/announce`, `/register`, `/health`. |
 | [`server/admin/`](server/admin) | Admin HTTP API: sync, import, freeze, reload-config, etc. |

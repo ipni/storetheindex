@@ -145,12 +145,12 @@ func (s *Server) getHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listSyncStatus(w http.ResponseWriter, r *http.Request) {
-	enableCors(w)
+	httpserver.EnableCors(w)
 
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
 		return
 	}
-	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
+	if _, ok := httpserver.AcceptsMediaType(w, r, false, httpserver.MediaTypeJson, httpserver.MediaTypeAny); !ok {
 		return
 	}
 
@@ -181,12 +181,12 @@ func (s *Server) listSyncStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getSyncStatus(w http.ResponseWriter, r *http.Request) {
-	enableCors(w)
+	httpserver.EnableCors(w)
 
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
 		return
 	}
-	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
+	if _, ok := httpserver.AcceptsMediaType(w, r, false, httpserver.MediaTypeJson, httpserver.MediaTypeAny); !ok {
 		return
 	}
 
@@ -218,12 +218,12 @@ type adStatusResponse struct {
 }
 
 func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
-	enableCors(w)
+	httpserver.EnableCors(w)
 
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
 		return
 	}
-	if _, ok := acceptsAnyOf(w, r, false, mediaTypeJson, mediaTypeAny); !ok {
+	if _, ok := httpserver.AcceptsMediaType(w, r, false, httpserver.MediaTypeJson, httpserver.MediaTypeAny); !ok {
 		return
 	}
 
