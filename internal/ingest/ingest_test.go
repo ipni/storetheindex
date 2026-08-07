@@ -636,6 +636,41 @@ func TestSyncWithDepth(t *testing.T) {
 	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[0]})
 }
 
+func TestSyncWithAdCid(t *testing.T) {
+	te := setupTestEnv(t, true)
+
+	chainHead := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomHamtEntryBuilder{MultihashCount: 1, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2},
+		},
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, chainHead, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	ad, err := schema.UnwrapAdvertisement(adNode)
+	require.NoError(t, err)
+
+	rootCid := chainHead.(cidlink.Link).Cid
+	te.publisher.SetRoot(rootCid)
+
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+
+	c, err := te.ingester.Sync(t.Context(), peerInfo, 0, false, ad.PreviousCid())
+	require.NoError(t, err)
+
+	lcid, err := te.ingester.GetLatestSync(te.pubHost.ID())
+	require.NoError(t, err)
+	require.Equal(t, chainHead.(cidlink.Link).Cid, lcid, "synced up to %s, should have synced up to %s", c, chainHead.(cidlink.Link).Cid)
+
+	allMhs := typehelpers.AllMultihashesFromAdChain(t, ad, te.publisherLinkSys)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[1]})
+	requireNotIndexed(t, te.ingester.indexer, te.pubHost.ID(), []multihash.Multihash{allMhs[0]})
+}
+
 func TestFreeze(t *testing.T) {
 	te := setupTestEnv(t, true)
 
