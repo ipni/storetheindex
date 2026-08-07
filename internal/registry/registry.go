@@ -296,8 +296,8 @@ func New(ctx context.Context, cfg config.Discovery, dstore datastore.Datastore, 
 		policy:    regPolicy,
 		sequences: newSequences(0),
 
-		dstore:     dstore,
-		syncChan:   make(chan *ProviderInfo, 1),
+		dstore:   dstore,
+		syncChan: make(chan *ProviderInfo, 1),
 
 		tmpBlockPeers:     make(map[peer.ID]time.Time),
 		tmpBlockCheckDone: make(chan struct{}),

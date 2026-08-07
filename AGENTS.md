@@ -32,6 +32,9 @@ make all        # vet + test + build
 Notes:
 
 - Go version is pinned in [`go.mod`](go.mod) (currently `go 1.26`).
+- Always run `gofmt -w` on every Go file you create or modify before finishing.
+  Unformatted code fails CI. Prefer `gofmt -w <files...>` on the touched files
+  (or `gofmt -w .` for a broad sweep) after editing.
 - Prefer running the specific package tests you touched (e.g.
   `go test ./internal/ingest/...`) for fast feedback, then `go test ./...`
   before finishing.
@@ -140,8 +143,8 @@ Other design docs worth reading:
 
 ## Conventions
 
-- Standard Go style; run `make vet` and `make lint`. Fix any lints you
-  introduce.
+- Standard Go style; always `gofmt -w` modified `.go` files, then run
+  `make vet` and `make lint`. Fix any lints you introduce.
 - Logging uses `github.com/ipfs/go-log/v2`; each package defines a package-level
   `log` logger with a namespaced name (e.g. `indexer/ingest`).
 - Metrics use OpenCensus (`go.opencensus.io/stats`) via
