@@ -1,4 +1,4 @@
-package registry
+package ingest
 
 import (
 	"encoding/json"
@@ -13,9 +13,9 @@ const maxPhaseHistory = 10
 
 // syncTracker holds the live, mutable sync state for a single publisher. It
 // reflects progress for one main provider (ad.Provider) at a time; extended
-// providers are not tracked. Updated by the ingester and serialized for the
-// admin sync-status API. The mutex guards concurrent access between the
-// ingester (writer) and API readers.
+// providers are not tracked. Updated during ingestion. MarshalJSON produces a
+// consistent snapshot for API readers. The mutex guards concurrent access
+// between ingest writers and those readers.
 type syncTracker struct {
 	mu sync.Mutex
 
@@ -427,4 +427,79 @@ func (t *syncTracker) IncError() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.processing.current.errorCount++
+}
+
+// RecordAdScanned records that adCid was scanned during the ad-chain walk for
+// the given publisher. providerID is the ad's main provider (ad.Provider), not
+// an extended provider. It creates and initializes the tracker while holding
+// the map mutex so readers never observe an uninitialized tracker.
+func (ing *Ingester) RecordAdScanned(publisherID, providerID peer.ID, adCid cid.Cid) int {
+	ing.syncStatusMu.Lock()
+	defer ing.syncStatusMu.Unlock()
+	st, ok := ing.syncStatus[publisherID]
+	if !ok {
+		st = &syncTracker{}
+		ing.syncStatus[publisherID] = st
+	}
+	return st.recordAdScanned(providerID, adCid)
+}
+
+// EndScan marks the scan phase finished for the given publisher.
+func (ing *Ingester) EndScan(publisherID peer.ID, err error) {
+	ing.syncStatusMu.Lock()
+	defer ing.syncStatusMu.Unlock()
+	st, ok := ing.syncStatus[publisherID]
+	if !ok {
+		return
+	}
+	st.endScan(err)
+}
+
+// SyncStatusFor returns the live sync tracker for the given publisher, creating
+// it if it does not yet exist. One tracker per publisher; it reflects a single
+// main provider at a time. Prefer SyncStatus for read-only lookups that should
+// not create a tracker.
+func (ing *Ingester) SyncStatusFor(publisherID peer.ID) *syncTracker {
+	ing.syncStatusMu.Lock()
+	defer ing.syncStatusMu.Unlock()
+	st, ok := ing.syncStatus[publisherID]
+	if !ok {
+		st = &syncTracker{}
+		ing.syncStatus[publisherID] = st
+	}
+	return st
+}
+
+// SyncStatus returns the live sync tracker for the given publisher, or nil if
+// none is tracked. It does not create a tracker.
+func (ing *Ingester) SyncStatus(publisherID peer.ID) *syncTracker {
+	ing.syncStatusMu.Lock()
+	defer ing.syncStatusMu.Unlock()
+	return ing.syncStatus[publisherID]
+}
+
+// AllSyncStatuses returns a snapshot of all tracked sync statuses keyed by
+// publisher. The map is a copy; the trackers themselves are live and safe for
+// concurrent readers via their MarshalJSON method.
+func (ing *Ingester) AllSyncStatuses() map[peer.ID]*syncTracker {
+	ing.syncStatusMu.Lock()
+	defer ing.syncStatusMu.Unlock()
+	out := make(map[peer.ID]*syncTracker, len(ing.syncStatus))
+	for pubID, st := range ing.syncStatus {
+		out[pubID] = st
+	}
+	return out
+}
+
+// EndProcessing marks the processing phase finished for the given publisher and
+// closes any ongoing download run. The tracker is retained so completed stats
+// remain visible until the next sync.
+func (ing *Ingester) EndProcessing(pubID peer.ID, err error) {
+	ing.syncStatusMu.Lock()
+	defer ing.syncStatusMu.Unlock()
+	st, ok := ing.syncStatus[pubID]
+	if !ok {
+		return
+	}
+	st.EndProcessing(err)
 }

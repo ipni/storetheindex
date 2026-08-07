@@ -78,6 +78,8 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 	mux.HandleFunc("/announce", s.putAnnounce)
 	mux.HandleFunc("/health", s.getHealth)
 	mux.HandleFunc("/register", s.postRegisterProvider)
+	mux.HandleFunc("/sync/status", s.listSyncStatus)
+	mux.HandleFunc("/sync/status/", s.getSyncStatus)
 	mux.HandleFunc("/sync/status/ad/", s.getAdStatus)
 
 	// Depricated
@@ -142,13 +144,93 @@ func (s *Server) getHealth(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, s.healthMsg, http.StatusOK)
 }
 
+func (s *Server) listSyncStatus(w http.ResponseWriter, r *http.Request) {
+	httpserver.EnableCors(w)
+
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+	if _, ok := httpserver.AcceptsMediaType(w, r, false, httpserver.MediaTypeJson, httpserver.MediaTypeAny); !ok {
+		return
+	}
+
+	if s.ingester == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	statuses := s.ingester.AllSyncStatuses()
+	if len(statuses) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	out := make(map[string]any, len(statuses))
+	for pubID, st := range statuses {
+		out[pubID.String()] = st
+	}
+
+	data, err := json.Marshal(out)
+	if err != nil {
+		log.Errorw("cannot marshal sync statuses", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
+func (s *Server) getSyncStatus(w http.ResponseWriter, r *http.Request) {
+	httpserver.EnableCors(w)
+
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+	if _, ok := httpserver.AcceptsMediaType(w, r, false, httpserver.MediaTypeJson, httpserver.MediaTypeAny); !ok {
+		return
+	}
+
+	pubID, err := peer.Decode(path.Base(r.URL.Path))
+	if err != nil {
+		msg := "Cannot decode peer id"
+		log.Errorw(msg, "id", path.Base(r.URL.Path), "err", err)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+
+	if s.ingester == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	st := s.ingester.SyncStatus(pubID)
+	if st == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	data, err := json.Marshal(st)
+	if err != nil {
+		log.Errorw("cannot marshal sync status", "err", err, "publisher", pubID)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
 type adStatusResponse struct {
 	Ad      string `json:"Ad"`
 	Indexed bool   `json:"Indexed"`
 }
 
 func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
+	httpserver.EnableCors(w)
+
 	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+	if _, ok := httpserver.AcceptsMediaType(w, r, false, httpserver.MediaTypeJson, httpserver.MediaTypeAny); !ok {
 		return
 	}
 

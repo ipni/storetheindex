@@ -324,7 +324,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 
 	// Mark the downloading phase and attach a byte counter so the link system
 	// write opener can attribute downloaded entry-block bytes to this sync.
-	syncStatus := ing.reg.SyncStatusFor(publisherID)
+	syncStatus := ing.SyncStatusFor(publisherID)
 	syncStatus.SetDownloading()
 	ctx = context.WithValue(ctx, syncStatusCtxKey{}, syncStatus)
 
@@ -416,7 +416,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	const batchSize = 4096
 
 	log = log.With("entriesKind", "hamt")
-	syncStatus := ing.reg.SyncStatusFor(publisherID)
+	syncStatus := ing.SyncStatusFor(publisherID)
 	// Keep track of all CIDs in the HAMT to remove them later when the
 	// processing is done.
 	hamtCids := []cid.Cid{entsCid}
@@ -513,7 +513,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 
 func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, entsCid cid.Cid, log *zap.SugaredLogger) (int, error) {
 	log = log.With("entriesKind", "EntryChunk")
-	syncStatus := ing.reg.SyncStatusFor(publisherID)
+	syncStatus := ing.SyncStatusFor(publisherID)
 
 	// We have already peeked at the first EntryChunk as part of probing
 	// the entries type, so process that first.
@@ -596,7 +596,7 @@ func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Adverti
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	syncStatus := ing.reg.SyncStatusFor(publisherID)
+	syncStatus := ing.SyncStatusFor(publisherID)
 
 	adBlock, adSource, err := ing.mirror.read(ctx, adCid, false)
 	if err != nil {
