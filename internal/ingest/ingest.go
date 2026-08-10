@@ -417,12 +417,15 @@ func removeProcessedFrozen(ctx context.Context, dstore datastore.Datastore) erro
 // will continue until either there are no more advertisements left or the
 // recursion depth limit is reached.
 //
+// The adCid argument, if not cid.Undef, specifies that the sync should only
+// include advertisements that are more recent than the ad identified by adCid.
+//
 // The reference to the latest synced advertisement returned by GetLatestSync
 // is only updated if the given depth is zero and resync is set to false.
 //
 // The Context argument controls the lifetime of the sync. Canceling it cancels
 // the sync and causes the multihash channel to close without any data.
-func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int, resync bool) (cid.Cid, error) {
+func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int, resync bool, adCid cid.Cid) (cid.Cid, error) {
 	err := peerInfo.ID.Validate()
 	if err != nil {
 		return cid.Undef, errors.New("invalid provider id")
@@ -459,6 +462,10 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 
 	if depth != 0 {
 		opts = append(opts, dagsync.ScopedDepthLimit(int64(depth)))
+	}
+
+	if adCid != cid.Undef {
+		opts = append(opts, dagsync.WithStopAdCid(adCid))
 	}
 
 	syncDone, cancel := ing.onAdProcessed(peerInfo.ID)
