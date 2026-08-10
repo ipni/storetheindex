@@ -3,8 +3,14 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"io/fs"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -39,13 +45,13 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 
 	t.Run("external only enables read without MainMode", func(t *testing.T) {
 		m, err := newMirror(config.Mirror{
-			External: external,
+			External: []config.StoreConfig{external},
 		}, ds)
 		require.NoError(t, err)
 		require.False(t, m.canWrite())
 		require.True(t, m.canRead())
 		require.Nil(t, m.mainCarReader)
-		require.NotNil(t, m.externalCarReader)
+		require.Len(t, m.externalCarReaders, 1)
 		require.Nil(t, m.mainCarWriter)
 	})
 
@@ -58,7 +64,7 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 		require.True(t, m.canWrite())
 		require.False(t, m.canRead())
 		require.Nil(t, m.mainCarReader)
-		require.Nil(t, m.externalCarReader)
+		require.Empty(t, m.externalCarReaders)
 		require.NotNil(t, m.mainCarWriter)
 		require.Nil(t, m.exposableFilestore)
 	})
@@ -67,13 +73,13 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 		m, err := newMirror(config.Mirror{
 			MainMode: config.MainModeWrite,
 			Main:     main,
-			External: external,
+			External: []config.StoreConfig{external},
 		}, ds)
 		require.NoError(t, err)
 		require.True(t, m.canWrite())
 		require.True(t, m.canRead())
 		require.Nil(t, m.mainCarReader)
-		require.NotNil(t, m.externalCarReader)
+		require.Len(t, m.externalCarReaders, 1)
 		require.NotNil(t, m.mainCarWriter)
 		require.Nil(t, m.exposableFilestore)
 	})
@@ -87,7 +93,7 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 		require.False(t, m.canWrite())
 		require.True(t, m.canRead())
 		require.NotNil(t, m.mainCarReader)
-		require.Nil(t, m.externalCarReader)
+		require.Empty(t, m.externalCarReaders)
 		require.Nil(t, m.mainCarWriter)
 		require.NotNil(t, m.exposableFilestore)
 	})
@@ -96,13 +102,13 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 		m, err := newMirror(config.Mirror{
 			MainMode: config.MainModeReadWrite,
 			Main:     main,
-			External: external,
+			External: []config.StoreConfig{external},
 		}, ds)
 		require.NoError(t, err)
 		require.True(t, m.canWrite())
 		require.True(t, m.canRead())
 		require.NotNil(t, m.mainCarReader)
-		require.NotNil(t, m.externalCarReader)
+		require.Len(t, m.externalCarReaders, 1)
 		require.NotNil(t, m.mainCarWriter)
 		require.NotNil(t, m.exposableFilestore)
 	})
@@ -116,17 +122,28 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 		require.True(t, m.canWrite())
 		require.True(t, m.canRead())
 		require.NotNil(t, m.mainCarReader)
-		require.Nil(t, m.externalCarReader)
+		require.Empty(t, m.externalCarReaders)
 	})
 
 	t.Run("external same as main is an error when main used", func(t *testing.T) {
 		_, err := newMirror(config.Mirror{
 			MainMode: config.MainModeReadWrite,
 			Main:     main,
-			External: main,
+			External: []config.StoreConfig{main},
 		}, ds)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "external retrieval cannot be the same as the main backend")
+		require.Contains(t, err.Error(), "cannot be the same as the main backend")
+	})
+
+	t.Run("multiple externals", func(t *testing.T) {
+		ext2 := localStoreConfig(t, "")
+		m, err := newMirror(config.Mirror{
+			MainMode: config.MainModeWrite,
+			Main:     main,
+			External: []config.StoreConfig{external, ext2},
+		}, ds)
+		require.NoError(t, err)
+		require.Len(t, m.externalCarReaders, 2)
 	})
 
 	t.Run("mixed compress applies independently to main and external", func(t *testing.T) {
@@ -136,12 +153,12 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 		m, err := newMirror(config.Mirror{
 			MainMode: config.MainModeReadWrite,
 			Main:     mainGzip,
-			External: externalNone,
+			External: []config.StoreConfig{externalNone},
 		}, ds)
 		require.NoError(t, err)
 		require.Equal(t, carstore.Gzip, m.mainCarWriter.Compression())
 		require.Equal(t, carstore.Gzip, m.mainCarReader.Compression())
-		require.Empty(t, m.externalCarReader.Compression())
+		require.Empty(t, m.externalCarReaders[0].Compression())
 	})
 }
 
@@ -156,7 +173,7 @@ func TestNewMirrorMixedCompressionRead(t *testing.T) {
 	m, err := newMirror(config.Mirror{
 		MainMode: config.MainModeReadWrite,
 		Main:     main,
-		External: external,
+		External: []config.StoreConfig{external},
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
 
@@ -169,6 +186,233 @@ func TestNewMirrorMixedCompressionRead(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, adDataSourceExternal, source)
 	require.Equal(t, externalAdCid, adBlock.Cid)
+}
+
+func TestExternalRaceFirstWin(t *testing.T) {
+	ctx := context.Background()
+	empty := localStoreConfig(t, carstore.Gzip)
+	withCAR := localStoreConfig(t, carstore.Gzip)
+	adCid := writeAdCAR(t, withCAR, carstore.Gzip)
+
+	m, err := newMirror(config.Mirror{
+		External: []config.StoreConfig{empty, withCAR},
+	}, dssync.MutexWrap(datastore.NewMapDatastore()))
+	require.NoError(t, err)
+	require.Len(t, m.externalCarReaders, 2)
+
+	adBlock, source, err := m.read(ctx, adCid, true)
+	require.NoError(t, err)
+	require.Equal(t, adDataSourceExternal, source)
+	require.Equal(t, adCid, adBlock.Cid)
+}
+
+func TestExternalRaceAllMiss(t *testing.T) {
+	ctx := context.Background()
+	empty1 := localStoreConfig(t, carstore.Gzip)
+	empty2 := localStoreConfig(t, carstore.Gzip)
+	adCid := writeAdCAR(t, localStoreConfig(t, carstore.Gzip), carstore.Gzip)
+
+	m, err := newMirror(config.Mirror{
+		External: []config.StoreConfig{empty1, empty2},
+	}, dssync.MutexWrap(datastore.NewMapDatastore()))
+	require.NoError(t, err)
+
+	_, source, err := m.read(ctx, adCid, true)
+	require.ErrorIs(t, err, fs.ErrNotExist)
+	require.Equal(t, adDataSourceNone, source)
+}
+
+func TestExternalRaceCancelled(t *testing.T) {
+	adCid, carPath, _ := makeAdCARBytes(t)
+
+	// Slow peer: blocks until the request is cancelled so we exercise the
+	// cancel path instead of an immediate local miss.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.TrimPrefix(r.URL.Path, "/") != carPath {
+			http.NotFound(w, r)
+			return
+		}
+		<-r.Context().Done()
+	}))
+	t.Cleanup(srv.Close)
+
+	m, err := newMirror(config.Mirror{
+		External: []config.StoreConfig{httpStoreConfig(srv.URL)},
+	}, dssync.MutexWrap(datastore.NewMapDatastore()))
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := m.read(ctx, adCid, true)
+		done <- err
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		// Depending on select timing, cancellation may surface as ctx.Err()
+		// or as a peer miss (context.Canceled treated as miss → fs.ErrNotExist).
+		require.True(t, errors.Is(err, context.Canceled) || errors.Is(err, fs.ErrNotExist),
+			"expected context.Canceled or fs.ErrNotExist, got %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("read did not return after cancel")
+	}
+}
+
+func TestExternalRaceFastResponseBeatsDelayed(t *testing.T) {
+	adCid, carPath, carData := makeAdCARBytes(t)
+
+	delayed := startCARHTTPServer(t, map[string][]byte{carPath: carData}, carHTTPServeOpts{
+		delayBeforeResponse: 500 * time.Millisecond,
+	})
+	fast := startCARHTTPServer(t, map[string][]byte{carPath: carData}, carHTTPServeOpts{})
+
+	m, err := newMirror(config.Mirror{
+		// Delayed mirror is listed first so a connection-order race would prefer it.
+		External: []config.StoreConfig{httpStoreConfig(delayed), httpStoreConfig(fast)},
+	}, dssync.MutexWrap(datastore.NewMapDatastore()))
+	require.NoError(t, err)
+
+	start := time.Now()
+	adBlock, source, err := m.read(context.Background(), adCid, true)
+	elapsed := time.Since(start)
+
+	require.NoError(t, err)
+	require.Equal(t, adDataSourceExternal, source)
+	require.Equal(t, adCid, adBlock.Cid)
+	require.Less(t, elapsed, 250*time.Millisecond,
+		"fast mirror should win before delayed mirror responds; elapsed=%s", elapsed)
+}
+
+func TestExternalRaceSkipsWrongRootCAR(t *testing.T) {
+	wantCid, wantPath, wantData := makeAdCARBytes(t)
+	_, _, otherData := makeAdCARBytes(t)
+
+	wrong := startCARHTTPServer(t, map[string][]byte{wantPath: otherData}, carHTTPServeOpts{})
+	good := startCARHTTPServer(t, map[string][]byte{wantPath: wantData}, carHTTPServeOpts{})
+
+	m, err := newMirror(config.Mirror{
+		External: []config.StoreConfig{httpStoreConfig(wrong), httpStoreConfig(good)},
+	}, dssync.MutexWrap(datastore.NewMapDatastore()))
+	require.NoError(t, err)
+
+	adBlock, source, err := m.read(context.Background(), wantCid, true)
+	require.NoError(t, err)
+	require.Equal(t, adDataSourceExternal, source)
+	require.Equal(t, wantCid, adBlock.Cid)
+
+	// Wrong-root-only mirrors are treated as misses.
+	mWrongOnly, err := newMirror(config.Mirror{
+		External: []config.StoreConfig{httpStoreConfig(wrong)},
+	}, dssync.MutexWrap(datastore.NewMapDatastore()))
+	require.NoError(t, err)
+	_, source, err = mWrongOnly.read(context.Background(), wantCid, true)
+	require.ErrorIs(t, err, fs.ErrNotExist)
+	require.Equal(t, adDataSourceNone, source)
+}
+
+func TestExternalRaceFastBeatsThrottledBody(t *testing.T) {
+	adCid, carPath, carData := makeAdCARBytes(t)
+	require.Greater(t, len(carData), 20, "CAR should be large enough for throttling to matter")
+
+	throttled := startCARHTTPServer(t, map[string][]byte{carPath: carData}, carHTTPServeOpts{
+		byteInterval: 100 * time.Millisecond,
+	})
+	fast := startCARHTTPServer(t, map[string][]byte{carPath: carData}, carHTTPServeOpts{})
+
+	m, err := newMirror(config.Mirror{
+		External: []config.StoreConfig{httpStoreConfig(throttled), httpStoreConfig(fast)},
+	}, dssync.MutexWrap(datastore.NewMapDatastore()))
+	require.NoError(t, err)
+
+	// Throttled mirror would need ~len(carData)*100ms to finish Read; fast should win quickly.
+	slowestPlausibleWin := time.Duration(len(carData)/2) * 100 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	adBlock, source, err := m.read(ctx, adCid, true)
+	elapsed := time.Since(start)
+
+	require.NoError(t, err)
+	require.Equal(t, adDataSourceExternal, source)
+	require.Equal(t, adCid, adBlock.Cid)
+	require.Less(t, elapsed, slowestPlausibleWin,
+		"fast mirror should win before throttled body delivers ad block; elapsed=%s carBytes=%d", elapsed, len(carData))
+}
+
+type carHTTPServeOpts struct {
+	delayBeforeResponse time.Duration
+	byteInterval        time.Duration
+}
+
+func startCARHTTPServer(t *testing.T, files map[string][]byte, opts carHTTPServeOpts) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		relPath := strings.TrimPrefix(r.URL.Path, "/")
+		data, ok := files[relPath]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		if opts.delayBeforeResponse > 0 {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(opts.delayBeforeResponse):
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		if opts.byteInterval <= 0 {
+			_, _ = w.Write(data)
+			return
+		}
+		flusher, _ := w.(http.Flusher)
+		for i := range data {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(opts.byteInterval):
+			}
+			if _, err := w.Write(data[i : i+1]); err != nil {
+				return
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+func httpStoreConfig(baseURL string) config.StoreConfig {
+	return config.StoreConfig{
+		Compress: "none",
+		Config: filestore.Config{
+			Type: "http",
+			HTTP: filestore.HTTPConfig{BaseURL: baseURL + "/"},
+		},
+	}
+}
+
+func makeAdCARBytes(t *testing.T) (cid.Cid, string, []byte) {
+	t.Helper()
+	storeCfg := localStoreConfig(t, "none")
+	adCid := writeAdCAR(t, storeCfg, "none")
+	fileStore, err := filestore.MakeFilestore(storeCfg.Config)
+	require.NoError(t, err)
+	carPath := adCid.String() + carstore.CarFileSuffix
+	_, r, err := fileStore.Get(context.Background(), carPath)
+	require.NoError(t, err)
+	defer r.Close()
+	carData, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.NotEmpty(t, carData)
+	return adCid, carPath, carData
 }
 
 func writeAdCAR(t *testing.T, storeCfg config.StoreConfig, compress string) cid.Cid {

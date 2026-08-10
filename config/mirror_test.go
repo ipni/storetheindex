@@ -22,7 +22,7 @@ func TestMirrorUnmarshalLegacyIdenticalToMain(t *testing.T) {
 		Type:  "local",
 		Local: filestore.LocalConfig{BasePath: "/mirror"},
 	}, m.Main.Config)
-	require.Empty(t, m.External.Type)
+	require.Nil(t, m.External)
 }
 
 func TestMirrorUnmarshalLegacyDistinctToMainAndExternal(t *testing.T) {
@@ -39,10 +39,11 @@ func TestMirrorUnmarshalLegacyDistinctToMainAndExternal(t *testing.T) {
 		Type:  "local",
 		Local: filestore.LocalConfig{BasePath: "/write"},
 	}, m.Main.Config)
+	require.Len(t, m.External, 1)
 	require.Equal(t, filestore.Config{
 		Type:  "local",
 		Local: filestore.LocalConfig{BasePath: "/read"},
-	}, m.External.Config)
+	}, m.External[0].Config)
 }
 
 func TestMirrorUnmarshalLegacyDistinctWriteOnly(t *testing.T) {
@@ -58,7 +59,7 @@ func TestMirrorUnmarshalLegacyDistinctWriteOnly(t *testing.T) {
 		Local: filestore.LocalConfig{BasePath: "/write"},
 	}, m.Main.Config)
 	// Retrieval is ignored when Read is false, so External is not enabled.
-	require.Empty(t, m.External.Type)
+	require.Nil(t, m.External)
 }
 
 func TestMirrorUnmarshalLegacyDistinctReadOnlyUsesRetrievalAsMain(t *testing.T) {
@@ -74,7 +75,7 @@ func TestMirrorUnmarshalLegacyDistinctReadOnlyUsesRetrievalAsMain(t *testing.T) 
 		Type:  "local",
 		Local: filestore.LocalConfig{BasePath: "/read"},
 	}, m.Main.Config)
-	require.Empty(t, m.External.Type)
+	require.Nil(t, m.External)
 }
 
 func TestMirrorUnmarshalLegacyDistinctUnusedSkipsConversion(t *testing.T) {
@@ -85,7 +86,7 @@ func TestMirrorUnmarshalLegacyDistinctUnusedSkipsConversion(t *testing.T) {
 	}`), &m))
 	require.Equal(t, config.MainModeUnspecified, m.MainMode)
 	require.Empty(t, m.Main.Type)
-	require.Empty(t, m.External.Type)
+	require.Nil(t, m.External)
 }
 
 func TestMirrorUnmarshalLegacyStorageOnly(t *testing.T) {
@@ -99,7 +100,7 @@ func TestMirrorUnmarshalLegacyStorageOnly(t *testing.T) {
 		Type:  "local",
 		Local: filestore.LocalConfig{BasePath: "/write"},
 	}, m.Main.Config)
-	require.Empty(t, m.External.Type)
+	require.Nil(t, m.External)
 }
 
 func TestMirrorUnmarshalLegacyStorageOnlyMasksRead(t *testing.T) {
@@ -114,7 +115,7 @@ func TestMirrorUnmarshalLegacyStorageOnlyMasksRead(t *testing.T) {
 		Type:  "local",
 		Local: filestore.LocalConfig{BasePath: "/write"},
 	}, m.Main.Config)
-	require.Empty(t, m.External.Type)
+	require.Nil(t, m.External)
 }
 
 func TestMirrorUnmarshalMixedBackendStylesError(t *testing.T) {
@@ -167,10 +168,10 @@ func TestMirrorUnmarshalLegacySkippedWhenUnused(t *testing.T) {
 	}`), &m))
 	require.Equal(t, config.MainModeUnspecified, m.MainMode)
 	require.Empty(t, m.Main.Type)
-	require.Empty(t, m.External.Type)
+	require.Nil(t, m.External)
 }
 
-func TestMirrorUnmarshalNewStyle(t *testing.T) {
+func TestMirrorUnmarshalNewStyleExternal(t *testing.T) {
 	var m config.Mirror
 	require.NoError(t, json.Unmarshal([]byte(`{
 		"MainMode": "readwrite",
@@ -179,11 +180,11 @@ func TestMirrorUnmarshalNewStyle(t *testing.T) {
 			"Local": {"BasePath": "/main"},
 			"Compress": "gzip"
 		},
-		"External": {
+		"External": [{
 			"Type": "http",
 			"HTTP": {"BaseURL": "http://example/carmirror/"},
 			"Compress": "none"
-		}
+		}]
 	}`), &m))
 	require.Equal(t, config.MainModeReadWrite, m.MainMode)
 	require.Equal(t, config.StoreConfig{
@@ -193,13 +194,29 @@ func TestMirrorUnmarshalNewStyle(t *testing.T) {
 		},
 		Compress: "gzip",
 	}, m.Main)
+	require.Len(t, m.External, 1)
 	require.Equal(t, config.StoreConfig{
 		Config: filestore.Config{
 			Type: "http",
 			HTTP: filestore.HTTPConfig{BaseURL: "http://example/carmirror/"},
 		},
 		Compress: "none",
-	}, m.External)
+	}, m.External[0])
+}
+
+func TestMirrorUnmarshalNewStyleArrayExternal(t *testing.T) {
+	var m config.Mirror
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"MainMode": "write",
+		"Main": {"Type": "local", "Local": {"BasePath": "/main"}},
+		"External": [
+			{"Type": "http", "HTTP": {"BaseURL": "http://a/carmirror/"}, "Compress": "gzip"},
+			{"Type": "http", "HTTP": {"BaseURL": "http://b/carmirror/"}, "Compress": "gzip"}
+		]
+	}`), &m))
+	require.Len(t, m.External, 2)
+	require.Equal(t, "http://a/carmirror/", m.External[0].HTTP.BaseURL)
+	require.Equal(t, "http://b/carmirror/", m.External[1].HTTP.BaseURL)
 }
 
 func TestMirrorUnmarshalLegacyTopLevelCompress(t *testing.T) {
@@ -208,10 +225,11 @@ func TestMirrorUnmarshalLegacyTopLevelCompress(t *testing.T) {
 		"Compress": "gzip",
 		"MainMode": "readwrite",
 		"Main": {"Type": "local", "Local": {"BasePath": "/main"}},
-		"External": {"Type": "http", "HTTP": {"BaseURL": "http://example/carmirror/"}}
+		"External": [{"Type": "http", "HTTP": {"BaseURL": "http://example/carmirror/"}}]
 	}`), &m))
 	require.Equal(t, "gzip", m.Main.Compress)
-	require.Equal(t, "gzip", m.External.Compress)
+	require.Len(t, m.External, 1)
+	require.Equal(t, "gzip", m.External[0].Compress)
 	require.Equal(t, filestore.Config{
 		Type:  "local",
 		Local: filestore.LocalConfig{BasePath: "/main"},
@@ -219,7 +237,7 @@ func TestMirrorUnmarshalLegacyTopLevelCompress(t *testing.T) {
 	require.Equal(t, filestore.Config{
 		Type: "http",
 		HTTP: filestore.HTTPConfig{BaseURL: "http://example/carmirror/"},
-	}, m.External.Config)
+	}, m.External[0].Config)
 }
 
 func TestMirrorUnmarshalLegacyTopLevelCompressMainOnly(t *testing.T) {
@@ -230,8 +248,7 @@ func TestMirrorUnmarshalLegacyTopLevelCompressMainOnly(t *testing.T) {
 		"Main": {"Type": "local", "Local": {"BasePath": "/main"}}
 	}`), &m))
 	require.Equal(t, "none", m.Main.Compress)
-	require.Empty(t, m.External.Compress)
-	require.Empty(t, m.External.Type)
+	require.Nil(t, m.External)
 }
 
 func TestMirrorUnmarshalMixedCompressStylesError(t *testing.T) {
@@ -263,5 +280,5 @@ func TestMirrorUnmarshalIgnoresFallbackRetrieval(t *testing.T) {
 		Type:  "local",
 		Local: filestore.LocalConfig{BasePath: "/main"},
 	}, m.Main.Config)
-	require.Empty(t, m.External.Type)
+	require.Nil(t, m.External)
 }

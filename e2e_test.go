@@ -613,7 +613,7 @@ func TestEndToEndCarMirrorFallback(t *testing.T) {
 				},
 			},
 		},
-		External: config.StoreConfig{
+		External: []config.StoreConfig{{
 			Compress: "gzip",
 			Config: filestore.Config{
 				Type: "http",
@@ -621,7 +621,7 @@ func TestEndToEndCarMirrorFallback(t *testing.T) {
 					BaseURL: indexer1CarMirrorURL,
 				},
 			},
-		},
+		}},
 	}
 	require.NoError(t, cfg.Save(sti3CfgPath))
 
