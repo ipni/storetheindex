@@ -85,6 +85,12 @@ func (cw *CarWriter) Compression() string {
 	return cw.compAlg
 }
 
+// Location returns a stable identifier for the underlying filestore that
+// this CAR writer writes to.
+func (cw *CarWriter) Location() string {
+	return cw.fileStore.Location()
+}
+
 // Write reads the advertisement, specified by CID, from the datastore and
 // writes the advertisement and its entries into a CAR file. The CAR file is
 // named with the advertisement CID, and is stored using the FileStore provided

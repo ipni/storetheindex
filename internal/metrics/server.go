@@ -18,6 +18,7 @@ var (
 	Found, _    = tag.NewKey("found")
 	Method, _   = tag.NewKey("method")
 	AdSource, _ = tag.NewKey("adSource")
+	Location, _ = tag.NewKey("location")
 )
 
 // Measures
@@ -85,12 +86,12 @@ var (
 	adLoadSource = &view.View{
 		Measure:     AdLoadSourceCount,
 		Aggregation: view.Count(),
-		TagKeys:     []tag.Key{AdSource},
+		TagKeys:     []tag.Key{AdSource, Location},
 	}
 	adWriteSource = &view.View{
 		Measure:     AdWriteSourceCount,
 		Aggregation: view.Count(),
-		TagKeys:     []tag.Key{AdSource},
+		TagKeys:     []tag.Key{AdSource, Location},
 	}
 	adLoadError = &view.View{
 		Measure:     AdLoadError,
@@ -99,7 +100,7 @@ var (
 	carMirrorReadLatencyView = &view.View{
 		Measure:     CarMirrorReadLatency,
 		Aggregation: view.Distribution(0, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 1000, 2000, 5000),
-		TagKeys:     []tag.Key{AdSource},
+		TagKeys:     []tag.Key{AdSource, Location},
 	}
 	providerFetchLatencyView = &view.View{
 		Measure:     ProviderFetchLatency,

@@ -177,12 +177,12 @@ func TestNewMirrorMixedCompressionRead(t *testing.T) {
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
 
-	adBlock, source, err := m.read(ctx, mainAdCid, true)
+	adBlock, source, _, err := m.read(ctx, mainAdCid, true)
 	require.NoError(t, err)
 	require.Equal(t, adDataSourceMain, source)
 	require.Equal(t, mainAdCid, adBlock.Cid)
 
-	adBlock, source, err = m.read(ctx, externalAdCid, true)
+	adBlock, source, _, err = m.read(ctx, externalAdCid, true)
 	require.NoError(t, err)
 	require.Equal(t, adDataSourceExternal, source)
 	require.Equal(t, externalAdCid, adBlock.Cid)
@@ -200,7 +200,7 @@ func TestExternalRaceFirstWin(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, m.externalCarReaders, 2)
 
-	adBlock, source, err := m.read(ctx, adCid, true)
+	adBlock, source, _, err := m.read(ctx, adCid, true)
 	require.NoError(t, err)
 	require.Equal(t, adDataSourceExternal, source)
 	require.Equal(t, adCid, adBlock.Cid)
@@ -217,7 +217,7 @@ func TestExternalRaceAllMiss(t *testing.T) {
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
 
-	_, source, err := m.read(ctx, adCid, true)
+	_, source, _, err := m.read(ctx, adCid, true)
 	require.ErrorIs(t, err, fs.ErrNotExist)
 	require.Equal(t, adDataSourceNone, source)
 }
@@ -244,7 +244,7 @@ func TestExternalRaceCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := m.read(ctx, adCid, true)
+		_, _, _, err := m.read(ctx, adCid, true)
 		done <- err
 	}()
 
@@ -277,7 +277,7 @@ func TestExternalRaceFastResponseBeatsDelayed(t *testing.T) {
 	require.NoError(t, err)
 
 	start := time.Now()
-	adBlock, source, err := m.read(context.Background(), adCid, true)
+	adBlock, source, _, err := m.read(context.Background(), adCid, true)
 	elapsed := time.Since(start)
 
 	require.NoError(t, err)
@@ -299,7 +299,7 @@ func TestExternalRaceSkipsWrongRootCAR(t *testing.T) {
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
 
-	adBlock, source, err := m.read(context.Background(), wantCid, true)
+	adBlock, source, _, err := m.read(context.Background(), wantCid, true)
 	require.NoError(t, err)
 	require.Equal(t, adDataSourceExternal, source)
 	require.Equal(t, wantCid, adBlock.Cid)
@@ -309,7 +309,7 @@ func TestExternalRaceSkipsWrongRootCAR(t *testing.T) {
 		External: []config.StoreConfig{httpStoreConfig(wrong)},
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
-	_, source, err = mWrongOnly.read(context.Background(), wantCid, true)
+	_, source, _, err = mWrongOnly.read(context.Background(), wantCid, true)
 	require.ErrorIs(t, err, fs.ErrNotExist)
 	require.Equal(t, adDataSourceNone, source)
 }
@@ -334,7 +334,7 @@ func TestExternalRaceFastBeatsThrottledBody(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	adBlock, source, err := m.read(ctx, adCid, true)
+	adBlock, source, _, err := m.read(ctx, adCid, true)
 	elapsed := time.Since(start)
 
 	require.NoError(t, err)

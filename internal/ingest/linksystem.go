@@ -149,7 +149,20 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // is the source of the indexed content, the provider is where content can be
 // retrieved from. It is the provider ID that needs to be stored by the
 // indexer.
-func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid cid.Cid, resync, frozen bool, lag int, headProvider peer.AddrInfo, wkrNum int) (bool, adDataSource, error) {
+func (ing *Ingester) ingestAd(
+	ctx context.Context,
+	publisherID peer.ID,
+	adCid cid.Cid,
+	resync, frozen bool,
+	lag int,
+	headProvider peer.AddrInfo,
+	wkrNum int,
+) (
+	hasEnts bool,
+	source adDataSource,
+	location string,
+	err error,
+) {
 	log := log.With("publisher", publisherID, "adCid", adCid, "worker", wkrNum)
 
 	ad, err := ing.loadAd(adCid)
@@ -158,7 +171,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		log.Errorw("Failed to load advertisement, skipping", "err", err)
 		// The ad cannot be loaded, so we cannot process it. Return nil so that
 		// the ad is marked as processed and is removed from the datastore.
-		return false, adDataSourceNone, nil
+		return false, adDataSourceNone, "", nil
 	}
 
 	stats.Record(ctx, metrics.IngestChange.M(1))
@@ -215,11 +228,11 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	if ad.ExtendedProvider != nil {
 		log.Debug("Advertisement has extended providers")
 		if ad.IsRm {
-			return false, adDataSourceNone, adIngestError{adIngestIndexerErr, fmt.Errorf("rm ads can not have extended providers")}
+			return false, adDataSourceNone, "", adIngestError{adIngestIndexerErr, fmt.Errorf("rm ads can not have extended providers")}
 		}
 
 		if len(ad.ContextID) == 0 && ad.ExtendedProvider.Override {
-			return false, adDataSourceNone, adIngestError{adIngestIndexerErr, fmt.Errorf("override can not be set on extended provider without context id")}
+			return false, adDataSourceNone, "", adIngestError{adIngestIndexerErr, fmt.Errorf("override can not be set on extended provider without context id")}
 		}
 
 		extendedProviders = &registry.ExtendedProviders{
@@ -232,7 +245,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		for _, ep := range ad.ExtendedProvider.Providers {
 			epID, err := peer.Decode(ep.ID)
 			if err != nil {
-				return false, adDataSourceNone, adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not decode extended provider id: %w", err)}
+				return false, adDataSourceNone, "", adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not decode extended provider id: %w", err)}
 			}
 
 			eProvs = append(eProvs, registry.ExtendedProviderInfo{
@@ -270,7 +283,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		// to the chain in the future may have a valid address than can be
 		// used, allowing all the previous ads without valid addresses to be
 		// processed.
-		return false, adDataSourceNone, adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not update provider info: %w", err)}
+		return false, adDataSourceNone, "", adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not update provider info: %w", err)}
 	}
 
 	log = log.With("contextID", base64.StdEncoding.EncodeToString(ad.ContextID))
@@ -279,19 +292,19 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		log.Info("Advertisement is for removal by context id")
 		err = ing.indexer.RemoveProviderContext(providerID, ad.ContextID)
 		if err != nil {
-			return false, adDataSourceNone, adIngestError{adIngestIndexerErr, fmt.Errorf("%w: failed to remove provider context: %w", errInternal, err)}
+			return false, adDataSourceNone, "", adIngestError{adIngestIndexerErr, fmt.Errorf("%w: failed to remove provider context: %w", errInternal, err)}
 		}
-		return false, adDataSourceNone, nil
+		return false, adDataSourceNone, "", nil
 	}
 
 	if len(ad.Metadata) == 0 {
 		// If the ad has no metadata and no entries, then the ad is only for
 		// updating provider addresses. Otherwise it is an error.
 		if ad.Entries != schema.NoEntries {
-			return false, adDataSourceNone, adIngestError{adIngestMalformedErr, fmt.Errorf("advertisement missing metadata")}
+			return false, adDataSourceNone, "", adIngestError{adIngestMalformedErr, fmt.Errorf("advertisement missing metadata")}
 		}
 		log.Info("Advertisement is for provider address update only")
-		return false, adDataSourceNone, nil
+		return false, adDataSourceNone, "", nil
 	}
 
 	// If advertisement has no entries, then it is for updating metadata only.
@@ -310,14 +323,14 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		}
 		err = ing.indexer.Put(value)
 		if err != nil {
-			return false, adDataSourceNone, adIngestError{adIngestIndexerErr, fmt.Errorf("%w: failed to update metadata: %w", errInternal, err)}
+			return false, adDataSourceNone, "", adIngestError{adIngestIndexerErr, fmt.Errorf("%w: failed to update metadata: %w", errInternal, err)}
 		}
-		return false, adDataSourceNone, nil
+		return false, adDataSourceNone, "", nil
 	}
 
 	entriesCid := ad.Entries.(cidlink.Link).Cid
 	if entriesCid == cid.Undef {
-		return false, adDataSourceNone, adIngestError{adIngestMalformedErr, errors.New("advertisement entries link is undefined")}
+		return false, adDataSourceNone, "", adIngestError{adIngestMalformedErr, errors.New("advertisement entries link is undefined")}
 	}
 
 	log.Debug("Advertisement has entries to sync")
@@ -340,16 +353,19 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	if ing.mirror.canRead() {
 		log.Debug("Attempting to fetch entries from CAR mirror")
 		carReadStart := time.Now()
-		mhCount, adSource, err := ing.ingestEntriesFromCar(ctx, ad, publisherID, providerID, adCid, entriesCid, log)
+		mhCount, adSource, adSourceLocation, err := ing.ingestEntriesFromCar(ctx, ad, publisherID, providerID, adCid, entriesCid, log)
 		hasEnts := mhCount != 0
 		// If entries data successfully read from CAR file.
 		if err == nil {
 			elapsedMsec := float64(time.Since(carReadStart).Nanoseconds()) / 1e6
 			stats.RecordWithOptions(ctx,
 				stats.WithMeasurements(metrics.CarMirrorReadLatency.M(elapsedMsec)),
-				stats.WithTags(tag.Insert(metrics.AdSource, adSource.String())))
+				stats.WithTags(
+					tag.Insert(metrics.AdSource, adSource.String()),
+					tag.Insert(metrics.Location, adSourceLocation),
+				))
 			ing.mhsFromMirror.Add(uint64(mhCount))
-			return hasEnts, adSource, nil
+			return hasEnts, adSource, adSourceLocation, nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
 			log.Errorw("Cannot get advertisement from CAR mirror", "err", err)
@@ -358,15 +374,15 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 				switch adIngestErr.state {
 				case adIngestIndexerErr:
 					// Could not store multihashes in core, so stop trying to index ad.
-					return hasEnts, adDataSourceNone, err
+					return hasEnts, adDataSourceNone, "", err
 				case adIngestContentNotFound:
 					// No entries data in CAR file. Entries data deleted later
 					// in chain unknown to this indexer, or publisher not
 					// serving entries data.
-					return hasEnts, adDataSourceNone, err
+					return hasEnts, adDataSourceNone, "", err
 				}
 			} else if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return hasEnts, adDataSourceNone, err
+				return hasEnts, adDataSourceNone, "", err
 			}
 			// If any other error, proceed and try to fetch from publisher.
 		} else {
@@ -384,14 +400,14 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 	if err != nil {
 		wrappedErr := fmt.Errorf("failed to sync first entry while checking entries type: %w", err)
 		if errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found") {
-			return false, adDataSourceNone, adIngestError{adIngestContentNotFound, wrappedErr}
+			return false, adDataSourceNone, "", adIngestError{adIngestContentNotFound, wrappedErr}
 		}
-		return false, adDataSourceNone, adIngestError{adIngestSyncEntriesErr, wrappedErr}
+		return false, adDataSourceNone, "", adIngestError{adIngestSyncEntriesErr, wrappedErr}
 	}
 
 	node, err := ing.loadNode(entriesCid, basicnode.Prototype.Any)
 	if err != nil {
-		return false, adDataSourceNone, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load first entry after sync: %w", err)}
+		return false, adDataSourceNone, "", adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load first entry after sync: %w", err)}
 	}
 
 	if isHAMT(node) {
@@ -408,7 +424,7 @@ func (ing *Ingester) ingestAd(ctx context.Context, publisherID peer.ID, adCid ci
 		stats.Record(ctx, metrics.ProviderFetchLatency.M(elapsedMsec))
 	}
 
-	return mhCount != 0, adDataSourceProvider, err
+	return mhCount != 0, adDataSourceProvider, "", err
 }
 
 func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, entsCid cid.Cid, log *zap.SugaredLogger) (int, error) {
@@ -591,16 +607,27 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 	return mhCount, nil
 }
 
-func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, adCid, entsCid cid.Cid, log *zap.SugaredLogger) (int, adDataSource, error) {
+func (ing *Ingester) ingestEntriesFromCar(
+	ctx context.Context,
+	ad schema.Advertisement,
+	publisherID, providerID peer.ID,
+	adCid, entsCid cid.Cid,
+	log *zap.SugaredLogger,
+) (
+	mhCount int,
+	source adDataSource,
+	adSourcelocation string,
+	err error,
+) {
 	// Create a context to cancel reading entries.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	syncStatus := ing.reg.SyncStatusFor(publisherID)
 
-	adBlock, adSource, err := ing.mirror.read(ctx, adCid, false)
+	adBlock, adSource, adSourcelocation, err := ing.mirror.read(ctx, adCid, false)
 	if err != nil {
-		return 0, adDataSourceNone, err
+		return 0, adDataSourceNone, "", err
 	}
 
 	var firstEntryBlock carstore.EntryBlock
@@ -613,24 +640,24 @@ func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Adverti
 		// the chain and the indexer ingesting this advertisement does not know
 		// that yet, or the publisher was not serving content for the
 		// advertisement's entries CID when this CAR file was created.
-		return 0, adDataSourceNone, adIngestError{adIngestContentNotFound, errors.New("advertisement has no entries")}
+		return 0, adDataSourceNone, "", adIngestError{adIngestContentNotFound, errors.New("advertisement has no entries")}
 	}
 	if firstEntryBlock.Cid != entsCid {
-		return 0, adDataSourceNone, fmt.Errorf("advertisement entries cid does not match first entry chunk cid in car file")
+		return 0, adDataSourceNone, "", fmt.Errorf("advertisement entries cid does not match first entry chunk cid in car file")
 	}
 
 	chunk, err := firstEntryBlock.EntryChunk()
 	if err != nil {
-		return 0, adDataSourceNone, err
+		return 0, adDataSourceNone, "", err
 	}
 
 	log = log.With("entriesKind", "CarEntryChunk")
 
 	err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
 	if err != nil {
-		return 0, adDataSourceNone, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
+		return 0, adDataSourceNone, "", adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
 	}
-	mhCount := len(chunk.Entries)
+	mhCount = len(chunk.Entries)
 	syncStatus.AddChunk(len(chunk.Entries))
 
 	// If got data from a mirror, and writing to a different mirror, then put
@@ -638,33 +665,33 @@ func (ing *Ingester) ingestEntriesFromCar(ctx context.Context, ad schema.Adverti
 	copyMirrorData := ing.mirror.canWrite() && adSource.canBeWritten()
 	if copyMirrorData {
 		if err = ing.dsTmp.Put(ctx, datastore.NewKey(entsCid.String()), firstEntryBlock.Data); err != nil {
-			return mhCount, adDataSourceNone, fmt.Errorf("cannot write first entry chunk data from mirror to datastore: %w", err)
+			return mhCount, adDataSourceNone, "", fmt.Errorf("cannot write first entry chunk data from mirror to datastore: %w", err)
 		}
 	}
 
 	for entryBlock := range adBlock.Entries {
 		if entryBlock.Err != nil {
-			return mhCount, adDataSourceNone, entryBlock.Err
+			return mhCount, adDataSourceNone, "", entryBlock.Err
 		}
 		chunk, err = entryBlock.EntryChunk()
 		if err != nil {
-			return mhCount, adDataSourceNone, fmt.Errorf("failed to decode entry chunk from car file data: %w", err)
+			return mhCount, adDataSourceNone, "", fmt.Errorf("failed to decode entry chunk from car file data: %w", err)
 		}
 		err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
 		if err != nil {
-			return mhCount, adDataSourceNone, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
+			return mhCount, adDataSourceNone, "", adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
 		}
 		mhCount += len(chunk.Entries)
 		syncStatus.AddChunk(len(chunk.Entries))
 
 		if copyMirrorData {
 			if err = ing.dsTmp.Put(ctx, datastore.NewKey(entryBlock.Cid.String()), entryBlock.Data); err != nil {
-				return mhCount, adDataSourceNone, fmt.Errorf("cannot write entry chunk data from mirror to datastore: %w", err)
+				return mhCount, adDataSourceNone, "", fmt.Errorf("cannot write entry chunk data from mirror to datastore: %w", err)
 			}
 		}
 	}
 
-	return mhCount, adSource, nil
+	return mhCount, adSource, adSourcelocation, nil
 }
 
 // indexAdMultihashes filters out invalid multihashes and indexes those

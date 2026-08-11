@@ -29,8 +29,9 @@ const (
 
 // HTTP is a read-only file store client that accesses files over HTTP.
 type HTTP struct {
-	baseURL *url.URL
-	client  *http.Client
+	baseURL  *url.URL
+	client   *http.Client
+	location string
 }
 
 // NewHTTP creates an HTTP file store client. prefix is the base URL; file paths
@@ -60,9 +61,14 @@ func NewHTTP(baseURL string, options ...HTTPOption) (*HTTP, error) {
 	}
 
 	return &HTTP{
-		baseURL: u,
-		client:  client,
+		baseURL:  u,
+		client:   client,
+		location: u.Host,
 	}, nil
+}
+
+func (h *HTTP) Location() string {
+	return h.location
 }
 
 func (h *HTTP) Delete(ctx context.Context, relPath string) error {

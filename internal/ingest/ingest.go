@@ -1234,7 +1234,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 
 		syncStatus.SetCurrentAd(ai.cid, count)
 
-		hasEnts, adDataSource, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider, wkrNum)
+		hasEnts, adDataSource, location, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider, wkrNum)
 		if err != nil {
 			syncStatus.IncError()
 			var adIngestErr adIngestError
@@ -1290,7 +1290,10 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			if hasEnts {
 				stats.RecordWithOptions(context.Background(),
 					stats.WithMeasurements(metrics.AdLoadSourceCount.M(1)),
-					stats.WithTags(tag.Insert(metrics.AdSource, adDataSource.String())))
+					stats.WithTags(
+						tag.Insert(metrics.AdSource, adDataSource.String()),
+						tag.Insert(metrics.Location, location),
+					))
 			}
 		}
 
@@ -1328,7 +1331,10 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 					// Record where the data written to the CAR mirror came from.
 					stats.RecordWithOptions(context.Background(),
 						stats.WithMeasurements(metrics.AdWriteSourceCount.M(1)),
-						stats.WithTags(tag.Insert(metrics.AdSource, adDataSource.String())))
+						stats.WithTags(
+							tag.Insert(metrics.AdSource, adDataSource.String()),
+							tag.Insert(metrics.Location, location),
+						))
 				}
 			}
 		}

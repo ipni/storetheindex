@@ -68,34 +68,52 @@ func (d adDataSource) canBeWritten() bool {
 	}
 }
 
-func (m adMirror) read(ctx context.Context, adCid cid.Cid, skipEntries bool) (adBlock *carstore.AdBlock, source adDataSource, err error) {
+func (m adMirror) read(
+	ctx context.Context,
+	adCid cid.Cid,
+	skipEntries bool,
+) (
+	adBlock *carstore.AdBlock,
+	source adDataSource,
+	location string,
+	err error,
+) {
 	var mainMissErr error
 	if m.mainCarReader != nil {
 		adBlock, err = m.mainCarReader.Read(ctx, adCid, skipEntries)
 		if err == nil {
 			// Main hit, no need to try External
-			return adBlock, adDataSourceMain, nil
+			return adBlock, adDataSourceMain, m.mainCarReader.Location(), nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
-			return nil, adDataSourceNone, err
+			return nil, adDataSourceNone, "", err
 		}
 		mainMissErr = err
 	}
 
-	adBlock, source, err = m.readExternalRace(ctx, adCid, skipEntries)
+	adBlock, source, location, err = m.readExternalRace(ctx, adCid, skipEntries)
 	// Prefer Main miss when present so ingestion is not interrupted by External issues.
 	if errors.Is(err, fs.ErrNotExist) && mainMissErr != nil {
-		return nil, adDataSourceNone, mainMissErr
+		return nil, adDataSourceNone, "", mainMissErr
 	}
-	return adBlock, source, err
+	return adBlock, source, location, err
 }
 
 // readExternalRace races all External readers. The first successful Read wins;
 // others are cancelled. 404s and other errors are misses. If every peer misses,
 // or no External readers are configured, returns fs.ErrNotExist.
-func (m adMirror) readExternalRace(ctx context.Context, adCid cid.Cid, skipEntries bool) (*carstore.AdBlock, adDataSource, error) {
+func (m adMirror) readExternalRace(
+	ctx context.Context,
+	adCid cid.Cid,
+	skipEntries bool,
+) (
+	block *carstore.AdBlock,
+	source adDataSource,
+	location string,
+	err error,
+) {
 	if len(m.externalCarReaders) == 0 {
-		return nil, adDataSourceNone, fs.ErrNotExist
+		return nil, adDataSourceNone, "", fs.ErrNotExist
 	}
 
 	type externalReadResult struct {
@@ -130,7 +148,7 @@ func (m adMirror) readExternalRace(ctx context.Context, adCid cid.Cid, skipEntri
 	for range n {
 		select {
 		case <-ctx.Done():
-			return nil, adDataSourceNone, ctx.Err()
+			return nil, adDataSourceNone, "", ctx.Err()
 
 		case res := <-results:
 			switch {
@@ -138,7 +156,7 @@ func (m adMirror) readExternalRace(ctx context.Context, adCid cid.Cid, skipEntri
 				// Overwrite the cancel function for the winner so it is not called when the context is cancelled.
 				cancels[res.idx] = func() {}
 				log.Debugw("External CAR mirror race won", "index", res.idx, "adCid", adCid)
-				return res.block, adDataSourceExternal, nil
+				return res.block, adDataSourceExternal, m.externalCarReaders[res.idx].Location(), nil
 
 			case errors.Is(res.err, fs.ErrNotExist), errors.Is(res.err, context.Canceled):
 				log.Debugw("External CAR mirror race lost", "index", res.idx, "adCid", adCid)
@@ -149,7 +167,7 @@ func (m adMirror) readExternalRace(ctx context.Context, adCid cid.Cid, skipEntri
 		}
 	}
 
-	return nil, adDataSourceNone, fs.ErrNotExist
+	return nil, adDataSourceNone, "", fs.ErrNotExist
 }
 
 func (m adMirror) write(ctx context.Context, adCid cid.Cid, skipEntries, noOverwrite bool) (*filestore.File, error) {

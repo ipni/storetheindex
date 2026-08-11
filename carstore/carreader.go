@@ -103,6 +103,12 @@ func (cr CarReader) Compression() string {
 	return cr.compAlg
 }
 
+// Location returns a stable identifier for the underlying filestore that
+// serves this CAR data.
+func (cr CarReader) Location() string {
+	return cr.fileStore.Location()
+}
+
 // Read reads an advertisement CAR file, identitfied by the advertisement CID
 // and returns the advertisement data and a channel to read blocks of multihash
 // entries. Returns fs.ErrNotExist if file is not found.
