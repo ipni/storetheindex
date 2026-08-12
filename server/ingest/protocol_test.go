@@ -425,8 +425,19 @@ func TestAdStatusBatch(t *testing.T) {
 	require.Equal(t, http.StatusOK, status)
 	require.Contains(t, body, `"Error"`)
 	require.Contains(t, body, `"Ad":"not-a-cid"`)
-	// Error entries omit State: Frozen immediately precedes Error (no State/SkipReason between them)
-	require.Contains(t, body, `"Frozen":false,"Error"`)
+
+	// Unmarshal to verify error entries omit State/SkipReason and raw-codec entry is correct
+	var batchResp map[string][]map[string]any
+	require.NoError(t, json.Unmarshal([]byte(body), &batchResp))
+	statuses := batchResp["Statuses"]
+	require.Len(t, statuses, 4)
+	// "not-a-cid" entry (index 2): no State key
+	require.False(t, func() bool { _, ok := statuses[2]["State"]; return ok }(), "error entry should not have State")
+	require.False(t, func() bool { _, ok := statuses[2]["SkipReason"]; return ok }(), "error entry should not have SkipReason")
+	// raw-codec entry (index 3): Ad is canonicalized, error mentions supported codecs
+	require.Equal(t, rawCid.String(), statuses[3]["Ad"])
+	require.Contains(t, statuses[3]["Error"].(string), "dag-json")
+	require.Contains(t, statuses[3]["Error"].(string), "dag-cbor")
 
 	// All-invalid batch still returns 200
 	status, _, body = postBatch(t, []string{"not-a-cid", "also-not-a-cid"})

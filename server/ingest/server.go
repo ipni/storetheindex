@@ -323,6 +323,7 @@ func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		if r.Method == http.MethodOptions {
+			// Mirrors httpserver.MethodOK: respond 200 to CORS preflight.
 			http.Error(w, "", http.StatusOK)
 			return
 		}
