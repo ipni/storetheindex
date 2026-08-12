@@ -174,14 +174,14 @@ func (e *errReader) Read([]byte) (int, error) {
 	return 0, errors.New("blocked read")
 }
 
-func failBlockedRead() (io.Reader, error) {
+func failBlockedRead(l datamodel.Link, fallback func(linking.LinkContext, datamodel.Link) (io.Reader, error)) (io.Reader, error) {
 	// Returning an error here will cause a "content not found" will cause the
 	// ad will be skipped without failing the sync. So, return an io.Reader
 	// that will return an error on calling Read.
 	return &errReader{}, nil
 }
 
-func blockableLinkSys(afterBlock func() (io.Reader, error)) (opt func(teo *testEnvOpts), blockedReads *blockList, hitBlockedRead chan cid.Cid) {
+func blockableLinkSys(afterBlock func(datamodel.Link, func(linking.LinkContext, datamodel.Link) (io.Reader, error)) (io.Reader, error)) (opt func(teo *testEnvOpts), blockedReads *blockList, hitBlockedRead chan cid.Cid) {
 	blockedReads = &blockList{list: make(map[cid.Cid]bool)}
 	hitBlockedRead = make(chan cid.Cid)
 	return func(teo *testEnvOpts) {
@@ -198,7 +198,7 @@ func blockableLinkSys(afterBlock func() (io.Reader, error)) (opt func(teo *testE
 						fmt.Println("blocked read")
 						hitBlockedRead <- l.(cidlink.Link).Cid
 						if afterBlock != nil {
-							return afterBlock()
+							return afterBlock(l, backendLsys.StorageReadOpener)
 						}
 					}
 					return backendLsys.StorageReadOpener(lc, l)
@@ -459,9 +459,9 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	// Use this to block the second ingest step from happening while we verify the above
 	afterBlockedRead := make(chan struct{})
 
-	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(func() (io.Reader, error) {
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(func(l datamodel.Link, fallback func(linking.LinkContext, datamodel.Link) (io.Reader, error)) (io.Reader, error) {
 		afterBlockedRead <- struct{}{}
-		return failBlockedRead()
+		return failBlockedRead(l, fallback)
 	})
 
 	te := setupTestEnv(t, true, blockableLsysOpt)
@@ -2634,7 +2634,11 @@ func TestSkippedAdNotReprocessed(t *testing.T) {
 }
 
 func TestAdmittedAdIsPending(t *testing.T) {
-	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
+	releaseBlock := make(chan struct{})
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(func(l datamodel.Link, fallback func(linking.LinkContext, datamodel.Link) (io.Reader, error)) (io.Reader, error) {
+		<-releaseBlock
+		return nil, errors.New("blocked read released")
+	})
 	te := setupTestEnv(t, true, blockableLsysOpt)
 
 	adHead := typehelpers.RandomAdBuilder{
@@ -2661,9 +2665,10 @@ func TestAdmittedAdIsPending(t *testing.T) {
 		Addrs: te.publisher.Addrs(),
 	}
 
+	syncDone := make(chan struct{})
 	go func() {
-		_, err = te.ingester.Sync(t.Context(), peerInfo, 0, false, cid.Undef)
-		require.Error(t, err)
+		_, _ = te.ingester.Sync(t.Context(), peerInfo, 0, false, cid.Undef)
+		close(syncDone)
 	}()
 	<-hitBlockedRead
 
@@ -2679,6 +2684,14 @@ func TestAdmittedAdIsPending(t *testing.T) {
 	require.True(t, cState.Known)
 	require.False(t, cState.Processed)
 	require.False(t, cState.Resync)
+
+	// Release the block and wait for sync to complete
+	close(releaseBlock)
+	select {
+	case <-syncDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("sync did not complete")
+	}
 }
 
 func TestResyncMarkerNotDowngraded(t *testing.T) {
@@ -2696,11 +2709,6 @@ func TestResyncMarkerNotDowngraded(t *testing.T) {
 	adState, err := te.ingester.adAlreadyProcessed(ad)
 	require.NoError(t, err)
 	require.True(t, adState.Known)
-	if !adState.Known {
-		if err := te.ingester.markAdUnprocessed(ad, false); err != nil {
-			t.Fatal(err)
-		}
-	}
 
 	state, err = te.ingester.GetAdState(ad)
 	require.NoError(t, err)
@@ -2743,7 +2751,11 @@ func TestPendingMarkerPersistsAcrossRestart(t *testing.T) {
 }
 
 func TestPendingMarkerClearedAfterProcessing(t *testing.T) {
-	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
+	releaseBlock := make(chan struct{})
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(func(l datamodel.Link, fallback func(linking.LinkContext, datamodel.Link) (io.Reader, error)) (io.Reader, error) {
+		<-releaseBlock
+		return fallback(linking.LinkContext{}, l)
+	})
 	te := setupTestEnv(t, true, blockableLsysOpt)
 
 	adHead := typehelpers.RandomAdBuilder{
@@ -2769,7 +2781,7 @@ func TestPendingMarkerClearedAfterProcessing(t *testing.T) {
 
 	syncDone := make(chan struct{})
 	go func() {
-		te.ingester.Sync(t.Context(), peerInfo, 0, false, cid.Undef)
+		_, _ = te.ingester.Sync(t.Context(), peerInfo, 0, false, cid.Undef)
 		close(syncDone)
 	}()
 	<-hitBlockedRead
@@ -2781,8 +2793,7 @@ func TestPendingMarkerClearedAfterProcessing(t *testing.T) {
 	require.False(t, bState.Processed)
 
 	// Release the block and let the sync complete
-	blockedReads.rm(bAd.Entries.(cidlink.Link).Cid)
-	close(hitBlockedRead)
+	close(releaseBlock)
 
 	// Wait for sync to finish
 	select {

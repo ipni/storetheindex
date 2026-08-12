@@ -1117,9 +1117,9 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
 
-		adState, err := ing.adAlreadyProcessed(c)
-		if err != nil {
-			log.Errorw("Failed to read advertisement processed state from datastore", "err", err)
+		adState, stateErr := ing.adAlreadyProcessed(c)
+		if stateErr != nil {
+			log.Errorw("Failed to read advertisement processed state from datastore", "err", stateErr)
 			// Note: don't stop in case of an error in this place, the same check will be done
 			// later in a context of a specific provider.
 		}
@@ -1170,7 +1170,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 			ai.skip = true
 		}
 
-		if !adState.Known {
+		if stateErr == nil && !adState.Known {
 			if err := ing.markAdUnprocessed(c, false); err != nil {
 				log.Errorw("Failed to mark advertisement as unprocessed", "cid", c, "err", err)
 			}
