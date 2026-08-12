@@ -619,16 +619,11 @@ func (ing *Ingester) ingestEntriesFromCar(
 	adSourcelocation string,
 	err error,
 ) {
-	// Create a context to cancel reading entries.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	syncStatus := ing.reg.SyncStatusFor(publisherID)
-
 	adBlock, adSource, adSourcelocation, err := ing.mirror.read(ctx, adCid, false)
 	if err != nil {
 		return 0, adDataSourceNone, "", err
 	}
+	defer adBlock.Close()
 
 	var firstEntryBlock carstore.EntryBlock
 	var ok bool
@@ -652,6 +647,7 @@ func (ing *Ingester) ingestEntriesFromCar(
 	}
 
 	log = log.With("entriesKind", "CarEntryChunk")
+	syncStatus := ing.reg.SyncStatusFor(publisherID)
 
 	err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
 	if err != nil {

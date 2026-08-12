@@ -22,6 +22,7 @@ import (
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
+	"github.com/ipni/storetheindex/test/goroutines"
 	"github.com/stretchr/testify/require"
 )
 
@@ -179,11 +180,13 @@ func TestNewMirrorMixedCompressionRead(t *testing.T) {
 
 	adBlock, source, _, err := m.read(ctx, mainAdCid, true)
 	require.NoError(t, err)
+	defer adBlock.Close()
 	require.Equal(t, adDataSourceMain, source)
 	require.Equal(t, mainAdCid, adBlock.Cid)
 
 	adBlock, source, _, err = m.read(ctx, externalAdCid, true)
 	require.NoError(t, err)
+	defer adBlock.Close()
 	require.Equal(t, adDataSourceExternal, source)
 	require.Equal(t, externalAdCid, adBlock.Cid)
 }
@@ -202,6 +205,7 @@ func TestExternalRaceFirstWin(t *testing.T) {
 
 	adBlock, source, _, err := m.read(ctx, adCid, true)
 	require.NoError(t, err)
+	defer adBlock.Close()
 	require.Equal(t, adDataSourceExternal, source)
 	require.Equal(t, adCid, adBlock.Cid)
 }
@@ -281,6 +285,7 @@ func TestExternalRaceFastResponseBeatsDelayed(t *testing.T) {
 	elapsed := time.Since(start)
 
 	require.NoError(t, err)
+	defer adBlock.Close()
 	require.Equal(t, adDataSourceExternal, source)
 	require.Equal(t, adCid, adBlock.Cid)
 	require.Less(t, elapsed, 250*time.Millisecond,
@@ -301,6 +306,7 @@ func TestExternalRaceSkipsWrongRootCAR(t *testing.T) {
 
 	adBlock, source, _, err := m.read(context.Background(), wantCid, true)
 	require.NoError(t, err)
+	defer adBlock.Close()
 	require.Equal(t, adDataSourceExternal, source)
 	require.Equal(t, wantCid, adBlock.Cid)
 
@@ -338,10 +344,51 @@ func TestExternalRaceFastBeatsThrottledBody(t *testing.T) {
 	elapsed := time.Since(start)
 
 	require.NoError(t, err)
+	defer adBlock.Close()
 	require.Equal(t, adDataSourceExternal, source)
 	require.Equal(t, adCid, adBlock.Cid)
 	require.Less(t, elapsed, slowestPlausibleWin,
 		"fast mirror should win before throttled body delivers ad block; elapsed=%s carBytes=%d", elapsed, len(carData))
+}
+
+// TestExternalRaceLosersReleaseEntryReaders checks that the mirrors which lose
+// the race do not leave entry readers behind. A loser that already read its ad
+// block has an entry reader streaming the rest of its CAR, and nothing ever
+// receives those entries, so cancelling the loser must release it along with
+// the HTTP response body it holds open.
+func TestExternalRaceLosersReleaseEntryReaders(t *testing.T) {
+	const nPeers = 4
+
+	adCid, carPath, carData := makeAdCARBytesWithEntries(t, 5)
+
+	extCfgs := make([]config.StoreConfig, 0, nPeers)
+	for range nPeers {
+		srv := startCARHTTPServer(t, map[string][]byte{carPath: carData}, carHTTPServeOpts{})
+		extCfgs = append(extCfgs, httpStoreConfig(srv))
+	}
+
+	m, err := newMirror(config.Mirror{
+		External: extCfgs,
+	}, dssync.MutexWrap(datastore.NewMapDatastore()))
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	adBlock, source, _, err := m.read(ctx, adCid, false)
+	require.NoError(t, err)
+	defer adBlock.Close()
+	require.Equal(t, adDataSourceExternal, source)
+	require.NotNil(t, adBlock.Entries)
+
+	var entryBlocks int
+	for entBlock := range adBlock.Entries {
+		require.NoError(t, entBlock.Err)
+		entryBlocks++
+	}
+	require.NotZero(t, entryBlocks, "winning mirror must deliver entry blocks")
+
+	goroutines.RequireNone(t, "carstore.readEntries")
 }
 
 type carHTTPServeOpts struct {
@@ -401,8 +448,16 @@ func httpStoreConfig(baseURL string) config.StoreConfig {
 
 func makeAdCARBytes(t *testing.T) (cid.Cid, string, []byte) {
 	t.Helper()
+	return makeAdCARBytesWithEntries(t, 0)
+}
+
+// makeAdCARBytesWithEntries returns the CID, path, and uncompressed CAR bytes
+// for an advertisement with entryChunks entry chunks. Only a CAR that has
+// entries makes CarReader.Read stream entry blocks.
+func makeAdCARBytesWithEntries(t *testing.T, entryChunks int) (cid.Cid, string, []byte) {
+	t.Helper()
 	storeCfg := localStoreConfig(t, "none")
-	adCid := writeAdCAR(t, storeCfg, "none")
+	adCid := writeAdCARWithEntries(t, storeCfg, "none", entryChunks)
 	fileStore, err := filestore.MakeFilestore(storeCfg.Config)
 	require.NoError(t, err)
 	carPath := adCid.String() + carstore.CarFileSuffix
@@ -416,6 +471,11 @@ func makeAdCARBytes(t *testing.T) (cid.Cid, string, []byte) {
 }
 
 func writeAdCAR(t *testing.T, storeCfg config.StoreConfig, compress string) cid.Cid {
+	t.Helper()
+	return writeAdCARWithEntries(t, storeCfg, compress, 0)
+}
+
+func writeAdCARWithEntries(t *testing.T, storeCfg config.StoreConfig, compress string, entryChunks int) cid.Cid {
 	t.Helper()
 
 	dstore := datastore.NewMapDatastore()
@@ -434,13 +494,29 @@ func writeAdCAR(t *testing.T, storeCfg config.StoreConfig, compress string) cid.
 		}, nil
 	}
 
+	var entries ipld.Link = schema.NoEntries
+	if entryChunks != 0 {
+		var next ipld.Link
+		for range entryChunks {
+			chunk := &schema.EntryChunk{
+				Entries: random.Multihashes(4),
+				Next:    next,
+			}
+			node, err := chunk.ToNode()
+			require.NoError(t, err)
+			next, err = lsys.Store(ipld.LinkContext{}, schema.Linkproto, node)
+			require.NoError(t, err)
+		}
+		entries = next
+	}
+
 	p, priv, _ := random.Identity()
 	adv := &schema.Advertisement{
 		Provider:  p.String(),
 		Addresses: []string{"/ip4/127.0.0.1/tcp/9999"},
 		ContextID: []byte("test-context-id"),
 		Metadata:  []byte("test-metadata"),
-		Entries:   schema.NoEntries,
+		Entries:   entries,
 	}
 	require.NoError(t, adv.Sign(priv))
 	node, err := adv.ToNode()
@@ -454,7 +530,7 @@ func writeAdCAR(t *testing.T, storeCfg config.StoreConfig, compress string) cid.
 	require.NoError(t, err)
 
 	adCid := adLink.(cidlink.Link).Cid
-	_, err = carw.Write(context.Background(), adCid, true, false)
+	_, err = carw.Write(context.Background(), adCid, entryChunks == 0, false)
 	require.NoError(t, err)
 	return adCid
 }

@@ -26,10 +26,29 @@ type AdBlock struct {
 	Cid     cid.Cid
 	Data    []byte
 	Entries <-chan EntryBlock
+
+	entriesCancel context.CancelFunc
 }
 
 func (a AdBlock) Advertisement() (schema.Advertisement, error) {
 	return decodeAd(a.Data, a.Cid)
+}
+
+func (a *AdBlock) Close() error {
+	if a.entriesCancel != nil {
+		// Cancel any ongoing entry reading
+		a.entriesCancel()
+		a.entriesCancel = nil
+
+		// Drain entries channel, once done we can be sure the entries
+		// reading goroutine is stopped.
+		if a.Entries != nil {
+			for range a.Entries {
+			}
+			a.Entries = nil
+		}
+	}
+	return nil
 }
 
 // EntryBlock contains schema.EntryChunk data.
@@ -157,6 +176,7 @@ func (cr CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) (
 	if !skipEntries && len(cbr.Roots) > 1 {
 		entsCh := make(chan EntryBlock)
 		adBlock.Entries = entsCh
+		ctx, adBlock.entriesCancel = context.WithCancel(ctx)
 		go readEntries(ctx, cbr, rc, entsCh)
 	} else {
 		rc.Close()

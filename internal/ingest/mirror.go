@@ -122,22 +122,15 @@ func (m adMirror) readExternalRace(
 		err   error
 	}
 
-	// Wait for race goroutines to finish so cancelled HTTP/connections
-	// are released instead of accumulating under load.
 	var wg sync.WaitGroup
-	defer wg.Wait()
 
 	n := len(m.externalCarReaders)
 	results := make(chan externalReadResult, n)
 	cancels := make([]context.CancelFunc, n)
 
 	for i, reader := range m.externalCarReaders {
-		// Cancel the context when the race is lost,
-		// Note: to avoid cancelling the context when the race is won,
-		// we overwrite the cancel function after the race is won.
 		rctx, cancel := context.WithCancel(ctx)
 		cancels[i] = cancel
-		defer func() { cancels[i]() }()
 
 		wg.Go(func() {
 			block, readErr := reader.Read(rctx, adCid, skipEntries)
@@ -145,24 +138,61 @@ func (m adMirror) readExternalRace(
 		})
 	}
 
+	checkRes := func(res externalReadResult) bool {
+		switch {
+		case res.err == nil:
+			return true
+
+		case errors.Is(res.err, fs.ErrNotExist), errors.Is(res.err, context.Canceled):
+			log.Debugw("External CAR mirror race lost", "index", res.idx, "adCid", adCid)
+			return false
+
+		default:
+			log.Warnw("Cannot read advertisement from external filestore", "err", res.err, "index", res.idx, "carPath", adCid)
+			return false
+		}
+	}
+
+	defer func() {
+		// Cancel all readers that did not succeed.
+		// Note: to avoid cancelling the context when the race is won,
+		// we overwrite the cancel function after the race is won.
+		for _, cancel := range cancels {
+			cancel()
+		}
+
+		// Wait for the race to complete.
+		wg.Wait()
+
+		// All readers must have already put their results on the channel, so we can close it.
+		close(results)
+
+		// Drain entry streams from losing successes. Cancels above must run
+		// first: drain alone would otherwise read entire CARs, and without a
+		// receiver the cancelled readEntries goroutines block forever on their
+		// final error send.
+		for res := range results {
+			if checkRes(res) {
+				res.block.Close()
+			}
+		}
+	}()
+
 	for range n {
 		select {
 		case <-ctx.Done():
 			return nil, adDataSourceNone, "", ctx.Err()
 
 		case res := <-results:
-			switch {
-			case res.err == nil:
+			if checkRes(res) {
 				// Overwrite the cancel function for the winner so it is not called when the context is cancelled.
 				cancels[res.idx] = func() {}
-				log.Debugw("External CAR mirror race won", "index", res.idx, "adCid", adCid)
+				log.Debugw(
+					"External CAR mirror race won",
+					"index", res.idx,
+					"adCid", adCid,
+				)
 				return res.block, adDataSourceExternal, m.externalCarReaders[res.idx].Location(), nil
-
-			case errors.Is(res.err, fs.ErrNotExist), errors.Is(res.err, context.Canceled):
-				log.Debugw("External CAR mirror race lost", "index", res.idx, "adCid", adCid)
-
-			default:
-				log.Warnw("Cannot read advertisement from external filestore", "err", res.err, "index", res.idx, "carPath", adCid)
 			}
 		}
 	}

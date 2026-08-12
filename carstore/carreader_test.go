@@ -41,6 +41,7 @@ func TestRead(t *testing.T) {
 	// Read and read CAR file.
 	adBlock, err := carr.Read(ctx, adCid, false)
 	require.NoError(t, err)
+	defer adBlock.Close()
 	require.NotZero(t, len(adBlock.Data))
 
 	// Check that the data is a valid advertisement.
@@ -73,6 +74,7 @@ func TestRead(t *testing.T) {
 	// Read CAR file, skipping entries.
 	adBlock, err = carr.Read(ctx, adCid, true)
 	require.NoError(t, err)
+	defer adBlock.Close()
 	require.Nil(t, adBlock.Entries)
 
 	// Read CAR file and cancel context after reading first entries block.
@@ -80,6 +82,7 @@ func TestRead(t *testing.T) {
 	defer cancel()
 	adBlock, err = carr.Read(xctx, adCid, false)
 	require.NoError(t, err)
+	defer adBlock.Close()
 
 	count = 0
 	for entBlock = range adBlock.Entries {

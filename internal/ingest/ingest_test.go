@@ -1953,6 +1953,7 @@ func TestGetEntryDataFromCar(t *testing.T) {
 	// Read CAR file.
 	adBlock, _, _, err := te.ingester.mirror.read(ctx, cCid.(cidlink.Link).Cid, false)
 	require.NoError(t, err)
+	defer adBlock.Close()
 	require.NotZero(t, len(adBlock.Data))
 
 	entriesCid := cAd.Entries.(cidlink.Link).Cid

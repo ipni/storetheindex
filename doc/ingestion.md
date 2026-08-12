@@ -237,7 +237,11 @@ graph TD
 
 - **CAR mirror** (`ingestEntriesFromCar`): if the mirror is readable and has
   the ad, entries are streamed from the CAR file and indexed. This avoids
-  re-fetching from the publisher.
+  re-fetching from the publisher. Only the winner of an `External` race is
+  returned to the caller; losing successes are cancelled and their entry
+  streams are drained so the CAR readers (and HTTP bodies / files they hold)
+  are released. The winner's stream is likewise cancelled and drained if
+  ingestion bails out before consuming it fully.
 - **EntryChunk chain** (`ingestEntriesFromPublisher`): the first chunk is
   fetched via `SyncOneEntry` to detect the type, then the remaining chunks are
   synced with `SyncEntries` using a scoped block hook that indexes each chunk's
