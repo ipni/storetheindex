@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -289,6 +290,14 @@ func TestAdStatus(t *testing.T) {
 		require.NoError(t, nilServer.Close())
 		require.NoError(t, <-errChan2)
 	})
+	for i := 0; i < 50; i++ {
+		res, err = http.Get(nilServer.URL() + "/health")
+		if err == nil {
+			res.Body.Close()
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	res, err = http.Get(nilServer.URL() + "/sync/status/ad/" + dagJSONAds[0].String())
 	require.NoError(t, err)
 	res.Body.Close()
