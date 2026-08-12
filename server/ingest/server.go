@@ -318,6 +318,8 @@ type batchAdStatusResponse struct {
 func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 	httpserver.EnableCors(w)
 
+	// Hand-rolled method check (not httpserver.MethodOK) so we can set Allow
+	// header and give a message that directs single-CID callers to the GET endpoint.
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		http.Error(w, "method not allowed; use POST for batch or GET /sync/status/ad/<cid> for single advertisement", http.StatusMethodNotAllowed)
@@ -333,6 +335,11 @@ func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 
 	var req batchAdStatusRequest
 	if err := json.NewDecoder(bodyReader).Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, fmt.Sprintf("request body exceeds %d byte limit", maxBodySize), http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "malformed request body", http.StatusBadRequest)
 		return
 	}
@@ -354,14 +361,16 @@ func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := make([]adStatusResponse, len(req.Ads))
-	var validCids []struct {
+	type indexedCid struct {
 		idx int
 		cid cid.Cid
 	}
+	var validCids []indexedCid
 
 	for i, raw := range req.Ads {
 		adCid, err := cid.Decode(raw)
 		if err != nil {
+			log.Debugw("cannot decode advertisement cid in batch", "raw", raw, "err", err)
 			results[i] = adStatusResponse{
 				Ad:    raw,
 				Error: "cannot decode advertisement cid",
@@ -377,10 +386,7 @@ func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		validCids = append(validCids, struct {
-			idx int
-			cid cid.Cid
-		}{i, adCid})
+		validCids = append(validCids, indexedCid{i, adCid})
 	}
 
 	if len(validCids) > 0 {
