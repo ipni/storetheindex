@@ -2793,6 +2793,7 @@ func TestPendingMarkerClearedAfterProcessing(t *testing.T) {
 	require.False(t, bState.Processed)
 
 	// Release the block and let the sync complete
+	blockedReads.rm(bAd.Entries.(cidlink.Link).Cid)
 	close(releaseBlock)
 
 	// Wait for sync to finish
