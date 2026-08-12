@@ -277,6 +277,12 @@ func (ing *Ingester) generalDagsyncBlockHook(publisher peer.ID, c cid.Cid, actio
 		return
 	}
 
+	if !adState.Known {
+		if err := ing.markAdUnprocessed(c, false); err != nil {
+			log.Errorw("Failed to mark advertisement as unprocessed in block hook", "cid", c, "err", err)
+		}
+	}
+
 	// The only kind of block we should get by loading CIDs here should be
 	// Advertisement.
 	//
@@ -660,12 +666,12 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, m
 // is used to record that an ad was processed but could not be indexed due to a
 // permanent error (decode failure, malformed, entry chunk error, etc.).
 func (ing *Ingester) MarkAdSkipped(publisher peer.ID, adCid cid.Cid, reason string, frozen bool) error {
-	return ing.markAdSkipped(publisher, adCid, reason, frozen)
-}
-
-func (ing *Ingester) markAdSkipped(publisher peer.ID, adCid cid.Cid, reason string, frozen bool) error {
 	cidStr := adCid.String()
 	ctx := context.Background()
+
+	if len(reason) > 256 {
+		reason = string([]byte(reason)[:256])
+	}
 
 	if err := ing.ds.Put(ctx, datastore.NewKey(adSkipReasonPrefix+cidStr), []byte(reason)); err != nil {
 		return err
@@ -1324,13 +1330,13 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 					// error will happen. So log and drop this error.
 					log.Errorw("Skipping ad because of a permanent error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
 					stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
-					skipReason = string(adIngestErr.state)
+					skipReason = adIngestErr.Error()
 					err = nil
 				case adIngestSyncEntriesErr:
 					if skip500EntsErr && strings.Contains(err.Error(), "failed to sync first entry") && strings.Contains(err.Error(), ": 500") {
 						log.Errorw("Skipping ad because of a permanent 500 error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
 						stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
-						skipReason = string(adIngestErr.state)
+						skipReason = adIngestErr.Error()
 						err = nil
 					}
 				}
@@ -1379,7 +1385,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 
 		putMirror := hasEnts && ing.mirror.canWrite()
 		if skipReason != "" {
-			if markErr := ing.markAdSkipped(publisher, ai.cid, skipReason, frozen); markErr != nil {
+			if markErr := ing.MarkAdSkipped(publisher, ai.cid, skipReason, frozen); markErr != nil {
 				log.Errorw("Failed to mark ad as skipped", "err", markErr)
 			}
 		} else {

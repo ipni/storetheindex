@@ -220,11 +220,11 @@ func (s *Server) getSyncStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 type adStatusResponse struct {
-	Ad      string `json:"Ad"`
-	Indexed bool   `json:"Indexed"`
-	State   string `json:"State"`
-	Reason  string `json:"Reason,omitempty"`
-	Frozen  bool   `json:"Frozen"`
+	Ad         string `json:"Ad"`
+	Indexed    bool   `json:"Indexed"`
+	State      string `json:"State"`
+	SkipReason string `json:"SkipReason,omitempty"`
+	Frozen     bool   `json:"Frozen"`
 }
 
 func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
@@ -246,8 +246,8 @@ func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if adCid.Prefix().Codec != cid.DagJSON {
-		msg := fmt.Sprintf("this endpoint expects an advertisement CID (dag-json codec), got %d; use /cid/%s for content lookups", adCid.Prefix().Codec, cidStr)
+	if adCid.Prefix().Codec != cid.DagJSON && adCid.Prefix().Codec != cid.DagCBOR {
+		msg := fmt.Sprintf("this endpoint expects an advertisement CID (dag-json or dag-cbor codec), got %d; use /cid/%s for content lookups", adCid.Prefix().Codec, cidStr)
 		log.Debugw(msg, "cid", cidStr)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
@@ -278,7 +278,7 @@ func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
 		resp.State = "resyncing"
 	case adState.Processed && adState.Skipped:
 		resp.State = "skipped"
-		resp.Reason = adState.SkipReason
+		resp.SkipReason = adState.SkipReason
 	case adState.Processed && !adState.Skipped:
 		resp.State = "indexed"
 	default:

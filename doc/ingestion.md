@@ -478,7 +478,7 @@ The response includes:
     skipped ads and will report `indexed` regardless of their actual outcome
   - `"skipped"` - the ad was permanently skipped (malformed, decode error, etc.)
   - `"resyncing"` - the ad is marked for resync (previous processing invalidated)
-- `Reason` - the skip reason string, non-empty only when `State` is `"skipped"`
+- `SkipReason` - the skip reason string (truncated to 256 bytes), non-empty only when `State` is `"skipped"`
 - `Frozen` - true when the ad was processed while the indexer was in frozen mode
 
 `Indexed` is false when:

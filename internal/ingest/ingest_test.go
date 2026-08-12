@@ -2617,6 +2617,15 @@ func TestMarkAdSkipped(t *testing.T) {
 	syncCid, ok := te.ingester.getLastKnownSync(publisher)
 	require.True(t, ok)
 	require.Equal(t, ad, syncCid)
+
+	// Test truncation: reason longer than 256 bytes is truncated on write
+	longReason := strings.Repeat("x", 300)
+	ad2 := random.Cids(1)[0]
+	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ad2, longReason, false))
+	state, err = te.ingester.GetAdState(ad2)
+	require.NoError(t, err)
+	require.Equal(t, 256, len(state.SkipReason))
+	require.Equal(t, strings.Repeat("x", 256), state.SkipReason)
 }
 
 func TestSkippedAdNotReprocessed(t *testing.T) {

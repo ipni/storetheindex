@@ -222,7 +222,7 @@ func TestAdStatus(t *testing.T) {
 	require.NoError(t, ing.MarkAdSkipped(pubID, dagJSONAds[1], "decodeErr", false))
 	status, _, body = getAdStatus(t, dagJSONAds[1])
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"skipped","Reason":"decodeErr","Frozen":false}`, dagJSONAds[1].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"decodeErr","Frozen":false}`, dagJSONAds[1].String()), body)
 
 	// Pending ad (marker byte 0 written directly).
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+dagJSONAds[2].String()), []byte{0}))
@@ -252,6 +252,7 @@ func TestAdStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	require.Contains(t, string(bodyBytes), "dag-json")
+	require.Contains(t, string(bodyBytes), "dag-cbor")
 
 	// Codec guard: raw CID v0 returns 400.
 	v0Cid := cid.NewCidV0(random.Multihashes(1)[0])
@@ -262,6 +263,16 @@ func TestAdStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	require.Contains(t, string(bodyBytes), "dag-json")
+	require.Contains(t, string(bodyBytes), "dag-cbor")
+
+	// Codec guard: dag-cbor CID is accepted.
+	dagCBORCid := cid.NewCidV1(cid.DagCBOR, random.Multihashes(1)[0])
+	res, err = http.Get(s.URL() + "/sync/status/ad/" + dagCBORCid.String())
+	require.NoError(t, err)
+	bodyBytes, err = io.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
 
 	// Bad CID format returns 400.
 	res, err = http.Get(s.URL() + "/sync/status/ad/not-a-cid")
