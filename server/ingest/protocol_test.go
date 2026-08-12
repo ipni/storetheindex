@@ -208,14 +208,14 @@ func TestAdStatus(t *testing.T) {
 	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
 	require.Equal(t, "application/json; charset=utf-8", hdr.Get("Content-Type"))
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"unknown","Reason":"","Frozen":false}`, dagJSONAds[0].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false}`, dagJSONAds[0].String()), body)
 
 	// Fully processed ad is indexed.
 	require.NoError(t, ing.MarkAdProcessed(pubID, dagJSONAds[0]))
 	status, hdr, body = getAdStatus(t, dagJSONAds[0])
 	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"State":"indexed","Reason":"","Frozen":false}`, dagJSONAds[0].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"State":"indexed","Frozen":false}`, dagJSONAds[0].String()), body)
 
 	// Skipped ad returns state "skipped" with reason, Indexed false.
 	require.NoError(t, ing.MarkAdSkipped(pubID, dagJSONAds[1], "decodeErr", false))
@@ -227,20 +227,20 @@ func TestAdStatus(t *testing.T) {
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+dagJSONAds[2].String()), []byte{0}))
 	status, _, body = getAdStatus(t, dagJSONAds[2])
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"pending","Reason":"","Frozen":false}`, dagJSONAds[2].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"pending","Frozen":false}`, dagJSONAds[2].String()), body)
 
 	// Resyncing ad (marker byte 2 written directly).
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+dagJSONAds[3].String()), []byte{2}))
 	status, _, body = getAdStatus(t, dagJSONAds[3])
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"resyncing","Reason":"","Frozen":false}`, dagJSONAds[3].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"resyncing","Frozen":false}`, dagJSONAds[3].String()), body)
 
 	// Frozen ad (processed + frozen key set).
 	require.NoError(t, ing.MarkAdProcessed(pubID, dagJSONAds[4]))
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adF/"+dagJSONAds[4].String()), []byte{1}))
 	status, _, body = getAdStatus(t, dagJSONAds[4])
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"indexed","Reason":"","Frozen":true}`, dagJSONAds[4].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"indexed","Frozen":true}`, dagJSONAds[4].String()), body)
 
 	// Codec guard: raw CID returns 400.
 	rawCid := cid.NewCidV1(cid.Raw, random.Multihashes(1)[0])
@@ -267,6 +267,32 @@ func TestAdStatus(t *testing.T) {
 	require.NoError(t, err)
 	res.Body.Close()
 	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+	// Empty marker value returns 500 without panicking.
+	emptyCid := cid.NewCidV1(cid.DagJSON, random.Multihashes(1)[0])
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+emptyCid.String()), []byte{}))
+	status, _, _ = getAdStatus(t, emptyCid)
+	require.Equal(t, http.StatusInternalServerError, status)
+
+	// Nil ingester returns 503.
+	nilServer, err := httpserver.New("127.0.0.1:0", ind, nil, reg)
+	require.NoError(t, err)
+	errChan2 := make(chan error, 1)
+	go func() {
+		err := nilServer.Start()
+		if err != http.ErrServerClosed {
+			errChan2 <- err
+		}
+		close(errChan2)
+	}()
+	t.Cleanup(func() {
+		require.NoError(t, nilServer.Close())
+		require.NoError(t, <-errChan2)
+	})
+	res, err = http.Get(nilServer.URL() + "/sync/status/ad/" + dagJSONAds[0].String())
+	require.NoError(t, err)
+	res.Body.Close()
+	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
 
 	// OPTIONS is required for CORS preflight.
 	req, err := http.NewRequest(http.MethodOptions, s.URL()+"/sync/status/ad/"+dagJSONAds[0].String(), nil)

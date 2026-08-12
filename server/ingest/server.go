@@ -223,7 +223,7 @@ type adStatusResponse struct {
 	Ad      string `json:"Ad"`
 	Indexed bool   `json:"Indexed"`
 	State   string `json:"State"`
-	Reason  string `json:"Reason"`
+	Reason  string `json:"Reason,omitempty"`
 	Frozen  bool   `json:"Frozen"`
 }
 
@@ -248,7 +248,7 @@ func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
 
 	if adCid.Prefix().Codec != cid.DagJSON {
 		msg := fmt.Sprintf("this endpoint expects an advertisement CID (dag-json codec), got %d; use /cid/%s for content lookups", adCid.Prefix().Codec, cidStr)
-		log.Errorw(msg, "cid", cidStr)
+		log.Debugw(msg, "cid", cidStr)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}

@@ -473,7 +473,9 @@ The response includes:
   `"resyncing"`:
   - `"unknown"` - the ad is not known to the ingester
   - `"pending"` - the ad is known but not yet fully processed
-  - `"indexed"` - the ad was fully processed and entries were indexed
+  - `"indexed"` - the ad was fully processed and entries were indexed; note that
+    ads processed before this change was deployed cannot be distinguished from
+    skipped ads and will report `indexed` regardless of their actual outcome
   - `"skipped"` - the ad was permanently skipped (malformed, decode error, etc.)
   - `"resyncing"` - the ad is marked for resync (previous processing invalidated)
 - `Reason` - the skip reason string, non-empty only when `State` is `"skipped"`
