@@ -265,7 +265,7 @@ func TestAdStatus(t *testing.T) {
 	require.Contains(t, string(bodyBytes), "dag-json")
 	require.Contains(t, string(bodyBytes), "dag-cbor")
 
-	// Codec guard: dag-cbor CID is accepted.
+	// Codec guard: dag-cbor CID is accepted and reaches the state path.
 	dagCBORCid := cid.NewCidV1(cid.DagCBOR, random.Multihashes(1)[0])
 	res, err = http.Get(s.URL() + "/sync/status/ad/" + dagCBORCid.String())
 	require.NoError(t, err)
@@ -273,6 +273,7 @@ func TestAdStatus(t *testing.T) {
 	res.Body.Close()
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false}`, dagCBORCid.String()), string(bodyBytes))
 
 	// Bad CID format returns 400.
 	res, err = http.Get(s.URL() + "/sync/status/ad/not-a-cid")
