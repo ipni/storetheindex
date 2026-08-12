@@ -2633,6 +2633,171 @@ func TestSkippedAdNotReprocessed(t *testing.T) {
 	require.True(t, adState.Skipped)
 }
 
+func TestAdmittedAdIsPending(t *testing.T) {
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
+	te := setupTestEnv(t, true, blockableLsysOpt)
+
+	adHead := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 3},
+		},
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+	allAdLinks := typehelpers.AllAdLinks(t, adHead, te.publisherLinkSys)
+	aLink := allAdLinks[0]
+	bLink := allAdLinks[1]
+	cLink := allAdLinks[2]
+
+	bAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, bLink, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	bAd, err := schema.UnwrapAdvertisement(bAdNode)
+	require.NoError(t, err)
+	blockedReads.add(bAd.Entries.(cidlink.Link).Cid)
+
+	te.publisher.SetRoot(cLink.(cidlink.Link).Cid)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+
+	go func() {
+		_, err = te.ingester.Sync(t.Context(), peerInfo, 0, false, cid.Undef)
+		require.Error(t, err)
+	}()
+	<-hitBlockedRead
+
+	// A should be processed already (worker processes oldest first)
+	aState, err := te.ingester.GetAdState(aLink.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	require.True(t, aState.Known)
+	require.True(t, aState.Processed)
+
+	// C should be pending (admitted but not yet reached by worker)
+	cState, err := te.ingester.GetAdState(cLink.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	require.True(t, cState.Known)
+	require.False(t, cState.Processed)
+	require.False(t, cState.Resync)
+}
+
+func TestResyncMarkerNotDowngraded(t *testing.T) {
+	te := setupTestEnv(t, false)
+	ad := random.Cids(1)[0]
+
+	require.NoError(t, te.ingester.markAdUnprocessed(ad, true))
+
+	state, err := te.ingester.GetAdState(ad)
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.True(t, state.Resync)
+
+	// Simulate admission (what processRawAdChain does)
+	adState, err := te.ingester.adAlreadyProcessed(ad)
+	require.NoError(t, err)
+	require.True(t, adState.Known)
+	if !adState.Known {
+		if err := te.ingester.markAdUnprocessed(ad, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	state, err = te.ingester.GetAdState(ad)
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.True(t, state.Resync)
+	require.False(t, state.Processed)
+}
+
+func TestPendingMarkerPersistsAcrossRestart(t *testing.T) {
+	ds := dssync.MutexWrap(datastore.NewMapDatastore())
+	tmpDs := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := dstest.MkTestHost(t)
+	reg := mkRegistry(t)
+	core := mkIndexer(t, true)
+	i, err := NewIngester(defaultTestIngestConfig, h, core, reg, ds, tmpDs)
+	require.NoError(t, err)
+
+	ad := random.Cids(1)[0]
+	require.NoError(t, i.markAdUnprocessed(ad, false))
+
+	state, err := i.GetAdState(ad)
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.False(t, state.Processed)
+
+	require.NoError(t, i.Close())
+
+	i2, err := NewIngester(defaultTestIngestConfig, h, core, reg, ds, tmpDs)
+	require.NoError(t, err)
+	defer func() {
+		i2.Close()
+		reg.Close()
+		core.Close()
+	}()
+
+	state, err = i2.GetAdState(ad)
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.False(t, state.Processed)
+}
+
+func TestPendingMarkerClearedAfterProcessing(t *testing.T) {
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(nil)
+	te := setupTestEnv(t, true, blockableLsysOpt)
+
+	adHead := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2},
+		},
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+	allAdLinks := typehelpers.AllAdLinks(t, adHead, te.publisherLinkSys)
+	bLink := allAdLinks[1]
+
+	bAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, bLink, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	bAd, err := schema.UnwrapAdvertisement(bAdNode)
+	require.NoError(t, err)
+	blockedReads.add(bAd.Entries.(cidlink.Link).Cid)
+
+	te.publisher.SetRoot(bLink.(cidlink.Link).Cid)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+
+	syncDone := make(chan struct{})
+	go func() {
+		te.ingester.Sync(t.Context(), peerInfo, 0, false, cid.Undef)
+		close(syncDone)
+	}()
+	<-hitBlockedRead
+
+	// b should be pending
+	bState, err := te.ingester.GetAdState(bLink.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	require.True(t, bState.Known)
+	require.False(t, bState.Processed)
+
+	// Release the block and let the sync complete
+	blockedReads.rm(bAd.Entries.(cidlink.Link).Cid)
+	close(hitBlockedRead)
+
+	// Wait for sync to finish
+	select {
+	case <-syncDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("sync did not complete")
+	}
+
+	// b should now be processed (marker 1, not 0)
+	bState, err = te.ingester.GetAdState(bLink.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	require.True(t, bState.Known)
+	require.True(t, bState.Processed)
+}
+
 type testEnvOpts struct {
 	publisherLinkSysFn func(ds datastore.Batching) ipld.LinkSystem
 	ingestConfig       *config.Ingest

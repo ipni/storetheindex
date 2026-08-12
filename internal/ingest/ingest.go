@@ -1170,6 +1170,12 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 			ai.skip = true
 		}
 
+		if !adState.Known {
+			if err := ing.markAdUnprocessed(c, false); err != nil {
+				log.Errorw("Failed to mark advertisement as unprocessed", "cid", c, "err", err)
+			}
+		}
+
 		adsGroupedByProvider[providerID] = append(adsGroupedByProvider[providerID], ai)
 		if totalAds%1000 == 0 {
 			log.Debugf("Added %d ads to stack", totalAds)
