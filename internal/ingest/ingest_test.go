@@ -174,14 +174,14 @@ func (e *errReader) Read([]byte) (int, error) {
 	return 0, errors.New("blocked read")
 }
 
-func failBlockedRead() (io.Reader, error) {
+func failBlockedRead(l datamodel.Link, fallback func(linking.LinkContext, datamodel.Link) (io.Reader, error)) (io.Reader, error) {
 	// Returning an error here will cause a "content not found" will cause the
 	// ad will be skipped without failing the sync. So, return an io.Reader
 	// that will return an error on calling Read.
 	return &errReader{}, nil
 }
 
-func blockableLinkSys(afterBlock func() (io.Reader, error)) (opt func(teo *testEnvOpts), blockedReads *blockList, hitBlockedRead chan cid.Cid) {
+func blockableLinkSys(afterBlock func(datamodel.Link, func(linking.LinkContext, datamodel.Link) (io.Reader, error)) (io.Reader, error)) (opt func(teo *testEnvOpts), blockedReads *blockList, hitBlockedRead chan cid.Cid) {
 	blockedReads = &blockList{list: make(map[cid.Cid]bool)}
 	hitBlockedRead = make(chan cid.Cid)
 	return func(teo *testEnvOpts) {
@@ -198,7 +198,7 @@ func blockableLinkSys(afterBlock func() (io.Reader, error)) (opt func(teo *testE
 						fmt.Println("blocked read")
 						hitBlockedRead <- l.(cidlink.Link).Cid
 						if afterBlock != nil {
-							return afterBlock()
+							return afterBlock(l, backendLsys.StorageReadOpener)
 						}
 					}
 					return backendLsys.StorageReadOpener(lc, l)
@@ -459,9 +459,9 @@ func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	// Use this to block the second ingest step from happening while we verify the above
 	afterBlockedRead := make(chan struct{})
 
-	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(func() (io.Reader, error) {
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(func(l datamodel.Link, fallback func(linking.LinkContext, datamodel.Link) (io.Reader, error)) (io.Reader, error) {
 		afterBlockedRead <- struct{}{}
-		return failBlockedRead()
+		return failBlockedRead(l, fallback)
 	})
 
 	te := setupTestEnv(t, true, blockableLsysOpt)
@@ -1195,6 +1195,49 @@ func TestSyncSkipNoMetadata(t *testing.T) {
 	// can continue processing later ads in the chain. Check that the ad was
 	// processed.
 	pInfo, found = reg.ProviderInfo(providerID)
+	require.True(t, found)
+	require.Equal(t, adCid, pInfo.LastAdvertisement)
+}
+
+func TestPermanentErrorRoutesToSkippedMarker(t *testing.T) {
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := dstest.MkTestHost(t)
+	pubHost := dstest.MkTestHost(t)
+	i, reg := mkIngest(t, h)
+	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
+	connectHosts(t, h, pubHost)
+
+	// Publish an ad with entries but no metadata (permanent error — malformed).
+	adCid, _, providerID, _ := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, 10, []byte{}, cid.Undef)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	peerInfo := peer.AddrInfo{
+		ID:    pub.ID(),
+		Addrs: pub.Addrs(),
+	}
+	endCid, err := i.Sync(ctx, peerInfo, 0, false, cid.Undef)
+	require.NoError(t, err)
+	require.Equal(t, adCid, endCid)
+
+	// Verify the ad was marked as skipped with marker byte 3.
+	state, err := i.GetAdState(adCid)
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.True(t, state.Processed)
+	require.True(t, state.Skipped)
+	require.Contains(t, state.SkipReason, "malformedErr")
+	require.False(t, state.Indexed())
+
+	// Verify adAlreadyProcessed treats it as done (won't reprocess).
+	apState, err := i.adAlreadyProcessed(adCid)
+	require.NoError(t, err)
+	require.True(t, apState.Known)
+	require.True(t, apState.Processed)
+	require.True(t, apState.Skipped)
+
+	// Verify provider info still updated.
+	pInfo, found := reg.ProviderInfo(providerID)
 	require.True(t, found)
 	require.Equal(t, adCid, pInfo.LastAdvertisement)
 }
@@ -2378,25 +2421,25 @@ func TestGetAdState(t *testing.T) {
 	require.NoError(t, te.ingester.MarkAdProcessed(publisher, ads[0]))
 	state, err = te.ingester.GetAdState(ads[0])
 	require.NoError(t, err)
-	require.Equal(t, AdState{Processed: true}, state)
+	require.Equal(t, AdState{Known: true, Processed: true}, state)
 	require.True(t, state.Indexed())
 
 	require.NoError(t, te.ingester.markAdUnprocessed(ads[1], true))
 	state, err = te.ingester.GetAdState(ads[1])
 	require.NoError(t, err)
-	require.Equal(t, AdState{Resync: true}, state)
+	require.Equal(t, AdState{Known: true, Resync: true}, state)
 	require.False(t, state.Indexed())
 
 	require.NoError(t, te.ingester.markAdUnprocessed(ads[2], false))
 	state, err = te.ingester.GetAdState(ads[2])
 	require.NoError(t, err)
-	require.Equal(t, AdState{}, state)
+	require.Equal(t, AdState{Known: true}, state)
 	require.False(t, state.Indexed())
 
 	require.NoError(t, te.ingester.markAdProcessed(publisher, ads[3], true, false))
 	state, err = te.ingester.GetAdState(ads[3])
 	require.NoError(t, err)
-	require.Equal(t, AdState{Processed: true, Frozen: true}, state)
+	require.Equal(t, AdState{Known: true, Processed: true, Frozen: true}, state)
 	require.False(t, state.Indexed())
 }
 
@@ -2413,12 +2456,367 @@ func TestAdStateIndexed(t *testing.T) {
 		{name: "frozen", state: AdState{Frozen: true}, want: false},
 		{name: "processed and frozen", state: AdState{Processed: true, Frozen: true}, want: false},
 		{name: "all flags", state: AdState{Processed: true, Resync: true, Frozen: true}, want: false},
+		{name: "skipped", state: AdState{Processed: true, Skipped: true, SkipReason: "malformedErr"}, want: false},
+		{name: "skipped and frozen", state: AdState{Processed: true, Skipped: true, SkipReason: "decodeErr", Frozen: true}, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.want, tt.state.Indexed())
 		})
 	}
+}
+
+func TestAdStateByMarkerByte(t *testing.T) {
+	te := setupTestEnv(t, false)
+	publisher := te.pubHost.ID()
+	ads := random.Cids(5)
+
+	// Test marker byte 0 (unprocessed) via markAdUnprocessed
+	require.NoError(t, te.ingester.markAdUnprocessed(ads[0], false))
+	state, err := te.ingester.GetAdState(ads[0])
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.False(t, state.Processed)
+	require.False(t, state.Skipped)
+	require.False(t, state.Resync)
+	require.False(t, state.Indexed())
+
+	// Test marker byte 1 (processed) via MarkAdProcessed
+	require.NoError(t, te.ingester.MarkAdProcessed(publisher, ads[1]))
+	state, err = te.ingester.GetAdState(ads[1])
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.True(t, state.Processed)
+	require.False(t, state.Skipped)
+	require.False(t, state.Resync)
+	require.True(t, state.Indexed())
+
+	// Test marker byte 2 (resync) via markAdUnprocessed(forResync=true)
+	require.NoError(t, te.ingester.markAdUnprocessed(ads[2], true))
+	state, err = te.ingester.GetAdState(ads[2])
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.False(t, state.Processed)
+	require.False(t, state.Skipped)
+	require.True(t, state.Resync)
+	require.False(t, state.Indexed())
+
+	// Test marker byte 3 (skipped) via MarkAdSkipped
+	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ads[3], "malformedErr", false))
+	state, err = te.ingester.GetAdState(ads[3])
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.True(t, state.Processed)
+	require.True(t, state.Skipped)
+	require.False(t, state.Resync)
+	require.Equal(t, "malformedErr", state.SkipReason)
+	require.False(t, state.Indexed())
+
+	// Test adAlreadyProcessed for each marker byte
+	tests := []struct {
+		name string
+		ad   cid.Cid
+		want adProcessedState
+	}{
+		{name: "unprocessed", ad: ads[0], want: adProcessedState{Known: true}},
+		{name: "processed", ad: ads[1], want: adProcessedState{Known: true, Processed: true}},
+		{name: "resync", ad: ads[2], want: adProcessedState{Known: true, Resync: true}},
+		{name: "skipped", ad: ads[3], want: adProcessedState{Known: true, Processed: true, Skipped: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := te.ingester.adAlreadyProcessed(tt.ad)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestAdStateByRawByte(t *testing.T) {
+	te := setupTestEnv(t, false)
+	ads := random.Cids(5)
+
+	tests := []struct {
+		name    string
+		marker  byte
+		want    AdState
+		sidecar string
+	}{
+		{
+			name:   "unprocessed",
+			marker: 0,
+			want:   AdState{Known: true},
+		},
+		{
+			name:   "processed",
+			marker: 1,
+			want:   AdState{Known: true, Processed: true},
+		},
+		{
+			name:   "resync",
+			marker: 2,
+			want:   AdState{Known: true, Resync: true},
+		},
+		{
+			name:    "skipped",
+			marker:  3,
+			want:    AdState{Known: true, Processed: true, Skipped: true, SkipReason: "decodeErr"},
+			sidecar: "decodeErr",
+		},
+		{
+			name:   "undefined",
+			marker: 9,
+			want:   AdState{Known: true},
+		},
+	}
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ad := ads[i]
+			require.NoError(t, te.ingester.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+ad.String()), []byte{tt.marker}))
+			if tt.sidecar != "" {
+				require.NoError(t, te.ingester.ds.Put(context.Background(), datastore.NewKey(adSkipReasonPrefix+ad.String()), []byte(tt.sidecar)))
+			}
+
+			state, err := te.ingester.GetAdState(ad)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, state)
+		})
+	}
+}
+
+func TestAdStateEmptyValue(t *testing.T) {
+	te := setupTestEnv(t, false)
+	ad := random.Cids(1)[0]
+
+	require.NoError(t, te.ingester.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+ad.String()), []byte{}))
+	_, err := te.ingester.GetAdState(ad)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "empty value")
+
+	_, err = te.ingester.adAlreadyProcessed(ad)
+	require.Error(t, err)
+}
+
+func TestMarkAdSkipped(t *testing.T) {
+	te := setupTestEnv(t, false)
+	publisher := te.pubHost.ID()
+	ad := random.Cids(1)[0]
+
+	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ad, "decodeErr", false))
+
+	state, err := te.ingester.GetAdState(ad)
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.True(t, state.Processed)
+	require.True(t, state.Skipped)
+	require.Equal(t, "decodeErr", state.SkipReason)
+	require.False(t, state.Frozen)
+	require.False(t, state.Indexed())
+
+	// Verify sync head updated
+	syncCid, ok := te.ingester.getLastKnownSync(publisher)
+	require.True(t, ok)
+	require.Equal(t, ad, syncCid)
+
+	// Test truncation: reason longer than 256 bytes is truncated on write
+	longReason := strings.Repeat("x", 300)
+	ad2 := random.Cids(1)[0]
+	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ad2, longReason, false))
+	state, err = te.ingester.GetAdState(ad2)
+	require.NoError(t, err)
+	require.Equal(t, 256, len(state.SkipReason))
+	require.Equal(t, strings.Repeat("x", 256), state.SkipReason)
+}
+
+func TestSkippedAdNotReprocessed(t *testing.T) {
+	te := setupTestEnv(t, false)
+	publisher := te.pubHost.ID()
+	ad := random.Cids(1)[0]
+
+	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ad, "malformedErr", false))
+
+	adState, err := te.ingester.adAlreadyProcessed(ad)
+	require.NoError(t, err)
+	require.True(t, adState.Known)
+	require.True(t, adState.Processed)
+	require.True(t, adState.Skipped)
+}
+
+func TestAdmittedAdIsPending(t *testing.T) {
+	releaseBlock := make(chan struct{})
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(func(l datamodel.Link, fallback func(linking.LinkContext, datamodel.Link) (io.Reader, error)) (io.Reader, error) {
+		<-releaseBlock
+		return nil, errors.New("blocked read released")
+	})
+	te := setupTestEnv(t, true, blockableLsysOpt)
+
+	adHead := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 3},
+		},
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+	allAdLinks := typehelpers.AllAdLinks(t, adHead, te.publisherLinkSys)
+	aLink := allAdLinks[0]
+	bLink := allAdLinks[1]
+	cLink := allAdLinks[2]
+
+	bAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, bLink, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	bAd, err := schema.UnwrapAdvertisement(bAdNode)
+	require.NoError(t, err)
+	blockedReads.add(bAd.Entries.(cidlink.Link).Cid)
+
+	te.publisher.SetRoot(cLink.(cidlink.Link).Cid)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+
+	syncDone := make(chan struct{})
+	go func() {
+		_, _ = te.ingester.Sync(t.Context(), peerInfo, 0, false, cid.Undef)
+		close(syncDone)
+	}()
+	<-hitBlockedRead
+
+	// A should be processed already (worker processes oldest first)
+	aState, err := te.ingester.GetAdState(aLink.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	require.True(t, aState.Known)
+	require.True(t, aState.Processed)
+
+	// C should be pending (admitted but not yet reached by worker)
+	cState, err := te.ingester.GetAdState(cLink.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	require.True(t, cState.Known)
+	require.False(t, cState.Processed)
+	require.False(t, cState.Resync)
+
+	// Release the block and wait for sync to complete
+	close(releaseBlock)
+	select {
+	case <-syncDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("sync did not complete")
+	}
+}
+
+func TestResyncMarkerNotDowngraded(t *testing.T) {
+	te := setupTestEnv(t, false)
+	ad := random.Cids(1)[0]
+
+	require.NoError(t, te.ingester.markAdUnprocessed(ad, true))
+
+	state, err := te.ingester.GetAdState(ad)
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.True(t, state.Resync)
+
+	// Simulate admission (what processRawAdChain does)
+	adState, err := te.ingester.adAlreadyProcessed(ad)
+	require.NoError(t, err)
+	require.True(t, adState.Known)
+
+	state, err = te.ingester.GetAdState(ad)
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.True(t, state.Resync)
+	require.False(t, state.Processed)
+}
+
+func TestPendingMarkerPersistsAcrossRestart(t *testing.T) {
+	ds := dssync.MutexWrap(datastore.NewMapDatastore())
+	tmpDs := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := dstest.MkTestHost(t)
+	reg := mkRegistry(t)
+	core := mkIndexer(t, true)
+	i, err := NewIngester(defaultTestIngestConfig, h, core, reg, ds, tmpDs)
+	require.NoError(t, err)
+
+	ad := random.Cids(1)[0]
+	require.NoError(t, i.markAdUnprocessed(ad, false))
+
+	state, err := i.GetAdState(ad)
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.False(t, state.Processed)
+
+	require.NoError(t, i.Close())
+
+	i2, err := NewIngester(defaultTestIngestConfig, h, core, reg, ds, tmpDs)
+	require.NoError(t, err)
+	defer func() {
+		i2.Close()
+		reg.Close()
+		core.Close()
+	}()
+
+	state, err = i2.GetAdState(ad)
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.False(t, state.Processed)
+}
+
+func TestPendingMarkerClearedAfterProcessing(t *testing.T) {
+	releaseBlock := make(chan struct{})
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(func(l datamodel.Link, fallback func(linking.LinkContext, datamodel.Link) (io.Reader, error)) (io.Reader, error) {
+		<-releaseBlock
+		return fallback(linking.LinkContext{}, l)
+	})
+	te := setupTestEnv(t, true, blockableLsysOpt)
+
+	adHead := typehelpers.RandomAdBuilder{
+		EntryBuilders: []typehelpers.EntryBuilder{
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 1},
+			typehelpers.RandomEntryChunkBuilder{ChunkCount: 1, EntriesPerChunk: 1, Seed: 2},
+		},
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+	allAdLinks := typehelpers.AllAdLinks(t, adHead, te.publisherLinkSys)
+	bLink := allAdLinks[1]
+
+	bAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, bLink, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	bAd, err := schema.UnwrapAdvertisement(bAdNode)
+	require.NoError(t, err)
+	blockedReads.add(bAd.Entries.(cidlink.Link).Cid)
+
+	te.publisher.SetRoot(bLink.(cidlink.Link).Cid)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+
+	syncDone := make(chan struct{})
+	go func() {
+		_, _ = te.ingester.Sync(t.Context(), peerInfo, 0, false, cid.Undef)
+		close(syncDone)
+	}()
+	<-hitBlockedRead
+
+	// b should be pending
+	bState, err := te.ingester.GetAdState(bLink.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	require.True(t, bState.Known)
+	require.False(t, bState.Processed)
+
+	// Release the block and let the sync complete
+	blockedReads.rm(bAd.Entries.(cidlink.Link).Cid)
+	close(releaseBlock)
+
+	// Wait for sync to finish
+	select {
+	case <-syncDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("sync did not complete")
+	}
+
+	// b should now be processed (marker 1, not 0)
+	bState, err = te.ingester.GetAdState(bLink.(cidlink.Link).Cid)
+	require.NoError(t, err)
+	require.True(t, bState.Known)
+	require.True(t, bState.Processed)
 }
 
 type testEnvOpts struct {

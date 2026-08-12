@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -64,7 +65,7 @@ func TestRegisterProvider(t *testing.T) {
 	// Initialize everything
 	ind := initIndex(t, true)
 	reg := initRegistry(t, providerIdent.PeerID)
-	ing := initIngest(t, ind, reg)
+	ing, _ := initIngest(t, ind, reg)
 	s := setupServer(ind, ing, reg, t)
 	cl := setupClient(s.URL(), t)
 
@@ -88,7 +89,7 @@ func TestAnnounce(t *testing.T) {
 	// Initialize everything
 	ind := initIndex(t, true)
 	reg := initRegistry(t, providerIdent.PeerID)
-	ing := initIngest(t, ind, reg)
+	ing, _ := initIngest(t, ind, reg)
 	s := setupServer(ind, ing, reg, t)
 	httpSender := setupSender(t, s.URL())
 	peerID, _, err := providerIdent.Decode()
@@ -132,7 +133,7 @@ func initRegistry(t *testing.T, trustedID string) *registry.Registry {
 	return reg
 }
 
-func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *ingest.Ingester {
+func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) (*ingest.Ingester, datastore.Batching) {
 	cfg := config.NewIngest()
 	ds := dssync.MutexWrap(datastore.NewMapDatastore())
 	dsTmp := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -145,7 +146,7 @@ func initIngest(t *testing.T, indx indexer.Interface, reg *registry.Registry) *i
 		ing.Close()
 		host.Close()
 	})
-	return ing
+	return ing, ds
 }
 
 func announceTest(t *testing.T, peerID peer.ID, sender announce.Sender) {
@@ -170,7 +171,7 @@ func announceTest(t *testing.T, peerID peer.ID, sender announce.Sender) {
 func TestAdStatus(t *testing.T) {
 	ind := initIndex(t, true)
 	reg := initRegistry(t, providerIdent.PeerID)
-	ing := initIngest(t, ind, reg)
+	ing, ds := initIngest(t, ind, reg)
 	s := setupServer(ind, ing, reg, t)
 	errChan := make(chan error, 1)
 	go func() {
@@ -187,7 +188,11 @@ func TestAdStatus(t *testing.T) {
 
 	pubID, _, err := providerIdent.Decode()
 	require.NoError(t, err)
-	ads := random.Cids(2)
+
+	dagJSONAds := random.Cids(5)
+	for i := range dagJSONAds {
+		dagJSONAds[i] = cid.NewCidV1(cid.DagJSON, dagJSONAds[i].Hash())
+	}
 
 	getAdStatus := func(t *testing.T, ad cid.Cid) (int, http.Header, string) {
 		t.Helper()
@@ -199,32 +204,119 @@ func TestAdStatus(t *testing.T) {
 		return res.StatusCode, res.Header, string(body)
 	}
 
-	// Unknown ad is not indexed.
-	status, hdr, body := getAdStatus(t, ads[0])
+	// Unknown ad returns state "unknown".
+	status, hdr, body := getAdStatus(t, dagJSONAds[0])
 	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
 	require.Equal(t, "application/json; charset=utf-8", hdr.Get("Content-Type"))
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false}`, ads[0].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false}`, dagJSONAds[0].String()), body)
 
 	// Fully processed ad is indexed.
-	require.NoError(t, ing.MarkAdProcessed(pubID, ads[0]))
-	status, hdr, body = getAdStatus(t, ads[0])
+	require.NoError(t, ing.MarkAdProcessed(pubID, dagJSONAds[0]))
+	status, hdr, body = getAdStatus(t, dagJSONAds[0])
 	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true}`, ads[0].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"State":"indexed","Frozen":false}`, dagJSONAds[0].String()), body)
 
-	// A different unknown ad remains not indexed.
-	status, _, body = getAdStatus(t, ads[1])
+	// Skipped ad returns state "skipped" with reason, Indexed false.
+	require.NoError(t, ing.MarkAdSkipped(pubID, dagJSONAds[1], "decodeErr", false))
+	status, _, body = getAdStatus(t, dagJSONAds[1])
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false}`, ads[1].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"decodeErr","Frozen":false}`, dagJSONAds[1].String()), body)
 
-	res, err := http.Get(s.URL() + "/sync/status/ad/not-a-cid")
+	// Pending ad (marker byte 0 written directly).
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+dagJSONAds[2].String()), []byte{0}))
+	status, _, body = getAdStatus(t, dagJSONAds[2])
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"pending","Frozen":false}`, dagJSONAds[2].String()), body)
+
+	// Resyncing ad (marker byte 2 written directly).
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+dagJSONAds[3].String()), []byte{2}))
+	status, _, body = getAdStatus(t, dagJSONAds[3])
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"resyncing","Frozen":false}`, dagJSONAds[3].String()), body)
+
+	// Frozen ad (processed + frozen key set).
+	require.NoError(t, ing.MarkAdProcessed(pubID, dagJSONAds[4]))
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adF/"+dagJSONAds[4].String()), []byte{1}))
+	status, _, body = getAdStatus(t, dagJSONAds[4])
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"indexed","Frozen":true}`, dagJSONAds[4].String()), body)
+
+	// Codec guard: raw CID returns 400.
+	rawCid := cid.NewCidV1(cid.Raw, random.Multihashes(1)[0])
+	res, err := http.Get(s.URL() + "/sync/status/ad/" + rawCid.String())
+	require.NoError(t, err)
+	bodyBytes, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	require.Contains(t, string(bodyBytes), "dag-json")
+	require.Contains(t, string(bodyBytes), "dag-cbor")
+
+	// Codec guard: raw CID v0 returns 400.
+	v0Cid := cid.NewCidV0(random.Multihashes(1)[0])
+	res, err = http.Get(s.URL() + "/sync/status/ad/" + v0Cid.String())
+	require.NoError(t, err)
+	bodyBytes, err = io.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	require.Contains(t, string(bodyBytes), "dag-json")
+	require.Contains(t, string(bodyBytes), "dag-cbor")
+
+	// Codec guard: dag-cbor CID is accepted and reaches the state path.
+	dagCBORCid := cid.NewCidV1(cid.DagCBOR, random.Multihashes(1)[0])
+	res, err = http.Get(s.URL() + "/sync/status/ad/" + dagCBORCid.String())
+	require.NoError(t, err)
+	bodyBytes, err = io.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false}`, dagCBORCid.String()), string(bodyBytes))
+
+	// Bad CID format returns 400.
+	res, err = http.Get(s.URL() + "/sync/status/ad/not-a-cid")
 	require.NoError(t, err)
 	res.Body.Close()
 	require.Equal(t, http.StatusBadRequest, res.StatusCode)
 
+	// Empty marker value returns 500 without panicking.
+	emptyCid := cid.NewCidV1(cid.DagJSON, random.Multihashes(1)[0])
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+emptyCid.String()), []byte{}))
+	status, _, _ = getAdStatus(t, emptyCid)
+	require.Equal(t, http.StatusInternalServerError, status)
+
+	// Nil ingester returns 503.
+	nilServer, err := httpserver.New("127.0.0.1:0", ind, nil, reg)
+	require.NoError(t, err)
+	errChan2 := make(chan error, 1)
+	go func() {
+		err := nilServer.Start()
+		if err != http.ErrServerClosed {
+			errChan2 <- err
+		}
+		close(errChan2)
+	}()
+	t.Cleanup(func() {
+		require.NoError(t, nilServer.Close())
+		require.NoError(t, <-errChan2)
+	})
+	for i := 0; i < 50; i++ {
+		res, err = http.Get(nilServer.URL() + "/health")
+		if err == nil {
+			res.Body.Close()
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	res, err = http.Get(nilServer.URL() + "/sync/status/ad/" + dagJSONAds[0].String())
+	require.NoError(t, err)
+	res.Body.Close()
+	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+
 	// OPTIONS is required for CORS preflight.
-	req, err := http.NewRequest(http.MethodOptions, s.URL()+"/sync/status/ad/"+ads[0].String(), nil)
+	req, err := http.NewRequest(http.MethodOptions, s.URL()+"/sync/status/ad/"+dagJSONAds[0].String(), nil)
 	require.NoError(t, err)
 	req.Header.Set("Origin", "http://example.com")
 	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
@@ -238,7 +330,7 @@ func TestAdStatus(t *testing.T) {
 func TestSyncStatus(t *testing.T) {
 	ind := initIndex(t, true)
 	reg := initRegistry(t, providerIdent.PeerID)
-	ing := initIngest(t, ind, reg)
+	ing, _ := initIngest(t, ind, reg)
 	s := setupServer(ind, ing, reg, t)
 	errChan := make(chan error, 1)
 	go func() {
