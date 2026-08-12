@@ -1199,6 +1199,49 @@ func TestSyncSkipNoMetadata(t *testing.T) {
 	require.Equal(t, adCid, pInfo.LastAdvertisement)
 }
 
+func TestPermanentErrorRoutesToSkippedMarker(t *testing.T) {
+	srcStore := dssync.MutexWrap(datastore.NewMapDatastore())
+	h := dstest.MkTestHost(t)
+	pubHost := dstest.MkTestHost(t)
+	i, reg := mkIngest(t, h)
+	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
+	connectHosts(t, h, pubHost)
+
+	// Publish an ad with entries but no metadata (permanent error — malformed).
+	adCid, _, providerID, _ := publishRandomIndexAndAdvWithEntriesChunkCount(t, pub, lsys, false, 10, []byte{}, cid.Undef)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	peerInfo := peer.AddrInfo{
+		ID:    pub.ID(),
+		Addrs: pub.Addrs(),
+	}
+	endCid, err := i.Sync(ctx, peerInfo, 0, false, cid.Undef)
+	require.NoError(t, err)
+	require.Equal(t, adCid, endCid)
+
+	// Verify the ad was marked as skipped with marker byte 3.
+	state, err := i.GetAdState(adCid)
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.True(t, state.Processed)
+	require.True(t, state.Skipped)
+	require.Contains(t, state.SkipReason, "malformedErr")
+	require.False(t, state.Indexed())
+
+	// Verify adAlreadyProcessed treats it as done (won't reprocess).
+	apState, err := i.adAlreadyProcessed(adCid)
+	require.NoError(t, err)
+	require.True(t, apState.Known)
+	require.True(t, apState.Processed)
+	require.True(t, apState.Skipped)
+
+	// Verify provider info still updated.
+	pInfo, found := reg.ProviderInfo(providerID)
+	require.True(t, found)
+	require.Equal(t, adCid, pInfo.LastAdvertisement)
+}
+
 func TestReSyncWithDepth(t *testing.T) {
 	te := setupTestEnv(t, false)
 	adHead := typehelpers.RandomAdBuilder{
@@ -2378,25 +2421,25 @@ func TestGetAdState(t *testing.T) {
 	require.NoError(t, te.ingester.MarkAdProcessed(publisher, ads[0]))
 	state, err = te.ingester.GetAdState(ads[0])
 	require.NoError(t, err)
-	require.Equal(t, AdState{Processed: true}, state)
+	require.Equal(t, AdState{Known: true, Processed: true}, state)
 	require.True(t, state.Indexed())
 
 	require.NoError(t, te.ingester.markAdUnprocessed(ads[1], true))
 	state, err = te.ingester.GetAdState(ads[1])
 	require.NoError(t, err)
-	require.Equal(t, AdState{Resync: true}, state)
+	require.Equal(t, AdState{Known: true, Resync: true}, state)
 	require.False(t, state.Indexed())
 
 	require.NoError(t, te.ingester.markAdUnprocessed(ads[2], false))
 	state, err = te.ingester.GetAdState(ads[2])
 	require.NoError(t, err)
-	require.Equal(t, AdState{}, state)
+	require.Equal(t, AdState{Known: true}, state)
 	require.False(t, state.Indexed())
 
 	require.NoError(t, te.ingester.markAdProcessed(publisher, ads[3], true, false))
 	state, err = te.ingester.GetAdState(ads[3])
 	require.NoError(t, err)
-	require.Equal(t, AdState{Processed: true, Frozen: true}, state)
+	require.Equal(t, AdState{Known: true, Processed: true, Frozen: true}, state)
 	require.False(t, state.Indexed())
 }
 
@@ -2413,12 +2456,181 @@ func TestAdStateIndexed(t *testing.T) {
 		{name: "frozen", state: AdState{Frozen: true}, want: false},
 		{name: "processed and frozen", state: AdState{Processed: true, Frozen: true}, want: false},
 		{name: "all flags", state: AdState{Processed: true, Resync: true, Frozen: true}, want: false},
+		{name: "skipped", state: AdState{Processed: true, Skipped: true, SkipReason: "malformedErr"}, want: false},
+		{name: "skipped and frozen", state: AdState{Processed: true, Skipped: true, SkipReason: "decodeErr", Frozen: true}, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.want, tt.state.Indexed())
 		})
 	}
+}
+
+func TestAdStateByMarkerByte(t *testing.T) {
+	te := setupTestEnv(t, false)
+	publisher := te.pubHost.ID()
+	ads := random.Cids(5)
+
+	// Test marker byte 0 (unprocessed) via markAdUnprocessed
+	require.NoError(t, te.ingester.markAdUnprocessed(ads[0], false))
+	state, err := te.ingester.GetAdState(ads[0])
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.False(t, state.Processed)
+	require.False(t, state.Skipped)
+	require.False(t, state.Resync)
+	require.False(t, state.Indexed())
+
+	// Test marker byte 1 (processed) via MarkAdProcessed
+	require.NoError(t, te.ingester.MarkAdProcessed(publisher, ads[1]))
+	state, err = te.ingester.GetAdState(ads[1])
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.True(t, state.Processed)
+	require.False(t, state.Skipped)
+	require.False(t, state.Resync)
+	require.True(t, state.Indexed())
+
+	// Test marker byte 2 (resync) via markAdUnprocessed(forResync=true)
+	require.NoError(t, te.ingester.markAdUnprocessed(ads[2], true))
+	state, err = te.ingester.GetAdState(ads[2])
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.False(t, state.Processed)
+	require.False(t, state.Skipped)
+	require.True(t, state.Resync)
+	require.False(t, state.Indexed())
+
+	// Test marker byte 3 (skipped) via MarkAdSkipped
+	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ads[3], "malformedErr", false))
+	state, err = te.ingester.GetAdState(ads[3])
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.True(t, state.Processed)
+	require.True(t, state.Skipped)
+	require.False(t, state.Resync)
+	require.Equal(t, "malformedErr", state.SkipReason)
+	require.False(t, state.Indexed())
+
+	// Test adAlreadyProcessed for each marker byte
+	tests := []struct {
+		name string
+		ad   cid.Cid
+		want adProcessedState
+	}{
+		{name: "unprocessed", ad: ads[0], want: adProcessedState{Known: true}},
+		{name: "processed", ad: ads[1], want: adProcessedState{Known: true, Processed: true}},
+		{name: "resync", ad: ads[2], want: adProcessedState{Known: true, Resync: true}},
+		{name: "skipped", ad: ads[3], want: adProcessedState{Known: true, Processed: true, Skipped: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := te.ingester.adAlreadyProcessed(tt.ad)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestAdStateByRawByte(t *testing.T) {
+	te := setupTestEnv(t, false)
+	ads := random.Cids(5)
+
+	tests := []struct {
+		name    string
+		marker  byte
+		want    AdState
+		sidecar string
+	}{
+		{
+			name:   "unprocessed",
+			marker: 0,
+			want:   AdState{Known: true},
+		},
+		{
+			name:   "processed",
+			marker: 1,
+			want:   AdState{Known: true, Processed: true},
+		},
+		{
+			name:   "resync",
+			marker: 2,
+			want:   AdState{Known: true, Resync: true},
+		},
+		{
+			name:    "skipped",
+			marker:  3,
+			want:    AdState{Known: true, Processed: true, Skipped: true, SkipReason: "decodeErr"},
+			sidecar: "decodeErr",
+		},
+		{
+			name:   "undefined",
+			marker: 9,
+			want:   AdState{Known: true},
+		},
+	}
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ad := ads[i]
+			require.NoError(t, te.ingester.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+ad.String()), []byte{tt.marker}))
+			if tt.sidecar != "" {
+				require.NoError(t, te.ingester.ds.Put(context.Background(), datastore.NewKey(adSkipReasonPrefix+ad.String()), []byte(tt.sidecar)))
+			}
+
+			state, err := te.ingester.GetAdState(ad)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, state)
+		})
+	}
+}
+
+func TestAdStateEmptyValue(t *testing.T) {
+	te := setupTestEnv(t, false)
+	ad := random.Cids(1)[0]
+
+	require.NoError(t, te.ingester.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+ad.String()), []byte{}))
+	_, err := te.ingester.GetAdState(ad)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "empty value")
+
+	_, err = te.ingester.adAlreadyProcessed(ad)
+	require.Error(t, err)
+}
+
+func TestMarkAdSkipped(t *testing.T) {
+	te := setupTestEnv(t, false)
+	publisher := te.pubHost.ID()
+	ad := random.Cids(1)[0]
+
+	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ad, "decodeErr", false))
+
+	state, err := te.ingester.GetAdState(ad)
+	require.NoError(t, err)
+	require.True(t, state.Known)
+	require.True(t, state.Processed)
+	require.True(t, state.Skipped)
+	require.Equal(t, "decodeErr", state.SkipReason)
+	require.False(t, state.Frozen)
+	require.False(t, state.Indexed())
+
+	// Verify sync head updated
+	syncCid, ok := te.ingester.getLastKnownSync(publisher)
+	require.True(t, ok)
+	require.Equal(t, ad, syncCid)
+}
+
+func TestSkippedAdNotReprocessed(t *testing.T) {
+	te := setupTestEnv(t, false)
+	publisher := te.pubHost.ID()
+	ad := random.Cids(1)[0]
+
+	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ad, "malformedErr", false))
+
+	adState, err := te.ingester.adAlreadyProcessed(ad)
+	require.NoError(t, err)
+	require.True(t, adState.Known)
+	require.True(t, adState.Processed)
+	require.True(t, adState.Skipped)
 }
 
 type testEnvOpts struct {

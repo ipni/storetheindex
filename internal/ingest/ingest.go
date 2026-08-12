@@ -44,6 +44,14 @@ const (
 	// adProcessedFrozenPrefix identifies all advertisements processed while in
 	// frozen mode. Used for unfreezing.
 	adProcessedFrozenPrefix = "/adF/"
+	// adSkipReasonPrefix identifies the skip reason for permanently skipped ads.
+	adSkipReasonPrefix = "/adSkipReason/"
+	// Marker byte values for /adProcessed/<cid>.
+	// Explicit values; these are a persisted on-disk format.
+	adMarkerUnprocessed byte = 0 // unprocessed
+	adMarkerProcessed   byte = 1 // processed successfully
+	adMarkerResync      byte = 2 // marked for resync
+	adMarkerSkipped     byte = 3 // processed but permanently skipped
 	// metricsUpdateInterval determines how ofter to update ingestion metrics.
 	metricsUpdateInterval = time.Minute
 	// adsScannedLogInterval is how often to log ad-chain scanning progress.
@@ -257,13 +265,13 @@ func (ing *Ingester) Skip500EntriesError(skip bool) {
 func (ing *Ingester) generalDagsyncBlockHook(publisher peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
 	// If this ad is already fully processed, all older ads are too.
 	// Stop advancing without loading the ad data.
-	processed, _, err := ing.adAlreadyProcessed(c)
+	adState, err := ing.adAlreadyProcessed(c)
 	if err != nil {
 		ing.EndScan(publisher, err)
 		actions.FailSync(err)
 		return
 	}
-	if processed {
+	if adState.Processed {
 		log.Debugw("Reached already processed advertisement; stopping scan", "publisher", publisher, "adCid", c)
 		actions.SetNextSyncCid(cid.Undef)
 		return
@@ -545,29 +553,45 @@ func (ing *Ingester) Announce(ctx context.Context, nextCid cid.Cid, pubAddrInfo 
 // When forResync is true, index counts are not added to the existing index
 // count.
 func (ing *Ingester) markAdUnprocessed(adCid cid.Cid, forResync bool) error {
-	data := []byte{0}
+	data := []byte{adMarkerUnprocessed}
 	if forResync {
-		data = []byte{2}
+		data = []byte{adMarkerResync}
 	}
 	return ing.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()), data)
 }
 
-func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (bool, bool, error) {
+type adProcessedState struct {
+	Known     bool
+	Processed bool
+	Skipped   bool
+	Resync    bool
+}
+
+func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (adProcessedState, error) {
 	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
 	if errors.Is(err, datastore.ErrNotFound) {
-		return false, false, nil
+		return adProcessedState{}, nil
 	} else if err != nil {
-		return false, false, err
+		return adProcessedState{}, err
 	}
-	processed := v[0] == byte(1)
-	resync := v[0] == byte(2)
-	return processed, resync, nil
+	if len(v) == 0 {
+		return adProcessedState{}, fmt.Errorf("empty value for ad processed marker %s", adCid)
+	}
+	return adProcessedState{
+		Known:     true,
+		Processed: v[0] == adMarkerProcessed || v[0] == adMarkerSkipped,
+		Skipped:   v[0] == adMarkerSkipped,
+		Resync:    v[0] == adMarkerResync,
+	}, nil
 }
 
 type AdState struct {
-	Processed bool
-	Resync    bool
-	Frozen    bool
+	Known      bool
+	Processed  bool
+	Skipped    bool
+	SkipReason string
+	Resync     bool
+	Frozen     bool
 }
 
 // Indexed reports whether the advertisement's content should be considered
@@ -576,24 +600,37 @@ type AdState struct {
 // An ad is indexed only when it was fully processed while the indexer was not
 // frozen. Ads marked for resync are treated as not indexed because a resync
 // invalidates the previous processing result until the ad is processed again.
-//
-// Note that Processed (and therefore Indexed) does not distinguish successful
-// content indexing from permanent skips such as malformed ads.
+// Ads that were permanently skipped (malformed, decode failure, etc.) are not
+// indexed even though they are marked as processed in the marker layer.
 func (s AdState) Indexed() bool {
-	return s.Processed && !s.Resync && !s.Frozen
+	return s.Processed && !s.Skipped && !s.Resync && !s.Frozen
 }
 
 // GetAdState returns the known state for an advertisement.
 //
 // Processed is true when the ad is marked fully processed (/adProcessed/ value
-// 1). Resync is true when the ad is marked for resync (value 2). Frozen is true
-// when the ad was processed while the indexer was in frozen mode (/adF/ key
-// present); frozen processing updates provider metadata but does not index
-// entry multihashes.
+// 1 or 3). Skipped is true when the ad was permanently skipped (value 3).
+// SkipReason contains the reason for the skip. Resync is true when the ad is
+// marked for resync (value 2). Frozen is true when the ad was processed while
+// the indexer was in frozen mode (/adF/ key present); frozen processing updates
+// provider metadata but does not index entry multihashes. Known is false when
+// the ad has never been seen (datastore.ErrNotFound).
 func (ing *Ingester) GetAdState(adCid cid.Cid) (state AdState, err error) {
-	state.Processed, state.Resync, err = ing.adAlreadyProcessed(adCid)
+	adState, err := ing.adAlreadyProcessed(adCid)
 	if err != nil {
 		return state, err
+	}
+	state.Known = adState.Known
+	state.Processed = adState.Processed
+	state.Skipped = adState.Skipped
+	state.Resync = adState.Resync
+
+	if adState.Skipped {
+		reason, err2 := ing.ds.Get(context.Background(), datastore.NewKey(adSkipReasonPrefix+adCid.String()))
+		if err2 != nil && !errors.Is(err2, datastore.ErrNotFound) {
+			return state, err2
+		}
+		state.SkipReason = string(reason)
 	}
 
 	_, err = ing.ds.Get(context.Background(), datastore.NewKey(adProcessedFrozenPrefix+adCid.String()))
@@ -616,6 +653,28 @@ func (ing *Ingester) MarkAdProcessed(publisher peer.ID, adCid cid.Cid) error {
 }
 
 func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, mirrored bool) error {
+	return ing.writeAdMarker(publisher, adCid, adMarkerProcessed, frozen, mirrored)
+}
+
+// MarkAdSkipped explicitly marks an advertisement as permanently skipped. This
+// is used to record that an ad was processed but could not be indexed due to a
+// permanent error (decode failure, malformed, entry chunk error, etc.).
+func (ing *Ingester) MarkAdSkipped(publisher peer.ID, adCid cid.Cid, reason string, frozen bool) error {
+	return ing.markAdSkipped(publisher, adCid, reason, frozen)
+}
+
+func (ing *Ingester) markAdSkipped(publisher peer.ID, adCid cid.Cid, reason string, frozen bool) error {
+	cidStr := adCid.String()
+	ctx := context.Background()
+
+	if err := ing.ds.Put(ctx, datastore.NewKey(adSkipReasonPrefix+cidStr), []byte(reason)); err != nil {
+		return err
+	}
+
+	return ing.writeAdMarker(publisher, adCid, adMarkerSkipped, frozen, false)
+}
+
+func (ing *Ingester) writeAdMarker(publisher peer.ID, adCid cid.Cid, marker byte, frozen, mirrored bool) error {
 	cidStr := adCid.String()
 	ctx := context.Background()
 	if frozen {
@@ -625,7 +684,7 @@ func (ing *Ingester) markAdProcessed(publisher peer.ID, adCid cid.Cid, frozen, m
 		}
 	}
 
-	err := ing.ds.Put(ctx, datastore.NewKey(adProcessedPrefix+cidStr), []byte{1})
+	err := ing.ds.Put(ctx, datastore.NewKey(adProcessedPrefix+cidStr), []byte{marker})
 	if err != nil {
 		return err
 	}
@@ -1058,13 +1117,13 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
 
-		processed, resync, err := ing.adAlreadyProcessed(c)
+		adState, err := ing.adAlreadyProcessed(c)
 		if err != nil {
 			log.Errorw("Failed to read advertisement processed state from datastore", "err", err)
 			// Note: don't stop in case of an error in this place, the same check will be done
 			// later in a context of a specific provider.
 		}
-		if processed {
+		if adState.Processed {
 			// This ad has been processed so all earlier ads already have been
 			// processed.
 			log.Infow("Remainder of ad chain already processed", "cid", c)
@@ -1099,7 +1158,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 
 		ai := adInfo{
 			cid:    c,
-			resync: resync,
+			resync: adState.Resync,
 		}
 
 		ctxIdStr := string(ad.ContextID)
@@ -1197,7 +1256,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			return
 		}
 
-		processed, _, err := ing.adAlreadyProcessed(ai.cid)
+		adState, err := ing.adAlreadyProcessed(ai.cid)
 		if err != nil {
 			log.Errorw("Failed to check if advertisement is processed. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err)
 			ing.inEvents <- adProcessedEvent{
@@ -1209,7 +1268,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			procErr = err
 			return
 		}
-		if processed {
+		if adState.Processed {
 			log.Infow("Skipping advertisement that has already been processed",
 				"adCid", ai.cid,
 				"progress", fmt.Sprintf("%d of %d", count, total))
@@ -1248,6 +1307,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		syncStatus.SetCurrentAd(ai.cid, count)
 
 		hasEnts, adDataSource, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider, wkrNum)
+		skipReason := ""
 		if err != nil {
 			syncStatus.IncError()
 			var adIngestErr adIngestError
@@ -1258,11 +1318,13 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 					// error will happen. So log and drop this error.
 					log.Errorw("Skipping ad because of a permanent error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
 					stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
+					skipReason = string(adIngestErr.state)
 					err = nil
 				case adIngestSyncEntriesErr:
 					if skip500EntsErr && strings.Contains(err.Error(), "failed to sync first entry") && strings.Contains(err.Error(), ": 500") {
 						log.Errorw("Skipping ad because of a permanent 500 error", "adCid", ai.cid, "err", err, "errKind", adIngestErr.state)
 						stats.Record(context.Background(), metrics.AdIngestSkippedCount.M(1))
+						skipReason = string(adIngestErr.state)
 						err = nil
 					}
 				}
@@ -1310,8 +1372,14 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		ing.reg.SetLastError(provider, nil)
 
 		putMirror := hasEnts && ing.mirror.canWrite()
-		if markErr := ing.markAdProcessed(publisher, ai.cid, frozen, putMirror); markErr != nil {
-			log.Errorw("Failed to mark ad as processed", "err", markErr)
+		if skipReason != "" {
+			if markErr := ing.markAdSkipped(publisher, ai.cid, skipReason, frozen); markErr != nil {
+				log.Errorw("Failed to mark ad as skipped", "err", markErr)
+			}
+		} else {
+			if markErr := ing.markAdProcessed(publisher, ai.cid, frozen, putMirror); markErr != nil {
+				log.Errorw("Failed to mark ad as processed", "err", markErr)
+			}
 		}
 
 		if putMirror {
