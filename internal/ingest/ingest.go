@@ -653,15 +653,15 @@ func (ing *Ingester) getAdState(ctx context.Context, adCid cid.Cid) (state AdSta
 }
 
 // GetAdState returns the known state for an advertisement.
-func (ing *Ingester) GetAdState(adCid cid.Cid) (AdState, error) {
-	return ing.getAdState(context.Background(), adCid)
+func (ing *Ingester) GetAdState(ctx context.Context, adCid cid.Cid) (AdState, error) {
+	return ing.getAdState(ctx, adCid)
 }
 
 // GetAdStates returns the known state for a batch of advertisements.
 // Results are returned in the same order as the input slice. Duplicate CIDs
 // are read once and answered per position. On error, returns nil and an
 // error wrapping the failing CID; no partial results are returned.
-func (ing *Ingester) GetAdStates(adCids []cid.Cid) ([]AdState, error) {
+func (ing *Ingester) GetAdStates(ctx context.Context, adCids []cid.Cid) ([]AdState, error) {
 	results := make([]AdState, len(adCids))
 	seen := make(map[cid.Cid]AdState, len(adCids))
 	for i, adCid := range adCids {
@@ -669,9 +669,9 @@ func (ing *Ingester) GetAdStates(adCids []cid.Cid) ([]AdState, error) {
 			results[i] = st
 			continue
 		}
-		st, err := ing.getAdState(context.Background(), adCid)
+		st, err := ing.getAdState(ctx, adCid)
 		if err != nil {
-			return nil, fmt.Errorf("getAdState(%s): %w", adCid, err)
+			return nil, fmt.Errorf("reading ad state for %s: %w", adCid, err)
 		}
 		seen[adCid] = st
 		results[i] = st

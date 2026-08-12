@@ -258,7 +258,7 @@ func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adState, err := s.ingester.GetAdState(adCid)
+	adState, err := s.ingester.GetAdState(r.Context(), adCid)
 	if err != nil {
 		log.Errorw("Failed to read advertisement processed state", "adCid", adCid, "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
