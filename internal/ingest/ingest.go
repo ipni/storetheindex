@@ -612,7 +612,7 @@ func (s AdState) Indexed() bool {
 	return s.Processed && !s.Skipped && !s.Resync && !s.Frozen
 }
 
-// getAdState returns the known state for an advertisement.
+// GetAdState returns the known state for an advertisement.
 //
 // Processed is true when the ad is marked fully processed (/adProcessed/ value
 // 1 or 3). Skipped is true when the ad was permanently skipped (value 3).
@@ -621,7 +621,7 @@ func (s AdState) Indexed() bool {
 // the indexer was in frozen mode (/adF/ key present); frozen processing updates
 // provider metadata but does not index entry multihashes. Known is false when
 // the ad has never been seen (datastore.ErrNotFound).
-func (ing *Ingester) getAdState(ctx context.Context, adCid cid.Cid) (state AdState, err error) {
+func (ing *Ingester) GetAdState(ctx context.Context, adCid cid.Cid) (state AdState, err error) {
 	adState, err := ing.adAlreadyProcessed(ctx, adCid)
 	if err != nil {
 		return state, err
@@ -650,11 +650,6 @@ func (ing *Ingester) getAdState(ctx context.Context, adCid cid.Cid) (state AdSta
 	}
 
 	return state, nil
-}
-
-// GetAdState returns the known state for an advertisement.
-func (ing *Ingester) GetAdState(ctx context.Context, adCid cid.Cid) (AdState, error) {
-	return ing.getAdState(ctx, adCid)
 }
 
 // GetAdStates returns the known state for a batch of advertisements.

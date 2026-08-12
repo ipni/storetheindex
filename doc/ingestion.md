@@ -469,8 +469,13 @@ same shape as the single-ad response. The batch size limit is 128 CIDs;
 requests exceeding the limit return HTTP 400. The request body size limit is
 1 MiB. Per-item errors (invalid CID, unsupported codec) are returned as
 individual entries with an `Error` field (and `State` omitted), while the
-overall response is still HTTP 200. OPTIONS preflight requests are supported
-for CORS.
+overall response is still HTTP 200; on such error entries, `Indexed` and
+`Frozen` carry no meaning since no datastore lookup was performed. A datastore
+read failure during batch processing returns HTTP 500 for the entire request,
+in contrast to per-item validation errors which return 200. Callers checking a
+single advertisement should prefer `GET /sync/status/ad/<adCid>`, because GET
+responses are cacheable at the CDN while POST requests always reach the origin.
+OPTIONS preflight requests are supported for CORS.
 
 The response includes:
 
