@@ -30,6 +30,10 @@ var log = logging.Logger("indexer/ingest")
 // clearly in error.
 const maxBodySize = 1024 * 1024
 
+// maxAdStatusBatch is the maximum number of advertisement CIDs allowed in a
+// single batch ad-status request.
+const maxAdStatusBatch = 128
+
 type Server struct {
 	server          *http.Server
 	listener        net.Listener
@@ -80,6 +84,7 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 	mux.HandleFunc("/register", s.postRegisterProvider)
 	mux.HandleFunc("/sync/status", s.listSyncStatus)
 	mux.HandleFunc("/sync/status/", s.getSyncStatus)
+	mux.HandleFunc("/sync/status/ad", s.batchAdStatus)
 	mux.HandleFunc("/sync/status/ad/", s.getAdStatus)
 
 	// Depricated
@@ -222,9 +227,34 @@ func (s *Server) getSyncStatus(w http.ResponseWriter, r *http.Request) {
 type adStatusResponse struct {
 	Ad         string `json:"Ad"`
 	Indexed    bool   `json:"Indexed"`
-	State      string `json:"State"`
+	State      string `json:"State,omitempty"`
 	SkipReason string `json:"SkipReason,omitempty"`
 	Frozen     bool   `json:"Frozen"`
+	Error      string `json:"Error,omitempty"`
+}
+
+func newAdStatusResponse(adCid cid.Cid, adState ingest.AdState) adStatusResponse {
+	resp := adStatusResponse{
+		Ad:      adCid.String(),
+		Indexed: adState.Indexed(),
+		Frozen:  adState.Frozen,
+	}
+
+	switch {
+	case !adState.Known:
+		resp.State = "unknown"
+	case adState.Resync:
+		resp.State = "resyncing"
+	case adState.Processed && adState.Skipped:
+		resp.State = "skipped"
+		resp.SkipReason = adState.SkipReason
+	case adState.Processed && !adState.Skipped:
+		resp.State = "indexed"
+	default:
+		resp.State = "pending"
+	}
+
+	return resp
 }
 
 func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
@@ -265,29 +295,116 @@ func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := adStatusResponse{
-		Ad:      adCid.String(),
-		Indexed: adState.Indexed(),
-		Frozen:  adState.Frozen,
-	}
-
-	switch {
-	case !adState.Known:
-		resp.State = "unknown"
-	case adState.Resync:
-		resp.State = "resyncing"
-	case adState.Processed && adState.Skipped:
-		resp.State = "skipped"
-		resp.SkipReason = adState.SkipReason
-	case adState.Processed && !adState.Skipped:
-		resp.State = "indexed"
-	default:
-		resp.State = "pending"
-	}
+	resp := newAdStatusResponse(adCid, adState)
 
 	data, err := json.Marshal(resp)
 	if err != nil {
 		log.Errorw("cannot marshal advertisement status", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
+type batchAdStatusRequest struct {
+	Ads []string `json:"Ads"`
+}
+
+type batchAdStatusResponse struct {
+	Statuses []adStatusResponse `json:"Statuses"`
+}
+
+func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
+	httpserver.EnableCors(w)
+
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "method not allowed; use POST for batch or GET /sync/status/ad/<cid> for single advertisement", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if _, ok := httpserver.AcceptsMediaType(w, r, false, httpserver.MediaTypeJson, httpserver.MediaTypeAny); !ok {
+		return
+	}
+
+	bodyReader := http.MaxBytesReader(w, r.Body, maxBodySize)
+	defer r.Body.Close()
+
+	var req batchAdStatusRequest
+	if err := json.NewDecoder(bodyReader).Decode(&req); err != nil {
+		http.Error(w, "malformed request body", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Ads) == 0 {
+		http.Error(w, "no advertisement CIDs provided", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Ads) > maxAdStatusBatch {
+		msg := fmt.Sprintf("batch size %d exceeds limit of %d", len(req.Ads), maxAdStatusBatch)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+
+	if s.ingester == nil {
+		http.Error(w, "ingester not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	results := make([]adStatusResponse, len(req.Ads))
+	var validCids []struct {
+		idx int
+		cid cid.Cid
+	}
+
+	for i, raw := range req.Ads {
+		adCid, err := cid.Decode(raw)
+		if err != nil {
+			results[i] = adStatusResponse{
+				Ad:    raw,
+				Error: "cannot decode advertisement cid",
+			}
+			continue
+		}
+
+		if adCid.Prefix().Codec != cid.DagJSON && adCid.Prefix().Codec != cid.DagCBOR {
+			results[i] = adStatusResponse{
+				Ad:    adCid.String(),
+				Error: fmt.Sprintf("this endpoint expects an advertisement CID (dag-json or dag-cbor codec), got %d; use /cid/%s for content lookups", adCid.Prefix().Codec, adCid.String()),
+			}
+			continue
+		}
+
+		validCids = append(validCids, struct {
+			idx int
+			cid cid.Cid
+		}{i, adCid})
+	}
+
+	if len(validCids) > 0 {
+		cids := make([]cid.Cid, len(validCids))
+		for i, v := range validCids {
+			cids[i] = v.cid
+		}
+
+		adStates, err := s.ingester.GetAdStates(r.Context(), cids)
+		if err != nil {
+			log.Errorw("Failed to read advertisement states", "err", err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
+		for i, st := range adStates {
+			results[validCids[i].idx] = newAdStatusResponse(validCids[i].cid, st)
+		}
+	}
+
+	resp := batchAdStatusResponse{Statuses: results}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		log.Errorw("cannot marshal batch advertisement status", "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
