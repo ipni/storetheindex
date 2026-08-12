@@ -322,6 +322,10 @@ func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 	// header and give a message that directs single-CID callers to the GET endpoint.
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
+		if r.Method == http.MethodOptions {
+			http.Error(w, "", http.StatusOK)
+			return
+		}
 		http.Error(w, "method not allowed; use POST for batch or GET /sync/status/ad/<cid> for single advertisement", http.StatusMethodNotAllowed)
 		return
 	}

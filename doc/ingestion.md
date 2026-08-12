@@ -459,9 +459,18 @@ status.
 
 Whether a single advertisement's content is available from this indexer is
 exposed on the same ingest HTTP API as `GET /sync/status/ad/<adCid>`. The
-endpoint only accepts dag-json CIDs (codec 0x0129); requests with other codecs
-return HTTP 400. If the ingester is not available, the endpoint returns HTTP
-503.
+endpoint accepts dag-json or dag-cbor CIDs; requests with other codecs return
+HTTP 400. If the ingester is not available, the endpoint returns HTTP 503.
+
+A batch variant is available at `POST /sync/status/ad`. The request body is
+`{"Ads": ["<cid>", ...]}` and the response is `{"Statuses": [...]}` with
+entries returned in the same order as the request. Each status entry has the
+same shape as the single-ad response. The batch size limit is 128 CIDs;
+requests exceeding the limit return HTTP 400. The request body size limit is
+1 MiB. Per-item errors (invalid CID, unsupported codec) are returned as
+individual entries with an `Error` field (and `State` omitted), while the
+overall response is still HTTP 200. OPTIONS preflight requests are supported
+for CORS.
 
 The response includes:
 
@@ -544,7 +553,7 @@ listed in [config.md](config.md).
 | `internal/ingest/mirror.go` | CAR mirror read/write over the filestore. |
 | `internal/ingest/error.go` | `adIngestError` states and helpers. |
 | `internal/ingest/syncstatus.go` | Live per-publisher sync status tracker. |
-| `server/ingest/server.go` | `/announce`, `/register`, `/sync/status`, and `/sync/status/ad/<cid>` HTTP handlers. |
+| `server/ingest/server.go` | `/announce`, `/register`, `/sync/status`, `/sync/status/ad/<cid>` (single), and `POST /sync/status/ad` (batch) HTTP handlers. |
 | `internal/registry/registry.go` | Provider registry, policy, freeze, auto-sync channel. |
 | `server/find/server.go` | Find HTTP API. |
 | `config/ingest.go` | Ingestion configuration and defaults. |
