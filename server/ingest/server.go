@@ -222,6 +222,9 @@ func (s *Server) getSyncStatus(w http.ResponseWriter, r *http.Request) {
 type adStatusResponse struct {
 	Ad      string `json:"Ad"`
 	Indexed bool   `json:"Indexed"`
+	State   string `json:"State"`
+	Reason  string `json:"Reason"`
+	Frozen  bool   `json:"Frozen"`
 }
 
 func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
@@ -243,17 +246,43 @@ func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := adStatusResponse{
-		Ad: adCid.String(),
+	if adCid.Prefix().Codec != cid.DagJSON {
+		msg := fmt.Sprintf("this endpoint expects an advertisement CID (dag-json codec), got %d; use /cid/%s for content lookups", adCid.Prefix().Codec, cidStr)
+		log.Errorw(msg, "cid", cidStr)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
 	}
-	if s.ingester != nil {
-		adState, err := s.ingester.GetAdState(adCid)
-		if err != nil {
-			log.Errorw("Failed to read advertisement processed state", "adCid", adCid, "err", err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-		resp.Indexed = adState.Indexed()
+
+	if s.ingester == nil {
+		http.Error(w, "ingester not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	adState, err := s.ingester.GetAdState(adCid)
+	if err != nil {
+		log.Errorw("Failed to read advertisement processed state", "adCid", adCid, "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	resp := adStatusResponse{
+		Ad:      adCid.String(),
+		Indexed: adState.Indexed(),
+		Frozen:  adState.Frozen,
+	}
+
+	switch {
+	case !adState.Known:
+		resp.State = "unknown"
+	case adState.Resync:
+		resp.State = "resyncing"
+	case adState.Processed && adState.Skipped:
+		resp.State = "skipped"
+		resp.Reason = adState.SkipReason
+	case adState.Processed && !adState.Skipped:
+		resp.State = "indexed"
+	default:
+		resp.State = "pending"
 	}
 
 	data, err := json.Marshal(resp)

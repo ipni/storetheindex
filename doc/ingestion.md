@@ -459,12 +459,25 @@ status.
 
 Whether a single advertisement's content is available from this indexer is
 exposed on the same ingest HTTP API as `GET /sync/status/ad/<adCid>`. The
-response includes:
+endpoint only accepts dag-json CIDs (codec 0x0129); requests with other codecs
+return HTTP 400. If the ingester is not available, the endpoint returns HTTP
+503.
+
+The response includes:
 
 - `Ad` - the requested advertisement CID
 - `Indexed` - true only when the ad was fully processed while the indexer was
   not frozen, and is not currently marked for resync
   (`Processed && !Resync && !Frozen` from `AdState`)
+- `State` - one of `"unknown"`, `"pending"`, `"indexed"`, `"skipped"`, or
+  `"resyncing"`:
+  - `"unknown"` - the ad is not known to the ingester
+  - `"pending"` - the ad is known but not yet fully processed
+  - `"indexed"` - the ad was fully processed and entries were indexed
+  - `"skipped"` - the ad was permanently skipped (malformed, decode error, etc.)
+  - `"resyncing"` - the ad is marked for resync (previous processing invalidated)
+- `Reason` - the skip reason string, non-empty only when `State` is `"skipped"`
+- `Frozen` - true when the ad was processed while the indexer was in frozen mode
 
 `Indexed` is false when:
 
