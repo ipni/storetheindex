@@ -669,7 +669,7 @@ func (ing *Ingester) GetAdStates(ctx context.Context, adCids []cid.Cid) ([]AdSta
 			results[i] = st
 			continue
 		}
-		st, err := ing.getAdState(ctx, adCid)
+		st, err := ing.GetAdState(ctx, adCid)
 		if err != nil {
 			return nil, fmt.Errorf("reading ad state for %s: %w", adCid, err)
 		}
