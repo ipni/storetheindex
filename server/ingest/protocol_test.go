@@ -270,7 +270,9 @@ func TestAdStatus(t *testing.T) {
 	dagCBORCid := cid.NewCidV1(cid.DagCBOR, random.Multihashes(1)[0])
 	res, err = http.Get(s.URL() + "/sync/status/ad/" + dagCBORCid.String())
 	require.NoError(t, err)
+	bodyBytes, err = io.ReadAll(res.Body)
 	res.Body.Close()
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false}`, dagCBORCid.String()), string(bodyBytes))
 
