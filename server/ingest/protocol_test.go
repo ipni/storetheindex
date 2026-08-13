@@ -1,6 +1,7 @@
 package ingest_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -320,6 +321,223 @@ func TestAdStatus(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Set("Origin", "http://example.com")
 	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	res, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.Equal(t, "*", res.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func TestAdStatusBatch(t *testing.T) {
+	ind := initIndex(t, true)
+	reg := initRegistry(t, providerIdent.PeerID)
+	ing, ds := initIngest(t, ind, reg)
+	s := setupServer(ind, ing, reg, t)
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+	t.Cleanup(func() {
+		require.NoError(t, s.Close())
+		require.NoError(t, <-errChan)
+	})
+
+	pubID, _, err := providerIdent.Decode()
+	require.NoError(t, err)
+
+	postBatch := func(t *testing.T, ads []string) (int, http.Header, string) {
+		t.Helper()
+		body, err := json.Marshal(map[string][]string{"Ads": ads})
+		require.NoError(t, err)
+		res, err := http.Post(s.URL()+"/sync/status/ad", "application/json", bytes.NewReader(body))
+		require.NoError(t, err)
+		data, err := io.ReadAll(res.Body)
+		res.Body.Close()
+		require.NoError(t, err)
+		return res.StatusCode, res.Header, string(data)
+	}
+
+	// Create test CIDs for each state
+	cids := random.Cids(6)
+	for i := range cids {
+		cids[i] = cid.NewCidV1(cid.DagJSON, cids[i].Hash())
+	}
+
+	// Set up states: unknown, pending, indexed, resyncing, skipped
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+cids[1].String()), []byte{0}))
+	require.NoError(t, ing.MarkAdProcessed(pubID, cids[2]))
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+cids[3].String()), []byte{2}))
+	require.NoError(t, ing.MarkAdSkipped(pubID, cids[4], "testSkip", false))
+
+	// All five states in one request, asserted positionally
+	status, hdr, body := postBatch(t, []string{
+		cids[0].String(), // unknown
+		cids[1].String(), // pending
+		cids[2].String(), // indexed
+		cids[3].String(), // resyncing
+		cids[4].String(), // skipped
+	})
+	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
+	require.JSONEq(t, fmt.Sprintf(`{
+		"Statuses": [
+			{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false},
+			{"Ad":%q,"Indexed":false,"State":"pending","Frozen":false},
+			{"Ad":%q,"Indexed":true,"State":"indexed","Frozen":false},
+			{"Ad":%q,"Indexed":false,"State":"resyncing","Frozen":false},
+			{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"testSkip","Frozen":false}
+		]
+	}`, cids[0].String(), cids[1].String(), cids[2].String(), cids[3].String(), cids[4].String()), body)
+
+	// Frozen-processed ad
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adF/"+cids[2].String()), []byte{1}))
+	status, _, body = postBatch(t, []string{cids[2].String()})
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Statuses":[{"Ad":%q,"Indexed":false,"State":"indexed","Frozen":true}]}`, cids[2].String()), body)
+
+	// Reversed order with one duplicated CID stays positionally aligned
+	status, _, body = postBatch(t, []string{cids[4].String(), cids[2].String(), cids[4].String()})
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{
+		"Statuses": [
+			{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"testSkip","Frozen":false},
+			{"Ad":%q,"Indexed":false,"State":"indexed","Frozen":true},
+			{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"testSkip","Frozen":false}
+		]
+	}`, cids[4].String(), cids[2].String(), cids[4].String()), body)
+
+	// Single-element batch returns one-entry Statuses array
+	status, _, body = postBatch(t, []string{cids[0].String()})
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Statuses":[{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false}]}`, cids[0].String()), body)
+
+	// dag-cbor CID accepted like dag-json
+	dagCBORCid := cid.NewCidV1(cid.DagCBOR, random.Multihashes(1)[0])
+	status, _, body = postBatch(t, []string{dagCBORCid.String()})
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Statuses":[{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false}]}`, dagCBORCid.String()), body)
+
+	// Mixed batch: two valid, "not-a-cid", raw-codec - all 200 with per-item errors
+	rawCid := cid.NewCidV1(cid.Raw, random.Multihashes(1)[0])
+	status, _, body = postBatch(t, []string{cids[0].String(), cids[1].String(), "not-a-cid", rawCid.String()})
+	require.Equal(t, http.StatusOK, status)
+	require.Contains(t, body, `"Error"`)
+	require.Contains(t, body, `"Ad":"not-a-cid"`)
+
+	// Unmarshal to verify error entries omit State/SkipReason and raw-codec entry is correct
+	var batchResp map[string][]map[string]any
+	require.NoError(t, json.Unmarshal([]byte(body), &batchResp))
+	statuses := batchResp["Statuses"]
+	require.Len(t, statuses, 4)
+	// "not-a-cid" entry (index 2): no State key
+	require.False(t, func() bool { _, ok := statuses[2]["State"]; return ok }(), "error entry should not have State")
+	require.False(t, func() bool { _, ok := statuses[2]["SkipReason"]; return ok }(), "error entry should not have SkipReason")
+	// raw-codec entry (index 3): Ad is canonicalized, error mentions supported codecs
+	require.Equal(t, rawCid.String(), statuses[3]["Ad"])
+	require.Contains(t, statuses[3]["Error"].(string), "dag-json")
+	require.Contains(t, statuses[3]["Error"].(string), "dag-cbor")
+
+	// All-invalid batch still returns 200
+	status, _, body = postBatch(t, []string{"not-a-cid", "also-not-a-cid"})
+	require.Equal(t, http.StatusOK, status)
+	require.Contains(t, body, `"Statuses"`)
+
+	// 129 CIDs returns 400 with body containing 128
+	overLimit := make([]string, 129)
+	for i := range overLimit {
+		overLimit[i] = cids[0].String()
+	}
+	status, _, body = postBatch(t, overLimit)
+	require.Equal(t, http.StatusBadRequest, status)
+	require.Contains(t, body, "128")
+
+	// Empty Ads returns 400
+	emptyBody, err := json.Marshal(map[string][]string{"Ads": {}})
+	require.NoError(t, err)
+	res, err := http.Post(s.URL()+"/sync/status/ad", "application/json", bytes.NewReader(emptyBody))
+	require.NoError(t, err)
+	data, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	require.Contains(t, string(data), "no advertisement CIDs")
+
+	// Malformed JSON returns 400
+	res, err = http.Post(s.URL()+"/sync/status/ad", "application/json", bytes.NewReader([]byte("not json")))
+	require.NoError(t, err)
+	data, err = io.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	require.Contains(t, string(data), "malformed")
+
+	// Body over limit returns 400 with distinct message
+	// Build valid JSON that exceeds the body size limit with a real CID as first element.
+	// maxAdStatusBodySize = 128*128+64 = 16448; pad to that + 1024 to exceed.
+	pad := bytes.Repeat([]byte(" "), 16448+1024)
+	bigBody := []byte(`{"Ads":["` + cids[0].String() + `","` + string(pad) + `"]}`)
+	res, err = http.Post(s.URL()+"/sync/status/ad", "application/json", bytes.NewReader(bigBody))
+	require.NoError(t, err)
+	data, err = io.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	require.Contains(t, string(data), "byte limit")
+	require.NotContains(t, string(data), "malformed")
+
+	// GET on /sync/status/ad returns 405 with Allow: POST header, no redirect
+	client := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	req, err := http.NewRequest(http.MethodGet, s.URL()+"/sync/status/ad", nil)
+	require.NoError(t, err)
+	res, err = client.Do(req)
+	require.NoError(t, err)
+	res.Body.Close()
+	require.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
+	require.Equal(t, http.MethodPost, res.Header.Get("Allow"))
+
+	// Nil ingester returns 503
+	nilServer, err := httpserver.New("127.0.0.1:0", ind, nil, reg)
+	require.NoError(t, err)
+	errChan2 := make(chan error, 1)
+	go func() {
+		err := nilServer.Start()
+		if err != http.ErrServerClosed {
+			errChan2 <- err
+		}
+		close(errChan2)
+	}()
+	t.Cleanup(func() {
+		require.NoError(t, nilServer.Close())
+		require.NoError(t, <-errChan2)
+	})
+	for i := 0; i < 50; i++ {
+		res, err = http.Get(nilServer.URL() + "/health")
+		if err == nil {
+			res.Body.Close()
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	batchBody, err := json.Marshal(map[string][]string{"Ads": {cids[0].String()}})
+	require.NoError(t, err)
+	res, err = http.Post(nilServer.URL()+"/sync/status/ad", "application/json", bytes.NewReader(batchBody))
+	require.NoError(t, err)
+	res.Body.Close()
+	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+
+	// OPTIONS preflight returns 200 with Access-Control-Allow-Origin: *
+	req, err = http.NewRequest(http.MethodOptions, s.URL()+"/sync/status/ad", nil)
+	require.NoError(t, err)
+	req.Header.Set("Origin", "http://example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
 	res, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	res.Body.Close()

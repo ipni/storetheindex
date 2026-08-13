@@ -265,7 +265,7 @@ func (ing *Ingester) Skip500EntriesError(skip bool) {
 func (ing *Ingester) generalDagsyncBlockHook(publisher peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
 	// If this ad is already fully processed, all older ads are too.
 	// Stop advancing without loading the ad data.
-	adState, err := ing.adAlreadyProcessed(c)
+	adState, err := ing.adAlreadyProcessed(context.Background(), c)
 	if err != nil {
 		ing.EndScan(publisher, err)
 		actions.FailSync(err)
@@ -573,8 +573,8 @@ type adProcessedState struct {
 	Resync    bool
 }
 
-func (ing *Ingester) adAlreadyProcessed(adCid cid.Cid) (adProcessedState, error) {
-	v, err := ing.ds.Get(context.Background(), datastore.NewKey(adProcessedPrefix+adCid.String()))
+func (ing *Ingester) adAlreadyProcessed(ctx context.Context, adCid cid.Cid) (adProcessedState, error) {
+	v, err := ing.ds.Get(ctx, datastore.NewKey(adProcessedPrefix+adCid.String()))
 	if errors.Is(err, datastore.ErrNotFound) {
 		return adProcessedState{}, nil
 	} else if err != nil {
@@ -621,8 +621,8 @@ func (s AdState) Indexed() bool {
 // the indexer was in frozen mode (/adF/ key present); frozen processing updates
 // provider metadata but does not index entry multihashes. Known is false when
 // the ad has never been seen (datastore.ErrNotFound).
-func (ing *Ingester) GetAdState(adCid cid.Cid) (state AdState, err error) {
-	adState, err := ing.adAlreadyProcessed(adCid)
+func (ing *Ingester) GetAdState(ctx context.Context, adCid cid.Cid) (state AdState, err error) {
+	adState, err := ing.adAlreadyProcessed(ctx, adCid)
 	if err != nil {
 		return state, err
 	}
@@ -632,14 +632,14 @@ func (ing *Ingester) GetAdState(adCid cid.Cid) (state AdState, err error) {
 	state.Resync = adState.Resync
 
 	if adState.Skipped {
-		reason, err2 := ing.ds.Get(context.Background(), datastore.NewKey(adSkipReasonPrefix+adCid.String()))
+		reason, err2 := ing.ds.Get(ctx, datastore.NewKey(adSkipReasonPrefix+adCid.String()))
 		if err2 != nil && !errors.Is(err2, datastore.ErrNotFound) {
 			return state, err2
 		}
 		state.SkipReason = string(reason)
 	}
 
-	_, err = ing.ds.Get(context.Background(), datastore.NewKey(adProcessedFrozenPrefix+adCid.String()))
+	_, err = ing.ds.Get(ctx, datastore.NewKey(adProcessedFrozenPrefix+adCid.String()))
 	switch {
 	case errors.Is(err, datastore.ErrNotFound):
 		state.Frozen = false
@@ -650,6 +650,28 @@ func (ing *Ingester) GetAdState(adCid cid.Cid) (state AdState, err error) {
 	}
 
 	return state, nil
+}
+
+// GetAdStates returns the known state for a batch of advertisements.
+// Results are returned in the same order as the input slice. Duplicate CIDs
+// are read once and answered per position. On error, returns nil and an
+// error wrapping the failing CID; no partial results are returned.
+func (ing *Ingester) GetAdStates(ctx context.Context, adCids []cid.Cid) ([]AdState, error) {
+	results := make([]AdState, len(adCids))
+	seen := make(map[cid.Cid]AdState, len(adCids))
+	for i, adCid := range adCids {
+		if st, ok := seen[adCid]; ok {
+			results[i] = st
+			continue
+		}
+		st, err := ing.GetAdState(ctx, adCid)
+		if err != nil {
+			return nil, fmt.Errorf("reading ad state for %s: %w", adCid, err)
+		}
+		seen[adCid] = st
+		results[i] = st
+	}
+	return results, nil
 }
 
 // MarkAdProcessed explicitly marks an advertisement as processed. This is used
@@ -1123,7 +1145,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		// only publish Ads for one provider, but it's possible that an ad
 		// chain can include multiple providers.
 
-		adState, stateErr := ing.adAlreadyProcessed(c)
+		adState, stateErr := ing.adAlreadyProcessed(ctx, c)
 		if stateErr != nil {
 			log.Errorw("Failed to read advertisement processed state from datastore", "err", stateErr)
 			// Note: don't stop in case of an error in this place, the same check will be done
@@ -1268,7 +1290,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			return
 		}
 
-		adState, err := ing.adAlreadyProcessed(ai.cid)
+		adState, err := ing.adAlreadyProcessed(ctx, ai.cid)
 		if err != nil {
 			log.Errorw("Failed to check if advertisement is processed. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err)
 			ing.inEvents <- adProcessedEvent{

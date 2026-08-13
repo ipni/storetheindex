@@ -1221,7 +1221,7 @@ func TestPermanentErrorRoutesToSkippedMarker(t *testing.T) {
 	require.Equal(t, adCid, endCid)
 
 	// Verify the ad was marked as skipped with marker byte 3.
-	state, err := i.GetAdState(adCid)
+	state, err := i.GetAdState(t.Context(), adCid)
 	require.NoError(t, err)
 	require.True(t, state.Known)
 	require.True(t, state.Processed)
@@ -1230,7 +1230,7 @@ func TestPermanentErrorRoutesToSkippedMarker(t *testing.T) {
 	require.False(t, state.Indexed())
 
 	// Verify adAlreadyProcessed treats it as done (won't reprocess).
-	apState, err := i.adAlreadyProcessed(adCid)
+	apState, err := i.adAlreadyProcessed(t.Context(), adCid)
 	require.NoError(t, err)
 	require.True(t, apState.Known)
 	require.True(t, apState.Processed)
@@ -2413,31 +2413,31 @@ func TestGetAdState(t *testing.T) {
 	publisher := te.pubHost.ID()
 	ads := random.Cids(4)
 
-	state, err := te.ingester.GetAdState(ads[0])
+	state, err := te.ingester.GetAdState(t.Context(), ads[0])
 	require.NoError(t, err)
 	require.Equal(t, AdState{}, state)
 	require.False(t, state.Indexed())
 
 	require.NoError(t, te.ingester.MarkAdProcessed(publisher, ads[0]))
-	state, err = te.ingester.GetAdState(ads[0])
+	state, err = te.ingester.GetAdState(t.Context(), ads[0])
 	require.NoError(t, err)
 	require.Equal(t, AdState{Known: true, Processed: true}, state)
 	require.True(t, state.Indexed())
 
 	require.NoError(t, te.ingester.markAdUnprocessed(ads[1], true))
-	state, err = te.ingester.GetAdState(ads[1])
+	state, err = te.ingester.GetAdState(t.Context(), ads[1])
 	require.NoError(t, err)
 	require.Equal(t, AdState{Known: true, Resync: true}, state)
 	require.False(t, state.Indexed())
 
 	require.NoError(t, te.ingester.markAdUnprocessed(ads[2], false))
-	state, err = te.ingester.GetAdState(ads[2])
+	state, err = te.ingester.GetAdState(t.Context(), ads[2])
 	require.NoError(t, err)
 	require.Equal(t, AdState{Known: true}, state)
 	require.False(t, state.Indexed())
 
 	require.NoError(t, te.ingester.markAdProcessed(publisher, ads[3], true, false))
-	state, err = te.ingester.GetAdState(ads[3])
+	state, err = te.ingester.GetAdState(t.Context(), ads[3])
 	require.NoError(t, err)
 	require.Equal(t, AdState{Known: true, Processed: true, Frozen: true}, state)
 	require.False(t, state.Indexed())
@@ -2473,7 +2473,7 @@ func TestAdStateByMarkerByte(t *testing.T) {
 
 	// Test marker byte 0 (unprocessed) via markAdUnprocessed
 	require.NoError(t, te.ingester.markAdUnprocessed(ads[0], false))
-	state, err := te.ingester.GetAdState(ads[0])
+	state, err := te.ingester.GetAdState(t.Context(), ads[0])
 	require.NoError(t, err)
 	require.True(t, state.Known)
 	require.False(t, state.Processed)
@@ -2483,7 +2483,7 @@ func TestAdStateByMarkerByte(t *testing.T) {
 
 	// Test marker byte 1 (processed) via MarkAdProcessed
 	require.NoError(t, te.ingester.MarkAdProcessed(publisher, ads[1]))
-	state, err = te.ingester.GetAdState(ads[1])
+	state, err = te.ingester.GetAdState(t.Context(), ads[1])
 	require.NoError(t, err)
 	require.True(t, state.Known)
 	require.True(t, state.Processed)
@@ -2493,7 +2493,7 @@ func TestAdStateByMarkerByte(t *testing.T) {
 
 	// Test marker byte 2 (resync) via markAdUnprocessed(forResync=true)
 	require.NoError(t, te.ingester.markAdUnprocessed(ads[2], true))
-	state, err = te.ingester.GetAdState(ads[2])
+	state, err = te.ingester.GetAdState(t.Context(), ads[2])
 	require.NoError(t, err)
 	require.True(t, state.Known)
 	require.False(t, state.Processed)
@@ -2503,7 +2503,7 @@ func TestAdStateByMarkerByte(t *testing.T) {
 
 	// Test marker byte 3 (skipped) via MarkAdSkipped
 	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ads[3], "malformedErr", false))
-	state, err = te.ingester.GetAdState(ads[3])
+	state, err = te.ingester.GetAdState(t.Context(), ads[3])
 	require.NoError(t, err)
 	require.True(t, state.Known)
 	require.True(t, state.Processed)
@@ -2525,7 +2525,7 @@ func TestAdStateByMarkerByte(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := te.ingester.adAlreadyProcessed(tt.ad)
+			got, err := te.ingester.adAlreadyProcessed(t.Context(), tt.ad)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
 		})
@@ -2577,7 +2577,7 @@ func TestAdStateByRawByte(t *testing.T) {
 				require.NoError(t, te.ingester.ds.Put(context.Background(), datastore.NewKey(adSkipReasonPrefix+ad.String()), []byte(tt.sidecar)))
 			}
 
-			state, err := te.ingester.GetAdState(ad)
+			state, err := te.ingester.GetAdState(t.Context(), ad)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, state)
 		})
@@ -2589,11 +2589,11 @@ func TestAdStateEmptyValue(t *testing.T) {
 	ad := random.Cids(1)[0]
 
 	require.NoError(t, te.ingester.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+ad.String()), []byte{}))
-	_, err := te.ingester.GetAdState(ad)
+	_, err := te.ingester.GetAdState(t.Context(), ad)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "empty value")
 
-	_, err = te.ingester.adAlreadyProcessed(ad)
+	_, err = te.ingester.adAlreadyProcessed(t.Context(), ad)
 	require.Error(t, err)
 }
 
@@ -2604,7 +2604,7 @@ func TestMarkAdSkipped(t *testing.T) {
 
 	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ad, "decodeErr", false))
 
-	state, err := te.ingester.GetAdState(ad)
+	state, err := te.ingester.GetAdState(t.Context(), ad)
 	require.NoError(t, err)
 	require.True(t, state.Known)
 	require.True(t, state.Processed)
@@ -2622,7 +2622,7 @@ func TestMarkAdSkipped(t *testing.T) {
 	longReason := strings.Repeat("x", 300)
 	ad2 := random.Cids(1)[0]
 	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ad2, longReason, false))
-	state, err = te.ingester.GetAdState(ad2)
+	state, err = te.ingester.GetAdState(t.Context(), ad2)
 	require.NoError(t, err)
 	require.Equal(t, 256, len(state.SkipReason))
 	require.Equal(t, strings.Repeat("x", 256), state.SkipReason)
@@ -2635,7 +2635,7 @@ func TestSkippedAdNotReprocessed(t *testing.T) {
 
 	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ad, "malformedErr", false))
 
-	adState, err := te.ingester.adAlreadyProcessed(ad)
+	adState, err := te.ingester.adAlreadyProcessed(t.Context(), ad)
 	require.NoError(t, err)
 	require.True(t, adState.Known)
 	require.True(t, adState.Processed)
@@ -2682,13 +2682,13 @@ func TestAdmittedAdIsPending(t *testing.T) {
 	<-hitBlockedRead
 
 	// A should be processed already (worker processes oldest first)
-	aState, err := te.ingester.GetAdState(aLink.(cidlink.Link).Cid)
+	aState, err := te.ingester.GetAdState(t.Context(), aLink.(cidlink.Link).Cid)
 	require.NoError(t, err)
 	require.True(t, aState.Known)
 	require.True(t, aState.Processed)
 
 	// C should be pending (admitted but not yet reached by worker)
-	cState, err := te.ingester.GetAdState(cLink.(cidlink.Link).Cid)
+	cState, err := te.ingester.GetAdState(t.Context(), cLink.(cidlink.Link).Cid)
 	require.NoError(t, err)
 	require.True(t, cState.Known)
 	require.False(t, cState.Processed)
@@ -2709,17 +2709,17 @@ func TestResyncMarkerNotDowngraded(t *testing.T) {
 
 	require.NoError(t, te.ingester.markAdUnprocessed(ad, true))
 
-	state, err := te.ingester.GetAdState(ad)
+	state, err := te.ingester.GetAdState(t.Context(), ad)
 	require.NoError(t, err)
 	require.True(t, state.Known)
 	require.True(t, state.Resync)
 
 	// Simulate admission (what processRawAdChain does)
-	adState, err := te.ingester.adAlreadyProcessed(ad)
+	adState, err := te.ingester.adAlreadyProcessed(t.Context(), ad)
 	require.NoError(t, err)
 	require.True(t, adState.Known)
 
-	state, err = te.ingester.GetAdState(ad)
+	state, err = te.ingester.GetAdState(t.Context(), ad)
 	require.NoError(t, err)
 	require.True(t, state.Known)
 	require.True(t, state.Resync)
@@ -2738,7 +2738,7 @@ func TestPendingMarkerPersistsAcrossRestart(t *testing.T) {
 	ad := random.Cids(1)[0]
 	require.NoError(t, i.markAdUnprocessed(ad, false))
 
-	state, err := i.GetAdState(ad)
+	state, err := i.GetAdState(t.Context(), ad)
 	require.NoError(t, err)
 	require.True(t, state.Known)
 	require.False(t, state.Processed)
@@ -2753,7 +2753,7 @@ func TestPendingMarkerPersistsAcrossRestart(t *testing.T) {
 		core.Close()
 	}()
 
-	state, err = i2.GetAdState(ad)
+	state, err = i2.GetAdState(t.Context(), ad)
 	require.NoError(t, err)
 	require.True(t, state.Known)
 	require.False(t, state.Processed)
@@ -2796,7 +2796,7 @@ func TestPendingMarkerClearedAfterProcessing(t *testing.T) {
 	<-hitBlockedRead
 
 	// b should be pending
-	bState, err := te.ingester.GetAdState(bLink.(cidlink.Link).Cid)
+	bState, err := te.ingester.GetAdState(t.Context(), bLink.(cidlink.Link).Cid)
 	require.NoError(t, err)
 	require.True(t, bState.Known)
 	require.False(t, bState.Processed)
@@ -2813,7 +2813,7 @@ func TestPendingMarkerClearedAfterProcessing(t *testing.T) {
 	}
 
 	// b should now be processed (marker 1, not 0)
-	bState, err = te.ingester.GetAdState(bLink.(cidlink.Link).Cid)
+	bState, err = te.ingester.GetAdState(t.Context(), bLink.(cidlink.Link).Cid)
 	require.NoError(t, err)
 	require.True(t, bState.Known)
 	require.True(t, bState.Processed)
@@ -2888,6 +2888,7 @@ func newErrorValueStore() *errorValueStore {
 		err: errors.New("dead value store"),
 	}
 }
+
 func (vs *errorValueStore) Get(_ multihash.Multihash) ([]indexer.Value, bool, error) {
 	return nil, false, vs.err
 }
@@ -2899,6 +2900,100 @@ func (vs *errorValueStore) Size() (int64, error)                                
 func (vs *errorValueStore) Flush() error                                           { return vs.err }
 func (vs *errorValueStore) Close() error                                           { return vs.err }
 func (vs *errorValueStore) Stats() (*indexer.Stats, error)                         { return nil, vs.err }
+
+func TestGetAdStates(t *testing.T) {
+	te := setupTestEnv(t, false)
+	publisher := te.pubHost.ID()
+
+	adProcessed := random.Cids(1)[0]
+	adSkipped := random.Cids(1)[0]
+	adResync := random.Cids(1)[0]
+	adUnknown := random.Cids(1)[0]
+
+	require.NoError(t, te.ingester.MarkAdProcessed(publisher, adProcessed))
+	require.NoError(t, te.ingester.MarkAdSkipped(publisher, adSkipped, "test skip reason", false))
+	require.NoError(t, te.ingester.markAdUnprocessed(adResync, true))
+
+	input := []cid.Cid{adProcessed, adSkipped, adResync, adUnknown}
+	states, err := te.ingester.GetAdStates(t.Context(), input)
+	require.NoError(t, err)
+	require.Len(t, states, 4)
+
+	for i, adCid := range input {
+		single, err := te.ingester.GetAdState(t.Context(), adCid)
+		require.NoError(t, err)
+		require.Equal(t, single, states[i], "batch[%d] for %s should equal GetAdState", i, adCid)
+	}
+}
+
+func TestGetAdStatesOrderAndDedup(t *testing.T) {
+	te := setupTestEnv(t, false)
+	publisher := te.pubHost.ID()
+
+	adA := random.Cids(1)[0]
+	adB := random.Cids(1)[0]
+	adC := random.Cids(1)[0]
+
+	require.NoError(t, te.ingester.MarkAdProcessed(publisher, adA))
+	require.NoError(t, te.ingester.MarkAdSkipped(publisher, adB, "skip B", false))
+	require.NoError(t, te.ingester.markAdUnprocessed(adC, true))
+
+	shuffled := []cid.Cid{adC, adA, adB, adA, adC}
+	states, err := te.ingester.GetAdStates(t.Context(), shuffled)
+	require.NoError(t, err)
+	require.Len(t, states, 5)
+
+	for i, adCid := range shuffled {
+		single, err := te.ingester.GetAdState(t.Context(), adCid)
+		require.NoError(t, err)
+		require.Equal(t, single, states[i])
+	}
+}
+
+func TestGetAdStatesFrozen(t *testing.T) {
+	te := setupTestEnv(t, false)
+	publisher := te.pubHost.ID()
+
+	ad := random.Cids(1)[0]
+	require.NoError(t, te.ingester.markAdProcessed(publisher, ad, true, false))
+
+	states, err := te.ingester.GetAdStates(t.Context(), []cid.Cid{ad})
+	require.NoError(t, err)
+	require.Len(t, states, 1)
+	require.True(t, states[0].Frozen)
+	require.False(t, states[0].Indexed())
+
+	single, err := te.ingester.GetAdState(t.Context(), ad)
+	require.NoError(t, err)
+	require.Equal(t, single, states[0])
+}
+
+func TestGetAdStatesEmpty(t *testing.T) {
+	te := setupTestEnv(t, false)
+
+	states, err := te.ingester.GetAdStates(t.Context(), nil)
+	require.NoError(t, err)
+	require.NotNil(t, states)
+	require.Len(t, states, 0)
+
+	states, err = te.ingester.GetAdStates(t.Context(), []cid.Cid{})
+	require.NoError(t, err)
+	require.NotNil(t, states)
+	require.Len(t, states, 0)
+}
+
+func TestGetAdStatesErrorNoPartial(t *testing.T) {
+	te := setupTestEnv(t, false)
+
+	badAd := random.Cids(1)[0]
+	require.NoError(t, te.ingester.ds.Put(t.Context(), datastore.NewKey(adProcessedPrefix+badAd.String()), []byte{}))
+
+	goodAd := random.Cids(1)[0]
+	states, err := te.ingester.GetAdStates(t.Context(), []cid.Cid{goodAd, badAd})
+	require.Error(t, err)
+	require.Nil(t, states)
+	require.Contains(t, err.Error(), badAd.String())
+}
 
 // blockingMirrorFilestore wraps a filestore and blocks Get for one CAR path.
 // Used to stall ad processing inside mirror.read without holding any dagsync mutex.
