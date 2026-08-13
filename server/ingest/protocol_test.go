@@ -476,10 +476,10 @@ func TestAdStatusBatch(t *testing.T) {
 	require.Contains(t, string(data), "malformed")
 
 	// Body over limit returns 400 with distinct message
-	// Build valid JSON that exceeds the body size limit: {"Ads":["<cid>", " ", ...]}
-	pad := bytes.Repeat([]byte(" "), 1024*1024)
-	bigBody := append([]byte(`{"Ads":["`), pad...)
-	bigBody = append(bigBody, []byte(`"]}`)...)
+	// Build valid JSON that exceeds the body size limit with a real CID as first element.
+	// maxAdStatusBodySize = 128*128+64 = 16448; pad to that + 1024 to exceed.
+	pad := bytes.Repeat([]byte(" "), 16448+1024)
+	bigBody := []byte(`{"Ads":["` + cids[0].String() + `","` + string(pad) + `"]}`)
 	res, err = http.Post(s.URL()+"/sync/status/ad", "application/json", bytes.NewReader(bigBody))
 	require.NoError(t, err)
 	data, err = io.ReadAll(res.Body)

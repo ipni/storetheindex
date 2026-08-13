@@ -89,6 +89,10 @@ func New(listen string, indexer indexer.Interface, ingester *ingest.Ingester, re
 	mux.HandleFunc("/register", s.postRegisterProvider)
 	mux.HandleFunc("/sync/status", s.listSyncStatus)
 	mux.HandleFunc("/sync/status/", s.getSyncStatus)
+	// Registered as an exact path (not a method pattern) because the sibling subtree
+	// pattern on the next line causes ServeMux to respond to a method mismatch on the
+	// bare path with a 301 redirect to the subtree rather than a 405; clients follow
+	// that redirect by converting POST to GET and dropping the request body.
 	mux.HandleFunc("/sync/status/ad", s.batchAdStatus)
 	mux.HandleFunc("/sync/status/ad/", s.getAdStatus)
 
@@ -331,12 +335,9 @@ type batchAdStatusResponse struct {
 func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 	httpserver.EnableCors(w)
 
-	// Hand-rolled method check (not httpserver.MethodOK) so we can set Allow
-	// header and give a message that directs single-CID callers to the GET endpoint.
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		if r.Method == http.MethodOptions {
-			// Mirrors httpserver.MethodOK: respond 200 to CORS preflight.
 			http.Error(w, "", http.StatusOK)
 			return
 		}
@@ -353,8 +354,7 @@ func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 
 	var req batchAdStatusRequest
 	if err := json.NewDecoder(bodyReader).Decode(&req); err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			http.Error(w, fmt.Sprintf("request body exceeds %d byte limit", maxAdStatusBodySize), http.StatusBadRequest)
 			return
 		}
@@ -379,7 +379,8 @@ func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := make([]adStatusResponse, len(req.Ads))
-	validCids := make([]cid.Cid, len(req.Ads))
+	cids := make([]cid.Cid, 0, len(req.Ads))
+	idxs := make([]int, 0, len(req.Ads))
 
 	for i, raw := range req.Ads {
 		adCid, err := cid.Decode(raw)
@@ -400,17 +401,8 @@ func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		validCids[i] = adCid
-	}
-
-	// Collect valid CIDs and their indices, preserving request order.
-	cids := make([]cid.Cid, 0, len(req.Ads))
-	idxs := make([]int, 0, len(req.Ads))
-	for i, c := range validCids {
-		if c != cid.Undef {
-			idxs = append(idxs, i)
-			cids = append(cids, c)
-		}
+		cids = append(cids, adCid)
+		idxs = append(idxs, i)
 	}
 
 	if len(cids) > 0 {
