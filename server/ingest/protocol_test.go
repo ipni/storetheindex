@@ -456,7 +456,7 @@ func TestAdStatusBatch(t *testing.T) {
 	require.Contains(t, body, "128")
 
 	// Empty Ads returns 400
-	emptyBody, err := json.Marshal(map[string][]string{"Ads": []string{}})
+	emptyBody, err := json.Marshal(map[string][]string{"Ads": {}})
 	require.NoError(t, err)
 	res, err := http.Post(s.URL()+"/sync/status/ad", "application/json", bytes.NewReader(emptyBody))
 	require.NoError(t, err)
@@ -525,7 +525,7 @@ func TestAdStatusBatch(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	batchBody, err := json.Marshal(map[string][]string{"Ads": []string{cids[0].String()}})
+	batchBody, err := json.Marshal(map[string][]string{"Ads": {cids[0].String()}})
 	require.NoError(t, err)
 	res, err = http.Post(nilServer.URL()+"/sync/status/ad", "application/json", bytes.NewReader(batchBody))
 	require.NoError(t, err)
