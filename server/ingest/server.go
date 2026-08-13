@@ -34,6 +34,11 @@ const maxBodySize = 1024 * 1024
 // single batch ad-status request.
 const maxAdStatusBatch = 128
 
+// maxAdStatusBodySize is the maximum request body size for the batch ad-status
+// endpoint. Sized as 128 bytes per CID (worst-case base32 encoding) plus JSON
+// overhead, so a full 128-CID batch fits comfortably.
+const maxAdStatusBodySize = 128*maxAdStatusBatch + 64
+
 type Server struct {
 	server          *http.Server
 	listener        net.Listener
@@ -224,6 +229,15 @@ func (s *Server) getSyncStatus(w http.ResponseWriter, r *http.Request) {
 	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
+// adCidCodecError returns a non-empty error message when the CID's codec is not
+// dag-json or dag-cbor, or empty string when the codec is acceptable.
+func adCidCodecError(adCid cid.Cid) string {
+	if adCid.Prefix().Codec != cid.DagJSON && adCid.Prefix().Codec != cid.DagCBOR {
+		return fmt.Sprintf("this endpoint expects an advertisement CID (dag-json or dag-cbor codec), got %d; use /cid/%s for content lookups", adCid.Prefix().Codec, adCid.String())
+	}
+	return ""
+}
+
 type adStatusResponse struct {
 	Ad         string `json:"Ad"`
 	Indexed    bool   `json:"Indexed"`
@@ -276,8 +290,7 @@ func (s *Server) getAdStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if adCid.Prefix().Codec != cid.DagJSON && adCid.Prefix().Codec != cid.DagCBOR {
-		msg := fmt.Sprintf("this endpoint expects an advertisement CID (dag-json or dag-cbor codec), got %d; use /cid/%s for content lookups", adCid.Prefix().Codec, cidStr)
+	if msg := adCidCodecError(adCid); msg != "" {
 		log.Debugw(msg, "cid", cidStr)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
@@ -335,14 +348,14 @@ func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bodyReader := http.MaxBytesReader(w, r.Body, maxBodySize)
+	bodyReader := http.MaxBytesReader(w, r.Body, maxAdStatusBodySize)
 	defer r.Body.Close()
 
 	var req batchAdStatusRequest
 	if err := json.NewDecoder(bodyReader).Decode(&req); err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
-			http.Error(w, fmt.Sprintf("request body exceeds %d byte limit", maxBodySize), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("request body exceeds %d byte limit", maxAdStatusBodySize), http.StatusBadRequest)
 			return
 		}
 		http.Error(w, "malformed request body", http.StatusBadRequest)
@@ -366,11 +379,7 @@ func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := make([]adStatusResponse, len(req.Ads))
-	type indexedCid struct {
-		idx int
-		cid cid.Cid
-	}
-	var validCids []indexedCid
+	validCids := make([]cid.Cid, len(req.Ads))
 
 	for i, raw := range req.Ads {
 		adCid, err := cid.Decode(raw)
@@ -383,23 +392,28 @@ func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		if adCid.Prefix().Codec != cid.DagJSON && adCid.Prefix().Codec != cid.DagCBOR {
+		if msg := adCidCodecError(adCid); msg != "" {
 			results[i] = adStatusResponse{
 				Ad:    adCid.String(),
-				Error: fmt.Sprintf("this endpoint expects an advertisement CID (dag-json or dag-cbor codec), got %d; use /cid/%s for content lookups", adCid.Prefix().Codec, adCid.String()),
+				Error: msg,
 			}
 			continue
 		}
 
-		validCids = append(validCids, indexedCid{i, adCid})
+		validCids[i] = adCid
 	}
 
-	if len(validCids) > 0 {
-		cids := make([]cid.Cid, len(validCids))
-		for i, v := range validCids {
-			cids[i] = v.cid
+	// Collect valid CIDs and their indices, preserving request order.
+	cids := make([]cid.Cid, 0, len(req.Ads))
+	idxs := make([]int, 0, len(req.Ads))
+	for i, c := range validCids {
+		if c != cid.Undef {
+			idxs = append(idxs, i)
+			cids = append(cids, c)
 		}
+	}
 
+	if len(cids) > 0 {
 		adStates, err := s.ingester.GetAdStates(r.Context(), cids)
 		if err != nil {
 			log.Errorw("Failed to read advertisement states", "err", err)
@@ -408,7 +422,7 @@ func (s *Server) batchAdStatus(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for i, st := range adStates {
-			results[validCids[i].idx] = newAdStatusResponse(validCids[i].cid, st)
+			results[idxs[i]] = newAdStatusResponse(cids[i], st)
 		}
 	}
 

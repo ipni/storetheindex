@@ -2986,7 +2986,7 @@ func TestGetAdStatesErrorNoPartial(t *testing.T) {
 	te := setupTestEnv(t, false)
 
 	badAd := random.Cids(1)[0]
-	require.NoError(t, te.ingester.ds.Put(context.Background(), datastore.NewKey(adProcessedPrefix+badAd.String()), []byte{}))
+	require.NoError(t, te.ingester.ds.Put(t.Context(), datastore.NewKey(adProcessedPrefix+badAd.String()), []byte{}))
 
 	goodAd := random.Cids(1)[0]
 	states, err := te.ingester.GetAdStates(t.Context(), []cid.Cid{goodAd, badAd})
