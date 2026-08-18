@@ -543,7 +543,7 @@ Ingestion is configured by the `Ingest` section of the config file
 - `FirstSyncDepth` - ad-chain depth on first sync with a new provider.
 - `SyncSegmentDepthLimit` - segment size for segmented sync (default 2000; -1 disables).
 - `IngestWorkerCount` - number of ingest worker goroutines (reloadable).
-- `MaxAsyncConcurrency` - max concurrent async syncs (reloadable).
+- `MaxAsyncConcurrency` - max concurrent async syncs (requires restart).
 - `MinimumKeyLength` - minimum multihash digest length to index.
 - `SyncTimeout` - max time for a single sync.
 - `HttpSyncTimeout`, `HttpSyncRetryMax`, `HttpSyncRetryWaitMin/Max` - HTTP sync tuning.
