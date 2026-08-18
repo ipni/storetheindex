@@ -175,6 +175,7 @@ var reloadCmd = &cli.Command{
 		" Indexer.ConfigCheckInterval," +
 		" Indexer.ShutdownTimeout," +
 		" Ingest.IngestWorkerCount," +
+		" Ingest.Skip500EntriesError," +
 		" Logging," +
 		" Peering",
 	Flags: []cli.Flag{
