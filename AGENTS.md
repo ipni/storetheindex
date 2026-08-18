@@ -135,30 +135,34 @@ Rules for agents:
 
 ## Configuration documentation (keep in sync)
 
-Config file location, top-level sections, and reloadable fields are documented
-in [doc/config.md](doc/config.md). Field-level docs live on the structs under
-[`config/`](config).
+[doc/config.md](doc/config.md) is the **user-facing** reference for the JSON
+config file (operators running binaries or containers). Structs and defaults
+live under [`config/`](config); filestore backends used by
+`AdvertisementMirror` are in [`filestore/config.go`](filestore/config.go).
 
 Rules for agents:
 
 - The source code is always the source of truth. If `doc/config.md` disagrees
-  with [`config/`](config) or with what `reloadConfig` in
-  [`command/daemon.go`](command/daemon.go) actually applies, trust the code and
-  fix the doc.
+  with [`config/`](config), [`filestore/config.go`](filestore/config.go), or
+  with what `reloadConfig` in [`command/daemon.go`](command/daemon.go) actually
+  applies, trust the code and fix the doc.
 - Whenever you change the configuration object or format - add/remove/rename
-  fields, change defaults or validation, alter JSON encoding, or change which
-  settings are runtime-reloadable - update [doc/config.md](doc/config.md) in the
-  same change (and keep "This value is reloadable" comments on config fields
-  accurate).
+  fields, change defaults or validation, alter JSON encoding, change filestore
+  config used by mirrors, or change which settings are runtime-reloadable -
+  update [doc/config.md](doc/config.md) in the same change (and keep
+  "This value is reloadable" comments on config fields accurate).
 - Whenever you read the config code and notice drift from what
   [doc/config.md](doc/config.md) describes, update the doc to match the code.
+- Write `doc/config.md` for operators who do not read the Go sources: explain
+  what each setting does in plain language, include defaults, and avoid
+  requiring external package docs or source-file knowledge.
 
 Other design docs worth reading:
 
 - [doc/scaling-design-for-ingest.md](doc/scaling-design-for-ingest.md) -
   assigner, frozen mode, handoff, scatter/gather queries.
-- [doc/config.md](doc/config.md) - config file location, sections, and
-  reloadable items.
+- [doc/config.md](doc/config.md) - complete config field reference, defaults,
+  and reloadable items.
 - [doc/creating-an-index-provider.md](doc/creating-an-index-provider.md) -
   provider/advertisement model.
 
