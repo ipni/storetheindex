@@ -23,6 +23,7 @@ const (
 type Local struct {
 	basePath  string
 	pathSplit []int
+	location  string
 }
 
 func NewLocal(basePath string, options ...LocalOption) (*Local, error) {
@@ -51,9 +52,14 @@ func NewLocal(basePath string, options ...LocalOption) (*Local, error) {
 	l := &Local{
 		basePath:  opts.basePath,
 		pathSplit: opts.pathSplit,
+		location:  filepath.Clean(opts.basePath),
 	}
 
 	return l, nil
+}
+
+func (l *Local) Location() string {
+	return l.location
 }
 
 // fsPath returns the filesystem path of a given object path

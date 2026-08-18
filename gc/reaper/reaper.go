@@ -521,22 +521,22 @@ func (r *Reaper) providerFromCar(ctx context.Context, adCid cid.Cid) (peer.ID, e
 	if err != nil {
 		return "", err
 	}
+	defer adBlock.Close()
+
 	ad, err := adBlock.Advertisement()
 	if err != nil {
 		return "", err
 	}
+
 	return peer.Decode(ad.Provider)
 }
 
 func (r *Reaper) cleanCarIndexes(ctx context.Context, adCid cid.Cid) (cid.Cid, int, error) {
-	// Create a context to cancel the carReader reading entries.
-	readCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	adBlock, err := r.carReader.Read(readCtx, adCid, false)
+	adBlock, err := r.carReader.Read(ctx, adCid, false)
 	if err != nil {
 		return cid.Undef, 0, fmt.Errorf("cannot read car file: %w", err)
 	}
+	defer adBlock.Close()
 
 	ad, err := adBlock.Advertisement()
 	if err != nil {
@@ -998,14 +998,11 @@ func (s *scythe) removeEntries(ctx context.Context, adCid cid.Cid) error {
 }
 
 func (s *scythe) removeEntriesFromCar(ctx context.Context, adCid cid.Cid) error {
-	// Create a context to cancel the carReader reading entries.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	adBlock, err := s.reaper.carReader.Read(ctx, adCid, false)
 	if err != nil {
 		return err
 	}
+	defer adBlock.Close()
 
 	if adBlock.Entries == nil {
 		// This advertisement has no entries because they were removed later in

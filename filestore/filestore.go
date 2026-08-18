@@ -40,4 +40,8 @@ type Interface interface {
 	Put(ctx context.Context, path string, reader io.Reader) (*File, error)
 	// Type returns the file store type.
 	Type() string
+
+	// Location returns a stable, low-cardinality identifier for where this
+	// filestore stores/serves data, suitable for metrics tags.
+	Location() string
 }

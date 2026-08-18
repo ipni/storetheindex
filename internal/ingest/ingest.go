@@ -1340,7 +1340,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 
 		syncStatus.SetCurrentAd(ai.cid, count)
 
-		hasEnts, adDataSource, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider, wkrNum)
+		hasEnts, adDataSource, location, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider, wkrNum)
 		skipReason := ""
 		if err != nil {
 			syncStatus.IncError()
@@ -1399,7 +1399,10 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			if hasEnts {
 				stats.RecordWithOptions(context.Background(),
 					stats.WithMeasurements(metrics.AdLoadSourceCount.M(1)),
-					stats.WithTags(tag.Insert(metrics.AdSource, adDataSource.String())))
+					stats.WithTags(
+						tag.Insert(metrics.AdSource, adDataSource.String()),
+						tag.Insert(metrics.Location, location),
+					))
 			}
 		}
 
@@ -1417,7 +1420,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		}
 
 		if putMirror {
-			if adDataSource == adDataSourceWriter {
+			if adDataSource == adDataSourceMain {
 				log.Debug("Removing temporary ad data")
 				// If ad data retrieved from same mirror that is being written
 				// to, then only clean up the data from local datastore, but do
@@ -1443,7 +1446,10 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 					// Record where the data written to the CAR mirror came from.
 					stats.RecordWithOptions(context.Background(),
 						stats.WithMeasurements(metrics.AdWriteSourceCount.M(1)),
-						stats.WithTags(tag.Insert(metrics.AdSource, adDataSource.String())))
+						stats.WithTags(
+							tag.Insert(metrics.AdSource, adDataSource.String()),
+							tag.Insert(metrics.Location, location),
+						))
 				}
 			}
 		}

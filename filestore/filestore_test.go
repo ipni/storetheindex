@@ -31,6 +31,40 @@ const (
 	data3 = "baz"
 )
 
+func TestLocation(t *testing.T) {
+	t.Run("local", func(t *testing.T) {
+		base := t.TempDir()
+		cars := filepath.Join(base, "cars")
+		require.NoError(t, os.MkdirAll(cars, 0755))
+		unclean := filepath.Join(base, "cars", "..", "cars")
+		store, err := filestore.NewLocal(unclean)
+		require.NoError(t, err)
+		require.Equal(t, filepath.Clean(unclean), store.Location())
+		require.Equal(t, cars, store.Location())
+	})
+
+	t.Run("http", func(t *testing.T) {
+		store, err := filestore.NewHTTP("https://mirror.example.com:8443/cars/")
+		require.NoError(t, err)
+		require.Equal(t, "mirror.example.com:8443", store.Location())
+	})
+
+	t.Run("s3-default", func(t *testing.T) {
+		store, err := filestore.NewS3("mycars", filestore.WithRegion("us-east-1"))
+		require.NoError(t, err)
+		require.Equal(t, "s3://mycars", store.Location())
+	})
+
+	t.Run("s3-endpoint", func(t *testing.T) {
+		store, err := filestore.NewS3("mycars",
+			filestore.WithEndpoint("http://127.0.0.1:4566/"),
+			filestore.WithRegion("us-east-1"),
+		)
+		require.NoError(t, err)
+		require.Equal(t, "s3://mycars@127.0.0.1:4566", store.Location())
+	})
+}
+
 func TestS3(t *testing.T) {
 	const bucketName = "testbucket"
 
@@ -112,6 +146,10 @@ func (s splitFilestore) Put(ctx context.Context, path string, reader io.Reader) 
 
 func (s splitFilestore) Type() string {
 	return s.read.Type()
+}
+
+func (s splitFilestore) Location() string {
+	return s.read.Location()
 }
 
 func setupHTTPFilestore(t *testing.T) (splitFilestore, string) {

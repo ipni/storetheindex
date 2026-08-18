@@ -88,7 +88,11 @@ graph TD
 - **indexer core** (`go-indexer-core` engine): the value store that holds the
   actual `multihash -> value` mappings and answers finds.
 - **CAR mirror** (optional): stores advertisement + entry data as CAR files in
-  a filestore (local or S3), and can serve as an alternate source for entries.
+  a filestore (local, S3, or HTTP). `Main` is used for read and write (gated by
+  `MainMode`: `read` / `write` / `readwrite`); optional `External` is a list of
+  independent read sources raced in parallel after a Main miss (or as the sole
+  sources when Main read is off). The first successful retrieval wins; 404s and
+  errors are misses.
 
 ## Entry points that trigger ingestion
 
@@ -233,7 +237,11 @@ graph TD
 
 - **CAR mirror** (`ingestEntriesFromCar`): if the mirror is readable and has
   the ad, entries are streamed from the CAR file and indexed. This avoids
-  re-fetching from the publisher.
+  re-fetching from the publisher. Only the winner of an `External` race is
+  returned to the caller; losing successes are cancelled and their entry
+  streams are drained so the CAR readers (and HTTP bodies / files they hold)
+  are released. The winner's stream is likewise cancelled and drained if
+  ingestion bails out before consuming it fully.
 - **EntryChunk chain** (`ingestEntriesFromPublisher`): the first chunk is
   fetched via `SyncOneEntry` to detect the type, then the remaining chunks are
   synced with `SyncEntries` using a scoped block hook that indexes each chunk's
@@ -540,7 +548,12 @@ Ingestion is configured by the `Ingest` section of the config file
 - `SyncTimeout` - max time for a single sync.
 - `HttpSyncTimeout`, `HttpSyncRetryMax`, `HttpSyncRetryWaitMin/Max` - HTTP sync tuning.
 - `Skip500EntriesError` - skip ads whose first entry sync returns HTTP 500 (reloadable).
-- `AdvertisementMirror` - CAR mirror configuration.
+- `AdvertisementMirror` - CAR mirror configuration (`MainMode` + `Main` for
+  owned store access, optional `External` array of independent read sources
+  raced after a Main miss). Each of `Main` and each `External` entry is a store
+  config with its own `Compress` setting (`gzip` default). Legacy `Read`/`Write`,
+  `Storage`/`Retrieval`, and top-level `Compress` fields in config JSON are
+  converted on load.
 - `ResendDirectAnnounce`, `OverwriteMirrorOnResync`.
 - `PubSubTopic` - gossipsub topic for announce subscription (deprecated; kept
   for backward compatibility).

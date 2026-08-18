@@ -142,12 +142,14 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	require.NoError(t, err)
 	indexerID := cfg.Identity.PeerID
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
-		Compress: "gzip",
-		Write:    true,
-		Storage: filestore.Config{
-			Type: "local",
-			Local: filestore.LocalConfig{
-				BasePath: rnr.Dir,
+		MainMode: config.MainModeWrite,
+		Main: config.StoreConfig{
+			Compress: "gzip",
+			Config: filestore.Config{
+				Type: "local",
+				Local: filestore.LocalConfig{
+					BasePath: rnr.Dir,
+				},
 			},
 		},
 	}
@@ -256,26 +258,24 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 	require.NoError(t, err)
 
 	indexer2ID := cfg.Identity.PeerID
+	// Share indexer1's mirror directory as Main readwrite: indexer2 reads the
+	// CARs indexer1 wrote and can write its own. Equivalent to the legacy
+	// identical Storage/Retrieval setup (no External).
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
-		Compress: "gzip",
-		Read:     true,
-		Write:    true,
-		Retrieval: filestore.Config{
-			Type: "local",
-			Local: filestore.LocalConfig{
-				BasePath: rdMirrorDir,
-			},
-		},
-		Storage: filestore.Config{
-			Type: "local",
-			Local: filestore.LocalConfig{
-				BasePath: rnr.Dir,
+		MainMode: config.MainModeReadWrite,
+		Main: config.StoreConfig{
+			Compress: "gzip",
+			Config: filestore.Config{
+				Type: "local",
+				Local: filestore.LocalConfig{
+					BasePath: rdMirrorDir,
+				},
 			},
 		},
 	}
 	err = cfg.Save(sti2CfgPath)
 	require.NoError(t, err)
-	wrMirrorDir := rnr.Dir
+	wrMirrorDir := rdMirrorDir
 
 	indexerReady2 := testcmd.NewStdoutWatcher(indexerReadyMatch)
 	cmdIndexer2 := rnr.Start(ctx, testcmd.Args(indexer, "daemon"), indexerReady2)
@@ -399,8 +399,8 @@ func testEndToEndWithReferenceProvider(t *testing.T, publisherProto string) {
 //
 // Indexer 1 writes ads to a local mirror and exposes it via the carmirror HTTP
 // server. After the provider can no longer serve entry data, indexer 2 (no
-// fallback) is verified first and must fail to index. Indexer 3 then uses
-// indexer 1 as FallbackRetrieval and must succeed under the same provider state.
+// external) is verified first and must fail to index. Indexer 3 then uses
+// indexer 1 as External and must succeed under the same provider state.
 func TestEndToEndCarMirrorFallback(t *testing.T) {
 	if os.Getenv("CI") != "" {
 		t.Skip("Skipping e2e test in CI environment")
@@ -482,14 +482,16 @@ func TestEndToEndCarMirrorFallback(t *testing.T) {
 	require.NoError(t, err)
 	indexer1ID := cfg.Identity.PeerID
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
-		Compress: "gzip",
-		Write:    true,
-		// We don't need the read storage at this point, car mirror is exposed
-		// from the write one only.
-		Storage: filestore.Config{
-			Type: "local",
-			Local: filestore.LocalConfig{
-				BasePath: indexer1MirrorDir,
+		MainMode: config.MainModeReadWrite,
+		// Main read enables exposing the CAR mirror HTTP server; write stores
+		// ads that other indexers will fetch via External.
+		Main: config.StoreConfig{
+			Compress: "gzip",
+			Config: filestore.Config{
+				Type: "local",
+				Local: filestore.LocalConfig{
+					BasePath: indexer1MirrorDir,
+				},
 			},
 		},
 	}
@@ -561,21 +563,16 @@ func TestEndToEndCarMirrorFallback(t *testing.T) {
 	cfg, err = config.Load(sti2CfgPath)
 	require.NoError(t, err)
 
-	// Indexer 2: local mirror only, no fallback to indexer 1.
+	// Indexer 2: local mirror only, no external fallback to indexer 1.
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
-		Compress: "gzip",
-		Read:     true,
-		Write:    true,
-		Retrieval: filestore.Config{
-			Type: "local",
-			Local: filestore.LocalConfig{
-				BasePath: indexer2MirrorDir,
-			},
-		},
-		Storage: filestore.Config{
-			Type: "local",
-			Local: filestore.LocalConfig{
-				BasePath: indexer2MirrorDir,
+		MainMode: config.MainModeReadWrite,
+		Main: config.StoreConfig{
+			Compress: "gzip",
+			Config: filestore.Config{
+				Type: "local",
+				Local: filestore.LocalConfig{
+					BasePath: indexer2MirrorDir,
+				},
 			},
 		},
 	}
@@ -606,27 +603,25 @@ func TestEndToEndCarMirrorFallback(t *testing.T) {
 	cfg, err = config.Load(sti3CfgPath)
 	require.NoError(t, err)
 	cfg.Ingest.AdvertisementMirror = config.Mirror{
-		Compress: "gzip",
-		Read:     true,
-		Write:    true,
-		Retrieval: filestore.Config{
-			Type: "local",
-			Local: filestore.LocalConfig{
-				BasePath: indexer3MirrorDir,
+		MainMode: config.MainModeReadWrite,
+		Main: config.StoreConfig{
+			Compress: "gzip",
+			Config: filestore.Config{
+				Type: "local",
+				Local: filestore.LocalConfig{
+					BasePath: indexer3MirrorDir,
+				},
 			},
 		},
-		Storage: filestore.Config{
-			Type: "local",
-			Local: filestore.LocalConfig{
-				BasePath: indexer3MirrorDir,
+		External: []config.StoreConfig{{
+			Compress: "gzip",
+			Config: filestore.Config{
+				Type: "http",
+				HTTP: filestore.HTTPConfig{
+					BaseURL: indexer1CarMirrorURL,
+				},
 			},
-		},
-		FallbackRetrieval: &filestore.Config{
-			Type: "http",
-			HTTP: filestore.HTTPConfig{
-				BaseURL: indexer1CarMirrorURL,
-			},
-		},
+		}},
 	}
 	require.NoError(t, cfg.Save(sti3CfgPath))
 

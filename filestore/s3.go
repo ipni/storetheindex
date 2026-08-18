@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"net/url"
 	"path"
 	"strings"
 
@@ -30,6 +31,7 @@ type S3 struct {
 	pageSize   int
 	client     *s3.Client
 	transfer   *transfermanager.Client
+	location   string
 }
 
 func NewS3(bucketName string, options ...S3Option) (*S3, error) {
@@ -93,7 +95,25 @@ func NewS3(bucketName string, options ...S3Option) (*S3, error) {
 		client:     client,
 		transfer:   transfermanager.New(client),
 		pageSize:   opts.pageSize,
+		location:   s3Location(bucketName, opts.endpoint),
 	}, nil
+}
+
+func s3Location(bucketName, endpoint string) string {
+	loc := "s3://" + bucketName
+	if endpoint == "" {
+		return loc
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Host == "" {
+		// Keep raw endpoint if it is not a valid URL; still distinguish stores.
+		return loc + "@" + strings.TrimRight(endpoint, "/")
+	}
+	return loc + "@" + u.Host
+}
+
+func (s *S3) Location() string {
+	return s.location
 }
 
 func (s *S3) Delete(ctx context.Context, relPath string) error {

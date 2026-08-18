@@ -323,8 +323,8 @@ func daemonAction(cctx *cli.Context) error {
 			)
 		} else if ingester.GetExposableFilestore() == nil {
 			log.Warnw(
-				"ingester does not have storage advertisement mirror configured, cannot create car mirror server, "+
-					"to enable, configure AdvertisementMirror.Storage in the config",
+				"ingester does not have a readable main advertisement mirror configured, cannot create car mirror server, "+
+					"to enable, configure AdvertisementMirror.Main with MainMode read or readwrite",
 				"car_mirror_address", carMirrorAddr,
 			)
 		} else {
