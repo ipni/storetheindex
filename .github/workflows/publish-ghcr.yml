@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - 'main'
+      # DO NOT MERGE: temporary, publishes this branch so the image can be pulled before merge.
+      - 'cross-announce-binary-dnm'
     tags:
       - 'v*'
   workflow_run:
