@@ -129,7 +129,7 @@ func main() {
 cross-announce announces all the providers from a given source indexer to a given target indexer.
 Specify the source and target as the HTTP(S) IPNI indexer instance. Example:
     $ cross-announce --source https://one-indexer.example --target https://another-indexer.example
- `)
+`)
 		flag.PrintDefaults()
 		return
 	}
