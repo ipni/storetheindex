@@ -1,8 +1,8 @@
-FROM golang:1.26-bookworm as builder
+FROM golang:1.26-bookworm AS builder
 
 WORKDIR /storetheindex
 COPY go.* .
-RUN go mod download
+RUN go mod download -x
 COPY . .
 
 RUN CGO_ENABLED=1 go build
