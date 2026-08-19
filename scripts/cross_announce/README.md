@@ -18,6 +18,7 @@ Cross-announce propagates provider registrations from one IPNI indexer to anothe
 | `-skip-lagging` | `false` | Drop candidates whose target group has a non-zero `Lag` with a fresh `LastAdvertisementTime`. Off by default because a stale `Lag` would otherwise skip a provider on every run. |
 | `-lag-fresh-within` | `1h` | A target `LastAdvertisementTime` within this window is fresh enough for `-skip-lagging` to act on a non-zero `Lag`. |
 | `-allow-no-target-find` | `false` | Allow running without `-target-find`, which disables all safety guards and announces every candidate. |
+| `-concurrency` | `4` | Number of candidates announced at once. Values below 1 run serially. |
 | `-help` | `false` | Print usage text and exit. |
 
 ## Port distinction
@@ -35,6 +36,14 @@ A head that is not up to date passes through an ordered list of guards before it
 `LastAdvertisementTime` is the time each indexer *received* the advertisement, not a property of the advertisement. The two receive times proxy for chain position only while both indexers are healthy and following the same publisher; during a backfill or a stuck sync on one side the inference inverts, so the guards are conservative. `Lag` is never reset on completion, so a non-zero `Lag` is usually a stale artefact; the freshness window in `-skip-lagging` is what stops a stale `Lag` from starving a provider on every run.
 
 The run summary reports `total`, `announced`, `skipped`, `deduped`, `upToDate`, `inactive`, `lagging`, `targetAhead`, `unverifiable`, `notAllowed`, and `failed`; every source provider lands in exactly one of `skipped`, `deduped`, or a head, and each head lands in exactly one of the remaining counters.
+
+## Concurrency
+
+Candidates are announced by a bounded worker pool, `-concurrency` wide, so a scheduled run finishes in a predictable window. The number bounds **advertisement chain walks started on the target, not HTTP load**: the target answers `PUT /announce` with 204 immediately and syncs on a background context, so `-concurrency 4` means up to four concurrent syncs beginning on the target. That is why the default is low. Values below 1 are clamped up to 1 rather than rejected, so a bad cron argument degrades to a serial run instead of failing it.
+
+Worker output interleaves, so the per-line prefix is a completed count rather than a candidate index. `-dry-run` starts no workers and prints in selection order. A cancelled run, from `-timeout` or SIGTERM, stops dispatching, prints the partial summary, and exits non-zero.
+
+A panic inside a worker is recovered per candidate and recorded as a `failed` outcome; the worker keeps serving the rest of the run, so the pool keeps its full width and every candidate is still accounted for in the summary.
 
 ## Container invocation
 

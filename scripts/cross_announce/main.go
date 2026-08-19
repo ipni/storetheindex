@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"sync"
 	"syscall"
 	"time"
 
@@ -33,6 +34,7 @@ type options struct {
 	skipLagging       bool
 	lagFreshWithin    time.Duration
 	allowNoTargetFind bool
+	concurrency       int
 }
 
 // stats tracks the outcome of a cross-announce run.
@@ -233,6 +235,48 @@ func selectCandidates(source []*model.ProviderInfo, target []*model.ProviderInfo
 	return candidates, st
 }
 
+// announceHead sends one head's advertisement to the target. It is a
+// variable so a test can panic inside a worker: an httptest handler that
+// panics is recovered by net/http before the client ever sees it, so no HTTP
+// fixture can reach the worker's own recover path.
+var announceHead = func(ctx context.Context, c *ingestclient.Client, head publisherHead) error {
+	return c.Announce(ctx, head.publisher, head.lastAd)
+}
+
+// dispatchCandidates feeds the candidates to the workers and closes the
+// channel on every exit path, including the early stop on cancellation;
+// without the close the workers block on receive and the WaitGroup never
+// completes, so a cancelled run would hang instead of returning a partial
+// summary. The send is a select rather than a bare ctx.Err() check so that a
+// cancellation which lands while every worker is busy stops the dispatcher
+// too, instead of parking it on a send no worker will ever take.
+func dispatchCandidates(ctx context.Context, ch chan publisherHead, candidates []publisherHead) {
+	defer close(ch)
+	for _, head := range candidates {
+		select {
+		case ch <- head:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// printDryRun prints what would be announced, in the order the candidates
+// are given, without making any request. It returns the number of
+// candidates printed.
+func printDryRun(ctx context.Context, candidates []publisherHead) (int, error) {
+	announced := 0
+	for _, head := range candidates {
+		if err := ctx.Err(); err != nil {
+			return announced, err
+		}
+		fmt.Printf("[dry-run] Would announce provider %s (publisher %s, ad %s)\n",
+			head.provider.AddrInfo.ID, head.publisher.ID, head.lastAd)
+		announced++
+	}
+	return announced, nil
+}
+
 func run(ctx context.Context, o options) (stats, error) {
 	var st stats
 
@@ -273,31 +317,148 @@ func run(ctx context.Context, o options) (stats, error) {
 	fmt.Printf("\tFound %d provider(s), %d candidate(s).\n", st.total, len(candidates))
 	fmt.Printf("Announcing providers to %s...\n", o.target)
 
-	for i, head := range candidates {
-		if err := ctx.Err(); err != nil {
-			return st, err
-		}
+	if o.dryRun {
+		// Dry-run performs no requests and starts no workers; it prints in
+		// the order returned by selectCandidates, the only ordering
+		// guarantee available, since the upstream /providers response order
+		// is not stable.
+		announced, err := printDryRun(ctx, candidates)
+		st.announced += announced
+		return st, err
+	}
 
-		fmt.Printf("\t(%d/%d) ", i+1, len(candidates))
-		if o.dryRun {
-			fmt.Printf("[dry-run] Would announce provider %s (publisher %s, ad %s)\n",
-				head.provider.AddrInfo.ID, head.publisher.ID, head.lastAd)
-			st.announced++
-			continue
-		}
-		if err := targeter.Announce(ctx, head.publisher, head.lastAd); err != nil {
-			var apiErr *apierror.Error
-			if errors.As(err, &apiErr) && apiErr.Status() == http.StatusForbidden {
-				fmt.Printf("Provider %s not allowed by target policy; skipped.\n", head.provider.AddrInfo.ID)
-				st.notAllowed++
-			} else {
-				fmt.Printf("Failed to announce provider %s: %s\n", head.provider.AddrInfo.ID, err)
-				st.failed++
+	// A bad cron argument degrades to serial rather than failing the run.
+	concurrency := o.concurrency
+	if concurrency < 1 {
+		concurrency = 1
+	}
+
+	type outcome struct {
+		providerID peer.ID
+		kind       int
+		err        error
+	}
+	const (
+		outAnnounced = iota
+		outNotAllowed
+		outFailed
+	)
+
+	// The candidate channel is sized to the worker count, not to the
+	// candidate count. A buffer large enough to hold every candidate would
+	// let the dispatcher hand off the whole set before a cancellation could
+	// ever reach it, which makes its early exit, and the close that has to
+	// accompany it, unreachable in production and untestable here.
+	ch := make(chan publisherHead, concurrency)
+	// One extra slot per worker so a panic report can always be sent without
+	// blocking, even in the impossible case that every candidate has already
+	// reported. A worker that blocks on this send never reaches wg.Done,
+	// which is the hang this whole structure exists to avoid.
+	results := make(chan outcome, len(candidates)+concurrency)
+
+	var wg sync.WaitGroup
+	for range concurrency {
+		wg.Add(1)
+		go func() {
+			// The deferred function at the top of the goroutine body is the
+			// backstop for every exit path: the channel close, the early
+			// return on ctx.Done, and a panic that escapes the per-candidate
+			// recover below. It must call wg.Done, and if a panic escaped it
+			// must also report the failure. An unrecovered panic takes the
+			// process down before stats.print runs and destroys the summary
+			// for the whole run; a recover that skips either the send or
+			// wg.Done turns that crash into a hang.
+			defer func() {
+				if r := recover(); r != nil {
+					results <- outcome{kind: outFailed, err: fmt.Errorf("panic: %v", r)}
+				}
+				wg.Done()
+			}()
+			for {
+				// Receiving in a select as well as checking ctx before each
+				// announce means a cancelled worker can never be stranded on
+				// an empty channel, independently of the dispatcher getting
+				// its close right.
+				var c publisherHead
+				select {
+				case v, ok := <-ch:
+					if !ok {
+						return
+					}
+					c = v
+				case <-ctx.Done():
+					return
+				}
+				// Cancellation during the previous announce must stop this
+				// worker even if a candidate was ready to receive above.
+				if ctx.Err() != nil {
+					return
+				}
+				// The per-candidate recover keeps the worker alive after a
+				// panic: a deferred recover on the goroutine body would end
+				// the worker permanently, and with more candidates than
+				// workers the pool would silently drop the rest of the run
+				// and the dispatcher would block on a send with no live
+				// receiver.
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							results <- outcome{
+								providerID: c.provider.AddrInfo.ID,
+								kind:       outFailed,
+								err:        fmt.Errorf("panic announcing publisher %s: %v", c.publisher.ID, r),
+							}
+						}
+					}()
+					if err := announceHead(ctx, targeter, c); err != nil {
+						var apiErr *apierror.Error
+						if errors.As(err, &apiErr) && apiErr.Status() == http.StatusForbidden {
+							results <- outcome{providerID: c.provider.AddrInfo.ID, kind: outNotAllowed}
+						} else {
+							results <- outcome{providerID: c.provider.AddrInfo.ID, kind: outFailed, err: err}
+						}
+						return
+					}
+					results <- outcome{providerID: c.provider.AddrInfo.ID, kind: outAnnounced}
+				}()
 			}
-			continue
+		}()
+	}
+
+	go dispatchCandidates(ctx, ch, candidates)
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// The collector is the only writer of the announce-phase counters, so
+	// they need no mutex. Worker output interleaves, so the prefix is a
+	// completed count rather than the candidate's index.
+	var announced, notAllowed, failed, done int
+	for res := range results {
+		done++
+		switch res.kind {
+		case outAnnounced:
+			fmt.Printf("\t(%d/%d) Successfully announced provider %s\n", done, len(candidates), res.providerID)
+			announced++
+		case outNotAllowed:
+			fmt.Printf("\t(%d/%d) Provider %s not allowed by target policy; skipped.\n", done, len(candidates), res.providerID)
+			notAllowed++
+		case outFailed:
+			fmt.Printf("\t(%d/%d) Failed to announce provider %s: %s\n", done, len(candidates), res.providerID, res.err)
+			failed++
 		}
-		fmt.Printf("Successfully announced provider %s\n", head.provider.AddrInfo.ID)
-		st.announced++
+	}
+
+	// Merge the announce-phase counters into the selection counters once, at
+	// the end.
+	st.announced += announced
+	st.notAllowed += notAllowed
+	st.failed += failed
+
+	if err := ctx.Err(); err != nil {
+		return st, err
 	}
 	return st, nil
 }
@@ -315,6 +476,7 @@ func main() {
 	skipLagging := flag.Bool("skip-lagging", false, "Drop candidates whose target group has a non-zero Lag with a fresh LastAdvertisementTime. Off by default because a stale Lag would otherwise skip a provider on every run.")
 	lagFreshWithin := flag.Duration("lag-fresh-within", time.Hour, "A target LastAdvertisementTime within this window is fresh enough for -skip-lagging to act on a non-zero Lag")
 	allowNoTargetFind := flag.Bool("allow-no-target-find", false, "Allow running without -target-find, which disables all safety guards and announces every candidate")
+	concurrency := flag.Int("concurrency", 4, "Number of concurrent announce requests. This bounds concurrent advertisement chain syncs started on the target, not HTTP load. Values below 1 run serially.")
 	help := flag.Bool("help", false, "Print usage")
 
 	flag.Parse()
@@ -347,6 +509,7 @@ Specify the source and target as the HTTP(S) IPNI indexer instance. Example:
 		skipLagging:       *skipLagging,
 		lagFreshWithin:    *lagFreshWithin,
 		allowNoTargetFind: *allowNoTargetFind,
+		concurrency:       *concurrency,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

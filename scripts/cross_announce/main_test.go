@@ -8,12 +8,16 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipni/go-libipni/announce/message"
 	"github.com/ipni/go-libipni/find/model"
+	ingestclient "github.com/ipni/go-libipni/ingest/client"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
@@ -60,6 +64,14 @@ func testCid() cid.Cid {
 	return cid.NewCidV1(uint64(mc.DagCbor), h)
 }
 
+// uniqueCid returns a distinct CID per call, for fixtures that need several
+// different advertisements.
+func uniqueCid(t *testing.T) cid.Cid {
+	t.Helper()
+	h, _ := mh.Sum([]byte(genPeerID(t).String()), uint64(mc.Identity), -1)
+	return cid.NewCidV1(uint64(mc.DagCbor), h)
+}
+
 // variantCid returns a CID distinct from testCid() so source and target can
 // carry different advertisements.
 func variantCid() cid.Cid {
@@ -79,12 +91,15 @@ func newFindServer(providers []*model.ProviderInfo) *httptest.Server {
 }
 
 func newAnnounceServer(status int, count *int) *httptest.Server {
+	var mu sync.Mutex
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/announce" || r.Method != http.MethodPut {
 			http.NotFound(w, r)
 			return
 		}
+		mu.Lock()
 		*count++
+		mu.Unlock()
 		w.WriteHeader(status)
 	}))
 }
@@ -1127,5 +1142,608 @@ func TestAllowNoTargetFindAnnouncesAll(t *testing.T) {
 	}
 	if st.announced != 1 || announceCount != 1 {
 		t.Errorf("announced = %d (requests %d), want 1", st.announced, announceCount)
+	}
+}
+
+// newAnnounceRecordServer records each announced CID, guarded by a mutex so
+// concurrent workers cannot race the append.
+func newAnnounceRecordServer(cids *[]cid.Cid, mu *sync.Mutex, t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/announce" || r.Method != http.MethodPut {
+			http.NotFound(w, r)
+			return
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("reading announce body: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		var msg message.Message
+		if err := msg.UnmarshalCBOR(bytes.NewReader(body)); err != nil {
+			t.Errorf("decoding announce body: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		mu.Lock()
+		*cids = append(*cids, msg.Cid)
+		mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+}
+
+func TestConcurrentAnnounce(t *testing.T) {
+	const n = 20
+	providers := make([]*model.ProviderInfo, 0, n)
+	wantCids := make([]cid.Cid, 0, n)
+	for i := 0; i < n; i++ {
+		c := uniqueCid(t)
+		p := testProvider(t, c)
+		p.LastAdvertisementTime = fmt.Sprintf("2026-08-18T12:%02d:00Z", i)
+		providers = append(providers, p)
+		wantCids = append(wantCids, c)
+	}
+	findSrv := newFindServer(providers)
+	defer findSrv.Close()
+
+	var mu sync.Mutex
+	var gotCids []cid.Cid
+	announceSrv := newAnnounceRecordServer(&gotCids, &mu, t)
+	defer announceSrv.Close()
+
+	o := testOptions(findSrv.URL, announceSrv.URL)
+	o.concurrency = 4
+
+	st, err := run(context.Background(), o)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.announced != n {
+		t.Errorf("announced = %d, want %d", st.announced, n)
+	}
+	mu.Lock()
+	got := make(map[string]int, len(gotCids))
+	for _, c := range gotCids {
+		got[c.String()]++
+	}
+	mu.Unlock()
+	if len(gotCids) != n {
+		t.Fatalf("announce requests = %d, want %d", len(gotCids), n)
+	}
+	for _, c := range wantCids {
+		if got[c.String()] != 1 {
+			t.Errorf("cid %s announced %d times, want exactly once", c, got[c.String()])
+		}
+	}
+}
+
+// TestConcurrencyClampedToSerial asserts that values below 1 degrade to a
+// serial run: no two announce handler invocations may overlap.
+func TestConcurrencyClampedToSerial(t *testing.T) {
+	providers := []*model.ProviderInfo{
+		testProvider(t, testCid()),
+		testProvider(t, testCid()),
+	}
+	findSrv := newFindServer(providers)
+	defer findSrv.Close()
+
+	for _, c := range []int{0, -1} {
+		t.Run(fmt.Sprintf("concurrency=%d", c), func(t *testing.T) {
+			var mu sync.Mutex
+			var inFlight, maxInFlight, count int
+			announceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				inFlight++
+				if inFlight > maxInFlight {
+					maxInFlight = inFlight
+				}
+				count++
+				mu.Unlock()
+				w.WriteHeader(http.StatusNoContent)
+				mu.Lock()
+				inFlight--
+				mu.Unlock()
+			}))
+			defer announceSrv.Close()
+
+			o := testOptions(findSrv.URL, announceSrv.URL)
+			o.concurrency = c
+
+			st, err := run(context.Background(), o)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if st.announced != 2 || count != 2 {
+				t.Errorf("announced = %d (requests %d), want 2", st.announced, count)
+			}
+			if maxInFlight != 1 {
+				t.Errorf("max concurrent handler invocations = %d, want 1 (serial)", maxInFlight)
+			}
+		})
+	}
+}
+
+// TestCancelledContextReturns cancels mid-dispatch and requires run to
+// return a partial summary rather than hang. It enforces the end-to-end
+// contract; the channel close that makes it hold is enforced directly by
+// TestDispatchCandidatesClosesChannelOnCancel, because the window in which a
+// missing close strands a worker on an empty channel is narrow and this
+// test does not reliably reach it. The test cancels from inside the announce
+// handler, where dispatch is provably still in flight, and repeats to sample
+// the scheduling.
+func TestCancelledContextReturns(t *testing.T) {
+	const (
+		n      = 500
+		rounds = 10
+		// Cancel once enough announces have landed that the dispatcher is
+		// well inside the candidate list, but far from its end.
+		cancelAfter = 8
+	)
+	providers := make([]*model.ProviderInfo, 0, n)
+	for i := 0; i < n; i++ {
+		providers = append(providers, testProvider(t, testCid()))
+	}
+	findSrv := newFindServer(providers)
+	defer findSrv.Close()
+
+	for round := 0; round < rounds; round++ {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		var mu sync.Mutex
+		var served int
+		announceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			served++
+			hit := served == cancelAfter
+			mu.Unlock()
+			if hit {
+				cancel()
+			}
+			w.WriteHeader(http.StatusNoContent)
+		}))
+
+		o := testOptions(findSrv.URL, announceSrv.URL)
+		o.concurrency = 4
+
+		done := make(chan struct{})
+		var st stats
+		var runErr error
+		go func() {
+			st, runErr = run(ctx, o)
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(30 * time.Second):
+			// Leaves the server and goroutine behind on purpose: the process
+			// is failing the suite, and Close would block on the stuck run.
+			t.Fatalf("round %d: run did not return after cancellation; the candidate channel was probably not closed", round)
+		}
+		announceSrv.Close()
+		cancel()
+
+		if runErr == nil {
+			t.Fatalf("round %d: expected error from cancelled context, got nil", round)
+		}
+		if st.announced >= n {
+			t.Fatalf("round %d: announced = %d, want strictly below %d", round, st.announced, n)
+		}
+	}
+}
+
+// TestDispatchCandidatesClosesChannelOnCancel tests the dispatcher's
+// contract directly, rather than through run: with a pre-cancelled context
+// it must stop and close the candidate channel. The end-to-end cancellation
+// test cannot catch a missing close, because the channel is sized to the
+// worker count and the dispatcher keeps it full, so at the moment of
+// cancellation every worker holds exactly one candidate and none is ever
+// left waiting on an empty, unclosed channel.
+func TestDispatchCandidatesClosesChannelOnCancel(t *testing.T) {
+	const n = 10
+	candidates := make([]publisherHead, n)
+	for i := range candidates {
+		candidates[i] = publisherHead{
+			publisher: &peer.AddrInfo{ID: genPeerID(t)},
+			provider:  &model.ProviderInfo{AddrInfo: peer.AddrInfo{ID: genPeerID(t)}},
+		}
+	}
+
+	// The real dispatcher runs against a stub channel with a pre-cancelled
+	// context, exactly as run would start it. The contract under test is the
+	// one change 4 exists for: the channel is closed on every exit path.
+	// With the close removed, the dispatcher exits without closing and the
+	// drain below blocks until the timeout, so the test fails instead of
+	// passing.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	defer cancel()
+
+	ch := make(chan publisherHead, 4)
+	go dispatchCandidates(ctx, ch, candidates)
+
+	// Drain until the close is observed. The dispatcher exits on its first
+	// select, before any send, so with a correct implementation the channel
+	// is empty and the first receive already sees the close.
+	closed := false
+	for !closed {
+		select {
+		case _, ok := <-ch:
+			closed = !ok
+		case <-time.After(5 * time.Second):
+			t.Fatal("candidate channel was not closed after cancellation")
+		}
+	}
+	// The dispatcher's exit is implied by the close: it is the only closer
+	// of the channel, and its defer runs before the close.
+}
+
+// TestDispatchCandidatesStopsOnCancelWhileBlocked exercises the other exit
+// path: the dispatcher blocks on a send into a full channel and must observe
+// the cancellation there and exit. The buffer is filled before the
+// dispatcher starts, so its first send is guaranteed to block.
+//
+// The test waits for the dispatcher to return before it drains the channel.
+// Draining first would free buffer space and let a dispatcher missing its
+// ctx.Done arm complete every send and reach the deferred close, so the
+// drain alone cannot tell the two exit paths apart; the return can.
+func TestDispatchCandidatesStopsOnCancelWhileBlocked(t *testing.T) {
+	const n = 10
+	candidates := make([]publisherHead, n)
+	for i := range candidates {
+		candidates[i] = publisherHead{
+			publisher: &peer.AddrInfo{ID: genPeerID(t)},
+			provider:  &model.ProviderInfo{AddrInfo: peer.AddrInfo{ID: genPeerID(t)}},
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch := make(chan publisherHead, 4)
+	// Fill the buffer first: with the dispatcher not yet running, its first
+	// select is a send that cannot proceed, so it is parked on the select
+	// before the cancellation lands.
+	for i := 0; i < cap(ch); i++ {
+		ch <- candidates[i]
+	}
+	done := make(chan struct{})
+	go func() {
+		dispatchCandidates(ctx, ch, candidates)
+		close(done)
+	}()
+	cancel()
+
+	// The dispatcher is parked on a send into a full channel that nothing
+	// drains; the ctx.Done arm is the only way out. A missing arm leaves it
+	// parked and this times out.
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("dispatcher did not exit on cancellation while blocked on a send")
+	}
+
+	// The dispatcher returned, so its deferred close must have run. Drain
+	// the four buffered candidates until the close is observed; a cancel
+	// path that returns without closing blocks here.
+	closed := false
+	for !closed {
+		select {
+		case _, ok := <-ch:
+			closed = !ok
+		case <-time.After(5 * time.Second):
+			t.Fatal("candidate channel was not closed after the dispatcher exited")
+		}
+	}
+}
+
+// TestPanickingHandlerRecordedAsFailed covers the transport-error path: a
+// handler that panics is recovered by net/http, which aborts the response, so
+// the ingest client returns an error and the worker records a failure.
+func TestPanickingHandlerRecordedAsFailed(t *testing.T) {
+	providers := []*model.ProviderInfo{
+		testProvider(t, testCid()),
+	}
+	findSrv := newFindServer(providers)
+	defer findSrv.Close()
+
+	announceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic(http.ErrAbortHandler)
+	}))
+	defer announceSrv.Close()
+
+	o := testOptions(findSrv.URL, announceSrv.URL)
+	o.concurrency = 4
+
+	st, err := run(context.Background(), o)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.failed != 1 {
+		t.Errorf("failed = %d, want 1", st.failed)
+	}
+	if st.announced != 0 {
+		t.Errorf("announced = %d, want 0", st.announced)
+	}
+}
+
+// TestWorkerPanicRecordedAsFailed panics inside a worker itself. That path is
+// unreachable through an httptest fixture, and it is the one that decides
+// whether a crash costs one candidate or the whole summary: an unrecovered
+// panic in a goroutine kills the process before stats.print runs, and a
+// recover that skips either the result send or wg.Done hangs the run instead.
+func TestWorkerPanicRecordedAsFailed(t *testing.T) {
+	const n = 4
+	providers := make([]*model.ProviderInfo, 0, n)
+	for i := 0; i < n; i++ {
+		providers = append(providers, testProvider(t, testCid()))
+	}
+	findSrv := newFindServer(providers)
+	defer findSrv.Close()
+
+	var announceCount int
+	announceSrv := newAnnounceServer(http.StatusNoContent, &announceCount)
+	defer announceSrv.Close()
+
+	orig := announceHead
+	defer func() { announceHead = orig }()
+	var mu sync.Mutex
+	var calls int
+	announceHead = func(ctx context.Context, c *ingestclient.Client, head publisherHead) error {
+		mu.Lock()
+		first := calls == 0
+		calls++
+		mu.Unlock()
+		if first {
+			panic("boom")
+		}
+		return orig(ctx, c, head)
+	}
+
+	o := testOptions(findSrv.URL, announceSrv.URL)
+	o.concurrency = 4
+
+	done := make(chan struct{})
+	var st stats
+	var err error
+	go func() {
+		st, err = run(context.Background(), o)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("run did not return after a worker panic; the recover skipped its send or wg.Done")
+	}
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.failed != 1 {
+		t.Errorf("failed = %d, want 1", st.failed)
+	}
+	// The panicking worker survives the panic, so every candidate is still
+	// accounted for and the summary is intact.
+	if st.announced != n-1 {
+		t.Errorf("announced = %d, want %d", st.announced, n-1)
+	}
+	if headSum(st) != st.total {
+		t.Errorf("head buckets sum to %d, want %d", headSum(st), st.total)
+	}
+
+	// With more candidates than workers and a panic on every call, the pool
+	// must keep its full width: a recover on the goroutine body would end
+	// each worker after its first panic, and the summary would silently lose
+	// the candidates no worker ever reached.
+	const m = 10
+	providers = make([]*model.ProviderInfo, 0, m)
+	for i := 0; i < m; i++ {
+		providers = append(providers, testProvider(t, testCid()))
+	}
+	findSrv = newFindServer(providers)
+	defer findSrv.Close()
+
+	announceHead = func(ctx context.Context, c *ingestclient.Client, head publisherHead) error {
+		panic("boom")
+	}
+
+	o = testOptions(findSrv.URL, announceSrv.URL)
+	o.concurrency = 4
+
+	done = make(chan struct{})
+	st = stats{}
+	err = nil
+	go func() {
+		st, err = run(context.Background(), o)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("run did not return when every announce panicked; the dispatcher is blocked with no live worker")
+	}
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.failed != m {
+		t.Errorf("failed = %d, want %d", st.failed, m)
+	}
+	if st.announced != 0 {
+		t.Errorf("announced = %d, want 0", st.announced)
+	}
+	if headSum(st) != st.total {
+		t.Errorf("head buckets sum to %d, want %d", headSum(st), st.total)
+	}
+}
+
+// TestPrintDryRunInOrder asserts the ordering half of the dry-run contract
+// directly: the lines are printed in the order the candidates are given,
+// which is the order selectCandidates returns them. Through run that order
+// is map-iteration order and not reproducible from a second call, so the
+// test calls the printer with a known slice.
+func TestPrintDryRunInOrder(t *testing.T) {
+	const n = 10
+	candidates := make([]publisherHead, n)
+	for i := range candidates {
+		candidates[i] = publisherHead{
+			publisher: &peer.AddrInfo{ID: genPeerID(t)},
+			provider:  &model.ProviderInfo{AddrInfo: peer.AddrInfo{ID: genPeerID(t)}},
+		}
+	}
+
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("creating pipe: %v", err)
+	}
+	os.Stdout = w
+	announced, runErr := printDryRun(context.Background(), candidates)
+	w.Close()
+	os.Stdout = old
+	if runErr != nil {
+		t.Fatalf("unexpected error: %v", runErr)
+	}
+	if announced != n {
+		t.Fatalf("announced = %d, want %d", announced, n)
+	}
+
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("reading stdout: %v", err)
+	}
+
+	lines := strings.Split(string(out), "\n")
+	var got []peer.ID
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "[dry-run] Would announce provider ") {
+			continue
+		}
+		rest := strings.TrimPrefix(line, "[dry-run] Would announce provider ")
+		fields := strings.Fields(rest)
+		if len(fields) < 1 {
+			t.Fatalf("malformed dry-run line: %q", line)
+		}
+		mh, err := mh.FromB58String(fields[0])
+		if err != nil {
+			t.Fatalf("decoding provider ID %q: %v", fields[0], err)
+		}
+		got = append(got, peer.ID(mh))
+	}
+	if len(got) != n {
+		t.Fatalf("dry-run lines = %d, want %d", len(got), n)
+	}
+	for i, id := range got {
+		if id != candidates[i].provider.AddrInfo.ID {
+			t.Errorf("line %d announces provider %s, want %s (the given order)", i, id, candidates[i].provider.AddrInfo.ID)
+		}
+	}
+}
+
+// TestDryRunPrintsEveryCandidateOnce checks the wiring through run: the
+// dry-run path prints one line per candidate, each exactly once. The order
+// itself is not observable through run (map-iteration order) and is covered
+// by TestPrintDryRunInOrder.
+func TestDryRunPrintsEveryCandidateOnce(t *testing.T) {
+	const n = 10
+	providers := make([]*model.ProviderInfo, 0, n)
+	for i := 0; i < n; i++ {
+		providers = append(providers, testProvider(t, testCid()))
+	}
+	findSrv := newFindServer(providers)
+	defer findSrv.Close()
+
+	var announceCount int
+	announceSrv := newAnnounceServer(http.StatusNoContent, &announceCount)
+	defer announceSrv.Close()
+
+	o := testOptions(findSrv.URL, announceSrv.URL)
+	o.dryRun = true
+	o.concurrency = 8
+
+	want := make(map[peer.ID]bool, n)
+	for _, p := range providers {
+		want[p.AddrInfo.ID] = true
+	}
+
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("creating pipe: %v", err)
+	}
+	os.Stdout = w
+	_, runErr := run(context.Background(), o)
+	w.Close()
+	os.Stdout = old
+	if runErr != nil {
+		t.Fatalf("unexpected error: %v", runErr)
+	}
+
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("reading stdout: %v", err)
+	}
+
+	lines := strings.Split(string(out), "\n")
+	var got []peer.ID
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "[dry-run] Would announce provider ") {
+			continue
+		}
+		rest := strings.TrimPrefix(line, "[dry-run] Would announce provider ")
+		fields := strings.Fields(rest)
+		if len(fields) < 1 {
+			t.Fatalf("malformed dry-run line: %q", line)
+		}
+		mh, err := mh.FromB58String(fields[0])
+		if err != nil {
+			t.Fatalf("decoding provider ID %q: %v", fields[0], err)
+		}
+		got = append(got, peer.ID(mh))
+	}
+	if len(got) != n {
+		t.Fatalf("dry-run lines = %d, want %d", len(got), n)
+	}
+	seen := make(map[peer.ID]int, n)
+	for i, id := range got {
+		if !want[id] {
+			t.Errorf("line %d announces provider %s, which is not a candidate", i, id)
+		}
+		seen[id]++
+	}
+	for id := range want {
+		if seen[id] != 1 {
+			t.Errorf("provider %s appears %d times in the dry-run output, want exactly once", id, seen[id])
+		}
+	}
+}
+
+func TestDryRunConcurrentNoRequests(t *testing.T) {
+	const n = 10
+	providers := make([]*model.ProviderInfo, 0, n)
+	for i := 0; i < n; i++ {
+		providers = append(providers, testProvider(t, testCid()))
+	}
+	findSrv := newFindServer(providers)
+	defer findSrv.Close()
+
+	var announceCount int
+	announceSrv := newAnnounceServer(http.StatusNoContent, &announceCount)
+	defer announceSrv.Close()
+
+	o := testOptions(findSrv.URL, announceSrv.URL)
+	o.dryRun = true
+	o.concurrency = 8
+
+	st, err := run(context.Background(), o)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.announced != n {
+		t.Errorf("announced = %d, want %d", st.announced, n)
+	}
+	if announceCount != 0 {
+		t.Errorf("announce requests = %d, want 0", announceCount)
 	}
 }
