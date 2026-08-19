@@ -126,19 +126,20 @@ func (c *Mirror) PopulateUnset() {
 // UnmarshalJSON loads Mirror config, accepting legacy Read/Write,
 // Retrieval/Storage, and top-level Compress fields and converting them to
 // MainMode/Main/External with per-store Compress.
-// FallbackRetrieval from unreleased configs is ignored.
 func (c *Mirror) UnmarshalJSON(data []byte) error {
-	aux := mirrorJSON{mirrorPlain: (*mirrorPlain)(c)}
+	aux := mirrorJSON{mirrorPlain: &mirrorPlain{}}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
-	if err := c.convertLegacy(aux); err != nil {
+	m := (*Mirror)(aux.mirrorPlain)
+	if err := m.convertLegacy(aux); err != nil {
 		return err
 	}
-	if !c.MainMode.Valid() {
+	if !m.MainMode.Valid() {
 		return fmt.Errorf("invalid AdvertisementMirror.MainMode %q; want one of: %q, %q, %q, %q, %q",
-			c.MainMode, MainModeUnspecified, MainModeNone, MainModeRead, MainModeWrite, MainModeReadWrite)
+			m.MainMode, MainModeUnspecified, MainModeNone, MainModeRead, MainModeWrite, MainModeReadWrite)
 	}
+	*c = *m
 	return nil
 }
 

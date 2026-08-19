@@ -50,10 +50,11 @@ type Ingest struct {
 	HttpSyncTimeout Duration
 	// IngestWorkerCount sets how many ingest worker goroutines to spawn. This
 	// controls how many concurrent ingest from different providers we can handle.
+	// This value is reloadable.
 	IngestWorkerCount int
 	// MaxAsyncConcurrency sets the maximum number of concurrent asynchrouous
 	// syncs (started by announce messages). Set -1 for unlimited, 0 for
-	// default. This value is reloadable.
+	// default. Applied at subscriber creation; requires a daemon restart.
 	MaxAsyncConcurrency int
 	// MinimumKeyLengt causes any multihash, that has a digest length less than
 	// this, to be ignored.

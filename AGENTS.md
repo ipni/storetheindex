@@ -133,11 +133,36 @@ Rules for agents:
 - Keep the file map, diagrams, and config list in that document consistent with
   reality (function names, key prefixes, defaults, endpoints).
 
+## Configuration documentation (keep in sync)
+
+[doc/config.md](doc/config.md) is the **user-facing** reference for the JSON
+config file (operators running binaries or containers). Structs and defaults
+live under [`config/`](config); filestore backends used by
+`AdvertisementMirror` are in [`filestore/config.go`](filestore/config.go).
+
+Rules for agents:
+
+- The source code is always the source of truth. If `doc/config.md` disagrees
+  with [`config/`](config), [`filestore/config.go`](filestore/config.go), or
+  with what `reloadConfig` in [`command/daemon.go`](command/daemon.go) actually
+  applies, trust the code and fix the doc.
+- Whenever you change the configuration object or format - add/remove/rename
+  fields, change defaults or validation, alter JSON encoding, change filestore
+  config used by mirrors, or change which settings are runtime-reloadable -
+  update [doc/config.md](doc/config.md) in the same change (and keep
+  "This value is reloadable" comments on config fields accurate).
+- Whenever you read the config code and notice drift from what
+  [doc/config.md](doc/config.md) describes, update the doc to match the code.
+- Write `doc/config.md` for operators who do not read the Go sources: explain
+  what each setting does in plain language, include defaults, and avoid
+  requiring external package docs or source-file knowledge.
+
 Other design docs worth reading:
 
 - [doc/scaling-design-for-ingest.md](doc/scaling-design-for-ingest.md) -
   assigner, frozen mode, handoff, scatter/gather queries.
-- [doc/config.md](doc/config.md) - config file location and reloadable items.
+- [doc/config.md](doc/config.md) - complete config field reference, defaults,
+  and reloadable items.
 - [doc/creating-an-index-provider.md](doc/creating-an-index-provider.md) -
   provider/advertisement model.
 
@@ -165,3 +190,5 @@ Other design docs worth reading:
 - Do not commit secrets, the local `.local-config`, or the checked-in binary.
 - When touching ingestion, update [doc/ingestion.md](doc/ingestion.md) as
   described above.
+- When changing configuration schema or reload behavior, update
+  [doc/config.md](doc/config.md) as described above.

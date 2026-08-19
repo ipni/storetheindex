@@ -1,18 +1,31 @@
-FROM golang:1.26-bookworm as builder
+FROM golang:1.26-bookworm AS builder
 
 WORKDIR /storetheindex
 COPY go.* .
-RUN go mod download
+RUN go mod download -x
 COPY . .
 
 RUN CGO_ENABLED=1 go build
 # CGO_ENABLED differs from the line above, so this step shares no build cache and recompiles the dependency graph.
 RUN CGO_ENABLED=0 go build -o cross-announce ./scripts/cross_announce
 
+FROM debian:bookworm-slim AS jemalloc
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libjemalloc2 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Debug non-root image used as base in order to provide easier administration and debugging.
+# distroless/cc includes libstdc++, which Debian jemalloc requires.
 FROM gcr.io/distroless/cc:debug-nonroot
 COPY --from=builder /storetheindex/storetheindex /usr/local/bin/
 COPY --from=builder /storetheindex/cross-announce /usr/local/bin/
+COPY --from=jemalloc \
+    /usr/lib/x86_64-linux-gnu/libjemalloc.so.2 \
+    /usr/lib/x86_64-linux-gnu/
+# LD_PRELOAD applies to every binary in the image, but cross-announce is built
+# CGO_ENABLED=0 and so is statically linked with no dynamic loader to honour it.
+ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+ENV MALLOC_CONF=background_thread:true,dirty_decay_ms:5000,muzzy_decay_ms:5000
 
 # Default port configuration:
 #  - 3000 Finder interface
