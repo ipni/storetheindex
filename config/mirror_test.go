@@ -262,6 +262,30 @@ func TestMirrorUnmarshalMixedCompressStylesError(t *testing.T) {
 	require.Contains(t, err.Error(), "mixes legacy top-level Compress")
 }
 
+// config.Load seeds AdvertisementMirror with NewMirror() before Decode. Legacy
+// configs with top-level Compress must still load against those defaults.
+func TestMirrorUnmarshalLegacyIntoNewMirrorDefaults(t *testing.T) {
+	m := config.NewMirror()
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"Read": true,
+		"Write": true,
+		"Compress": "gzip",
+		"Storage": {
+			"Type": "local",
+			"Local": {"BasePath": "/mirror", "DefaultPathSplit": [11, 2]}
+		},
+		"Retrieval": {
+			"Type": "local",
+			"Local": {"BasePath": "/mirror", "DefaultPathSplit": [11, 2]}
+		}
+	}`), &m))
+	require.Equal(t, config.MainModeReadWrite, m.MainMode)
+	require.Equal(t, "gzip", m.Main.Compress)
+	require.Equal(t, "local", m.Main.Type)
+	require.Equal(t, "/mirror", m.Main.Local.BasePath)
+	require.Empty(t, m.External)
+}
+
 func TestMirrorUnmarshalInvalidMainMode(t *testing.T) {
 	var m config.Mirror
 	err := json.Unmarshal([]byte(`{"MainMode": "nope"}`), &m)
