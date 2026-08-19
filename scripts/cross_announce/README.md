@@ -8,7 +8,8 @@ Cross-announce propagates provider registrations from one IPNI indexer to anothe
 | --- | --- | --- |
 | `-source` | (empty) | Base URL of the source indexer. Must point to the find API (default port 3000). |
 | `-target` | (empty) | Base URL of the target indexer. Must point to the ingest API (default port 3001). |
-| `-pid` | (empty) | If set, only announce the provider with this peer ID. Omit to announce all providers. |
+| `-target-find` | (empty) | Base URL of the target indexer's find API (default port 3000). Used to compare publisher heads against the target and skip providers the target already has at the same advertisement. Empty disables the comparison. |
+| `-pid` | (empty) | If set, only announce the publisher of the provider with this peer ID. Omit to announce all providers. |
 | `-timeout` | `30m` | Overall run timeout; `0` disables. A timed-out run exits non-zero so the Kubernetes Job is marked Failed. |
 | `-http-timeout` | `30s` | Per-request HTTP timeout. |
 | `-max-failures` | `0` | Exit non-zero when the failure count exceeds this value. With `0`, a single failure fails the Job. |
@@ -17,7 +18,11 @@ Cross-announce propagates provider registrations from one IPNI indexer to anothe
 
 ## Port distinction
 
-The `-source` URL must target the **find** interface (port 3000 by default) because the tool reads provider listings through the find API. The `-target` URL must target the **ingest** interface (port 3001 by default) because announcements are submitted through the ingest API. The client constructors only parse these URLs, so a wrong port is not rejected up front; it fails later, when the provider listing or the announce request is made.
+The `-source` URL must target the **find** interface (port 3000 by default) because the tool reads provider listings through the find API. The `-target` URL must target the **ingest** interface (port 3001 by default) because announcements are submitted through the ingest API. The `-target-find` URL, when set, must target the target's **find** interface (port 3000 by default) so the tool can read the target's provider list. The client constructors only parse these URLs, so a wrong port is not rejected up front; it fails later, when the provider listing or the announce request is made.
+
+## Publisher-keyed selection
+
+Providers are grouped by publisher before anything is announced, because the target's own short-circuit is per publisher. Within a publisher group the provider with the newest parseable `LastAdvertisementTime` is the head; ties (and groups with no parseable time) break on the lowest provider ID, never on source order, because the source's `/providers` ordering is not stable. A head equal to the target's head for the same publisher is counted `upToDate` and dropped. The run summary reports `total`, `announced`, `skipped`, `deduped`, `upToDate`, `notAllowed`, and `failed`; every source provider lands in exactly one of `skipped`, `deduped`, or a head, and each head lands in exactly one of `upToDate`, `notAllowed`, `failed`, or `announced`.
 
 ## Container invocation
 
