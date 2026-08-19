@@ -60,6 +60,13 @@ func testCid() cid.Cid {
 	return cid.NewCidV1(uint64(mc.DagCbor), h)
 }
 
+// variantCid returns a CID distinct from testCid() so source and target can
+// carry different advertisements.
+func variantCid() cid.Cid {
+	h, _ := mh.Sum([]byte("variant"), uint64(mc.Identity), -1)
+	return cid.NewCidV1(uint64(mc.DagCbor), h)
+}
+
 func newFindServer(providers []*model.ProviderInfo) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/providers" {
@@ -110,9 +117,16 @@ func newAnnounceCidServer(cids *[]cid.Cid, t *testing.T) *httptest.Server {
 
 func testOptions(source, target string) options {
 	return options{
-		source:      source,
-		target:      target,
-		httpTimeout: 5 * time.Second,
+		source:         source,
+		target:         target,
+		httpTimeout:    5 * time.Second,
+		skipInactive:   true,
+		skipLagging:    false,
+		lagFreshWithin: time.Hour,
+		// allowNoTargetFind keeps the Task 3 and Task 4 tests running now that
+		// -target-find is mandatory; those tests predate the guard chain and
+		// exercise selection without a target view.
+		allowNoTargetFind: true,
 	}
 }
 
@@ -681,6 +695,12 @@ func TestUndefCidNeverBecomesHead(t *testing.T) {
 	}
 }
 
+// headSum is the sum of every head-level counter: each head of a surviving
+// publisher group lands in exactly one of these buckets.
+func headSum(st stats) int {
+	return st.announced + st.upToDate + st.inactive + st.lagging + st.targetAhead + st.unverifiable + st.notAllowed + st.failed
+}
+
 func TestBookkeepingIdentity(t *testing.T) {
 	providers := make([]*model.ProviderInfo, 0, 10)
 	for i := 0; i < 10; i++ {
@@ -719,8 +739,115 @@ func TestBookkeepingIdentity(t *testing.T) {
 		t.Errorf("heads = %d, want 7", heads)
 	}
 	// Head-level: all 7 heads announced.
-	if st.announced+st.upToDate+st.notAllowed+st.failed != heads {
-		t.Errorf("head buckets sum to %d, want %d", st.announced+st.upToDate+st.notAllowed+st.failed, heads)
+	if headSum(st) != heads {
+		t.Errorf("head buckets sum to %d, want %d", headSum(st), heads)
+	}
+}
+
+// TestBookkeepingIdentityWithGuards asserts the bookkeeping identity while the
+// safety guards are firing: with a target list, several heads are dropped by
+// different guards in one run, and skipped + deduped plus the sum of the
+// head-level counters must still equal total.
+func TestBookkeepingIdentityWithGuards(t *testing.T) {
+	srcTime := time.Now().Add(-2 * time.Minute).UTC().Format(time.RFC3339)
+	fresh := time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339)
+
+	// Up to date: same head on both sides.
+	pubUpToDate := sharedPublisher(t)
+	srcUpToDate := providerWith(t, pubUpToDate, testCid(), "2026-08-18T12:00:00Z", 0, false)
+	tgtUpToDate := providerWith(t, pubUpToDate, testCid(), "2026-08-18T12:00:00Z", 0, false)
+
+	// Target ahead: target time at or after source time, differing CIDs.
+	pubAhead := sharedPublisher(t)
+	srcAhead := providerWith(t, pubAhead, testCid(), "2026-08-18T11:00:00Z", 0, false)
+	tgtAhead := providerWith(t, pubAhead, variantCid(), "2026-08-18T12:00:00Z", 0, false)
+
+	// Unverifiable: target has a defined CID but no parseable timestamp.
+	pubUnverifiable := sharedPublisher(t)
+	srcUnverifiable := providerWith(t, pubUnverifiable, testCid(), "2026-08-18T12:00:00Z", 0, false)
+	tgtUnverifiable := providerWith(t, pubUnverifiable, variantCid(), "", 0, false)
+
+	// All-inactive group: every source provider is Inactive.
+	pubInactive := sharedPublisher(t)
+	srcInactive1 := providerWith(t, pubInactive, testCid(), "2026-08-18T12:00:00Z", 0, true)
+	srcInactive2 := providerWith(t, pubInactive, variantCid(), "2026-08-18T11:00:00Z", 0, true)
+	tgtInactive := providerWith(t, pubInactive, variantCid(), "2026-08-18T11:00:00Z", 0, false)
+
+	// Lagging: target group has a non-zero Lag with a fresh timestamp.
+	pubLagging := sharedPublisher(t)
+	srcLagging := providerWith(t, pubLagging, testCid(), srcTime, 0, false)
+	tgtLagging := providerWith(t, pubLagging, variantCid(), fresh, 3, false)
+
+	// Genuinely announced: target time older than source time.
+	pubAnnounced := sharedPublisher(t)
+	srcAnnounced := providerWith(t, pubAnnounced, testCid(), "2026-08-18T12:00:00Z", 0, false)
+	tgtAnnounced := providerWith(t, pubAnnounced, variantCid(), "2026-08-18T11:00:00Z", 0, false)
+
+	source := []*model.ProviderInfo{
+		srcUpToDate,
+		srcAhead,
+		srcUnverifiable,
+		srcInactive1,
+		srcInactive2,
+		srcLagging,
+		srcAnnounced,
+	}
+	target := []*model.ProviderInfo{
+		tgtUpToDate,
+		tgtAhead,
+		tgtUnverifiable,
+		tgtInactive,
+		tgtLagging,
+		tgtAnnounced,
+	}
+
+	o := testOptions("", "")
+	o.skipLagging = true
+	st, count, err := runWithTarget(t, source, target, o)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Provider-level: 7 providers, 1 deduped (the second inactive member),
+	// 6 heads.
+	if st.total != 7 {
+		t.Fatalf("total = %d, want 7", st.total)
+	}
+	if st.skipped != 0 {
+		t.Errorf("skipped = %d, want 0", st.skipped)
+	}
+	if st.deduped != 1 {
+		t.Errorf("deduped = %d, want 1", st.deduped)
+	}
+	heads := st.total - st.skipped - st.deduped
+	if heads != 6 {
+		t.Fatalf("heads = %d, want 6", heads)
+	}
+
+	// Head-level: one head per guard, plus the announced one.
+	if st.upToDate != 1 {
+		t.Errorf("upToDate = %d, want 1", st.upToDate)
+	}
+	if st.targetAhead != 1 {
+		t.Errorf("targetAhead = %d, want 1", st.targetAhead)
+	}
+	if st.unverifiable != 1 {
+		t.Errorf("unverifiable = %d, want 1", st.unverifiable)
+	}
+	if st.inactive != 1 {
+		t.Errorf("inactive = %d, want 1", st.inactive)
+	}
+	if st.lagging != 1 {
+		t.Errorf("lagging = %d, want 1", st.lagging)
+	}
+	if st.announced != 1 || count != 1 {
+		t.Errorf("announced = %d (requests %d), want 1", st.announced, count)
+	}
+
+	// The identity: skipped + deduped + the sum of the head-level counters
+	// equals total.
+	if st.skipped+st.deduped+headSum(st) != st.total {
+		t.Errorf("skipped + deduped + head buckets = %d, want total %d", st.skipped+st.deduped+headSum(st), st.total)
 	}
 }
 
@@ -731,4 +858,274 @@ func mustMultiaddr(t *testing.T, id peer.ID) ma.Multiaddr {
 		t.Fatalf("building multiaddr: %v", err)
 	}
 	return m
+}
+
+// providerWith builds a provider with a shared publisher and explicit
+// time/lag/inactive, for the guard tests.
+func providerWith(t *testing.T, pub *peer.AddrInfo, adCid cid.Cid, adTime string, lag int, inactive bool) *model.ProviderInfo {
+	t.Helper()
+	p := testProvider(t, adCid)
+	p.Publisher = pub
+	p.LastAdvertisementTime = adTime
+	p.Lag = lag
+	p.Inactive = inactive
+	return p
+}
+
+func sharedPublisher(t *testing.T) *peer.AddrInfo {
+	t.Helper()
+	id := genPeerID(t)
+	return &peer.AddrInfo{ID: id, Addrs: []ma.Multiaddr{mustMultiaddr(t, id)}}
+}
+
+func runWithTarget(t *testing.T, source, target []*model.ProviderInfo, o options) (stats, int, error) {
+	t.Helper()
+	findSrv := newFindServer(source)
+	defer findSrv.Close()
+	targetFindSrv := newFindServer(target)
+	defer targetFindSrv.Close()
+
+	var announceCount int
+	announceSrv := newAnnounceServer(http.StatusNoContent, &announceCount)
+	defer announceSrv.Close()
+
+	o.source = findSrv.URL
+	o.target = announceSrv.URL
+	o.targetFindURL = targetFindSrv.URL
+	st, err := run(context.Background(), o)
+	return st, announceCount, err
+}
+
+func TestTargetOlderAnnounces(t *testing.T) {
+	pub := sharedPublisher(t)
+	src := providerWith(t, pub, testCid(), "2026-08-18T12:00:00Z", 0, false)
+	tgt := providerWith(t, pub, variantCid(), "2026-08-18T11:00:00Z", 0, false)
+
+	st, count, err := runWithTarget(t, []*model.ProviderInfo{src}, []*model.ProviderInfo{tgt}, testOptions("", ""))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.announced != 1 || count != 1 {
+		t.Errorf("announced = %d (requests %d), want 1", st.announced, count)
+	}
+}
+
+func TestTargetAhead(t *testing.T) {
+	pub := sharedPublisher(t)
+	src := providerWith(t, pub, testCid(), "2026-08-18T11:00:00Z", 0, false)
+	tgt := providerWith(t, pub, variantCid(), "2026-08-18T12:00:00Z", 0, false)
+
+	st, count, err := runWithTarget(t, []*model.ProviderInfo{src}, []*model.ProviderInfo{tgt}, testOptions("", ""))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.targetAhead != 1 {
+		t.Errorf("targetAhead = %d, want 1", st.targetAhead)
+	}
+	if st.announced != 0 || count != 0 {
+		t.Errorf("announced = %d (requests %d), want 0", st.announced, count)
+	}
+}
+
+func TestEqualTimestampsTargetAhead(t *testing.T) {
+	pub := sharedPublisher(t)
+	src := providerWith(t, pub, testCid(), "2026-08-18T12:00:00Z", 0, false)
+	tgt := providerWith(t, pub, variantCid(), "2026-08-18T12:00:00Z", 0, false)
+
+	st, count, err := runWithTarget(t, []*model.ProviderInfo{src}, []*model.ProviderInfo{tgt}, testOptions("", ""))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.targetAhead != 1 {
+		t.Errorf("targetAhead = %d, want 1", st.targetAhead)
+	}
+	if st.announced != 0 || count != 0 {
+		t.Errorf("announced = %d (requests %d), want 0", st.announced, count)
+	}
+}
+
+func TestUnverifiable(t *testing.T) {
+	pub := sharedPublisher(t)
+	src := providerWith(t, pub, testCid(), "2026-08-18T12:00:00Z", 0, false)
+	// Target has a defined CID but no parseable timestamp.
+	tgt := providerWith(t, pub, variantCid(), "", 0, false)
+
+	st, count, err := runWithTarget(t, []*model.ProviderInfo{src}, []*model.ProviderInfo{tgt}, testOptions("", ""))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.unverifiable != 1 {
+		t.Errorf("unverifiable = %d, want 1", st.unverifiable)
+	}
+	if st.announced != 0 || count != 0 {
+		t.Errorf("announced = %d (requests %d), want 0", st.announced, count)
+	}
+}
+
+func TestTargetUndefCidAnnounces(t *testing.T) {
+	pub := sharedPublisher(t)
+	src := providerWith(t, pub, testCid(), "2026-08-18T12:00:00Z", 0, false)
+	// Target knows the publisher but has never ingested an ad.
+	tgt := providerWith(t, pub, cid.Undef, "", 0, false)
+
+	st, count, err := runWithTarget(t, []*model.ProviderInfo{src}, []*model.ProviderInfo{tgt}, testOptions("", ""))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.announced != 1 || count != 1 {
+		t.Errorf("announced = %d (requests %d), want 1", st.announced, count)
+	}
+	if st.unverifiable != 0 || st.targetAhead != 0 {
+		t.Errorf("guard counters should be 0, got unverifiable=%d targetAhead=%d", st.unverifiable, st.targetAhead)
+	}
+}
+
+func TestTargetAbsentAnnounces(t *testing.T) {
+	pub := sharedPublisher(t)
+	src := providerWith(t, pub, testCid(), "2026-08-18T12:00:00Z", 0, false)
+
+	st, count, err := runWithTarget(t, []*model.ProviderInfo{src}, nil, testOptions("", ""))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.announced != 1 || count != 1 {
+		t.Errorf("announced = %d (requests %d), want 1", st.announced, count)
+	}
+}
+
+func TestSkipInactive(t *testing.T) {
+	pub := sharedPublisher(t)
+	// Every provider in the group is inactive.
+	src := providerWith(t, pub, testCid(), "2026-08-18T12:00:00Z", 0, true)
+	src2 := providerWith(t, pub, variantCid(), "2026-08-18T11:00:00Z", 0, true)
+	tgt := providerWith(t, pub, variantCid(), "2026-08-18T11:00:00Z", 0, false)
+
+	o := testOptions("", "")
+	o.skipInactive = true
+	st, count, err := runWithTarget(t, []*model.ProviderInfo{src, src2}, []*model.ProviderInfo{tgt}, o)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.inactive != 1 {
+		t.Errorf("inactive = %d, want 1", st.inactive)
+	}
+	if st.announced != 0 || count != 0 {
+		t.Errorf("announced = %d (requests %d), want 0", st.announced, count)
+	}
+
+	// One active provider in the group is reason enough to announce.
+	pub2 := sharedPublisher(t)
+	srcA := providerWith(t, pub2, testCid(), "2026-08-18T12:00:00Z", 0, true)
+	srcB := providerWith(t, pub2, variantCid(), "2026-08-18T11:00:00Z", 0, false)
+	tgt2 := providerWith(t, pub2, variantCid(), "2026-08-18T11:00:00Z", 0, false)
+	st, count, err = runWithTarget(t, []*model.ProviderInfo{srcA, srcB}, []*model.ProviderInfo{tgt2}, o)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.inactive != 0 {
+		t.Errorf("inactive = %d, want 0", st.inactive)
+	}
+	if st.announced != 1 || count != 1 {
+		t.Errorf("announced = %d (requests %d), want 1", st.announced, count)
+	}
+}
+
+func TestSkipLagging(t *testing.T) {
+	// Source time is the newest of the three so the target-ahead guard does
+	// not fire; only the lag guard is under test.
+	srcTime := time.Now().Add(-2 * time.Minute).UTC().Format(time.RFC3339)
+	fresh := time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339)
+	stale := time.Now().Add(-3 * time.Hour).UTC().Format(time.RFC3339)
+
+	// Non-zero Lag with a fresh timestamp is dropped when -skip-lagging.
+	pub := sharedPublisher(t)
+	src := providerWith(t, pub, testCid(), srcTime, 0, false)
+	tgt := providerWith(t, pub, variantCid(), fresh, 3, false)
+	o := testOptions("", "")
+	o.skipLagging = true
+	st, count, err := runWithTarget(t, []*model.ProviderInfo{src}, []*model.ProviderInfo{tgt}, o)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.lagging != 1 {
+		t.Errorf("lagging = %d, want 1", st.lagging)
+	}
+	if st.announced != 0 || count != 0 {
+		t.Errorf("announced = %d (requests %d), want 0", st.announced, count)
+	}
+
+	// The same group with a stale timestamp is announced (stale Lag must not
+	// starve the provider).
+	pub2 := sharedPublisher(t)
+	src2 := providerWith(t, pub2, testCid(), srcTime, 0, false)
+	tgt2 := providerWith(t, pub2, variantCid(), stale, 3, false)
+	st, count, err = runWithTarget(t, []*model.ProviderInfo{src2}, []*model.ProviderInfo{tgt2}, o)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.lagging != 0 {
+		t.Errorf("lagging = %d, want 0", st.lagging)
+	}
+	if st.announced != 1 || count != 1 {
+		t.Errorf("announced = %d (requests %d), want 1", st.announced, count)
+	}
+
+	// And announced when -skip-lagging is left at its default (off).
+	pub3 := sharedPublisher(t)
+	src3 := providerWith(t, pub3, testCid(), srcTime, 0, false)
+	tgt3 := providerWith(t, pub3, variantCid(), fresh, 3, false)
+	st, count, err = runWithTarget(t, []*model.ProviderInfo{src3}, []*model.ProviderInfo{tgt3}, testOptions("", ""))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.lagging != 0 {
+		t.Errorf("lagging = %d, want 0", st.lagging)
+	}
+	if st.announced != 1 || count != 1 {
+		t.Errorf("announced = %d (requests %d), want 1", st.announced, count)
+	}
+}
+
+func TestNoTargetFindFatal(t *testing.T) {
+	src := providerWith(t, sharedPublisher(t), testCid(), "2026-08-18T12:00:00Z", 0, false)
+	findSrv := newFindServer([]*model.ProviderInfo{src})
+	defer findSrv.Close()
+
+	var announceCount int
+	announceSrv := newAnnounceServer(http.StatusNoContent, &announceCount)
+	defer announceSrv.Close()
+
+	o := testOptions(findSrv.URL, announceSrv.URL)
+	o.targetFindURL = ""
+	o.allowNoTargetFind = false
+
+	_, err := run(context.Background(), o)
+	if err == nil {
+		t.Fatal("expected error for missing -target-find, got nil")
+	}
+	if announceCount != 0 {
+		t.Errorf("announce requests = %d, want 0", announceCount)
+	}
+}
+
+func TestAllowNoTargetFindAnnouncesAll(t *testing.T) {
+	src := providerWith(t, sharedPublisher(t), testCid(), "2026-08-18T12:00:00Z", 0, false)
+	findSrv := newFindServer([]*model.ProviderInfo{src})
+	defer findSrv.Close()
+
+	var announceCount int
+	announceSrv := newAnnounceServer(http.StatusNoContent, &announceCount)
+	defer announceSrv.Close()
+
+	o := testOptions(findSrv.URL, announceSrv.URL)
+	o.targetFindURL = ""
+	o.allowNoTargetFind = true
+
+	st, err := run(context.Background(), o)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.announced != 1 || announceCount != 1 {
+		t.Errorf("announced = %d (requests %d), want 1", st.announced, announceCount)
+	}
 }

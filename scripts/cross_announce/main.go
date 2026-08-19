@@ -21,14 +21,18 @@ import (
 )
 
 type options struct {
-	source        string
-	target        string
-	targetFindURL string
-	providerID    string
-	timeout       time.Duration
-	httpTimeout   time.Duration
-	maxFailures   int
-	dryRun        bool
+	source            string
+	target            string
+	targetFindURL     string
+	providerID        string
+	timeout           time.Duration
+	httpTimeout       time.Duration
+	maxFailures       int
+	dryRun            bool
+	skipInactive      bool
+	skipLagging       bool
+	lagFreshWithin    time.Duration
+	allowNoTargetFind bool
 }
 
 // stats tracks the outcome of a cross-announce run.
@@ -36,36 +40,50 @@ type options struct {
 // total is the number of providers returned by the source's ListProviders.
 // Every source provider lands in exactly one of the provider-level buckets:
 // skipped, deduped, or the head of a surviving publisher group. Each head
-// then lands in exactly one of the head-level buckets: upToDate, notAllowed,
-// failed, or announced.
+// then lands in exactly one of the head-level buckets: upToDate, inactive,
+// lagging, targetAhead, unverifiable, notAllowed, failed, or announced.
 type stats struct {
-	total      int
-	announced  int
-	skipped    int
-	deduped    int
-	upToDate   int
-	notAllowed int
-	failed     int
+	total        int
+	announced    int
+	skipped      int
+	deduped      int
+	upToDate     int
+	inactive     int
+	lagging      int
+	targetAhead  int
+	unverifiable int
+	notAllowed   int
+	failed       int
 }
 
 func (s stats) print() {
-	fmt.Printf("total:      %d\n", s.total)
-	fmt.Printf("announced:  %d\n", s.announced)
-	fmt.Printf("skipped:    %d\n", s.skipped)
-	fmt.Printf("deduped:    %d\n", s.deduped)
-	fmt.Printf("upToDate:   %d\n", s.upToDate)
-	fmt.Printf("notAllowed: %d\n", s.notAllowed)
-	fmt.Printf("failed:     %d\n", s.failed)
+	fmt.Printf("total:         %d\n", s.total)
+	fmt.Printf("announced:     %d\n", s.announced)
+	fmt.Printf("skipped:       %d\n", s.skipped)
+	fmt.Printf("deduped:       %d\n", s.deduped)
+	fmt.Printf("upToDate:      %d\n", s.upToDate)
+	fmt.Printf("inactive:      %d\n", s.inactive)
+	fmt.Printf("lagging:       %d\n", s.lagging)
+	fmt.Printf("targetAhead:   %d\n", s.targetAhead)
+	fmt.Printf("unverifiable:  %d\n", s.unverifiable)
+	fmt.Printf("notAllowed:    %d\n", s.notAllowed)
+	fmt.Printf("failed:        %d\n", s.failed)
 }
 
 // publisherHead is the advertisement to announce for one publisher: the
 // newest LastAdvertisement among the publisher's providers, with a
 // deterministic tie-break on the lowest provider ID.
+//
+// allInactive and maxLag are aggregated across the whole group because
+// Inactive and Lag are per-provider; consulting only the winning provider
+// would let one provider's state speak for the group.
 type publisherHead struct {
-	publisher  *peer.AddrInfo
-	lastAd     cid.Cid
-	lastAdTime string
-	provider   *model.ProviderInfo
+	publisher   *peer.AddrInfo
+	lastAd      cid.Cid
+	lastAdTime  string
+	provider    *model.ProviderInfo
+	allInactive bool
+	maxLag      int
 }
 
 // groupByPublisher groups the source providers by publisher and selects one
@@ -109,11 +127,25 @@ func groupByPublisher(provs []*model.ProviderInfo) (heads map[peer.ID]publisherH
 			return ei.provider.AddrInfo.ID.String() < ej.provider.AddrInfo.ID.String()
 		})
 		winner := entries[0]
+
+		allInactive := true
+		maxLag := 0
+		for _, e := range entries {
+			if !e.provider.Inactive {
+				allInactive = false
+			}
+			if e.provider.Lag > maxLag {
+				maxLag = e.provider.Lag
+			}
+		}
+
 		heads[id] = publisherHead{
-			publisher:  winner.provider.Publisher,
-			lastAd:     winner.provider.LastAdvertisement,
-			lastAdTime: winner.provider.LastAdvertisementTime,
-			provider:   winner.provider,
+			publisher:   winner.provider.Publisher,
+			lastAd:      winner.provider.LastAdvertisement,
+			lastAdTime:  winner.provider.LastAdvertisementTime,
+			provider:    winner.provider,
+			allInactive: allInactive,
+			maxLag:      maxLag,
 		}
 		deduped += len(entries) - 1
 	}
@@ -123,8 +155,9 @@ func groupByPublisher(provs []*model.ProviderInfo) (heads map[peer.ID]publisherH
 // selectCandidates picks the publisher heads to announce. It is pure: no
 // network calls, no logging. The source is grouped by publisher, narrowed by
 // -pid if set, and compared head-to-head against the target. A head equal to
-// the target's head for the same publisher is upToDate and dropped; every
-// other head is a candidate.
+// the target's head for the same publisher is upToDate and dropped; the
+// safety guards then decide which of the remaining heads are safe to
+// announce, and the rest become candidates.
 func selectCandidates(source []*model.ProviderInfo, target []*model.ProviderInfo, o options) ([]publisherHead, stats) {
 	var st stats
 	st.total = len(source)
@@ -154,19 +187,58 @@ func selectCandidates(source []*model.ProviderInfo, target []*model.ProviderInfo
 
 	targetHeads, _, _ := groupByPublisher(target)
 
+	now := time.Now()
 	var candidates []publisherHead
 	for id, h := range sourceHeads {
-		if th, ok := targetHeads[id]; ok && th.lastAd.Equals(h.lastAd) {
+		th, known := targetHeads[id]
+		if known && th.lastAd.Equals(h.lastAd) {
 			st.upToDate++
 			continue
 		}
-		candidates = append(candidates, h)
+		// Unknown to the target (absent, or registered but never ingested)
+		// is a candidate, not a guard hit: these are the providers that most
+		// need announcing.
+		if !known || cid.Undef.Equals(th.lastAd) {
+			candidates = append(candidates, h)
+			continue
+		}
+		if o.skipInactive && h.allInactive {
+			st.inactive++
+			continue
+		}
+		if o.skipLagging && th.maxLag > 0 {
+			if ts, err := time.Parse(time.RFC3339, th.lastAdTime); err == nil && now.Sub(ts) <= o.lagFreshWithin {
+				st.lagging++
+				continue
+			}
+		}
+		// LastAdvertisementTime is the time each indexer received the
+		// advertisement, not a property of the advertisement. The two
+		// receive times proxy for chain position only while both indexers
+		// are healthy and following the same publisher; during a backfill or
+		// a stuck sync on one side the inference inverts. The guard is
+		// therefore conservative.
+		if stT, errS := time.Parse(time.RFC3339, h.lastAdTime); errS == nil {
+			if ttT, errT := time.Parse(time.RFC3339, th.lastAdTime); errT == nil {
+				if !ttT.Before(stT) {
+					st.targetAhead++
+					continue
+				}
+				candidates = append(candidates, h)
+				continue
+			}
+		}
+		st.unverifiable++
 	}
 	return candidates, st
 }
 
 func run(ctx context.Context, o options) (stats, error) {
 	var st stats
+
+	if o.targetFindURL == "" && !o.allowNoTargetFind {
+		return st, errors.New("-target-find is required; set it to the target's find API or pass -allow-no-target-find to announce without comparing against the target")
+	}
 
 	sourcer, err := findclient.New(o.source, findclient.WithClient(&http.Client{Timeout: o.httpTimeout}))
 	if err != nil {
@@ -233,12 +305,16 @@ func run(ctx context.Context, o options) (stats, error) {
 func main() {
 	source := flag.String("source", "", "Source indexer (find API, default port 3000)")
 	target := flag.String("target", "", "Target indexer (ingest API, default port 3001)")
-	targetFind := flag.String("target-find", "", "Target indexer find API (default port 3000); used to compare publisher heads against the target. Empty disables the comparison.")
+	targetFind := flag.String("target-find", "", "Target indexer find API (default port 3000); used to compare publisher heads against the target. Required unless -allow-no-target-find is set.")
 	providerID := flag.String("pid", "", "Only announce the publisher of the provider with this peer ID")
 	timeout := flag.Duration("timeout", 30*time.Minute, "Overall run timeout; 0 disables. A timed-out run exits non-zero so the Kubernetes Job is marked Failed; keeping this below the Job's activeDeadlineSeconds ensures the summary is printed before exit.")
 	httpTimeout := flag.Duration("http-timeout", 30*time.Second, "Per-request HTTP timeout")
 	maxFailures := flag.Int("max-failures", 0, "Exit non-zero when the failure count exceeds this value. With 0, a single failure fails the Job.")
 	dryRun := flag.Bool("dry-run", false, "Log what would be announced without making any requests to the target")
+	skipInactive := flag.Bool("skip-inactive", true, "Drop source publisher groups where every provider is Inactive")
+	skipLagging := flag.Bool("skip-lagging", false, "Drop candidates whose target group has a non-zero Lag with a fresh LastAdvertisementTime. Off by default because a stale Lag would otherwise skip a provider on every run.")
+	lagFreshWithin := flag.Duration("lag-fresh-within", time.Hour, "A target LastAdvertisementTime within this window is fresh enough for -skip-lagging to act on a non-zero Lag")
+	allowNoTargetFind := flag.Bool("allow-no-target-find", false, "Allow running without -target-find, which disables all safety guards and announces every candidate")
 	help := flag.Bool("help", false, "Print usage")
 
 	flag.Parse()
@@ -259,14 +335,18 @@ Specify the source and target as the HTTP(S) IPNI indexer instance. Example:
 	}
 
 	o := options{
-		source:        *source,
-		target:        *target,
-		targetFindURL: *targetFind,
-		providerID:    *providerID,
-		timeout:       *timeout,
-		httpTimeout:   *httpTimeout,
-		maxFailures:   *maxFailures,
-		dryRun:        *dryRun,
+		source:            *source,
+		target:            *target,
+		targetFindURL:     *targetFind,
+		providerID:        *providerID,
+		timeout:           *timeout,
+		httpTimeout:       *httpTimeout,
+		maxFailures:       *maxFailures,
+		dryRun:            *dryRun,
+		skipInactive:      *skipInactive,
+		skipLagging:       *skipLagging,
+		lagFreshWithin:    *lagFreshWithin,
+		allowNoTargetFind: *allowNoTargetFind,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
