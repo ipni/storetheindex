@@ -9,6 +9,10 @@ Cross-announce propagates provider registrations from one IPNI indexer to anothe
 | `-source` | (empty) | Base URL of the source indexer. Must point to the find API (default port 3000). |
 | `-target` | (empty) | Base URL of the target indexer. Must point to the ingest API (default port 3001). |
 | `-pid` | (empty) | If set, only announce the provider with this peer ID. Omit to announce all providers. |
+| `-timeout` | `30m` | Overall run timeout; `0` disables. A timed-out run exits non-zero so the Kubernetes Job is marked Failed. |
+| `-http-timeout` | `30s` | Per-request HTTP timeout. |
+| `-max-failures` | `0` | Exit non-zero when the failure count exceeds this value. With `0`, a single failure fails the Job. |
+| `-dry-run` | `false` | Log what would be announced without making any requests to the target. |
 | `-help` | `false` | Print usage text and exit. |
 
 ## Port distinction
@@ -28,8 +32,6 @@ docker run --rm \
 ```
 
 Pin the image by digest rather than tag to ensure a reproducible binary.
-
-The usage text printed by `-help` shows a `go run ./scripts/cross_announce/main.go` invocation. That path does not exist inside the image; use the binary at `/usr/local/bin/cross-announce` as shown above.
 
 ## Verification
 
