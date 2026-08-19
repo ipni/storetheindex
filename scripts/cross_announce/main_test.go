@@ -1220,7 +1220,22 @@ func TestConcurrentAnnounce(t *testing.T) {
 
 // TestConcurrencyClampedToSerial asserts that values below 1 degrade to a
 // serial run: no two announce handler invocations may overlap.
+//
+// The overlap has to be forced rather than observed. A handler that answers
+// immediately finishes the first announce before the second is even
+// dispatched, so maxInFlight reads 1 whether the clamp works or not: against
+// a mutant that clamps to 4 instead of 1, that version of this test passed
+// 10 runs out of 10. Instead the first request blocks on a gate that only a
+// second, overlapping request can open. A broken clamp opens it and both
+// requests are provably in flight together; a working clamp cannot, because
+// the single worker is parked inside the first announce, so the gate falls
+// through on its timeout and maxInFlight stays 1. Detection no longer
+// depends on the timeout, which only bounds how long the serial path waits.
 func TestConcurrencyClampedToSerial(t *testing.T) {
+	// Long enough that a parallel run would certainly have landed its second
+	// request, short enough to pay twice without slowing the suite.
+	const overlapWait = 500 * time.Millisecond
+
 	providers := []*model.ProviderInfo{
 		testProvider(t, testCid()),
 		testProvider(t, testCid()),
@@ -1232,6 +1247,10 @@ func TestConcurrencyClampedToSerial(t *testing.T) {
 		t.Run(fmt.Sprintf("concurrency=%d", c), func(t *testing.T) {
 			var mu sync.Mutex
 			var inFlight, maxInFlight, count int
+			// Closed by whichever request finds itself overlapping another,
+			// releasing the one that is waiting.
+			gate := make(chan struct{})
+			var once sync.Once
 			announceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
 				inFlight++
@@ -1239,7 +1258,23 @@ func TestConcurrencyClampedToSerial(t *testing.T) {
 					maxInFlight = inFlight
 				}
 				count++
+				first := count == 1
+				overlapping := inFlight > 1
 				mu.Unlock()
+
+				switch {
+				case overlapping:
+					once.Do(func() { close(gate) })
+				case first:
+					// Only the first request waits; a later one arriving
+					// alone has already proved the run is serial, and
+					// holding it too would just cost another timeout.
+					select {
+					case <-gate:
+					case <-time.After(overlapWait):
+					}
+				}
+
 				w.WriteHeader(http.StatusNoContent)
 				mu.Lock()
 				inFlight--
