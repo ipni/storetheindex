@@ -3,6 +3,7 @@ package ingest_test
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -212,12 +213,26 @@ func TestAdStatus(t *testing.T) {
 	require.Equal(t, "application/json; charset=utf-8", hdr.Get("Content-Type"))
 	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false}`, dagJSONAds[0].String()), body)
 
-	// Fully processed ad is indexed.
+	// Fully processed ad is indexed and reports IndexedTime.
+	before := time.Now()
 	require.NoError(t, ing.MarkAdProcessed(pubID, dagJSONAds[0]))
+	after := time.Now()
 	status, hdr, body = getAdStatus(t, dagJSONAds[0])
 	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"State":"indexed","Frozen":false}`, dagJSONAds[0].String()), body)
+	indexedTime := getVerifiedIndexedTime(t, body, -1, before, after)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"IndexedTime":%q,"State":"indexed","Frozen":false}`, dagJSONAds[0].String(), indexedTime), body)
+
+	// Exact stored timestamp is returned as UTC IndexedTime.
+	timedAd := cid.NewCidV1(cid.DagJSON, random.Multihashes(1)[0])
+	wantTime := time.Date(2024, 6, 15, 12, 30, 45, 123456000, time.UTC)
+	timedMarker := make([]byte, 9)
+	timedMarker[0] = 1
+	binary.LittleEndian.PutUint64(timedMarker[1:], uint64(wantTime.UnixMicro()))
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+timedAd.String()), timedMarker))
+	status, _, body = getAdStatus(t, timedAd)
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"IndexedTime":%q,"State":"indexed","Frozen":false}`, timedAd.String(), wantTime.Format(time.RFC3339Nano)), body)
 
 	// Skipped ad returns state "skipped" with reason, Indexed false.
 	require.NoError(t, ing.MarkAdSkipped(pubID, dagJSONAds[1], "decodeErr", false))
@@ -237,12 +252,19 @@ func TestAdStatus(t *testing.T) {
 	require.Equal(t, http.StatusOK, status)
 	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"resyncing","Frozen":false}`, dagJSONAds[3].String()), body)
 
-	// Frozen ad (processed + frozen key set).
+	// Frozen ad (processed + frozen key set) omits IndexedTime.
 	require.NoError(t, ing.MarkAdProcessed(pubID, dagJSONAds[4]))
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adF/"+dagJSONAds[4].String()), []byte{1}))
 	status, _, body = getAdStatus(t, dagJSONAds[4])
 	require.Equal(t, http.StatusOK, status)
 	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"indexed","Frozen":true}`, dagJSONAds[4].String()), body)
+
+	// Legacy 1-byte processed marker is indexed but has no IndexedTime.
+	legacyAd := cid.NewCidV1(cid.DagJSON, random.Multihashes(1)[0])
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+legacyAd.String()), []byte{1}))
+	status, _, body = getAdStatus(t, legacyAd)
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"State":"indexed","Frozen":false}`, legacyAd.String()), body)
 
 	// Codec guard: raw CID returns 400.
 	rawCid := cid.NewCidV1(cid.Raw, random.Multihashes(1)[0])
@@ -369,7 +391,9 @@ func TestAdStatusBatch(t *testing.T) {
 
 	// Set up states: unknown, pending, indexed, resyncing, skipped
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+cids[1].String()), []byte{0}))
+	before := time.Now()
 	require.NoError(t, ing.MarkAdProcessed(pubID, cids[2]))
+	after := time.Now()
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+cids[3].String()), []byte{2}))
 	require.NoError(t, ing.MarkAdSkipped(pubID, cids[4], "testSkip", false))
 
@@ -383,15 +407,16 @@ func TestAdStatusBatch(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
+	indexedTime := getVerifiedIndexedTime(t, body, 2, before, after)
 	require.JSONEq(t, fmt.Sprintf(`{
 		"Statuses": [
 			{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false},
 			{"Ad":%q,"Indexed":false,"State":"pending","Frozen":false},
-			{"Ad":%q,"Indexed":true,"State":"indexed","Frozen":false},
+			{"Ad":%q,"Indexed":true,"IndexedTime":%q,"State":"indexed","Frozen":false},
 			{"Ad":%q,"Indexed":false,"State":"resyncing","Frozen":false},
 			{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"testSkip","Frozen":false}
 		]
-	}`, cids[0].String(), cids[1].String(), cids[2].String(), cids[3].String(), cids[4].String()), body)
+	}`, cids[0].String(), cids[1].String(), cids[2].String(), indexedTime, cids[3].String(), cids[4].String()), body)
 
 	// Frozen-processed ad
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adF/"+cids[2].String()), []byte{1}))
@@ -629,6 +654,36 @@ func mustJSONMap(t *testing.T, m map[string]json.RawMessage) []byte {
 	data, err := json.Marshal(m)
 	require.NoError(t, err)
 	return data
+}
+
+func getVerifiedIndexedTime(t *testing.T, body string, statusIdx int, notBefore, notAfter time.Time) string {
+	t.Helper()
+	var ts string
+	if statusIdx < 0 {
+		var parsed struct {
+			IndexedTime string `json:"IndexedTime"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(body), &parsed))
+		ts = parsed.IndexedTime
+	} else {
+		var parsed struct {
+			Statuses []struct {
+				IndexedTime string `json:"IndexedTime"`
+			} `json:"Statuses"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(body), &parsed))
+		require.Greater(t, len(parsed.Statuses), statusIdx)
+		ts = parsed.Statuses[statusIdx].IndexedTime
+	}
+	require.NotEmpty(t, ts)
+	parsedTime, err := time.Parse(time.RFC3339Nano, ts)
+	require.NoError(t, err)
+	require.Equal(t, time.UTC, parsedTime.Location())
+	notBefore = notBefore.UTC().Truncate(time.Microsecond)
+	notAfter = notAfter.UTC().Truncate(time.Microsecond)
+	require.False(t, parsedTime.Before(notBefore), "IndexedTime %s is before %s", ts, notBefore.Format(time.RFC3339Nano))
+	require.False(t, parsedTime.After(notAfter), "IndexedTime %s is after %s", ts, notAfter.Format(time.RFC3339Nano))
+	return ts
 }
 
 func registerProviderTest(t *testing.T, cl client.Interface, providerID peer.ID, privateKey crypto.PrivKey, addr string, reg *registry.Registry) {

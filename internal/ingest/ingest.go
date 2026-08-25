@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -48,10 +49,20 @@ const (
 	adSkipReasonPrefix = "/adSkipReason/"
 	// Marker byte values for /adProcessed/<cid>.
 	// Explicit values; these are a persisted on-disk format.
+	//
+	// The stored value is the marker byte, optionally followed by 8
+	// bytes holding little-endian microseconds since the Unix epoch
+	// recording when the marker was last written. Legacy records are
+	// marker-only (1 byte); current writes of processed and skipped
+	// markers are 9 bytes. Readers accept trailing bytes after the
+	// timestamp.
 	adMarkerUnprocessed byte = 0 // unprocessed
 	adMarkerProcessed   byte = 1 // processed successfully
 	adMarkerResync      byte = 2 // marked for resync
 	adMarkerSkipped     byte = 3 // processed but permanently skipped
+	// adProcessedMarkerTimeLen is the size of the optional unix-microseconds
+	// suffix stored after the marker byte.
+	adProcessedMarkerTimeLen = 8
 	// metricsUpdateInterval determines how ofter to update ingestion metrics.
 	metricsUpdateInterval = time.Minute
 	// adsScannedLogInterval is how often to log ad-chain scanning progress.
@@ -567,10 +578,11 @@ func (ing *Ingester) markAdUnprocessed(adCid cid.Cid, forResync bool) error {
 }
 
 type adProcessedState struct {
-	Known     bool
-	Processed bool
-	Skipped   bool
-	Resync    bool
+	Known      bool
+	Processed  bool
+	Skipped    bool
+	Resync     bool
+	ModifiedAt uint64
 }
 
 func (ing *Ingester) adAlreadyProcessed(ctx context.Context, adCid cid.Cid) (adProcessedState, error) {
@@ -583,21 +595,29 @@ func (ing *Ingester) adAlreadyProcessed(ctx context.Context, adCid cid.Cid) (adP
 	if len(v) == 0 {
 		return adProcessedState{}, fmt.Errorf("empty value for ad processed marker %s", adCid)
 	}
-	return adProcessedState{
+
+	state := adProcessedState{
 		Known:     true,
 		Processed: v[0] == adMarkerProcessed || v[0] == adMarkerSkipped,
 		Skipped:   v[0] == adMarkerSkipped,
 		Resync:    v[0] == adMarkerResync,
-	}, nil
+	}
+
+	if len(v) >= 1+adProcessedMarkerTimeLen {
+		state.ModifiedAt = binary.LittleEndian.Uint64(v[1:])
+	}
+
+	return state, nil
 }
 
 type AdState struct {
-	Known      bool
-	Processed  bool
-	Skipped    bool
-	SkipReason string
-	Resync     bool
-	Frozen     bool
+	Known       bool
+	Processed   bool
+	Skipped     bool
+	SkipReason  string
+	Resync      bool
+	Frozen      bool
+	IndexedTime *time.Time
 }
 
 // Indexed reports whether the advertisement's content should be considered
@@ -620,7 +640,9 @@ func (s AdState) Indexed() bool {
 // marked for resync (value 2). Frozen is true when the ad was processed while
 // the indexer was in frozen mode (/adF/ key present); frozen processing updates
 // provider metadata but does not index entry multihashes. Known is false when
-// the ad has never been seen (datastore.ErrNotFound).
+// the ad has never been seen (datastore.ErrNotFound). IndexedTime is set only
+// when Indexed() is true and the stored marker includes a modification
+// timestamp; ads recorded before timestamps were stored have a nil IndexedTime.
 func (ing *Ingester) GetAdState(ctx context.Context, adCid cid.Cid) (state AdState, err error) {
 	adState, err := ing.adAlreadyProcessed(ctx, adCid)
 	if err != nil {
@@ -647,6 +669,14 @@ func (ing *Ingester) GetAdState(ctx context.Context, adCid cid.Cid) (state AdSta
 		return state, err
 	default:
 		state.Frozen = true
+	}
+
+	// IndexedTime is only reported for ads whose content is currently
+	// considered indexed. Frozen must be loaded first so Indexed() is
+	// accurate. Legacy 1-byte markers have ModifiedAt == 0.
+	if state.Indexed() && adState.ModifiedAt != 0 {
+		unixMicros := time.UnixMicro(int64(adState.ModifiedAt)).UTC()
+		state.IndexedTime = &unixMicros
 	}
 
 	return state, nil
@@ -702,6 +732,13 @@ func (ing *Ingester) MarkAdSkipped(publisher peer.ID, adCid cid.Cid, reason stri
 	return ing.writeAdMarker(publisher, adCid, adMarkerSkipped, frozen, false)
 }
 
+func encodeAdProcessedMarker(marker byte, modifiedAt time.Time) []byte {
+	var buf [1 + adProcessedMarkerTimeLen]byte
+	buf[0] = marker
+	binary.LittleEndian.PutUint64(buf[1:], uint64(modifiedAt.UnixMicro()))
+	return buf[:]
+}
+
 func (ing *Ingester) writeAdMarker(publisher peer.ID, adCid cid.Cid, marker byte, frozen, mirrored bool) error {
 	cidStr := adCid.String()
 	ctx := context.Background()
@@ -712,7 +749,11 @@ func (ing *Ingester) writeAdMarker(publisher peer.ID, adCid cid.Cid, marker byte
 		}
 	}
 
-	err := ing.ds.Put(ctx, datastore.NewKey(adProcessedPrefix+cidStr), []byte{marker})
+	err := ing.ds.Put(
+		ctx,
+		datastore.NewKey(adProcessedPrefix+cidStr),
+		encodeAdProcessedMarker(marker, time.Now()),
+	)
 	if err != nil {
 		return err
 	}

@@ -243,19 +243,21 @@ func adCidCodecError(adCid cid.Cid) string {
 }
 
 type adStatusResponse struct {
-	Ad         string `json:"Ad"`
-	Indexed    bool   `json:"Indexed"`
-	State      string `json:"State,omitempty"`
-	SkipReason string `json:"SkipReason,omitempty"`
-	Frozen     bool   `json:"Frozen"`
-	Error      string `json:"Error,omitempty"`
+	Ad          string     `json:"Ad"`
+	Indexed     bool       `json:"Indexed"`
+	IndexedTime *time.Time `json:"IndexedTime,omitempty"`
+	State       string     `json:"State,omitempty"`
+	SkipReason  string     `json:"SkipReason,omitempty"`
+	Frozen      bool       `json:"Frozen"`
+	Error       string     `json:"Error,omitempty"`
 }
 
 func newAdStatusResponse(adCid cid.Cid, adState ingest.AdState) adStatusResponse {
 	resp := adStatusResponse{
-		Ad:      adCid.String(),
-		Indexed: adState.Indexed(),
-		Frozen:  adState.Frozen,
+		Ad:          adCid.String(),
+		Indexed:     adState.Indexed(),
+		IndexedTime: adState.IndexedTime,
+		Frozen:      adState.Frozen,
 	}
 
 	switch {
