@@ -618,6 +618,7 @@ type AdState struct {
 	Resync      bool
 	Frozen      bool
 	IndexedTime *time.Time
+	SkippedTime *time.Time
 }
 
 // Indexed reports whether the advertisement's content should be considered
@@ -642,7 +643,9 @@ func (s AdState) Indexed() bool {
 // provider metadata but does not index entry multihashes. Known is false when
 // the ad has never been seen (datastore.ErrNotFound). IndexedTime is set only
 // when Indexed() is true and the stored marker includes a modification
-// timestamp; ads recorded before timestamps were stored have a nil IndexedTime.
+// timestamp. SkippedTime is set only when the ad is skipped and the stored
+// marker includes a modification timestamp. Ads recorded before timestamps
+// were stored have nil IndexedTime and SkippedTime.
 func (ing *Ingester) GetAdState(ctx context.Context, adCid cid.Cid) (state AdState, err error) {
 	adState, err := ing.adAlreadyProcessed(ctx, adCid)
 	if err != nil {
@@ -671,12 +674,17 @@ func (ing *Ingester) GetAdState(ctx context.Context, adCid cid.Cid) (state AdSta
 		state.Frozen = true
 	}
 
-	// IndexedTime is only reported for ads whose content is currently
-	// considered indexed. Frozen must be loaded first so Indexed() is
+	// IndexedTime and SkippedTime are reported from the same stored
+	// ModifiedAt value. Frozen must be loaded first so Indexed() is
 	// accurate. Legacy 1-byte markers have ModifiedAt == 0.
-	if state.Indexed() && adState.ModifiedAt != 0 {
+	if adState.ModifiedAt != 0 {
 		unixMicros := time.UnixMicro(int64(adState.ModifiedAt)).UTC()
-		state.IndexedTime = &unixMicros
+		switch {
+		case state.Indexed():
+			state.IndexedTime = &unixMicros
+		case state.Skipped:
+			state.SkippedTime = &unixMicros
+		}
 	}
 
 	return state, nil

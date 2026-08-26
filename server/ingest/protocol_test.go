@@ -220,7 +220,7 @@ func TestAdStatus(t *testing.T) {
 	status, hdr, body = getAdStatus(t, dagJSONAds[0])
 	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
-	indexedTime := getVerifiedIndexedTime(t, body, -1, before, after)
+	indexedTime := getVerifiedStatusTime(t, body, "IndexedTime", -1, before, after)
 	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"IndexedTime":%q,"State":"indexed","Frozen":false}`, dagJSONAds[0].String(), indexedTime), body)
 
 	// Exact stored timestamp is returned as UTC IndexedTime.
@@ -234,11 +234,25 @@ func TestAdStatus(t *testing.T) {
 	require.Equal(t, http.StatusOK, status)
 	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"IndexedTime":%q,"State":"indexed","Frozen":false}`, timedAd.String(), wantTime.Format(time.RFC3339Nano)), body)
 
-	// Skipped ad returns state "skipped" with reason, Indexed false.
+	// Skipped ad returns state "skipped" with reason, Indexed false, and SkippedTime.
+	skipBefore := time.Now()
 	require.NoError(t, ing.MarkAdSkipped(pubID, dagJSONAds[1], "decodeErr", false))
+	skipAfter := time.Now()
 	status, _, body = getAdStatus(t, dagJSONAds[1])
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"decodeErr","Frozen":false}`, dagJSONAds[1].String()), body)
+	skippedTime := getVerifiedStatusTime(t, body, "SkippedTime", -1, skipBefore, skipAfter)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"decodeErr","SkippedTime":%q,"Frozen":false}`, dagJSONAds[1].String(), skippedTime), body)
+
+	// Exact stored timestamp is returned as UTC SkippedTime.
+	timedSkipAd := cid.NewCidV1(cid.DagJSON, random.Multihashes(1)[0])
+	timedSkipMarker := make([]byte, 9)
+	timedSkipMarker[0] = 3
+	binary.LittleEndian.PutUint64(timedSkipMarker[1:], uint64(wantTime.UnixMicro()))
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+timedSkipAd.String()), timedSkipMarker))
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adSkipReason/"+timedSkipAd.String()), []byte("decodeErr")))
+	status, _, body = getAdStatus(t, timedSkipAd)
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"decodeErr","SkippedTime":%q,"Frozen":false}`, timedSkipAd.String(), wantTime.Format(time.RFC3339Nano)), body)
 
 	// Pending ad (marker byte 0 written directly).
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+dagJSONAds[2].String()), []byte{0}))
@@ -265,6 +279,14 @@ func TestAdStatus(t *testing.T) {
 	status, _, body = getAdStatus(t, legacyAd)
 	require.Equal(t, http.StatusOK, status)
 	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"State":"indexed","Frozen":false}`, legacyAd.String()), body)
+
+	// Legacy 1-byte skipped marker has no SkippedTime.
+	legacySkip := cid.NewCidV1(cid.DagJSON, random.Multihashes(1)[0])
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+legacySkip.String()), []byte{3}))
+	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adSkipReason/"+legacySkip.String()), []byte("decodeErr")))
+	status, _, body = getAdStatus(t, legacySkip)
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"decodeErr","Frozen":false}`, legacySkip.String()), body)
 
 	// Codec guard: raw CID returns 400.
 	rawCid := cid.NewCidV1(cid.Raw, random.Multihashes(1)[0])
@@ -395,7 +417,9 @@ func TestAdStatusBatch(t *testing.T) {
 	require.NoError(t, ing.MarkAdProcessed(pubID, cids[2]))
 	after := time.Now()
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+cids[3].String()), []byte{2}))
+	skipBefore := time.Now()
 	require.NoError(t, ing.MarkAdSkipped(pubID, cids[4], "testSkip", false))
+	skipAfter := time.Now()
 
 	// All five states in one request, asserted positionally
 	status, hdr, body := postBatch(t, []string{
@@ -656,33 +680,29 @@ func mustJSONMap(t *testing.T, m map[string]json.RawMessage) []byte {
 	return data
 }
 
-func getVerifiedIndexedTime(t *testing.T, body string, statusIdx int, notBefore, notAfter time.Time) string {
+func getVerifiedStatusTime(t *testing.T, body, field string, statusIdx int, notBefore, notAfter time.Time) string {
 	t.Helper()
-	var ts string
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal([]byte(body), &raw))
+	var obj map[string]any
 	if statusIdx < 0 {
-		var parsed struct {
-			IndexedTime string `json:"IndexedTime"`
-		}
-		require.NoError(t, json.Unmarshal([]byte(body), &parsed))
-		ts = parsed.IndexedTime
+		obj = raw
 	} else {
-		var parsed struct {
-			Statuses []struct {
-				IndexedTime string `json:"IndexedTime"`
-			} `json:"Statuses"`
-		}
-		require.NoError(t, json.Unmarshal([]byte(body), &parsed))
-		require.Greater(t, len(parsed.Statuses), statusIdx)
-		ts = parsed.Statuses[statusIdx].IndexedTime
+		statuses, ok := raw["Statuses"].([]any)
+		require.True(t, ok)
+		require.Greater(t, len(statuses), statusIdx)
+		obj, ok = statuses[statusIdx].(map[string]any)
+		require.True(t, ok)
 	}
+	ts, _ := obj[field].(string)
 	require.NotEmpty(t, ts)
 	parsedTime, err := time.Parse(time.RFC3339Nano, ts)
 	require.NoError(t, err)
 	require.Equal(t, time.UTC, parsedTime.Location())
 	notBefore = notBefore.UTC().Truncate(time.Microsecond)
 	notAfter = notAfter.UTC().Truncate(time.Microsecond)
-	require.False(t, parsedTime.Before(notBefore), "IndexedTime %s is before %s", ts, notBefore.Format(time.RFC3339Nano))
-	require.False(t, parsedTime.After(notAfter), "IndexedTime %s is after %s", ts, notAfter.Format(time.RFC3339Nano))
+	require.False(t, parsedTime.Before(notBefore), "%s %s is before %s", field, ts, notBefore.Format(time.RFC3339Nano))
+	require.False(t, parsedTime.After(notAfter), "%s %s is after %s", field, ts, notAfter.Format(time.RFC3339Nano))
 	return ts
 }
 

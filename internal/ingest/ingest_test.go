@@ -2395,14 +2395,14 @@ func requireIndexedEventually(t *testing.T, ix indexer.Interface, p peer.ID, mhs
 	}, testRetryTimeout, testRetryInterval, "Expected all multihashes from %s to have been indexed eventually", p.String())
 }
 
-func verifyIndexedTime(t *testing.T, got *time.Time, notBefore, notAfter time.Time) {
+func verifyStatusTime(t *testing.T, got *time.Time, notBefore, notAfter time.Time) {
 	t.Helper()
 	require.NotNil(t, got)
 	require.Equal(t, time.UTC, got.Location())
 	notBefore = notBefore.UTC().Truncate(time.Microsecond)
 	notAfter = notAfter.UTC().Truncate(time.Microsecond)
-	require.False(t, got.Before(notBefore), "IndexedTime %s is before %s", got.Format(time.RFC3339Nano), notBefore.Format(time.RFC3339Nano))
-	require.False(t, got.After(notAfter), "IndexedTime %s is after %s", got.Format(time.RFC3339Nano), notAfter.Format(time.RFC3339Nano))
+	require.False(t, got.Before(notBefore), "timestamp %s is before %s", got.Format(time.RFC3339Nano), notBefore.Format(time.RFC3339Nano))
+	require.False(t, got.After(notAfter), "timestamp %s is after %s", got.Format(time.RFC3339Nano), notAfter.Format(time.RFC3339Nano))
 }
 
 type testEnv struct {
@@ -2432,7 +2432,7 @@ func TestGetAdState(t *testing.T) {
 	after := time.Now()
 	state, err = te.ingester.GetAdState(t.Context(), ads[0])
 	require.NoError(t, err)
-	verifyIndexedTime(t, state.IndexedTime, before, after)
+	verifyStatusTime(t, state.IndexedTime, before, after)
 	state.IndexedTime = nil
 	require.Equal(t, AdState{Known: true, Processed: true}, state)
 	require.True(t, state.Indexed())
@@ -2476,7 +2476,7 @@ func TestIndexedTimeStoredAndRead(t *testing.T) {
 	state, err := te.ingester.GetAdState(t.Context(), ad)
 	require.NoError(t, err)
 	require.True(t, state.Indexed())
-	verifyIndexedTime(t, state.IndexedTime, before, after)
+	verifyStatusTime(t, state.IndexedTime, before, after)
 	require.Equal(t, storedMicros, uint64(state.IndexedTime.UnixMicro()))
 
 	marker, err := te.ingester.adAlreadyProcessed(t.Context(), ad)
@@ -2522,6 +2522,31 @@ func TestIndexedTimeExactRoundTrip(t *testing.T) {
 	require.True(t, state.IndexedTime.Equal(want))
 }
 
+func TestSkippedTimeExactRoundTrip(t *testing.T) {
+	te := setupTestEnv(t, false)
+	ad := random.Cids(1)[0]
+	want := time.Date(2024, 6, 15, 12, 30, 45, 123456000, time.UTC)
+
+	require.NoError(t, te.ingester.ds.Put(
+		t.Context(),
+		datastore.NewKey(adProcessedPrefix+ad.String()),
+		encodeAdProcessedMarker(adMarkerSkipped, want),
+	))
+	require.NoError(t, te.ingester.ds.Put(
+		t.Context(),
+		datastore.NewKey(adSkipReasonPrefix+ad.String()),
+		[]byte("decodeErr"),
+	))
+
+	state, err := te.ingester.GetAdState(t.Context(), ad)
+	require.NoError(t, err)
+	require.True(t, state.Skipped)
+	require.False(t, state.Indexed())
+	require.Nil(t, state.IndexedTime)
+	require.NotNil(t, state.SkippedTime)
+	require.True(t, state.SkippedTime.Equal(want))
+}
+
 func TestIndexedTimeTrailingBytesStillDecoded(t *testing.T) {
 	te := setupTestEnv(t, false)
 	ad := random.Cids(1)[0]
@@ -2542,14 +2567,18 @@ func TestIndexedTimeNotSetWhenNotIndexed(t *testing.T) {
 	publisher := te.pubHost.ID()
 	ads := random.Cids(3)
 
+	before := time.Now()
 	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ads[0], "decodeErr", false))
+	after := time.Now()
 	state, err := te.ingester.GetAdState(t.Context(), ads[0])
 	require.NoError(t, err)
 	require.False(t, state.Indexed())
 	require.Nil(t, state.IndexedTime)
+	verifyStatusTime(t, state.SkippedTime, before, after)
 	marker, err := te.ingester.adAlreadyProcessed(t.Context(), ads[0])
 	require.NoError(t, err)
 	require.NotZero(t, marker.ModifiedAt)
+	require.Equal(t, marker.ModifiedAt, uint64(state.SkippedTime.UnixMicro()))
 
 	require.NoError(t, te.ingester.markAdProcessed(publisher, ads[1], true, false))
 	state, err = te.ingester.GetAdState(t.Context(), ads[1])
@@ -2557,6 +2586,7 @@ func TestIndexedTimeNotSetWhenNotIndexed(t *testing.T) {
 	require.True(t, state.Frozen)
 	require.False(t, state.Indexed())
 	require.Nil(t, state.IndexedTime)
+	require.Nil(t, state.SkippedTime)
 	marker, err = te.ingester.adAlreadyProcessed(t.Context(), ads[1])
 	require.NoError(t, err)
 	require.NotZero(t, marker.ModifiedAt)
@@ -2568,6 +2598,7 @@ func TestIndexedTimeNotSetWhenNotIndexed(t *testing.T) {
 	require.True(t, state.Resync)
 	require.False(t, state.Indexed())
 	require.Nil(t, state.IndexedTime)
+	require.Nil(t, state.SkippedTime)
 	marker, err = te.ingester.adAlreadyProcessed(t.Context(), ads[2])
 	require.NoError(t, err)
 	require.Zero(t, marker.ModifiedAt)
@@ -2643,7 +2674,7 @@ func TestAdStateByMarkerByte(t *testing.T) {
 	require.False(t, state.Skipped)
 	require.False(t, state.Resync)
 	require.True(t, state.Indexed())
-	verifyIndexedTime(t, state.IndexedTime, before, after)
+	verifyStatusTime(t, state.IndexedTime, before, after)
 
 	// Test marker byte 2 (resync) via markAdUnprocessed(forResync=true)
 	require.NoError(t, te.ingester.markAdUnprocessed(ads[2], true))
@@ -2656,7 +2687,9 @@ func TestAdStateByMarkerByte(t *testing.T) {
 	require.False(t, state.Indexed())
 
 	// Test marker byte 3 (skipped) via MarkAdSkipped
+	beforeSkip := time.Now()
 	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ads[3], "malformedErr", false))
+	afterSkip := time.Now()
 	state, err = te.ingester.GetAdState(t.Context(), ads[3])
 	require.NoError(t, err)
 	require.True(t, state.Known)
@@ -2666,6 +2699,7 @@ func TestAdStateByMarkerByte(t *testing.T) {
 	require.Equal(t, "malformedErr", state.SkipReason)
 	require.False(t, state.Indexed())
 	require.Nil(t, state.IndexedTime)
+	verifyStatusTime(t, state.SkippedTime, beforeSkip, afterSkip)
 
 	// Test adAlreadyProcessed for each marker byte
 	tests := []struct {
@@ -2764,7 +2798,9 @@ func TestMarkAdSkipped(t *testing.T) {
 	publisher := te.pubHost.ID()
 	ad := random.Cids(1)[0]
 
+	before := time.Now()
 	require.NoError(t, te.ingester.MarkAdSkipped(publisher, ad, "decodeErr", false))
+	after := time.Now()
 
 	state, err := te.ingester.GetAdState(t.Context(), ad)
 	require.NoError(t, err)
@@ -2774,6 +2810,8 @@ func TestMarkAdSkipped(t *testing.T) {
 	require.Equal(t, "decodeErr", state.SkipReason)
 	require.False(t, state.Frozen)
 	require.False(t, state.Indexed())
+	require.Nil(t, state.IndexedTime)
+	verifyStatusTime(t, state.SkippedTime, before, after)
 
 	// Verify sync head updated
 	syncCid, ok := te.ingester.getLastKnownSync(publisher)

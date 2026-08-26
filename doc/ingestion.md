@@ -510,6 +510,10 @@ The response includes:
   - `"skipped"` - the ad was permanently skipped (malformed, decode error, etc.)
   - `"resyncing"` - the ad is marked for resync (previous processing invalidated)
 - `SkipReason` - the skip reason string (truncated to 256 bytes), non-empty only when `State` is `"skipped"`
+- `SkippedTime` - UTC RFC3339 timestamp with microsecond precision of when
+  the ad was last marked skipped, present only when `State` is `"skipped"`
+  and the stored marker includes a timestamp. Legacy 1-byte skipped markers
+  omit this field.
 - `Frozen` - true when the ad was processed while the indexer was in frozen mode
 
 `Indexed` is false when:

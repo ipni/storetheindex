@@ -248,6 +248,7 @@ type adStatusResponse struct {
 	IndexedTime *time.Time `json:"IndexedTime,omitempty"`
 	State       string     `json:"State,omitempty"`
 	SkipReason  string     `json:"SkipReason,omitempty"`
+	SkippedTime *time.Time `json:"SkippedTime,omitempty"`
 	Frozen      bool       `json:"Frozen"`
 	Error       string     `json:"Error,omitempty"`
 }
@@ -257,6 +258,7 @@ func newAdStatusResponse(adCid cid.Cid, adState ingest.AdState) adStatusResponse
 		Ad:          adCid.String(),
 		Indexed:     adState.Indexed(),
 		IndexedTime: adState.IndexedTime,
+		SkippedTime: adState.SkippedTime,
 		Frozen:      adState.Frozen,
 	}
 
