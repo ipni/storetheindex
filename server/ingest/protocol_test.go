@@ -211,7 +211,15 @@ func TestAdStatus(t *testing.T) {
 	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
 	require.Equal(t, "application/json; charset=utf-8", hdr.Get("Content-Type"))
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false}`, dagJSONAds[0].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Ad": %[1]q,
+			"Indexed": false,
+			"State": "unknown",
+			"Frozen": false
+		}`,
+		dagJSONAds[0].String(), // [1]
+	), body)
 
 	// Fully processed ad is indexed and reports IndexedTime.
 	before := time.Now()
@@ -221,7 +229,17 @@ func TestAdStatus(t *testing.T) {
 	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
 	indexedTime := getVerifiedStatusTime(t, body, "IndexedTime", -1, before, after)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"IndexedTime":%q,"State":"indexed","Frozen":false}`, dagJSONAds[0].String(), indexedTime), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Ad": %[1]q,
+			"Indexed": true,
+			"IndexedTime": %[2]q,
+			"State": "indexed",
+			"Frozen": false
+		}`,
+		dagJSONAds[0].String(), // [1]
+		indexedTime,            // [2]
+	), body)
 
 	// Exact stored timestamp is returned as UTC IndexedTime.
 	timedAd := cid.NewCidV1(cid.DagJSON, random.Multihashes(1)[0])
@@ -232,7 +250,17 @@ func TestAdStatus(t *testing.T) {
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+timedAd.String()), timedMarker))
 	status, _, body = getAdStatus(t, timedAd)
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"IndexedTime":%q,"State":"indexed","Frozen":false}`, timedAd.String(), wantTime.Format(time.RFC3339Nano)), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Ad": %[1]q,
+			"Indexed": true,
+			"IndexedTime": %[2]q,
+			"State": "indexed",
+			"Frozen": false
+		}`,
+		timedAd.String(),                  // [1]
+		wantTime.Format(time.RFC3339Nano), // [2]
+	), body)
 
 	// Skipped ad returns state "skipped" with reason, Indexed false, and SkippedTime.
 	skipBefore := time.Now()
@@ -241,7 +269,18 @@ func TestAdStatus(t *testing.T) {
 	status, _, body = getAdStatus(t, dagJSONAds[1])
 	require.Equal(t, http.StatusOK, status)
 	skippedTime := getVerifiedStatusTime(t, body, "SkippedTime", -1, skipBefore, skipAfter)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"decodeErr","SkippedTime":%q,"Frozen":false}`, dagJSONAds[1].String(), skippedTime), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Ad": %[1]q,
+			"Indexed": false,
+			"State": "skipped",
+			"SkipReason": "decodeErr",
+			"SkippedTime": %[2]q,
+			"Frozen": false
+		}`,
+		dagJSONAds[1].String(), // [1]
+		skippedTime,            // [2]
+	), body)
 
 	// Exact stored timestamp is returned as UTC SkippedTime.
 	timedSkipAd := cid.NewCidV1(cid.DagJSON, random.Multihashes(1)[0])
@@ -252,33 +291,76 @@ func TestAdStatus(t *testing.T) {
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adSkipReason/"+timedSkipAd.String()), []byte("decodeErr")))
 	status, _, body = getAdStatus(t, timedSkipAd)
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"decodeErr","SkippedTime":%q,"Frozen":false}`, timedSkipAd.String(), wantTime.Format(time.RFC3339Nano)), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Ad": %[1]q,
+			"Indexed": false,
+			"State": "skipped",
+			"SkipReason": "decodeErr",
+			"SkippedTime": %[2]q,
+			"Frozen": false
+		}`,
+		timedSkipAd.String(),              // [1]
+		wantTime.Format(time.RFC3339Nano), // [2]
+	), body)
 
 	// Pending ad (marker byte 0 written directly).
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+dagJSONAds[2].String()), []byte{0}))
 	status, _, body = getAdStatus(t, dagJSONAds[2])
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"pending","Frozen":false}`, dagJSONAds[2].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Ad": %[1]q,
+			"Indexed": false,
+			"State": "pending",
+			"Frozen": false
+		}`,
+		dagJSONAds[2].String(), // [1]
+	), body)
 
 	// Resyncing ad (marker byte 2 written directly).
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+dagJSONAds[3].String()), []byte{2}))
 	status, _, body = getAdStatus(t, dagJSONAds[3])
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"resyncing","Frozen":false}`, dagJSONAds[3].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Ad": %[1]q,
+			"Indexed": false,
+			"State": "resyncing",
+			"Frozen": false
+		}`,
+		dagJSONAds[3].String(), // [1]
+	), body)
 
 	// Frozen ad (processed + frozen key set) omits IndexedTime.
 	require.NoError(t, ing.MarkAdProcessed(pubID, dagJSONAds[4]))
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adF/"+dagJSONAds[4].String()), []byte{1}))
 	status, _, body = getAdStatus(t, dagJSONAds[4])
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"indexed","Frozen":true}`, dagJSONAds[4].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Ad": %[1]q,
+			"Indexed": false,
+			"State": "indexed",
+			"Frozen": true
+		}`,
+		dagJSONAds[4].String(), // [1]
+	), body)
 
 	// Legacy 1-byte processed marker is indexed but has no IndexedTime.
 	legacyAd := cid.NewCidV1(cid.DagJSON, random.Multihashes(1)[0])
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adProcessed/"+legacyAd.String()), []byte{1}))
 	status, _, body = getAdStatus(t, legacyAd)
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":true,"State":"indexed","Frozen":false}`, legacyAd.String()), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Ad": %[1]q,
+			"Indexed": true,
+			"State": "indexed",
+			"Frozen": false
+		}`,
+		legacyAd.String(), // [1]
+	), body)
 
 	// Legacy 1-byte skipped marker has no SkippedTime.
 	legacySkip := cid.NewCidV1(cid.DagJSON, random.Multihashes(1)[0])
@@ -286,7 +368,16 @@ func TestAdStatus(t *testing.T) {
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adSkipReason/"+legacySkip.String()), []byte("decodeErr")))
 	status, _, body = getAdStatus(t, legacySkip)
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"decodeErr","Frozen":false}`, legacySkip.String()), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Ad": %[1]q,
+			"Indexed": false,
+			"State": "skipped",
+			"SkipReason": "decodeErr",
+			"Frozen": false
+		}`,
+		legacySkip.String(), // [1]
+	), body)
 
 	// Codec guard: raw CID returns 400.
 	rawCid := cid.NewCidV1(cid.Raw, random.Multihashes(1)[0])
@@ -318,7 +409,15 @@ func TestAdStatus(t *testing.T) {
 	res.Body.Close()
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
-	require.JSONEq(t, fmt.Sprintf(`{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false}`, dagCBORCid.String()), string(bodyBytes))
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Ad": %[1]q,
+			"Indexed": false,
+			"State": "unknown",
+			"Frozen": false
+		}`,
+		dagCBORCid.String(), // [1]
+	), string(bodyBytes))
 
 	// Bad CID format returns 400.
 	res, err = http.Get(s.URL() + "/sync/status/ad/not-a-cid")
@@ -431,44 +530,142 @@ func TestAdStatusBatch(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, "*", hdr.Get("Access-Control-Allow-Origin"))
-	indexedTime := getVerifiedIndexedTime(t, body, 2, before, after)
-	require.JSONEq(t, fmt.Sprintf(`{
-		"Statuses": [
-			{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false},
-			{"Ad":%q,"Indexed":false,"State":"pending","Frozen":false},
-			{"Ad":%q,"Indexed":true,"IndexedTime":%q,"State":"indexed","Frozen":false},
-			{"Ad":%q,"Indexed":false,"State":"resyncing","Frozen":false},
-			{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"testSkip","Frozen":false}
-		]
-	}`, cids[0].String(), cids[1].String(), cids[2].String(), indexedTime, cids[3].String(), cids[4].String()), body)
+	indexedTime := getVerifiedStatusTime(t, body, "IndexedTime", 2, before, after)
+	skippedTime := getVerifiedStatusTime(t, body, "SkippedTime", 4, skipBefore, skipAfter)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Statuses": [
+				{
+					"Ad": %[1]q,
+					"Indexed": false,
+					"State": "unknown",
+					"Frozen": false
+				},
+				{
+					"Ad": %[2]q,
+					"Indexed": false,
+					"State": "pending",
+					"Frozen": false
+				},
+				{
+					"Ad": %[3]q,
+					"Indexed": true,
+					"IndexedTime": %[4]q,
+					"State": "indexed",
+					"Frozen": false
+				},
+				{
+					"Ad": %[5]q,
+					"Indexed": false,
+					"State": "resyncing",
+					"Frozen": false
+				},
+				{
+					"Ad": %[6]q,
+					"Indexed": false,
+					"State": "skipped",
+					"SkipReason": "testSkip",
+					"SkippedTime": %[7]q,
+					"Frozen": false
+				}
+			]
+		}`,
+		cids[0].String(), // [1]
+		cids[1].String(), // [2]
+		cids[2].String(), // [3]
+		indexedTime,      // [4]
+		cids[3].String(), // [5]
+		cids[4].String(), // [6]
+		skippedTime,      // [7]
+	), body)
 
 	// Frozen-processed ad
 	require.NoError(t, ds.Put(context.Background(), datastore.NewKey("/adF/"+cids[2].String()), []byte{1}))
 	status, _, body = postBatch(t, []string{cids[2].String()})
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Statuses":[{"Ad":%q,"Indexed":false,"State":"indexed","Frozen":true}]}`, cids[2].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Statuses": [
+				{
+					"Ad": %[1]q,
+					"Indexed": false,
+					"State": "indexed",
+					"Frozen": true
+				}
+			]
+		}`,
+		cids[2].String(), // [1]
+	), body)
 
 	// Reversed order with one duplicated CID stays positionally aligned
 	status, _, body = postBatch(t, []string{cids[4].String(), cids[2].String(), cids[4].String()})
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{
-		"Statuses": [
-			{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"testSkip","Frozen":false},
-			{"Ad":%q,"Indexed":false,"State":"indexed","Frozen":true},
-			{"Ad":%q,"Indexed":false,"State":"skipped","SkipReason":"testSkip","Frozen":false}
-		]
-	}`, cids[4].String(), cids[2].String(), cids[4].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Statuses": [
+				{
+					"Ad": %[1]q,
+					"Indexed": false,
+					"State": "skipped",
+					"SkipReason": "testSkip",
+					"SkippedTime": %[2]q,
+					"Frozen": false
+				},
+				{
+					"Ad": %[3]q,
+					"Indexed": false,
+					"State": "indexed",
+					"Frozen": true
+				},
+				{
+					"Ad": %[1]q,
+					"Indexed": false,
+					"State": "skipped",
+					"SkipReason": "testSkip",
+					"SkippedTime": %[2]q,
+					"Frozen": false
+				}
+			]
+		}`,
+		cids[4].String(), // [1]
+		skippedTime,      // [2]
+		cids[2].String(), // [3]
+	), body)
 
 	// Single-element batch returns one-entry Statuses array
 	status, _, body = postBatch(t, []string{cids[0].String()})
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Statuses":[{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false}]}`, cids[0].String()), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Statuses": [
+				{
+					"Ad": %[1]q,
+					"Indexed": false,
+					"State": "unknown",
+					"Frozen": false
+				}
+			]
+		}`,
+		cids[0].String(), // [1]
+	), body)
 
 	// dag-cbor CID accepted like dag-json
 	dagCBORCid := cid.NewCidV1(cid.DagCBOR, random.Multihashes(1)[0])
 	status, _, body = postBatch(t, []string{dagCBORCid.String()})
 	require.Equal(t, http.StatusOK, status)
-	require.JSONEq(t, fmt.Sprintf(`{"Statuses":[{"Ad":%q,"Indexed":false,"State":"unknown","Frozen":false}]}`, dagCBORCid.String()), body)
+	require.JSONEq(t, fmt.Sprintf(`
+		{
+			"Statuses": [
+				{
+					"Ad": %[1]q,
+					"Indexed": false,
+					"State": "unknown",
+					"Frozen": false
+				}
+			]
+		}`,
+		dagCBORCid.String(), // [1]
+	), body)
 
 	// Mixed batch: two valid, "not-a-cid", raw-codec - all 200 with per-item errors
 	rawCid := cid.NewCidV1(cid.Raw, random.Multihashes(1)[0])
