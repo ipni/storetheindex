@@ -20,7 +20,7 @@ COPY --from=jemalloc \
     /usr/lib/x86_64-linux-gnu/libjemalloc.so.2 \
     /usr/lib/x86_64-linux-gnu/
 ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
-ENV MALLOC_CONF=background_thread:true,dirty_decay_ms:5000,muzzy_decay_ms:5000
+ENV MALLOC_CONF=background_thread:true,narenas:2,dirty_decay_ms:0,muzzy_decay_ms
 
 # Default port configuration:
 #  - 3000 Finder interface
