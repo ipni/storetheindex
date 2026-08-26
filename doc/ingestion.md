@@ -330,9 +330,14 @@ Ingestion markers (`ingest.go`):
 - `syncPrefix` (`/sync/<publisherID>`) -> CID bytes of the latest fully
   processed ad for a publisher (`GetLatestSync` / `getLastKnownSync`).
 - `adProcessedPrefix` (`/adProcessed/<adCid>`) -> marks an ad state
-  (used to stop chain walks and skip re-processing). Value is a single byte:
-  `0` = unprocessed, `1` = processed, `2` = marked for resync,
-  `3` = permanently skipped (will not be retried).
+  (used to stop chain walks and skip re-processing). Value starts with a
+  single marker byte: `0` = unprocessed, `1` = processed, `2` = marked for
+  resync, `3` = permanently skipped (will not be retried). Processed (`1`)
+  and skipped (`3`) markers written by current code are followed by 8
+  bytes holding little-endian microseconds since the Unix epoch recording
+  when the marker was written (9 bytes total). Legacy records are
+  marker-only (1 byte) and have no timestamp. Readers accept trailing
+  bytes after the timestamp.
 - `adSkipReasonPrefix` (`/adSkipReason/<adCid>`) -> sidecar string stored
   alongside the `3` marker, explaining why the ad was permanently skipped
   (e.g. decoding error, malformed, entry chunk error, content not found).
@@ -490,7 +495,11 @@ The response includes:
 - `Ad` - the requested advertisement CID
 - `Indexed` - true only when the ad was fully processed while the indexer was
   not frozen, and is not currently marked for resync
-  (`Processed && !Resync && !Frozen` from `AdState`)
+  (`Processed && !Skipped && !Resync && !Frozen` from `AdState`)
+- `IndexedTime` - UTC RFC3339 timestamp with microsecond precision of when
+  the ad was last marked processed, present only when `Indexed` is true and
+  the stored marker includes a timestamp. Ads processed before timestamps
+  were stored (legacy 1-byte markers) omit this field.
 - `State` - one of `"unknown"`, `"pending"`, `"indexed"`, `"skipped"`, or
   `"resyncing"`:
   - `"unknown"` - the ad is not known to the ingester
@@ -501,6 +510,10 @@ The response includes:
   - `"skipped"` - the ad was permanently skipped (malformed, decode error, etc.)
   - `"resyncing"` - the ad is marked for resync (previous processing invalidated)
 - `SkipReason` - the skip reason string (truncated to 256 bytes), non-empty only when `State` is `"skipped"`
+- `SkippedTime` - UTC RFC3339 timestamp with microsecond precision of when
+  the ad was last marked skipped, present only when `State` is `"skipped"`
+  and the stored marker includes a timestamp. Legacy 1-byte skipped markers
+  omit this field.
 - `Frozen` - true when the ad was processed while the indexer was in frozen mode
 
 `Indexed` is false when:
@@ -510,12 +523,12 @@ The response includes:
   multihashes were not indexed)
 - the ad is marked for resync (previous processing is treated as invalidated
   until the ad is processed again)
+- the ad was permanently skipped
 
-`Indexed` now distinguishes permanent skips from successful processing: ads
+`Indexed` distinguishes permanent skips from successful processing: ads
 that fail with a permanent error (malformed, decoding, content-not-found, etc.)
 are marked with the `3` (skipped) marker and report `Skipped: true`,
-`Indexed: false`. Timestamps and provider identity are not stored per ad and
-are not returned.
+`Indexed: false`. Provider identity is not stored per ad and is not returned.
 
 See [`internal/ingest/syncstatus.go`](../internal/ingest/syncstatus.go) for
 the tracker. The ingest HTTP handlers marshal tracker snapshots to JSON.
