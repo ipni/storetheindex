@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"mime"
 	"net"
 	"net/http"
 	"time"
@@ -14,6 +16,16 @@ import (
 )
 
 var log = logging.Logger("assigner/server")
+
+// maxBodySize is the limit on the request body size that the server will read.
+// No request body should be this large, so any request exceeding this size is
+// clearly in error.
+const maxBodySize = 1024 * 1024
+
+const (
+	encodingJSON = "json"
+	encodingCBOR = "cbor"
+)
 
 type Server struct {
 	assigner        *core.Assigner
@@ -85,6 +97,14 @@ func (s *Server) Close() error {
 	return s.server.Shutdown(ctx)
 }
 
+func announceEncoding(contentType string) string {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err == nil && mediaType == "application/json" {
+		return encodingJSON
+	}
+	return encodingCBOR
+}
+
 // PUT /announce
 func (s *Server) announce(w http.ResponseWriter, r *http.Request) {
 	if !methodOK(w, r, http.MethodPut) {
@@ -94,8 +114,16 @@ func (s *Server) announce(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	defer r.Body.Close()
 
+	encoding := announceEncoding(r.Header.Get("Content-Type"))
 	an := message.Message{}
-	if err := an.UnmarshalCBOR(r.Body); err != nil {
+	bodyReader := http.MaxBytesReader(w, r.Body, maxBodySize)
+	var err error
+	if encoding == encodingJSON {
+		err = json.NewDecoder(bodyReader).Decode(&an)
+	} else {
+		err = an.UnmarshalCBOR(bodyReader)
+	}
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

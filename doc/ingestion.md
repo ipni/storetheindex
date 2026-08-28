@@ -101,7 +101,8 @@ graph TD
    peer against the registry allow policy, skips if the announced CID equals
    the current latest sync, and calls `Ingester.Announce`, which forwards to
    `subscriber.Announce`. In assigner deployments, publishers send HTTP
-   announces to the assigner, which forwards them to the assigned indexer.
+   announces (JSON or CBOR, same as the ingest server) to the assigner, which
+   forwards them to configured ingest URLs and/or the assigned indexer.
 2. **Gossipsub announce** (deprecated): the subscriber can still be configured
    with `dagsync.RecvAnnounce(cfg.PubSubTopic, ...)` to receive announce
    messages from a libp2p gossipsub topic. This path remains in the code for
