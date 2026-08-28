@@ -97,12 +97,15 @@ graph TD
 ## Entry points that trigger ingestion
 
 1. **Direct HTTP announce** (supported): `PUT /announce` (and
-   `/ingest/announce`) on the ingest server. `Server.announce` validates the
-   peer against the registry allow policy, skips if the announced CID equals
-   the current latest sync, and calls `Ingester.Announce`, which forwards to
-   `subscriber.Announce`. In assigner deployments, publishers send HTTP
-   announces (JSON or CBOR, same as the ingest server) to the assigner, which
-   forwards them to configured ingest URLs and/or the assigned indexer.
+   `/ingest/announce`) on the ingest server. The body is decoded by
+   `httpserver.DecodeAnnounceMessage`: JSON when `Content-Type` is
+   `application/json` (parameters such as charset are ignored), otherwise CBOR,
+   with a 1 MiB size cap. `Server.announce`
+   validates the peer against the registry allow policy, skips if the announced
+   CID equals the current latest sync, and calls `Ingester.Announce`, which
+   forwards to `subscriber.Announce`. In assigner deployments, publishers send
+   HTTP announces (same decode path) to the assigner, which forwards them to
+   configured ingest URLs and/or the assigned indexer.
 2. **Gossipsub announce** (deprecated): the subscriber can still be configured
    with `dagsync.RecvAnnounce(cfg.PubSubTopic, ...)` to receive announce
    messages from a libp2p gossipsub topic. This path remains in the code for
@@ -586,6 +589,7 @@ listed in [config.md](config.md).
 | `internal/ingest/error.go` | `adIngestError` states and helpers. |
 | `internal/ingest/syncstatus.go` | Live per-publisher sync status tracker. |
 | `server/ingest/server.go` | `/announce`, `/register`, `/sync/status`, `/sync/status/ad/<cid>` (single), and `POST /sync/status/ad` (batch) HTTP handlers. |
+| `internal/httpserver/announce.go` | Shared announce body decode (JSON or CBOR) used by ingest and assigner. |
 | `internal/registry/registry.go` | Provider registry, policy, freeze, auto-sync channel. |
 | `server/find/server.go` | Find HTTP API. |
 | `config/ingest.go` | Ingestion configuration and defaults. |

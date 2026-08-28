@@ -94,6 +94,7 @@ func TestAnnounceJSONCharset(t *testing.T) {
 	body, err := json.Marshal(msg)
 	require.NoError(t, err)
 
+	before := testutil.ToFloat64(metrics.AnnounceReceived.WithLabelValues("json", metrics.ResultOK))
 	req, err := http.NewRequest(http.MethodPut, s.URL()+"/ingest/announce", bytes.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
@@ -101,6 +102,7 @@ func TestAnnounceJSONCharset(t *testing.T) {
 	require.NoError(t, err)
 	defer res.Body.Close()
 	require.Equal(t, http.StatusNoContent, res.StatusCode)
+	require.Equal(t, before+1, testutil.ToFloat64(metrics.AnnounceReceived.WithLabelValues("json", metrics.ResultOK)))
 }
 
 func TestAnnounceJSONInvalid(t *testing.T) {
