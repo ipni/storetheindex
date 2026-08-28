@@ -13,6 +13,7 @@ import (
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/assigner/config"
 	"github.com/ipni/storetheindex/assigner/core"
+	"github.com/ipni/storetheindex/assigner/metrics"
 	server "github.com/ipni/storetheindex/assigner/server"
 	sticfg "github.com/ipni/storetheindex/config"
 	"github.com/libp2p/go-libp2p"
@@ -56,6 +57,12 @@ var daemonFlags = []cli.Flag{
 		Name:     "listen-http",
 		Usage:    "HTTP listen address",
 		EnvVars:  []string{"ASSIGNER_LISTEN_HTTP"},
+		Required: false,
+	},
+	&cli.StringFlag{
+		Name:     "listen-metrics",
+		Usage:    "Metrics HTTP listen address",
+		EnvVars:  []string{"ASSIGNER_LISTEN_METRICS"},
 		Required: false,
 	},
 	&cli.StringFlag{
@@ -160,9 +167,33 @@ func daemonAction(cctx *cli.Context) error {
 		}
 	}
 
+	var metricsServer *metrics.Server
+	metricsAddr := cfg.Daemon.MetricsAddr
+	if cctx.String("listen-metrics") != "" {
+		metricsAddr = cctx.String("listen-metrics")
+	}
+	if metricsAddr != "none" {
+		metricsNetAddr, err := mautil.MultiaddrStringToNetAddr(metricsAddr)
+		if err != nil {
+			return fmt.Errorf("bad metrics address %s: %w", metricsAddr, err)
+		}
+		metricsServer, err = metrics.New(metricsNetAddr.String())
+		if err != nil {
+			return err
+		}
+	}
+
 	svrErrChan := make(chan error, 3)
 
 	log.Info("Starting http servers")
+	if metricsServer != nil {
+		go func() {
+			svrErrChan <- metricsServer.Start()
+		}()
+		fmt.Println("metrics server:\t", metricsAddr)
+	} else {
+		fmt.Println("metrics server:\t disabled")
+	}
 	if httpServer != nil {
 		go func() {
 			svrErrChan <- httpServer.Start()
@@ -191,12 +222,21 @@ func daemonAction(cctx *cli.Context) error {
 
 	if httpServer != nil {
 		if err = httpServer.Close(); err != nil {
-			finalErr = fmt.Errorf("error shutting down http server: %w", err)
+			log.Errorw("error shutting down http server", "err", err)
+			finalErr = errors.Join(finalErr, fmt.Errorf("error shutting down http server: %w", err))
 		}
 	}
 
 	if err = assigner.Close(); err != nil {
-		finalErr = fmt.Errorf("error closing assigner: %w", err)
+		log.Errorw("error closing assigner", "err", err)
+		finalErr = errors.Join(finalErr, fmt.Errorf("error closing assigner: %w", err))
+	}
+
+	if metricsServer != nil {
+		if err = metricsServer.Close(); err != nil {
+			log.Errorw("error shutting down metrics server", "err", err)
+			finalErr = errors.Join(finalErr, fmt.Errorf("error shutting down metrics server: %w", err))
+		}
 	}
 
 	log.Info("Daemon stopped")

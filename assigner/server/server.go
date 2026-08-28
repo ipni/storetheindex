@@ -12,6 +12,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/go-libipni/announce/message"
 	"github.com/ipni/storetheindex/assigner/core"
+	"github.com/ipni/storetheindex/assigner/metrics"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -124,15 +125,18 @@ func (s *Server) announce(w http.ResponseWriter, r *http.Request) {
 		err = an.UnmarshalCBOR(bodyReader)
 	}
 	if err != nil {
+		metrics.RecordReceived(encoding, metrics.ResultDecodeError)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if len(an.Addrs) == 0 {
+		metrics.RecordReceived(encoding, metrics.ResultInvalid)
 		http.Error(w, "must specify location to fetch on direct announcments", http.StatusBadRequest)
 		return
 	}
 	addrs, err := an.GetAddrs()
 	if err != nil {
+		metrics.RecordReceived(encoding, metrics.ResultInvalid)
 		err = fmt.Errorf("could not decode addrs from announce message: %s", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -140,16 +144,19 @@ func (s *Server) announce(w http.ResponseWriter, r *http.Request) {
 
 	ais, err := peer.AddrInfosFromP2pAddrs(addrs...)
 	if err != nil {
+		metrics.RecordReceived(encoding, metrics.ResultInvalid)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if len(ais) > 1 {
+		metrics.RecordReceived(encoding, metrics.ResultInvalid)
 		http.Error(w, "peer id must be the same for all addresses", http.StatusBadRequest)
 		return
 	}
 	addrInfo := ais[0]
 
 	if !s.assigner.Allowed(addrInfo.ID) {
+		metrics.RecordReceived(encoding, metrics.ResultForbidden)
 		http.Error(w, "announce requests not allowed from peer", http.StatusForbidden)
 		return
 	}
@@ -158,9 +165,11 @@ func (s *Server) announce(w http.ResponseWriter, r *http.Request) {
 	// want to attach the context to the request context that started this.
 	err = s.assigner.Announce(context.Background(), an.Cid, addrInfo)
 	if err != nil {
+		metrics.RecordReceived(encoding, metrics.ResultError)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	metrics.RecordReceived(encoding, metrics.ResultOK)
 	w.WriteHeader(http.StatusNoContent)
 }
 

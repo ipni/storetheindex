@@ -11,7 +11,7 @@ spec:
   # Terminate previous assigner before rolling out new ones to avoid conflicts between assignments.
   strategy:
     type: Recreate
-    # Explicitly override the default rolling update configuration. Otherwise, the manifest will be 
+    # Explicitly override the default rolling update configuration. Otherwise, the manifest will be
     # invalid when strategy.type is set to Recreate.
     # See:
     #  - https://github.com/kubernetes/kubernetes/issues/24198
@@ -36,8 +36,6 @@ spec:
               value: INFO
             - name: GOLOG_LOG_FMT
               value: json
-            - name: STORETHEINDEX_PRIV_KEY_PATH
-              value: /identity/identity.key
             - name: ASSIGNER_PATH
               value: /config
           ports:

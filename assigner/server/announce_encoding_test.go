@@ -14,8 +14,10 @@ import (
 	client "github.com/ipni/go-libipni/ingest/client"
 	"github.com/ipni/storetheindex/assigner/config"
 	"github.com/ipni/storetheindex/assigner/core"
+	"github.com/ipni/storetheindex/assigner/metrics"
 	server "github.com/ipni/storetheindex/assigner/server"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -74,6 +76,8 @@ func TestAnnounceJSON(t *testing.T) {
 	body, err := json.Marshal(msg)
 	require.NoError(t, err)
 
+	before := testutil.ToFloat64(metrics.AnnounceReceived.WithLabelValues("json", metrics.ResultOK))
+
 	req, err := http.NewRequest(http.MethodPut, s.URL()+"/announce", bytes.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
@@ -81,6 +85,7 @@ func TestAnnounceJSON(t *testing.T) {
 	require.NoError(t, err)
 	defer res.Body.Close()
 	require.Equal(t, http.StatusNoContent, res.StatusCode)
+	require.Equal(t, before+1, testutil.ToFloat64(metrics.AnnounceReceived.WithLabelValues("json", metrics.ResultOK)))
 }
 
 func TestAnnounceJSONCharset(t *testing.T) {
@@ -100,6 +105,7 @@ func TestAnnounceJSONCharset(t *testing.T) {
 
 func TestAnnounceJSONInvalid(t *testing.T) {
 	s := startAssignerServer(t, setupAllowAllAssigner(t))
+	before := testutil.ToFloat64(metrics.AnnounceReceived.WithLabelValues("json", metrics.ResultDecodeError))
 
 	req, err := http.NewRequest(http.MethodPut, s.URL()+"/announce", bytes.NewReader([]byte("not json")))
 	require.NoError(t, err)
@@ -109,6 +115,7 @@ func TestAnnounceJSONInvalid(t *testing.T) {
 	defer res.Body.Close()
 	require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	_, _ = io.Copy(io.Discard, res.Body)
+	require.Equal(t, before+1, testutil.ToFloat64(metrics.AnnounceReceived.WithLabelValues("json", metrics.ResultDecodeError)))
 }
 
 func TestAnnounceCBOR(t *testing.T) {
@@ -117,6 +124,8 @@ func TestAnnounceCBOR(t *testing.T) {
 	cl, err := client.New(s.URL())
 	require.NoError(t, err)
 
+	before := testutil.ToFloat64(metrics.AnnounceReceived.WithLabelValues("cbor", metrics.ResultOK))
 	err = cl.Announce(t.Context(), &ai, adCid)
 	require.NoError(t, err)
+	require.Equal(t, before+1, testutil.ToFloat64(metrics.AnnounceReceived.WithLabelValues("cbor", metrics.ResultOK)))
 }

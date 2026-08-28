@@ -66,7 +66,7 @@ Top-level modules (all under module `github.com/ipni/storetheindex`):
 | [`filestore/`](filestore) | File storage abstraction (local filesystem and S3). |
 | [`gc/`](gc) | Garbage collection (`reaper`) for removed/expired index data. |
 | [`admin/`](admin) | Admin API client and models. |
-| [`assigner/`](assigner) | Assigner service: assigns publishers to indexers, handles freeze handoff. Has its own `command/`, `config/`, `core/`, `server/`. |
+| [`assigner/`](assigner) | Assigner service: assigns publishers to indexers, handles freeze handoff. Has its own `command/`, `config/`, `core/`, `server/`, and `metrics/`. |
 | [`peerutil/`](peerutil) | Peer ID policy helpers. |
 | [`rate/`](rate) | Ingest rate tracking. |
 | [`fsutil/`](fsutil) | Filesystem helpers (path expansion, disk usage). |

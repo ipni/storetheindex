@@ -17,6 +17,7 @@ import (
 	ingestclient "github.com/ipni/go-libipni/ingest/client"
 	adminclient "github.com/ipni/storetheindex/admin/client"
 	"github.com/ipni/storetheindex/assigner/config"
+	"github.com/ipni/storetheindex/assigner/metrics"
 	"github.com/ipni/storetheindex/peerutil"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -620,6 +621,7 @@ func (a *Assigner) watch() {
 			break
 		}
 		log.Debugw("Received announce", "publisher", amsg.PeerID)
+		metrics.RecordAccepted()
 
 		for _, fwdURL := range a.fwdURLs {
 			go resendAnnounce(ctx, amsg, fwdURL)
@@ -1023,6 +1025,7 @@ func (a *Assigner) getAssignments(ctx context.Context, indexerNum int) (peer.ID,
 func resendAnnounce(ctx context.Context, amsg announce.Announce, ingestURL string) {
 	icl, err := ingestclient.New(ingestURL)
 	if err != nil {
+		metrics.RecordForwarded(ingestURL, metrics.ResultError)
 		log.Errorw("error creating ingest client", "err", err)
 		return
 	}
@@ -1031,8 +1034,10 @@ func resendAnnounce(ctx context.Context, amsg announce.Announce, ingestURL strin
 		Addrs: amsg.Addrs,
 	}
 	if err = icl.Announce(ctx, &pubInfo, amsg.Cid); err != nil {
+		metrics.RecordForwarded(ingestURL, metrics.ResultError)
 		log.Errorw("error sending announce message", "err", err, "url", ingestURL)
 		return
 	}
+	metrics.RecordForwarded(ingestURL, metrics.ResultOK)
 	log.Debug("Resent direct announce to:", ingestURL)
 }
