@@ -193,21 +193,20 @@ func daemonAction(cctx *cli.Context) error {
 		go func() {
 			svrErrChan <- metricsServer.Start()
 		}()
-		fmt.Println("metrics server:\t", metricsAddr)
+		log.Infow("metrics server", "addr", metricsAddr)
 	} else {
-		fmt.Println("metrics server:\t disabled")
+		log.Info("metrics server disabled")
 	}
 	if httpServer != nil {
 		go func() {
 			svrErrChan <- httpServer.Start()
 		}()
-		fmt.Println("http server:\t", httpAddr)
+		log.Infow("http server", "addr", httpAddr)
 	} else {
-		fmt.Println("http server:\t disabled")
+		log.Info("http server disabled")
 	}
 
-	// Output message to user (not to log).
-	fmt.Println("Daemon is ready")
+	log.Info("daemon ready")
 	var finalErr error
 
 	for endDaemon := false; !endDaemon; {
