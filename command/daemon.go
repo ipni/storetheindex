@@ -28,6 +28,7 @@ import (
 	"github.com/ipni/storetheindex/fsutil"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
+	"github.com/ipni/storetheindex/internal/revision"
 	httpadmin "github.com/ipni/storetheindex/server/admin"
 	"github.com/ipni/storetheindex/server/carmirror"
 	httpfind "github.com/ipni/storetheindex/server/find"
@@ -104,6 +105,8 @@ func daemonAction(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
+	revision.Log(log, cctx.App.Version)
 
 	var freezeDirs []string
 

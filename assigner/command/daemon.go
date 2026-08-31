@@ -16,6 +16,7 @@ import (
 	"github.com/ipni/storetheindex/assigner/metrics"
 	server "github.com/ipni/storetheindex/assigner/server"
 	sticfg "github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/internal/revision"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -88,6 +89,8 @@ func daemonAction(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
+	revision.Log(log, cctx.App.Version)
 
 	if cfg.Version != config.Version {
 		log.Warnf("Configuration file out-of-date. Upgrade by running: ./%s init --upgrade", progName)
