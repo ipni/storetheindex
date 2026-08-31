@@ -156,17 +156,23 @@ resource "aws_cloudfront_distribution" "cdn" {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD", "OPTIONS"]
     target_origin_id = local.primary_origin_id
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
+    cache_policy_id  = aws_cloudfront_cache_policy.providers.id
+
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 300
-    default_ttl            = 300
-    max_ttl                = 300
+  }
+
+  # Exact "providers" does not match /providers/{peerID}; without this those
+  # requests use default_ttl 7200s.
+  ordered_cache_behavior {
+    path_pattern     = "providers/*"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = local.primary_origin_id
+    cache_policy_id  = aws_cloudfront_cache_policy.providers.id
+
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
   }
 
   ordered_cache_behavior {
@@ -251,6 +257,28 @@ resource "aws_cloudfront_cache_policy" "no_cache" {
     query_strings_config {
       query_string_behavior = "none"
     }
+  }
+}
+
+resource "aws_cloudfront_cache_policy" "providers" {
+  name        = "providers"
+  min_ttl     = 300
+  default_ttl = 300
+  max_ttl     = 300
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "none"
+    }
+    query_strings_config {
+      query_string_behavior = "none"
+    }
+
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
   }
 }
 
