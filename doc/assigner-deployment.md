@@ -6,7 +6,9 @@ Deploy as many indexers as needed for current estimated index data and desired r
 
 ## Deploy Assigner Service
 
-Deploy a single AS that is configured, in its configuration file, with an indexer [pool](https://pkg.go.dev/github.com/ipni/storetheindex@v0.5.7/assigner/config#Assignment) that has each [indexer’s information](https://pkg.go.dev/github.com/ipni/storetheindex@v0.5.7/assigner/config#Indexer). The assigner service should be able to receive advertisement announce messages from advertisement publishers, over gossip pub-sub and/or HTTP. If the AS is expected to relay direct HTTP announce messages, then configure the pool indexers as peers in the [peering](https://pkg.go.dev/github.com/ipni/storetheindex@v0.5.7/assigner/config#Config) section of the AS configuration, to allow the gossipsub messages to propagate across the pool. The AS is available as a sub-command of golang indexer implementation, `storetheindex`. 
+Deploy a single AS that is configured, in its configuration file, with an indexer [pool](https://pkg.go.dev/github.com/ipni/storetheindex@v0.5.7/assigner/config#Assignment) that has each [indexer’s information](https://pkg.go.dev/github.com/ipni/storetheindex@v0.5.7/assigner/config#Indexer). The assigner service should be able to receive advertisement announce messages from advertisement publishers, over gossip pub-sub and/or HTTP. HTTP `PUT /announce` (and the deprecated `/ingest/announce`) accepts the same JSON or CBOR body as the indexer ingest server. If the AS is expected to relay direct HTTP announce messages, then configure the pool indexers as peers in the [peering](https://pkg.go.dev/github.com/ipni/storetheindex@v0.5.7/assigner/config#Config) section of the AS configuration, to allow the gossipsub messages to propagate across the pool. The AS is available as a sub-command of golang indexer implementation, `storetheindex`.
+
+Prometheus metrics are served on `Daemon.MetricsAddr` (default `/ip4/0.0.0.0/tcp/8081`) at `/metrics`. Set `MetricsAddr` to `"none"` to disable. The counters `assigner_announce_received_total` (HTTP encoding and result), `assigner_announce_accepted_total` (passed the in-memory CID cache), and `assigner_announce_forwarded_total` (per target host) cover announce fan-out. 
 
 ## Add Indexers as Needed
 
@@ -66,6 +68,7 @@ Peering with indexers, as shown in this example, is only needed if re-sending an
   "Daemon": {
     "HTTPAddr": "/ip4/0.0.0.0/tcp/3701",
     "P2PAddr": "/ip4/0.0.0.0/tcp/3703",
+    "MetricsAddr": "/ip4/0.0.0.0/tcp/8081",
     "NoResourceManager": false
   },
   "Logging": {

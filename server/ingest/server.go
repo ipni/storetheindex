@@ -128,15 +128,7 @@ func (s *Server) putAnnounce(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	defer r.Body.Close()
 
-	var an message.Message
-	var err error
-
-	bodyReader := http.MaxBytesReader(w, r.Body, maxBodySize)
-	if r.Header.Get("Content-Type") == "application/json" {
-		err = json.NewDecoder(bodyReader).Decode(&an)
-	} else {
-		err = an.UnmarshalCBOR(bodyReader)
-	}
+	an, _, err := httpserver.DecodeAnnounceMessage(w, r)
 	if err != nil {
 		httpserver.HandleError(w, err, "announce")
 		return

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path"
 	"sort"
 	"strings"
@@ -17,8 +18,10 @@ import (
 	"github.com/ipni/storetheindex/admin/model"
 	"github.com/ipni/storetheindex/assigner/config"
 	"github.com/ipni/storetheindex/assigner/core"
+	"github.com/ipni/storetheindex/assigner/metrics"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -899,6 +902,7 @@ func TestForwardAnnounce(t *testing.T) {
 	}, 2*time.Second, 100*time.Millisecond)
 
 	require.Equal(t, 1, int(fakeIndexer.announceCount.Load()), "wrong number of forwards")
+	require.GreaterOrEqual(t, testutil.ToFloat64(metrics.AnnounceForwarded.WithLabelValues(fakeIndexer.ingestHost(), metrics.ResultOK)), float64(1))
 }
 
 type testIndexer struct {
@@ -977,6 +981,14 @@ func (ti *testIndexer) close() {
 	ti.adminServer.Close()
 	ti.findServer.Close()
 	ti.ingestServer.Close()
+}
+
+func (ti *testIndexer) ingestHost() string {
+	u, err := url.Parse(ti.ingestServer.URL)
+	if err != nil || u.Host == "" {
+		return ti.ingestServer.URL
+	}
+	return u.Host
 }
 
 func writeJsonResponse(w http.ResponseWriter, status int, body []byte) {
