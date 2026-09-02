@@ -105,7 +105,7 @@ func (l *Local) Delete(ctx context.Context, relPath string) error {
 }
 
 func (l *Local) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, error) {
-	f, err := os.Open(l.fsPath(l.basePath, relPath))
+	f, err := openForRead(l.fsPath(l.basePath, relPath))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil, fs.ErrNotExist
@@ -307,7 +307,7 @@ func (l *Local) Put(ctx context.Context, relPath string, r io.Reader) (*File, er
 		return nil, err
 	}
 
-	if err = os.Rename(tmpName, absPath); err != nil {
+	if err = replaceFile(tmpName, absPath); err != nil {
 		return nil, err
 	}
 	tmpName = ""
@@ -317,6 +317,38 @@ func (l *Local) Put(ctx context.Context, relPath string, r io.Reader) (*File, er
 		Path:     relPath,
 		Size:     fi.Size(),
 	}, nil
+}
+
+// openForRead opens path for reading.
+//
+// This goes through os.Root rather than os.Open so that Windows behaves like
+// Unix: Root.Open permits delete sharing, without which replaceFile cannot
+// replace a path that still has readers.
+func openForRead(path string) (*os.File, error) {
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
+	return root.Open(filepath.Base(path))
+}
+
+// replaceFile renames oldpath over newpath. Both must be in the same
+// directory, which Put guarantees by creating its temp file there.
+//
+// This goes through os.Root rather than os.Rename because on Windows
+// os.Rename is MoveFileEx, which requires the destination to be unused.
+// Root.Rename uses POSIX rename semantics, unlinking the old destination and
+// leaving open readers with the file they already have.
+func replaceFile(oldpath, newpath string) error {
+	root, err := os.OpenRoot(filepath.Dir(newpath))
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+
+	return root.Rename(filepath.Base(oldpath), filepath.Base(newpath))
 }
 
 func isPutTempName(name string) bool {
