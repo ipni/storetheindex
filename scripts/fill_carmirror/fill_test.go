@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -255,7 +256,7 @@ func TestFillDepthLimit(t *testing.T) {
 	require.Equal(t, stopDepth, st.StopReason)
 }
 
-func TestFillWritesAdOnlyForNoEntries(t *testing.T) {
+func TestFillSkipsNoEntries(t *testing.T) {
 	ctx := context.Background()
 	main := localStore(t)
 	ext := localStore(t)
@@ -271,16 +272,69 @@ func TestFillWritesAdOnlyForNoEntries(t *testing.T) {
 		StartAd: withEnts.cid,
 	})
 	require.NoError(t, err)
-	require.Equal(t, 2, st.CopiedExternal)
+	require.Equal(t, 1, st.CopiedExternal)
 	require.Equal(t, 1, st.SkippedNoEnts)
 	require.Equal(t, 2, st.Scanned)
 	require.Equal(t, stopGenesis, st.StopReason)
+	require.True(t, carExists(t, main, withEnts.cid))
+	require.False(t, carExists(t, main, empty.cid))
+}
 
-	reader, err := carstore.NewReader(mustStore(t, main), carstore.WithCompress(main.Compress))
+func TestFillSkipsIsRmWithoutWritingOrDeleting(t *testing.T) {
+	ctx := context.Background()
+	main := localStore(t)
+	ds := datastore.NewMapDatastore()
+	ctxID := []byte("removed-context")
+
+	content := storeAdWith(t, ds, 2, nil, false, ctxID)
+	rm := storeAdWith(t, ds, 0, cidlink.Link{Cid: content.cid}, true, ctxID)
+	writeCAR(t, cloneDS(t, ds), main, content.cid)
+	writeCAR(t, cloneDS(t, ds), main, rm.cid)
+	require.True(t, carExists(t, main, content.cid))
+	require.True(t, carExists(t, main, rm.cid))
+
+	st, err := Fill(ctx, Options{
+		Mirror:  rwMirror(main),
+		StartAd: rm.cid,
+	})
 	require.NoError(t, err)
-	block, err := reader.Read(ctx, empty.cid, true)
+	require.Equal(t, 2, st.Scanned)
+	require.Equal(t, 1, st.SkippedRm)
+	require.Equal(t, 1, st.AlreadyPresent)
+	require.Equal(t, stopGenesis, st.StopReason)
+	require.True(t, carExists(t, main, rm.cid))
+	require.True(t, carExists(t, main, content.cid))
+}
+
+func TestFillSkipsIsRmFromPublisher(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pubDS := dssync.MutexWrap(datastore.NewMapDatastore())
+	content := storeAdWith(t, pubDS, 2, nil, false, []byte("keep-ctx"))
+	rm := storeAdWith(t, pubDS, 0, cidlink.Link{Cid: content.cid}, true, []byte("other-ctx"))
+
+	priv, _, err := crypto.GenerateEd25519Key(rand.Reader)
 	require.NoError(t, err)
-	require.NoError(t, block.Close())
+	pub, err := ipnisync.NewPublisher(mkLinkSystem(pubDS), priv, ipnisync.WithHTTPListenAddrs("127.0.0.1:0"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pub.Close() })
+	pub.SetRoot(rm.cid)
+
+	main := localStore(t)
+	st, err := Fill(ctx, Options{
+		Mirror:      rwMirror(main),
+		StartAd:     rm.cid,
+		Publisher:   peer.AddrInfo{ID: pub.ID(), Addrs: pub.Addrs()},
+		HttpTimeout: 10 * time.Second,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, st.Scanned)
+	require.Equal(t, 1, st.SkippedRm)
+	require.Equal(t, 1, st.Downloaded)
+	require.Equal(t, stopGenesis, st.StopReason)
+	require.False(t, carExists(t, main, rm.cid))
+	require.True(t, carExists(t, main, content.cid))
 }
 
 func TestFillDownloadsFromProvider(t *testing.T) {
@@ -410,6 +464,21 @@ func writeJunkCAR(t *testing.T, storeCfg config.StoreConfig, adCid cid.Cid) {
 	require.NoError(t, err)
 }
 
+func carExists(t *testing.T, storeCfg config.StoreConfig, adCid cid.Cid) bool {
+	t.Helper()
+	store := mustStore(t, storeCfg)
+	path := adCid.String() + carstore.CarFileSuffix
+	if storeCfg.Compress == carstore.Gzip {
+		path += carstore.GzipFileSuffix
+	}
+	_, err := store.Head(context.Background(), path)
+	if err != nil {
+		require.ErrorIs(t, err, fs.ErrNotExist)
+		return false
+	}
+	return true
+}
+
 func storeAdChain(t *testing.T, ds datastore.Datastore, chunksPerAd int) (latest, prev testAd) {
 	t.Helper()
 	a1 := storeAd(t, ds, chunksPerAd, nil)
@@ -427,16 +496,22 @@ func storeAdChain3(t *testing.T, ds datastore.Datastore) (ad3, ad2, ad1 testAd) 
 
 func storeAd(t *testing.T, ds datastore.Datastore, chunkCount int, prev ipld.Link) testAd {
 	t.Helper()
+	return storeAdWith(t, ds, chunkCount, prev, false, []byte("test-context-id"))
+}
+
+func storeAdWith(t *testing.T, ds datastore.Datastore, chunkCount int, prev ipld.Link, isRm bool, ctxID []byte) testAd {
+	t.Helper()
 	lsys := mkLinkSystem(ds)
 	p, priv, _ := random.Identity()
 	adv := &schema.Advertisement{
 		Provider:   p.String(),
 		Addresses:  []string{"/ip4/127.0.0.1/tcp/9999"},
-		ContextID:  []byte("test-context-id"),
+		ContextID:  ctxID,
 		Metadata:   []byte("test-metadata"),
 		PreviousID: prev,
+		IsRm:       isRm,
 	}
-	if chunkCount == 0 {
+	if isRm || chunkCount == 0 {
 		adv.Entries = schema.NoEntries
 	} else {
 		adv.Entries, _ = newEntryList(t, lsys, chunkCount)

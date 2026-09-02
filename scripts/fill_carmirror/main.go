@@ -28,6 +28,8 @@ func main() {
 External mirrors are tried before downloading from the publisher.
 A CAR already on main that fails validation is overwritten from external
 or the publisher instead of stopping the walk.
+IsRm and no-entries advertisements are not stored. An IsRm advertisement
+is logged (including whether a CAR already exists on main) and not written.
 Does not open the indexer value store.`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -130,8 +132,8 @@ func run(cctx *cli.Context) error {
 		opts.Progress = func(s Stats) {
 			select {
 			case <-ticker.C:
-				fmt.Printf("progress  scanned=%d present=%d external=%d downloaded=%d recreated=%d hamt=%d chunks=%d mhs=%d down_bytes=%d written=%d last=%s\n",
-					s.Scanned, s.AlreadyPresent, s.CopiedExternal, s.Downloaded, s.Recreated, s.SkippedHAMT,
+				fmt.Printf("progress  scanned=%d present=%d external=%d downloaded=%d recreated=%d rm=%d hamt=%d chunks=%d mhs=%d down_bytes=%d written=%d last=%s\n",
+					s.Scanned, s.AlreadyPresent, s.CopiedExternal, s.Downloaded, s.Recreated, s.SkippedRm, s.SkippedHAMT,
 					s.EntryChunks, s.Multihashes, s.BytesDownloaded, s.BytesWritten, s.LastAd)
 			default:
 			}

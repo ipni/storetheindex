@@ -86,6 +86,7 @@ type Stats struct {
 	Recreated       int
 	SkippedHAMT     int
 	SkippedNoEnts   int
+	SkippedRm       int
 	EntryChunks     int
 	Multihashes     int
 	BytesDownloaded int64
@@ -103,6 +104,7 @@ func (s Stats) print() {
 	fmt.Printf("  recreated:         %d\n", s.Recreated)
 	fmt.Printf("  skipped HAMT:      %d\n", s.SkippedHAMT)
 	fmt.Printf("  skipped no ents:   %d\n", s.SkippedNoEnts)
+	fmt.Printf("  skipped IsRm:      %d\n", s.SkippedRm)
 	fmt.Printf("  entry chunks:      %d\n", s.EntryChunks)
 	fmt.Printf("  multihashes:       %d\n", s.Multihashes)
 	fmt.Printf("  bytes downloaded:  %d\n", s.BytesDownloaded)
@@ -138,8 +140,9 @@ type filler struct {
 }
 
 // Fill walks a provider's advertisement chain and writes missing or invalid
-// CAR files to the main advertisement mirror. It never opens the indexer
-// value store.
+// CAR files to the main advertisement mirror. Removal (IsRm) and no-entries
+// ads are not stored. An IsRm ad is reported (whether a CAR already exists on
+// main) and otherwise left untouched. It never opens the indexer value store.
 func Fill(ctx context.Context, opts Options) (*Stats, error) {
 	f, err := newFiller(opts)
 	if err != nil {
@@ -253,8 +256,35 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 	n := st.Scanned + 1
 	fmt.Printf("[%d] %s  checking main\n", n, adCid)
 	data, src, mainBroken, err := f.loadExisting(ctx, n, adCid)
-	switch {
-	case err == nil && src == sourceMain:
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return cid.Undef, err
+	}
+
+	var ad schema.Advertisement
+	if err == nil {
+		ad = data.ad
+		fmt.Printf("[%d] %s  loaded from %s  %s\n", n, adCid, src, formatCarData(data))
+	} else {
+		if mainBroken {
+			fmt.Printf("[%d] %s  main CAR unusable, fetching from publisher %s\n", n, adCid, f.opts.Publisher.ID)
+		} else {
+			fmt.Printf("[%d] %s  not in mirrors, fetching from publisher %s\n", n, adCid, f.opts.Publisher.ID)
+		}
+		ad, err = f.fetchFromProvider(ctx, adCid)
+		if err != nil {
+			return cid.Undef, fmt.Errorf("cannot fetch %s from provider: %w", adCid, err)
+		}
+		src = sourceProvider
+		st.BytesDownloaded = f.downloaded.Load()
+		fmt.Printf("[%d] %s  fetched ad  %s\n", n, adCid, formatAd(ad))
+	}
+
+	if skipUnstored(n, adCid, ad, src, mainBroken, st) {
+		return ad.PreviousCid(), nil
+	}
+
+	switch src {
+	case sourceMain:
 		st.AlreadyPresent++
 		st.EntryChunks += data.chunks
 		st.Multihashes += data.mhs
@@ -262,10 +292,10 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 			st.SkippedHAMT++
 		}
 		fmt.Printf("[%d] %s  present on main  %s\n", n, adCid, formatCarData(data))
-		return data.ad.PreviousCid(), nil
+		return ad.PreviousCid(), nil
 
-	case err == nil && src == sourceExternal:
-		skipEnts := data.hamt || !hasEntries(data.ad)
+	case sourceExternal:
+		skipEnts := data.hamt || !hasEntries(ad)
 		if skipEnts {
 			data.entries = nil
 		}
@@ -280,8 +310,6 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		}
 		if data.hamt {
 			st.SkippedHAMT++
-		} else if !hasEntries(data.ad) {
-			st.SkippedNoEnts++
 		} else {
 			st.EntryChunks += data.chunks
 			st.Multihashes += data.mhs
@@ -291,33 +319,6 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 			action = "recreated from external"
 		}
 		fmt.Printf("[%d] %s  %s  %s  written=%d\n", n, adCid, action, formatCarData(data), written)
-		return data.ad.PreviousCid(), nil
-
-	case err != nil && !errors.Is(err, fs.ErrNotExist):
-		return cid.Undef, err
-	}
-
-	if mainBroken {
-		fmt.Printf("[%d] %s  main CAR unusable, fetching from publisher %s\n", n, adCid, f.opts.Publisher.ID)
-	} else {
-		fmt.Printf("[%d] %s  not in mirrors, fetching from publisher %s\n", n, adCid, f.opts.Publisher.ID)
-	}
-	ad, err := f.fetchFromProvider(ctx, adCid)
-	if err != nil {
-		return cid.Undef, fmt.Errorf("cannot fetch %s from provider: %w", adCid, err)
-	}
-	fmt.Printf("[%d] %s  fetched ad  %s\n", n, adCid, formatAd(ad))
-
-	if !hasEntries(ad) {
-		written, err := f.writeAdOnly(ctx, adCid)
-		if err != nil {
-			return cid.Undef, fmt.Errorf("cannot write ad-only CAR for %s: %w", adCid, err)
-		}
-		st.SkippedNoEnts++
-		noteWrittenFromPublisher(st, mainBroken)
-		st.BytesWritten += written
-		st.BytesDownloaded = f.downloaded.Load()
-		fmt.Printf("[%d] %s  %s (no entries)  written=%d down_bytes=%d\n", n, adCid, publisherAction(mainBroken), written, st.BytesDownloaded)
 		return ad.PreviousCid(), nil
 	}
 
@@ -366,6 +367,21 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 	}
 	fmt.Printf("[%d] %s  %s  %s  chunks=%d mhs=%d written=%d down_bytes=%d\n", n, adCid, publisherAction(mainBroken), formatAd(ad), chunks, mhs, written, st.BytesDownloaded)
 	return ad.PreviousCid(), nil
+}
+
+func skipUnstored(n int, adCid cid.Cid, ad schema.Advertisement, src source, mainBroken bool, st *Stats) bool {
+	if ad.IsRm {
+		onMain := src == sourceMain || mainBroken
+		st.SkippedRm++
+		fmt.Printf("[%d] %s  skip IsRm  car_on_main=%t  %s\n", n, adCid, onMain, formatAd(ad))
+		return true
+	}
+	if !hasEntries(ad) {
+		st.SkippedNoEnts++
+		fmt.Printf("[%d] %s  skip no-entries  %s\n", n, adCid, formatAd(ad))
+		return true
+	}
+	return false
 }
 
 func noteWrittenFromPublisher(st *Stats, mainBroken bool) {
