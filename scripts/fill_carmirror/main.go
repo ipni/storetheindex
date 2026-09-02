@@ -23,9 +23,11 @@ func main() {
 
 	app := &cli.App{
 		Name:  "fill_carmirror",
-		Usage: "Fill missing advertisement CAR files for one provider",
+		Usage: "Fill missing or invalid advertisement CAR files for one provider",
 		Description: `Uses the daemon AdvertisementMirror config. MainMode must be readwrite.
 External mirrors are tried before downloading from the publisher.
+A CAR already on main that fails validation is overwritten from external
+or the publisher instead of stopping the walk.
 Does not open the indexer value store.`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -128,8 +130,8 @@ func run(cctx *cli.Context) error {
 		opts.Progress = func(s Stats) {
 			select {
 			case <-ticker.C:
-				fmt.Printf("progress  scanned=%d present=%d external=%d downloaded=%d hamt=%d chunks=%d mhs=%d down_bytes=%d written=%d last=%s\n",
-					s.Scanned, s.AlreadyPresent, s.CopiedExternal, s.Downloaded, s.SkippedHAMT,
+				fmt.Printf("progress  scanned=%d present=%d external=%d downloaded=%d recreated=%d hamt=%d chunks=%d mhs=%d down_bytes=%d written=%d last=%s\n",
+					s.Scanned, s.AlreadyPresent, s.CopiedExternal, s.Downloaded, s.Recreated, s.SkippedHAMT,
 					s.EntryChunks, s.Multihashes, s.BytesDownloaded, s.BytesWritten, s.LastAd)
 			default:
 			}

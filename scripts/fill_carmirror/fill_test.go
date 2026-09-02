@@ -164,25 +164,75 @@ func TestFillCopiesFromExternal(t *testing.T) {
 	}
 }
 
-func TestFillStopsOnInvalidMainCAR(t *testing.T) {
+func TestFillRecreatesInvalidMainCARFromExternal(t *testing.T) {
 	ctx := context.Background()
 	main := localStore(t)
+	ext := localStore(t)
 	ds := datastore.NewMapDatastore()
 	ad2, ad1 := storeAdChain(t, ds, 2)
 	writeCAR(t, cloneDS(t, ds), main, ad1.cid)
-
-	fs, err := filestore.MakeFilestore(main.Config)
-	require.NoError(t, err)
-	_, err = fs.Put(ctx, ad2.cid.String()+carstore.CarFileSuffix+carstore.GzipFileSuffix, bytes.NewReader([]byte("not-a-car")))
-	require.NoError(t, err)
+	writeJunkCAR(t, main, ad2.cid)
+	writeCAR(t, cloneDS(t, ds), ext, ad2.cid)
+	writeCAR(t, cloneDS(t, ds), ext, ad1.cid)
 
 	st, err := Fill(ctx, Options{
-		Mirror:  rwMirror(main),
+		Mirror:  rwMirror(main, ext),
 		StartAd: ad2.cid,
 	})
-	require.Error(t, err)
-	require.Equal(t, stopInvalidCar, st.StopReason)
-	require.Equal(t, 1, st.Scanned)
+	require.NoError(t, err)
+	require.Equal(t, 2, st.Scanned)
+	require.Equal(t, 1, st.AlreadyPresent)
+	require.Equal(t, 1, st.CopiedExternal)
+	require.Equal(t, 1, st.Recreated)
+	require.Zero(t, st.Downloaded)
+	require.Equal(t, stopGenesis, st.StopReason)
+
+	reader, err := carstore.NewReader(mustStore(t, main), carstore.WithCompress(main.Compress))
+	require.NoError(t, err)
+	block, err := reader.Read(ctx, ad2.cid, false)
+	require.NoError(t, err)
+	_, err = inspectCar(ad2.cid, block)
+	require.NoError(t, err)
+}
+
+func TestFillRecreatesInvalidMainCARFromPublisher(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pubDS := dssync.MutexWrap(datastore.NewMapDatastore())
+	ad2, ad1 := storeAdChain(t, pubDS, 2)
+
+	priv, _, err := crypto.GenerateEd25519Key(rand.Reader)
+	require.NoError(t, err)
+	pub, err := ipnisync.NewPublisher(mkLinkSystem(pubDS), priv, ipnisync.WithHTTPListenAddrs("127.0.0.1:0"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pub.Close() })
+	pub.SetRoot(ad2.cid)
+
+	main := localStore(t)
+	writeCAR(t, cloneDS(t, pubDS), main, ad1.cid)
+	writeJunkCAR(t, main, ad2.cid)
+
+	st, err := Fill(ctx, Options{
+		Mirror:      rwMirror(main),
+		StartAd:     ad2.cid,
+		Publisher:   peer.AddrInfo{ID: pub.ID(), Addrs: pub.Addrs()},
+		HttpTimeout: 10 * time.Second,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, st.Scanned)
+	require.Equal(t, 1, st.AlreadyPresent)
+	require.Equal(t, 1, st.Downloaded)
+	require.Equal(t, 1, st.Recreated)
+	require.Equal(t, stopGenesis, st.StopReason)
+
+	reader, err := carstore.NewReader(mustStore(t, main), carstore.WithCompress(main.Compress))
+	require.NoError(t, err)
+	block, err := reader.Read(ctx, ad2.cid, false)
+	require.NoError(t, err)
+	data, err := inspectCar(ad2.cid, block)
+	require.NoError(t, err)
+	require.NotZero(t, data.chunks)
 }
 
 func TestFillDepthLimit(t *testing.T) {
@@ -346,6 +396,17 @@ func writeCAR(t *testing.T, ds datastore.Batching, storeCfg config.StoreConfig, 
 	w, err := carstore.NewWriter(ds, fs, carstore.WithCompress(storeCfg.Compress))
 	require.NoError(t, err)
 	_, err = w.Write(context.Background(), adCid, false, false)
+	require.NoError(t, err)
+}
+
+func writeJunkCAR(t *testing.T, storeCfg config.StoreConfig, adCid cid.Cid) {
+	t.Helper()
+	fs := mustStore(t, storeCfg)
+	path := adCid.String() + carstore.CarFileSuffix
+	if storeCfg.Compress == carstore.Gzip {
+		path += carstore.GzipFileSuffix
+	}
+	_, err := fs.Put(context.Background(), path, bytes.NewReader([]byte("not-a-car")))
 	require.NoError(t, err)
 }
 

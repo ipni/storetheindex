@@ -31,11 +31,10 @@ import (
 )
 
 const (
-	stopGenesis    = "genesis"
-	stopDepth      = "depth"
-	stopInvalidCar = "invalid_car"
-	stopCanceled   = "canceled"
-	stopError      = "error"
+	stopGenesis  = "genesis"
+	stopDepth    = "depth"
+	stopCanceled = "canceled"
+	stopError    = "error"
 )
 
 type source int
@@ -84,6 +83,7 @@ type Stats struct {
 	AlreadyPresent  int
 	CopiedExternal  int
 	Downloaded      int
+	Recreated       int
 	SkippedHAMT     int
 	SkippedNoEnts   int
 	EntryChunks     int
@@ -100,6 +100,7 @@ func (s Stats) print() {
 	fmt.Printf("  already present:   %d\n", s.AlreadyPresent)
 	fmt.Printf("  copied (external): %d\n", s.CopiedExternal)
 	fmt.Printf("  downloaded:        %d\n", s.Downloaded)
+	fmt.Printf("  recreated:         %d\n", s.Recreated)
 	fmt.Printf("  skipped HAMT:      %d\n", s.SkippedHAMT)
 	fmt.Printf("  skipped no ents:   %d\n", s.SkippedNoEnts)
 	fmt.Printf("  entry chunks:      %d\n", s.EntryChunks)
@@ -136,8 +137,9 @@ type filler struct {
 	sub  *dagsync.Subscriber
 }
 
-// Fill walks a provider's advertisement chain and writes missing CAR files to
-// the main advertisement mirror. It never opens the indexer value store.
+// Fill walks a provider's advertisement chain and writes missing or invalid
+// CAR files to the main advertisement mirror. It never opens the indexer
+// value store.
 func Fill(ctx context.Context, opts Options) (*Stats, error) {
 	f, err := newFiller(opts)
 	if err != nil {
@@ -248,7 +250,9 @@ func (f *filler) run(ctx context.Context) (*Stats, error) {
 }
 
 func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.Cid, error) {
-	data, src, err := f.loadExisting(ctx, adCid)
+	n := st.Scanned + 1
+	fmt.Printf("[%d] %s  checking main\n", n, adCid)
+	data, src, mainBroken, err := f.loadExisting(ctx, n, adCid)
 	switch {
 	case err == nil && src == sourceMain:
 		st.AlreadyPresent++
@@ -256,13 +260,9 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		st.Multihashes += data.mhs
 		if data.hamt {
 			st.SkippedHAMT++
-			fmt.Printf("%s  present (HAMT entries skipped)\n", adCid)
 		}
+		fmt.Printf("[%d] %s  present on main  %s\n", n, adCid, formatCarData(data))
 		return data.ad.PreviousCid(), nil
-
-	case err != nil && src == sourceMain:
-		st.StopReason = stopInvalidCar
-		return cid.Undef, fmt.Errorf("invalid CAR already on main for %s: %w", adCid, err)
 
 	case err == nil && src == sourceExternal:
 		skipEnts := data.hamt || !hasEntries(data.ad)
@@ -275,27 +275,38 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		}
 		st.CopiedExternal++
 		st.BytesWritten += written
+		if mainBroken {
+			st.Recreated++
+		}
 		if data.hamt {
 			st.SkippedHAMT++
-			fmt.Printf("%s  copied from external (ad only, HAMT skipped)  bytes=%d\n", adCid, written)
 		} else if !hasEntries(data.ad) {
 			st.SkippedNoEnts++
-			fmt.Printf("%s  copied from external (no entries)  bytes=%d\n", adCid, written)
 		} else {
 			st.EntryChunks += data.chunks
 			st.Multihashes += data.mhs
-			fmt.Printf("%s  copied from external  chunks=%d mhs=%d bytes=%d\n", adCid, data.chunks, data.mhs, written)
 		}
+		action := "copied from external"
+		if mainBroken {
+			action = "recreated from external"
+		}
+		fmt.Printf("[%d] %s  %s  %s  written=%d\n", n, adCid, action, formatCarData(data), written)
 		return data.ad.PreviousCid(), nil
 
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
 		return cid.Undef, err
 	}
 
+	if mainBroken {
+		fmt.Printf("[%d] %s  main CAR unusable, fetching from publisher %s\n", n, adCid, f.opts.Publisher.ID)
+	} else {
+		fmt.Printf("[%d] %s  not in mirrors, fetching from publisher %s\n", n, adCid, f.opts.Publisher.ID)
+	}
 	ad, err := f.fetchFromProvider(ctx, adCid)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("cannot fetch %s from provider: %w", adCid, err)
 	}
+	fmt.Printf("[%d] %s  fetched ad  %s\n", n, adCid, formatAd(ad))
 
 	if !hasEntries(ad) {
 		written, err := f.writeAdOnly(ctx, adCid)
@@ -303,14 +314,15 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 			return cid.Undef, fmt.Errorf("cannot write ad-only CAR for %s: %w", adCid, err)
 		}
 		st.SkippedNoEnts++
-		st.Downloaded++
+		noteWrittenFromPublisher(st, mainBroken)
 		st.BytesWritten += written
 		st.BytesDownloaded = f.downloaded.Load()
-		fmt.Printf("%s  downloaded (no entries)  bytes=%d\n", adCid, written)
+		fmt.Printf("[%d] %s  %s (no entries)  written=%d down_bytes=%d\n", n, adCid, publisherAction(mainBroken), written, st.BytesDownloaded)
 		return ad.PreviousCid(), nil
 	}
 
 	entsCid := ad.Entries.(cidlink.Link).Cid
+	fmt.Printf("[%d] %s  syncing first entries block %s\n", n, adCid, entsCid)
 	if err = f.syncOneEntry(ctx, entsCid); err != nil {
 		return cid.Undef, fmt.Errorf("cannot sync first entries block for %s: %w", adCid, err)
 	}
@@ -319,19 +331,21 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		return cid.Undef, err
 	}
 	if hamt {
+		fmt.Printf("[%d] %s  entries are HAMT, writing ad only\n", n, adCid)
 		_ = f.ds.Delete(ctx, datastore.NewKey(entsCid.String()))
 		written, err := f.writeAdOnly(ctx, adCid)
 		if err != nil {
 			return cid.Undef, fmt.Errorf("cannot write ad-only CAR for HAMT ad %s: %w", adCid, err)
 		}
 		st.SkippedHAMT++
-		st.Downloaded++
+		noteWrittenFromPublisher(st, mainBroken)
 		st.BytesWritten += written
 		st.BytesDownloaded = f.downloaded.Load()
-		fmt.Printf("%s  downloaded (ad only, HAMT skipped)  bytes=%d\n", adCid, written)
+		fmt.Printf("[%d] %s  %s (HAMT skipped)  written=%d down_bytes=%d\n", n, adCid, publisherAction(mainBroken), written, st.BytesDownloaded)
 		return ad.PreviousCid(), nil
 	}
 
+	fmt.Printf("[%d] %s  syncing remaining entry chunks from %s\n", n, adCid, entsCid)
 	chunks, mhs, err := f.syncRemainingEntries(ctx, entsCid)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("cannot sync entries for %s: %w", adCid, err)
@@ -341,7 +355,7 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 	if err != nil {
 		return cid.Undef, fmt.Errorf("cannot write CAR for %s: %w", adCid, err)
 	}
-	st.Downloaded++
+	noteWrittenFromPublisher(st, mainBroken)
 	st.EntryChunks += chunks
 	st.Multihashes += mhs
 	st.BytesDownloaded = f.downloaded.Load()
@@ -350,41 +364,78 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		written = info.Size
 		st.BytesWritten += written
 	}
-	fmt.Printf("%s  downloaded  chunks=%d mhs=%d bytes=%d\n", adCid, chunks, mhs, written)
+	fmt.Printf("[%d] %s  %s  %s  chunks=%d mhs=%d written=%d down_bytes=%d\n", n, adCid, publisherAction(mainBroken), formatAd(ad), chunks, mhs, written, st.BytesDownloaded)
 	return ad.PreviousCid(), nil
 }
 
-func (f *filler) loadExisting(ctx context.Context, adCid cid.Cid) (*carData, source, error) {
-	block, err := f.mainReader.Read(ctx, adCid, false)
-	if err == nil {
-		data, vErr := inspectCar(adCid, block)
-		if vErr != nil {
-			return nil, sourceMain, vErr
-		}
-		return data, sourceMain, nil
+func noteWrittenFromPublisher(st *Stats, mainBroken bool) {
+	st.Downloaded++
+	if mainBroken {
+		st.Recreated++
 	}
-	if !errors.Is(err, fs.ErrNotExist) {
-		return nil, sourceMain, err
+}
+
+func publisherAction(mainBroken bool) string {
+	if mainBroken {
+		return "recreated from publisher"
+	}
+	return "downloaded"
+}
+
+func (f *filler) loadExisting(ctx context.Context, n int, adCid cid.Cid) (*carData, source, bool, error) {
+	mainBroken := false
+	block, err := f.mainReader.Read(ctx, adCid, false)
+	switch {
+	case err == nil:
+		data, vErr := inspectCar(adCid, block)
+		if vErr == nil {
+			return data, sourceMain, false, nil
+		}
+		if isCanceled(vErr) {
+			return nil, sourceNone, false, vErr
+		}
+		fmt.Printf("[%d] %s  main CAR invalid, will recreate: %s\n", n, adCid, vErr)
+		mainBroken = true
+	case isCanceled(err):
+		return nil, sourceNone, false, err
+	case errors.Is(err, fs.ErrNotExist):
+		fmt.Printf("[%d] %s  main miss\n", n, adCid)
+	default:
+		fmt.Printf("[%d] %s  main read error, will recreate: %s\n", n, adCid, err)
+		mainBroken = true
 	}
 
 	for i, reader := range f.externals {
+		fmt.Printf("[%d] %s  checking external[%d] %s\n", n, adCid, i, reader.Location())
 		block, err = reader.Read(ctx, adCid, false)
 		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, context.Canceled) {
+			if isCanceled(err) {
+				return nil, sourceNone, mainBroken, err
+			}
+			if errors.Is(err, fs.ErrNotExist) {
+				fmt.Printf("[%d] %s  external[%d] miss\n", n, adCid, i)
 				continue
 			}
-			fmt.Printf("external[%d] read error for %s: %s\n", i, adCid, err)
+			fmt.Printf("[%d] %s  external[%d] read error: %s\n", n, adCid, i, err)
 			continue
 		}
 		data, vErr := inspectCar(adCid, block)
 		if vErr != nil {
-			fmt.Printf("external[%d] invalid CAR for %s: %s\n", i, adCid, vErr)
+			if isCanceled(vErr) {
+				return nil, sourceNone, mainBroken, vErr
+			}
+			fmt.Printf("[%d] %s  external[%d] invalid CAR: %s\n", n, adCid, i, vErr)
 			continue
 		}
-		return data, sourceExternal, nil
+		fmt.Printf("[%d] %s  external[%d] hit\n", n, adCid, i)
+		return data, sourceExternal, mainBroken, nil
 	}
 
-	return nil, sourceNone, fs.ErrNotExist
+	return nil, sourceNone, mainBroken, fs.ErrNotExist
+}
+
+func isCanceled(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func inspectCar(adCid cid.Cid, block *carstore.AdBlock) (*carData, error) {
@@ -634,6 +685,32 @@ func hasEntries(ad schema.Advertisement) bool {
 		return false
 	}
 	return c.Cid != cid.Undef
+}
+
+func formatAd(ad schema.Advertisement) string {
+	prev := "nil"
+	if p := ad.PreviousCid(); p != cid.Undef {
+		prev = p.String()
+	}
+	ents := "none"
+	if hasEntries(ad) {
+		ents = ad.Entries.(cidlink.Link).Cid.String()
+	}
+	rm := ""
+	if ad.IsRm {
+		rm = " rm=true"
+	}
+	return fmt.Sprintf("prev=%s entries=%s provider=%s%s", prev, ents, ad.Provider, rm)
+}
+
+func formatCarData(data *carData) string {
+	kind := "entries"
+	if data.hamt {
+		kind = "HAMT"
+	} else if !hasEntries(data.ad) {
+		kind = "no-entries"
+	}
+	return fmt.Sprintf("%s  %s  chunks=%d mhs=%d car_bytes=%d", formatAd(data.ad), kind, data.chunks, data.mhs, data.size)
 }
 
 func verifyCID(c cid.Cid, data []byte) error {
