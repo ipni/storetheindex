@@ -230,6 +230,33 @@ resource "aws_cloudfront_distribution" "cdn" {
     max_ttl                = 86400
   }
 
+  # Appended so existing ordered_cache_behavior indexes stay put.
+  # Origin is sf for now (writes happen there); switch target_origin_id
+  # when that changes. TTL matches default_cache_behavior: publisher .head
+  # files are overwritten as the chain advances, so this cannot be year-long.
+  # 404s still use the distribution custom_error_response (20m).
+  ordered_cache_behavior {
+    path_pattern     = "carmirror"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = local.direct_sf_cid_contact_origin_id
+    cache_policy_id  = aws_cloudfront_cache_policy.carmirror.id
+
+    compress               = false
+    viewer_protocol_policy = "redirect-to-https"
+  }
+
+  ordered_cache_behavior {
+    path_pattern     = "carmirror/*"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = local.direct_sf_cid_contact_origin_id
+    cache_policy_id  = aws_cloudfront_cache_policy.carmirror.id
+
+    compress               = false
+    viewer_protocol_policy = "redirect-to-https"
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
@@ -279,6 +306,33 @@ resource "aws_cloudfront_cache_policy" "providers" {
 
     enable_accept_encoding_brotli = true
     enable_accept_encoding_gzip   = true
+  }
+}
+
+resource "aws_cloudfront_cache_policy" "carmirror" {
+  name        = "carmirror"
+  min_ttl     = 1200
+  default_ttl = 7200
+  max_ttl     = 86400
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "none"
+    }
+    query_strings_config {
+      # filestore HTTP list API (see filestore/http.go). Object GETs have none.
+      query_string_behavior = "whitelist"
+      query_strings {
+        items = ["list", "path", "recursive"]
+      }
+    }
+
+    # Objects are already gzip CARs; do not vary the cache on Accept-Encoding.
+    enable_accept_encoding_brotli = false
+    enable_accept_encoding_gzip   = false
   }
 }
 
