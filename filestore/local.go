@@ -206,8 +206,8 @@ func (l *Local) List(ctx context.Context, relPath string, recursive bool) (<-cha
 				return nil
 			}
 
-			// Skip metadata files
-			if d.Name() == ConfigMetadataFileName {
+			// Skip metadata files and in-progress atomic Put temp files.
+			if d.Name() == ConfigMetadataFileName || isPutTempName(d.Name()) {
 				return nil
 			}
 
@@ -269,44 +269,58 @@ func (l *Local) List(ctx context.Context, relPath string, recursive bool) (<-cha
 
 func (l *Local) Put(ctx context.Context, relPath string, r io.Reader) (*File, error) {
 	absPath := l.fsPath(l.basePath, relPath)
-
-	if dir := filepath.Dir(absPath); dir != "" {
-		err := os.MkdirAll(dir, 0755)
-		if err != nil {
-			return nil, err
-		}
+	dir := filepath.Dir(absPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
 	}
 
-	f, err := os.Create(absPath)
+	// Write a sibling temp file and rename over absPath so readers never see a
+	// truncated destination. CreateTemp in dir keeps the rename on the same
+	// filesystem (required for atomic replace).
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(absPath)+".tmp-*")
 	if err != nil {
 		return nil, err
 	}
+	tmpName := tmp.Name()
+	defer func() {
+		if tmpName != "" {
+			_ = os.Remove(tmpName)
+		}
+	}()
 
 	if r != nil {
-		if _, err = io.Copy(f, r); err != nil {
-			f.Close()
-			os.Remove(absPath)
+		if _, err = io.Copy(tmp, r); err != nil {
+			_ = tmp.Close()
 			return nil, err
 		}
 	}
-
-	fi, err := f.Stat()
+	if err = tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return nil, err
+	}
+	fi, err := tmp.Stat()
 	if err != nil {
-		f.Close()
-		os.Remove(absPath)
+		_ = tmp.Close()
+		return nil, err
+	}
+	if err = tmp.Close(); err != nil {
 		return nil, err
 	}
 
-	if err = f.Close(); err != nil {
-		os.Remove(absPath)
+	if err = os.Rename(tmpName, absPath); err != nil {
 		return nil, err
 	}
+	tmpName = ""
 
 	return &File{
 		Modified: fi.ModTime(),
 		Path:     relPath,
 		Size:     fi.Size(),
 	}, nil
+}
+
+func isPutTempName(name string) bool {
+	return strings.HasPrefix(name, ".") && strings.Contains(name, ".tmp-")
 }
 
 func (l *Local) Type() string {

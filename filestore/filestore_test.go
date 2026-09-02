@@ -1,7 +1,9 @@
 package filestore_test
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -9,7 +11,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"testing/iotest"
+	"time"
 
 	"github.com/ipni/storetheindex/filestore"
 	"github.com/stretchr/testify/require"
@@ -19,11 +24,12 @@ import (
 )
 
 const (
-	fileName  = "testfile.txt"
-	fileName1 = "testfile1.txt"
-	fileName2 = "testfile2.txt"
-	fileName3 = "abc/testfile3.txt"
-	subdir    = "abc"
+	fileName           = "testfile.txt"
+	fileName1          = "testfile1.txt"
+	fileName2          = "testfile2.txt"
+	fileName3          = "abc/testfile3.txt"
+	concurrentFileName = "concurrent.txt"
+	subdir             = "abc"
 
 	data  = "hello world"
 	data1 = "foo"
@@ -93,6 +99,10 @@ func TestS3(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "s3", fileStore.Type())
 
+	t.Run("test-S3-PutAtomic", func(t *testing.T) {
+		testPutDoesNotTruncateOnError(t, fileStore)
+	})
+
 	t.Run("test-S3-Put", func(t *testing.T) {
 		testPut(t, fileStore)
 	})
@@ -111,6 +121,10 @@ func TestS3(t *testing.T) {
 
 	t.Run("test-S3-Delete", func(t *testing.T) {
 		testDelete(t, fileStore)
+	})
+
+	t.Run("test-S3-Concurrent", func(t *testing.T) {
+		testConcurrent(t, fileStore)
 	})
 }
 
@@ -176,6 +190,10 @@ func TestHTTP(t *testing.T) {
 	fileStore, carDir := setupHTTPFilestore(t)
 	require.Equal(t, "http", fileStore.Type())
 
+	t.Run("test-HTTP-PutAtomic", func(t *testing.T) {
+		testPutDoesNotTruncateOnError(t, fileStore)
+	})
+
 	t.Run("test-HTTP-Put", func(t *testing.T) {
 		testPut(t, fileStore)
 	})
@@ -197,6 +215,10 @@ func TestHTTP(t *testing.T) {
 	t.Run("test-HTTP-Delete", func(t *testing.T) {
 		testDelete(t, fileStore)
 	})
+
+	t.Run("test-HTTP-Concurrent", func(t *testing.T) {
+		testConcurrent(t, fileStore)
+	})
 }
 
 func TestLocal(t *testing.T) {
@@ -205,6 +227,23 @@ func TestLocal(t *testing.T) {
 	fileStore, err := filestore.NewLocal(carDir)
 	require.NoError(t, err)
 	require.Equal(t, "local", fileStore.Type())
+
+	t.Run("test-Local-PutAtomic", func(t *testing.T) {
+		testPutDoesNotTruncateOnError(t, fileStore)
+
+		entries, err := os.ReadDir(carDir)
+		require.NoError(t, err)
+
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+
+		require.ElementsMatch(t, []string{
+			fileName,
+			filestore.ConfigMetadataFileName,
+		}, names)
+	})
 
 	t.Run("test-Local-Put", func(t *testing.T) {
 		testPut(t, fileStore)
@@ -227,6 +266,10 @@ func TestLocal(t *testing.T) {
 	t.Run("test-Local-Delete", func(t *testing.T) {
 		testDelete(t, fileStore)
 	})
+
+	t.Run("test-Local-Concurrent", func(t *testing.T) {
+		testConcurrent(t, fileStore)
+	})
 }
 
 func TestLocalWithPathSplit(t *testing.T) {
@@ -235,6 +278,10 @@ func TestLocalWithPathSplit(t *testing.T) {
 	fileStore, err := filestore.NewLocal(carDir, filestore.WithDefaultPathSplit(2, 1))
 	require.NoError(t, err)
 	require.Equal(t, "local", fileStore.Type())
+
+	t.Run("test-Local-PutAtomic", func(t *testing.T) {
+		testPutDoesNotTruncateOnError(t, fileStore)
+	})
 
 	t.Run("test-Local-Put", func(t *testing.T) {
 		testPut(t, fileStore)
@@ -270,6 +317,10 @@ func TestLocalWithPathSplit(t *testing.T) {
 
 	t.Run("test-Local-Delete", func(t *testing.T) {
 		testDelete(t, fileStore)
+	})
+
+	t.Run("test-Local-Concurrent", func(t *testing.T) {
+		testConcurrent(t, fileStore)
 	})
 }
 
@@ -389,6 +440,247 @@ func testPut(t *testing.T, fileStore filestore.Interface) {
 	require.NoError(t, err)
 	require.Equal(t, fileName, fileInfo.Path)
 	require.Equal(t, int64(len(data)), fileInfo.Size)
+}
+
+func testPutDoesNotTruncateOnError(t *testing.T, fileStore filestore.Interface) {
+	ctx := t.Context()
+	failing := func() io.Reader {
+		return io.MultiReader(
+			io.LimitReader(strings.NewReader(data), 3),
+			iotest.ErrReader(errors.New("injected read failure")),
+		)
+	}
+
+	_, err := fileStore.Put(ctx, fileName, failing())
+	require.Error(t, err)
+	_, _, err = fileStore.Get(ctx, fileName)
+	require.ErrorIs(t, err, fs.ErrNotExist)
+
+	_, err = fileStore.Put(ctx, fileName, strings.NewReader(data))
+	require.NoError(t, err)
+
+	_, err = fileStore.Put(ctx, fileName, failing())
+	require.Error(t, err)
+
+	fileInfo, rc, err := fileStore.Get(ctx, fileName)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rc.Close() })
+	got, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.Equal(t, data, string(got))
+	require.Equal(t, int64(len(data)), fileInfo.Size)
+}
+
+func testConcurrent(t *testing.T, store filestore.Interface) {
+	t.Run("Puts", func(t *testing.T) {
+		testConcurrentPuts(t, store)
+	})
+	t.Run("GetWhilePutInProgress", func(t *testing.T) {
+		testGetWhilePutInProgress(t, store)
+	})
+	t.Run("PutsWithReaders", func(t *testing.T) {
+		testConcurrentPutsWithReaders(t, store)
+	})
+}
+
+func testConcurrentPuts(t *testing.T, store filestore.Interface) {
+	ctx := t.Context()
+	const size = 32 << 10
+	const writers = 8
+
+	_, err := store.Put(ctx, concurrentFileName, bytes.NewReader(bytes.Repeat([]byte{0xff}, size)))
+	require.NoError(t, err)
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errs []error
+	addErr := func(err error) {
+		if err == nil {
+			return
+		}
+		mu.Lock()
+		errs = append(errs, err)
+		mu.Unlock()
+	}
+
+	for i := range writers {
+		b := byte(i + 1)
+		wg.Go(func() {
+			<-start
+			payload := bytes.Repeat([]byte{b}, size)
+			_, err := store.Put(ctx, concurrentFileName, bytes.NewReader(payload))
+			addErr(err)
+		})
+	}
+
+	close(start)
+	wg.Wait()
+	require.Empty(t, errs)
+
+	got := readAll(t, store, concurrentFileName)
+	require.Len(t, got, size)
+	require.True(t, bytes.Equal(got, bytes.Repeat([]byte{got[0]}, size)), "result is not a complete single payload")
+	require.GreaterOrEqual(t, got[0], byte(1))
+	require.LessOrEqual(t, got[0], byte(writers))
+}
+
+func testGetWhilePutInProgress(t *testing.T, store filestore.Interface) {
+	ctx := t.Context()
+	old := bytes.Repeat([]byte{'A'}, 4096)
+	next := bytes.Repeat([]byte{'B'}, 8192)
+
+	_, err := store.Put(ctx, concurrentFileName, bytes.NewReader(old))
+	require.NoError(t, err)
+
+	started := make(chan struct{})
+	goAhead := make(chan struct{})
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := store.Put(ctx, concurrentFileName, &stallOnFirstRead{
+			payload: next,
+			started: started,
+			goAhead: goAhead,
+		})
+		errCh <- err
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Put did not start copying")
+	}
+
+	for range 20 {
+		require.Equal(t, old, readAll(t, store, concurrentFileName))
+		info, err := store.Head(ctx, concurrentFileName)
+		require.NoError(t, err)
+		require.Equal(t, int64(len(old)), info.Size)
+	}
+
+	close(goAhead)
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Put did not finish")
+	}
+	require.Equal(t, next, readAll(t, store, concurrentFileName))
+}
+
+func testConcurrentPutsWithReaders(t *testing.T, store filestore.Interface) {
+	ctx := t.Context()
+	const size = 32 << 10
+	const writers = 8
+	const readers = 4
+
+	_, err := store.Put(ctx, concurrentFileName, bytes.NewReader(bytes.Repeat([]byte{0xff}, size)))
+	require.NoError(t, err)
+
+	start := make(chan struct{})
+	stopReads := make(chan struct{})
+	var writersWG, readersWG sync.WaitGroup
+	var mu sync.Mutex
+	var errs []error
+	addErr := func(err error) {
+		if err == nil {
+			return
+		}
+		mu.Lock()
+		errs = append(errs, err)
+		mu.Unlock()
+	}
+
+	for i := range writers {
+		b := byte(i + 1)
+		writersWG.Go(func() {
+			<-start
+			payload := bytes.Repeat([]byte{b}, size)
+			_, err := store.Put(ctx, concurrentFileName, bytes.NewReader(payload))
+			addErr(err)
+		})
+	}
+
+	validByte := func(b byte) bool {
+		return b == 0xff || (b >= 1 && b <= byte(writers))
+	}
+	for range readers {
+		readersWG.Go(func() {
+			<-start
+			for {
+				select {
+				case <-stopReads:
+					return
+				default:
+				}
+				got, err := tryReadAll(ctx, store, concurrentFileName)
+				if err != nil {
+					addErr(err)
+					return
+				}
+				if len(got) != size {
+					addErr(fmt.Errorf("read length %d, want %d", len(got), size))
+					return
+				}
+				if !bytes.Equal(got, bytes.Repeat([]byte{got[0]}, size)) {
+					addErr(fmt.Errorf("mixed or truncated payload, first=%d", got[0]))
+					return
+				}
+				if !validByte(got[0]) {
+					addErr(fmt.Errorf("unexpected payload byte %d", got[0]))
+					return
+				}
+			}
+		})
+	}
+
+	close(start)
+	writersWG.Wait()
+	close(stopReads)
+	readersWG.Wait()
+	require.Empty(t, errs)
+
+	got := readAll(t, store, concurrentFileName)
+	require.Len(t, got, size)
+	require.True(t, bytes.Equal(got, bytes.Repeat([]byte{got[0]}, size)))
+	require.True(t, validByte(got[0]))
+}
+
+func readAll(t *testing.T, store filestore.Interface, name string) []byte {
+	t.Helper()
+	got, err := tryReadAll(t.Context(), store, name)
+	require.NoError(t, err)
+	return got
+}
+
+func tryReadAll(ctx context.Context, store filestore.Interface, name string) ([]byte, error) {
+	_, rc, err := store.Get(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(rc)
+}
+
+type stallOnFirstRead struct {
+	payload []byte
+	off     int
+	once    sync.Once
+	started chan struct{}
+	goAhead <-chan struct{}
+}
+
+func (s *stallOnFirstRead) Read(p []byte) (int, error) {
+	if s.off == 0 {
+		s.once.Do(func() { close(s.started) })
+		<-s.goAhead
+	}
+	if s.off >= len(s.payload) {
+		return 0, io.EOF
+	}
+	n := copy(p, s.payload[s.off:])
+	s.off += n
+	return n, nil
 }
 
 func testHead(t *testing.T, fileStore filestore.Interface) {
