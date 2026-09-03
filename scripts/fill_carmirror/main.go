@@ -30,7 +30,8 @@ A CAR already on main that fails validation is overwritten from external
 or the publisher instead of stopping the walk.
 IsRm and no-entries advertisements are not stored. An IsRm advertisement
 is logged (including whether a CAR already exists on main) and not written.
-Does not open the indexer value store.`,
+Does not open the indexer value store.
+Logging uses go-log env vars (GOLOG_LOG_FMT, GOLOG_LOG_LEVEL, GOLOG_FILE, ...).`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:  "config",
@@ -59,7 +60,7 @@ Does not open the indexer value store.`,
 			},
 			&cli.DurationFlag{
 				Name:  "progress",
-				Usage: "How often to print running stats",
+				Usage: "How often to log running stats",
 				Value: 10 * time.Second,
 			},
 		},
@@ -73,6 +74,10 @@ Does not open the indexer value store.`,
 }
 
 func run(cctx *cli.Context) error {
+	if err := setupLogger(); err != nil {
+		return err
+	}
+
 	providerID, err := peer.Decode(cctx.String("provider"))
 	if err != nil {
 		return fmt.Errorf("bad --provider: %w", err)
@@ -132,38 +137,31 @@ func run(cctx *cli.Context) error {
 		opts.Progress = func(s Stats) {
 			select {
 			case <-ticker.C:
-				fmt.Printf("progress  scanned=%d present=%d external=%d downloaded=%d recreated=%d rm=%d hamt=%d chunks=%d mhs=%d down_bytes=%d written=%d last=%s\n",
-					s.Scanned, s.AlreadyPresent, s.CopiedExternal, s.Downloaded, s.Recreated, s.SkippedRm, s.SkippedHAMT,
-					s.EntryChunks, s.Multihashes, s.BytesDownloaded, s.BytesWritten, s.LastAd)
+				logStats(log, s).Info("progress")
 			default:
 			}
 		}
 	}
 
-	fmt.Printf("Filling car mirror for provider %s\n", providerID)
-	if opts.StartAd != cid.Undef {
-		fmt.Println("Start ad:", opts.StartAd)
-	}
-	if opts.Publisher.ID != "" {
-		fmt.Println("Publisher:", opts.Publisher.ID, opts.Publisher.Addrs)
-	}
-	fmt.Println("MainMode:", opts.Mirror.MainMode)
-	fmt.Println("Main mirror:", opts.Mirror.Main.Local.BasePath)
+	logStart(log, opts).Info("starting fill")
 	for i, ext := range opts.Mirror.External {
 		loc := ext.HTTP.BaseURL
 		if loc == "" {
 			loc = ext.Local.BasePath
 		}
-		fmt.Printf("External[%d]: %s %s\n", i, ext.Type, loc)
+		log.Info("external mirror", "index", i, "type", ext.Type, "location", loc)
 	}
 
 	st, err := Fill(ctx, opts)
-	if st != nil {
-		st.print()
-	}
 	if err != nil {
+		if st != nil {
+			logStats(log, *st).Error("fill failed", "err", err)
+		} else {
+			log.Error("fill failed", "err", err)
+		}
 		return fmt.Errorf("fill failed: %w", err)
 	}
+	logStats(log, *st).Info("fill complete")
 	return nil
 }
 
@@ -184,7 +182,7 @@ func applyIndexer(ctx context.Context, indexerURL string, providerID peer.ID, op
 			return fmt.Errorf("indexer has no LastAdvertisement for %s", providerID)
 		}
 		opts.StartAd = info.LastAdvertisement
-		fmt.Println("Start ad from indexer provider info LastAdvertisement:", opts.StartAd)
+		log.Info("using LastAdvertisement from indexer", "startAd", opts.StartAd, "indexer", indexerURL)
 	}
 	if opts.Publisher.ID == "" && info.Publisher != nil && info.Publisher.ID != "" {
 		opts.Publisher = *info.Publisher
