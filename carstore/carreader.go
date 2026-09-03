@@ -60,17 +60,18 @@ type EntryBlock struct {
 
 func (e EntryBlock) EntryChunk() (*schema.EntryChunk, error) {
 	chunk, err := decodeEntryChunk(e.Data, e.Cid)
-	if err != nil {
-		node, err := decodeIPLDNode(bytes.NewBuffer(e.Data), e.Cid.Prefix().Codec, basicnode.Prototype.Any)
-		if err != nil {
-			return nil, err
-		}
-		if isHAMT(node) {
-			return nil, ErrHAMT
-		}
-		return nil, err
+	if err == nil {
+		return chunk, nil
 	}
-	return chunk, nil
+	// Probe for HAMT so callers can distinguish that case. Keep the original
+	// decode error for any other IPLD that is not an EntryChunk; a successful
+	// generic decode must not hide that error (returning (nil, nil) panics
+	// callers that only check err).
+	node, nodeErr := decodeIPLDNode(bytes.NewBuffer(e.Data), e.Cid.Prefix().Codec, basicnode.Prototype.Any)
+	if nodeErr == nil && isHAMT(node) {
+		return nil, ErrHAMT
+	}
+	return nil, err
 }
 
 type gzipReadCloser struct {
