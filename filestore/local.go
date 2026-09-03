@@ -105,7 +105,7 @@ func (l *Local) Delete(ctx context.Context, relPath string) error {
 }
 
 func (l *Local) Get(ctx context.Context, relPath string) (*File, io.ReadCloser, error) {
-	f, err := os.Open(l.fsPath(l.basePath, relPath))
+	f, err := openForRead(l.fsPath(l.basePath, relPath))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil, fs.ErrNotExist
@@ -206,8 +206,8 @@ func (l *Local) List(ctx context.Context, relPath string, recursive bool) (<-cha
 				return nil
 			}
 
-			// Skip metadata files
-			if d.Name() == ConfigMetadataFileName {
+			// Skip metadata files and in-progress atomic Put temp files.
+			if d.Name() == ConfigMetadataFileName || isPutTempName(d.Name()) {
 				return nil
 			}
 
@@ -269,44 +269,90 @@ func (l *Local) List(ctx context.Context, relPath string, recursive bool) (<-cha
 
 func (l *Local) Put(ctx context.Context, relPath string, r io.Reader) (*File, error) {
 	absPath := l.fsPath(l.basePath, relPath)
-
-	if dir := filepath.Dir(absPath); dir != "" {
-		err := os.MkdirAll(dir, 0755)
-		if err != nil {
-			return nil, err
-		}
+	dir := filepath.Dir(absPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
 	}
 
-	f, err := os.Create(absPath)
+	// Write a sibling temp file and rename over absPath so readers never see a
+	// truncated destination. CreateTemp in dir keeps the rename on the same
+	// filesystem (required for atomic replace).
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(absPath)+".tmp-*")
 	if err != nil {
 		return nil, err
 	}
+	tmpName := tmp.Name()
+	defer func() {
+		if tmpName != "" {
+			_ = os.Remove(tmpName)
+		}
+	}()
 
 	if r != nil {
-		if _, err = io.Copy(f, r); err != nil {
-			f.Close()
-			os.Remove(absPath)
+		if _, err = io.Copy(tmp, r); err != nil {
+			_ = tmp.Close()
 			return nil, err
 		}
 	}
-
-	fi, err := f.Stat()
+	if err = tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return nil, err
+	}
+	fi, err := tmp.Stat()
 	if err != nil {
-		f.Close()
-		os.Remove(absPath)
+		_ = tmp.Close()
+		return nil, err
+	}
+	if err = tmp.Close(); err != nil {
 		return nil, err
 	}
 
-	if err = f.Close(); err != nil {
-		os.Remove(absPath)
+	if err = replaceFile(tmpName, absPath); err != nil {
 		return nil, err
 	}
+	tmpName = ""
 
 	return &File{
 		Modified: fi.ModTime(),
 		Path:     relPath,
 		Size:     fi.Size(),
 	}, nil
+}
+
+// openForRead opens path for reading.
+//
+// This goes through os.Root rather than os.Open so that Windows behaves like
+// Unix: Root.Open permits delete sharing, without which replaceFile cannot
+// replace a path that still has readers.
+func openForRead(path string) (*os.File, error) {
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
+	return root.Open(filepath.Base(path))
+}
+
+// replaceFile renames oldpath over newpath. Both must be in the same
+// directory, which Put guarantees by creating its temp file there.
+//
+// This goes through os.Root rather than os.Rename because on Windows
+// os.Rename is MoveFileEx, which requires the destination to be unused.
+// Root.Rename uses POSIX rename semantics, unlinking the old destination and
+// leaving open readers with the file they already have.
+func replaceFile(oldpath, newpath string) error {
+	root, err := os.OpenRoot(filepath.Dir(newpath))
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+
+	return root.Rename(filepath.Base(oldpath), filepath.Base(newpath))
+}
+
+func isPutTempName(name string) bool {
+	return strings.HasPrefix(name, ".") && strings.Contains(name, ".tmp-")
 }
 
 func (l *Local) Type() string {
