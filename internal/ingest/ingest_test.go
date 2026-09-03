@@ -2037,7 +2037,7 @@ func TestGetEntryDataFromCar(t *testing.T) {
 	require.Equal(t, 1, headCount)
 
 	// Read CAR file.
-	adBlock, _, _, err := te.ingester.mirror.read(ctx, cCid.(cidlink.Link).Cid, false)
+	adBlock, _, err := te.ingester.mirror.readMain(ctx, cCid.(cidlink.Link).Cid, false)
 	require.NoError(t, err)
 	defer adBlock.Close()
 	require.NotZero(t, len(adBlock.Data))
@@ -3511,10 +3511,9 @@ func carTestEntryBuilders() []typehelpers.EntryBuilder {
 
 func requireCompleteCar(t *testing.T, te *testEnv, adCid, entriesCid cid.Cid) {
 	t.Helper()
-	adBlock, source, _, err := te.ingester.mirror.read(t.Context(), adCid, false)
+	adBlock, _, err := te.ingester.mirror.readMain(t.Context(), adCid, false)
 	require.NoError(t, err)
 	defer adBlock.Close()
-	require.Equal(t, adDataSourceMain, source)
 	require.NotNil(t, adBlock.Entries)
 
 	count := 0

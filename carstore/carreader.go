@@ -16,6 +16,11 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
+// ErrUnusable is returned when a CAR file cannot be used as an advertisement
+// source: truncated entries, extra or reordered blocks, unrelated blobs, or a
+// CID that does not match its bytes. Callers should try another source.
+var ErrUnusable = errors.New("CAR file is unusable")
+
 type CarReader struct {
 	compAlg   string
 	fileStore filestore.Interface
@@ -160,13 +165,21 @@ func (cr CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) (
 	}
 	if len(cbr.Roots) == 0 || cbr.Roots[0] != adCid {
 		rc.Close()
-		return nil, errors.New("car file has wrong root")
+		return nil, fmt.Errorf("%w: car file has wrong root", ErrUnusable)
 	}
 
 	blk, err := cbr.Next()
 	if err != nil {
 		rc.Close()
-		return nil, fmt.Errorf("cannot read advertisement data: %w", err)
+		return nil, fmt.Errorf("%w: cannot read advertisement data: %w", ErrUnusable, err)
+	}
+	if blk.Cid() != adCid {
+		rc.Close()
+		return nil, fmt.Errorf("%w: first block cid %s does not match advertisement %s", ErrUnusable, blk.Cid(), adCid)
+	}
+	if err = verifyCID(adCid, blk.RawData()); err != nil {
+		rc.Close()
+		return nil, fmt.Errorf("%w: %w", ErrUnusable, err)
 	}
 
 	adBlock := AdBlock{
@@ -210,6 +223,11 @@ func (cr CarReader) ReadHead(ctx context.Context, provider peer.ID) (cid.Cid, er
 	return cid.Decode(buf.String())
 }
 
+// readEntries streams entry blocks from the CAR to entsCh. Each block's CID
+// is verified against its bytes (verifyCID), but the entries-chain Next pointer
+// is not checked here because the reader does not decode EntryChunks. Chain
+// order, completeness, and extra-block detection are the caller's
+// responsibility (see ingestCarEntryStream in linksystem.go).
 func readEntries(ctx context.Context, cbr *car.BlockReader, r io.ReadCloser, entsCh chan EntryBlock) {
 	defer r.Close()
 	defer close(entsCh)
@@ -229,7 +247,9 @@ func readEntries(ctx context.Context, cbr *car.BlockReader, r io.ReadCloser, ent
 			if errors.Is(err, io.EOF) {
 				return
 			}
-			entBlock.Err = err
+			entBlock.Err = fmt.Errorf("%w: %w", ErrUnusable, err)
+		} else if err = verifyCID(blk.Cid(), blk.RawData()); err != nil {
+			entBlock.Err = fmt.Errorf("%w: %w", ErrUnusable, err)
 		} else {
 			entBlock.Cid = blk.Cid()
 			entBlock.Data = blk.RawData()
