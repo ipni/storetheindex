@@ -4,11 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/filestore"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 )
 
@@ -99,4 +101,26 @@ func TestRead(t *testing.T) {
 	headCid, err := carr.ReadHead(ctx, peerID)
 	require.NoError(t, err)
 	require.Equal(t, adCid, headCid)
+}
+
+func TestEntryChunkRejectsNonEntryBlock(t *testing.T) {
+	raw := []byte("unrelated-blob")
+	rawCid, err := cid.V1Builder{Codec: cid.Raw, MhType: multihash.SHA2_256}.Sum(raw)
+	require.NoError(t, err)
+
+	chunk, err := (carstore.EntryBlock{Cid: rawCid, Data: raw}).EntryChunk()
+	require.Error(t, err)
+	require.Nil(t, chunk)
+	require.NotErrorIs(t, err, carstore.ErrHAMT)
+
+	dstore := datastore.NewMapDatastore()
+	adLink, _, _, _, _ := storeRandomIndexAndAd(t, 1, []byte("car-test-metadata"), nil, dstore)
+	adCid := adLink.(cidlink.Link).Cid
+	adData, err := dstore.Get(context.Background(), datastore.NewKey(adCid.String()))
+	require.NoError(t, err)
+
+	chunk, err = (carstore.EntryBlock{Cid: adCid, Data: adData}).EntryChunk()
+	require.Error(t, err)
+	require.Nil(t, chunk)
+	require.NotErrorIs(t, err, carstore.ErrHAMT)
 }
