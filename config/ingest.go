@@ -19,8 +19,11 @@ type Ingest struct {
 	AdvertisementDepthLimit int
 	// AdvertisementMirror configures if, how, and where to store content
 	// advertisements data in CAR files. The mirror may be readable, writable,
-	// both, or neither. If the mirror is neither readable or writable, or a
-	// storage type is not specified, then the mirror is not used.
+	// both, or neither. Ingest reads Main first (especially on resync), then
+	// External, and uses a CAR only when the entries chain is complete.
+	// Incomplete or missing CARs fall through to the publisher; a writable
+	// Main is then rewritten. If the mirror is neither readable or writable,
+	// or a storage type is not specified, then the mirror is not used.
 	AdvertisementMirror Mirror
 	// EntriesDepthLimit is the total maximum recursion depth limit when
 	// syncing advertisement entries. The value -1 means no limit and zero
@@ -60,6 +63,8 @@ type Ingest struct {
 	// this, to be ignored.
 	MinimumKeyLength int
 	// OverwriteMirrorOnResync overwrites the advertisement when resyncing.
+	// Rebuilds of Main from External or the publisher always overwrite so a
+	// broken Main CAR is replaced.
 	OverwriteMirrorOnResync bool
 	// PubSubTopic sets the topic name to which to subscribe for ingestion
 	// announcements.

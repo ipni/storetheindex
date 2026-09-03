@@ -350,12 +350,15 @@ func (ing *Ingester) ingestAd(
 	entsSyncStart = time.Now()
 
 	// If using a CAR reader, then try to get the advertisement CAR file first.
+	// Main is preferred (especially on resync). A CAR is used only when its
+	// entries chain is complete; otherwise ingest tries External, then the
+	// publisher, and rewrites a writable Main from that source.
 	if ing.mirror.canRead() {
 		log.Debug("Attempting to fetch entries from CAR mirror")
 		carReadStart := time.Now()
 		mhCount, adSource, adSourceLocation, err := ing.ingestEntriesFromCar(ctx, ad, publisherID, providerID, adCid, entriesCid, log)
 		hasEnts := mhCount != 0
-		// If entries data successfully read from CAR file.
+		// If entries data successfully read from a complete CAR file.
 		if err == nil {
 			elapsedMsec := float64(time.Since(carReadStart).Nanoseconds()) / 1e6
 			stats.RecordWithOptions(ctx,
@@ -384,7 +387,7 @@ func (ing *Ingester) ingestAd(
 			} else if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return hasEnts, adDataSourceNone, "", err
 			}
-			// If any other error, proceed and try to fetch from publisher.
+			// Incomplete, empty, or otherwise unusable CAR: fetch from publisher.
 		} else {
 			log.Debug("Advertisement not found in CAR mirror")
 		}
@@ -619,75 +622,109 @@ func (ing *Ingester) ingestEntriesFromCar(
 	adSourcelocation string,
 	err error,
 ) {
-	adBlock, adSource, adSourcelocation, err := ing.mirror.read(ctx, adCid, false)
+	ingestOpened := func(adBlock *carstore.AdBlock, src adDataSource, loc string) (int, adDataSource, string, error) {
+		defer adBlock.Close()
+		n, ingestErr := ing.ingestCarEntryStream(ctx, ad, publisherID, providerID, entsCid, adBlock, src, log)
+		if ingestErr != nil {
+			return n, adDataSourceNone, "", ingestErr
+		}
+		return n, src, loc, nil
+	}
+
+	adBlock, mainLocation, readErr := ing.mirror.readMain(ctx, adCid, false)
+	switch {
+	case readErr == nil:
+		n, src, loc, ingestErr := ingestOpened(adBlock, adDataSourceMain, mainLocation)
+		if ingestErr == nil {
+			return n, src, loc, nil
+		}
+		if !errors.Is(ingestErr, carstore.ErrUnusable) {
+			return n, adDataSourceNone, "", ingestErr
+		}
+		log.Infow("Main CAR unusable, trying another source", "err", ingestErr)
+
+	case errors.Is(readErr, fs.ErrNotExist):
+		// Miss; try External.
+
+	case errors.Is(readErr, context.Canceled), errors.Is(readErr, context.DeadlineExceeded):
+		return 0, adDataSourceNone, "", readErr
+
+	default:
+		log.Infow("Cannot read Main CAR, trying another source", "err", readErr)
+	}
+
+	adBlock, adSource, adSourcelocation, err := ing.mirror.readExternalRace(ctx, adCid, false)
 	if err != nil {
 		return 0, adDataSourceNone, "", err
 	}
-	defer adBlock.Close()
 
-	var firstEntryBlock carstore.EntryBlock
-	var ok bool
-	if adBlock.Entries != nil {
-		firstEntryBlock, ok = <-adBlock.Entries
-	}
-	if !ok {
-		// This advertisement has no entries because they were removed later in
-		// the chain and the indexer ingesting this advertisement does not know
-		// that yet, or the publisher was not serving content for the
-		// advertisement's entries CID when this CAR file was created.
-		return 0, adDataSourceNone, "", adIngestError{adIngestContentNotFound, errors.New("advertisement has no entries")}
-	}
-	if firstEntryBlock.Cid != entsCid {
-		return 0, adDataSourceNone, "", fmt.Errorf("advertisement entries cid does not match first entry chunk cid in car file")
-	}
+	return ingestOpened(adBlock, adSource, adSourcelocation)
+}
 
-	chunk, err := firstEntryBlock.EntryChunk()
-	if err != nil {
-		return 0, adDataSourceNone, "", err
+func (ing *Ingester) ingestCarEntryStream(
+	ctx context.Context,
+	ad schema.Advertisement,
+	publisherID, providerID peer.ID,
+	entsCid cid.Cid,
+	adBlock *carstore.AdBlock,
+	adSource adDataSource,
+	log *zap.SugaredLogger,
+) (mhCount int, err error) {
+	if adBlock.Entries == nil {
+		return 0, fmt.Errorf("%w: advertisement has no entries", carstore.ErrUnusable)
 	}
 
 	log = log.With("entriesKind", "CarEntryChunk")
 	syncStatus := ing.SyncStatusFor(publisherID)
-
-	err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
-	if err != nil {
-		return 0, adDataSourceNone, "", adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
-	}
-	mhCount = len(chunk.Entries)
-	syncStatus.AddChunk(len(chunk.Entries))
-
-	// If got data from a mirror, and writing to a different mirror, then put
-	// data into temp datastore for creation of new mirror file to write.
 	copyMirrorData := ing.mirror.canWrite() && adSource.canBeWritten()
-	if copyMirrorData {
-		if err = ing.dsTmp.Put(ctx, datastore.NewKey(entsCid.String()), firstEntryBlock.Data); err != nil {
-			return mhCount, adDataSourceNone, "", fmt.Errorf("cannot write first entry chunk data from mirror to datastore: %w", err)
-		}
-	}
 
+	expectedCid := entsCid
 	for entryBlock := range adBlock.Entries {
 		if entryBlock.Err != nil {
-			return mhCount, adDataSourceNone, "", entryBlock.Err
+			return mhCount, entryBlock.Err
 		}
-		chunk, err = entryBlock.EntryChunk()
+		if expectedCid == cid.Undef {
+			return mhCount, fmt.Errorf("%w: extra entry block %s beyond the entries chain", carstore.ErrUnusable, entryBlock.Cid)
+		}
+		if entryBlock.Cid != expectedCid {
+			return mhCount, fmt.Errorf("%w: entry block %s is not the next expected chunk %s", carstore.ErrUnusable, entryBlock.Cid, expectedCid)
+		}
+
+		chunk, err := entryBlock.EntryChunk()
 		if err != nil {
-			return mhCount, adDataSourceNone, "", fmt.Errorf("failed to decode entry chunk from car file data: %w", err)
+			if errors.Is(err, carstore.ErrHAMT) {
+				return mhCount, err
+			}
+			return mhCount, fmt.Errorf("%w: cannot decode entry chunk %s: %v", carstore.ErrUnusable, entryBlock.Cid, err)
 		}
+
+		// Index now: this chunk is the next expected CID, so it is authentic
+		// even if the rest of the CAR is later unusable. Put is idempotent, so
+		// fallback to External or the publisher can re-index the same mappings.
 		err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
 		if err != nil {
-			return mhCount, adDataSourceNone, "", adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
+			return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to ingest entry chunk: %w", err)}
 		}
 		mhCount += len(chunk.Entries)
 		syncStatus.AddChunk(len(chunk.Entries))
 
 		if copyMirrorData {
 			if err = ing.dsTmp.Put(ctx, datastore.NewKey(entryBlock.Cid.String()), entryBlock.Data); err != nil {
-				return mhCount, adDataSourceNone, "", fmt.Errorf("cannot write entry chunk data from mirror to datastore: %w", err)
+				return mhCount, fmt.Errorf("cannot write entry chunk data from mirror to datastore: %w", err)
 			}
 		}
+
+		if chunk.Next == nil {
+			expectedCid = cid.Undef
+		} else {
+			expectedCid = chunk.Next.(cidlink.Link).Cid
+		}
+	}
+	if expectedCid != cid.Undef {
+		return mhCount, fmt.Errorf("%w: missing remaining entries starting at %s", carstore.ErrUnusable, expectedCid)
 	}
 
-	return mhCount, adSource, adSourcelocation, nil
+	return mhCount, nil
 }
 
 // indexAdMultihashes filters out invalid multihashes and indexes those

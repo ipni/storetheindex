@@ -90,9 +90,14 @@ graph TD
 - **CAR mirror** (optional): stores advertisement + entry data as CAR files in
   a filestore (local, S3, or HTTP). `Main` is used for read and write (gated by
   `MainMode`: `read` / `write` / `readwrite`); optional `External` is a list of
-  independent read sources raced in parallel after a Main miss (or as the sole
-  sources when Main read is off). The first successful retrieval wins; 404s and
-  errors are misses.
+  independent read sources raced in parallel after a Main miss or unusable Main
+  CAR (or as the sole sources when Main read is off). Ingest prefers Main,
+  especially on resync. A CAR is indexed only when it contains exactly the
+  advertisement's entries chain in `Next` order, with each CID matching its
+  bytes. Truncated, empty, reordered, extra, unrelated, or hash-mismatched
+  CARs fall through to the next source, and a writable Main is rewritten from
+  External or the publisher. The first successful External retrieval wins;
+  404s and errors are misses.
 
 ## Entry points that trigger ingestion
 
@@ -229,8 +234,8 @@ For content ads, entry ingestion chooses a source:
 ```mermaid
 graph TD
   start["ingestAd has entries"] --> mirror{"CAR mirror readable?"}
-  mirror -->|yes, found| car["ingestEntriesFromCar"]
-  mirror -->|"no / not found"| probe["SyncOneEntry: fetch first entry"]
+  mirror -->|yes, complete Main or External CAR| car["ingestEntriesFromCar"]
+  mirror -->|"no / miss / incomplete"| probe["SyncOneEntry: fetch first entry"]
   car --> index["indexAdMultihashes -> core"]
   probe --> kind{"HAMT?"}
   kind -->|yes| hamt["ingestHamtFromPublisher"]
@@ -239,13 +244,20 @@ graph TD
   chunks --> index
 ```
 
-- **CAR mirror** (`ingestEntriesFromCar`): if the mirror is readable and has
-  the ad, entries are streamed from the CAR file and indexed. This avoids
-  re-fetching from the publisher. Only the winner of an `External` race is
-  returned to the caller; losing successes are cancelled and their entry
+- **CAR mirror** (`ingestEntriesFromCar`): if the mirror is readable, ingest
+  tries Main first, then races External readers. Entries are streamed and
+  indexed only from a CAR that contains exactly the advertisement's entries
+  chain, in `Next` order, with each block CID matching its bytes. This is the
+  resync fast path: a usable Main CAR is reused without refetching from the
+  publisher. Truncated, empty, reordered, extra, or unrelated blocks are
+  `carstore.ErrUnusable` and are not treated as success; ingest tries the next
+  source (External, then the publisher). Only the winner of an `External` race
+  is returned to the caller; losing successes are cancelled and their entry
   streams are drained so the CAR readers (and HTTP bodies / files they hold)
   are released. The winner's stream is likewise cancelled and drained if
-  ingestion bails out before consuming it fully.
+  ingestion bails out before consuming it fully. After ingest from External or
+  the publisher, a writable Main is overwritten with a newly built CAR. A
+  usable Main hit is not rewritten.
 - **EntryChunk chain** (`ingestEntriesFromPublisher`): the first chunk is
   fetched via `SyncOneEntry` to detect the type, then the remaining chunks are
   synced with `SyncEntries` using a scoped block hook that indexes each chunk's
@@ -399,17 +411,19 @@ short-lived and safe to discard.
   `SyncHAMTEntries` flow through the same write opener into `dsTmp`. These are
   deleted as they are indexed (entry chunks in `ingestEntriesFromPublisher`,
   HAMT nodes in `ingestHamtFromPublisher`'s deferred cleanup).
-- **Phase 3, reading from the CAR mirror:** when a readable CAR mirror has the
-  ad (`ingestEntriesFromCar`), entries are streamed from the CAR file and
-  indexed directly, so entry blocks are **not** downloaded into `dsTmp` from the
-  network. `dsTmp` is only written in this path when the data must be re-mirrored
-  to a different writable mirror (`copyMirrorData`), in which case the first
-  entry chunk and each subsequent chunk are put into `dsTmp` (keyed by CID) so
-  the mirror writer can build the new CAR file.
+- **Phase 3, reading from the CAR mirror:** when a readable CAR (Main first,
+  then External) has a complete entries chain (`ingestEntriesFromCar`), entries
+  are streamed from the CAR file and indexed directly, so entry blocks are
+  **not** downloaded into `dsTmp` from the publisher. `dsTmp` is written in
+  this path when the data must be re-mirrored onto a writable Main
+  (`copyMirrorData`, External source): the first entry chunk and each
+  subsequent chunk are put into `dsTmp` (keyed by CID) so the mirror writer can
+  build a replacement Main CAR. Incomplete CARs fall through to the next
+  source.
 
 In short, `dsTmp` is populated with advertisements during Phase 1 and, during
-Phase 3, additionally with entries data - from the publisher in the normal case,
-or from the CAR mirror only when re-mirroring.
+Phase 3, additionally with entries data - from the publisher in the normal
+case, or from an External CAR when re-mirroring onto a writable Main.
 
 ## Concurrency model
 
@@ -567,11 +581,13 @@ Ingestion is configured by the `Ingest` section of the config file
 - `Skip500EntriesError` - skip ads whose first entry sync returns HTTP 500 (reloadable).
 - `AdvertisementMirror` - CAR mirror configuration (`MainMode` + `Main` for
   owned store access, optional `External` array of independent read sources
-  raced after a Main miss). Each of `Main` and each `External` entry is a store
-  config with its own `Compress` setting (`gzip` default). Legacy `Read`/`Write`,
-  `Storage`/`Retrieval`, and top-level `Compress` fields in config JSON are
-  converted on load.
-- `ResendDirectAnnounce`, `OverwriteMirrorOnResync`.
+  raced after a Main miss or unusable Main CAR). Ingest prefers Main and
+  indexes a CAR only when the entries chain is complete. Each of `Main` and
+  each `External` entry is a store config with its own `Compress` setting
+  (`gzip` default). Legacy `Read`/`Write`, `Storage`/`Retrieval`, and
+  top-level `Compress` fields in config JSON are converted on load.
+- `ResendDirectAnnounce`, `OverwriteMirrorOnResync` (rebuilds of Main from
+  External or the publisher always overwrite).
 - `PubSubTopic` - gossipsub topic for announce subscription (deprecated; kept
   for backward compatibility).
 

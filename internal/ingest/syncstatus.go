@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"encoding/json"
+	"maps"
 	"sync"
 	"time"
 
@@ -485,9 +486,7 @@ func (ing *Ingester) AllSyncStatuses() map[peer.ID]*syncTracker {
 	ing.syncStatusMu.Lock()
 	defer ing.syncStatusMu.Unlock()
 	out := make(map[peer.ID]*syncTracker, len(ing.syncStatus))
-	for pubID, st := range ing.syncStatus {
-		out[pubID] = st
-	}
+	maps.Copy(out, ing.syncStatus)
 	return out
 }
 

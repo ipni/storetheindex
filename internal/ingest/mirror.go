@@ -68,35 +68,26 @@ func (d adDataSource) canBeWritten() bool {
 	}
 }
 
-func (m adMirror) read(
+// readMain reads a CAR from Main, or reports fs.ErrNotExist when Main is not
+// readable. A successful Read does not mean the entries chain is usable; ingest
+// validates that separately and falls back to External when it is not.
+func (m adMirror) readMain(
 	ctx context.Context,
 	adCid cid.Cid,
 	skipEntries bool,
 ) (
 	adBlock *carstore.AdBlock,
-	source adDataSource,
 	location string,
 	err error,
 ) {
-	var mainMissErr error
-	if m.mainCarReader != nil {
-		adBlock, err = m.mainCarReader.Read(ctx, adCid, skipEntries)
-		if err == nil {
-			// Main hit, no need to try External
-			return adBlock, adDataSourceMain, m.mainCarReader.Location(), nil
-		}
-		if !errors.Is(err, fs.ErrNotExist) {
-			return nil, adDataSourceNone, "", err
-		}
-		mainMissErr = err
+	if m.mainCarReader == nil {
+		return nil, "", fs.ErrNotExist
 	}
-
-	adBlock, source, location, err = m.readExternalRace(ctx, adCid, skipEntries)
-	// Prefer Main miss when present so ingestion is not interrupted by External issues.
-	if errors.Is(err, fs.ErrNotExist) && mainMissErr != nil {
-		return nil, adDataSourceNone, "", mainMissErr
+	adBlock, err = m.mainCarReader.Read(ctx, adCid, skipEntries)
+	if err != nil {
+		return nil, "", err
 	}
-	return adBlock, source, location, err
+	return adBlock, m.mainCarReader.Location(), nil
 }
 
 // readExternalRace races all External readers. The first successful Read wins;
@@ -241,7 +232,8 @@ func newMirror(cfgMirror config.Mirror, dstore datastore.Batching) (m adMirror, 
 	}
 
 	// External is independent of MainMode: when configured, all entries are
-	// raced in parallel (sole sources if Main read is off, otherwise fallback).
+	// raced in parallel after a Main miss or unusable Main CAR (sole sources if
+	// Main read is off).
 	for i, ext := range cfgMirror.External {
 		if ext.Type == "" || ext.Type == "none" {
 			continue
