@@ -1385,9 +1385,7 @@ func TestSegmentedSyncStopsAtProcessedAdOnSplitChain(t *testing.T) {
 		wg     sync.WaitGroup
 		done   = make(chan struct{})
 	)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			select {
 			case hit := <-hitBlockedRead:
@@ -1398,7 +1396,7 @@ func TestSegmentedSyncStopsAtProcessedAdOnSplitChain(t *testing.T) {
 				return
 			}
 		}
-	}()
+	})
 
 	// Announce e. Scanning: e (new) -> c (already processed, stop).
 	te.publisher.SetRoot(eCid)

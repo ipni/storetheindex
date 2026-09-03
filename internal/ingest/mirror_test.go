@@ -371,8 +371,7 @@ func TestExternalRaceLosersReleaseEntryReaders(t *testing.T) {
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	adBlock, source, _, err := m.readExternalRace(ctx, adCid, false)
 	require.NoError(t, err)
