@@ -73,6 +73,13 @@ type Options struct {
 	Publisher peer.AddrInfo
 	Depth     int // 0 means unlimited
 
+	// Estimate, when true, counts advertisements in the chain (ads only)
+	// before filling so progress can show a total. EstimateTimeout limits
+	// that count; 0 means no time limit. A timeout or error yields a partial
+	// total and fill still runs.
+	Estimate        bool
+	EstimateTimeout time.Duration
+
 	// Out receives fill events. Nil is a no-op.
 	Out Progress
 }
@@ -93,6 +100,11 @@ type Stats struct {
 	BytesWritten    int64
 	StopReason      string
 	LastAd          cid.Cid
+	// TotalAds is the advertisement count from StartAd toward genesis, if
+	// --estimate ran. TotalExact is true when the count reached genesis (or
+	// --depth). Otherwise TotalAds is a lower bound.
+	TotalAds   int
+	TotalExact bool
 }
 
 type carData struct {
@@ -203,6 +215,13 @@ func (f *filler) run(ctx context.Context) (*Stats, error) {
 		return st, errors.New("no start advertisement: pass --cid or --indexer so LastAdvertisement can be read from provider info")
 	}
 
+	if f.opts.Estimate {
+		if err := f.runEstimate(ctx, st); err != nil {
+			st.StopReason = stopCanceled
+			return st, err
+		}
+	}
+
 	for adCid != cid.Undef {
 		if err := ctx.Err(); err != nil {
 			st.StopReason = stopCanceled
@@ -230,9 +249,85 @@ func (f *filler) run(ctx context.Context) (*Stats, error) {
 	return st, nil
 }
 
+const estimateSegment = 200
+
+func (f *filler) runEstimate(ctx context.Context, st *Stats) error {
+	f.out.Estimating(f.opts.EstimateTimeout)
+	estCtx := ctx
+	if f.opts.EstimateTimeout > 0 {
+		var cancel context.CancelFunc
+		estCtx, cancel = context.WithTimeout(ctx, f.opts.EstimateTimeout)
+		defer cancel()
+	}
+	startDown := f.downloaded.Load()
+	n, exact, err := f.countAds(estCtx)
+	f.downloaded.Store(startDown)
+	st.TotalAds = n
+	st.TotalExact = exact && err == nil
+	if err != nil && ctx.Err() != nil {
+		f.out.Estimated(n, false)
+		return ctx.Err()
+	}
+	f.out.Estimated(n, st.TotalExact)
+	return nil
+}
+
+func (f *filler) countAds(ctx context.Context) (int, bool, error) {
+	if err := f.ensurePublisher(ctx); err != nil {
+		return 0, false, err
+	}
+	n := 0
+	next := f.opts.StartAd
+	for next != cid.Undef {
+		if err := ctx.Err(); err != nil {
+			return n, false, err
+		}
+		if f.opts.Depth > 0 && n >= f.opts.Depth {
+			return n, true, nil
+		}
+		limit := estimateSegment
+		if f.opts.Depth > 0 && n+limit > f.opts.Depth {
+			limit = f.opts.Depth - n
+		}
+		var lastPrev cid.Cid
+		got := 0
+		hook := dagsync.MakeGeneralBlockHook(func(adCid cid.Cid) (cid.Cid, error) {
+			raw, err := f.ds.Get(ctx, datastore.NewKey(adCid.String()))
+			if err != nil {
+				return cid.Undef, err
+			}
+			ad, err := schema.BytesToAdvertisement(adCid, raw)
+			if err != nil {
+				return cid.Undef, err
+			}
+			got++
+			lastPrev = ad.PreviousCid()
+			return lastPrev, nil
+		})
+		_, err := f.sub.SyncAdChain(ctx, f.opts.Publisher,
+			dagsync.WithHeadAdCid(next),
+			dagsync.ScopedDepthLimit(int64(limit)),
+			dagsync.ScopedSegmentDepthLimit(int64(limit)),
+			dagsync.ScopedBlockHook(hook),
+		)
+		n += got
+		if got > 0 {
+			f.out.EstimateProgress(n)
+		}
+		if err != nil {
+			return n, false, err
+		}
+		if got == 0 || got < limit {
+			return n, true, nil
+		}
+		next = lastPrev
+	}
+	return n, true, nil
+}
+
 func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.Cid, error) {
 	n := st.Scanned + 1
-	ap := f.out.Ad(n, adCid)
+	ap := f.out.Ad(n, adCid, st.TotalAds, st.TotalExact)
 	ap.CheckingMain()
 	data, src, mainBroken, err := f.loadExisting(ctx, ap, adCid)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {

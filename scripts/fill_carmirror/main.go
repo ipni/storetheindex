@@ -32,6 +32,10 @@ IsRm and no-entries advertisements are not stored. An IsRm advertisement
 is reported (including whether a CAR already exists on main) and not written.
 Does not open the indexer value store.
 
+--estimate counts advertisements (ads only, no entries) before filling
+so progress can show a total. --estimate-timeout bounds that count;
+fill still runs if the count times out.
+
 By default each event is a timestamped line on stdout. Pass --log for
 structured logs (GOLOG_LOG_FMT, GOLOG_LOG_LEVEL, GOLOG_FILE, ...).`,
 		Flags: []cli.Flag{
@@ -64,6 +68,15 @@ structured logs (GOLOG_LOG_FMT, GOLOG_LOG_LEVEL, GOLOG_FILE, ...).`,
 				Name:  "progress",
 				Usage: "How often to print running stats",
 				Value: 10 * time.Second,
+			},
+			&cli.BoolFlag{
+				Name:  "estimate",
+				Usage: "Count advertisements in the chain before filling (ads only)",
+			},
+			&cli.DurationFlag{
+				Name:  "estimate-timeout",
+				Usage: "Time limit for --estimate; 0 means no limit",
+				Value: 5 * time.Minute,
 			},
 			&cli.BoolFlag{
 				Name:  "log",
@@ -106,6 +119,8 @@ func run(cctx *cli.Context) error {
 		EntriesDepthLimit: int64(cfg.Ingest.EntriesDepthLimit),
 		Provider:          providerID,
 		Depth:             cctx.Int("depth"),
+		Estimate:          cctx.Bool("estimate"),
+		EstimateTimeout:   cctx.Duration("estimate-timeout"),
 	}
 
 	ctx := cctx.Context

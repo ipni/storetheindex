@@ -378,6 +378,35 @@ func TestFillDownloadsFromProvider(t *testing.T) {
 	}
 }
 
+func TestFillEstimateCountsAds(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pubDS := dssync.MutexWrap(datastore.NewMapDatastore())
+	ad2, _ := storeAdChain(t, pubDS, 2)
+
+	priv, _, err := crypto.GenerateEd25519Key(rand.Reader)
+	require.NoError(t, err)
+	pub, err := ipnisync.NewPublisher(mkLinkSystem(pubDS), priv, ipnisync.WithHTTPListenAddrs("127.0.0.1:0"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pub.Close() })
+	pub.SetRoot(ad2.cid)
+
+	st, err := Fill(ctx, Options{
+		Mirror:          rwMirror(localStore(t)),
+		StartAd:         ad2.cid,
+		Publisher:       peer.AddrInfo{ID: pub.ID(), Addrs: pub.Addrs()},
+		HttpTimeout:     10 * time.Second,
+		Estimate:        true,
+		EstimateTimeout: 30 * time.Second,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, st.Scanned)
+	require.Equal(t, 2, st.TotalAds)
+	require.True(t, st.TotalExact)
+	require.Equal(t, stopGenesis, st.StopReason)
+}
+
 func TestFillUsesEachSourceOnce(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

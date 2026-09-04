@@ -57,13 +57,33 @@ func (p *PrintProgress) UsingIndexer(startAd cid.Cid, indexerURL string) {
 	p.line("using LastAdvertisement from indexer %s: %s", indexerURL, startAd)
 }
 
-func (p *PrintProgress) Ad(n int, adCid cid.Cid) AdProgress {
-	return printAd{p: p, n: n, ad: adCid}
+func (p *PrintProgress) Estimating(timeout time.Duration) {
+	if timeout > 0 {
+		p.line("counting advertisements in chain (timeout %s)", timeout)
+		return
+	}
+	p.line("counting advertisements in chain")
+}
+
+func (p *PrintProgress) EstimateProgress(n int) {
+	p.line("counted %d advertisements so far", n)
+}
+
+func (p *PrintProgress) Estimated(total int, exact bool) {
+	if exact {
+		p.line("chain has %d advertisements", total)
+		return
+	}
+	p.line("chain has at least %d advertisements (count incomplete)", total)
+}
+
+func (p *PrintProgress) Ad(n int, adCid cid.Cid, total int, exact bool) AdProgress {
+	return printAd{p: p, n: n, ad: adCid, total: total, exact: exact}
 }
 
 func (p *PrintProgress) Periodic(s Stats) {
-	p.line("progress  scanned=%d present=%d external=%d downloaded=%d recreated=%d rm=%d hamt=%d chunks=%d mhs=%d down_bytes=%d written=%d last=%s",
-		s.Scanned, s.AlreadyPresent, s.CopiedExternal, s.Downloaded, s.Recreated, s.SkippedRm, s.SkippedHAMT,
+	p.line("progress  scanned=%s present=%d external=%d downloaded=%d recreated=%d rm=%d hamt=%d chunks=%d mhs=%d down_bytes=%d written=%d last=%s",
+		formatScanned(s), s.AlreadyPresent, s.CopiedExternal, s.Downloaded, s.Recreated, s.SkippedRm, s.SkippedHAMT,
 		s.EntryChunks, s.Multihashes, s.BytesDownloaded, s.BytesWritten, s.LastAd)
 }
 
@@ -90,13 +110,15 @@ func (p *PrintProgress) Done(s Stats, err error) {
 }
 
 type printAd struct {
-	p  *PrintProgress
-	n  int
-	ad cid.Cid
+	p     *PrintProgress
+	n     int
+	ad    cid.Cid
+	total int
+	exact bool
 }
 
 func (a printAd) line(format string, args ...any) {
-	a.p.line("[%d] %s  "+format, append([]any{a.n, a.ad}, args...)...)
+	a.p.line("%s %s  "+format, append([]any{formatAdIndex(a.n, a.total, a.exact), a.ad}, args...)...)
 }
 
 func (a printAd) CheckingMain() { a.line("checking main") }

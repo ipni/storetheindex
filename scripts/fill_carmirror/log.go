@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
@@ -101,8 +102,28 @@ func (p *LogProgress) UsingIndexer(startAd cid.Cid, indexerURL string) {
 	p.log.Info("using LastAdvertisement from indexer", "startAd", startAd, "indexer", indexerURL)
 }
 
-func (p *LogProgress) Ad(n int, adCid cid.Cid) AdProgress {
-	return logAd{log: p.log.With("n", n, "ad", adCid)}
+func (p *LogProgress) Estimating(timeout time.Duration) {
+	if timeout > 0 {
+		p.log.Info("counting advertisements", "timeout", timeout)
+		return
+	}
+	p.log.Info("counting advertisements")
+}
+
+func (p *LogProgress) EstimateProgress(n int) {
+	p.log.Info("count progress", "advertisements", n)
+}
+
+func (p *LogProgress) Estimated(total int, exact bool) {
+	p.log.Info("count complete", "totalAds", total, "exact", exact)
+}
+
+func (p *LogProgress) Ad(n int, adCid cid.Cid, total int, exact bool) AdProgress {
+	l := p.log.With("n", n, "ad", adCid)
+	if total > 0 {
+		l = l.With("totalAds", total, "totalExact", exact)
+	}
+	return logAd{log: l}
 }
 
 func (p *LogProgress) Periodic(s Stats) {
@@ -226,6 +247,9 @@ func withStats(log *slog.Logger, s Stats) *slog.Logger {
 	}
 	if s.StopReason != "" {
 		l = l.With("stopReason", s.StopReason)
+	}
+	if s.TotalAds > 0 {
+		l = l.With("totalAds", s.TotalAds, "totalExact", s.TotalExact)
 	}
 	return l
 }

@@ -15,7 +15,10 @@ import (
 type Progress interface {
 	Start(opts Options)
 	UsingIndexer(startAd cid.Cid, indexerURL string)
-	Ad(n int, adCid cid.Cid) AdProgress
+	Estimating(timeout time.Duration)
+	EstimateProgress(n int)
+	Estimated(total int, exact bool)
+	Ad(n int, adCid cid.Cid, total int, exact bool) AdProgress
 	Periodic(s Stats)
 	Done(s Stats, err error)
 }
@@ -47,11 +50,14 @@ type AdProgress interface {
 
 type nopProgress struct{}
 
-func (nopProgress) Start(Options)                {}
-func (nopProgress) UsingIndexer(cid.Cid, string) {}
-func (nopProgress) Ad(int, cid.Cid) AdProgress   { return nopAd{} }
-func (nopProgress) Periodic(Stats)               {}
-func (nopProgress) Done(Stats, error)            {}
+func (nopProgress) Start(Options)                         {}
+func (nopProgress) UsingIndexer(cid.Cid, string)          {}
+func (nopProgress) Estimating(time.Duration)              {}
+func (nopProgress) EstimateProgress(int)                  {}
+func (nopProgress) Estimated(int, bool)                   {}
+func (nopProgress) Ad(int, cid.Cid, int, bool) AdProgress { return nopAd{} }
+func (nopProgress) Periodic(Stats)                        {}
+func (nopProgress) Done(Stats, error)                     {}
 
 type nopAd struct{}
 
@@ -126,6 +132,30 @@ func formatCarData(data *carData) string {
 		kind = "no-entries"
 	}
 	return fmt.Sprintf("%s  %s  chunks=%d mhs=%d car_bytes=%d", formatAd(data.ad), kind, data.chunks, data.mhs, data.size)
+}
+
+func formatAdIndex(n, total int, exact bool) string {
+	if total <= 0 {
+		return fmt.Sprintf("[%d]", n)
+	}
+	if exact {
+		return fmt.Sprintf("[%d / %d]", n, total)
+	}
+	return fmt.Sprintf("[%d / %d+]", n, total)
+}
+
+func formatScanned(s Stats) string {
+	if s.TotalAds <= 0 {
+		return fmt.Sprintf("%d", s.Scanned)
+	}
+	if s.TotalExact {
+		pct := 0
+		if s.TotalAds > 0 {
+			pct = s.Scanned * 100 / s.TotalAds
+		}
+		return fmt.Sprintf("%d/%d (%d%%)", s.Scanned, s.TotalAds, pct)
+	}
+	return fmt.Sprintf("%d/%d+", s.Scanned, s.TotalAds)
 }
 
 func carKind(data *carData) string {
