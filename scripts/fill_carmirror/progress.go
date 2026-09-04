@@ -1,0 +1,142 @@
+package main
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/ipfs/go-cid"
+	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipni/go-libipni/ingest/schema"
+	"github.com/libp2p/go-libp2p/core/peer"
+)
+
+// Progress receives fill events. PrintProgress is the CLI default; LogProgress
+// is used when --log is set. A nil Progress is a no-op.
+type Progress interface {
+	Start(opts Options)
+	UsingIndexer(startAd cid.Cid, indexerURL string)
+	Ad(n int, adCid cid.Cid) AdProgress
+	Periodic(s Stats)
+	Done(s Stats, err error)
+}
+
+// AdProgress is Progress scoped to one advertisement in the walk.
+type AdProgress interface {
+	CheckingMain()
+	MainInvalid(err error)
+	MainMiss()
+	MainReadError(err error)
+	CheckingExternal(i int, loc string)
+	ExternalMiss(i int)
+	ExternalReadError(i int, err error)
+	ExternalInvalid(i int, err error)
+	ExternalHit(i int)
+	Loaded(src source, data *carData)
+	MainUnusableFetching(publisher peer.ID)
+	NotInMirrorsFetching(publisher peer.ID)
+	FetchedAd(ad schema.Advertisement)
+	SkipIsRm(ad schema.Advertisement, carOnMain bool)
+	SkipNoEntries(ad schema.Advertisement)
+	PresentOnMain(data *carData)
+	CopiedFromExternal(data *carData, written int64, recreated bool)
+	SyncingFirstEntries(entsCid cid.Cid)
+	HAMTAdOnly()
+	WrittenFromPublisher(mainBroken, hamt bool, chunks, mhs int, written, downBytes int64)
+	SyncingRemaining(entsCid cid.Cid)
+}
+
+type nopProgress struct{}
+
+func (nopProgress) Start(Options)                {}
+func (nopProgress) UsingIndexer(cid.Cid, string) {}
+func (nopProgress) Ad(int, cid.Cid) AdProgress   { return nopAd{} }
+func (nopProgress) Periodic(Stats)               {}
+func (nopProgress) Done(Stats, error)            {}
+
+type nopAd struct{}
+
+func (nopAd) CheckingMain()                                           {}
+func (nopAd) MainInvalid(error)                                       {}
+func (nopAd) MainMiss()                                               {}
+func (nopAd) MainReadError(error)                                     {}
+func (nopAd) CheckingExternal(int, string)                            {}
+func (nopAd) ExternalMiss(int)                                        {}
+func (nopAd) ExternalReadError(int, error)                            {}
+func (nopAd) ExternalInvalid(int, error)                              {}
+func (nopAd) ExternalHit(int)                                         {}
+func (nopAd) Loaded(source, *carData)                                 {}
+func (nopAd) MainUnusableFetching(peer.ID)                            {}
+func (nopAd) NotInMirrorsFetching(peer.ID)                            {}
+func (nopAd) FetchedAd(schema.Advertisement)                          {}
+func (nopAd) SkipIsRm(schema.Advertisement, bool)                     {}
+func (nopAd) SkipNoEntries(schema.Advertisement)                      {}
+func (nopAd) PresentOnMain(*carData)                                  {}
+func (nopAd) CopiedFromExternal(*carData, int64, bool)                {}
+func (nopAd) SyncingFirstEntries(cid.Cid)                             {}
+func (nopAd) HAMTAdOnly()                                             {}
+func (nopAd) WrittenFromPublisher(bool, bool, int, int, int64, int64) {}
+func (nopAd) SyncingRemaining(cid.Cid)                                {}
+
+func progressOrNop(p Progress) Progress {
+	if p == nil {
+		return nopProgress{}
+	}
+	return p
+}
+
+// throttlePeriodic rate-limits Periodic calls to ticker; other methods pass through.
+type throttlePeriodic struct {
+	Progress
+	ticker *time.Ticker
+}
+
+func (t *throttlePeriodic) Periodic(s Stats) {
+	select {
+	case <-t.ticker.C:
+		t.Progress.Periodic(s)
+	default:
+	}
+}
+
+type noPeriodic struct{ Progress }
+
+func (noPeriodic) Periodic(Stats) {}
+
+func formatAd(ad schema.Advertisement) string {
+	prev := "nil"
+	if p := ad.PreviousCid(); p != cid.Undef {
+		prev = p.String()
+	}
+	ents := "none"
+	if hasEntries(ad) {
+		ents = ad.Entries.(cidlink.Link).Cid.String()
+	}
+	rm := ""
+	if ad.IsRm {
+		rm = " rm=true"
+	}
+	return fmt.Sprintf("prev=%s entries=%s provider=%s%s", prev, ents, ad.Provider, rm)
+}
+
+func formatCarData(data *carData) string {
+	kind := "entries"
+	if data.hamt {
+		kind = "HAMT"
+	} else if !hasEntries(data.ad) {
+		kind = "no-entries"
+	}
+	return fmt.Sprintf("%s  %s  chunks=%d mhs=%d car_bytes=%d", formatAd(data.ad), kind, data.chunks, data.mhs, data.size)
+}
+
+func carKind(data *carData) string {
+	if data == nil {
+		return ""
+	}
+	if data.hamt {
+		return "HAMT"
+	}
+	if !hasEntries(data.ad) {
+		return "no-entries"
+	}
+	return "entries"
+}

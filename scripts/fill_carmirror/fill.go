@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
 	"sync/atomic"
 	"time"
 
@@ -74,8 +73,8 @@ type Options struct {
 	Publisher peer.AddrInfo
 	Depth     int // 0 means unlimited
 
-	// Progress is called with a copy of the running stats. Optional.
-	Progress func(Stats)
+	// Out receives fill events. Nil is a no-op.
+	Out Progress
 }
 
 // Stats is the running / final summary of a fill run.
@@ -108,6 +107,7 @@ type carData struct {
 
 type filler struct {
 	opts       Options
+	out        Progress
 	ds         datastore.Batching
 	mainReader *carstore.CarReader
 	mainWriter *carstore.CarWriter
@@ -179,6 +179,7 @@ func newFiller(opts Options) (*filler, error) {
 
 	return &filler{
 		opts:       opts,
+		out:        progressOrNop(opts.Out),
 		ds:         ds,
 		mainReader: mainReader,
 		mainWriter: mainWriter,
@@ -215,9 +216,7 @@ func (f *filler) run(ctx context.Context) (*Stats, error) {
 		prev, err := f.processAd(ctx, adCid, st)
 		st.Scanned++
 		st.LastAd = adCid
-		if f.opts.Progress != nil {
-			f.opts.Progress(*st)
-		}
+		f.out.Periodic(*st)
 		if err != nil {
 			if st.StopReason == "" {
 				st.StopReason = stopError
@@ -233,9 +232,9 @@ func (f *filler) run(ctx context.Context) (*Stats, error) {
 
 func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.Cid, error) {
 	n := st.Scanned + 1
-	log := log.With("n", n, "ad", adCid)
-	log.Debug("checking main")
-	data, src, mainBroken, err := f.loadExisting(ctx, log, adCid)
+	ap := f.out.Ad(n, adCid)
+	ap.CheckingMain()
+	data, src, mainBroken, err := f.loadExisting(ctx, ap, adCid)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return cid.Undef, err
 	}
@@ -243,13 +242,12 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 	var ad schema.Advertisement
 	if err == nil {
 		ad = data.ad
-		log = logAdFields(log, ad)
-		logCarFields(log, data).Info("loaded advertisement", "source", src.String())
+		ap.Loaded(src, data)
 	} else {
 		if mainBroken {
-			log.Info("main CAR unusable, fetching from publisher", "publisher", f.opts.Publisher.ID)
+			ap.MainUnusableFetching(f.opts.Publisher.ID)
 		} else {
-			log.Info("not in mirrors, fetching from publisher", "publisher", f.opts.Publisher.ID)
+			ap.NotInMirrorsFetching(f.opts.Publisher.ID)
 		}
 		ad, err = f.fetchFromProvider(ctx, adCid)
 		if err != nil {
@@ -257,11 +255,10 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		}
 		src = sourceProvider
 		st.BytesDownloaded = f.downloaded.Load()
-		log = logAdFields(log, ad)
-		log.Info("fetched advertisement")
+		ap.FetchedAd(ad)
 	}
 
-	if skipUnstored(log, ad, src, mainBroken, st) {
+	if skipUnstored(ap, ad, src, mainBroken, st) {
 		return ad.PreviousCid(), nil
 	}
 
@@ -273,7 +270,7 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		if data.hamt {
 			st.SkippedHAMT++
 		}
-		logCarFields(log, data).Info("present on main")
+		ap.PresentOnMain(data)
 		return ad.PreviousCid(), nil
 
 	case sourceExternal:
@@ -296,16 +293,12 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 			st.EntryChunks += data.chunks
 			st.Multihashes += data.mhs
 		}
-		if mainBroken {
-			logCarFields(log, data).Info("recreated from external", "written", written)
-		} else {
-			logCarFields(log, data).Info("copied from external", "written", written)
-		}
+		ap.CopiedFromExternal(data, written, mainBroken)
 		return ad.PreviousCid(), nil
 	}
 
 	entsCid := ad.Entries.(cidlink.Link).Cid
-	log.Info("syncing first entries block", "entries", entsCid)
+	ap.SyncingFirstEntries(entsCid)
 	if err = f.syncOneEntry(ctx, entsCid); err != nil {
 		return cid.Undef, fmt.Errorf("cannot sync first entries block for %s: %w", adCid, err)
 	}
@@ -314,7 +307,7 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		return cid.Undef, err
 	}
 	if hamt {
-		log.Info("entries are HAMT, writing ad only")
+		ap.HAMTAdOnly()
 		_ = f.ds.Delete(ctx, datastore.NewKey(entsCid.String()))
 		written, err := f.writeAdOnly(ctx, adCid)
 		if err != nil {
@@ -324,11 +317,11 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		noteWrittenFromPublisher(st, mainBroken)
 		st.BytesWritten += written
 		st.BytesDownloaded = f.downloaded.Load()
-		log.Info(publisherAction(mainBroken), "hamt", true, "written", written, "bytesDownloaded", st.BytesDownloaded)
+		ap.WrittenFromPublisher(mainBroken, true, 0, 0, written, st.BytesDownloaded)
 		return ad.PreviousCid(), nil
 	}
 
-	log.Info("syncing remaining entry chunks", "entries", entsCid)
+	ap.SyncingRemaining(entsCid)
 	chunks, mhs, err := f.syncRemainingEntries(ctx, entsCid)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("cannot sync entries for %s: %w", adCid, err)
@@ -347,20 +340,20 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		written = info.Size
 		st.BytesWritten += written
 	}
-	log.Info(publisherAction(mainBroken), "chunks", chunks, "multihashes", mhs, "written", written, "bytesDownloaded", st.BytesDownloaded)
+	ap.WrittenFromPublisher(mainBroken, false, chunks, mhs, written, st.BytesDownloaded)
 	return ad.PreviousCid(), nil
 }
 
-func skipUnstored(log *slog.Logger, ad schema.Advertisement, src source, mainBroken bool, st *Stats) bool {
+func skipUnstored(ap AdProgress, ad schema.Advertisement, src source, mainBroken bool, st *Stats) bool {
 	if ad.IsRm {
 		onMain := src == sourceMain || mainBroken
 		st.SkippedRm++
-		log.Info("skip IsRm", "carOnMain", onMain)
+		ap.SkipIsRm(ad, onMain)
 		return true
 	}
 	if !hasEntries(ad) {
 		st.SkippedNoEnts++
-		log.Info("skip no-entries")
+		ap.SkipNoEntries(ad)
 		return true
 	}
 	return false
@@ -380,7 +373,7 @@ func publisherAction(mainBroken bool) string {
 	return "downloaded"
 }
 
-func (f *filler) loadExisting(ctx context.Context, log *slog.Logger, adCid cid.Cid) (*carData, source, bool, error) {
+func (f *filler) loadExisting(ctx context.Context, ap AdProgress, adCid cid.Cid) (*carData, source, bool, error) {
 	mainBroken := false
 	block, err := f.mainReader.Read(ctx, adCid, false)
 	switch {
@@ -392,29 +385,29 @@ func (f *filler) loadExisting(ctx context.Context, log *slog.Logger, adCid cid.C
 		if isCanceled(vErr) {
 			return nil, sourceNone, false, vErr
 		}
-		log.Info("main CAR invalid, will recreate", "err", vErr)
+		ap.MainInvalid(vErr)
 		mainBroken = true
 	case isCanceled(err):
 		return nil, sourceNone, false, err
 	case errors.Is(err, fs.ErrNotExist):
-		log.Debug("main miss")
+		ap.MainMiss()
 	default:
-		log.Info("main read error, will recreate", "err", err)
+		ap.MainReadError(err)
 		mainBroken = true
 	}
 
 	for i, reader := range f.externals {
-		log.Debug("checking external", "external", i, "location", reader.Location())
+		ap.CheckingExternal(i, reader.Location())
 		block, err = reader.Read(ctx, adCid, false)
 		if err != nil {
 			if isCanceled(err) {
 				return nil, sourceNone, mainBroken, err
 			}
 			if errors.Is(err, fs.ErrNotExist) {
-				log.Debug("external miss", "external", i)
+				ap.ExternalMiss(i)
 				continue
 			}
-			log.Info("external read error", "external", i, "err", err)
+			ap.ExternalReadError(i, err)
 			continue
 		}
 		data, vErr := inspectCar(adCid, block)
@@ -422,10 +415,10 @@ func (f *filler) loadExisting(ctx context.Context, log *slog.Logger, adCid cid.C
 			if isCanceled(vErr) {
 				return nil, sourceNone, mainBroken, vErr
 			}
-			log.Info("external invalid CAR", "external", i, "err", vErr)
+			ap.ExternalInvalid(i, vErr)
 			continue
 		}
-		log.Info("external hit", "external", i)
+		ap.ExternalHit(i)
 		return data, sourceExternal, mainBroken, nil
 	}
 

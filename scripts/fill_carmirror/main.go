@@ -29,9 +29,11 @@ External mirrors are tried before downloading from the publisher.
 A CAR already on main that fails validation is overwritten from external
 or the publisher instead of stopping the walk.
 IsRm and no-entries advertisements are not stored. An IsRm advertisement
-is logged (including whether a CAR already exists on main) and not written.
+is reported (including whether a CAR already exists on main) and not written.
 Does not open the indexer value store.
-Logging uses go-log env vars (GOLOG_LOG_FMT, GOLOG_LOG_LEVEL, GOLOG_FILE, ...).`,
+
+By default each event is a timestamped line on stdout. Pass --log for
+structured logs (GOLOG_LOG_FMT, GOLOG_LOG_LEVEL, GOLOG_FILE, ...).`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:  "config",
@@ -60,8 +62,12 @@ Logging uses go-log env vars (GOLOG_LOG_FMT, GOLOG_LOG_LEVEL, GOLOG_FILE, ...).`
 			},
 			&cli.DurationFlag{
 				Name:  "progress",
-				Usage: "How often to log running stats",
+				Usage: "How often to print running stats",
 				Value: 10 * time.Second,
+			},
+			&cli.BoolFlag{
+				Name:  "log",
+				Usage: "Write structured logs instead of timestamped lines",
 			},
 		},
 		Action: run,
@@ -74,10 +80,6 @@ Logging uses go-log env vars (GOLOG_LOG_FMT, GOLOG_LOG_LEVEL, GOLOG_FILE, ...).`
 }
 
 func run(cctx *cli.Context) error {
-	if err := setupLogger(); err != nil {
-		return err
-	}
-
 	providerID, err := peer.Decode(cctx.String("provider"))
 	if err != nil {
 		return fmt.Errorf("bad --provider: %w", err)
@@ -125,44 +127,53 @@ func run(cctx *cli.Context) error {
 		return fmt.Errorf("required: --indexer (reads publisher AddrInfo from provider info) or --addr-info")
 	}
 
+	hadStart := opts.StartAd != cid.Undef
 	if indexerURL := cctx.String("indexer"); indexerURL != "" {
 		if err := applyIndexer(ctx, indexerURL, providerID, &opts); err != nil {
 			return fmt.Errorf("indexer lookup: %w", err)
 		}
 	}
 
+	out, err := newCLIProgress(cctx)
+	if err != nil {
+		return err
+	}
+	opts.Out = out
+
+	if indexerURL := cctx.String("indexer"); indexerURL != "" && !hadStart {
+		out.UsingIndexer(opts.StartAd, indexerURL)
+	}
+
 	if progressEvery := cctx.Duration("progress"); progressEvery > 0 {
 		ticker := time.NewTicker(progressEvery)
 		defer ticker.Stop()
-		opts.Progress = func(s Stats) {
-			select {
-			case <-ticker.C:
-				logStats(log, s).Info("progress")
-			default:
-			}
-		}
+		opts.Out = &throttlePeriodic{Progress: opts.Out, ticker: ticker}
+	} else {
+		opts.Out = noPeriodic{opts.Out}
 	}
 
-	logStart(log, opts).Info("starting fill")
-	for i, ext := range opts.Mirror.External {
-		loc := ext.HTTP.BaseURL
-		if loc == "" {
-			loc = ext.Local.BasePath
-		}
-		log.Info("external mirror", "index", i, "type", ext.Type, "location", loc)
-	}
-
+	opts.Out.Start(opts)
 	st, err := Fill(ctx, opts)
+	if st != nil {
+		opts.Out.Done(*st, err)
+	} else if err != nil {
+		opts.Out.Done(Stats{}, err)
+	}
 	if err != nil {
-		if st != nil {
-			logStats(log, *st).Error("fill failed", "err", err)
-		} else {
-			log.Error("fill failed", "err", err)
-		}
 		return fmt.Errorf("fill failed: %w", err)
 	}
-	logStats(log, *st).Info("fill complete")
 	return nil
+}
+
+func newCLIProgress(cctx *cli.Context) (Progress, error) {
+	if !cctx.Bool("log") {
+		return NewPrintProgress(os.Stdout), nil
+	}
+	log, err := setupLogger()
+	if err != nil {
+		return nil, err
+	}
+	return NewLogProgress(log), nil
 }
 
 func applyIndexer(ctx context.Context, indexerURL string, providerID peer.ID, opts *Options) error {
@@ -182,7 +193,6 @@ func applyIndexer(ctx context.Context, indexerURL string, providerID peer.ID, op
 			return fmt.Errorf("indexer has no LastAdvertisement for %s", providerID)
 		}
 		opts.StartAd = info.LastAdvertisement
-		log.Info("using LastAdvertisement from indexer", "startAd", opts.StartAd, "indexer", indexerURL)
 	}
 	if opts.Publisher.ID == "" && info.Publisher != nil && info.Publisher.ID != "" {
 		opts.Publisher = *info.Publisher
