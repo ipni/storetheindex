@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -74,8 +74,15 @@ type Options struct {
 	Publisher peer.AddrInfo
 	Depth     int // 0 means unlimited
 
-	// Progress is called with a copy of the running stats. Optional.
-	Progress func(Stats)
+	// Estimate, when true, counts advertisements in the chain (ads only)
+	// before filling so progress can show a total. EstimateTimeout limits
+	// that count; 0 means no time limit. A timeout or error yields a partial
+	// total and fill still runs.
+	Estimate        bool
+	EstimateTimeout time.Duration
+
+	// Out receives fill events. Nil is a no-op.
+	Out Progress
 }
 
 // Stats is the running / final summary of a fill run.
@@ -94,6 +101,11 @@ type Stats struct {
 	BytesWritten    int64
 	StopReason      string
 	LastAd          cid.Cid
+	// TotalAds is the advertisement count from StartAd toward genesis, if
+	// --estimate ran. TotalExact is true when the count reached genesis (or
+	// --depth). Otherwise TotalAds is a lower bound.
+	TotalAds   int
+	TotalExact bool
 }
 
 type carData struct {
@@ -108,6 +120,7 @@ type carData struct {
 
 type filler struct {
 	opts       Options
+	out        Progress
 	ds         datastore.Batching
 	mainReader *carstore.CarReader
 	mainWriter *carstore.CarWriter
@@ -116,6 +129,21 @@ type filler struct {
 
 	host host.Host
 	sub  *dagsync.Subscriber
+
+	// entryProg, when set, reports each entry chunk as it is stored during a
+	// publisher fetch. dagsync only runs the block hook after the remaining
+	// chain is fully synced, so this is what shows live per-chunk progress.
+	entryProg AdProgress
+	entryN    int
+
+	// carProg reports CAR assembly. CarWriter has no callbacks, so a datastore
+	// Get wrapper logs each entries block as it is read into the CAR, and a
+	// filestore Put wrapper logs bytes copied to the mirror.
+	carProg       AdProgress
+	carWriteN     int
+	carWriteTotal int
+	carWriteAd    cid.Cid
+	carWriteLast  cid.Cid
 }
 
 // Fill walks a provider's advertisement chain and writes missing or invalid
@@ -140,7 +168,14 @@ func newFiller(opts Options) (*filler, error) {
 		return nil, errors.New("main car mirror has no storage backend")
 	}
 
-	ds := dssync.MutexWrap(datastore.NewMapDatastore())
+	ds := &hookDS{Batching: dssync.MutexWrap(datastore.NewMapDatastore())}
+	f := &filler{
+		opts: opts,
+		out:  progressOrNop(opts.Out),
+		ds:   ds,
+	}
+	ds.f = f
+
 	mainStore, err := filestore.MakeFilestore(opts.Mirror.Main.Config)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create main car file store: %w", err)
@@ -148,6 +183,7 @@ func newFiller(opts Options) (*filler, error) {
 	if mainStore == nil {
 		return nil, errors.New("main car mirror storage backend is disabled")
 	}
+	mainStore = &hookFileStore{Interface: mainStore, f: f}
 
 	mainWriter, err := carstore.NewWriter(ds, mainStore, carstore.WithCompress(opts.Mirror.Main.Compress))
 	if err != nil {
@@ -177,13 +213,10 @@ func newFiller(opts Options) (*filler, error) {
 		externals = append(externals, reader)
 	}
 
-	return &filler{
-		opts:       opts,
-		ds:         ds,
-		mainReader: mainReader,
-		mainWriter: mainWriter,
-		externals:  externals,
-	}, nil
+	f.mainReader = mainReader
+	f.mainWriter = mainWriter
+	f.externals = externals
+	return f, nil
 }
 
 func (f *filler) close() {
@@ -202,6 +235,13 @@ func (f *filler) run(ctx context.Context) (*Stats, error) {
 		return st, errors.New("no start advertisement: pass --cid or --indexer so LastAdvertisement can be read from provider info")
 	}
 
+	if f.opts.Estimate {
+		if err := f.runEstimate(ctx, st); err != nil {
+			st.StopReason = stopCanceled
+			return st, err
+		}
+	}
+
 	for adCid != cid.Undef {
 		if err := ctx.Err(); err != nil {
 			st.StopReason = stopCanceled
@@ -215,9 +255,7 @@ func (f *filler) run(ctx context.Context) (*Stats, error) {
 		prev, err := f.processAd(ctx, adCid, st)
 		st.Scanned++
 		st.LastAd = adCid
-		if f.opts.Progress != nil {
-			f.opts.Progress(*st)
-		}
+		f.out.Periodic(*st)
 		if err != nil {
 			if st.StopReason == "" {
 				st.StopReason = stopError
@@ -231,11 +269,87 @@ func (f *filler) run(ctx context.Context) (*Stats, error) {
 	return st, nil
 }
 
+const estimateSegment = 200
+
+func (f *filler) runEstimate(ctx context.Context, st *Stats) error {
+	f.out.Estimating(f.opts.EstimateTimeout)
+	estCtx := ctx
+	if f.opts.EstimateTimeout > 0 {
+		var cancel context.CancelFunc
+		estCtx, cancel = context.WithTimeout(ctx, f.opts.EstimateTimeout)
+		defer cancel()
+	}
+	startDown := f.downloaded.Load()
+	n, exact, err := f.countAds(estCtx)
+	f.downloaded.Store(startDown)
+	st.TotalAds = n
+	st.TotalExact = exact && err == nil
+	if err != nil && ctx.Err() != nil {
+		f.out.Estimated(n, false)
+		return ctx.Err()
+	}
+	f.out.Estimated(n, st.TotalExact)
+	return nil
+}
+
+func (f *filler) countAds(ctx context.Context) (int, bool, error) {
+	if err := f.ensurePublisher(ctx); err != nil {
+		return 0, false, err
+	}
+	n := 0
+	next := f.opts.StartAd
+	for next != cid.Undef {
+		if err := ctx.Err(); err != nil {
+			return n, false, err
+		}
+		if f.opts.Depth > 0 && n >= f.opts.Depth {
+			return n, true, nil
+		}
+		limit := estimateSegment
+		if f.opts.Depth > 0 && n+limit > f.opts.Depth {
+			limit = f.opts.Depth - n
+		}
+		var lastPrev cid.Cid
+		got := 0
+		hook := dagsync.MakeGeneralBlockHook(func(adCid cid.Cid) (cid.Cid, error) {
+			raw, err := f.ds.Get(ctx, datastore.NewKey(adCid.String()))
+			if err != nil {
+				return cid.Undef, err
+			}
+			ad, err := schema.BytesToAdvertisement(adCid, raw)
+			if err != nil {
+				return cid.Undef, err
+			}
+			got++
+			lastPrev = ad.PreviousCid()
+			return lastPrev, nil
+		})
+		_, err := f.sub.SyncAdChain(ctx, f.opts.Publisher,
+			dagsync.WithHeadAdCid(next),
+			dagsync.ScopedDepthLimit(int64(limit)),
+			dagsync.ScopedSegmentDepthLimit(int64(limit)),
+			dagsync.ScopedBlockHook(hook),
+		)
+		n += got
+		if got > 0 {
+			f.out.EstimateProgress(n)
+		}
+		if err != nil {
+			return n, false, err
+		}
+		if got == 0 || got < limit {
+			return n, true, nil
+		}
+		next = lastPrev
+	}
+	return n, true, nil
+}
+
 func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.Cid, error) {
 	n := st.Scanned + 1
-	log := log.With("n", n, "ad", adCid)
-	log.Debug("checking main")
-	data, src, mainBroken, err := f.loadExisting(ctx, log, adCid)
+	ap := f.out.Ad(n, adCid, st.TotalAds, st.TotalExact)
+	ap.CheckingMain()
+	data, src, mainBroken, err := f.loadExisting(ctx, ap, adCid)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return cid.Undef, err
 	}
@@ -243,13 +357,12 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 	var ad schema.Advertisement
 	if err == nil {
 		ad = data.ad
-		log = logAdFields(log, ad)
-		logCarFields(log, data).Info("loaded advertisement", "source", src.String())
+		ap.Loaded(src, data)
 	} else {
 		if mainBroken {
-			log.Info("main CAR unusable, fetching from publisher", "publisher", f.opts.Publisher.ID)
+			ap.MainUnusableFetching(f.opts.Publisher.ID)
 		} else {
-			log.Info("not in mirrors, fetching from publisher", "publisher", f.opts.Publisher.ID)
+			ap.NotInMirrorsFetching(f.opts.Publisher.ID)
 		}
 		ad, err = f.fetchFromProvider(ctx, adCid)
 		if err != nil {
@@ -257,11 +370,10 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		}
 		src = sourceProvider
 		st.BytesDownloaded = f.downloaded.Load()
-		log = logAdFields(log, ad)
-		log.Info("fetched advertisement")
+		ap.FetchedAd(ad)
 	}
 
-	if skipUnstored(log, ad, src, mainBroken, st) {
+	if skipUnstored(ap, ad, src, mainBroken, st) {
 		return ad.PreviousCid(), nil
 	}
 
@@ -273,7 +385,7 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		if data.hamt {
 			st.SkippedHAMT++
 		}
-		logCarFields(log, data).Info("present on main")
+		ap.PresentOnMain(data)
 		return ad.PreviousCid(), nil
 
 	case sourceExternal:
@@ -281,7 +393,7 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		if skipEnts {
 			data.entries = nil
 		}
-		written, err := f.writeFromData(ctx, adCid, data)
+		written, err := f.writeFromData(ctx, ap, adCid, data)
 		if err != nil {
 			return cid.Undef, fmt.Errorf("cannot copy %s from external to main: %w", adCid, err)
 		}
@@ -296,16 +408,15 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 			st.EntryChunks += data.chunks
 			st.Multihashes += data.mhs
 		}
-		if mainBroken {
-			logCarFields(log, data).Info("recreated from external", "written", written)
-		} else {
-			logCarFields(log, data).Info("copied from external", "written", written)
-		}
+		ap.CopiedFromExternal(data, written, mainBroken)
 		return ad.PreviousCid(), nil
 	}
 
 	entsCid := ad.Entries.(cidlink.Link).Cid
-	log.Info("syncing first entries block", "entries", entsCid)
+	f.entryN = 0
+	f.entryProg = ap
+	defer func() { f.entryProg = nil }()
+	ap.SyncingFirstEntries(entsCid)
 	if err = f.syncOneEntry(ctx, entsCid); err != nil {
 		return cid.Undef, fmt.Errorf("cannot sync first entries block for %s: %w", adCid, err)
 	}
@@ -314,9 +425,9 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		return cid.Undef, err
 	}
 	if hamt {
-		log.Info("entries are HAMT, writing ad only")
+		ap.HAMTAdOnly()
 		_ = f.ds.Delete(ctx, datastore.NewKey(entsCid.String()))
-		written, err := f.writeAdOnly(ctx, adCid)
+		written, err := f.writeMainCAR(ctx, ap, adCid, true, 0)
 		if err != nil {
 			return cid.Undef, fmt.Errorf("cannot write ad-only CAR for HAMT ad %s: %w", adCid, err)
 		}
@@ -324,17 +435,16 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		noteWrittenFromPublisher(st, mainBroken)
 		st.BytesWritten += written
 		st.BytesDownloaded = f.downloaded.Load()
-		log.Info(publisherAction(mainBroken), "hamt", true, "written", written, "bytesDownloaded", st.BytesDownloaded)
+		ap.WrittenFromPublisher(mainBroken, true, 0, 0, written, st.BytesDownloaded)
 		return ad.PreviousCid(), nil
 	}
 
-	log.Info("syncing remaining entry chunks", "entries", entsCid)
 	chunks, mhs, err := f.syncRemainingEntries(ctx, entsCid)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("cannot sync entries for %s: %w", adCid, err)
 	}
 
-	info, err := f.mainWriter.Write(ctx, adCid, false, false)
+	written, err := f.writeMainCAR(ctx, ap, adCid, false, chunks)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("cannot write CAR for %s: %w", adCid, err)
 	}
@@ -342,25 +452,21 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 	st.EntryChunks += chunks
 	st.Multihashes += mhs
 	st.BytesDownloaded = f.downloaded.Load()
-	var written int64
-	if info != nil {
-		written = info.Size
-		st.BytesWritten += written
-	}
-	log.Info(publisherAction(mainBroken), "chunks", chunks, "multihashes", mhs, "written", written, "bytesDownloaded", st.BytesDownloaded)
+	st.BytesWritten += written
+	ap.WrittenFromPublisher(mainBroken, false, chunks, mhs, written, st.BytesDownloaded)
 	return ad.PreviousCid(), nil
 }
 
-func skipUnstored(log *slog.Logger, ad schema.Advertisement, src source, mainBroken bool, st *Stats) bool {
+func skipUnstored(ap AdProgress, ad schema.Advertisement, src source, mainBroken bool, st *Stats) bool {
 	if ad.IsRm {
 		onMain := src == sourceMain || mainBroken
 		st.SkippedRm++
-		log.Info("skip IsRm", "carOnMain", onMain)
+		ap.SkipIsRm(ad, onMain)
 		return true
 	}
 	if !hasEntries(ad) {
 		st.SkippedNoEnts++
-		log.Info("skip no-entries")
+		ap.SkipNoEntries(ad)
 		return true
 	}
 	return false
@@ -380,7 +486,7 @@ func publisherAction(mainBroken bool) string {
 	return "downloaded"
 }
 
-func (f *filler) loadExisting(ctx context.Context, log *slog.Logger, adCid cid.Cid) (*carData, source, bool, error) {
+func (f *filler) loadExisting(ctx context.Context, ap AdProgress, adCid cid.Cid) (*carData, source, bool, error) {
 	mainBroken := false
 	block, err := f.mainReader.Read(ctx, adCid, false)
 	switch {
@@ -392,29 +498,29 @@ func (f *filler) loadExisting(ctx context.Context, log *slog.Logger, adCid cid.C
 		if isCanceled(vErr) {
 			return nil, sourceNone, false, vErr
 		}
-		log.Info("main CAR invalid, will recreate", "err", vErr)
+		ap.MainInvalid(vErr)
 		mainBroken = true
 	case isCanceled(err):
 		return nil, sourceNone, false, err
 	case errors.Is(err, fs.ErrNotExist):
-		log.Debug("main miss")
+		ap.MainMiss()
 	default:
-		log.Info("main read error, will recreate", "err", err)
+		ap.MainReadError(err)
 		mainBroken = true
 	}
 
 	for i, reader := range f.externals {
-		log.Debug("checking external", "external", i, "location", reader.Location())
+		ap.CheckingExternal(i, reader.Location())
 		block, err = reader.Read(ctx, adCid, false)
 		if err != nil {
 			if isCanceled(err) {
 				return nil, sourceNone, mainBroken, err
 			}
 			if errors.Is(err, fs.ErrNotExist) {
-				log.Debug("external miss", "external", i)
+				ap.ExternalMiss(i)
 				continue
 			}
-			log.Info("external read error", "external", i, "err", err)
+			ap.ExternalReadError(i, err)
 			continue
 		}
 		data, vErr := inspectCar(adCid, block)
@@ -422,10 +528,10 @@ func (f *filler) loadExisting(ctx context.Context, log *slog.Logger, adCid cid.C
 			if isCanceled(vErr) {
 				return nil, sourceNone, mainBroken, vErr
 			}
-			log.Info("external invalid CAR", "external", i, "err", vErr)
+			ap.ExternalInvalid(i, vErr)
 			continue
 		}
-		log.Info("external hit", "external", i)
+		ap.ExternalHit(i)
 		return data, sourceExternal, mainBroken, nil
 	}
 
@@ -509,30 +615,35 @@ func inspectCar(adCid cid.Cid, block *carstore.AdBlock) (*carData, error) {
 	return out, nil
 }
 
-func (f *filler) writeFromData(ctx context.Context, adCid cid.Cid, data *carData) (int64, error) {
+func (f *filler) writeFromData(ctx context.Context, ap AdProgress, adCid cid.Cid, data *carData) (int64, error) {
 	if err := f.ds.Put(ctx, datastore.NewKey(adCid.String()), data.adData); err != nil {
 		return 0, err
 	}
 	skipEnts := data.hamt || !hasEntries(data.ad)
+	chunks := 0
 	if !skipEnts {
+		chunks = data.chunks
 		for _, e := range data.entries {
 			if err := f.ds.Put(ctx, datastore.NewKey(e.Cid.String()), e.Data); err != nil {
 				return 0, err
 			}
 		}
 	}
-	info, err := f.mainWriter.Write(ctx, adCid, skipEnts, false)
-	if err != nil {
-		return 0, err
-	}
-	if info == nil {
-		return 0, nil
-	}
-	return info.Size, nil
+	return f.writeMainCAR(ctx, ap, adCid, skipEnts, chunks)
 }
 
-func (f *filler) writeAdOnly(ctx context.Context, adCid cid.Cid) (int64, error) {
-	info, err := f.mainWriter.Write(ctx, adCid, true, false)
+func (f *filler) writeMainCAR(ctx context.Context, ap AdProgress, adCid cid.Cid, skipEnts bool, chunks int) (int64, error) {
+	ap.WritingCAR(chunks)
+	f.carProg = ap
+	f.carWriteN = 0
+	f.carWriteTotal = chunks
+	f.carWriteAd = adCid
+	f.carWriteLast = cid.Undef
+	defer func() { f.carProg = nil }()
+	if chunks == 0 {
+		ap.StoringCARFile()
+	}
+	info, err := f.mainWriter.Write(ctx, adCid, skipEnts, false)
 	if err != nil {
 		return 0, err
 	}
@@ -652,7 +763,11 @@ func (f *filler) ensurePublisher(ctx context.Context) error {
 			c := lnk.(cidlink.Link).Cid
 			b := buf.Bytes()
 			f.downloaded.Add(int64(len(b)))
-			return f.ds.Put(lctx.Ctx, datastore.NewKey(c.String()), b)
+			if err := f.ds.Put(lctx.Ctx, datastore.NewKey(c.String()), b); err != nil {
+				return err
+			}
+			f.noteEntryChunk(c, b)
+			return nil
 		}, nil
 	}
 
@@ -672,6 +787,98 @@ func (f *filler) ensurePublisher(ctx context.Context) error {
 	f.host = h
 	f.sub = sub
 	return nil
+}
+
+func (f *filler) noteEntryChunk(c cid.Cid, data []byte) {
+	ap := f.entryProg
+	if ap == nil {
+		return
+	}
+	ch, err := decodeEntryChunk(c, data)
+	if err != nil {
+		return
+	}
+	f.entryN++
+	ap.FetchedEntryChunk(f.entryN, c, len(ch.Entries), len(data), f.downloaded.Load())
+	if ch.Next != nil {
+		ap.FetchingEntryChunk(f.entryN+1, ch.Next.(cidlink.Link).Cid)
+	}
+}
+
+type hookDS struct {
+	datastore.Batching
+	f *filler
+}
+
+func (d *hookDS) Get(ctx context.Context, key datastore.Key) ([]byte, error) {
+	val, err := d.Batching.Get(ctx, key)
+	if err == nil {
+		d.f.noteCarStoreGet(key, val)
+	}
+	return val, err
+}
+
+func (f *filler) noteCarStoreGet(key datastore.Key, data []byte) {
+	ap := f.carProg
+	if ap == nil {
+		return
+	}
+	c, err := cid.Decode(strings.TrimPrefix(key.String(), "/"))
+	if err != nil || c == f.carWriteAd || c == f.carWriteLast {
+		return
+	}
+	ch, err := decodeEntryChunk(c, data)
+	if err != nil {
+		return
+	}
+	f.carWriteLast = c
+	f.carWriteN++
+	ap.StoringEntryChunk(f.carWriteN, f.carWriteTotal, c, len(ch.Entries), len(data))
+	if f.carWriteTotal > 0 && f.carWriteN >= f.carWriteTotal {
+		ap.StoringCARFile()
+	}
+}
+
+type hookFileStore struct {
+	filestore.Interface
+	f *filler
+}
+
+func (h *hookFileStore) Put(ctx context.Context, path string, r io.Reader) (*filestore.File, error) {
+	ap := h.f.carProg
+	if ap == nil {
+		return h.Interface.Put(ctx, path, r)
+	}
+	if h.f.carWriteTotal > 0 && h.f.carWriteN < h.f.carWriteTotal {
+		ap.StoringCARFile()
+	}
+	cr := &carPutReader{r: r, ap: ap}
+	file, err := h.Interface.Put(ctx, path, cr)
+	if cr.n > 0 && cr.n != cr.last {
+		ap.StoringCARFileBytes(cr.n)
+	}
+	return file, err
+}
+
+const carPutReportEvery = 32 << 20
+
+type carPutReader struct {
+	r    io.Reader
+	ap   AdProgress
+	n    int64
+	last int64
+}
+
+func (c *carPutReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	if n > 0 {
+		c.n += int64(n)
+		if c.n-c.last >= carPutReportEvery || err == io.EOF {
+			c.last = c.n
+			c.ap.StoringCARFileBytes(c.n)
+		}
+	}
+	return n, err
 }
 
 func hasEntries(ad schema.Advertisement) bool {
