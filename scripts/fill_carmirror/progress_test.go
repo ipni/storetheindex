@@ -73,6 +73,29 @@ func TestPrintEntryChunkProgress(t *testing.T) {
 	}
 }
 
+func TestPrintCARStoreProgress(t *testing.T) {
+	var buf bytes.Buffer
+	p := &PrintProgress{w: &buf, now: func() time.Time { return time.Time{} }}
+	ap := p.Ad(1, cid.Undef, 0, false)
+	ap.WritingCAR(3)
+	ap.StoringEntryChunk(2, 3, cid.Undef, 16, 100)
+	ap.StoringCARFile()
+	ap.StoringCARFileBytes(64)
+	out := buf.String()
+	if !strings.Contains(out, "writing CAR (3 chunks)") {
+		t.Fatalf("missing writing: %s", out)
+	}
+	if !strings.Contains(out, "storing CAR chunk 2/3") {
+		t.Fatalf("missing storing chunk: %s", out)
+	}
+	if !strings.Contains(out, "compressing and storing CAR file") {
+		t.Fatalf("missing storing file: %s", out)
+	}
+	if !strings.Contains(out, "storing CAR file  bytes=64") {
+		t.Fatalf("missing file bytes: %s", out)
+	}
+}
+
 func TestFormatScanned(t *testing.T) {
 	if got := formatScanned(Stats{Scanned: 3}); got != "3" {
 		t.Fatalf("no total: got %q", got)

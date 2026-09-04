@@ -46,6 +46,10 @@ type AdProgress interface {
 	HAMTAdOnly()
 	FetchingEntryChunk(n int, chunkCid cid.Cid)
 	FetchedEntryChunk(n int, chunkCid cid.Cid, mhs, chunkBytes int, downBytes int64)
+	WritingCAR(chunks int)
+	StoringEntryChunk(n, total int, chunkCid cid.Cid, mhs, chunkBytes int)
+	StoringCARFile()
+	StoringCARFileBytes(n int64)
 	WrittenFromPublisher(mainBroken, hamt bool, chunks, mhs int, written, downBytes int64)
 }
 
@@ -83,6 +87,10 @@ func (nopAd) SyncingFirstEntries(cid.Cid)                             {}
 func (nopAd) HAMTAdOnly()                                             {}
 func (nopAd) FetchingEntryChunk(int, cid.Cid)                         {}
 func (nopAd) FetchedEntryChunk(int, cid.Cid, int, int, int64)         {}
+func (nopAd) WritingCAR(int)                                          {}
+func (nopAd) StoringEntryChunk(int, int, cid.Cid, int, int)           {}
+func (nopAd) StoringCARFile()                                         {}
+func (nopAd) StoringCARFileBytes(int64)                               {}
 func (nopAd) WrittenFromPublisher(bool, bool, int, int, int64, int64) {}
 
 func progressOrNop(p Progress) Progress {

@@ -178,6 +178,26 @@ func (a printAd) FetchingEntryChunk(n int, chunkCid cid.Cid) {
 func (a printAd) FetchedEntryChunk(n int, chunkCid cid.Cid, mhs, chunkBytes int, downBytes int64) {
 	a.line("got entry chunk %d  %s  mhs=%d bytes=%d down_bytes=%d", n, chunkCid, mhs, chunkBytes, downBytes)
 }
+func (a printAd) WritingCAR(chunks int) {
+	if chunks <= 0 {
+		a.line("writing CAR (ad only)")
+		return
+	}
+	a.line("writing CAR (%d chunks)", chunks)
+}
+func (a printAd) StoringEntryChunk(n, total int, chunkCid cid.Cid, mhs, chunkBytes int) {
+	if total > 0 {
+		a.line("storing CAR chunk %d/%d  %s  mhs=%d bytes=%d", n, total, chunkCid, mhs, chunkBytes)
+		return
+	}
+	a.line("storing CAR chunk %d  %s  mhs=%d bytes=%d", n, chunkCid, mhs, chunkBytes)
+}
+func (a printAd) StoringCARFile() {
+	a.line("compressing and storing CAR file")
+}
+func (a printAd) StoringCARFileBytes(n int64) {
+	a.line("storing CAR file  bytes=%d", n)
+}
 func (a printAd) WrittenFromPublisher(mainBroken, hamt bool, chunks, mhs int, written, downBytes int64) {
 	action := publisherAction(mainBroken)
 	if hamt {

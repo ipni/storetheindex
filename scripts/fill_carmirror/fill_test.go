@@ -369,6 +369,9 @@ func TestFillDownloadsFromProvider(t *testing.T) {
 	require.Positive(t, st.BytesDownloaded)
 	require.Equal(t, 4, rec.fetched)
 	require.Equal(t, 2, rec.fetching)
+	require.Equal(t, 2, rec.writing)
+	require.Equal(t, 4, rec.stored)
+	require.Equal(t, 2, rec.carFile)
 
 	reader, err := carstore.NewReader(mustStore(t, main), carstore.WithCompress(main.Compress))
 	require.NoError(t, err)
@@ -516,6 +519,9 @@ type chunkRec struct {
 	nopProgress
 	fetched  int
 	fetching int
+	writing  int
+	stored   int
+	carFile  int
 }
 
 func (r *chunkRec) Ad(int, cid.Cid, int, bool) AdProgress {
@@ -531,6 +537,11 @@ func (a chunkAd) FetchingEntryChunk(int, cid.Cid) { a.r.fetching++ }
 func (a chunkAd) FetchedEntryChunk(int, cid.Cid, int, int, int64) {
 	a.r.fetched++
 }
+func (a chunkAd) WritingCAR(int) { a.r.writing++ }
+func (a chunkAd) StoringEntryChunk(int, int, cid.Cid, int, int) {
+	a.r.stored++
+}
+func (a chunkAd) StoringCARFile() { a.r.carFile++ }
 
 func storeAdChain(t *testing.T, ds datastore.Datastore, chunksPerAd int) (latest, prev testAd) {
 	t.Helper()

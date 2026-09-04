@@ -220,6 +220,18 @@ func (a logAd) FetchingEntryChunk(n int, chunkCid cid.Cid) {
 func (a logAd) FetchedEntryChunk(n int, chunkCid cid.Cid, mhs, chunkBytes int, downBytes int64) {
 	a.log.Info("got entry chunk", "chunk", n, "entries", chunkCid, "multihashes", mhs, "bytes", chunkBytes, "bytesDownloaded", downBytes)
 }
+func (a logAd) WritingCAR(chunks int) {
+	a.log.Info("writing CAR", "chunks", chunks)
+}
+func (a logAd) StoringEntryChunk(n, total int, chunkCid cid.Cid, mhs, chunkBytes int) {
+	a.log.Info("storing CAR chunk", "chunk", n, "total", total, "entries", chunkCid, "multihashes", mhs, "bytes", chunkBytes)
+}
+func (a logAd) StoringCARFile() {
+	a.log.Info("compressing and storing CAR file")
+}
+func (a logAd) StoringCARFileBytes(n int64) {
+	a.log.Info("storing CAR file", "bytes", n)
+}
 func (a logAd) WrittenFromPublisher(mainBroken, hamt bool, chunks, mhs int, written, downBytes int64) {
 	l := a.log.With("written", written, "bytesDownloaded", downBytes)
 	if hamt {
