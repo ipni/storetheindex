@@ -172,6 +172,12 @@ func (a printAd) SyncingFirstEntries(entsCid cid.Cid) {
 	a.line("syncing first entries block %s", entsCid)
 }
 func (a printAd) HAMTAdOnly() { a.line("entries are HAMT, writing ad only") }
+func (a printAd) FetchingEntryChunk(n int, chunkCid cid.Cid) {
+	a.line("fetching entry chunk %d  %s", n, chunkCid)
+}
+func (a printAd) FetchedEntryChunk(n int, chunkCid cid.Cid, mhs, chunkBytes int, downBytes int64) {
+	a.line("got entry chunk %d  %s  mhs=%d bytes=%d down_bytes=%d", n, chunkCid, mhs, chunkBytes, downBytes)
+}
 func (a printAd) WrittenFromPublisher(mainBroken, hamt bool, chunks, mhs int, written, downBytes int64) {
 	action := publisherAction(mainBroken)
 	if hamt {
@@ -179,7 +185,4 @@ func (a printAd) WrittenFromPublisher(mainBroken, hamt bool, chunks, mhs int, wr
 		return
 	}
 	a.line("%s  chunks=%d mhs=%d written=%d down_bytes=%d", action, chunks, mhs, written, downBytes)
-}
-func (a printAd) SyncingRemaining(entsCid cid.Cid) {
-	a.line("syncing remaining entry chunks from %s", entsCid)
 }

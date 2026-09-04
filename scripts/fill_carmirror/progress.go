@@ -44,8 +44,9 @@ type AdProgress interface {
 	CopiedFromExternal(data *carData, written int64, recreated bool)
 	SyncingFirstEntries(entsCid cid.Cid)
 	HAMTAdOnly()
+	FetchingEntryChunk(n int, chunkCid cid.Cid)
+	FetchedEntryChunk(n int, chunkCid cid.Cid, mhs, chunkBytes int, downBytes int64)
 	WrittenFromPublisher(mainBroken, hamt bool, chunks, mhs int, written, downBytes int64)
-	SyncingRemaining(entsCid cid.Cid)
 }
 
 type nopProgress struct{}
@@ -80,8 +81,9 @@ func (nopAd) PresentOnMain(*carData)                                  {}
 func (nopAd) CopiedFromExternal(*carData, int64, bool)                {}
 func (nopAd) SyncingFirstEntries(cid.Cid)                             {}
 func (nopAd) HAMTAdOnly()                                             {}
+func (nopAd) FetchingEntryChunk(int, cid.Cid)                         {}
+func (nopAd) FetchedEntryChunk(int, cid.Cid, int, int, int64)         {}
 func (nopAd) WrittenFromPublisher(bool, bool, int, int, int64, int64) {}
-func (nopAd) SyncingRemaining(cid.Cid)                                {}
 
 func progressOrNop(p Progress) Progress {
 	if p == nil {

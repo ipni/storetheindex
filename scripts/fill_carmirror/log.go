@@ -214,6 +214,12 @@ func (a logAd) SyncingFirstEntries(entsCid cid.Cid) {
 	a.log.Info("syncing first entries block", "entries", entsCid)
 }
 func (a logAd) HAMTAdOnly() { a.log.Info("entries are HAMT, writing ad only") }
+func (a logAd) FetchingEntryChunk(n int, chunkCid cid.Cid) {
+	a.log.Info("fetching entry chunk", "chunk", n, "entries", chunkCid)
+}
+func (a logAd) FetchedEntryChunk(n int, chunkCid cid.Cid, mhs, chunkBytes int, downBytes int64) {
+	a.log.Info("got entry chunk", "chunk", n, "entries", chunkCid, "multihashes", mhs, "bytes", chunkBytes, "bytesDownloaded", downBytes)
+}
 func (a logAd) WrittenFromPublisher(mainBroken, hamt bool, chunks, mhs int, written, downBytes int64) {
 	l := a.log.With("written", written, "bytesDownloaded", downBytes)
 	if hamt {
@@ -222,9 +228,6 @@ func (a logAd) WrittenFromPublisher(mainBroken, hamt bool, chunks, mhs int, writ
 		l = l.With("chunks", chunks, "multihashes", mhs)
 	}
 	l.Info(publisherAction(mainBroken))
-}
-func (a logAd) SyncingRemaining(entsCid cid.Cid) {
-	a.log.Info("syncing remaining entry chunks", "entries", entsCid)
 }
 
 func withStats(log *slog.Logger, s Stats) *slog.Logger {

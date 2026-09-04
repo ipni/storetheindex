@@ -58,6 +58,21 @@ func TestPrintAdIndexIncludesTotal(t *testing.T) {
 	}
 }
 
+func TestPrintEntryChunkProgress(t *testing.T) {
+	var buf bytes.Buffer
+	p := &PrintProgress{w: &buf, now: func() time.Time { return time.Time{} }}
+	ap := p.Ad(1, cid.Undef, 0, false)
+	ap.FetchingEntryChunk(2, cid.Undef)
+	ap.FetchedEntryChunk(2, cid.Undef, 16, 100, 500)
+	out := buf.String()
+	if !strings.Contains(out, "fetching entry chunk 2") {
+		t.Fatalf("missing fetching: %s", out)
+	}
+	if !strings.Contains(out, "got entry chunk 2") || !strings.Contains(out, "mhs=16") {
+		t.Fatalf("missing got: %s", out)
+	}
+}
+
 func TestFormatScanned(t *testing.T) {
 	if got := formatScanned(Stats{Scanned: 3}); got != "3" {
 		t.Fatalf("no total: got %q", got)

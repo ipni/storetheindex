@@ -128,6 +128,12 @@ type filler struct {
 
 	host host.Host
 	sub  *dagsync.Subscriber
+
+	// entryProg, when set, reports each entry chunk as it is stored during a
+	// publisher fetch. dagsync only runs the block hook after the remaining
+	// chain is fully synced, so this is what shows live per-chunk progress.
+	entryProg AdProgress
+	entryN    int
 }
 
 // Fill walks a provider's advertisement chain and writes missing or invalid
@@ -393,6 +399,9 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 	}
 
 	entsCid := ad.Entries.(cidlink.Link).Cid
+	f.entryN = 0
+	f.entryProg = ap
+	defer func() { f.entryProg = nil }()
 	ap.SyncingFirstEntries(entsCid)
 	if err = f.syncOneEntry(ctx, entsCid); err != nil {
 		return cid.Undef, fmt.Errorf("cannot sync first entries block for %s: %w", adCid, err)
@@ -416,7 +425,6 @@ func (f *filler) processAd(ctx context.Context, adCid cid.Cid, st *Stats) (cid.C
 		return ad.PreviousCid(), nil
 	}
 
-	ap.SyncingRemaining(entsCid)
 	chunks, mhs, err := f.syncRemainingEntries(ctx, entsCid)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("cannot sync entries for %s: %w", adCid, err)
@@ -740,7 +748,11 @@ func (f *filler) ensurePublisher(ctx context.Context) error {
 			c := lnk.(cidlink.Link).Cid
 			b := buf.Bytes()
 			f.downloaded.Add(int64(len(b)))
-			return f.ds.Put(lctx.Ctx, datastore.NewKey(c.String()), b)
+			if err := f.ds.Put(lctx.Ctx, datastore.NewKey(c.String()), b); err != nil {
+				return err
+			}
+			f.noteEntryChunk(c, b)
+			return nil
 		}, nil
 	}
 
@@ -760,6 +772,22 @@ func (f *filler) ensurePublisher(ctx context.Context) error {
 	f.host = h
 	f.sub = sub
 	return nil
+}
+
+func (f *filler) noteEntryChunk(c cid.Cid, data []byte) {
+	ap := f.entryProg
+	if ap == nil {
+		return
+	}
+	ch, err := decodeEntryChunk(c, data)
+	if err != nil {
+		return
+	}
+	f.entryN++
+	ap.FetchedEntryChunk(f.entryN, c, len(ch.Entries), len(data), f.downloaded.Load())
+	if ch.Next != nil {
+		ap.FetchingEntryChunk(f.entryN+1, ch.Next.(cidlink.Link).Cid)
+	}
 }
 
 func hasEntries(ad schema.Advertisement) bool {

@@ -353,11 +353,13 @@ func TestFillDownloadsFromProvider(t *testing.T) {
 	pub.SetRoot(ad2.cid)
 
 	main := localStore(t)
+	rec := &chunkRec{}
 	st, err := Fill(ctx, Options{
 		Mirror:      rwMirror(main),
 		StartAd:     ad2.cid,
 		Publisher:   peer.AddrInfo{ID: pub.ID(), Addrs: pub.Addrs()},
 		HttpTimeout: 10 * time.Second,
+		Out:         rec,
 	})
 	require.NoError(t, err)
 	require.Equal(t, 2, st.Downloaded)
@@ -365,6 +367,8 @@ func TestFillDownloadsFromProvider(t *testing.T) {
 	require.Equal(t, stopGenesis, st.StopReason)
 	require.Positive(t, st.BytesWritten)
 	require.Positive(t, st.BytesDownloaded)
+	require.Equal(t, 4, rec.fetched)
+	require.Equal(t, 2, rec.fetching)
 
 	reader, err := carstore.NewReader(mustStore(t, main), carstore.WithCompress(main.Compress))
 	require.NoError(t, err)
@@ -506,6 +510,26 @@ func carExists(t *testing.T, storeCfg config.StoreConfig, adCid cid.Cid) bool {
 		return false
 	}
 	return true
+}
+
+type chunkRec struct {
+	nopProgress
+	fetched  int
+	fetching int
+}
+
+func (r *chunkRec) Ad(int, cid.Cid, int, bool) AdProgress {
+	return chunkAd{r: r}
+}
+
+type chunkAd struct {
+	nopAd
+	r *chunkRec
+}
+
+func (a chunkAd) FetchingEntryChunk(int, cid.Cid) { a.r.fetching++ }
+func (a chunkAd) FetchedEntryChunk(int, cid.Cid, int, int, int64) {
+	a.r.fetched++
 }
 
 func storeAdChain(t *testing.T, ds datastore.Datastore, chunksPerAd int) (latest, prev testAd) {
