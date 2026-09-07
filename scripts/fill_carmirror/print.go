@@ -14,6 +14,7 @@ const printTimeFormat = "2006-01-02T15:04:05.000-0700"
 
 // PrintProgress writes timestamped lines in the original fill_carmirror style.
 type PrintProgress struct {
+	counts
 	w   io.Writer
 	now func() time.Time
 }
@@ -34,7 +35,12 @@ func (p *PrintProgress) line(format string, args ...any) {
 	fmt.Fprintf(p.w, "%s  "+format+"\n", append([]any{p.ts()}, args...)...)
 }
 
+func (p *PrintProgress) adLine(ad AdRef, format string, args ...any) {
+	p.line("%s %s  "+format, append([]any{formatAdIndex(ad.N, p.total, p.exact), ad.Cid}, args...)...)
+}
+
 func (p *PrintProgress) Start(opts Options) {
+	defer p.locked()()
 	p.line("Filling car mirror for provider %s", opts.Provider)
 	if opts.StartAd != cid.Undef {
 		p.line("Start ad: %s", opts.StartAd)
@@ -54,10 +60,12 @@ func (p *PrintProgress) Start(opts Options) {
 }
 
 func (p *PrintProgress) UsingIndexer(startAd cid.Cid, indexerURL string) {
+	defer p.locked()()
 	p.line("using LastAdvertisement from indexer %s: %s", indexerURL, startAd)
 }
 
 func (p *PrintProgress) Estimating(timeout time.Duration) {
+	defer p.locked()()
 	if timeout > 0 {
 		p.line("counting advertisements in chain (timeout %s)", timeout)
 		return
@@ -65,11 +73,14 @@ func (p *PrintProgress) Estimating(timeout time.Duration) {
 	p.line("counting advertisements in chain")
 }
 
-func (p *PrintProgress) EstimateProgress(n int) {
+func (p *PrintProgress) CountedAds(n int) {
+	defer p.locked()()
 	p.line("counted %d advertisements so far", n)
 }
 
-func (p *PrintProgress) Estimated(total int, exact bool) {
+func (p *PrintProgress) CountComplete(total int, exact bool) {
+	defer p.locked()()
+	p.noteCountComplete(total, exact)
 	if exact {
 		p.line("chain has %d advertisements", total)
 		return
@@ -77,132 +88,135 @@ func (p *PrintProgress) Estimated(total int, exact bool) {
 	p.line("chain has at least %d advertisements (count incomplete)", total)
 }
 
-func (p *PrintProgress) Ad(n int, adCid cid.Cid, total int, exact bool) AdProgress {
-	return printAd{p: p, n: n, ad: adCid, total: total, exact: exact}
+func (p *PrintProgress) Periodic() {
+	defer p.locked()()
+	p.line("progress  scanned=%s present=%d external=%d downloaded=%d rm=%d hamt=%d chunks=%d mhs=%d down_bytes=%d written=%d last=%s",
+		formatScanned(p.scanned, p.total, p.exact), p.present, p.copied, p.downloaded, p.skippedRm, p.skippedHAMT,
+		p.chunks, p.mhs, p.downBytes, p.written, p.lastAd)
 }
 
-func (p *PrintProgress) Periodic(s Stats) {
-	p.line("progress  scanned=%s present=%d external=%d downloaded=%d recreated=%d rm=%d hamt=%d chunks=%d mhs=%d down_bytes=%d written=%d last=%s",
-		formatScanned(s), s.AlreadyPresent, s.CopiedExternal, s.Downloaded, s.Recreated, s.SkippedRm, s.SkippedHAMT,
-		s.EntryChunks, s.Multihashes, s.BytesDownloaded, s.BytesWritten, s.LastAd)
-}
-
-func (p *PrintProgress) Done(s Stats, err error) {
+func (p *PrintProgress) Done(reason string, err error) {
+	defer p.locked()()
+	p.noteDone(reason)
 	p.line("Stats:")
-	fmt.Fprintf(p.w, "  scanned:           %d\n", s.Scanned)
-	fmt.Fprintf(p.w, "  already present:   %d\n", s.AlreadyPresent)
-	fmt.Fprintf(p.w, "  copied (external): %d\n", s.CopiedExternal)
-	fmt.Fprintf(p.w, "  downloaded:        %d\n", s.Downloaded)
-	fmt.Fprintf(p.w, "  recreated:         %d\n", s.Recreated)
-	fmt.Fprintf(p.w, "  skipped HAMT:      %d\n", s.SkippedHAMT)
-	fmt.Fprintf(p.w, "  skipped no ents:   %d\n", s.SkippedNoEnts)
-	fmt.Fprintf(p.w, "  skipped IsRm:      %d\n", s.SkippedRm)
-	fmt.Fprintf(p.w, "  entry chunks:      %d\n", s.EntryChunks)
-	fmt.Fprintf(p.w, "  multihashes:       %d\n", s.Multihashes)
-	fmt.Fprintf(p.w, "  bytes downloaded:  %d\n", s.BytesDownloaded)
-	fmt.Fprintf(p.w, "  bytes written:     %d\n", s.BytesWritten)
-	if s.LastAd != cid.Undef {
-		fmt.Fprintf(p.w, "  last ad:           %s\n", s.LastAd)
+	fmt.Fprintf(p.w, "  scanned:           %d\n", p.scanned)
+	fmt.Fprintf(p.w, "  already present:   %d\n", p.present)
+	fmt.Fprintf(p.w, "  copied (external): %d\n", p.copied)
+	fmt.Fprintf(p.w, "  downloaded:        %d\n", p.downloaded)
+	fmt.Fprintf(p.w, "  skipped HAMT:      %d\n", p.skippedHAMT)
+	fmt.Fprintf(p.w, "  skipped no ents:   %d\n", p.skippedNoEnts)
+	fmt.Fprintf(p.w, "  skipped IsRm:      %d\n", p.skippedRm)
+	fmt.Fprintf(p.w, "  entry chunks:      %d\n", p.chunks)
+	fmt.Fprintf(p.w, "  multihashes:       %d\n", p.mhs)
+	fmt.Fprintf(p.w, "  bytes downloaded:  %d\n", p.downBytes)
+	fmt.Fprintf(p.w, "  bytes written:     %d\n", p.written)
+	if p.lastAd != cid.Undef {
+		fmt.Fprintf(p.w, "  last ad:           %s\n", p.lastAd)
 	}
-	if s.StopReason != "" {
-		fmt.Fprintf(p.w, "  stop reason:       %s\n", s.StopReason)
+	if p.stop != "" {
+		fmt.Fprintf(p.w, "  stop reason:       %s\n", p.stop)
 	}
 }
 
-type printAd struct {
-	p     *PrintProgress
-	n     int
-	ad    cid.Cid
-	total int
-	exact bool
+func (p *PrintProgress) CheckingMain(ad AdRef) {
+	defer p.locked()()
+	p.noteChecking(ad)
+	p.adLine(ad, "checking main")
 }
-
-func (a printAd) line(format string, args ...any) {
-	a.p.line("%s %s  "+format, append([]any{formatAdIndex(a.n, a.total, a.exact), a.ad}, args...)...)
+func (p *PrintProgress) MainInvalid(ad AdRef, err error) {
+	defer p.locked()()
+	p.adLine(ad, "main CAR invalid, will recreate: %s", err)
 }
-
-func (a printAd) CheckingMain() { a.line("checking main") }
-func (a printAd) MainInvalid(err error) {
-	a.line("main CAR invalid, will recreate: %s", err)
+func (p *PrintProgress) MainMiss(ad AdRef) {
+	defer p.locked()()
+	p.adLine(ad, "main miss")
 }
-func (a printAd) MainMiss() { a.line("main miss") }
-func (a printAd) MainReadError(err error) {
-	a.line("main read error, will recreate: %s", err)
+func (p *PrintProgress) MainReadError(ad AdRef, err error) {
+	defer p.locked()()
+	p.adLine(ad, "main read error, will recreate: %s", err)
 }
-func (a printAd) CheckingExternal(i int, loc string) {
-	a.line("checking external[%d] %s", i, loc)
+func (p *PrintProgress) CheckingExternal(ad AdRef, i int, loc string) {
+	defer p.locked()()
+	p.adLine(ad, "checking external[%d] %s", i, loc)
 }
-func (a printAd) ExternalMiss(i int) { a.line("external[%d] miss", i) }
-func (a printAd) ExternalReadError(i int, err error) {
-	a.line("external[%d] read error: %s", i, err)
+func (p *PrintProgress) ExternalMiss(ad AdRef, i int) {
+	defer p.locked()()
+	p.adLine(ad, "external[%d] miss", i)
 }
-func (a printAd) ExternalInvalid(i int, err error) {
-	a.line("external[%d] invalid CAR: %s", i, err)
+func (p *PrintProgress) ExternalReadError(ad AdRef, i int, err error) {
+	defer p.locked()()
+	p.adLine(ad, "external[%d] read error: %s", i, err)
 }
-func (a printAd) ExternalHit(i int) { a.line("external[%d] hit", i) }
-func (a printAd) Loaded(src source, data *carData) {
-	a.line("loaded from %s  %s", src, formatCarData(data))
+func (p *PrintProgress) ExternalInvalid(ad AdRef, i int, err error) {
+	defer p.locked()()
+	p.adLine(ad, "external[%d] invalid CAR: %s", i, err)
 }
-func (a printAd) MainUnusableFetching(publisher peer.ID) {
-	a.line("main CAR unusable, fetching from publisher %s", publisher)
+func (p *PrintProgress) ExternalHit(ad AdRef, i int) {
+	defer p.locked()()
+	p.adLine(ad, "external[%d] hit", i)
 }
-func (a printAd) NotInMirrorsFetching(publisher peer.ID) {
-	a.line("not in mirrors, fetching from publisher %s", publisher)
+func (p *PrintProgress) Loaded(ad AdRef, src source, data *carData) {
+	defer p.locked()()
+	p.adLine(ad, "loaded from %s  %s", src, formatCarData(data))
 }
-func (a printAd) FetchedAd(ad schema.Advertisement) {
-	a.line("fetched ad  %s", formatAd(ad))
+func (p *PrintProgress) NotInMirrorsFetching(ad AdRef, publisher peer.ID) {
+	defer p.locked()()
+	p.adLine(ad, "not in mirrors, fetching from publisher %s", publisher)
 }
-func (a printAd) SkipIsRm(ad schema.Advertisement, carOnMain bool) {
-	a.line("skip IsRm  car_on_main=%t  %s", carOnMain, formatAd(ad))
+func (p *PrintProgress) FetchedAd(ad AdRef, advertisement schema.Advertisement) {
+	defer p.locked()()
+	p.adLine(ad, "fetched ad  %s", formatAd(advertisement))
 }
-func (a printAd) SkipNoEntries(ad schema.Advertisement) {
-	a.line("skip no-entries  %s", formatAd(ad))
+func (p *PrintProgress) SkipIsRm(ad AdRef, advertisement schema.Advertisement, carOnMain bool) {
+	defer p.locked()()
+	p.noteSkipRm()
+	p.adLine(ad, "skip IsRm  car_on_main=%t  %s", carOnMain, formatAd(advertisement))
 }
-func (a printAd) PresentOnMain(data *carData) {
-	a.line("present on main  %s", formatCarData(data))
+func (p *PrintProgress) SkipNoEntries(ad AdRef, advertisement schema.Advertisement) {
+	defer p.locked()()
+	p.noteSkipNoEnts()
+	p.adLine(ad, "skip no-entries  %s", formatAd(advertisement))
 }
-func (a printAd) CopiedFromExternal(data *carData, written int64, recreated bool) {
-	action := "copied from external"
-	if recreated {
-		action = "recreated from external"
-	}
-	a.line("%s  %s  written=%d", action, formatCarData(data), written)
+func (p *PrintProgress) PresentOnMain(ad AdRef, data *carData) {
+	defer p.locked()()
+	p.notePresent(data)
+	p.adLine(ad, "present on main  %s", formatCarData(data))
 }
-func (a printAd) SyncingFirstEntries(entsCid cid.Cid) {
-	a.line("syncing first entries block %s", entsCid)
+func (p *PrintProgress) CopiedFromExternal(ad AdRef, data *carData, written int64) {
+	defer p.locked()()
+	p.noteCopied(data, written)
+	p.adLine(ad, "copied from external  %s  written=%d", formatCarData(data), written)
 }
-func (a printAd) HAMTAdOnly() { a.line("entries are HAMT, writing ad only") }
-func (a printAd) FetchingEntryChunk(n int, chunkCid cid.Cid) {
-	a.line("fetching entry chunk %d  %s", n, chunkCid)
+func (p *PrintProgress) SyncingFirstEntries(ad AdRef, entsCid cid.Cid) {
+	defer p.locked()()
+	p.adLine(ad, "syncing first entries block %s", entsCid)
 }
-func (a printAd) FetchedEntryChunk(n int, chunkCid cid.Cid, mhs, chunkBytes int, downBytes int64) {
-	a.line("got entry chunk %d  %s  mhs=%d bytes=%d down_bytes=%d", n, chunkCid, mhs, chunkBytes, downBytes)
+func (p *PrintProgress) HAMTAdOnly(ad AdRef) {
+	defer p.locked()()
+	p.adLine(ad, "entries are HAMT, writing ad only")
 }
-func (a printAd) WritingCAR(chunks int) {
+func (p *PrintProgress) FetchingEntryChunk(ad AdRef, n int, chunkCid cid.Cid) {
+	defer p.locked()()
+	p.adLine(ad, "fetching entry chunk %d  %s", n, chunkCid)
+}
+func (p *PrintProgress) FetchedEntryChunk(ad AdRef, n int, chunkCid cid.Cid, mhs, chunkBytes int, downBytes int64) {
+	defer p.locked()()
+	p.adLine(ad, "got entry chunk %d  %s  mhs=%d bytes=%d down_bytes=%d", n, chunkCid, mhs, chunkBytes, downBytes)
+}
+func (p *PrintProgress) WritingCAR(ad AdRef, chunks int) {
+	defer p.locked()()
 	if chunks <= 0 {
-		a.line("writing CAR (ad only)")
+		p.adLine(ad, "writing CAR (ad only)")
 		return
 	}
-	a.line("writing CAR (%d chunks)", chunks)
+	p.adLine(ad, "writing CAR (%d chunks)", chunks)
 }
-func (a printAd) StoringEntryChunk(n, total int, chunkCid cid.Cid, mhs, chunkBytes int) {
-	if total > 0 {
-		a.line("storing CAR chunk %d/%d  %s  mhs=%d bytes=%d", n, total, chunkCid, mhs, chunkBytes)
-		return
-	}
-	a.line("storing CAR chunk %d  %s  mhs=%d bytes=%d", n, chunkCid, mhs, chunkBytes)
-}
-func (a printAd) StoringCARFile() {
-	a.line("compressing and storing CAR file")
-}
-func (a printAd) StoringCARFileBytes(n int64) {
-	a.line("storing CAR file  bytes=%d", n)
-}
-func (a printAd) WrittenFromPublisher(mainBroken, hamt bool, chunks, mhs int, written, downBytes int64) {
-	action := publisherAction(mainBroken)
+func (p *PrintProgress) WrittenFromPublisher(ad AdRef, hamt bool, chunks, mhs int, written, downBytes int64) {
+	defer p.locked()()
+	p.noteDownloaded(hamt, chunks, mhs, written, downBytes)
 	if hamt {
-		a.line("%s (HAMT skipped)  written=%d down_bytes=%d", action, written, downBytes)
+		p.adLine(ad, "downloaded (HAMT skipped)  written=%d down_bytes=%d", written, downBytes)
 		return
 	}
-	a.line("%s  chunks=%d mhs=%d written=%d down_bytes=%d", action, chunks, mhs, written, downBytes)
+	p.adLine(ad, "downloaded  chunks=%d mhs=%d written=%d down_bytes=%d", chunks, mhs, written, downBytes)
 }

@@ -64,6 +64,11 @@ structured logs (GOLOG_LOG_FMT, GOLOG_LOG_LEVEL, GOLOG_FILE, ...).`,
 				Name:  "depth",
 				Usage: "Maximum advertisements to process; 0 means unlimited",
 			},
+			&cli.IntFlag{
+				Name:  "concurrency",
+				Usage: "Maximum parallel publisher downloads",
+				Value: 8,
+			},
 			&cli.DurationFlag{
 				Name:  "progress",
 				Usage: "How often to print running stats",
@@ -119,6 +124,7 @@ func run(cctx *cli.Context) error {
 		EntriesDepthLimit: int64(cfg.Ingest.EntriesDepthLimit),
 		Provider:          providerID,
 		Depth:             cctx.Int("depth"),
+		Concurrency:       cctx.Int("concurrency"),
 		Estimate:          cctx.Bool("estimate"),
 		EstimateTimeout:   cctx.Duration("estimate-timeout"),
 	}
@@ -162,25 +168,19 @@ func run(cctx *cli.Context) error {
 	if progressEvery := cctx.Duration("progress"); progressEvery > 0 {
 		ticker := time.NewTicker(progressEvery)
 		defer ticker.Stop()
-		opts.Out = &throttlePeriodic{Progress: opts.Out, ticker: ticker}
+		opts.Out = &throttlePeriodic{Observer: opts.Out, ticker: ticker}
 	} else {
 		opts.Out = noPeriodic{opts.Out}
 	}
 
 	opts.Out.Start(opts)
-	st, err := Fill(ctx, opts)
-	if st != nil {
-		opts.Out.Done(*st, err)
-	} else if err != nil {
-		opts.Out.Done(Stats{}, err)
-	}
-	if err != nil {
+	if err := Fill(ctx, opts); err != nil {
 		return fmt.Errorf("fill failed: %w", err)
 	}
 	return nil
 }
 
-func newCLIProgress(cctx *cli.Context) (Progress, error) {
+func newCLIProgress(cctx *cli.Context) (Observer, error) {
 	if !cctx.Bool("log") {
 		return NewPrintProgress(os.Stdout), nil
 	}

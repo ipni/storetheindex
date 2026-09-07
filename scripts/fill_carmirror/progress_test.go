@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,9 +17,8 @@ func TestPrintProgressTimestamps(t *testing.T) {
 	p := &PrintProgress{w: &buf, now: func() time.Time { return fixed }}
 
 	p.Start(Options{})
-	ap := p.Ad(1, cid.Undef, 0, false)
-	ap.CheckingMain()
-	p.Periodic(Stats{Scanned: 3})
+	p.CheckingMain(AdRef{N: 1, Cid: cid.Undef})
+	p.Periodic()
 
 	wantPrefix := "2026-09-04T09:56:01.123+0200  "
 	out := buf.String()
@@ -32,7 +33,7 @@ func TestPrintProgressTimestamps(t *testing.T) {
 	if !strings.Contains(out, "[1] ") {
 		t.Fatalf("missing ad index: %s", out)
 	}
-	if !strings.Contains(out, "progress  scanned=3") {
+	if !strings.Contains(out, "progress  scanned=1") {
 		t.Fatalf("missing progress: %s", out)
 	}
 }
@@ -52,7 +53,8 @@ func TestFormatAdIndex(t *testing.T) {
 func TestPrintAdIndexIncludesTotal(t *testing.T) {
 	var buf bytes.Buffer
 	p := &PrintProgress{w: &buf, now: func() time.Time { return time.Time{} }}
-	p.Ad(3, cid.Undef, 10, true).CheckingMain()
+	p.CountComplete(10, true)
+	p.CheckingMain(AdRef{N: 3, Cid: cid.Undef})
 	if !strings.Contains(buf.String(), "[3 / 10] ") {
 		t.Fatalf("missing total in ad line: %s", buf.String())
 	}
@@ -61,9 +63,9 @@ func TestPrintAdIndexIncludesTotal(t *testing.T) {
 func TestPrintEntryChunkProgress(t *testing.T) {
 	var buf bytes.Buffer
 	p := &PrintProgress{w: &buf, now: func() time.Time { return time.Time{} }}
-	ap := p.Ad(1, cid.Undef, 0, false)
-	ap.FetchingEntryChunk(2, cid.Undef)
-	ap.FetchedEntryChunk(2, cid.Undef, 16, 100, 500)
+	ad := AdRef{N: 1, Cid: cid.Undef}
+	p.FetchingEntryChunk(ad, 2, cid.Undef)
+	p.FetchedEntryChunk(ad, 2, cid.Undef, 16, 100, 500)
 	out := buf.String()
 	if !strings.Contains(out, "fetching entry chunk 2") {
 		t.Fatalf("missing fetching: %s", out)
@@ -73,37 +75,50 @@ func TestPrintEntryChunkProgress(t *testing.T) {
 	}
 }
 
-func TestPrintCARStoreProgress(t *testing.T) {
+func TestPrintCARWriteProgress(t *testing.T) {
 	var buf bytes.Buffer
 	p := &PrintProgress{w: &buf, now: func() time.Time { return time.Time{} }}
-	ap := p.Ad(1, cid.Undef, 0, false)
-	ap.WritingCAR(3)
-	ap.StoringEntryChunk(2, 3, cid.Undef, 16, 100)
-	ap.StoringCARFile()
-	ap.StoringCARFileBytes(64)
+	ad := AdRef{N: 1, Cid: cid.Undef}
+	p.WritingCAR(ad, 3)
+	p.WritingCAR(ad, 0)
 	out := buf.String()
 	if !strings.Contains(out, "writing CAR (3 chunks)") {
 		t.Fatalf("missing writing: %s", out)
 	}
-	if !strings.Contains(out, "storing CAR chunk 2/3") {
-		t.Fatalf("missing storing chunk: %s", out)
-	}
-	if !strings.Contains(out, "compressing and storing CAR file") {
-		t.Fatalf("missing storing file: %s", out)
-	}
-	if !strings.Contains(out, "storing CAR file  bytes=64") {
-		t.Fatalf("missing file bytes: %s", out)
+	if !strings.Contains(out, "writing CAR (ad only)") {
+		t.Fatalf("missing ad-only: %s", out)
 	}
 }
 
 func TestFormatScanned(t *testing.T) {
-	if got := formatScanned(Stats{Scanned: 3}); got != "3" {
+	if got := formatScanned(3, 0, false); got != "3" {
 		t.Fatalf("no total: got %q", got)
 	}
-	if got := formatScanned(Stats{Scanned: 3, TotalAds: 10, TotalExact: true}); got != "3/10 (30%)" {
+	if got := formatScanned(3, 10, true); got != "3/10 (30%)" {
 		t.Fatalf("exact: got %q", got)
 	}
-	if got := formatScanned(Stats{Scanned: 3, TotalAds: 10}); got != "3/10+" {
+	if got := formatScanned(3, 10, false); got != "3/10+" {
 		t.Fatalf("partial: got %q", got)
+	}
+}
+
+func TestPrintProgressConcurrent(t *testing.T) {
+	p := NewPrintProgress(io.Discard)
+	var wg sync.WaitGroup
+	const n = 32
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			defer wg.Done()
+			ad := AdRef{N: i + 1, Cid: cid.Undef}
+			p.CheckingMain(ad)
+			p.PresentOnMain(ad, &carData{})
+			p.Periodic()
+		}(i)
+	}
+	wg.Wait()
+	p.Done(stopGenesis, nil)
+	if p.scanned != n || p.present != n {
+		t.Fatalf("scanned=%d present=%d want %d", p.scanned, p.present, n)
 	}
 }

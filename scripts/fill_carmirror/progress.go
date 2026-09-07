@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -10,113 +11,105 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-// Progress receives fill events. PrintProgress is the CLI default; LogProgress
-// is used when --log is set. A nil Progress is a no-op.
-type Progress interface {
+// Observer is notified at each interesting point in a fill. Method names say
+// what happened; arguments carry every number and identity the backend needs
+// to print or log. PrintProgress is the CLI default; LogProgress is used when
+// --log is set. A nil Observer is a no-op.
+type Observer interface {
 	Start(opts Options)
 	UsingIndexer(startAd cid.Cid, indexerURL string)
 	Estimating(timeout time.Duration)
-	EstimateProgress(n int)
-	Estimated(total int, exact bool)
-	Ad(n int, adCid cid.Cid, total int, exact bool) AdProgress
-	Periodic(s Stats)
-	Done(s Stats, err error)
+	CountedAds(n int)
+	CountComplete(total int, exact bool)
+	Periodic()
+	Done(reason string, err error)
+
+	CheckingMain(ad AdRef)
+	MainInvalid(ad AdRef, err error)
+	MainMiss(ad AdRef)
+	MainReadError(ad AdRef, err error)
+	CheckingExternal(ad AdRef, i int, loc string)
+	ExternalMiss(ad AdRef, i int)
+	ExternalReadError(ad AdRef, i int, err error)
+	ExternalInvalid(ad AdRef, i int, err error)
+	ExternalHit(ad AdRef, i int)
+	Loaded(ad AdRef, src source, data *carData)
+	NotInMirrorsFetching(ad AdRef, publisher peer.ID)
+	FetchedAd(ad AdRef, advertisement schema.Advertisement)
+	SkipIsRm(ad AdRef, advertisement schema.Advertisement, carOnMain bool)
+	SkipNoEntries(ad AdRef, advertisement schema.Advertisement)
+	PresentOnMain(ad AdRef, data *carData)
+	CopiedFromExternal(ad AdRef, data *carData, written int64)
+	SyncingFirstEntries(ad AdRef, entsCid cid.Cid)
+	HAMTAdOnly(ad AdRef)
+	FetchingEntryChunk(ad AdRef, n int, chunkCid cid.Cid)
+	FetchedEntryChunk(ad AdRef, n int, chunkCid cid.Cid, mhs, chunkBytes int, downBytes int64)
+	WritingCAR(ad AdRef, chunks int)
+	WrittenFromPublisher(ad AdRef, hamt bool, chunks, mhs int, written, downBytes int64)
 }
 
-// AdProgress is Progress scoped to one advertisement in the walk.
-type AdProgress interface {
-	CheckingMain()
-	MainInvalid(err error)
-	MainMiss()
-	MainReadError(err error)
-	CheckingExternal(i int, loc string)
-	ExternalMiss(i int)
-	ExternalReadError(i int, err error)
-	ExternalInvalid(i int, err error)
-	ExternalHit(i int)
-	Loaded(src source, data *carData)
-	MainUnusableFetching(publisher peer.ID)
-	NotInMirrorsFetching(publisher peer.ID)
-	FetchedAd(ad schema.Advertisement)
-	SkipIsRm(ad schema.Advertisement, carOnMain bool)
-	SkipNoEntries(ad schema.Advertisement)
-	PresentOnMain(data *carData)
-	CopiedFromExternal(data *carData, written int64, recreated bool)
-	SyncingFirstEntries(entsCid cid.Cid)
-	HAMTAdOnly()
-	FetchingEntryChunk(n int, chunkCid cid.Cid)
-	FetchedEntryChunk(n int, chunkCid cid.Cid, mhs, chunkBytes int, downBytes int64)
-	WritingCAR(chunks int)
-	StoringEntryChunk(n, total int, chunkCid cid.Cid, mhs, chunkBytes int)
-	StoringCARFile()
-	StoringCARFileBytes(n int64)
-	WrittenFromPublisher(mainBroken, hamt bool, chunks, mhs int, written, downBytes int64)
+// AdRef is which advertisement in the walk an event is about.
+type AdRef struct {
+	N   int
+	Cid cid.Cid
 }
 
-type nopProgress struct{}
+type nopObserver struct{}
 
-func (nopProgress) Start(Options)                         {}
-func (nopProgress) UsingIndexer(cid.Cid, string)          {}
-func (nopProgress) Estimating(time.Duration)              {}
-func (nopProgress) EstimateProgress(int)                  {}
-func (nopProgress) Estimated(int, bool)                   {}
-func (nopProgress) Ad(int, cid.Cid, int, bool) AdProgress { return nopAd{} }
-func (nopProgress) Periodic(Stats)                        {}
-func (nopProgress) Done(Stats, error)                     {}
+func (nopObserver) Start(Options)                                            {}
+func (nopObserver) UsingIndexer(cid.Cid, string)                             {}
+func (nopObserver) Estimating(time.Duration)                                 {}
+func (nopObserver) CountedAds(int)                                           {}
+func (nopObserver) CountComplete(int, bool)                                  {}
+func (nopObserver) Periodic()                                                {}
+func (nopObserver) Done(string, error)                                       {}
+func (nopObserver) CheckingMain(AdRef)                                       {}
+func (nopObserver) MainInvalid(AdRef, error)                                 {}
+func (nopObserver) MainMiss(AdRef)                                           {}
+func (nopObserver) MainReadError(AdRef, error)                               {}
+func (nopObserver) CheckingExternal(AdRef, int, string)                      {}
+func (nopObserver) ExternalMiss(AdRef, int)                                  {}
+func (nopObserver) ExternalReadError(AdRef, int, error)                      {}
+func (nopObserver) ExternalInvalid(AdRef, int, error)                        {}
+func (nopObserver) ExternalHit(AdRef, int)                                   {}
+func (nopObserver) Loaded(AdRef, source, *carData)                           {}
+func (nopObserver) NotInMirrorsFetching(AdRef, peer.ID)                      {}
+func (nopObserver) FetchedAd(AdRef, schema.Advertisement)                    {}
+func (nopObserver) SkipIsRm(AdRef, schema.Advertisement, bool)               {}
+func (nopObserver) SkipNoEntries(AdRef, schema.Advertisement)                {}
+func (nopObserver) PresentOnMain(AdRef, *carData)                            {}
+func (nopObserver) CopiedFromExternal(AdRef, *carData, int64)                {}
+func (nopObserver) SyncingFirstEntries(AdRef, cid.Cid)                       {}
+func (nopObserver) HAMTAdOnly(AdRef)                                         {}
+func (nopObserver) FetchingEntryChunk(AdRef, int, cid.Cid)                   {}
+func (nopObserver) FetchedEntryChunk(AdRef, int, cid.Cid, int, int, int64)   {}
+func (nopObserver) WritingCAR(AdRef, int)                                    {}
+func (nopObserver) WrittenFromPublisher(AdRef, bool, int, int, int64, int64) {}
 
-type nopAd struct{}
-
-func (nopAd) CheckingMain()                                           {}
-func (nopAd) MainInvalid(error)                                       {}
-func (nopAd) MainMiss()                                               {}
-func (nopAd) MainReadError(error)                                     {}
-func (nopAd) CheckingExternal(int, string)                            {}
-func (nopAd) ExternalMiss(int)                                        {}
-func (nopAd) ExternalReadError(int, error)                            {}
-func (nopAd) ExternalInvalid(int, error)                              {}
-func (nopAd) ExternalHit(int)                                         {}
-func (nopAd) Loaded(source, *carData)                                 {}
-func (nopAd) MainUnusableFetching(peer.ID)                            {}
-func (nopAd) NotInMirrorsFetching(peer.ID)                            {}
-func (nopAd) FetchedAd(schema.Advertisement)                          {}
-func (nopAd) SkipIsRm(schema.Advertisement, bool)                     {}
-func (nopAd) SkipNoEntries(schema.Advertisement)                      {}
-func (nopAd) PresentOnMain(*carData)                                  {}
-func (nopAd) CopiedFromExternal(*carData, int64, bool)                {}
-func (nopAd) SyncingFirstEntries(cid.Cid)                             {}
-func (nopAd) HAMTAdOnly()                                             {}
-func (nopAd) FetchingEntryChunk(int, cid.Cid)                         {}
-func (nopAd) FetchedEntryChunk(int, cid.Cid, int, int, int64)         {}
-func (nopAd) WritingCAR(int)                                          {}
-func (nopAd) StoringEntryChunk(int, int, cid.Cid, int, int)           {}
-func (nopAd) StoringCARFile()                                         {}
-func (nopAd) StoringCARFileBytes(int64)                               {}
-func (nopAd) WrittenFromPublisher(bool, bool, int, int, int64, int64) {}
-
-func progressOrNop(p Progress) Progress {
-	if p == nil {
-		return nopProgress{}
+func observerOrNop(o Observer) Observer {
+	if o == nil {
+		return nopObserver{}
 	}
-	return p
+	return o
 }
 
 // throttlePeriodic rate-limits Periodic calls to ticker; other methods pass through.
 type throttlePeriodic struct {
-	Progress
+	Observer
 	ticker *time.Ticker
 }
 
-func (t *throttlePeriodic) Periodic(s Stats) {
+func (t *throttlePeriodic) Periodic() {
 	select {
 	case <-t.ticker.C:
-		t.Progress.Periodic(s)
+		t.Observer.Periodic()
 	default:
 	}
 }
 
-type noPeriodic struct{ Progress }
+type noPeriodic struct{ Observer }
 
-func (noPeriodic) Periodic(Stats) {}
+func (noPeriodic) Periodic() {}
 
 func formatAd(ad schema.Advertisement) string {
 	prev := "nil"
@@ -154,19 +147,83 @@ func formatAdIndex(n, total int, exact bool) string {
 	return fmt.Sprintf("[%d / %d+]", n, total)
 }
 
-func formatScanned(s Stats) string {
-	if s.TotalAds <= 0 {
-		return fmt.Sprintf("%d", s.Scanned)
+func formatScanned(scanned, total int, exact bool) string {
+	if total <= 0 {
+		return fmt.Sprintf("%d", scanned)
 	}
-	if s.TotalExact {
+	if exact {
 		pct := 0
-		if s.TotalAds > 0 {
-			pct = s.Scanned * 100 / s.TotalAds
+		if total > 0 {
+			pct = scanned * 100 / total
 		}
-		return fmt.Sprintf("%d/%d (%d%%)", s.Scanned, s.TotalAds, pct)
+		return fmt.Sprintf("%d/%d (%d%%)", scanned, total, pct)
 	}
-	return fmt.Sprintf("%d/%d+", s.Scanned, s.TotalAds)
+	return fmt.Sprintf("%d/%d+", scanned, total)
 }
+
+// counts is accumulated by Observer implementations from fill events.
+type counts struct {
+	mu                                    sync.Mutex
+	scanned, present, copied, downloaded  int
+	skippedHAMT, skippedNoEnts, skippedRm int
+	chunks, mhs                           int
+	downBytes, written                    int64
+	lastAd                                cid.Cid
+	total                                 int
+	exact                                 bool
+	stop                                  string
+}
+
+func (c *counts) locked() func() {
+	c.mu.Lock()
+	return c.mu.Unlock
+}
+
+func (c *counts) noteChecking(ad AdRef) {
+	c.scanned++
+	c.lastAd = ad.Cid
+}
+
+func (c *counts) notePresent(data *carData) {
+	c.present++
+	if data.hamt {
+		c.skippedHAMT++
+		return
+	}
+	c.chunks += data.chunks
+	c.mhs += data.mhs
+}
+
+func (c *counts) noteCopied(data *carData, written int64) {
+	c.copied++
+	c.written += written
+	if data.hamt {
+		c.skippedHAMT++
+		return
+	}
+	c.chunks += data.chunks
+	c.mhs += data.mhs
+}
+
+func (c *counts) noteDownloaded(hamt bool, chunks, mhs int, written, downBytes int64) {
+	c.downloaded++
+	c.written += written
+	c.downBytes = downBytes
+	if hamt {
+		c.skippedHAMT++
+		return
+	}
+	c.chunks += chunks
+	c.mhs += mhs
+}
+
+func (c *counts) noteSkipRm()     { c.skippedRm++ }
+func (c *counts) noteSkipNoEnts() { c.skippedNoEnts++ }
+func (c *counts) noteCountComplete(total int, exact bool) {
+	c.total = total
+	c.exact = exact
+}
+func (c *counts) noteDone(reason string) { c.stop = reason }
 
 func carKind(data *carData) string {
 	if data == nil {

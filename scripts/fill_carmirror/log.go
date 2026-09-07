@@ -65,6 +65,7 @@ func parseLogFormat(format string) (logging.LogFormat, error) {
 
 // LogProgress writes fill events as structured logs.
 type LogProgress struct {
+	counts
 	log *slog.Logger
 }
 
@@ -72,7 +73,34 @@ func NewLogProgress(log *slog.Logger) *LogProgress {
 	return &LogProgress{log: log}
 }
 
+func (p *LogProgress) withRef(ad AdRef) *slog.Logger {
+	l := p.log.With("n", ad.N, "ad", ad.Cid)
+	if p.total > 0 {
+		l = l.With("totalAds", p.total, "totalExact", p.exact)
+	}
+	return l
+}
+
+func (p *LogProgress) withAdvertisement(l *slog.Logger, ad schema.Advertisement) *slog.Logger {
+	l = l.With("provider", ad.Provider, "isRm", ad.IsRm)
+	if prev := ad.PreviousCid(); prev != cid.Undef {
+		l = l.With("prev", prev)
+	}
+	if hasEntries(ad) {
+		l = l.With("entries", ad.Entries.(cidlink.Link).Cid)
+	}
+	return l
+}
+
+func (p *LogProgress) withCar(l *slog.Logger, data *carData) *slog.Logger {
+	if data == nil {
+		return l
+	}
+	return l.With("kind", carKind(data), "chunks", data.chunks, "multihashes", data.mhs, "carBytes", data.size)
+}
+
 func (p *LogProgress) Start(opts Options) {
+	defer p.locked()()
 	l := p.log.With(
 		"provider", opts.Provider,
 		"mainMode", opts.Mirror.MainMode,
@@ -99,10 +127,12 @@ func (p *LogProgress) Start(opts Options) {
 }
 
 func (p *LogProgress) UsingIndexer(startAd cid.Cid, indexerURL string) {
+	defer p.locked()()
 	p.log.Info("using LastAdvertisement from indexer", "startAd", startAd, "indexer", indexerURL)
 }
 
 func (p *LogProgress) Estimating(timeout time.Duration) {
+	defer p.locked()()
 	if timeout > 0 {
 		p.log.Info("counting advertisements", "timeout", timeout)
 		return
@@ -110,28 +140,26 @@ func (p *LogProgress) Estimating(timeout time.Duration) {
 	p.log.Info("counting advertisements")
 }
 
-func (p *LogProgress) EstimateProgress(n int) {
+func (p *LogProgress) CountedAds(n int) {
+	defer p.locked()()
 	p.log.Info("count progress", "advertisements", n)
 }
 
-func (p *LogProgress) Estimated(total int, exact bool) {
+func (p *LogProgress) CountComplete(total int, exact bool) {
+	defer p.locked()()
+	p.noteCountComplete(total, exact)
 	p.log.Info("count complete", "totalAds", total, "exact", exact)
 }
 
-func (p *LogProgress) Ad(n int, adCid cid.Cid, total int, exact bool) AdProgress {
-	l := p.log.With("n", n, "ad", adCid)
-	if total > 0 {
-		l = l.With("totalAds", total, "totalExact", exact)
-	}
-	return logAd{log: l}
+func (p *LogProgress) Periodic() {
+	defer p.locked()()
+	p.withCounts(p.log).Info("progress")
 }
 
-func (p *LogProgress) Periodic(s Stats) {
-	withStats(p.log, s).Info("progress")
-}
-
-func (p *LogProgress) Done(s Stats, err error) {
-	l := withStats(p.log, s)
+func (p *LogProgress) Done(reason string, err error) {
+	defer p.locked()()
+	p.noteDone(reason)
+	l := p.withCounts(p.log)
 	if err != nil {
 		l.Error("fill failed", "err", err)
 		return
@@ -139,132 +167,128 @@ func (p *LogProgress) Done(s Stats, err error) {
 	l.Info("fill complete")
 }
 
-type logAd struct {
-	log *slog.Logger
+func (p *LogProgress) CheckingMain(ad AdRef) {
+	defer p.locked()()
+	p.noteChecking(ad)
+	p.withRef(ad).Debug("checking main")
 }
-
-func (a logAd) withAd(ad schema.Advertisement) *slog.Logger {
-	l := a.log.With("provider", ad.Provider, "isRm", ad.IsRm)
-	if p := ad.PreviousCid(); p != cid.Undef {
-		l = l.With("prev", p)
-	}
-	if hasEntries(ad) {
-		l = l.With("entries", ad.Entries.(cidlink.Link).Cid)
-	}
-	return l
+func (p *LogProgress) MainInvalid(ad AdRef, err error) {
+	defer p.locked()()
+	p.withRef(ad).Info("main CAR invalid, will recreate", "err", err)
 }
-
-func (a logAd) withCar(data *carData) *slog.Logger {
-	if data == nil {
-		return a.log
-	}
-	return a.log.With("kind", carKind(data), "chunks", data.chunks, "multihashes", data.mhs, "carBytes", data.size)
+func (p *LogProgress) MainMiss(ad AdRef) {
+	defer p.locked()()
+	p.withRef(ad).Debug("main miss")
 }
-
-func (a logAd) CheckingMain() { a.log.Debug("checking main") }
-func (a logAd) MainInvalid(err error) {
-	a.log.Info("main CAR invalid, will recreate", "err", err)
+func (p *LogProgress) MainReadError(ad AdRef, err error) {
+	defer p.locked()()
+	p.withRef(ad).Info("main read error, will recreate", "err", err)
 }
-func (a logAd) MainMiss() { a.log.Debug("main miss") }
-func (a logAd) MainReadError(err error) {
-	a.log.Info("main read error, will recreate", "err", err)
+func (p *LogProgress) CheckingExternal(ad AdRef, i int, loc string) {
+	defer p.locked()()
+	p.withRef(ad).Debug("checking external", "external", i, "location", loc)
 }
-func (a logAd) CheckingExternal(i int, loc string) {
-	a.log.Debug("checking external", "external", i, "location", loc)
+func (p *LogProgress) ExternalMiss(ad AdRef, i int) {
+	defer p.locked()()
+	p.withRef(ad).Debug("external miss", "external", i)
 }
-func (a logAd) ExternalMiss(i int) {
-	a.log.Debug("external miss", "external", i)
+func (p *LogProgress) ExternalReadError(ad AdRef, i int, err error) {
+	defer p.locked()()
+	p.withRef(ad).Info("external read error", "external", i, "err", err)
 }
-func (a logAd) ExternalReadError(i int, err error) {
-	a.log.Info("external read error", "external", i, "err", err)
+func (p *LogProgress) ExternalInvalid(ad AdRef, i int, err error) {
+	defer p.locked()()
+	p.withRef(ad).Info("external invalid CAR", "external", i, "err", err)
 }
-func (a logAd) ExternalInvalid(i int, err error) {
-	a.log.Info("external invalid CAR", "external", i, "err", err)
+func (p *LogProgress) ExternalHit(ad AdRef, i int) {
+	defer p.locked()()
+	p.withRef(ad).Info("external hit", "external", i)
 }
-func (a logAd) ExternalHit(i int) { a.log.Info("external hit", "external", i) }
-func (a logAd) Loaded(src source, data *carData) {
-	a.withCar(data).With("source", src.String()).Info("loaded advertisement")
+func (p *LogProgress) Loaded(ad AdRef, src source, data *carData) {
+	defer p.locked()()
+	p.withCar(p.withRef(ad), data).With("source", src.String()).Info("loaded advertisement")
 }
-func (a logAd) MainUnusableFetching(publisher peer.ID) {
-	a.log.Info("main CAR unusable, fetching from publisher", "publisher", publisher)
+func (p *LogProgress) NotInMirrorsFetching(ad AdRef, publisher peer.ID) {
+	defer p.locked()()
+	p.withRef(ad).Info("not in mirrors, fetching from publisher", "publisher", publisher)
 }
-func (a logAd) NotInMirrorsFetching(publisher peer.ID) {
-	a.log.Info("not in mirrors, fetching from publisher", "publisher", publisher)
+func (p *LogProgress) FetchedAd(ad AdRef, advertisement schema.Advertisement) {
+	defer p.locked()()
+	p.withAdvertisement(p.withRef(ad), advertisement).Info("fetched advertisement")
 }
-func (a logAd) FetchedAd(ad schema.Advertisement) {
-	a.withAd(ad).Info("fetched advertisement")
+func (p *LogProgress) SkipIsRm(ad AdRef, advertisement schema.Advertisement, carOnMain bool) {
+	defer p.locked()()
+	p.noteSkipRm()
+	p.withAdvertisement(p.withRef(ad), advertisement).Info("skip IsRm", "carOnMain", carOnMain)
 }
-func (a logAd) SkipIsRm(ad schema.Advertisement, carOnMain bool) {
-	a.withAd(ad).Info("skip IsRm", "carOnMain", carOnMain)
+func (p *LogProgress) SkipNoEntries(ad AdRef, advertisement schema.Advertisement) {
+	defer p.locked()()
+	p.noteSkipNoEnts()
+	p.withAdvertisement(p.withRef(ad), advertisement).Info("skip no-entries")
 }
-func (a logAd) SkipNoEntries(ad schema.Advertisement) {
-	a.withAd(ad).Info("skip no-entries")
+func (p *LogProgress) PresentOnMain(ad AdRef, data *carData) {
+	defer p.locked()()
+	p.notePresent(data)
+	p.withCar(p.withRef(ad), data).Info("present on main")
 }
-func (a logAd) PresentOnMain(data *carData) {
-	a.withCar(data).Info("present on main")
+func (p *LogProgress) CopiedFromExternal(ad AdRef, data *carData, written int64) {
+	defer p.locked()()
+	p.noteCopied(data, written)
+	p.withCar(p.withRef(ad), data).Info("copied from external", "written", written)
 }
-func (a logAd) CopiedFromExternal(data *carData, written int64, recreated bool) {
-	msg := "copied from external"
-	if recreated {
-		msg = "recreated from external"
-	}
-	a.withCar(data).Info(msg, "written", written)
+func (p *LogProgress) SyncingFirstEntries(ad AdRef, entsCid cid.Cid) {
+	defer p.locked()()
+	p.withRef(ad).Info("syncing first entries block", "entries", entsCid)
 }
-func (a logAd) SyncingFirstEntries(entsCid cid.Cid) {
-	a.log.Info("syncing first entries block", "entries", entsCid)
+func (p *LogProgress) HAMTAdOnly(ad AdRef) {
+	defer p.locked()()
+	p.withRef(ad).Info("entries are HAMT, writing ad only")
 }
-func (a logAd) HAMTAdOnly() { a.log.Info("entries are HAMT, writing ad only") }
-func (a logAd) FetchingEntryChunk(n int, chunkCid cid.Cid) {
-	a.log.Info("fetching entry chunk", "chunk", n, "entries", chunkCid)
+func (p *LogProgress) FetchingEntryChunk(ad AdRef, n int, chunkCid cid.Cid) {
+	defer p.locked()()
+	p.withRef(ad).Info("fetching entry chunk", "chunk", n, "entries", chunkCid)
 }
-func (a logAd) FetchedEntryChunk(n int, chunkCid cid.Cid, mhs, chunkBytes int, downBytes int64) {
-	a.log.Info("got entry chunk", "chunk", n, "entries", chunkCid, "multihashes", mhs, "bytes", chunkBytes, "bytesDownloaded", downBytes)
+func (p *LogProgress) FetchedEntryChunk(ad AdRef, n int, chunkCid cid.Cid, mhs, chunkBytes int, downBytes int64) {
+	defer p.locked()()
+	p.withRef(ad).Info("got entry chunk", "chunk", n, "entries", chunkCid, "multihashes", mhs, "bytes", chunkBytes, "bytesDownloaded", downBytes)
 }
-func (a logAd) WritingCAR(chunks int) {
-	a.log.Info("writing CAR", "chunks", chunks)
+func (p *LogProgress) WritingCAR(ad AdRef, chunks int) {
+	defer p.locked()()
+	p.withRef(ad).Info("writing CAR", "chunks", chunks)
 }
-func (a logAd) StoringEntryChunk(n, total int, chunkCid cid.Cid, mhs, chunkBytes int) {
-	a.log.Info("storing CAR chunk", "chunk", n, "total", total, "entries", chunkCid, "multihashes", mhs, "bytes", chunkBytes)
-}
-func (a logAd) StoringCARFile() {
-	a.log.Info("compressing and storing CAR file")
-}
-func (a logAd) StoringCARFileBytes(n int64) {
-	a.log.Info("storing CAR file", "bytes", n)
-}
-func (a logAd) WrittenFromPublisher(mainBroken, hamt bool, chunks, mhs int, written, downBytes int64) {
-	l := a.log.With("written", written, "bytesDownloaded", downBytes)
+func (p *LogProgress) WrittenFromPublisher(ad AdRef, hamt bool, chunks, mhs int, written, downBytes int64) {
+	defer p.locked()()
+	p.noteDownloaded(hamt, chunks, mhs, written, downBytes)
+	l := p.withRef(ad).With("written", written, "bytesDownloaded", downBytes)
 	if hamt {
 		l = l.With("hamt", true)
 	} else {
 		l = l.With("chunks", chunks, "multihashes", mhs)
 	}
-	l.Info(publisherAction(mainBroken))
+	l.Info("downloaded")
 }
-
-func withStats(log *slog.Logger, s Stats) *slog.Logger {
+func (c *counts) withCounts(log *slog.Logger) *slog.Logger {
 	l := log.With(
-		"scanned", s.Scanned,
-		"alreadyPresent", s.AlreadyPresent,
-		"copiedExternal", s.CopiedExternal,
-		"downloaded", s.Downloaded,
-		"recreated", s.Recreated,
-		"skippedHAMT", s.SkippedHAMT,
-		"skippedNoEnts", s.SkippedNoEnts,
-		"skippedRm", s.SkippedRm,
-		"entryChunks", s.EntryChunks,
-		"multihashes", s.Multihashes,
-		"bytesDownloaded", s.BytesDownloaded,
-		"bytesWritten", s.BytesWritten,
+		"scanned", c.scanned,
+		"alreadyPresent", c.present,
+		"copiedExternal", c.copied,
+		"downloaded", c.downloaded,
+		"skippedHAMT", c.skippedHAMT,
+		"skippedNoEnts", c.skippedNoEnts,
+		"skippedRm", c.skippedRm,
+		"entryChunks", c.chunks,
+		"multihashes", c.mhs,
+		"bytesDownloaded", c.downBytes,
+		"bytesWritten", c.written,
 	)
-	if s.LastAd != cid.Undef {
-		l = l.With("lastAd", s.LastAd)
+	if c.lastAd != cid.Undef {
+		l = l.With("lastAd", c.lastAd)
 	}
-	if s.StopReason != "" {
-		l = l.With("stopReason", s.StopReason)
+	if c.stop != "" {
+		l = l.With("stopReason", c.stop)
 	}
-	if s.TotalAds > 0 {
-		l = l.With("totalAds", s.TotalAds, "totalExact", s.TotalExact)
+	if c.total > 0 {
+		l = l.With("totalAds", c.total, "totalExact", c.exact)
 	}
 	return l
 }
