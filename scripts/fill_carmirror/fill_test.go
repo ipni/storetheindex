@@ -131,6 +131,7 @@ func TestFillAlreadyOnMain(t *testing.T) {
 	require.Equal(t, 2, rec.present)
 	require.Zero(t, rec.downloaded)
 	require.Zero(t, rec.copied)
+	require.Equal(t, ad1.cid, rec.lastAd)
 	require.Equal(t, stopGenesis, rec.stop)
 }
 
@@ -246,6 +247,7 @@ func TestFillDepthLimit(t *testing.T) {
 	})
 	require.Equal(t, 2, rec.scanned)
 	require.Equal(t, 2, rec.present)
+	require.Equal(t, ad2.cid, rec.lastAd)
 	require.Equal(t, stopDepth, rec.stop)
 }
 
@@ -351,6 +353,7 @@ func TestFillDownloadsFromProvider(t *testing.T) {
 	})
 	require.Equal(t, 2, rec.downloaded)
 	require.Zero(t, rec.present)
+	require.Equal(t, ad1.cid, rec.lastAd)
 	require.Equal(t, stopGenesis, rec.stop)
 	require.Positive(t, rec.written)
 	require.Positive(t, rec.downBytes)
@@ -518,25 +521,30 @@ func (r *fillRec) CheckingMain(ad AdRef) {
 	defer r.locked()()
 	r.noteChecking(ad)
 }
-func (r *fillRec) PresentOnMain(_ AdRef, data *carData) {
+func (r *fillRec) PresentOnMain(ad AdRef, data *carData) {
 	defer r.locked()()
 	r.notePresent(data)
+	r.noteFinished(ad)
 }
-func (r *fillRec) CopiedFromExternal(_ AdRef, data *carData, written int64) {
+func (r *fillRec) CopiedFromExternal(ad AdRef, data *carData, written int64) {
 	defer r.locked()()
 	r.noteCopied(data, written)
+	r.noteFinished(ad)
 }
-func (r *fillRec) WrittenFromPublisher(_ AdRef, hamt bool, chunks, mhs int, written, downBytes int64) {
+func (r *fillRec) WrittenFromPublisher(ad AdRef, hamt bool, chunks, mhs int, written, downBytes int64) {
 	defer r.locked()()
 	r.noteDownloaded(hamt, chunks, mhs, written, downBytes)
+	r.noteFinished(ad)
 }
-func (r *fillRec) SkipIsRm(AdRef, schema.Advertisement, bool) {
+func (r *fillRec) SkipIsRm(ad AdRef, _ schema.Advertisement, _ bool) {
 	defer r.locked()()
 	r.noteSkipRm()
+	r.noteFinished(ad)
 }
-func (r *fillRec) SkipNoEntries(AdRef, schema.Advertisement) {
+func (r *fillRec) SkipNoEntries(ad AdRef, _ schema.Advertisement) {
 	defer r.locked()()
 	r.noteSkipNoEnts()
+	r.noteFinished(ad)
 }
 func (r *fillRec) CountComplete(n int, exact bool) {
 	defer r.locked()()

@@ -219,21 +219,25 @@ func (p *LogProgress) FetchedAd(ad AdRef, advertisement schema.Advertisement) {
 func (p *LogProgress) SkipIsRm(ad AdRef, advertisement schema.Advertisement, carOnMain bool) {
 	defer p.locked()()
 	p.noteSkipRm()
+	p.noteFinished(ad)
 	p.withAdvertisement(p.withRef(ad), advertisement).Info("skip IsRm", "carOnMain", carOnMain)
 }
 func (p *LogProgress) SkipNoEntries(ad AdRef, advertisement schema.Advertisement) {
 	defer p.locked()()
 	p.noteSkipNoEnts()
+	p.noteFinished(ad)
 	p.withAdvertisement(p.withRef(ad), advertisement).Info("skip no-entries")
 }
 func (p *LogProgress) PresentOnMain(ad AdRef, data *carData) {
 	defer p.locked()()
 	p.notePresent(data)
+	p.noteFinished(ad)
 	p.withCar(p.withRef(ad), data).Info("present on main")
 }
 func (p *LogProgress) CopiedFromExternal(ad AdRef, data *carData, written int64) {
 	defer p.locked()()
 	p.noteCopied(data, written)
+	p.noteFinished(ad)
 	p.withCar(p.withRef(ad), data).Info("copied from external", "written", written)
 }
 func (p *LogProgress) SyncingFirstEntries(ad AdRef, entsCid cid.Cid) {
@@ -259,6 +263,7 @@ func (p *LogProgress) WritingCAR(ad AdRef, chunks int) {
 func (p *LogProgress) WrittenFromPublisher(ad AdRef, hamt bool, chunks, mhs int, written, downBytes int64) {
 	defer p.locked()()
 	p.noteDownloaded(hamt, chunks, mhs, written, downBytes)
+	p.noteFinished(ad)
 	l := p.withRef(ad).With("written", written, "bytesDownloaded", downBytes)
 	if hamt {
 		l = l.With("hamt", true)

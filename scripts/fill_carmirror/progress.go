@@ -168,10 +168,16 @@ type counts struct {
 	skippedHAMT, skippedNoEnts, skippedRm int
 	chunks, mhs                           int
 	downBytes, written                    int64
-	lastAd                                cid.Cid
-	total                                 int
-	exact                                 bool
-	stop                                  string
+	// lastAd is the furthest advertisement in walk order (N=1, 2, ...) that is
+	// fully processed with no unfinished ads between it and the start. Safe
+	// --cid to resume after interrupt: every newer ad already has a correct
+	// CAR (or was skipped).
+	lastAd   cid.Cid
+	finished map[int]cid.Cid
+	doneN    int
+	total    int
+	exact    bool
+	stop     string
 }
 
 func (c *counts) locked() func() {
@@ -181,7 +187,27 @@ func (c *counts) locked() func() {
 
 func (c *counts) noteChecking(ad AdRef) {
 	c.scanned++
-	c.lastAd = ad.Cid
+}
+
+// noteFinished records that ad is done (CAR on main, or skip). lastAd advances
+// through consecutive walk indexes until the first gap.
+func (c *counts) noteFinished(ad AdRef) {
+	if ad.N <= c.doneN {
+		return
+	}
+	if c.finished == nil {
+		c.finished = make(map[int]cid.Cid)
+	}
+	c.finished[ad.N] = ad.Cid
+	for {
+		next, ok := c.finished[c.doneN+1]
+		if !ok {
+			return
+		}
+		delete(c.finished, c.doneN+1)
+		c.doneN++
+		c.lastAd = next
+	}
 }
 
 func (c *counts) notePresent(data *carData) {

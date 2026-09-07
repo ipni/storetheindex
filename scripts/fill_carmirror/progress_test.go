@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-test/random"
 )
 
 func TestPrintProgressTimestamps(t *testing.T) {
@@ -99,6 +100,33 @@ func TestFormatScanned(t *testing.T) {
 	}
 	if got := formatScanned(3, 10, false); got != "3/10+" {
 		t.Fatalf("partial: got %q", got)
+	}
+}
+
+func TestNoteFinishedAdvancesThroughGaps(t *testing.T) {
+	cids := random.Cids(4)
+	var c counts
+	c.noteFinished(AdRef{N: 2, Cid: cids[1]})
+	c.noteFinished(AdRef{N: 4, Cid: cids[3]})
+	if c.lastAd != cid.Undef {
+		t.Fatalf("gap at 1: lastAd=%s", c.lastAd)
+	}
+	c.noteFinished(AdRef{N: 1, Cid: cids[0]})
+	if c.lastAd != cids[1] {
+		t.Fatalf("contiguous through 2: lastAd=%s want %s", c.lastAd, cids[1])
+	}
+	if c.doneN != 2 {
+		t.Fatalf("doneN=%d want 2", c.doneN)
+	}
+	if _, ok := c.finished[4]; !ok {
+		t.Fatal("expected unfinished gap to keep ad 4")
+	}
+	c.noteFinished(AdRef{N: 3, Cid: cids[2]})
+	if c.lastAd != cids[3] {
+		t.Fatalf("contiguous through 4: lastAd=%s want %s", c.lastAd, cids[3])
+	}
+	if len(c.finished) != 0 {
+		t.Fatalf("finished leftovers: %v", c.finished)
 	}
 }
 

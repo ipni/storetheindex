@@ -170,21 +170,25 @@ func (p *PrintProgress) FetchedAd(ad AdRef, advertisement schema.Advertisement) 
 func (p *PrintProgress) SkipIsRm(ad AdRef, advertisement schema.Advertisement, carOnMain bool) {
 	defer p.locked()()
 	p.noteSkipRm()
+	p.noteFinished(ad)
 	p.adLine(ad, "skip IsRm  car_on_main=%t  %s", carOnMain, formatAd(advertisement))
 }
 func (p *PrintProgress) SkipNoEntries(ad AdRef, advertisement schema.Advertisement) {
 	defer p.locked()()
 	p.noteSkipNoEnts()
+	p.noteFinished(ad)
 	p.adLine(ad, "skip no-entries  %s", formatAd(advertisement))
 }
 func (p *PrintProgress) PresentOnMain(ad AdRef, data *carData) {
 	defer p.locked()()
 	p.notePresent(data)
+	p.noteFinished(ad)
 	p.adLine(ad, "present on main  %s", formatCarData(data))
 }
 func (p *PrintProgress) CopiedFromExternal(ad AdRef, data *carData, written int64) {
 	defer p.locked()()
 	p.noteCopied(data, written)
+	p.noteFinished(ad)
 	p.adLine(ad, "copied from external  %s  written=%d", formatCarData(data), written)
 }
 func (p *PrintProgress) SyncingFirstEntries(ad AdRef, entsCid cid.Cid) {
@@ -214,6 +218,7 @@ func (p *PrintProgress) WritingCAR(ad AdRef, chunks int) {
 func (p *PrintProgress) WrittenFromPublisher(ad AdRef, hamt bool, chunks, mhs int, written, downBytes int64) {
 	defer p.locked()()
 	p.noteDownloaded(hamt, chunks, mhs, written, downBytes)
+	p.noteFinished(ad)
 	if hamt {
 		p.adLine(ad, "downloaded (HAMT skipped)  written=%d down_bytes=%d", written, downBytes)
 		return
