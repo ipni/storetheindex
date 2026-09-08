@@ -135,6 +135,24 @@ func TestFillAlreadyOnMain(t *testing.T) {
 	require.Equal(t, stopGenesis, rec.stop)
 }
 
+func TestFillUserCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	main := localStore(t)
+	ds := datastore.NewMapDatastore()
+	ad2, _ := storeAdChain(t, ds, 2)
+	writeCAR(t, ds, main, ad2.cid)
+
+	rec := &fillRec{}
+	err := Fill(ctx, Options{
+		Mirror:  rwMirror(main),
+		StartAd: ad2.cid,
+		Out:     rec,
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, stopCanceled, rec.stop)
+}
+
 func TestFillCopiesFromExternal(t *testing.T) {
 	ctx := context.Background()
 	main := localStore(t)

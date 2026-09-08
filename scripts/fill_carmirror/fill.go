@@ -34,7 +34,7 @@ import (
 const (
 	stopGenesis  = "genesis"
 	stopDepth    = "depth"
-	stopCanceled = "canceled"
+	stopCanceled = "user cancelled"
 	stopError    = "error"
 )
 
@@ -245,6 +245,9 @@ func (f *filler) finish(reason string, err error) error {
 		if err != nil {
 			reason = stopError
 		}
+	}
+	if errors.Is(err, context.Canceled) {
+		reason = stopCanceled
 	}
 	f.out.Done(reason, err)
 	return err
