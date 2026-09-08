@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -14,18 +15,20 @@ import (
 
 func TestPrintProgressTimestamps(t *testing.T) {
 	var buf bytes.Buffer
-	fixed := time.Date(2026, 9, 4, 9, 56, 1, 123000000, time.FixedZone("CEST", 2*3600))
-	p := &PrintProgress{w: &buf, now: func() time.Time { return fixed }}
+	p := NewPrintProgress(&buf)
 
 	p.Start(Options{})
 	p.CheckingMain(AdRef{N: 1, Cid: cid.Undef})
 	p.Periodic()
 
-	wantPrefix := "2026-09-04T09:56:01.123+0200  "
 	out := buf.String()
 	for _, line := range strings.Split(strings.TrimSuffix(out, "\n"), "\n") {
-		if !strings.HasPrefix(line, wantPrefix) {
-			t.Fatalf("line missing timestamp prefix %q: %q", wantPrefix, line)
+		ts, _, ok := strings.Cut(line, "  ")
+		if !ok {
+			t.Fatalf("line missing timestamp: %q", line)
+		}
+		if _, err := time.Parse(printTimeFormat, ts); err != nil {
+			t.Fatalf("timestamp %q: %v", ts, err)
 		}
 	}
 	if !strings.Contains(out, "checking main") {
@@ -53,7 +56,7 @@ func TestFormatAdIndex(t *testing.T) {
 
 func TestPrintAdIndexIncludesTotal(t *testing.T) {
 	var buf bytes.Buffer
-	p := &PrintProgress{w: &buf, now: func() time.Time { return time.Time{} }}
+	p := NewPrintProgress(&buf)
 	p.CountComplete(10, true)
 	p.CheckingMain(AdRef{N: 3, Cid: cid.Undef})
 	if !strings.Contains(buf.String(), "[3 / 10] ") {
@@ -63,7 +66,7 @@ func TestPrintAdIndexIncludesTotal(t *testing.T) {
 
 func TestPrintEntryChunkProgress(t *testing.T) {
 	var buf bytes.Buffer
-	p := &PrintProgress{w: &buf, now: func() time.Time { return time.Time{} }}
+	p := NewPrintProgress(&buf)
 	ad := AdRef{N: 1, Cid: cid.Undef}
 	p.FetchingEntryChunk(ad, 2, cid.Undef)
 	p.FetchedEntryChunk(ad, 2, cid.Undef, 16, 100, 500)
@@ -78,7 +81,7 @@ func TestPrintEntryChunkProgress(t *testing.T) {
 
 func TestPrintCARWriteProgress(t *testing.T) {
 	var buf bytes.Buffer
-	p := &PrintProgress{w: &buf, now: func() time.Time { return time.Time{} }}
+	p := NewPrintProgress(&buf)
 	ad := AdRef{N: 1, Cid: cid.Undef}
 	p.WritingCAR(ad, 3)
 	p.WritingCAR(ad, 0)
@@ -128,6 +131,66 @@ func TestNoteFinishedAdvancesThroughGaps(t *testing.T) {
 	if len(c.finished) != 0 {
 		t.Fatalf("finished leftovers: %v", c.finished)
 	}
+}
+
+func TestCarRateRecentWindow(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var c counts
+		c.noteStart()
+
+		c.present = 100
+		time.Sleep(10 * time.Second)
+		c.notePeriodic()
+		got := c.recentCarRate()
+		if got != 10 {
+			t.Fatalf("first dump from start: got %v want 10", got)
+		}
+
+		c.present = 110
+		time.Sleep(time.Second)
+		c.notePeriodic()
+		got = c.recentCarRate()
+		if got != 10 {
+			t.Fatalf("second dump last interval: got %v want 10", got)
+		}
+
+		for i := 0; i < carRateWindow; i++ {
+			time.Sleep(time.Second)
+			c.notePeriodic()
+			c.recentCarRate()
+		}
+		c.present = 110 + carRateWindow*1000
+		time.Sleep(time.Second)
+		c.notePeriodic()
+		got = c.recentCarRate()
+		want := float64(carRateWindow*1000) / float64(carRateWindow-1)
+		if got != want {
+			t.Fatalf("windowed dump: got %v want %v (overall would be much lower)", got, want)
+		}
+		overall := c.overallCarRate()
+		if overall >= got {
+			t.Fatalf("overall %v should be below recent %v", overall, got)
+		}
+	})
+}
+
+func TestPrintCarRate(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var buf bytes.Buffer
+		p := NewPrintProgress(&buf)
+		p.Start(Options{})
+		p.PresentOnMain(AdRef{N: 1, Cid: cid.Undef}, &carData{})
+		time.Sleep(2 * time.Second)
+		p.Periodic()
+		p.Done(stopGenesis, nil)
+		out := buf.String()
+		if !strings.Contains(out, "cars_per_sec=0.5") {
+			t.Fatalf("missing periodic rate: %s", out)
+		}
+		if !strings.Contains(out, "cars per second:   0.5") {
+			t.Fatalf("missing overall rate: %s", out)
+		}
+	})
 }
 
 func TestPrintProgressConcurrent(t *testing.T) {

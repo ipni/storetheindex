@@ -178,6 +178,17 @@ type counts struct {
 	total    int
 	exact    bool
 	stop     string
+
+	startedAt  time.Time
+	rateWindow []carRateSample
+}
+
+// carRateWindow is how many Periodic dumps back the recent cars/s rate spans.
+const carRateWindow = 5
+
+type carRateSample struct {
+	at   time.Time
+	cars int
 }
 
 func (c *counts) locked() func() {
@@ -250,6 +261,53 @@ func (c *counts) noteCountComplete(total int, exact bool) {
 	c.exact = exact
 }
 func (c *counts) noteDone(reason string) { c.stop = reason }
+
+func (c *counts) noteStart() {
+	c.startedAt = time.Now()
+	c.rateWindow = []carRateSample{{at: c.startedAt, cars: 0}}
+}
+
+func (c *counts) notePeriodic() {
+	c.rateWindow = append(c.rateWindow, carRateSample{at: time.Now(), cars: c.carsDone()})
+	if extra := len(c.rateWindow) - carRateWindow; extra > 0 {
+		c.rateWindow = c.rateWindow[extra:]
+	}
+}
+
+func (c *counts) carsDone() int {
+	return c.present + c.copied + c.downloaded
+}
+
+func carRate(from, to carRateSample) float64 {
+	dt := to.at.Sub(from.at).Seconds()
+	if dt <= 0 {
+		return 0
+	}
+	return float64(to.cars-from.cars) / dt
+}
+
+func (c *counts) recentCarRate() float64 {
+	if len(c.rateWindow) == 0 {
+		return 0
+	}
+
+	return carRate(
+		c.rateWindow[0],
+		c.rateWindow[len(c.rateWindow)-1],
+	)
+
+}
+
+func (c *counts) overallCarRate() float64 {
+	if c.startedAt.IsZero() {
+		return 0
+	}
+
+	return carRate(
+		carRateSample{at: c.startedAt, cars: 0},
+		carRateSample{at: time.Now(), cars: c.carsDone()},
+	)
+}
 
 func carKind(data *carData) string {
 	if data == nil {

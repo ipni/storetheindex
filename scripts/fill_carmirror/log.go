@@ -101,6 +101,7 @@ func (p *LogProgress) withCar(l *slog.Logger, data *carData) *slog.Logger {
 
 func (p *LogProgress) Start(opts Options) {
 	defer p.locked()()
+	p.noteStart()
 	l := p.log.With(
 		"provider", opts.Provider,
 		"mainMode", opts.Mirror.MainMode,
@@ -153,13 +154,14 @@ func (p *LogProgress) CountComplete(total int, exact bool) {
 
 func (p *LogProgress) Periodic() {
 	defer p.locked()()
-	p.withCounts(p.log).Info("progress")
+	p.notePeriodic()
+	p.withCounts(p.log).With("carsPerSec", p.recentCarRate()).Info("progress")
 }
 
 func (p *LogProgress) Done(reason string, err error) {
 	defer p.locked()()
 	p.noteDone(reason)
-	l := p.withCounts(p.log)
+	l := p.withCounts(p.log).With("carsPerSec", p.overallCarRate())
 	if err != nil {
 		l.Error("fill failed", "err", err)
 		return

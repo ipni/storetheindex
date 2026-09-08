@@ -15,20 +15,15 @@ const printTimeFormat = "2006-01-02T15:04:05.000-0700"
 // PrintProgress writes timestamped lines in the original fill_carmirror style.
 type PrintProgress struct {
 	counts
-	w   io.Writer
-	now func() time.Time
+	w io.Writer
 }
 
 func NewPrintProgress(w io.Writer) *PrintProgress {
-	return &PrintProgress{w: w, now: time.Now}
+	return &PrintProgress{w: w}
 }
 
 func (p *PrintProgress) ts() string {
-	now := p.now
-	if now == nil {
-		now = time.Now
-	}
-	return now().Format(printTimeFormat)
+	return time.Now().Format(printTimeFormat)
 }
 
 func (p *PrintProgress) line(format string, args ...any) {
@@ -41,6 +36,7 @@ func (p *PrintProgress) adLine(ad AdRef, format string, args ...any) {
 
 func (p *PrintProgress) Start(opts Options) {
 	defer p.locked()()
+	p.noteStart()
 	p.line("Filling car mirror for provider %s", opts.Provider)
 	if opts.StartAd != cid.Undef {
 		p.line("Start ad: %s", opts.StartAd)
@@ -90,9 +86,10 @@ func (p *PrintProgress) CountComplete(total int, exact bool) {
 
 func (p *PrintProgress) Periodic() {
 	defer p.locked()()
-	p.line("progress  scanned=%s present=%d external=%d downloaded=%d rm=%d hamt=%d chunks=%d mhs=%d down_bytes=%d written=%d last=%s",
+	p.notePeriodic()
+	p.line("progress  scanned=%s present=%d external=%d downloaded=%d rm=%d hamt=%d chunks=%d mhs=%d down_bytes=%d written=%d cars_per_sec=%.1f last=%s",
 		formatScanned(p.scanned, p.total, p.exact), p.present, p.copied, p.downloaded, p.skippedRm, p.skippedHAMT,
-		p.chunks, p.mhs, p.downBytes, p.written, p.lastAd)
+		p.chunks, p.mhs, p.downBytes, p.written, p.recentCarRate(), p.lastAd)
 }
 
 func (p *PrintProgress) Done(reason string, err error) {
@@ -110,6 +107,7 @@ func (p *PrintProgress) Done(reason string, err error) {
 	fmt.Fprintf(p.w, "  multihashes:       %d\n", p.mhs)
 	fmt.Fprintf(p.w, "  bytes downloaded:  %d\n", p.downBytes)
 	fmt.Fprintf(p.w, "  bytes written:     %d\n", p.written)
+	fmt.Fprintf(p.w, "  cars per second:   %.1f\n", p.overallCarRate())
 	if p.lastAd != cid.Undef {
 		fmt.Fprintf(p.w, "  last ad:           %s\n", p.lastAd)
 	}
