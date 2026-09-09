@@ -391,6 +391,44 @@ func TestFillDownloadsFromProvider(t *testing.T) {
 	}
 }
 
+func TestFillDownloadsReusingSubscriberPool(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pubDS := dssync.MutexWrap(datastore.NewMapDatastore())
+	var ads []testAd
+	var prev ipld.Link
+	for range 4 {
+		ad := storeAd(t, pubDS, 2, prev)
+		ads = append(ads, ad)
+		prev = cidlink.Link{Cid: ad.cid}
+	}
+	latest := ads[len(ads)-1]
+	oldest := ads[0]
+
+	priv, _, err := crypto.GenerateEd25519Key(rand.Reader)
+	require.NoError(t, err)
+	pub, err := ipnisync.NewPublisher(mkLinkSystem(pubDS), priv, ipnisync.WithHTTPListenAddrs("127.0.0.1:0"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pub.Close() })
+	pub.SetRoot(latest.cid)
+
+	main := localStore(t)
+	rec := runFill(t, ctx, Options{
+		Mirror:      rwMirror(main),
+		StartAd:     latest.cid,
+		Publisher:   peer.AddrInfo{ID: pub.ID(), Addrs: pub.Addrs()},
+		HttpTimeout: 10 * time.Second,
+		Concurrency: 2,
+	})
+	require.Equal(t, 4, rec.downloaded)
+	require.Equal(t, oldest.cid, rec.lastAd)
+	require.Equal(t, stopGenesis, rec.stop)
+	require.Equal(t, 8, rec.fetched)
+	require.Equal(t, 4, rec.fetching)
+	require.Equal(t, 4, rec.writing)
+}
+
 func TestFillEstimateCountsAds(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

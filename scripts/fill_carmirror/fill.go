@@ -81,8 +81,9 @@ type Options struct {
 	Estimate        bool
 	EstimateTimeout time.Duration
 
-	// Concurrency is the maximum number of publisher rebuilds in flight. 0
-	// means defaultConcurrency.
+	// Concurrency is the size of the publisher subscriber pool and the
+	// maximum number of publisher rebuilds in flight. 0 means
+	// defaultConcurrency.
 	Concurrency int
 
 	// Out receives fill events. Nil is a no-op.
@@ -108,8 +109,8 @@ type filler struct {
 	externals  []*carstore.CarReader
 	downloaded atomic.Int64
 
-	host     host.Host
-	rebuilds *throttle
+	host host.Host
+	subs chan *pooledSub
 
 	errMu sync.Mutex
 	err   error
@@ -117,27 +118,26 @@ type filler struct {
 
 const defaultConcurrency = 8
 
-// throttle limits how many publisher rebuilds run at once. begin sends into a
-// buffered channel (blocks at the limit); end receives one back when a rebuild
-// finishes. wait fills the channel to capacity, which blocks until every
-// in-flight rebuild has ended.
-type throttle struct {
-	ch chan struct{}
+// pooledSub is a reusable dagsync subscriber. onPut is swapped per borrow so
+// entry-chunk progress is attributed to the advertisement currently using it.
+type pooledSub struct {
+	sub   *dagsync.Subscriber
+	mu    sync.Mutex
+	onPut func(cid.Cid, []byte)
 }
 
-func newThrottle(n int) *throttle {
-	if n < 1 {
-		n = defaultConcurrency
-	}
-	return &throttle{ch: make(chan struct{}, n)}
+func (p *pooledSub) setOnPut(fn func(cid.Cid, []byte)) {
+	p.mu.Lock()
+	p.onPut = fn
+	p.mu.Unlock()
 }
 
-func (t *throttle) begin() { t.ch <- struct{}{} }
-func (t *throttle) end()   { <-t.ch }
-
-func (t *throttle) wait() {
-	for i := 0; i < cap(t.ch); i++ {
-		t.ch <- struct{}{}
+func (p *pooledSub) put(c cid.Cid, data []byte) {
+	p.mu.Lock()
+	fn := p.onPut
+	p.mu.Unlock()
+	if fn != nil {
+		fn(c, data)
 	}
 }
 
@@ -166,10 +166,9 @@ func newFiller(opts Options) (*filler, error) {
 
 	ds := dssync.MutexWrap(datastore.NewMapDatastore())
 	f := &filler{
-		opts:     opts,
-		out:      observerOrNop(opts.Out),
-		ds:       ds,
-		rebuilds: newThrottle(opts.Concurrency),
+		opts: opts,
+		out:  observerOrNop(opts.Out),
+		ds:   ds,
 	}
 
 	mainStore, err := filestore.MakeFilestore(opts.Mirror.Main.Config)
@@ -215,12 +214,85 @@ func newFiller(opts Options) (*filler, error) {
 	if err := f.initHost(); err != nil {
 		return nil, err
 	}
+	if err := f.initSubPool(); err != nil {
+		f.close()
+		return nil, err
+	}
 	return f, nil
 }
 
 func (f *filler) close() {
+	f.closeSubs()
 	if f.host != nil {
 		_ = f.host.Close()
+		f.host = nil
+	}
+}
+
+func (f *filler) initSubPool() error {
+	n := f.opts.Concurrency
+	if n < 1 {
+		n = defaultConcurrency
+	}
+	f.subs = make(chan *pooledSub, n)
+	for range n {
+		s, err := f.newPooledSub()
+		if err != nil {
+			return err
+		}
+		f.subs <- s
+	}
+	return nil
+}
+
+func (f *filler) newPooledSub() (*pooledSub, error) {
+	slot := &pooledSub{}
+	sub, err := f.newSubscriber(slot.put)
+	if err != nil {
+		return nil, err
+	}
+	slot.sub = sub
+	return slot, nil
+}
+
+func (f *filler) closeSubs() {
+	if f.subs == nil {
+		return
+	}
+	for {
+		select {
+		case s := <-f.subs:
+			if s != nil && s.sub != nil {
+				_ = s.sub.Close()
+			}
+		default:
+			return
+		}
+	}
+}
+
+func (f *filler) takeSub(ctx context.Context) (*pooledSub, error) {
+	select {
+	case s := <-f.subs:
+		return s, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (f *filler) putSub(s *pooledSub) {
+	s.setOnPut(nil)
+	f.subs <- s
+}
+
+func (f *filler) waitRebuilds() {
+	n := cap(f.subs)
+	held := make([]*pooledSub, 0, n)
+	for range n {
+		held = append(held, <-f.subs)
+	}
+	for _, s := range held {
+		f.subs <- s
 	}
 }
 
@@ -239,7 +311,7 @@ func (f *filler) failed() error {
 }
 
 func (f *filler) finish(reason string, err error) error {
-	f.rebuilds.wait()
+	f.waitRebuilds()
 	if err == nil {
 		err = f.failed()
 		if err != nil {
@@ -411,9 +483,19 @@ func (f *filler) processAd(ctx context.Context, adRef AdRef) (cid.Cid, error) {
 // publisher and writes a CAR to main. Used when main and every external
 // mirror had no usable CAR.
 func (f *filler) rebuildFromProvider(ctx context.Context, adRef AdRef) (cid.Cid, error) {
+	slot, err := f.takeSub(ctx)
+	if err != nil {
+		return cid.Undef, err
+	}
+	defer func() {
+		if slot != nil {
+			f.putSub(slot)
+		}
+	}()
+
 	f.out.NotInMirrorsFetching(adRef, f.opts.Publisher.ID)
 	chunkN := 0
-	sub, err := f.newSubscriber(func(c cid.Cid, data []byte) {
+	slot.setOnPut(func(c cid.Cid, data []byte) {
 		ch, err := decodeEntryChunk(c, data)
 		if err != nil {
 			return
@@ -424,18 +506,8 @@ func (f *filler) rebuildFromProvider(ctx context.Context, adRef AdRef) (cid.Cid,
 			f.out.FetchingEntryChunk(adRef, chunkN+1, ch.Next.(cidlink.Link).Cid)
 		}
 	})
-	if err != nil {
-		return cid.Undef, err
-	}
-	// Close unless the rebuild goroutine takes ownership (passed sub, then
-	// sub = nil so this defer is a no-op).
-	defer func() {
-		if sub != nil {
-			_ = sub.Close()
-		}
-	}()
 
-	ad, err := f.fetchFromProvider(ctx, sub, adRef.Cid)
+	ad, err := f.fetchFromProvider(ctx, slot.sub, adRef.Cid)
 	if err != nil {
 		return cid.Undef, fmt.Errorf("cannot fetch %s from provider: %w", adRef.Cid, err)
 	}
@@ -445,15 +517,14 @@ func (f *filler) rebuildFromProvider(ctx context.Context, adRef AdRef) (cid.Cid,
 	}
 
 	entsCid := ad.Entries.(cidlink.Link).Cid
-	f.rebuilds.begin()
-	go func(sub *dagsync.Subscriber) {
-		defer f.rebuilds.end()
-		defer func() { _ = sub.Close() }()
-		if err := f.rebuildEntries(ctx, adRef, sub, entsCid); err != nil {
+	go func(slot *pooledSub, adRef AdRef, entsCid cid.Cid) {
+		defer f.putSub(slot)
+		if err := f.rebuildEntries(ctx, adRef, slot.sub, entsCid); err != nil {
 			f.fail(err)
 		}
-	}(sub)
-	sub = nil
+	}(slot, adRef, entsCid)
+
+	slot = nil
 	return ad.PreviousCid(), nil
 }
 

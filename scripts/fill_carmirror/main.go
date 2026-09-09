@@ -66,7 +66,7 @@ structured logs (GOLOG_LOG_FMT, GOLOG_LOG_LEVEL, GOLOG_FILE, ...).`,
 			},
 			&cli.IntFlag{
 				Name:  "concurrency",
-				Usage: "Maximum parallel publisher downloads",
+				Usage: "Size of the reused publisher subscriber pool (max parallel publisher downloads)",
 				Value: 8,
 			},
 			&cli.DurationFlag{
