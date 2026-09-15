@@ -11,46 +11,64 @@ import (
 	"time"
 )
 
+// DirReadWriteCheck expands dir (including ~), ensures it exists as a
+// directory (creating it if needed), and reports whether files can be created
+// in it. The returned path is the expanded directory.
+func DirReadWriteCheck(dir string) (string, bool, error) {
+	if dir == "" {
+		return "", false, errors.New("directory not specified")
+	}
+
+	dir, err := ExpandHome(dir)
+	if err != nil {
+		return "", false, err
+	}
+
+	switch fi, err := os.Stat(dir); {
+	case errors.Is(err, fs.ErrNotExist):
+		// Try to create the directory
+		if err = os.Mkdir(dir, 0775); err != nil {
+			return "", false, fmt.Errorf("cannot create directory: %s: %w", dir, simplifyDirErr(err))
+		}
+
+	case err != nil:
+		return "", false, fmt.Errorf("directory not accessible: %s: %w", dir, simplifyDirErr(err))
+
+	case !fi.IsDir():
+		return "", false, fmt.Errorf("not a directory: %s", dir)
+	}
+
+	file, err := os.CreateTemp(dir, "writetest")
+	if err != nil {
+		return dir, false, nil
+	}
+	_ = file.Close()
+
+	if err = os.Remove(file.Name()); err != nil {
+		return dir, true, err
+	}
+
+	return dir, true, nil
+}
+
+func simplifyDirErr(err error) error {
+	if errors.Is(err, fs.ErrPermission) {
+		return fs.ErrPermission
+	}
+	return err
+}
+
 // DirWritable checks if a directory is writable. If the directory does
 // not exist it is created with writable permission.
 func DirWritable(dir string) error {
-	if dir == "" {
-		return errors.New("directory not specified")
-	}
-
-	var err error
-	dir, err = ExpandHome(dir)
+	dir, writable, err := DirReadWriteCheck(dir)
 	if err != nil {
 		return err
 	}
-	fi, err := os.Stat(dir)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			// Directory does not exist, so create it.
-			err = os.Mkdir(dir, 0775)
-			if err == nil {
-				return nil
-			}
-		}
-		if errors.Is(err, fs.ErrPermission) {
-			err = fs.ErrPermission
-		}
-		return fmt.Errorf("directory not writable: %s: %w", dir, err)
+	if !writable {
+		return fmt.Errorf("directory not writable: %s: %w", dir, fs.ErrPermission)
 	}
-	if !fi.IsDir() {
-		return fmt.Errorf("not a directory: %s", dir)
-	}
-
-	// Directory exists, check that a file can be written.
-	file, err := os.CreateTemp(dir, "writetest")
-	if err != nil {
-		if errors.Is(err, fs.ErrPermission) {
-			err = fs.ErrPermission
-		}
-		return fmt.Errorf("directory not writable: %s: %w", dir, err)
-	}
-	file.Close()
-	return os.Remove(file.Name())
+	return nil
 }
 
 // ExpandHome expands the path to include the home directory if the path is

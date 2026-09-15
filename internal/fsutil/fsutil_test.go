@@ -49,6 +49,59 @@ func TestDirWritable(t *testing.T) {
 	require.ErrorIs(t, err, fs.ErrPermission)
 }
 
+func TestDirReadWriteCheck(t *testing.T) {
+	_, writable, err := fsutil.DirReadWriteCheck("")
+	require.Error(t, err)
+	require.False(t, writable)
+
+	_, writable, err = fsutil.DirReadWriteCheck("~nosuchuser/tmp")
+	require.Error(t, err)
+	require.False(t, writable)
+
+	tmpDir := t.TempDir()
+	wrDir := filepath.Join(tmpDir, "readwrite")
+	expanded, writable, err := fsutil.DirReadWriteCheck(wrDir)
+	require.NoError(t, err)
+	require.True(t, writable)
+	require.Equal(t, wrDir, expanded)
+
+	fi, err := os.Stat(wrDir)
+	require.NoError(t, err)
+	require.True(t, fi.IsDir())
+
+	homeEnv := "HOME"
+	if runtime.GOOS == "windows" {
+		homeEnv = "USERPROFILE"
+	}
+	origHome := os.Getenv(homeEnv)
+	t.Cleanup(func() { os.Setenv(homeEnv, origHome) })
+	homeDir := filepath.Join(tmpDir, "testhome")
+	require.NoError(t, os.Setenv(homeEnv, homeDir))
+	require.NoError(t, os.Mkdir(homeDir, 0755))
+
+	const subDir = "mytmp"
+	expanded, writable, err = fsutil.DirReadWriteCheck(filepath.Join("~", subDir))
+	require.NoError(t, err)
+	require.True(t, writable)
+	require.Equal(t, filepath.Join(homeDir, subDir), expanded)
+
+	if runtime.GOOS == "windows" {
+		t.Skip("read-only directory tests are not reliable on Windows")
+	}
+
+	roDir := filepath.Join(tmpDir, "readonly")
+	require.NoError(t, os.Mkdir(roDir, 0500))
+	expanded, writable, err = fsutil.DirReadWriteCheck(roDir)
+	require.NoError(t, err)
+	require.False(t, writable)
+	require.Equal(t, roDir, expanded)
+
+	roChild := filepath.Join(roDir, "child")
+	_, writable, err = fsutil.DirReadWriteCheck(roChild)
+	require.ErrorIs(t, err, fs.ErrPermission)
+	require.False(t, writable)
+}
+
 func TestFileChanged(t *testing.T) {
 	file, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
