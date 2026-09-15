@@ -9,7 +9,7 @@ import (
 
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/ipni/storetheindex/fsutil/disk"
+	"github.com/ipni/storetheindex/internal/fsutil/disk"
 )
 
 var log = logging.Logger("indexer/freezer")

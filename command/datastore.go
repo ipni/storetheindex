@@ -13,7 +13,7 @@ import (
 	"github.com/ipfs/go-datastore/query"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/fsutil"
+	"github.com/ipni/storetheindex/internal/fsutil"
 )
 
 const (

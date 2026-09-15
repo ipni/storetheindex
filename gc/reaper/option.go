@@ -7,7 +7,7 @@ import (
 
 	"github.com/ipni/go-libipni/pcache"
 	"github.com/ipni/storetheindex/carstore"
-	"github.com/ipni/storetheindex/fsutil"
+	"github.com/ipni/storetheindex/internal/fsutil"
 	"github.com/libp2p/go-libp2p/core/host"
 )
 

@@ -69,7 +69,7 @@ Top-level modules (all under module `github.com/ipni/storetheindex`):
 | [`assigner/`](assigner) | Assigner service: assigns publishers to indexers, handles freeze handoff. Has its own `command/`, `config/`, `core/`, `server/`, and `metrics/`. |
 | [`peerutil/`](peerutil) | Peer ID policy helpers. |
 | [`rate/`](rate) | Ingest rate tracking. |
-| [`fsutil/`](fsutil) | Filesystem helpers (path expansion, disk usage). |
+| [`internal/fsutil/`](internal/fsutil) | Filesystem helpers (path expansion, disk usage). Public [`fsutil/`](fsutil) is a compatibility shim. |
 | [`scripts/`](scripts) | Operational and test scripts. |
 | [`test/`](test) | Shared test helpers and load tests. |
 | [`doc/`](doc) | Design and reference documentation. |

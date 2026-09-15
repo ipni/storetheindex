@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ipni/storetheindex/fsutil"
+	"github.com/ipni/storetheindex/internal/fsutil"
 )
 
 const (
