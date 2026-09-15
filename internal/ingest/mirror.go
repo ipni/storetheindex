@@ -208,7 +208,14 @@ func (m adMirror) writeHead(ctx context.Context, adCid cid.Cid, publisher peer.I
 	return m.mainCarWriter.WriteHead(ctx, adCid, publisher)
 }
 
-func newMirror(cfgMirror config.Mirror, dstore datastore.Batching) (m adMirror, err error) {
+func newMirror(
+	ctx context.Context,
+	cfgMirror config.Mirror,
+	dstore datastore.Batching,
+) (
+	m adMirror,
+	err error,
+) {
 	if !cfgMirror.MainMode.Valid() {
 		return m, fmt.Errorf("invalid AdvertisementMirror.MainMode %q", cfgMirror.MainMode)
 	}
@@ -224,7 +231,10 @@ func newMirror(cfgMirror config.Mirror, dstore datastore.Batching) (m adMirror, 
 
 		default:
 			if cfgMirror.MainMode.CanWrite() {
-				m.mainCarWriter, err = carstore.NewWriter(dstore, mainStore, carstore.WithCompress(cfgMirror.Main.Compress))
+				m.mainCarWriter, err = carstore.NewWriter(dstore, mainStore,
+					carstore.WithCompress(cfgMirror.Main.Compress),
+					carstore.WithWriteCheckContext(ctx),
+				)
 				if err != nil {
 					return m, fmt.Errorf("cannot create mirror car file writer: %w", err)
 				}

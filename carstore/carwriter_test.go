@@ -41,7 +41,12 @@ func TestWrite(t *testing.T) {
 	carDir := t.TempDir()
 	fileStore, err := filestore.NewLocal(carDir)
 	require.NoError(t, err)
-	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
+	carw, err := carstore.NewWriter(
+		dstore,
+		fileStore,
+		carstore.WithCompress(testCompress),
+		carstore.WithWriteCheckContext(t.Context()),
+	)
 	require.NoError(t, err)
 
 	adLink, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, nil, dstore)
@@ -174,7 +179,12 @@ func TestWriteToExistingAdCar(t *testing.T) {
 	_, err = fileStore.Put(ctx, fileName, nil)
 	require.NoError(t, err)
 
-	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
+	carw, err := carstore.NewWriter(
+		dstore,
+		fileStore,
+		carstore.WithCompress(testCompress),
+		carstore.WithWriteCheckContext(t.Context()),
+	)
 	require.NoError(t, err)
 
 	carInfo, err := carw.Write(ctx, adCid, false, true)
@@ -204,7 +214,12 @@ func TestWriteChain(t *testing.T) {
 	carDir := t.TempDir()
 	fileStore, err := filestore.NewLocal(carDir)
 	require.NoError(t, err)
-	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
+	carw, err := carstore.NewWriter(
+		dstore,
+		fileStore,
+		carstore.WithCompress(testCompress),
+		carstore.WithWriteCheckContext(t.Context()),
+	)
 	require.NoError(t, err)
 
 	adLink1, _, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, nil, dstore)
@@ -303,4 +318,12 @@ func storeRandomIndexAndAd(t *testing.T, eChunkCount int, metadata []byte, prevL
 	require.NoError(t, err)
 
 	return advLnk, adv, mhs, p, priv
+}
+
+func TestNewWriterWriteCheckContext(t *testing.T) {
+	fileStore, err := filestore.NewLocal(t.TempDir())
+	require.NoError(t, err)
+
+	_, err = carstore.NewWriter(nil, fileStore, carstore.WithWriteCheckContext(t.Context()))
+	require.NoError(t, err)
 }

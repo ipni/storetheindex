@@ -166,6 +166,10 @@ func (s splitFilestore) Location() string {
 	return s.read.Location()
 }
 
+func (s splitFilestore) CheckWritable(ctx context.Context) error {
+	return s.write.CheckWritable(ctx)
+}
+
 func setupHTTPFilestore(t *testing.T) (splitFilestore, string) {
 	t.Helper()
 
@@ -397,6 +401,73 @@ func TestLocalMetadata(t *testing.T) {
 		_, err = filestore.NewLocal(carDir)
 		require.ErrorContains(t, err, "invalid filestore configuration file")
 		require.ErrorContains(t, err, "invalid path split config")
+	})
+}
+
+func chmodReadOnly(t *testing.T, dir string) {
+	t.Helper()
+	require.NoError(t, os.Chmod(dir, 0555))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0755) })
+	f, err := os.CreateTemp(dir, "writetest")
+	if err == nil {
+		_ = f.Close()
+		_ = os.Remove(f.Name())
+		t.Skip("filesystem ignores directory chmod")
+	}
+}
+
+func TestLocalReadOnlyDir(t *testing.T) {
+	t.Run("opens readable directory", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(data), 0666))
+		chmodReadOnly(t, dir)
+
+		store, err := filestore.NewLocal(dir)
+		require.NoError(t, err)
+		require.ErrorContains(t, store.CheckWritable(t.Context()), "directory not writable")
+		require.NoFileExists(t, filepath.Join(dir, filestore.ConfigMetadataFileName))
+
+		_, err = store.Put(t.Context(), fileName1, strings.NewReader(data1))
+		require.ErrorIs(t, err, os.ErrPermission)
+		require.ErrorIs(t, store.Delete(t.Context(), fileName), os.ErrPermission)
+	})
+
+	t.Run("reads existing files without writing metadata", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(data), 0666))
+		chmodReadOnly(t, dir)
+
+		store, err := filestore.NewLocal(dir)
+		require.NoError(t, err)
+		require.NoFileExists(t, filepath.Join(dir, filestore.ConfigMetadataFileName))
+
+		fi, rc, err := store.Get(t.Context(), fileName)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = rc.Close() })
+		require.Equal(t, fileName, fi.Path)
+		got, err := io.ReadAll(rc)
+		require.NoError(t, err)
+		require.Equal(t, data, string(got))
+	})
+
+	t.Run("empty directory without metadata is legacy", func(t *testing.T) {
+		dir := t.TempDir()
+		chmodReadOnly(t, dir)
+
+		store, err := filestore.NewLocal(dir, filestore.WithDefaultPathSplit(2, 1))
+		require.NoError(t, err)
+		require.NoFileExists(t, filepath.Join(dir, filestore.ConfigMetadataFileName))
+
+		_, err = store.Put(t.Context(), fileName, strings.NewReader(data))
+		require.ErrorIs(t, err, os.ErrPermission)
+		require.ErrorContains(t, store.CheckWritable(t.Context()), "directory not writable")
+	})
+
+	t.Run("check writable on writable directory", func(t *testing.T) {
+		dir := t.TempDir()
+		store, err := filestore.NewLocal(dir)
+		require.NoError(t, err)
+		require.NoError(t, store.CheckWritable(t.Context()))
 	})
 }
 

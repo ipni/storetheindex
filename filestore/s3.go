@@ -116,6 +116,10 @@ func (s *S3) Location() string {
 	return s.location
 }
 
+func (s *S3) CheckWritable(ctx context.Context) error {
+	return checkWritableWithProbe(ctx, s)
+}
+
 func (s *S3) Delete(ctx context.Context, relPath string) error {
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(s.bucketName),

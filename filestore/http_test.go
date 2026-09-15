@@ -17,6 +17,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestHTTPCheckWritable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPut, http.MethodDelete, http.MethodHead:
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := filestore.NewHTTP(srv.URL + "/")
+	require.NoError(t, err)
+	require.NoError(t, client.CheckWritable(t.Context()))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	require.ErrorIs(t, client.CheckWritable(ctx), context.Canceled)
+}
+
 func TestHTTPReadOnlyServer(t *testing.T) {
 	ctx := t.Context()
 
@@ -28,6 +48,9 @@ func TestHTTPReadOnlyServer(t *testing.T) {
 
 	err = client.Delete(ctx, fileName)
 	require.Error(t, err)
+
+	err = client.CheckWritable(ctx)
+	require.ErrorContains(t, err, "not writable")
 }
 
 func setupHTTPReadOnlyServer(t *testing.T) string {

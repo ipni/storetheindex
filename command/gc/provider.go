@@ -152,6 +152,9 @@ func providerAction(cctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
+		if err := fileStore.CheckWritable(cctx.Context); err != nil {
+			return fmt.Errorf("main car mirror is not writable: %w", err)
+		}
 	}
 
 	grim, err := reaper.New(dhs, fileStore,

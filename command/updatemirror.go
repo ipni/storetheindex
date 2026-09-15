@@ -43,7 +43,7 @@ func updateMirrorAction(cctx *cli.Context) error {
 		return err
 	}
 
-	readStore, writeStore, err := getMirrorStores(cfgMirror)
+	readStore, writeStore, err := getMirrorStores(cctx.Context, cfgMirror)
 	if err != nil {
 		return err
 	}
@@ -144,7 +144,7 @@ func updateMirrorAction(cctx *cli.Context) error {
 	return err
 }
 
-func getMirrorStores(cfgMirror config.Mirror) (filestore.Interface, filestore.Interface, error) {
+func getMirrorStores(ctx context.Context, cfgMirror config.Mirror) (filestore.Interface, filestore.Interface, error) {
 	ext := cfgMirror.External[0]
 	readStore, err := filestore.MakeFilestore(ext.Config)
 	if err != nil {
@@ -160,6 +160,9 @@ func getMirrorStores(cfgMirror config.Mirror) (filestore.Interface, filestore.In
 	}
 	if writeStore == nil {
 		return nil, nil, errors.New("write mirror is enabled with no storage backend")
+	}
+	if err := writeStore.CheckWritable(ctx); err != nil {
+		return nil, nil, fmt.Errorf("write mirror is not writable: %w", err)
 	}
 
 	return readStore, writeStore, nil

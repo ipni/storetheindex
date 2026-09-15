@@ -71,6 +71,10 @@ func (h *HTTP) Location() string {
 	return h.location
 }
 
+func (h *HTTP) CheckWritable(ctx context.Context) error {
+	return checkWritableWithProbe(ctx, h)
+}
+
 func (h *HTTP) Delete(ctx context.Context, relPath string) error {
 	req, err := h.newRequest(ctx, http.MethodDelete, relPath, nil)
 	if err != nil {

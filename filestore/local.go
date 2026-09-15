@@ -24,6 +24,7 @@ type Local struct {
 	basePath  string
 	pathSplit []int
 	location  string
+	writable  bool
 }
 
 func NewLocal(basePath string, options ...LocalOption) (*Local, error) {
@@ -31,7 +32,7 @@ func NewLocal(basePath string, options ...LocalOption) (*Local, error) {
 		return nil, errors.New("base path must be absolute")
 	}
 
-	err := fsutil.DirWritable(basePath)
+	expanded, writable, err := fsutil.DirReadWriteCheck(basePath)
 	if err != nil {
 		return nil, err
 	}
@@ -41,8 +42,8 @@ func NewLocal(basePath string, options ...LocalOption) (*Local, error) {
 		return nil, err
 	}
 
-	// BasePath configured directly, not through options
-	opts.basePath = basePath
+	opts.basePath = expanded
+	opts.writable = writable
 
 	err = processPersistedMetadata(&opts)
 	if err != nil {
@@ -53,6 +54,7 @@ func NewLocal(basePath string, options ...LocalOption) (*Local, error) {
 		basePath:  opts.basePath,
 		pathSplit: opts.pathSplit,
 		location:  filepath.Clean(opts.basePath),
+		writable:  opts.writable,
 	}
 
 	return l, nil
@@ -60,6 +62,19 @@ func NewLocal(basePath string, options ...LocalOption) (*Local, error) {
 
 func (l *Local) Location() string {
 	return l.location
+}
+
+// CheckWritable reports whether this local store can create files in its
+// directory. The result is from the probe done when the store was opened.
+func (l *Local) CheckWritable(_ context.Context) error {
+	if !l.writable {
+		return l.errNotWritable()
+	}
+	return nil
+}
+
+func (l *Local) errNotWritable() error {
+	return fmt.Errorf("directory not writable: %s: %w", l.basePath, fs.ErrPermission)
 }
 
 // fsPath returns the filesystem path of a given object path
@@ -97,6 +112,10 @@ func (l *Local) appendFnamePathSegments(fileName string, pathSegments []string) 
 }
 
 func (l *Local) Delete(ctx context.Context, relPath string) error {
+	if !l.writable {
+		return l.errNotWritable()
+	}
+
 	err := os.Remove(l.fsPath(l.basePath, relPath))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -268,6 +287,10 @@ func (l *Local) List(ctx context.Context, relPath string, recursive bool) (<-cha
 }
 
 func (l *Local) Put(ctx context.Context, relPath string, r io.Reader) (*File, error) {
+	if !l.writable {
+		return nil, l.errNotWritable()
+	}
+
 	absPath := l.fsPath(l.basePath, relPath)
 	dir := filepath.Dir(absPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -413,6 +436,9 @@ func processPersistedMetadata(config *localConfig) error {
 // instances that do not have the metadata file:
 //   - if the directory looks empty - i.e. contains no entries -
 //     assume we're initializing a new filestore: write down a new metadata file using default settings
+//   - if the empty directory is not writable, treat it as a legacy filestore
+//     (no path split) instead of failing — a read-only mount of an old mirror
+//     has no .filestore-config.json
 //   - if the directory is not empty - assume we're opening existing filestore - do nothing
 func generatePersistedMetadata(config *localConfig) error {
 	// Check if this is a legacy filestore without metadata file
@@ -422,15 +448,16 @@ func generatePersistedMetadata(config *localConfig) error {
 		}
 
 		// Non-empty directory found - treat it as a legacy filestore, only use basePath
-		*config = localConfig{
-			basePath: config.basePath,
-		}
-
+		useLegacyLayout(config)
 		return nil
 	}
 
-	// Empty directory - generate new metadata file using defaults
+	if !config.writable {
+		useLegacyLayout(config)
+		return nil
+	}
 
+	// Empty writable directory - generate new metadata file using defaults
 	configFilePath := filepath.Join(config.basePath, ConfigMetadataFileName)
 
 	jsonData, _ := json.Marshal(&localFilestoreMetadata{
@@ -447,4 +474,11 @@ func generatePersistedMetadata(config *localConfig) error {
 	}
 
 	return nil
+}
+
+func useLegacyLayout(config *localConfig) {
+	*config = localConfig{
+		basePath: config.basePath,
+		writable: config.writable,
+	}
 }

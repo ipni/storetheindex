@@ -41,11 +41,18 @@ type CarWriter struct {
 	fileStore filestore.Interface
 }
 
-// NewWriter create a new CarWriter that reads advertisement data from the
-// given datastore and writes car files to the specified directory.
+// NewWriter creates a new CarWriter that reads advertisement data from the
+// given datastore and writes car files to the specified file store.
+//
+// TODO: in the next backwards-incompatible storetheindex release, take context
+// as the first argument instead of WithWriteCheckContext, and thread it through
+// datastore reads that still use context.Background().
 func NewWriter(dstore datastore.Batching, fileStore filestore.Interface, options ...Option) (*CarWriter, error) {
 	opts, err := getOpts(options)
 	if err != nil {
+		return nil, err
+	}
+	if err := fileStore.CheckWritable(opts.writeCheckContext); err != nil {
 		return nil, err
 	}
 	return &CarWriter{

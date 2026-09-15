@@ -98,7 +98,7 @@ func TestReaper(t *testing.T) {
 	require.NoError(t, err)
 	gc2.Close()
 
-	carWriter, err := carstore.NewWriter(nil, fileStore)
+	carWriter, err := carstore.NewWriter(nil, fileStore, carstore.WithWriteCheckContext(ctx))
 	require.NoError(t, err)
 	_, err = carWriter.WriteHead(context.Background(), adCid, pid1)
 	require.NoError(t, err)

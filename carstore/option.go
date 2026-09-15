@@ -1,12 +1,14 @@
 package carstore
 
 import (
+	"context"
 	"fmt"
 )
 
 // config contains all options for the server.
 type config struct {
-	compAlg string
+	compAlg           string
+	writeCheckContext context.Context
 }
 
 // Option is a function that sets a value in a config.
@@ -19,6 +21,9 @@ func getOpts(opts []Option) (config, error) {
 		if err := opt(&cfg); err != nil {
 			return config{}, fmt.Errorf("option %d error: %s", i, err)
 		}
+	}
+	if cfg.writeCheckContext == nil {
+		cfg.writeCheckContext = context.Background()
 	}
 	return cfg, nil
 }
@@ -34,6 +39,15 @@ func WithCompress(alg string) Option {
 		default:
 			return fmt.Errorf("unsupported compression: %s", alg)
 		}
+		return nil
+	}
+}
+
+// WithWriteCheckContext sets the context used by NewWriter when probing
+// whether the file store is writable. The default is context.Background().
+func WithWriteCheckContext(ctx context.Context) Option {
+	return func(c *config) error {
+		c.writeCheckContext = ctx
 		return nil
 	}
 }

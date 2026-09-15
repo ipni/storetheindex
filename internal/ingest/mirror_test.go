@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -45,7 +47,7 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 	external := localStoreConfig(t, "")
 
 	t.Run("external only enables read without MainMode", func(t *testing.T) {
-		m, err := newMirror(config.Mirror{
+		m, err := newMirror(t.Context(), config.Mirror{
 			External: []config.StoreConfig{external},
 		}, ds)
 		require.NoError(t, err)
@@ -57,7 +59,7 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 	})
 
 	t.Run("write only does not enable main read", func(t *testing.T) {
-		m, err := newMirror(config.Mirror{
+		m, err := newMirror(t.Context(), config.Mirror{
 			MainMode: config.MainModeWrite,
 			Main:     main,
 		}, ds)
@@ -71,7 +73,7 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 	})
 
 	t.Run("write only with external enables external read", func(t *testing.T) {
-		m, err := newMirror(config.Mirror{
+		m, err := newMirror(t.Context(), config.Mirror{
 			MainMode: config.MainModeWrite,
 			Main:     main,
 			External: []config.StoreConfig{external},
@@ -86,7 +88,7 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 	})
 
 	t.Run("read only enables main read not write", func(t *testing.T) {
-		m, err := newMirror(config.Mirror{
+		m, err := newMirror(t.Context(), config.Mirror{
 			MainMode: config.MainModeRead,
 			Main:     main,
 		}, ds)
@@ -100,7 +102,7 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 	})
 
 	t.Run("readwrite with external", func(t *testing.T) {
-		m, err := newMirror(config.Mirror{
+		m, err := newMirror(t.Context(), config.Mirror{
 			MainMode: config.MainModeReadWrite,
 			Main:     main,
 			External: []config.StoreConfig{external},
@@ -115,7 +117,7 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 	})
 
 	t.Run("readwrite without external", func(t *testing.T) {
-		m, err := newMirror(config.Mirror{
+		m, err := newMirror(t.Context(), config.Mirror{
 			MainMode: config.MainModeReadWrite,
 			Main:     main,
 		}, ds)
@@ -127,7 +129,7 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 	})
 
 	t.Run("external same as main is an error when main used", func(t *testing.T) {
-		_, err := newMirror(config.Mirror{
+		_, err := newMirror(t.Context(), config.Mirror{
 			MainMode: config.MainModeReadWrite,
 			Main:     main,
 			External: []config.StoreConfig{main},
@@ -138,7 +140,7 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 
 	t.Run("multiple externals", func(t *testing.T) {
 		ext2 := localStoreConfig(t, "")
-		m, err := newMirror(config.Mirror{
+		m, err := newMirror(t.Context(), config.Mirror{
 			MainMode: config.MainModeWrite,
 			Main:     main,
 			External: []config.StoreConfig{external, ext2},
@@ -151,7 +153,7 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 		mainGzip := localStoreConfig(t, carstore.Gzip)
 		externalNone := localStoreConfig(t, "none")
 
-		m, err := newMirror(config.Mirror{
+		m, err := newMirror(t.Context(), config.Mirror{
 			MainMode: config.MainModeReadWrite,
 			Main:     mainGzip,
 			External: []config.StoreConfig{externalNone},
@@ -163,6 +165,72 @@ func TestNewMirrorMainModeOnlyAffectMain(t *testing.T) {
 	})
 }
 
+func chmodReadOnly(t *testing.T, dir string) {
+	t.Helper()
+	require.NoError(t, os.Chmod(dir, 0555))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0755) })
+	f, err := os.CreateTemp(dir, "writetest")
+	if err == nil {
+		_ = f.Close()
+		_ = os.Remove(f.Name())
+		t.Skip("filesystem ignores directory chmod")
+	}
+}
+
+func TestNewMirrorReadOnlyLocalDir(t *testing.T) {
+	ds := dssync.MutexWrap(datastore.NewMapDatastore())
+	mainDir := t.TempDir()
+	extDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(mainDir, "keep"), []byte("x"), 0666))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "keep"), []byte("x"), 0666))
+
+	main := config.StoreConfig{
+		Config: filestore.Config{Type: "local", Local: filestore.LocalConfig{BasePath: mainDir}},
+	}
+	external := config.StoreConfig{
+		Config: filestore.Config{Type: "local", Local: filestore.LocalConfig{BasePath: extDir}},
+	}
+
+	chmodReadOnly(t, mainDir)
+	chmodReadOnly(t, extDir)
+
+	_, err := newMirror(t.Context(), config.Mirror{
+		MainMode: config.MainModeReadWrite,
+		Main:     main,
+	}, ds)
+	require.ErrorContains(t, err, "directory not writable")
+
+	m, err := newMirror(t.Context(), config.Mirror{
+		MainMode: config.MainModeRead,
+		Main:     main,
+		External: []config.StoreConfig{external},
+	}, ds)
+	require.NoError(t, err)
+	require.True(t, m.canRead())
+	require.False(t, m.canWrite())
+	require.NotNil(t, m.mainCarReader)
+	require.Nil(t, m.mainCarWriter)
+	require.Len(t, m.externalCarReaders, 1)
+}
+
+func TestNewMirrorReadOnlyEmptyLocalDir(t *testing.T) {
+	ds := dssync.MutexWrap(datastore.NewMapDatastore())
+	mainDir := t.TempDir()
+	chmodReadOnly(t, mainDir)
+
+	m, err := newMirror(t.Context(), config.Mirror{
+		MainMode: config.MainModeRead,
+		Main: config.StoreConfig{
+			Config: filestore.Config{Type: "local", Local: filestore.LocalConfig{BasePath: mainDir}},
+		},
+	}, ds)
+	require.NoError(t, err)
+	require.True(t, m.canRead())
+	require.False(t, m.canWrite())
+	require.NotNil(t, m.mainCarReader)
+	require.Nil(t, m.mainCarWriter)
+}
+
 func TestNewMirrorMixedCompressionRead(t *testing.T) {
 	ctx := context.Background()
 	main := localStoreConfig(t, carstore.Gzip)
@@ -171,7 +239,7 @@ func TestNewMirrorMixedCompressionRead(t *testing.T) {
 	mainAdCid := writeAdCAR(t, main, carstore.Gzip)
 	externalAdCid := writeAdCAR(t, external, "none")
 
-	m, err := newMirror(config.Mirror{
+	m, err := newMirror(t.Context(), config.Mirror{
 		MainMode: config.MainModeReadWrite,
 		Main:     main,
 		External: []config.StoreConfig{external},
@@ -197,7 +265,7 @@ func TestExternalRaceFirstWin(t *testing.T) {
 	withCAR := localStoreConfig(t, carstore.Gzip)
 	adCid := writeAdCAR(t, withCAR, carstore.Gzip)
 
-	m, err := newMirror(config.Mirror{
+	m, err := newMirror(t.Context(), config.Mirror{
 		External: []config.StoreConfig{empty, withCAR},
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
@@ -216,7 +284,7 @@ func TestExternalRaceAllMiss(t *testing.T) {
 	empty2 := localStoreConfig(t, carstore.Gzip)
 	adCid := writeAdCAR(t, localStoreConfig(t, carstore.Gzip), carstore.Gzip)
 
-	m, err := newMirror(config.Mirror{
+	m, err := newMirror(t.Context(), config.Mirror{
 		External: []config.StoreConfig{empty1, empty2},
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
@@ -240,7 +308,7 @@ func TestExternalRaceCancelled(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	m, err := newMirror(config.Mirror{
+	m, err := newMirror(t.Context(), config.Mirror{
 		External: []config.StoreConfig{httpStoreConfig(srv.URL)},
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
@@ -274,7 +342,7 @@ func TestExternalRaceFastResponseBeatsDelayed(t *testing.T) {
 	})
 	fast := startCARHTTPServer(t, map[string][]byte{carPath: carData}, carHTTPServeOpts{})
 
-	m, err := newMirror(config.Mirror{
+	m, err := newMirror(t.Context(), config.Mirror{
 		// Delayed mirror is listed first so a connection-order race would prefer it.
 		External: []config.StoreConfig{httpStoreConfig(delayed), httpStoreConfig(fast)},
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
@@ -299,7 +367,7 @@ func TestExternalRaceSkipsWrongRootCAR(t *testing.T) {
 	wrong := startCARHTTPServer(t, map[string][]byte{wantPath: otherData}, carHTTPServeOpts{})
 	good := startCARHTTPServer(t, map[string][]byte{wantPath: wantData}, carHTTPServeOpts{})
 
-	m, err := newMirror(config.Mirror{
+	m, err := newMirror(t.Context(), config.Mirror{
 		External: []config.StoreConfig{httpStoreConfig(wrong), httpStoreConfig(good)},
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
@@ -311,7 +379,7 @@ func TestExternalRaceSkipsWrongRootCAR(t *testing.T) {
 	require.Equal(t, wantCid, adBlock.Cid)
 
 	// Wrong-root-only mirrors are treated as misses.
-	mWrongOnly, err := newMirror(config.Mirror{
+	mWrongOnly, err := newMirror(t.Context(), config.Mirror{
 		External: []config.StoreConfig{httpStoreConfig(wrong)},
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
@@ -329,7 +397,7 @@ func TestExternalRaceFastBeatsThrottledBody(t *testing.T) {
 	})
 	fast := startCARHTTPServer(t, map[string][]byte{carPath: carData}, carHTTPServeOpts{})
 
-	m, err := newMirror(config.Mirror{
+	m, err := newMirror(t.Context(), config.Mirror{
 		External: []config.StoreConfig{httpStoreConfig(throttled), httpStoreConfig(fast)},
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
@@ -367,7 +435,7 @@ func TestExternalRaceLosersReleaseEntryReaders(t *testing.T) {
 		extCfgs = append(extCfgs, httpStoreConfig(srv))
 	}
 
-	m, err := newMirror(config.Mirror{
+	m, err := newMirror(t.Context(), config.Mirror{
 		External: extCfgs,
 	}, dssync.MutexWrap(datastore.NewMapDatastore()))
 	require.NoError(t, err)
@@ -526,7 +594,12 @@ func writeAdCARWithEntries(t *testing.T, storeCfg config.StoreConfig, compress s
 
 	fileStore, err := filestore.MakeFilestore(storeCfg.Config)
 	require.NoError(t, err)
-	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(compress))
+	carw, err := carstore.NewWriter(
+		dstore,
+		fileStore,
+		carstore.WithCompress(compress),
+		carstore.WithWriteCheckContext(t.Context()),
+	)
 	require.NoError(t, err)
 
 	adCid := adLink.(cidlink.Link).Cid

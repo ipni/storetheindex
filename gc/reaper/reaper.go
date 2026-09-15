@@ -430,7 +430,7 @@ func (r *Reaper) removeProvider(ctx context.Context, providerID peer.ID) error {
 		return ErrNoCarReader
 	}
 
-	carWriter, err := carstore.NewWriter(nil, r.fileStore)
+	carWriter, err := carstore.NewWriter(nil, r.fileStore, carstore.WithWriteCheckContext(ctx))
 	if err != nil {
 		return err
 	}
