@@ -6,7 +6,7 @@ import (
 
 	"github.com/ipni/storetheindex/assigner/config"
 	sticfg "github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/fsutil"
+	"github.com/ipni/storetheindex/internal/fsutil"
 	"github.com/urfave/cli/v2"
 )
 

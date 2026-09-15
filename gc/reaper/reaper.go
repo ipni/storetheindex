@@ -31,7 +31,7 @@ import (
 	"github.com/ipni/go-libipni/pcache"
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/filestore"
-	"github.com/ipni/storetheindex/fsutil"
+	"github.com/ipni/storetheindex/internal/fsutil"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -430,7 +430,7 @@ func (r *Reaper) removeProvider(ctx context.Context, providerID peer.ID) error {
 		return ErrNoCarReader
 	}
 
-	carWriter, err := carstore.NewWriter(nil, r.fileStore)
+	carWriter, err := carstore.NewWriter(nil, r.fileStore, carstore.WithWriteCheckContext(ctx))
 	if err != nil {
 		return err
 	}

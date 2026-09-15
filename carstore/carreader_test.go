@@ -21,7 +21,11 @@ func TestRead(t *testing.T) {
 	carDir := t.TempDir()
 	fileStore, err := filestore.NewLocal(carDir)
 	require.NoError(t, err)
-	carw, err := carstore.NewWriter(dstore, fileStore, carstore.WithCompress(testCompress))
+	carw, err := carstore.NewWriter(
+		dstore, fileStore,
+		carstore.WithCompress(testCompress),
+		carstore.WithWriteCheckContext(t.Context()),
+	)
 	require.NoError(t, err)
 
 	adLink, ad, _, _, _ := storeRandomIndexAndAd(t, entBlockCount, metadata, nil, dstore)

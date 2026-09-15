@@ -56,6 +56,7 @@ func WithPageSize(pageSize int) S3Option {
 type localConfig struct {
 	basePath  string
 	pathSplit []int
+	writable  bool
 }
 
 type LocalOption func(*localConfig) error

@@ -211,7 +211,7 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 	ing.workersCtx, ing.cancelWorkers = context.WithCancel(context.Background())
 
 	var err error
-	ing.mirror, err = newMirror(cfg.AdvertisementMirror, ing.dsTmp)
+	ing.mirror, err = newMirror(ing.workersCtx, cfg.AdvertisementMirror, ing.dsTmp)
 	if err != nil {
 		return nil, err
 	}

@@ -25,7 +25,7 @@ import (
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/relayx"
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/fsutil"
+	"github.com/ipni/storetheindex/internal/fsutil"
 	"github.com/ipni/storetheindex/internal/ingest"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/internal/revision"

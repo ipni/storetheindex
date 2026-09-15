@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/fsutil"
+	"github.com/ipni/storetheindex/internal/fsutil"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 )

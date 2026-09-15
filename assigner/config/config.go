@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	sticfg "github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/fsutil"
+	"github.com/ipni/storetheindex/internal/fsutil"
 )
 
 // Config is used to load config files.

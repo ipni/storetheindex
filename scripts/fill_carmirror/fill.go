@@ -123,7 +123,7 @@ type filler struct {
 // ads are not stored. An IsRm ad is reported (whether a CAR already exists on
 // main) and otherwise left untouched. It never opens the indexer value store.
 func Fill(ctx context.Context, opts Options) (*Stats, error) {
-	f, err := newFiller(opts)
+	f, err := newFiller(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func Fill(ctx context.Context, opts Options) (*Stats, error) {
 	return f.run(ctx)
 }
 
-func newFiller(opts Options) (*filler, error) {
+func newFiller(ctx context.Context, opts Options) (*filler, error) {
 	opts.Mirror.PopulateUnset()
 	if !opts.Mirror.MainMode.CanRead() || !opts.Mirror.MainMode.CanWrite() {
 		return nil, fmt.Errorf("main car mirror must be readwrite (got MainMode %q)", opts.Mirror.MainMode)
@@ -149,7 +149,12 @@ func newFiller(opts Options) (*filler, error) {
 		return nil, errors.New("main car mirror storage backend is disabled")
 	}
 
-	mainWriter, err := carstore.NewWriter(ds, mainStore, carstore.WithCompress(opts.Mirror.Main.Compress))
+	mainWriter, err := carstore.NewWriter(
+		ds,
+		mainStore,
+		carstore.WithCompress(opts.Mirror.Main.Compress),
+		carstore.WithWriteCheckContext(ctx),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create main car writer: %w", err)
 	}

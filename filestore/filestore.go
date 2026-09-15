@@ -44,4 +44,7 @@ type Interface interface {
 	// Location returns a stable, low-cardinality identifier for where this
 	// filestore stores/serves data, suitable for metrics tags.
 	Location() string
+
+	// CheckWritable reports whether this store can create and delete files.
+	CheckWritable(ctx context.Context) error
 }

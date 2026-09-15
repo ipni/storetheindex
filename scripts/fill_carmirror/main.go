@@ -12,7 +12,7 @@ import (
 	"github.com/ipfs/go-cid"
 	findclient "github.com/ipni/go-libipni/find/client"
 	"github.com/ipni/storetheindex/config"
-	"github.com/ipni/storetheindex/fsutil"
+	"github.com/ipni/storetheindex/internal/fsutil"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/urfave/cli/v2"
 )

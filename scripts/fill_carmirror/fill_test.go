@@ -35,11 +35,17 @@ import (
 
 func TestNewFillerRequiresReadWrite(t *testing.T) {
 	main := localStore(t)
-	_, err := newFiller(Options{Mirror: config.Mirror{MainMode: config.MainModeRead, Main: main}})
+	_, err := newFiller(
+		t.Context(),
+		Options{Mirror: config.Mirror{MainMode: config.MainModeRead, Main: main}},
+	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "readwrite")
 
-	_, err = newFiller(Options{Mirror: config.Mirror{MainMode: config.MainModeWrite, Main: main}})
+	_, err = newFiller(
+		t.Context(),
+		Options{Mirror: config.Mirror{MainMode: config.MainModeWrite, Main: main}},
+	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "readwrite")
 }
@@ -447,7 +453,12 @@ func mustStore(t *testing.T, cfg config.StoreConfig) filestore.Interface {
 func writeCAR(t *testing.T, ds datastore.Batching, storeCfg config.StoreConfig, adCid cid.Cid) {
 	t.Helper()
 	fs := mustStore(t, storeCfg)
-	w, err := carstore.NewWriter(ds, fs, carstore.WithCompress(storeCfg.Compress))
+	w, err := carstore.NewWriter(
+		ds,
+		fs,
+		carstore.WithCompress(storeCfg.Compress),
+		carstore.WithWriteCheckContext(t.Context()),
+	)
 	require.NoError(t, err)
 	_, err = w.Write(context.Background(), adCid, false, false)
 	require.NoError(t, err)
