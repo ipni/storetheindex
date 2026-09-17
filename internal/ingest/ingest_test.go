@@ -38,6 +38,7 @@ import (
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
+	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/test/typehelpers"
 	"github.com/libp2p/go-libp2p"
@@ -47,6 +48,7 @@ import (
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
+	"go.opencensus.io/stats/view"
 )
 
 const (
@@ -2098,10 +2100,13 @@ func TestIngestRepairsTruncatedMainCarFromPublisher(t *testing.T) {
 	origSizes := fileSizes(t, cars)
 	truncateCarFiles(t, cars)
 
+	requireCarUnusableView(t)
+	before := carUnusableMetricCount(t, "main", mainDir, "")
 	_, err := te.ingester.Sync(t.Context(), peerInfo, 0, true, cid.Undef)
 	require.NoError(t, err)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 	require.Zero(t, te.ingester.MultihashesFromMirror())
+	require.Equal(t, before+int64(carTestAdCount), carUnusableMetricCount(t, "main", mainDir, ""))
 
 	for _, path := range cars {
 		info, err := os.Stat(path)
@@ -2140,10 +2145,15 @@ func TestIngestUsesExternalCarAndRewritesTruncatedMain(t *testing.T) {
 	origSizes := fileSizes(t, cars)
 	truncateCarFiles(t, cars)
 
+	requireCarUnusableView(t)
+	beforeMain := carUnusableMetricCount(t, "main", mainDir, "")
+	beforeExt := carUnusableMetricCount(t, "external", extDir, "")
 	_, err := te.ingester.Sync(t.Context(), peerInfo, 0, true, cid.Undef)
 	require.NoError(t, err)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 	require.Equal(t, carTestMirrorMHs, int(te.ingester.MultihashesFromMirror()))
+	require.Equal(t, beforeMain+int64(carTestAdCount), carUnusableMetricCount(t, "main", mainDir, ""))
+	require.Equal(t, beforeExt, carUnusableMetricCount(t, "external", extDir, ""), "complete External CARs must not be counted as unusable")
 
 	for _, path := range cars {
 		info, err := os.Stat(path)
@@ -2178,10 +2188,15 @@ func TestIngestFallsBackWhenExternalCarIncomplete(t *testing.T) {
 	truncateCarFiles(t, listCarFiles(t, mainDir, carstore.CarFileSuffix))
 	truncateCarFiles(t, listCarFiles(t, extDir, carstore.CarFileSuffix))
 
+	requireCarUnusableView(t)
+	beforeMain := carUnusableMetricCount(t, "main", mainDir, "")
+	beforeExt := carUnusableMetricCount(t, "external", extDir, "")
 	_, err := te.ingester.Sync(t.Context(), peerInfo, 0, true, cid.Undef)
 	require.NoError(t, err)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 	require.Zero(t, te.ingester.MultihashesFromMirror(), "incomplete mirror CARs must not be ingested")
+	require.Equal(t, beforeMain+int64(carTestAdCount), carUnusableMetricCount(t, "main", mainDir, ""))
+	require.Equal(t, beforeExt+int64(carTestAdCount), carUnusableMetricCount(t, "external", extDir, ""))
 	requireCompleteCar(t, te, headCid, cAd.Entries.(cidlink.Link).Cid)
 }
 
@@ -2206,10 +2221,13 @@ func TestIngestFallsBackWhenCarEntriesWrongOrder(t *testing.T) {
 		writeCarBlobs(t, path, roots, blobs)
 	}
 
+	requireCarUnusableView(t)
+	before := carUnusableMetricCount(t, "main", mainDir, string(carstore.ErrUnusableUnexpectedEntry))
 	_, err := te.ingester.Sync(t.Context(), peerInfo, 0, true, cid.Undef)
 	require.NoError(t, err)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 	require.Zero(t, te.ingester.MultihashesFromMirror(), "reordered CAR must not be ingested")
+	require.Equal(t, before+int64(carTestAdCount), carUnusableMetricCount(t, "main", mainDir, string(carstore.ErrUnusableUnexpectedEntry)))
 	requireCompleteCar(t, te, headCid, cAd.Entries.(cidlink.Link).Cid)
 }
 
@@ -2234,10 +2252,13 @@ func TestIngestFallsBackWhenCarHasUnrelatedBlocks(t *testing.T) {
 		writeCarBlobs(t, path, roots, blobs)
 	}
 
+	requireCarUnusableView(t)
+	before := carUnusableMetricCount(t, "main", mainDir, string(carstore.ErrUnusableExtraEntries))
 	_, err = te.ingester.Sync(t.Context(), peerInfo, 0, true, cid.Undef)
 	require.NoError(t, err)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 	require.Zero(t, te.ingester.MultihashesFromMirror(), "CAR with unrelated blocks must not be ingested")
+	require.Equal(t, before+int64(carTestAdCount), carUnusableMetricCount(t, "main", mainDir, string(carstore.ErrUnusableExtraEntries)))
 	requireCompleteCar(t, te, headCid, cAd.Entries.(cidlink.Link).Cid)
 }
 
@@ -3437,6 +3458,56 @@ func truncateCarFiles(t *testing.T, paths []string) {
 		require.Greater(t, keep, int64(0), path)
 		require.NoError(t, os.Truncate(path, keep))
 	}
+}
+
+var (
+	registerCarUnusableViewOnce sync.Once
+	carUnusableViewRegisterErr  error
+)
+
+func requireCarUnusableView(t *testing.T) {
+	t.Helper()
+	registerCarUnusableViewOnce.Do(func() {
+		carUnusableViewRegisterErr = view.Register(metrics.CarMirrorUnusableView)
+	})
+	require.NoError(t, carUnusableViewRegisterErr)
+}
+
+func carUnusableMetricCount(t *testing.T, source, location, reason string) int64 {
+	t.Helper()
+	requireCarUnusableView(t)
+	rows, err := view.RetrieveData(metrics.CarMirrorUnusableCount.Name())
+	require.NoError(t, err)
+	var total int64
+	for _, row := range rows {
+		if !carUnusableRowMatches(row, source, location, reason) {
+			continue
+		}
+		data, ok := row.Data.(*view.CountData)
+		require.True(t, ok)
+		total += data.Value
+	}
+	return total
+}
+
+func carUnusableRowMatches(row *view.Row, source, location, reason string) bool {
+	for _, tag := range row.Tags {
+		switch tag.Key.Name() {
+		case metrics.AdSource.Name():
+			if source != "" && tag.Value != source {
+				return false
+			}
+		case metrics.Location.Name():
+			if location != "" && tag.Value != location {
+				return false
+			}
+		case metrics.ErrKind.Name():
+			if reason != "" && tag.Value != reason {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func copyDirContents(t *testing.T, src, dst string) {

@@ -13,7 +13,10 @@ import (
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
+	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 )
 
 type adMirror struct {
@@ -66,6 +69,28 @@ func (d adDataSource) canBeWritten() bool {
 	default:
 		return false
 	}
+}
+
+func (m adMirror) mainLocation() string {
+	if m.mainCarReader == nil {
+		return ""
+	}
+	return m.mainCarReader.Location()
+}
+
+func recordCarUnusable(source adDataSource, location string, err error) {
+	kind, ok := errors.AsType[carstore.ErrUnusable](err)
+	if !ok {
+		return
+	}
+	_ = stats.RecordWithOptions(context.Background(),
+		stats.WithMeasurements(metrics.CarMirrorUnusableCount.M(1)),
+		stats.WithTags(
+			tag.Insert(metrics.AdSource, source.String()),
+			tag.Insert(metrics.Location, location),
+			tag.Insert(metrics.ErrKind, string(kind)),
+		),
+	)
 }
 
 // readMain reads a CAR from Main, or reports fs.ErrNotExist when Main is not
@@ -139,6 +164,7 @@ func (m adMirror) readExternalRace(
 			return false
 
 		default:
+			recordCarUnusable(adDataSourceExternal, m.externalCarReaders[res.idx].Location(), res.err)
 			log.Warnw("Cannot read advertisement from external filestore", "err", res.err, "index", res.idx, "carPath", adCid)
 			return false
 		}
