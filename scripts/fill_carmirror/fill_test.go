@@ -51,7 +51,7 @@ func TestNewFillerRequiresReadWrite(t *testing.T) {
 }
 
 func TestFillRequiresStartAd(t *testing.T) {
-	_, err := Fill(context.Background(), Options{Mirror: rwMirror(localStore(t))})
+	err := Fill(context.Background(), Options{Mirror: rwMirror(localStore(t))})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "LastAdvertisement")
 }
@@ -128,17 +128,35 @@ func TestFillAlreadyOnMain(t *testing.T) {
 	writeCAR(t, ds, main, ad2.cid)
 	writeCAR(t, cloneDS(t, ds), main, ad1.cid)
 
-	st, err := Fill(ctx, Options{
+	rec := runFill(t, ctx, Options{
 		Mirror:   rwMirror(main),
 		Provider: ad2.provider,
 		StartAd:  ad2.cid,
 	})
-	require.NoError(t, err)
-	require.Equal(t, 2, st.Scanned)
-	require.Equal(t, 2, st.AlreadyPresent)
-	require.Zero(t, st.Downloaded)
-	require.Zero(t, st.CopiedExternal)
-	require.Equal(t, stopGenesis, st.StopReason)
+	require.Equal(t, 2, rec.scanned)
+	require.Equal(t, 2, rec.present)
+	require.Zero(t, rec.downloaded)
+	require.Zero(t, rec.copied)
+	require.Equal(t, ad1.cid, rec.lastAd)
+	require.Equal(t, stopGenesis, rec.stop)
+}
+
+func TestFillUserCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	main := localStore(t)
+	ds := datastore.NewMapDatastore()
+	ad2, _ := storeAdChain(t, ds, 2)
+	writeCAR(t, ds, main, ad2.cid)
+
+	rec := &fillRec{}
+	err := Fill(ctx, Options{
+		Mirror:  rwMirror(main),
+		StartAd: ad2.cid,
+		Out:     rec,
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, stopCanceled, rec.stop)
 }
 
 func TestFillCopiesFromExternal(t *testing.T) {
@@ -151,15 +169,14 @@ func TestFillCopiesFromExternal(t *testing.T) {
 	writeCAR(t, cloneDS(t, ds), ext, ad2.cid)
 	writeCAR(t, cloneDS(t, ds), ext, ad1.cid)
 
-	st, err := Fill(ctx, Options{
+	rec := runFill(t, ctx, Options{
 		Mirror:  rwMirror(main, ext),
 		StartAd: ad2.cid,
 	})
-	require.NoError(t, err)
-	require.Equal(t, 2, st.CopiedExternal)
-	require.Zero(t, st.AlreadyPresent)
-	require.Zero(t, st.Downloaded)
-	require.Equal(t, stopGenesis, st.StopReason)
+	require.Equal(t, 2, rec.copied)
+	require.Zero(t, rec.present)
+	require.Zero(t, rec.downloaded)
+	require.Equal(t, stopGenesis, rec.stop)
 
 	reader, err := carstore.NewReader(mustStore(t, main), carstore.WithCompress(main.Compress))
 	require.NoError(t, err)
@@ -182,17 +199,15 @@ func TestFillRecreatesInvalidMainCARFromExternal(t *testing.T) {
 	writeCAR(t, cloneDS(t, ds), ext, ad2.cid)
 	writeCAR(t, cloneDS(t, ds), ext, ad1.cid)
 
-	st, err := Fill(ctx, Options{
+	rec := runFill(t, ctx, Options{
 		Mirror:  rwMirror(main, ext),
 		StartAd: ad2.cid,
 	})
-	require.NoError(t, err)
-	require.Equal(t, 2, st.Scanned)
-	require.Equal(t, 1, st.AlreadyPresent)
-	require.Equal(t, 1, st.CopiedExternal)
-	require.Equal(t, 1, st.Recreated)
-	require.Zero(t, st.Downloaded)
-	require.Equal(t, stopGenesis, st.StopReason)
+	require.Equal(t, 2, rec.scanned)
+	require.Equal(t, 1, rec.present)
+	require.Equal(t, 1, rec.copied)
+	require.Zero(t, rec.downloaded)
+	require.Equal(t, stopGenesis, rec.stop)
 
 	reader, err := carstore.NewReader(mustStore(t, main), carstore.WithCompress(main.Compress))
 	require.NoError(t, err)
@@ -220,18 +235,16 @@ func TestFillRecreatesInvalidMainCARFromPublisher(t *testing.T) {
 	writeCAR(t, cloneDS(t, pubDS), main, ad1.cid)
 	writeJunkCAR(t, main, ad2.cid)
 
-	st, err := Fill(ctx, Options{
+	rec := runFill(t, ctx, Options{
 		Mirror:      rwMirror(main),
 		StartAd:     ad2.cid,
 		Publisher:   peer.AddrInfo{ID: pub.ID(), Addrs: pub.Addrs()},
 		HttpTimeout: 10 * time.Second,
 	})
-	require.NoError(t, err)
-	require.Equal(t, 2, st.Scanned)
-	require.Equal(t, 1, st.AlreadyPresent)
-	require.Equal(t, 1, st.Downloaded)
-	require.Equal(t, 1, st.Recreated)
-	require.Equal(t, stopGenesis, st.StopReason)
+	require.Equal(t, 2, rec.scanned)
+	require.Equal(t, 1, rec.present)
+	require.Equal(t, 1, rec.downloaded)
+	require.Equal(t, stopGenesis, rec.stop)
 
 	reader, err := carstore.NewReader(mustStore(t, main), carstore.WithCompress(main.Compress))
 	require.NoError(t, err)
@@ -251,15 +264,15 @@ func TestFillDepthLimit(t *testing.T) {
 		writeCAR(t, cloneDS(t, ds), main, ad.cid)
 	}
 
-	st, err := Fill(ctx, Options{
+	rec := runFill(t, ctx, Options{
 		Mirror:  rwMirror(main),
 		StartAd: ad3.cid,
 		Depth:   2,
 	})
-	require.NoError(t, err)
-	require.Equal(t, 2, st.Scanned)
-	require.Equal(t, 2, st.AlreadyPresent)
-	require.Equal(t, stopDepth, st.StopReason)
+	require.Equal(t, 2, rec.scanned)
+	require.Equal(t, 2, rec.present)
+	require.Equal(t, ad2.cid, rec.lastAd)
+	require.Equal(t, stopDepth, rec.stop)
 }
 
 func TestFillSkipsNoEntries(t *testing.T) {
@@ -273,15 +286,14 @@ func TestFillSkipsNoEntries(t *testing.T) {
 	writeCAR(t, cloneDS(t, ds), ext, withEnts.cid)
 	writeCAR(t, cloneDS(t, ds), ext, empty.cid)
 
-	st, err := Fill(ctx, Options{
+	rec := runFill(t, ctx, Options{
 		Mirror:  rwMirror(main, ext),
 		StartAd: withEnts.cid,
 	})
-	require.NoError(t, err)
-	require.Equal(t, 1, st.CopiedExternal)
-	require.Equal(t, 1, st.SkippedNoEnts)
-	require.Equal(t, 2, st.Scanned)
-	require.Equal(t, stopGenesis, st.StopReason)
+	require.Equal(t, 1, rec.copied)
+	require.Equal(t, 1, rec.skippedNoEnts)
+	require.Equal(t, 2, rec.scanned)
+	require.Equal(t, stopGenesis, rec.stop)
 	require.True(t, carExists(t, main, withEnts.cid))
 	require.False(t, carExists(t, main, empty.cid))
 }
@@ -299,15 +311,14 @@ func TestFillSkipsIsRmWithoutWritingOrDeleting(t *testing.T) {
 	require.True(t, carExists(t, main, content.cid))
 	require.True(t, carExists(t, main, rm.cid))
 
-	st, err := Fill(ctx, Options{
+	rec := runFill(t, ctx, Options{
 		Mirror:  rwMirror(main),
 		StartAd: rm.cid,
 	})
-	require.NoError(t, err)
-	require.Equal(t, 2, st.Scanned)
-	require.Equal(t, 1, st.SkippedRm)
-	require.Equal(t, 1, st.AlreadyPresent)
-	require.Equal(t, stopGenesis, st.StopReason)
+	require.Equal(t, 2, rec.scanned)
+	require.Equal(t, 1, rec.skippedRm)
+	require.Equal(t, 1, rec.present)
+	require.Equal(t, stopGenesis, rec.stop)
 	require.True(t, carExists(t, main, rm.cid))
 	require.True(t, carExists(t, main, content.cid))
 }
@@ -328,17 +339,16 @@ func TestFillSkipsIsRmFromPublisher(t *testing.T) {
 	pub.SetRoot(rm.cid)
 
 	main := localStore(t)
-	st, err := Fill(ctx, Options{
+	rec := runFill(t, ctx, Options{
 		Mirror:      rwMirror(main),
 		StartAd:     rm.cid,
 		Publisher:   peer.AddrInfo{ID: pub.ID(), Addrs: pub.Addrs()},
 		HttpTimeout: 10 * time.Second,
 	})
-	require.NoError(t, err)
-	require.Equal(t, 2, st.Scanned)
-	require.Equal(t, 1, st.SkippedRm)
-	require.Equal(t, 1, st.Downloaded)
-	require.Equal(t, stopGenesis, st.StopReason)
+	require.Equal(t, 2, rec.scanned)
+	require.Equal(t, 1, rec.skippedRm)
+	require.Equal(t, 1, rec.downloaded)
+	require.Equal(t, stopGenesis, rec.stop)
 	require.False(t, carExists(t, main, rm.cid))
 	require.True(t, carExists(t, main, content.cid))
 }
@@ -359,18 +369,21 @@ func TestFillDownloadsFromProvider(t *testing.T) {
 	pub.SetRoot(ad2.cid)
 
 	main := localStore(t)
-	st, err := Fill(ctx, Options{
+	rec := runFill(t, ctx, Options{
 		Mirror:      rwMirror(main),
 		StartAd:     ad2.cid,
 		Publisher:   peer.AddrInfo{ID: pub.ID(), Addrs: pub.Addrs()},
 		HttpTimeout: 10 * time.Second,
 	})
-	require.NoError(t, err)
-	require.Equal(t, 2, st.Downloaded)
-	require.Zero(t, st.AlreadyPresent)
-	require.Equal(t, stopGenesis, st.StopReason)
-	require.Positive(t, st.BytesWritten)
-	require.Positive(t, st.BytesDownloaded)
+	require.Equal(t, 2, rec.downloaded)
+	require.Zero(t, rec.present)
+	require.Equal(t, ad1.cid, rec.lastAd)
+	require.Equal(t, stopGenesis, rec.stop)
+	require.Positive(t, rec.written)
+	require.Positive(t, rec.downBytes)
+	require.Equal(t, 4, rec.fetched)
+	require.Equal(t, 2, rec.fetching)
+	require.Equal(t, 2, rec.writing)
 
 	reader, err := carstore.NewReader(mustStore(t, main), carstore.WithCompress(main.Compress))
 	require.NoError(t, err)
@@ -382,6 +395,72 @@ func TestFillDownloadsFromProvider(t *testing.T) {
 		require.False(t, data.hamt)
 		require.NotZero(t, data.chunks)
 	}
+}
+
+func TestFillDownloadsReusingSubscriberPool(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pubDS := dssync.MutexWrap(datastore.NewMapDatastore())
+	var ads []testAd
+	var prev ipld.Link
+	for range 4 {
+		ad := storeAd(t, pubDS, 2, prev)
+		ads = append(ads, ad)
+		prev = cidlink.Link{Cid: ad.cid}
+	}
+	latest := ads[len(ads)-1]
+	oldest := ads[0]
+
+	priv, _, err := crypto.GenerateEd25519Key(rand.Reader)
+	require.NoError(t, err)
+	pub, err := ipnisync.NewPublisher(mkLinkSystem(pubDS), priv, ipnisync.WithHTTPListenAddrs("127.0.0.1:0"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pub.Close() })
+	pub.SetRoot(latest.cid)
+
+	main := localStore(t)
+	rec := runFill(t, ctx, Options{
+		Mirror:      rwMirror(main),
+		StartAd:     latest.cid,
+		Publisher:   peer.AddrInfo{ID: pub.ID(), Addrs: pub.Addrs()},
+		HttpTimeout: 10 * time.Second,
+		Concurrency: 2,
+	})
+	require.Equal(t, 4, rec.downloaded)
+	require.Equal(t, oldest.cid, rec.lastAd)
+	require.Equal(t, stopGenesis, rec.stop)
+	require.Equal(t, 8, rec.fetched)
+	require.Equal(t, 4, rec.fetching)
+	require.Equal(t, 4, rec.writing)
+}
+
+func TestFillEstimateCountsAds(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pubDS := dssync.MutexWrap(datastore.NewMapDatastore())
+	ad2, _ := storeAdChain(t, pubDS, 2)
+
+	priv, _, err := crypto.GenerateEd25519Key(rand.Reader)
+	require.NoError(t, err)
+	pub, err := ipnisync.NewPublisher(mkLinkSystem(pubDS), priv, ipnisync.WithHTTPListenAddrs("127.0.0.1:0"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pub.Close() })
+	pub.SetRoot(ad2.cid)
+
+	rec := runFill(t, ctx, Options{
+		Mirror:          rwMirror(localStore(t)),
+		StartAd:         ad2.cid,
+		Publisher:       peer.AddrInfo{ID: pub.ID(), Addrs: pub.Addrs()},
+		HttpTimeout:     10 * time.Second,
+		Estimate:        true,
+		EstimateTimeout: 30 * time.Second,
+	})
+	require.Equal(t, 2, rec.scanned)
+	require.Equal(t, 2, rec.total)
+	require.True(t, rec.exact)
+	require.Equal(t, stopGenesis, rec.stop)
 }
 
 func TestFillUsesEachSourceOnce(t *testing.T) {
@@ -403,18 +482,17 @@ func TestFillUsesEachSourceOnce(t *testing.T) {
 	t.Cleanup(func() { _ = pub.Close() })
 	pub.SetRoot(ad3.cid)
 
-	st, err := Fill(ctx, Options{
+	rec := runFill(t, ctx, Options{
 		Mirror:      rwMirror(main, ext),
 		StartAd:     ad3.cid,
 		Publisher:   peer.AddrInfo{ID: pub.ID(), Addrs: pub.Addrs()},
 		HttpTimeout: 10 * time.Second,
 	})
-	require.NoError(t, err)
-	require.Equal(t, 1, st.AlreadyPresent)
-	require.Equal(t, 1, st.CopiedExternal)
-	require.Equal(t, 1, st.Downloaded)
-	require.Equal(t, 3, st.Scanned)
-	require.Equal(t, stopGenesis, st.StopReason)
+	require.Equal(t, 1, rec.present)
+	require.Equal(t, 1, rec.copied)
+	require.Equal(t, 1, rec.downloaded)
+	require.Equal(t, 3, rec.scanned)
+	require.Equal(t, stopGenesis, rec.stop)
 }
 
 type testAd struct {
@@ -488,6 +566,72 @@ func carExists(t *testing.T, storeCfg config.StoreConfig, adCid cid.Cid) bool {
 		return false
 	}
 	return true
+}
+
+type fillRec struct {
+	nopObserver
+	counts
+	fetched  int
+	fetching int
+	writing  int
+}
+
+func runFill(t *testing.T, ctx context.Context, opts Options) *fillRec {
+	t.Helper()
+	rec := &fillRec{}
+	opts.Out = rec
+	require.NoError(t, Fill(ctx, opts))
+	return rec
+}
+
+func (r *fillRec) CheckingMain(ad AdRef) {
+	defer r.locked()()
+	r.noteChecking(ad)
+}
+func (r *fillRec) PresentOnMain(ad AdRef, data *carData) {
+	defer r.locked()()
+	r.notePresent(data)
+	r.noteFinished(ad)
+}
+func (r *fillRec) CopiedFromExternal(ad AdRef, data *carData, written int64) {
+	defer r.locked()()
+	r.noteCopied(data, written)
+	r.noteFinished(ad)
+}
+func (r *fillRec) WrittenFromPublisher(ad AdRef, hamt bool, chunks, mhs int, written, downBytes int64) {
+	defer r.locked()()
+	r.noteDownloaded(hamt, chunks, mhs, written, downBytes)
+	r.noteFinished(ad)
+}
+func (r *fillRec) SkipIsRm(ad AdRef, _ schema.Advertisement, _ bool) {
+	defer r.locked()()
+	r.noteSkipRm()
+	r.noteFinished(ad)
+}
+func (r *fillRec) SkipNoEntries(ad AdRef, _ schema.Advertisement) {
+	defer r.locked()()
+	r.noteSkipNoEnts()
+	r.noteFinished(ad)
+}
+func (r *fillRec) CountComplete(n int, exact bool) {
+	defer r.locked()()
+	r.noteCountComplete(n, exact)
+}
+func (r *fillRec) Done(reason string, _ error) {
+	defer r.locked()()
+	r.noteDone(reason)
+}
+func (r *fillRec) FetchingEntryChunk(AdRef, int, cid.Cid) {
+	defer r.locked()()
+	r.fetching++
+}
+func (r *fillRec) FetchedEntryChunk(AdRef, int, cid.Cid, int, int, int64) {
+	defer r.locked()()
+	r.fetched++
+}
+func (r *fillRec) WritingCAR(AdRef, int) {
+	defer r.locked()()
+	r.writing++
 }
 
 func storeAdChain(t *testing.T, ds datastore.Datastore, chunksPerAd int) (latest, prev testAd) {
