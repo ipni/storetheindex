@@ -626,6 +626,7 @@ func (ing *Ingester) ingestEntriesFromCar(
 		defer adBlock.Close()
 		n, ingestErr := ing.ingestCarEntryStream(ctx, ad, publisherID, providerID, entsCid, adBlock, src, log)
 		if ingestErr != nil {
+			recordCarUnusable(src, loc, ingestErr)
 			return n, adDataSourceNone, "", ingestErr
 		}
 		return n, src, loc, nil
@@ -638,8 +639,9 @@ func (ing *Ingester) ingestEntriesFromCar(
 		if ingestErr == nil {
 			return n, src, loc, nil
 		}
-		if !errors.Is(ingestErr, carstore.ErrUnusable) {
-			return n, adDataSourceNone, "", ingestErr
+		if _, ok := errors.AsType[carstore.ErrUnusable](ingestErr); !ok {
+			// Some critical error, not a CAR file issue.
+			return n, src, loc, ingestErr
 		}
 		log.Infow("Main CAR unusable, trying another source", "err", ingestErr)
 
@@ -650,6 +652,7 @@ func (ing *Ingester) ingestEntriesFromCar(
 		return 0, adDataSourceNone, "", readErr
 
 	default:
+		recordCarUnusable(adDataSourceMain, ing.mirror.mainLocation(), readErr)
 		log.Infow("Cannot read Main CAR, trying another source", "err", readErr)
 	}
 
@@ -671,7 +674,7 @@ func (ing *Ingester) ingestCarEntryStream(
 	log *zap.SugaredLogger,
 ) (mhCount int, err error) {
 	if adBlock.Entries == nil {
-		return 0, fmt.Errorf("%w: advertisement has no entries", carstore.ErrUnusable)
+		return 0, fmt.Errorf("%w: advertisement has no entries", carstore.ErrUnusableNoEntries)
 	}
 
 	log = log.With("entriesKind", "CarEntryChunk")
@@ -684,10 +687,10 @@ func (ing *Ingester) ingestCarEntryStream(
 			return mhCount, entryBlock.Err
 		}
 		if expectedCid == cid.Undef {
-			return mhCount, fmt.Errorf("%w: extra entry block %s beyond the entries chain", carstore.ErrUnusable, entryBlock.Cid)
+			return mhCount, fmt.Errorf("%w: extra entry block %s beyond the entries chain", carstore.ErrUnusableExtraEntries, entryBlock.Cid)
 		}
 		if entryBlock.Cid != expectedCid {
-			return mhCount, fmt.Errorf("%w: entry block %s is not the next expected chunk %s", carstore.ErrUnusable, entryBlock.Cid, expectedCid)
+			return mhCount, fmt.Errorf("%w: entry block %s is not the next expected chunk %s", carstore.ErrUnusableUnexpectedEntry, entryBlock.Cid, expectedCid)
 		}
 
 		chunk, err := entryBlock.EntryChunk()
@@ -695,7 +698,7 @@ func (ing *Ingester) ingestCarEntryStream(
 			if errors.Is(err, carstore.ErrHAMT) {
 				return mhCount, err
 			}
-			return mhCount, fmt.Errorf("%w: cannot decode entry chunk %s: %v", carstore.ErrUnusable, entryBlock.Cid, err)
+			return mhCount, fmt.Errorf("%w: cannot decode entry chunk %s: %v", carstore.ErrUnusableDecodeEntry, entryBlock.Cid, err)
 		}
 
 		// Index now: this chunk is the next expected CID, so it is authentic
@@ -721,7 +724,7 @@ func (ing *Ingester) ingestCarEntryStream(
 		}
 	}
 	if expectedCid != cid.Undef {
-		return mhCount, fmt.Errorf("%w: missing remaining entries starting at %s", carstore.ErrUnusable, expectedCid)
+		return mhCount, fmt.Errorf("%w: missing remaining entries starting at %s", carstore.ErrUnusableIncompleteEntries, expectedCid)
 	}
 
 	return mhCount, nil

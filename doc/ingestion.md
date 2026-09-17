@@ -250,8 +250,13 @@ graph TD
   chain, in `Next` order, with each block CID matching its bytes. This is the
   resync fast path: a usable Main CAR is reused without refetching from the
   publisher. Truncated, empty, reordered, extra, or unrelated blocks are
-  `carstore.ErrUnusable` and are not treated as success; ingest tries the next
-  source (External, then the publisher). Only the winner of an `External` race
+  an `ErrUnusable` reason and are not treated as success; ingest tries the next
+  source (External, then the publisher). Each unusable CAR increments
+  `ingest/carmirrorunusable` (`storetheindex_ingest_carmirrorunusable`) tagged
+  with `adSource` (`main` or `external`), `location` (filestore identifier), and
+  `errKind` (stable values such as `incomplete_entries`, `unexpected_entry`,
+  `extra_entries`, `cid_mismatch`, `wrong_root`, `invalid_car`). Missing CARs
+  (`fs.ErrNotExist`) are not counted. Only the winner of an `External` race
   is returned to the caller; losing successes are cancelled and their entry
   streams are drained so the CAR readers (and HTTP bodies / files they hold)
   are released. The winner's stream is likewise cancelled and drained if

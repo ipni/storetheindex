@@ -3,6 +3,7 @@ package carstore
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -21,10 +22,14 @@ func TestVerifyCID(t *testing.T) {
 	require.NoError(t, verifyCID(c, data))
 
 	err = verifyCID(c, []byte("other"))
-	require.ErrorIs(t, err, ErrUnusable)
+	got, ok := errors.AsType[ErrUnusable](err)
+	require.True(t, ok)
+	require.Equal(t, ErrUnusableCIDMismatch, got)
 
 	err = verifyCID(cid.Undef, data)
-	require.ErrorIs(t, err, ErrUnusable)
+	got, ok = errors.AsType[ErrUnusable](err)
+	require.True(t, ok)
+	require.Equal(t, ErrUnusableUndefinedCID, got)
 }
 
 func TestReadRejectsWrongFirstBlock(t *testing.T) {
@@ -44,7 +49,9 @@ func TestReadRejectsWrongFirstBlock(t *testing.T) {
 	carr, err := NewReader(fileStore)
 	require.NoError(t, err)
 	_, err = carr.Read(ctx, adCid, true)
-	require.ErrorIs(t, err, ErrUnusable)
+	got, ok := errors.AsType[ErrUnusable](err)
+	require.True(t, ok)
+	require.Equal(t, ErrUnusableFirstBlockCidMismatch, got)
 }
 
 func TestReadRejectsAdvertisementHashMismatch(t *testing.T) {
@@ -58,7 +65,9 @@ func TestReadRejectsAdvertisementHashMismatch(t *testing.T) {
 	carr, err := NewReader(fileStore)
 	require.NoError(t, err)
 	_, err = carr.Read(ctx, adCid, true)
-	require.ErrorIs(t, err, ErrUnusable)
+	got, ok := errors.AsType[ErrUnusable](err)
+	require.True(t, ok)
+	require.Equal(t, ErrUnusableCannotReadAd, got)
 }
 
 type testCarBlock struct {

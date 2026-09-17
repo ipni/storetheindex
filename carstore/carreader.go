@@ -16,11 +16,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-// ErrUnusable is returned when a CAR file cannot be used as an advertisement
-// source: truncated entries, extra or reordered blocks, unrelated blobs, or a
-// CID that does not match its bytes. Callers should try another source.
-var ErrUnusable = errors.New("CAR file is unusable")
-
 type CarReader struct {
 	compAlg   string
 	fileStore filestore.Interface
@@ -139,47 +134,46 @@ func (cr CarReader) Location() string {
 // entries. Returns fs.ErrNotExist if file is not found.
 func (cr CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) (*AdBlock, error) {
 	carPath := cr.CarPath(adCid)
-	_, r, err := cr.fileStore.Get(ctx, carPath)
+	_, rc, err := cr.fileStore.Get(ctx, carPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var rc io.ReadCloser
+	defer func() {
+		// Make sure to close the reader if it we're not spawning a goroutine to read entries.
+		if rc != nil {
+			_ = rc.Close()
+		}
+	}()
+
 	if cr.compAlg == Gzip {
-		gzr, err := gzip.NewReader(r)
+		gzr, err := gzip.NewReader(rc)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", ErrUnusableDecompress, err)
 		}
 		rc = &gzipReadCloser{
-			r:   r,
+			r:   rc,
 			gzr: gzr,
 		}
-	} else {
-		rc = r
 	}
 
 	cbr, err := car.NewBlockReader(rc)
 	if err != nil {
-		rc.Close()
-		return nil, fmt.Errorf("cannot create car blockstore: %w", err)
+		return nil, fmt.Errorf("%w: cannot create car blockstore: %w", ErrUnusableInvalidCAR, err)
 	}
 	if len(cbr.Roots) == 0 || cbr.Roots[0] != adCid {
-		rc.Close()
-		return nil, fmt.Errorf("%w: car file has wrong root", ErrUnusable)
+		return nil, ErrUnusableWrongRoot
 	}
 
 	blk, err := cbr.Next()
 	if err != nil {
-		rc.Close()
-		return nil, fmt.Errorf("%w: cannot read advertisement data: %w", ErrUnusable, err)
+		return nil, fmt.Errorf("%w: cannot read advertisement data: %w", ErrUnusableCannotReadAd, err)
 	}
 	if blk.Cid() != adCid {
-		rc.Close()
-		return nil, fmt.Errorf("%w: first block cid %s does not match advertisement %s", ErrUnusable, blk.Cid(), adCid)
+		return nil, fmt.Errorf("%w: first block cid %s does not match advertisement %s", ErrUnusableFirstBlockCidMismatch, blk.Cid(), adCid)
 	}
 	if err = verifyCID(adCid, blk.RawData()); err != nil {
-		rc.Close()
-		return nil, fmt.Errorf("%w: %w", ErrUnusable, err)
+		return nil, err
 	}
 
 	adBlock := AdBlock{
@@ -192,8 +186,7 @@ func (cr CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) (
 		adBlock.Entries = entsCh
 		ctx, adBlock.entriesCancel = context.WithCancel(ctx)
 		go readEntries(ctx, cbr, rc, entsCh)
-	} else {
-		rc.Close()
+		rc = nil
 	}
 
 	return &adBlock, nil
@@ -247,9 +240,9 @@ func readEntries(ctx context.Context, cbr *car.BlockReader, r io.ReadCloser, ent
 			if errors.Is(err, io.EOF) {
 				return
 			}
-			entBlock.Err = fmt.Errorf("%w: %w", ErrUnusable, err)
+			entBlock.Err = fmt.Errorf("%w: %w", ErrUnusableEntryRead, err)
 		} else if err = verifyCID(blk.Cid(), blk.RawData()); err != nil {
-			entBlock.Err = fmt.Errorf("%w: %w", ErrUnusable, err)
+			entBlock.Err = err
 		} else {
 			entBlock.Cid = blk.Cid()
 			entBlock.Data = blk.RawData()
