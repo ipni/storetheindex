@@ -255,14 +255,20 @@ How advertisement chains and entry data are fetched and indexed.
 | `Skip500EntriesError` | `false` | If `true`, skip advertisements when the publisher returns HTTP 500 with message `failed to sync first entry`. **Reloadable.** |
 | `PubSubTopic` | `/indexer/ingest/mainnet` | Gossip topic path for ingest announcements (a string like `"/indexer/ingest/mainnet"`, legacy / compatibility). |
 | `ResendDirectAnnounce` | `false` | If `true`, re-broadcast announces received over HTTP onto gossip so other indexers see them. Always off when using an assigner. |
-| `OverwriteMirrorOnResync` | `false` | When resyncing, overwrite existing mirrored CAR data. |
+| `OverwriteMirrorOnResync` | `false` | When resyncing, overwrite existing mirrored CAR data. Rebuilds of Main from External or the publisher always overwrite so a broken Main CAR is replaced. |
 | `AdvertisementMirror` | see below | Optional storage of advertisement CAR files for local reuse or sharing. |
 
 ### `Ingest.AdvertisementMirror`
 
 Stores advertisement (and entry) data as CAR files so this indexer can read
-them again later, or serve them to others, without always fetching from the
-publisher.
+them again later (especially on resync), or serve them to others, without
+always fetching from the publisher.
+
+Ingest **prefers Main**, then External. A CAR is indexed only if it contains
+exactly the advertisement's entries chain in order, with CIDs matching the
+block bytes. Incomplete, empty, reordered, extra, unrelated, or missing files
+are not trusted: ingest tries the next source, and a writable Main is
+overwritten from External or the publisher.
 
 If Main is disabled and no External stores are configured (or their type is
 unset / `"none"`), mirroring is not used.
@@ -271,7 +277,7 @@ unset / `"none"`), mirroring is not used.
 | --- | --- | --- |
 | `MainMode` | `none` | How the **Main** store is used. Allowed values: `none` (or empty), `read`, `write`, or `readwrite`. Does not affect External stores. |
 | `Main` | see store defaults below | The indexer’s own mirror store (read and/or write according to `MainMode`). |
-| `External` | `[]` | Extra **read-only** mirror locations. After a Main miss (or if Main is not readable), all External stores are queried in parallel; the first successful response wins. Missing files and errors count as misses. |
+| `External` | `[]` | Extra **read-only** mirror locations. After a Main miss or unusable Main CAR (or if Main is not readable), all External stores are queried in parallel; the first successful complete CAR wins. Missing files, incomplete files, and errors count as misses and ingest falls back to the publisher. |
 
 Each of `Main` and every `External` entry is a **store** object:
 

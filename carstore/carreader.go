@@ -60,17 +60,18 @@ type EntryBlock struct {
 
 func (e EntryBlock) EntryChunk() (*schema.EntryChunk, error) {
 	chunk, err := decodeEntryChunk(e.Data, e.Cid)
-	if err != nil {
-		node, err := decodeIPLDNode(bytes.NewBuffer(e.Data), e.Cid.Prefix().Codec, basicnode.Prototype.Any)
-		if err != nil {
-			return nil, err
-		}
-		if isHAMT(node) {
-			return nil, ErrHAMT
-		}
-		return nil, err
+	if err == nil {
+		return chunk, nil
 	}
-	return chunk, nil
+	// Probe for HAMT so callers can distinguish that case. Keep the original
+	// decode error for any other IPLD that is not an EntryChunk; a successful
+	// generic decode must not hide that error (returning (nil, nil) panics
+	// callers that only check err).
+	node, nodeErr := decodeIPLDNode(bytes.NewBuffer(e.Data), e.Cid.Prefix().Codec, basicnode.Prototype.Any)
+	if nodeErr == nil && isHAMT(node) {
+		return nil, ErrHAMT
+	}
+	return nil, err
 }
 
 type gzipReadCloser struct {
@@ -133,39 +134,46 @@ func (cr CarReader) Location() string {
 // entries. Returns fs.ErrNotExist if file is not found.
 func (cr CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) (*AdBlock, error) {
 	carPath := cr.CarPath(adCid)
-	_, r, err := cr.fileStore.Get(ctx, carPath)
+	_, rc, err := cr.fileStore.Get(ctx, carPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var rc io.ReadCloser
+	defer func() {
+		// Make sure to close the reader if it we're not spawning a goroutine to read entries.
+		if rc != nil {
+			_ = rc.Close()
+		}
+	}()
+
 	if cr.compAlg == Gzip {
-		gzr, err := gzip.NewReader(r)
+		gzr, err := gzip.NewReader(rc)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", ErrUnusableDecompress, err)
 		}
 		rc = &gzipReadCloser{
-			r:   r,
+			r:   rc,
 			gzr: gzr,
 		}
-	} else {
-		rc = r
 	}
 
 	cbr, err := car.NewBlockReader(rc)
 	if err != nil {
-		rc.Close()
-		return nil, fmt.Errorf("cannot create car blockstore: %w", err)
+		return nil, fmt.Errorf("%w: cannot create car blockstore: %w", ErrUnusableInvalidCAR, err)
 	}
 	if len(cbr.Roots) == 0 || cbr.Roots[0] != adCid {
-		rc.Close()
-		return nil, errors.New("car file has wrong root")
+		return nil, ErrUnusableWrongRoot
 	}
 
 	blk, err := cbr.Next()
 	if err != nil {
-		rc.Close()
-		return nil, fmt.Errorf("cannot read advertisement data: %w", err)
+		return nil, fmt.Errorf("%w: cannot read advertisement data: %w", ErrUnusableCannotReadAd, err)
+	}
+	if blk.Cid() != adCid {
+		return nil, fmt.Errorf("%w: first block cid %s does not match advertisement %s", ErrUnusableFirstBlockCidMismatch, blk.Cid(), adCid)
+	}
+	if err = verifyCID(adCid, blk.RawData()); err != nil {
+		return nil, err
 	}
 
 	adBlock := AdBlock{
@@ -178,8 +186,7 @@ func (cr CarReader) Read(ctx context.Context, adCid cid.Cid, skipEntries bool) (
 		adBlock.Entries = entsCh
 		ctx, adBlock.entriesCancel = context.WithCancel(ctx)
 		go readEntries(ctx, cbr, rc, entsCh)
-	} else {
-		rc.Close()
+		rc = nil
 	}
 
 	return &adBlock, nil
@@ -209,6 +216,11 @@ func (cr CarReader) ReadHead(ctx context.Context, provider peer.ID) (cid.Cid, er
 	return cid.Decode(buf.String())
 }
 
+// readEntries streams entry blocks from the CAR to entsCh. Each block's CID
+// is verified against its bytes (verifyCID), but the entries-chain Next pointer
+// is not checked here because the reader does not decode EntryChunks. Chain
+// order, completeness, and extra-block detection are the caller's
+// responsibility (see ingestCarEntryStream in linksystem.go).
 func readEntries(ctx context.Context, cbr *car.BlockReader, r io.ReadCloser, entsCh chan EntryBlock) {
 	defer r.Close()
 	defer close(entsCh)
@@ -228,6 +240,8 @@ func readEntries(ctx context.Context, cbr *car.BlockReader, r io.ReadCloser, ent
 			if errors.Is(err, io.EOF) {
 				return
 			}
+			entBlock.Err = fmt.Errorf("%w: %w", ErrUnusableEntryRead, err)
+		} else if err = verifyCID(blk.Cid(), blk.RawData()); err != nil {
 			entBlock.Err = err
 		} else {
 			entBlock.Cid = blk.Cid()

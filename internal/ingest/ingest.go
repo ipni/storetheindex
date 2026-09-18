@@ -1471,20 +1471,18 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		if putMirror {
 			if adDataSource == adDataSourceMain {
 				log.Debug("Removing temporary ad data")
-				// If ad data retrieved from same mirror that is being written
-				// to, then only clean up the data from local datastore, but do
-				// not rewrite it to the mirror.
+				// Complete CAR already on Main; clean up dsTmp without rewriting.
 				err = ing.mirror.cleanupAdData(ctx, ai.cid, false)
 				if err != nil {
 					log.Errorw("Cannot remove advertisement data from datastore", "err", err)
 				}
 			} else {
 				log.Debug("Writing ad to CAR mirror")
-				// If resyncing and not overwriting, then do not overwrite the
-				// destination file if it already exists.
-				preventOverwrite := ai.resync && !ing.overwriteMirrorOnResync
-
-				carInfo, err := ing.mirror.write(ctx, ai.cid, false, preventOverwrite)
+				// Data came from External or the publisher, so any CAR already
+				// on Main is broken or missing. Always overwrite it, regardless
+				// of OverwriteMirrorOnResync, which only applies to the Main
+				// source handled above.
+				carInfo, err := ing.mirror.write(ctx, ai.cid, false, false)
 				if err != nil {
 					if !errors.Is(err, fs.ErrExist) {
 						// Log the error, but do not return. Continue on to save the procesed ad.

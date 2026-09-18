@@ -23,23 +23,24 @@ var (
 
 // Measures
 var (
-	FindLatency          = stats.Float64("find/latency", "Time to respond to a find request", stats.UnitMilliseconds)
-	IngestChange         = stats.Int64("ingest/change", "Number of syncAdEntries started", stats.UnitDimensionless)
-	AdIngestLatency      = stats.Float64("ingest/adsynclatency", "latency of syncAdEntries completed successfully", stats.UnitDimensionless)
-	AdIngestErrorCount   = stats.Int64("ingest/adingestError", "Number of errors encountered while processing an ad", stats.UnitDimensionless)
-	AdIngestActive       = stats.Int64("ingest/adactive", "Active ingest workers", stats.UnitDimensionless)
-	AdIngestSuccessCount = stats.Int64("ingest/adingestSuccess", "Number of successful ad ingest", stats.UnitDimensionless)
-	AdIngestSkippedCount = stats.Int64("ingest/adingestSkipped", "Number of ads skipped during ingest", stats.UnitDimensionless)
-	AdLoadSourceCount    = stats.Int64("ingest/adloadsource", "Number of ads with entries loaded, by data source", stats.UnitDimensionless)
-	AdWriteSourceCount   = stats.Int64("ingest/adwritesource", "Number of ads written to the CAR mirror, by data source", stats.UnitDimensionless)
-	AdLoadError          = stats.Int64("ingest/adLoadError", "Number of times an ad failed to load", stats.UnitDimensionless)
-	CarMirrorReadLatency = stats.Float64("ingest/carmirrorreadlatency", "Time to read an ad's entries from a CAR mirror", stats.UnitMilliseconds)
-	ProviderFetchLatency = stats.Float64("ingest/providerfetchlatency", "Time to fetch all of an ad's entries from the publisher", stats.UnitMilliseconds)
-	ProviderCount        = stats.Int64("provider/count", "Number of known (registered) providers", stats.UnitDimensionless)
-	EntriesSyncLatency   = stats.Float64("ingest/entriessynclatency", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
-	PercentUsage         = stats.Float64("ingest/percentusage", "Percent usage of storage available in value store", stats.UnitDimensionless)
-	NonRemoveAdCount     = stats.Int64("ingest/nonremoveadcount", "Number of non-removal advertisements", stats.UnitDimensionless)
-	RemoveAdCount        = stats.Int64("ingest/removeadcount", "Number of removal advertisements", stats.UnitDimensionless)
+	FindLatency            = stats.Float64("find/latency", "Time to respond to a find request", stats.UnitMilliseconds)
+	IngestChange           = stats.Int64("ingest/change", "Number of syncAdEntries started", stats.UnitDimensionless)
+	AdIngestLatency        = stats.Float64("ingest/adsynclatency", "latency of syncAdEntries completed successfully", stats.UnitDimensionless)
+	AdIngestErrorCount     = stats.Int64("ingest/adingestError", "Number of errors encountered while processing an ad", stats.UnitDimensionless)
+	AdIngestActive         = stats.Int64("ingest/adactive", "Active ingest workers", stats.UnitDimensionless)
+	AdIngestSuccessCount   = stats.Int64("ingest/adingestSuccess", "Number of successful ad ingest", stats.UnitDimensionless)
+	AdIngestSkippedCount   = stats.Int64("ingest/adingestSkipped", "Number of ads skipped during ingest", stats.UnitDimensionless)
+	AdLoadSourceCount      = stats.Int64("ingest/adloadsource", "Number of ads with entries loaded, by data source", stats.UnitDimensionless)
+	AdWriteSourceCount     = stats.Int64("ingest/adwritesource", "Number of ads written to the CAR mirror, by data source", stats.UnitDimensionless)
+	AdLoadError            = stats.Int64("ingest/adLoadError", "Number of times an ad failed to load", stats.UnitDimensionless)
+	CarMirrorReadLatency   = stats.Float64("ingest/carmirrorreadlatency", "Time to read an ad's entries from a CAR mirror", stats.UnitMilliseconds)
+	CarMirrorUnusableCount = stats.Int64("ingest/carmirrorunusable", "Number of CAR mirror files rejected as unusable, by source and error kind", stats.UnitDimensionless)
+	ProviderFetchLatency   = stats.Float64("ingest/providerfetchlatency", "Time to fetch all of an ad's entries from the publisher", stats.UnitMilliseconds)
+	ProviderCount          = stats.Int64("provider/count", "Number of known (registered) providers", stats.UnitDimensionless)
+	EntriesSyncLatency     = stats.Float64("ingest/entriessynclatency", "How long it took to sync an Ad's entries", stats.UnitMilliseconds)
+	PercentUsage           = stats.Float64("ingest/percentusage", "Percent usage of storage available in value store", stats.UnitDimensionless)
+	NonRemoveAdCount       = stats.Int64("ingest/nonremoveadcount", "Number of non-removal advertisements", stats.UnitDimensionless)
+	RemoveAdCount          = stats.Int64("ingest/removeadcount", "Number of removal advertisements", stats.UnitDimensionless)
 )
 
 // Views
@@ -102,6 +103,11 @@ var (
 		Aggregation: view.Distribution(0, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 1000, 2000, 5000),
 		TagKeys:     []tag.Key{AdSource, Location},
 	}
+	CarMirrorUnusableView = &view.View{
+		Measure:     CarMirrorUnusableCount,
+		Aggregation: view.Count(),
+		TagKeys:     []tag.Key{AdSource, Location, ErrKind},
+	}
 	providerFetchLatencyView = &view.View{
 		Measure:     ProviderFetchLatency,
 		Aggregation: view.Distribution(0, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 1000, 2000, 5000),
@@ -139,6 +145,7 @@ func Start(views []*view.View) http.Handler {
 		adWriteSource,
 		adLoadError,
 		carMirrorReadLatencyView,
+		CarMirrorUnusableView,
 		providerFetchLatencyView,
 		percentUsageView,
 		nonRemoveAdCountView,
