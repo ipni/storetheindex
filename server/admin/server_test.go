@@ -11,9 +11,11 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
+	"github.com/ipfs/go-test/random"
 	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
+	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/storetheindex/admin/client"
 	"github.com/ipni/storetheindex/config"
@@ -212,6 +214,145 @@ func TestStatus(t *testing.T) {
 	status, err = te.client.Status(context.Background())
 	require.NoError(t, err)
 	require.True(t, status.Frozen)
+}
+
+func TestMeteringNotSupported(t *testing.T) {
+	te := makeTestenv(t)
+	_, err := te.client.MeteringStats(context.Background())
+	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
+
+	_, err = te.client.MeteringProviders(context.Background())
+	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
+
+	_, err = te.client.MeteringScanStatus(context.Background())
+	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
+
+	err = te.client.MeteringTriggerScan(context.Background())
+	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
+
+	err = te.client.MeteringCancelScan(context.Background(), "")
+	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
+
+	_, _, err = te.client.MeteringProvider(context.Background(), peerID)
+	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
+}
+
+func TestMeteringAPI(t *testing.T) {
+	store, err := pebble.New(t.TempDir(), nil, pebble.WithMetering(pebble.MeteringConfig{
+		BatchSize: 1,
+		TimeFill:  0.05,
+	}))
+	require.NoError(t, err)
+	idx := engine.New(store)
+	t.Cleanup(func() {
+		require.NoError(t, idx.Close())
+	})
+
+	reg := initRegistry(t, peerIDStr)
+	ing := initIngest(t, idx, reg)
+	s := setupServer(t, idx, ing, reg)
+	c := setupClient(t, s.URL())
+
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+	t.Cleanup(func() {
+		require.NoError(t, s.Close())
+		require.NoError(t, <-errChan)
+	})
+
+	status, err := c.MeteringScanStatus(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, indexer.ScanStateNone, status.State)
+	require.Empty(t, status.Error)
+
+	err = c.MeteringCancelScan(context.Background(), "")
+	require.ErrorIs(t, err, indexer.ErrScanNotInProgress)
+
+	report, err := c.MeteringStats(context.Background())
+	require.NoError(t, err)
+	require.Nil(t, report)
+
+	require.NoError(t, idx.Put(indexer.Value{
+		ProviderID:    peerID,
+		ContextID:     []byte("ctx"),
+		MetadataBytes: []byte("meta"),
+	}, random.Multihashes(30)...))
+
+	require.NoError(t, c.MeteringTriggerScan(context.Background()))
+	require.Eventually(t, func() bool {
+		status, err = c.MeteringScanStatus(context.Background())
+		require.NoError(t, err)
+		return status.State == indexer.ScanStateInProgress
+	}, 5*time.Second, time.Millisecond, "timeout waiting for metering scan to start")
+
+	require.NoError(t, c.MeteringCancelScan(context.Background(), "paused for gc"))
+	wantCancel := indexer.ScanCancelledError("paused for gc")
+	require.Eventually(t, func() bool {
+		status, err = c.MeteringScanStatus(context.Background())
+		require.NoError(t, err)
+		return status.State == indexer.ScanStateError
+	}, 5*time.Second, time.Millisecond, "timeout waiting for metering scan to stop")
+	require.Equal(t, wantCancel.Error(), status.Error)
+
+	// Status shows the cancel before the runner drops its in-progress flag.
+	require.Eventually(t, func() bool {
+		err = c.MeteringTriggerScan(context.Background())
+		if err == nil {
+			return true
+		}
+		require.ErrorIs(t, err, indexer.ErrScanInProgress)
+		return false
+	}, 5*time.Second, time.Millisecond, "timeout waiting to trigger the next scan")
+
+	require.Eventually(t, func() bool {
+		status, err = c.MeteringScanStatus(context.Background())
+		require.NoError(t, err)
+		if status.Error == wantCancel.Error() {
+			return false
+		}
+		require.Empty(t, status.Error)
+		report, err = c.MeteringStats(context.Background())
+		require.NoError(t, err)
+		return status.State == indexer.ScanStateDone && report != nil
+	}, 10*time.Second, 10*time.Millisecond, "timeout waiting for metering scan")
+
+	require.Equal(t, uint64(30), report.Totals.Active.Entries)
+
+	all, err := c.MeteringProviders(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, all)
+	require.Equal(t, uint64(30), all.Totals.Active.Entries)
+	require.Len(t, all.Providers, 1)
+	require.Equal(t, peerID, all.Providers[0].ProviderID)
+	require.Equal(t, uint64(30), all.Providers[0].Multihashes)
+
+	one, ok, err := c.MeteringProvider(context.Background(), peerID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, peerID, one.ProviderID)
+	require.Equal(t, uint64(30), one.Multihashes)
+
+	missing, ok, err := c.MeteringProvider(context.Background(), serverID)
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Nil(t, missing)
+
+	// Done is stored before the runner drops its in-progress flag, so a cancel
+	// in that gap is accepted. Wait until the runner has released the scan.
+	require.Eventually(t, func() bool {
+		err = c.MeteringCancelScan(context.Background(), "")
+		if err == nil {
+			return false
+		}
+		require.ErrorIs(t, err, indexer.ErrScanNotInProgress)
+		return true
+	}, 5*time.Second, time.Millisecond, "timeout waiting for the finished scan to release")
 }
 
 func TestMarkAdProcessed(t *testing.T) {

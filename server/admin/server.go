@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
@@ -82,12 +83,24 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	mux.HandleFunc("/ingest/preferred", h.listPreferredPeers)
 
 	// Metrics routes
-	mux.Handle("/metrics/", metrics.Start(append(coremetrics.DefaultViews, coremetrics.PebbleViews...)))
+	mux.Handle("/metrics/", metrics.Start(slices.Concat(
+		coremetrics.DefaultViews,
+		coremetrics.PebbleViews,
+		coremetrics.MeteringViews,
+		coremetrics.MeteringProviderViews,
+	)))
 	mux.Handle("/debug/pprof/", pprof.WithProfile())
 
 	// Telemetry routes
 	mux.HandleFunc("/telemetry/providers", h.listTelemetry)
 	mux.HandleFunc("/telemetry/providers/", h.getTelemetry)
+
+	// Metering routes
+	mux.HandleFunc("/metering", h.meteringStats)
+	mux.HandleFunc("/metering/providers", h.meteringProviders)
+	mux.HandleFunc("/metering/providers/", h.meteringProvider)
+	mux.HandleFunc("/metering/scan", h.meteringScan)
+	mux.HandleFunc("/metering/scan/", h.meteringProviderScan)
 
 	// Config routes
 	mux.HandleFunc("/config/log/level", setLogLevel)

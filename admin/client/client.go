@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-libipni/apierror"
 	"github.com/ipni/storetheindex/admin/model"
 	"github.com/ipni/storetheindex/rate"
@@ -32,6 +33,7 @@ const (
 	removeProviderPath  = "removeprovider"
 	statusPath          = "status"
 	telemetryPath       = "telemetry/providers"
+	meteringPath        = "metering"
 )
 
 // Client is an http client for the indexer finder API,
@@ -598,4 +600,195 @@ func (c *Client) ingestRequest(ctx context.Context, peerID peer.ID, action, meth
 	}
 
 	return nil
+}
+
+// MeteringStats returns the latest completed metering scan's whole-store totals,
+// or nil when no scan has completed. Provider rows are not included.
+func (c *Client) MeteringStats(ctx context.Context) (*indexer.AllStatsReport, error) {
+	u := c.baseURL.JoinPath(meteringPath)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var report indexer.AllStatsReport
+		if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
+			return nil, err
+		}
+		return &report, nil
+	case http.StatusNoContent:
+		return nil, nil
+	case http.StatusNotImplemented:
+		return nil, indexer.ErrMeteringNotSupported
+	default:
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		return nil, apierror.FromResponse(resp.StatusCode, body)
+	}
+}
+
+// MeteringProviders returns the latest completed scan, including every provider row.
+func (c *Client) MeteringProviders(ctx context.Context) (*indexer.AllStatsReport, error) {
+	u := c.baseURL.JoinPath(meteringPath, "providers")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var report indexer.AllStatsReport
+		if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
+			return nil, err
+		}
+		return &report, nil
+	case http.StatusNoContent:
+		return nil, nil
+	case http.StatusNotImplemented:
+		return nil, indexer.ErrMeteringNotSupported
+	default:
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		return nil, apierror.FromResponse(resp.StatusCode, body)
+	}
+}
+
+// MeteringProvider returns one provider from the latest completed scan.
+// The boolean is false when no scan has completed or that provider has no row.
+func (c *Client) MeteringProvider(ctx context.Context, providerID peer.ID) (*indexer.ProviderStats, bool, error) {
+	u := c.baseURL.JoinPath(meteringPath, "providers", providerID.String())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, false, err
+	}
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, false, err
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var stats indexer.ProviderStats
+		if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
+			return nil, false, err
+		}
+		return &stats, true, nil
+	case http.StatusNoContent:
+		return nil, false, nil
+	case http.StatusNotImplemented:
+		return nil, false, indexer.ErrMeteringNotSupported
+	default:
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, false, err
+		}
+		return nil, false, apierror.FromResponse(resp.StatusCode, body)
+	}
+}
+
+// MeteringScanStatus returns the in-progress metering scan.
+func (c *Client) MeteringScanStatus(ctx context.Context) (*indexer.ScanStatus, error) {
+	u := c.baseURL.JoinPath(meteringPath, "scan")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var status indexer.ScanStatus
+		if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+			return nil, err
+		}
+		return &status, nil
+	case http.StatusNotImplemented:
+		return nil, indexer.ErrMeteringNotSupported
+	default:
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		return nil, apierror.FromResponse(resp.StatusCode, body)
+	}
+}
+
+// MeteringTriggerScan signals that a metering scan should start now.
+// The scan ID is available from scan status or the completed stats.
+func (c *Client) MeteringTriggerScan(ctx context.Context) error {
+	u := c.baseURL.JoinPath(meteringPath, "scan")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusAccepted:
+		return nil
+	case http.StatusConflict:
+		return indexer.ErrScanInProgress
+	case http.StatusNotImplemented:
+		return indexer.ErrMeteringNotSupported
+	default:
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return apierror.FromResponse(resp.StatusCode, body)
+	}
+}
+
+// MeteringCancelScan asks the in-progress metering scan to stop.
+// reason is recorded on scan status. The caller formats it.
+func (c *Client) MeteringCancelScan(ctx context.Context, reason string) error {
+	u := c.baseURL.JoinPath(meteringPath, "scan")
+	if reason != "" {
+		q := u.Query()
+		q.Set("reason", reason)
+		u.RawQuery = q.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u.String(), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusAccepted:
+		return nil
+	case http.StatusConflict:
+		return indexer.ErrScanNotInProgress
+	case http.StatusNotImplemented:
+		return indexer.ErrMeteringNotSupported
+	default:
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return apierror.FromResponse(resp.StatusCode, body)
+	}
 }
