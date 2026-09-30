@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -17,6 +18,8 @@ import (
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipfs/go-test/random"
+	car "github.com/ipld/go-car/v2"
+	carstorage "github.com/ipld/go-car/v2/storage"
 	"github.com/ipld/go-ipld-prime"
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -35,6 +38,7 @@ import (
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
+	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/test/typehelpers"
 	"github.com/libp2p/go-libp2p"
@@ -44,6 +48,7 @@ import (
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
+	"go.opencensus.io/stats/view"
 )
 
 const (
@@ -52,6 +57,13 @@ const (
 
 	testEntriesChunkCount = 3
 	testEntriesChunkSize  = 15
+
+	// Chain used by CAR-mirror ingest tests: 3 ads, each with 5 entry chunks
+	// of 10 multihashes.
+	carTestAdCount         = 3
+	carTestChunkCount      = 5
+	carTestEntriesPerChunk = 10
+	carTestMirrorMHs       = carTestAdCount * carTestChunkCount * carTestEntriesPerChunk
 )
 
 var (
@@ -1375,9 +1387,7 @@ func TestSegmentedSyncStopsAtProcessedAdOnSplitChain(t *testing.T) {
 		wg     sync.WaitGroup
 		done   = make(chan struct{})
 	)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			select {
 			case hit := <-hitBlockedRead:
@@ -1388,7 +1398,7 @@ func TestSegmentedSyncStopsAtProcessedAdOnSplitChain(t *testing.T) {
 				return
 			}
 		}
-	}()
+	})
 
 	// Announce e. Scanning: e (new) -> c (already processed, stop).
 	te.publisher.SetRoot(eCid)
@@ -1980,11 +1990,8 @@ func TestGetEntryDataFromCar(t *testing.T) {
 	})
 
 	cCid := typehelpers.RandomAdBuilder{
-		EntryBuilders: []typehelpers.EntryBuilder{
-			typehelpers.RandomEntryChunkBuilder{ChunkCount: 5, EntriesPerChunk: 10, Seed: 1},
-			typehelpers.RandomEntryChunkBuilder{ChunkCount: 5, EntriesPerChunk: 10, Seed: 1},
-			typehelpers.RandomEntryChunkBuilder{ChunkCount: 5, EntriesPerChunk: 10, Seed: 2},
-		}}.Build(t, te.publisherLinkSys, te.publisherPriv)
+		EntryBuilders: carTestEntryBuilders(),
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
 
 	cAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.AdvertisementPrototype)
 	require.NoError(t, err)
@@ -2026,11 +2033,11 @@ func TestGetEntryDataFromCar(t *testing.T) {
 			headCount++
 		}
 	}
-	require.Equal(t, 3, carCount)
+	require.Equal(t, carTestAdCount, carCount)
 	require.Equal(t, 1, headCount)
 
 	// Read CAR file.
-	adBlock, _, _, err := te.ingester.mirror.read(ctx, cCid.(cidlink.Link).Cid, false)
+	adBlock, _, err := te.ingester.mirror.readMain(ctx, cCid.(cidlink.Link).Cid, false)
 	require.NoError(t, err)
 	defer adBlock.Close()
 	require.NotZero(t, len(adBlock.Data))
@@ -2062,7 +2069,7 @@ func TestGetEntryDataFromCar(t *testing.T) {
 		require.True(t, entBlock.Cid.Defined())
 		count++
 	}
-	require.Equal(t, 5, count)
+	require.Equal(t, carTestChunkCount, count)
 
 	// Do a resync and see that multihashes are pulled from CAR files.
 	_, err = te.ingester.Sync(ctx, peerInfo, 0, true, cid.Undef)
@@ -2071,7 +2078,212 @@ func TestGetEntryDataFromCar(t *testing.T) {
 	allMhs = typehelpers.AllMultihashesFromAdChain(t, cAd, te.publisherLinkSys)
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 
-	require.Equal(t, 3*5*10, int(te.ingester.MultihashesFromMirror()))
+	require.Equal(t, carTestMirrorMHs, int(te.ingester.MultihashesFromMirror()))
+}
+
+func TestIngestRepairsTruncatedMainCarFromPublisher(t *testing.T) {
+	mainDir := t.TempDir()
+	cfg := defaultTestIngestConfig
+	cfg.AdvertisementMirror.MainMode = config.MainModeReadWrite
+	cfg.AdvertisementMirror.Main.Type = "local"
+	cfg.AdvertisementMirror.Main.Local.BasePath = mainDir
+
+	te := setupTestEnv(t, true, func(optCfg *testEnvOpts) {
+		optCfg.ingestConfig = &cfg
+	})
+
+	headCid, cAd, allMhs, peerInfo := publishAndSyncChunkAds(t, te)
+	require.Zero(t, te.ingester.MultihashesFromMirror())
+
+	cars := listCarFiles(t, mainDir, carstore.CarFileSuffix)
+	require.Len(t, cars, carTestAdCount)
+	origSizes := fileSizes(t, cars)
+	truncateCarFiles(t, cars)
+
+	requireCarUnusableView(t)
+	before := carUnusableMetricCount(t, "main", mainDir, "")
+	_, err := te.ingester.Sync(t.Context(), peerInfo, 0, true, cid.Undef)
+	require.NoError(t, err)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+	require.Zero(t, te.ingester.MultihashesFromMirror())
+	require.Equal(t, before+int64(carTestAdCount), carUnusableMetricCount(t, "main", mainDir, ""))
+
+	for _, path := range cars {
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		require.Equal(t, origSizes[path], info.Size(), "truncated Main CAR %s was not rewritten", path)
+	}
+	requireCompleteCar(t, te, headCid, cAd.Entries.(cidlink.Link).Cid)
+}
+
+func TestIngestUsesExternalCarAndRewritesTruncatedMain(t *testing.T) {
+	mainDir := t.TempDir()
+	extDir := t.TempDir()
+	cfg := defaultTestIngestConfig
+	cfg.AdvertisementMirror.MainMode = config.MainModeReadWrite
+	cfg.AdvertisementMirror.Main.Type = "local"
+	cfg.AdvertisementMirror.Main.Local.BasePath = mainDir
+	cfg.AdvertisementMirror.External = []config.StoreConfig{{
+		Config: filestore.Config{
+			Type: "local",
+			Local: filestore.LocalConfig{
+				BasePath: extDir,
+			},
+		},
+	}}
+
+	te := setupTestEnv(t, true, func(optCfg *testEnvOpts) {
+		optCfg.ingestConfig = &cfg
+	})
+
+	headCid, cAd, allMhs, peerInfo := publishAndSyncChunkAds(t, te)
+	require.Zero(t, te.ingester.MultihashesFromMirror())
+
+	copyDirContents(t, mainDir, extDir)
+	cars := listCarFiles(t, mainDir, carstore.CarFileSuffix)
+	require.Len(t, cars, carTestAdCount)
+	origSizes := fileSizes(t, cars)
+	truncateCarFiles(t, cars)
+
+	requireCarUnusableView(t)
+	beforeMain := carUnusableMetricCount(t, "main", mainDir, "")
+	beforeExt := carUnusableMetricCount(t, "external", extDir, "")
+	_, err := te.ingester.Sync(t.Context(), peerInfo, 0, true, cid.Undef)
+	require.NoError(t, err)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+	require.Equal(t, carTestMirrorMHs, int(te.ingester.MultihashesFromMirror()))
+	require.Equal(t, beforeMain+int64(carTestAdCount), carUnusableMetricCount(t, "main", mainDir, ""))
+	require.Equal(t, beforeExt, carUnusableMetricCount(t, "external", extDir, ""), "complete External CARs must not be counted as unusable")
+
+	for _, path := range cars {
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		require.Equal(t, origSizes[path], info.Size(), "truncated Main CAR %s was not rewritten from External", path)
+	}
+	requireCompleteCar(t, te, headCid, cAd.Entries.(cidlink.Link).Cid)
+}
+
+func TestIngestFallsBackWhenExternalCarIncomplete(t *testing.T) {
+	mainDir := t.TempDir()
+	extDir := t.TempDir()
+	cfg := defaultTestIngestConfig
+	cfg.AdvertisementMirror.MainMode = config.MainModeReadWrite
+	cfg.AdvertisementMirror.Main.Type = "local"
+	cfg.AdvertisementMirror.Main.Local.BasePath = mainDir
+	cfg.AdvertisementMirror.External = []config.StoreConfig{{
+		Config: filestore.Config{
+			Type: "local",
+			Local: filestore.LocalConfig{
+				BasePath: extDir,
+			},
+		},
+	}}
+
+	te := setupTestEnv(t, true, func(optCfg *testEnvOpts) {
+		optCfg.ingestConfig = &cfg
+	})
+
+	headCid, cAd, allMhs, peerInfo := publishAndSyncChunkAds(t, te)
+	copyDirContents(t, mainDir, extDir)
+	truncateCarFiles(t, listCarFiles(t, mainDir, carstore.CarFileSuffix))
+	truncateCarFiles(t, listCarFiles(t, extDir, carstore.CarFileSuffix))
+
+	requireCarUnusableView(t)
+	beforeMain := carUnusableMetricCount(t, "main", mainDir, "")
+	beforeExt := carUnusableMetricCount(t, "external", extDir, "")
+	_, err := te.ingester.Sync(t.Context(), peerInfo, 0, true, cid.Undef)
+	require.NoError(t, err)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+	require.Zero(t, te.ingester.MultihashesFromMirror(), "incomplete mirror CARs must not be ingested")
+	require.Equal(t, beforeMain+int64(carTestAdCount), carUnusableMetricCount(t, "main", mainDir, ""))
+	require.Equal(t, beforeExt+int64(carTestAdCount), carUnusableMetricCount(t, "external", extDir, ""))
+	requireCompleteCar(t, te, headCid, cAd.Entries.(cidlink.Link).Cid)
+}
+
+func TestIngestFallsBackWhenCarEntriesWrongOrder(t *testing.T) {
+	mainDir := t.TempDir()
+	cfg := defaultTestIngestConfig
+	cfg.AdvertisementMirror.MainMode = config.MainModeReadWrite
+	cfg.AdvertisementMirror.Main.Type = "local"
+	cfg.AdvertisementMirror.Main.Local.BasePath = mainDir
+
+	te := setupTestEnv(t, true, func(optCfg *testEnvOpts) {
+		optCfg.ingestConfig = &cfg
+	})
+
+	headCid, cAd, allMhs, peerInfo := publishAndSyncChunkAds(t, te)
+	for _, path := range listCarFiles(t, mainDir, carstore.CarFileSuffix) {
+		roots, blobs := readCarBlobs(t, path)
+		require.Greater(t, len(blobs), 2, path)
+		for i, j := 1, len(blobs)-1; i < j; i, j = i+1, j-1 {
+			blobs[i], blobs[j] = blobs[j], blobs[i]
+		}
+		writeCarBlobs(t, path, roots, blobs)
+	}
+
+	requireCarUnusableView(t)
+	before := carUnusableMetricCount(t, "main", mainDir, string(carstore.ErrUnusableUnexpectedEntry))
+	_, err := te.ingester.Sync(t.Context(), peerInfo, 0, true, cid.Undef)
+	require.NoError(t, err)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+	require.Zero(t, te.ingester.MultihashesFromMirror(), "reordered CAR must not be ingested")
+	require.Equal(t, before+int64(carTestAdCount), carUnusableMetricCount(t, "main", mainDir, string(carstore.ErrUnusableUnexpectedEntry)))
+	requireCompleteCar(t, te, headCid, cAd.Entries.(cidlink.Link).Cid)
+}
+
+func TestIngestFallsBackWhenCarHasUnrelatedBlocks(t *testing.T) {
+	mainDir := t.TempDir()
+	cfg := defaultTestIngestConfig
+	cfg.AdvertisementMirror.MainMode = config.MainModeReadWrite
+	cfg.AdvertisementMirror.Main.Type = "local"
+	cfg.AdvertisementMirror.Main.Local.BasePath = mainDir
+
+	te := setupTestEnv(t, true, func(optCfg *testEnvOpts) {
+		optCfg.ingestConfig = &cfg
+	})
+
+	headCid, cAd, allMhs, peerInfo := publishAndSyncChunkAds(t, te)
+	extra := []byte("unrelated-blob")
+	extraCid, err := cid.V1Builder{Codec: cid.Raw, MhType: multihash.SHA2_256}.Sum(extra)
+	require.NoError(t, err)
+	for _, path := range listCarFiles(t, mainDir, carstore.CarFileSuffix) {
+		roots, blobs := readCarBlobs(t, path)
+		blobs = append(blobs, carBlob{cid: extraCid, data: extra})
+		writeCarBlobs(t, path, roots, blobs)
+	}
+
+	requireCarUnusableView(t)
+	before := carUnusableMetricCount(t, "main", mainDir, string(carstore.ErrUnusableExtraEntries))
+	_, err = te.ingester.Sync(t.Context(), peerInfo, 0, true, cid.Undef)
+	require.NoError(t, err)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+	require.Zero(t, te.ingester.MultihashesFromMirror(), "CAR with unrelated blocks must not be ingested")
+	require.Equal(t, before+int64(carTestAdCount), carUnusableMetricCount(t, "main", mainDir, string(carstore.ErrUnusableExtraEntries)))
+	requireCompleteCar(t, te, headCid, cAd.Entries.(cidlink.Link).Cid)
+}
+
+func publishAndSyncChunkAds(t *testing.T, te *testEnv) (cid.Cid, *schema.Advertisement, []multihash.Multihash, peer.AddrInfo) {
+	t.Helper()
+	cCid := typehelpers.RandomAdBuilder{
+		EntryBuilders: carTestEntryBuilders(),
+	}.Build(t, te.publisherLinkSys, te.publisherPriv)
+
+	cAdNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cCid, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	cAd, err := schema.UnwrapAdvertisement(cAdNode)
+	require.NoError(t, err)
+
+	te.publisher.SetRoot(cCid.(cidlink.Link).Cid)
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+	_, err = te.ingester.Sync(t.Context(), peerInfo, 0, false, cid.Undef)
+	require.NoError(t, err)
+
+	allMhs := typehelpers.AllMultihashesFromAdChain(t, cAd, te.publisherLinkSys)
+	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
+	return cCid.(cidlink.Link).Cid, cAd, allMhs, peerInfo
 }
 
 // Make new indexer engine
@@ -3208,4 +3420,185 @@ func (b *blockingMirrorFilestore) Get(ctx context.Context, path string) (*filest
 		<-b.releaseReadBlockade
 	}
 	return b.Interface.Get(ctx, path)
+}
+
+func listCarFiles(t *testing.T, dir, suffix string) []string {
+	t.Helper()
+	var paths []string
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.HasSuffix(d.Name(), suffix) {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	return paths
+}
+
+func fileSizes(t *testing.T, paths []string) map[string]int64 {
+	t.Helper()
+	out := make(map[string]int64, len(paths))
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		require.NoError(t, err)
+		out[p] = info.Size()
+	}
+	return out
+}
+
+func truncateCarFiles(t *testing.T, paths []string) {
+	t.Helper()
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		keep := info.Size() / 2
+		require.Greater(t, keep, int64(0), path)
+		require.NoError(t, os.Truncate(path, keep))
+	}
+}
+
+var (
+	registerCarUnusableViewOnce sync.Once
+	carUnusableViewRegisterErr  error
+)
+
+func requireCarUnusableView(t *testing.T) {
+	t.Helper()
+	registerCarUnusableViewOnce.Do(func() {
+		carUnusableViewRegisterErr = view.Register(metrics.CarMirrorUnusableView)
+	})
+	require.NoError(t, carUnusableViewRegisterErr)
+}
+
+func carUnusableMetricCount(t *testing.T, source, location, reason string) int64 {
+	t.Helper()
+	requireCarUnusableView(t)
+	rows, err := view.RetrieveData(metrics.CarMirrorUnusableCount.Name())
+	require.NoError(t, err)
+	var total int64
+	for _, row := range rows {
+		if !carUnusableRowMatches(row, source, location, reason) {
+			continue
+		}
+		data, ok := row.Data.(*view.CountData)
+		require.True(t, ok)
+		total += data.Value
+	}
+	return total
+}
+
+func carUnusableRowMatches(row *view.Row, source, location, reason string) bool {
+	for _, tag := range row.Tags {
+		switch tag.Key.Name() {
+		case metrics.AdSource.Name():
+			if source != "" && tag.Value != source {
+				return false
+			}
+		case metrics.Location.Name():
+			if location != "" && tag.Value != location {
+				return false
+			}
+		case metrics.ErrKind.Name():
+			if reason != "" && tag.Value != reason {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func copyDirContents(t *testing.T, src, dst string) {
+	t.Helper()
+	err := filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, 0o644)
+	})
+	require.NoError(t, err)
+}
+
+type carBlob struct {
+	cid  cid.Cid
+	data []byte
+}
+
+func readCarBlobs(t *testing.T, path string) ([]cid.Cid, []carBlob) {
+	t.Helper()
+	f, err := os.Open(path)
+	require.NoError(t, err)
+	defer f.Close()
+	cbr, err := car.NewBlockReader(f)
+	require.NoError(t, err)
+	var blobs []carBlob
+	for {
+		blk, err := cbr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		blobs = append(blobs, carBlob{cid: blk.Cid(), data: blk.RawData()})
+	}
+	return cbr.Roots, blobs
+}
+
+func writeCarBlobs(t *testing.T, path string, roots []cid.Cid, blobs []carBlob) {
+	t.Helper()
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	carStore, err := carstorage.NewWritable(f, roots)
+	require.NoError(t, err)
+	for _, b := range blobs {
+		require.NoError(t, carStore.Put(t.Context(), b.cid.KeyString(), b.data))
+	}
+	require.NoError(t, carStore.Finalize())
+	require.NoError(t, f.Close())
+}
+
+func carTestEntryBuilders() []typehelpers.EntryBuilder {
+	return []typehelpers.EntryBuilder{
+		typehelpers.RandomEntryChunkBuilder{ChunkCount: carTestChunkCount, EntriesPerChunk: carTestEntriesPerChunk, Seed: 1},
+		typehelpers.RandomEntryChunkBuilder{ChunkCount: carTestChunkCount, EntriesPerChunk: carTestEntriesPerChunk, Seed: 1},
+		typehelpers.RandomEntryChunkBuilder{ChunkCount: carTestChunkCount, EntriesPerChunk: carTestEntriesPerChunk, Seed: 2},
+	}
+}
+
+func requireCompleteCar(t *testing.T, te *testEnv, adCid, entriesCid cid.Cid) {
+	t.Helper()
+	adBlock, _, err := te.ingester.mirror.readMain(t.Context(), adCid, false)
+	require.NoError(t, err)
+	defer adBlock.Close()
+	require.NotNil(t, adBlock.Entries)
+
+	count := 0
+	expected := entriesCid
+	for ent := range adBlock.Entries {
+		require.NoError(t, ent.Err)
+		require.Equal(t, expected, ent.Cid)
+		chunk, err := ent.EntryChunk()
+		require.NoError(t, err)
+		count++
+		if chunk.Next == nil {
+			expected = cid.Undef
+		} else {
+			expected = chunk.Next.(cidlink.Link).Cid
+		}
+	}
+	require.Equal(t, cid.Undef, expected, "CAR is missing remaining entries")
+	require.Equal(t, carTestChunkCount, count)
 }

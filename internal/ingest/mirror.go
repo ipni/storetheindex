@@ -13,7 +13,10 @@ import (
 	"github.com/ipni/storetheindex/carstore"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
+	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 )
 
 type adMirror struct {
@@ -68,35 +71,48 @@ func (d adDataSource) canBeWritten() bool {
 	}
 }
 
-func (m adMirror) read(
+func (m adMirror) mainLocation() string {
+	if m.mainCarReader == nil {
+		return ""
+	}
+	return m.mainCarReader.Location()
+}
+
+func recordCarUnusable(source adDataSource, location string, err error) {
+	kind, ok := errors.AsType[carstore.ErrUnusable](err)
+	if !ok {
+		return
+	}
+	_ = stats.RecordWithOptions(context.Background(),
+		stats.WithMeasurements(metrics.CarMirrorUnusableCount.M(1)),
+		stats.WithTags(
+			tag.Insert(metrics.AdSource, source.String()),
+			tag.Insert(metrics.Location, location),
+			tag.Insert(metrics.ErrKind, string(kind)),
+		),
+	)
+}
+
+// readMain reads a CAR from Main, or reports fs.ErrNotExist when Main is not
+// readable. A successful Read does not mean the entries chain is usable; ingest
+// validates that separately and falls back to External when it is not.
+func (m adMirror) readMain(
 	ctx context.Context,
 	adCid cid.Cid,
 	skipEntries bool,
 ) (
 	adBlock *carstore.AdBlock,
-	source adDataSource,
 	location string,
 	err error,
 ) {
-	var mainMissErr error
-	if m.mainCarReader != nil {
-		adBlock, err = m.mainCarReader.Read(ctx, adCid, skipEntries)
-		if err == nil {
-			// Main hit, no need to try External
-			return adBlock, adDataSourceMain, m.mainCarReader.Location(), nil
-		}
-		if !errors.Is(err, fs.ErrNotExist) {
-			return nil, adDataSourceNone, "", err
-		}
-		mainMissErr = err
+	if m.mainCarReader == nil {
+		return nil, "", fs.ErrNotExist
 	}
-
-	adBlock, source, location, err = m.readExternalRace(ctx, adCid, skipEntries)
-	// Prefer Main miss when present so ingestion is not interrupted by External issues.
-	if errors.Is(err, fs.ErrNotExist) && mainMissErr != nil {
-		return nil, adDataSourceNone, "", mainMissErr
+	adBlock, err = m.mainCarReader.Read(ctx, adCid, skipEntries)
+	if err != nil {
+		return nil, "", err
 	}
-	return adBlock, source, location, err
+	return adBlock, m.mainCarReader.Location(), nil
 }
 
 // readExternalRace races all External readers. The first successful Read wins;
@@ -148,6 +164,7 @@ func (m adMirror) readExternalRace(
 			return false
 
 		default:
+			recordCarUnusable(adDataSourceExternal, m.externalCarReaders[res.idx].Location(), res.err)
 			log.Warnw("Cannot read advertisement from external filestore", "err", res.err, "index", res.idx, "carPath", adCid)
 			return false
 		}
@@ -251,7 +268,8 @@ func newMirror(
 	}
 
 	// External is independent of MainMode: when configured, all entries are
-	// raced in parallel (sole sources if Main read is off, otherwise fallback).
+	// raced in parallel after a Main miss or unusable Main CAR (sole sources if
+	// Main read is off).
 	for i, ext := range cfgMirror.External {
 		if ext.Type == "" || ext.Type == "none" {
 			continue
