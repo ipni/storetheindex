@@ -14,6 +14,7 @@ import (
 	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
+	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/storetheindex/admin/client"
 	"github.com/ipni/storetheindex/config"
@@ -212,6 +213,111 @@ func TestStatus(t *testing.T) {
 	status, err = te.client.Status(context.Background())
 	require.NoError(t, err)
 	require.True(t, status.Frozen)
+}
+
+func TestMeteringNotSupported(t *testing.T) {
+	te := makeTestenv(t)
+	_, err := te.client.MeteringStats(context.Background())
+	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
+
+	_, err = te.client.MeteringProviders(context.Background())
+	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
+
+	_, err = te.client.MeteringScanStatus(context.Background())
+	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
+
+	err = te.client.MeteringTriggerScan(context.Background())
+	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
+
+	_, _, err = te.client.MeteringProvider(context.Background(), peerID)
+	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
+}
+
+func TestMeteringAPI(t *testing.T) {
+	store, err := pebble.New(t.TempDir(), nil, pebble.WithMetering(pebble.MeteringConfig{
+		BatchSize: 100,
+		TimeFill:  1,
+	}))
+	require.NoError(t, err)
+	idx := engine.New(store)
+	t.Cleanup(func() {
+		require.NoError(t, idx.Close())
+	})
+
+	reg := initRegistry(t, peerIDStr)
+	ing := initIngest(t, idx, reg)
+	s := setupServer(t, idx, ing, reg)
+	c := setupClient(t, s.URL())
+
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+	t.Cleanup(func() {
+		require.NoError(t, s.Close())
+		require.NoError(t, <-errChan)
+	})
+
+	status, err := c.MeteringScanStatus(context.Background())
+	require.NoError(t, err)
+	require.False(t, status.InProgress)
+	require.Empty(t, status.Error)
+
+	report, err := c.MeteringStats(context.Background())
+	require.NoError(t, err)
+	require.Nil(t, report)
+
+	mh, err := cid.Decode("QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wycZWEuRoaiqm")
+	require.NoError(t, err)
+	require.NoError(t, idx.Put(indexer.Value{
+		ProviderID:    peerID,
+		ContextID:     []byte("ctx"),
+		MetadataBytes: []byte("meta"),
+	}, mh.Hash()))
+
+	require.NoError(t, c.MeteringTriggerScan(context.Background()))
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		status, err = c.MeteringScanStatus(context.Background())
+		require.NoError(t, err)
+		require.Empty(t, status.Error)
+		if !status.InProgress {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timeout waiting for metering scan")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	report, err = c.MeteringStats(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, report)
+	require.Equal(t, uint64(1), report.Totals.Multihashes)
+
+	all, err := c.MeteringProviders(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, all)
+	require.Equal(t, uint64(1), all.Totals.Multihashes)
+	require.Len(t, all.Providers, 1)
+	require.Equal(t, peerID, all.Providers[0].ProviderID)
+	require.Equal(t, uint64(1), all.Providers[0].Multihashes)
+
+	one, ok, err := c.MeteringProvider(context.Background(), peerID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, peerID, one.ProviderID)
+	require.Equal(t, uint64(1), one.Multihashes)
+
+	missing, ok, err := c.MeteringProvider(context.Background(), serverID)
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Nil(t, missing)
 }
 
 func TestMarkAdProcessed(t *testing.T) {

@@ -47,13 +47,45 @@ func (m *mockIndexer) Put(value indexer.Value, mhs ...multihash.Multihash) error
 	return nil
 }
 
-func (m *mockIndexer) Remove(indexer.Value, ...multihash.Multihash) error { return nil }
-func (m *mockIndexer) RemoveProvider(context.Context, peer.ID) error      { return nil }
-func (m *mockIndexer) RemoveProviderContext(peer.ID, []byte) error        { return nil }
-func (m *mockIndexer) Size() (int64, error)                               { return 0, nil }
-func (m *mockIndexer) Flush() error                                       { return nil }
-func (m *mockIndexer) Close() error                                       { return nil }
-func (m *mockIndexer) Stats() (*indexer.Stats, error)                     { return nil, indexer.ErrStatsNotSupported }
+func (m *mockIndexer) Remove(indexer.Value, ...multihash.Multihash) error {
+	return nil
+}
+
+func (m *mockIndexer) RemoveProvider(context.Context, peer.ID) error {
+	return nil
+}
+
+func (m *mockIndexer) RemoveProviderContext(peer.ID, []byte) error {
+	return nil
+}
+
+func (m *mockIndexer) Size() (int64, error) {
+	return 0, nil
+}
+
+func (m *mockIndexer) Flush() error {
+	return nil
+}
+
+func (m *mockIndexer) Close() error {
+	return nil
+}
+
+func (m *mockIndexer) Stats() (*indexer.Stats, error) {
+	return nil, indexer.ErrStatsNotSupported
+}
+
+func (m *mockIndexer) MeteringAllStats(context.Context, []peer.ID) (*indexer.AllStatsReport, error) {
+	return nil, indexer.ErrMeteringNotSupported
+}
+
+func (m *mockIndexer) MeteringScanStatus(context.Context, []peer.ID) (*indexer.ScanStatus, error) {
+	return nil, indexer.ErrMeteringNotSupported
+}
+
+func (m *mockIndexer) MeteringTriggerScan(context.Context) error {
+	return indexer.ErrMeteringNotSupported
+}
 
 func TestHandleRegisterProvider(t *testing.T) {
 	discoveryCfg := config.Discovery{
