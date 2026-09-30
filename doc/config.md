@@ -213,7 +213,23 @@ optional RelayX forwarding.
 | `PebbleDisableWAL` | `false` | For `pebble` only: disable the write-ahead log. |
 | `PebbleBlockCacheSize` | `1Gi` | For `pebble` only: block cache size. |
 | `PebbleFormatMajorVersion` | `0` | For `pebble` only: on-disk format. `0` keeps the current format; `-1` upgrades to the latest supported format. |
+| `Metering` | see below | Background metering scanner for a local `pebble` value store. Ignored when `ValueStoreType` is `relayx` (configure metering on the relayx process instead). Not reloadable. |
 | `RelayX` | omitted | Optional RelayX settings (see below). |
+
+### `Indexer.Metering`
+
+These settings apply only when `ValueStoreType` is `pebble`. When the value store
+is `relayx`, enable metering with relayx CLI flags (`--meteringEnabled`,
+`--meteringBatchSize`, and so on); storetheindex's admin `/metering` API still
+works and forwards to relayx.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `Enabled` | `false` | Turn on the background metering scanner. |
+| `ScanInterval` | `0` | Wait before the next automatic scan. A manual scan restarts this wait. `0` disables automatic scans; a scan can still be started with `POST /metering/scan` on the admin API. |
+| `ScanBatchSize` | `1000000` | Maximum keys read per batch. |
+| `TimeFill` | `0.1` | Fraction of time the scan spends reading, from 0 to 1. After a unit of work that took T, the scan sleeps `T*(1-fill)/fill`. `1` runs the next unit immediately. `0` selects this default. Values above 1 are treated as 1. |
+| `ExportProviderMetrics` | `false` | Publish per-provider scan gauges to Prometheus. Each gauge is one series per provider, and the provider set is unbounded, so leave this off unless that set is known to be small. Totals and scan progress are always exported. `GET /metering` returns the latest completed scan's whole-store totals. `GET /metering/providers` returns that scan with every provider row, and `GET /metering/providers/{providerID}` returns one provider. `GET /metering/scan` reports the latest scan. `State` is `none`, `in_progress`, `done`, or `error`. A finished or failed scan keeps its counters until the next scan replaces them. `GET /metering/scan/{providerID}` limits the provider rows in that status to one provider. Totals have `Active` (decoded records that still have a value), `Deleted` (decoded records whose value records are all gone), and `Invalid` (records that did not decode). A provider that is still present reports `Slots`, the value records that remain, and `DeletedContexts`, the slots whose context value record is gone. `POST /metering/scan` starts a scan. `DELETE /metering/scan` stops the current scan; scan status then has `State` `error` and `Error` `user cancelled`. Optional query `reason` is appended after that text. |
 
 ### `Indexer.RelayX`
 

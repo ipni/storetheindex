@@ -672,3 +672,191 @@ func healthCheckValueStore(h *adminHandler) error {
 	}
 	return nil
 }
+
+// ----- Metering routes -----
+
+func (h *adminHandler) meteringStats(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+	// An empty provider list asks for totals only. The store does not read provider rows.
+	report, err := h.indexer.MeteringAllStats(r.Context(), []peer.ID{})
+	if errors.Is(err, indexer.ErrMeteringNotSupported) {
+		http.Error(w, err.Error(), http.StatusNotImplemented)
+		return
+	}
+	if err != nil {
+		log.Errorw("Error reading metering stats", "err", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if report == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	data, err := json.Marshal(report.CompletedScanStats)
+	if err != nil {
+		log.Errorw("Error marshaling metering stats", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
+func (h *adminHandler) meteringProviders(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+	report, err := h.indexer.MeteringAllStats(r.Context(), nil)
+	if errors.Is(err, indexer.ErrMeteringNotSupported) {
+		http.Error(w, err.Error(), http.StatusNotImplemented)
+		return
+	}
+	if err != nil {
+		log.Errorw("Error reading metering stats", "err", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if report == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	data, err := json.Marshal(report)
+	if err != nil {
+		log.Errorw("Error marshaling metering stats", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
+func (h *adminHandler) meteringProvider(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+	providerID, ok := decodePeerID(path.Base(r.URL.Path), w)
+	if !ok {
+		return
+	}
+	report, err := h.indexer.MeteringAllStats(r.Context(), []peer.ID{providerID})
+	if errors.Is(err, indexer.ErrMeteringNotSupported) {
+		http.Error(w, err.Error(), http.StatusNotImplemented)
+		return
+	}
+	if err != nil {
+		log.Errorw("Error reading metering stats", "err", err, "provider", providerID)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if report == nil || len(report.Providers) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	data, err := json.Marshal(report.Providers[0])
+	if err != nil {
+		log.Errorw("Error marshaling metering stats", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
+func (h *adminHandler) meteringScan(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		status, err := h.indexer.MeteringScanStatus(r.Context(), nil)
+		if errors.Is(err, indexer.ErrMeteringNotSupported) {
+			http.Error(w, err.Error(), http.StatusNotImplemented)
+			return
+		}
+		if err != nil {
+			log.Errorw("Error reading metering scan status", "err", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		data, err := marshalMeteringScanStatus(status)
+		if err != nil {
+			log.Errorw("Error marshaling metering scan status", "err", err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+		httpserver.WriteJsonResponse(w, http.StatusOK, data)
+
+	case http.MethodPost:
+		err := h.indexer.MeteringTriggerScan(r.Context())
+		if errors.Is(err, indexer.ErrMeteringNotSupported) {
+			http.Error(w, err.Error(), http.StatusNotImplemented)
+			return
+		}
+		if errors.Is(err, indexer.ErrScanInProgress) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		if err != nil {
+			log.Errorw("Error triggering metering scan", "err", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+
+	case http.MethodDelete:
+		err := h.indexer.MeteringCancelScan(r.Context(), r.URL.Query().Get("reason"))
+		if errors.Is(err, indexer.ErrMeteringNotSupported) {
+			http.Error(w, err.Error(), http.StatusNotImplemented)
+			return
+		}
+		if errors.Is(err, indexer.ErrScanNotInProgress) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		if err != nil {
+			log.Errorw("Error cancelling metering scan", "err", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+
+	default:
+		w.Header().Add("Allow", http.MethodGet+", "+http.MethodPost+", "+http.MethodDelete)
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *adminHandler) meteringProviderScan(w http.ResponseWriter, r *http.Request) {
+	if !httpserver.MethodOK(w, r, http.MethodGet) {
+		return
+	}
+	providerID, ok := decodePeerID(path.Base(r.URL.Path), w)
+	if !ok {
+		return
+	}
+	status, err := h.indexer.MeteringScanStatus(r.Context(), []peer.ID{providerID})
+	if errors.Is(err, indexer.ErrMeteringNotSupported) {
+		http.Error(w, err.Error(), http.StatusNotImplemented)
+		return
+	}
+	if err != nil {
+		log.Errorw("Error reading metering scan status", "err", err, "provider", providerID)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data, err := marshalMeteringScanStatus(status)
+	if err != nil {
+		log.Errorw("Error marshaling metering scan status", "err", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+}
+
+// marshalMeteringScanStatus encodes a scan that has not been recorded as
+// State "none". A running, finished, or failed scan is returned in full,
+// including the counters it produced.
+func marshalMeteringScanStatus(status *indexer.ScanStatus) ([]byte, error) {
+	if status == nil || status.State == "" || status.State == indexer.ScanStateNone {
+		return json.Marshal(struct {
+			State indexer.ScanState
+		}{State: indexer.ScanStateNone})
+	}
+	return json.Marshal(status)
+}
