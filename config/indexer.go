@@ -57,6 +57,8 @@ type Indexer struct {
 	// format version. When set to -1 update the format to the latest supported
 	// version.
 	PebbleFormatMajorVersion int
+	// Metering configures the background storage scanner. Not reloadable.
+	Metering *Metering
 	// UnfreezeOnStart tells that indexer to unfreeze itself on startup if it
 	// is frozen. This reverts the indexer to the state it was in before it was
 	// frozen. It only retains the most recent provider and publisher
@@ -65,6 +67,31 @@ type Indexer struct {
 
 	// RelayX is the configuration for the RelayX service.
 	RelayX *RelayX
+}
+
+// Metering configures the background storage scanner for a local pebble value
+// store. Ignored when ValueStoreType is relayx; configure metering on the
+// relayx process instead. Not reloadable.
+type Metering struct {
+	// Enabled turns on the background metering scanner.
+	Enabled bool
+	// ScanInterval is the wait before the next automatic scan. A manual scan
+	// restarts this wait. Zero disables automatic scans; MeteringTriggerScan via the
+	// admin API still works.
+	ScanInterval Duration
+	// ScanBatchSize is the maximum number of keys read per batch. Defaults to
+	// 1000000 when unset.
+	ScanBatchSize int
+	// ExportProviderMetrics publishes per-provider scan gauges to Prometheus.
+	// Each gauge is one series per provider. Leave false unless the provider
+	// set is known to be small. The admin metering API still returns every
+	// provider.
+	ExportProviderMetrics bool
+	// TimeFill is the fraction of time the scan spends reading, in (0, 1].
+	// After a unit of work that took T, the scan sleeps T*(1-TimeFill)/TimeFill.
+	// 1 runs the next unit immediately. 0 selects the default, 0.1. Values
+	// above 1 are treated as 1.
+	TimeFill float64
 }
 
 type RelayX struct {
@@ -85,6 +112,11 @@ func NewIndexer() Indexer {
 		// defaulting http timeout to 10 seconds to survive over occasional
 		// spikes caused by compaction
 		DHStoreHttpClientTimeout: Duration(10 * time.Second),
+		Metering: &Metering{
+			Enabled:       false,
+			ScanBatchSize: 1000000,
+			TimeFill:      0.1,
+		},
 	}
 }
 
@@ -113,5 +145,17 @@ func (c *Indexer) populateUnset() {
 	}
 	if c.PebbleBlockCacheSize == 0 {
 		c.PebbleBlockCacheSize = def.PebbleBlockCacheSize
+	}
+	if c.Metering == nil {
+		c.Metering = def.Metering
+	} else {
+		if c.Metering.ScanBatchSize == 0 {
+			c.Metering.ScanBatchSize = def.Metering.ScanBatchSize
+		}
+		if c.Metering.TimeFill <= 0 {
+			c.Metering.TimeFill = def.Metering.TimeFill
+		} else if c.Metering.TimeFill > 1 {
+			c.Metering.TimeFill = 1
+		}
 	}
 }

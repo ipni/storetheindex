@@ -3304,14 +3304,53 @@ func newErrorValueStore() *errorValueStore {
 func (vs *errorValueStore) Get(_ multihash.Multihash) ([]indexer.Value, bool, error) {
 	return nil, false, vs.err
 }
-func (vs *errorValueStore) Put(_ indexer.Value, _ ...multihash.Multihash) error    { return vs.err }
-func (vs *errorValueStore) Remove(_ indexer.Value, _ ...multihash.Multihash) error { return vs.err }
-func (vs *errorValueStore) RemoveProvider(_ context.Context, _ peer.ID) error      { return vs.err }
-func (vs *errorValueStore) RemoveProviderContext(_ peer.ID, _ []byte) error        { return vs.err }
-func (vs *errorValueStore) Size() (int64, error)                                   { return 0, vs.err }
-func (vs *errorValueStore) Flush() error                                           { return vs.err }
-func (vs *errorValueStore) Close() error                                           { return vs.err }
-func (vs *errorValueStore) Stats() (*indexer.Stats, error)                         { return nil, vs.err }
+func (vs *errorValueStore) Put(_ indexer.Value, _ ...multihash.Multihash) error {
+	return vs.err
+}
+
+func (vs *errorValueStore) Remove(_ indexer.Value, _ ...multihash.Multihash) error {
+	return vs.err
+}
+
+func (vs *errorValueStore) RemoveProvider(_ context.Context, _ peer.ID) error {
+	return vs.err
+}
+
+func (vs *errorValueStore) RemoveProviderContext(_ peer.ID, _ []byte) error {
+	return vs.err
+}
+
+func (vs *errorValueStore) Size() (int64, error) {
+	return 0, vs.err
+}
+
+func (vs *errorValueStore) Flush() error {
+	return vs.err
+}
+
+func (vs *errorValueStore) Close() error {
+	return vs.err
+}
+
+func (vs *errorValueStore) Stats() (*indexer.Stats, error) {
+	return nil, vs.err
+}
+
+func (vs *errorValueStore) MeteringAllStats(context.Context, []peer.ID) (*indexer.AllStatsReport, error) {
+	return nil, vs.err
+}
+
+func (vs *errorValueStore) MeteringScanStatus(context.Context, []peer.ID) (*indexer.ScanStatus, error) {
+	return nil, vs.err
+}
+
+func (vs *errorValueStore) MeteringTriggerScan(context.Context) error {
+	return vs.err
+}
+
+func (vs *errorValueStore) MeteringCancelScan(context.Context, string) error {
+	return vs.err
+}
 
 func TestGetAdStates(t *testing.T) {
 	te := setupTestEnv(t, false)
