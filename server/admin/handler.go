@@ -799,8 +799,25 @@ func (h *adminHandler) meteringScan(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusAccepted)
 
+	case http.MethodDelete:
+		err := h.indexer.MeteringCancelScan(r.Context(), r.URL.Query().Get("reason"))
+		if errors.Is(err, indexer.ErrMeteringNotSupported) {
+			http.Error(w, err.Error(), http.StatusNotImplemented)
+			return
+		}
+		if errors.Is(err, indexer.ErrScanNotInProgress) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		if err != nil {
+			log.Errorw("Error cancelling metering scan", "err", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+
 	default:
-		w.Header().Add("Allow", http.MethodGet+", "+http.MethodPost)
+		w.Header().Add("Allow", http.MethodGet+", "+http.MethodPost+", "+http.MethodDelete)
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 	}
 }

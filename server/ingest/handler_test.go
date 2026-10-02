@@ -87,6 +87,10 @@ func (m *mockIndexer) MeteringTriggerScan(context.Context) error {
 	return indexer.ErrMeteringNotSupported
 }
 
+func (m *mockIndexer) MeteringCancelScan(context.Context, string) error {
+	return indexer.ErrMeteringNotSupported
+}
+
 func TestHandleRegisterProvider(t *testing.T) {
 	discoveryCfg := config.Discovery{
 		Policy: config.Policy{

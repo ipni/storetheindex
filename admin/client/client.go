@@ -758,3 +758,37 @@ func (c *Client) MeteringTriggerScan(ctx context.Context) error {
 		return apierror.FromResponse(resp.StatusCode, body)
 	}
 }
+
+// MeteringCancelScan asks the in-progress metering scan to stop.
+// reason is recorded on scan status. The caller formats it.
+func (c *Client) MeteringCancelScan(ctx context.Context, reason string) error {
+	u := c.baseURL.JoinPath(meteringPath, "scan")
+	if reason != "" {
+		q := u.Query()
+		q.Set("reason", reason)
+		u.RawQuery = q.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u.String(), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusAccepted:
+		return nil
+	case http.StatusConflict:
+		return indexer.ErrScanNotInProgress
+	case http.StatusNotImplemented:
+		return indexer.ErrMeteringNotSupported
+	default:
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return apierror.FromResponse(resp.StatusCode, body)
+	}
+}

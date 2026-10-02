@@ -11,6 +11,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
+	"github.com/ipfs/go-test/random"
 	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-indexer-core/store/memory"
@@ -229,14 +230,17 @@ func TestMeteringNotSupported(t *testing.T) {
 	err = te.client.MeteringTriggerScan(context.Background())
 	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
 
+	err = te.client.MeteringCancelScan(context.Background(), "")
+	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
+
 	_, _, err = te.client.MeteringProvider(context.Background(), peerID)
 	require.ErrorIs(t, err, indexer.ErrMeteringNotSupported)
 }
 
 func TestMeteringAPI(t *testing.T) {
 	store, err := pebble.New(t.TempDir(), nil, pebble.WithMetering(pebble.MeteringConfig{
-		BatchSize: 100,
-		TimeFill:  1,
+		BatchSize: 1,
+		TimeFill:  0.05,
 	}))
 	require.NoError(t, err)
 	idx := engine.New(store)
@@ -267,26 +271,62 @@ func TestMeteringAPI(t *testing.T) {
 	require.False(t, status.InProgress)
 	require.Empty(t, status.Error)
 
+	err = c.MeteringCancelScan(context.Background(), "")
+	require.ErrorIs(t, err, indexer.ErrScanNotInProgress)
+
 	report, err := c.MeteringStats(context.Background())
 	require.NoError(t, err)
 	require.Nil(t, report)
 
-	mh, err := cid.Decode("QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wycZWEuRoaiqm")
-	require.NoError(t, err)
 	require.NoError(t, idx.Put(indexer.Value{
 		ProviderID:    peerID,
 		ContextID:     []byte("ctx"),
 		MetadataBytes: []byte("meta"),
-	}, mh.Hash()))
+	}, random.Multihashes(30)...))
 
 	require.NoError(t, c.MeteringTriggerScan(context.Background()))
-
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		status, err = c.MeteringScanStatus(context.Background())
 		require.NoError(t, err)
-		require.Empty(t, status.Error)
+		if status.InProgress {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timeout waiting for metering scan to start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	require.NoError(t, c.MeteringCancelScan(context.Background(), "paused for gc"))
+	deadline = time.Now().Add(5 * time.Second)
+	wantCancel := indexer.ScanCancelledError("paused for gc")
+	for {
+		status, err = c.MeteringScanStatus(context.Background())
+		require.NoError(t, err)
 		if !status.InProgress {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timeout waiting for metering scan to stop")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	require.Equal(t, wantCancel.Error(), status.Error)
+
+	require.NoError(t, c.MeteringTriggerScan(context.Background()))
+
+	deadline = time.Now().Add(10 * time.Second)
+	for {
+		status, err = c.MeteringScanStatus(context.Background())
+		require.NoError(t, err)
+		if status.Error == wantCancel.Error() {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		require.Empty(t, status.Error)
+		report, err = c.MeteringStats(context.Background())
+		require.NoError(t, err)
+		if !status.InProgress && report != nil {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -295,29 +335,29 @@ func TestMeteringAPI(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	report, err = c.MeteringStats(context.Background())
-	require.NoError(t, err)
-	require.NotNil(t, report)
-	require.Equal(t, uint64(1), report.Totals.Multihashes)
+	require.Equal(t, uint64(30), report.Totals.Multihashes)
 
 	all, err := c.MeteringProviders(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, all)
-	require.Equal(t, uint64(1), all.Totals.Multihashes)
+	require.Equal(t, uint64(30), all.Totals.Multihashes)
 	require.Len(t, all.Providers, 1)
 	require.Equal(t, peerID, all.Providers[0].ProviderID)
-	require.Equal(t, uint64(1), all.Providers[0].Multihashes)
+	require.Equal(t, uint64(30), all.Providers[0].Multihashes)
 
 	one, ok, err := c.MeteringProvider(context.Background(), peerID)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, peerID, one.ProviderID)
-	require.Equal(t, uint64(1), one.Multihashes)
+	require.Equal(t, uint64(30), one.Multihashes)
 
 	missing, ok, err := c.MeteringProvider(context.Background(), serverID)
 	require.NoError(t, err)
 	require.False(t, ok)
 	require.Nil(t, missing)
+
+	err = c.MeteringCancelScan(context.Background(), "")
+	require.ErrorIs(t, err, indexer.ErrScanNotInProgress)
 }
 
 func TestMarkAdProcessed(t *testing.T) {

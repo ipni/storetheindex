@@ -3348,6 +3348,10 @@ func (vs *errorValueStore) MeteringTriggerScan(context.Context) error {
 	return vs.err
 }
 
+func (vs *errorValueStore) MeteringCancelScan(context.Context, string) error {
+	return vs.err
+}
+
 func TestGetAdStates(t *testing.T) {
 	te := setupTestEnv(t, false)
 	publisher := te.pubHost.ID()
