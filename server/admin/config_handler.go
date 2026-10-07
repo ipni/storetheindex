@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/ipni/storetheindex/internal/httpserver"
 )
 
 // setLogLevel sets the log level for a subsystem matched using regular expression.
@@ -16,9 +15,6 @@ import (
 //
 // See: registerSetLogLevelHandler.
 func setLogLevel(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPost) {
-		return
-	}
 
 	query := r.URL.Query()
 	qSize := len(query)
@@ -47,9 +43,6 @@ func setLogLevel(w http.ResponseWriter, r *http.Request) {
 
 // listLogSubSystems prints current logging subsystems one at a line.
 func listLogSubSystems(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
 
 	subsystems := logging.GetSubsystems()
 	slices.Sort(subsystems)

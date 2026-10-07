@@ -52,9 +52,6 @@ func newHandler(ctx context.Context, id peer.ID, indexer indexer.Interface, inge
 
 // ----- assignment handlers -----
 func (h *adminHandler) listAssignedPeers(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
 
 	publishers, continued, err := h.reg.ListAssignedPeers()
 	if err != nil {
@@ -74,20 +71,10 @@ func (h *adminHandler) listAssignedPeers(w http.ResponseWriter, r *http.Request)
 		apiAssigned[i].Continued = continued[i]
 	}
 
-	data, err := json.Marshal(apiAssigned)
-	if err != nil {
-		log.Errorw("Error marshaling assigned list", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+	writeJSON(w, apiAssigned, "Error marshaling assigned list")
 }
 
 func (h *adminHandler) listPreferredPeers(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
 
 	preferred, err := h.reg.ListPreferredPeers()
 	if err != nil {
@@ -101,20 +88,10 @@ func (h *adminHandler) listPreferredPeers(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	data, err := json.Marshal(preferred)
-	if err != nil {
-		log.Errorw("Error marshaling preferred list", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+	writeJSON(w, preferred, "Error marshaling preferred list")
 }
 
 func (h *adminHandler) handoffPeer(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPost) {
-		return
-	}
 
 	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
@@ -157,9 +134,6 @@ func (h *adminHandler) handoffPeer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) assignPeer(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPost) {
-		return
-	}
 
 	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
@@ -188,9 +162,6 @@ func assignError(w http.ResponseWriter, err error) {
 }
 
 func (h *adminHandler) unassignPeer(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPut) {
-		return
-	}
 
 	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
@@ -217,9 +188,6 @@ func (h *adminHandler) unassignPeer(w http.ResponseWriter, r *http.Request) {
 // ----- ingest handlers -----
 
 func (h *adminHandler) allowPeer(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPut) {
-		return
-	}
 
 	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
@@ -232,9 +200,6 @@ func (h *adminHandler) allowPeer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPut) {
-		return
-	}
 
 	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
@@ -247,9 +212,6 @@ func (h *adminHandler) blockPeer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) markAdProcessed(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPut) {
-		return
-	}
 	peerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
 		return
@@ -278,9 +240,6 @@ func (h *adminHandler) markAdProcessed(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) handlePostSyncs(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPost) {
-		return
-	}
 
 	if h.ingester == nil {
 		log.Warn("sync not available, ingester disabled")
@@ -410,21 +369,7 @@ func (h *adminHandler) handleGetSyncs(w http.ResponseWriter, r *http.Request) {
 	httpserver.WriteJsonResponse(w, http.StatusOK, marshalled)
 }
 
-func (h *adminHandler) sync(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		h.handlePostSyncs(w, r)
-	case http.MethodGet:
-		h.handleGetSyncs(w, r)
-	default:
-		http.Error(w, "", http.StatusMethodNotAllowed)
-	}
-}
-
 func (h *adminHandler) importProviders(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPost) {
-		return
-	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -461,9 +406,6 @@ func (h *adminHandler) importProviders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) reloadConfig(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPost) {
-		return
-	}
 
 	errChan := make(chan error)
 	h.reloadErrChan <- errChan
@@ -477,9 +419,6 @@ func (h *adminHandler) reloadConfig(w http.ResponseWriter, r *http.Request) {
 // ----- admin handlers -----
 
 func (h *adminHandler) removeProvider(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodDelete) {
-		return
-	}
 
 	providerID, ok := decodePeerID(path.Base(r.URL.Path), w)
 	if !ok {
@@ -513,9 +452,6 @@ func (h *adminHandler) removeProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) freeze(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodPut) {
-		return
-	}
 
 	err := h.reg.Freeze()
 	if err != nil {
@@ -531,9 +467,6 @@ func (h *adminHandler) freeze(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) status(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
 
 	var usage float64
 	du, err := h.reg.ValueStoreUsage()
@@ -550,20 +483,10 @@ func (h *adminHandler) status(w http.ResponseWriter, r *http.Request) {
 		Usage:  usage,
 	}
 
-	data, err := json.Marshal(status)
-	if err != nil {
-		log.Errorw("Error marshaling status", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+	writeJSON(w, status, "Error marshaling status")
 }
 
 func (h *adminHandler) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
 
 	if err := healthCheckValueStore(h); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -577,9 +500,6 @@ func (h *adminHandler) healthCheckHandler(w http.ResponseWriter, r *http.Request
 // ----- Telemetry routes -----
 
 func (h *adminHandler) listTelemetry(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
 
 	ingestRates := h.ingester.GetAllIngestRates()
 	if len(ingestRates) == 0 {
@@ -587,19 +507,10 @@ func (h *adminHandler) listTelemetry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := json.Marshal(ingestRates)
-	if err != nil {
-		log.Errorw("Error marshaling telemetry data", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-	httpserver.WriteJsonResponse(w, http.StatusOK, data)
+	writeJSON(w, ingestRates, "Error marshaling telemetry data")
 }
 
 func (h *adminHandler) getTelemetry(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
 
 	providerID, err := peer.Decode(path.Base(r.URL.Path))
 	if err != nil {
@@ -613,26 +524,7 @@ func (h *adminHandler) getTelemetry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := json.Marshal(ingestRate)
-	if err != nil {
-		log.Errorw("Error marshaling telemetry data", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-	httpserver.WriteJsonResponse(w, http.StatusOK, data)
-}
-
-// ----- utility functions -----
-
-func decodePeerID(id string, w http.ResponseWriter) (peer.ID, bool) {
-	peerID, err := peer.Decode(id)
-	if err != nil {
-		msg := "Cannot decode peer id"
-		log.Errorw(msg, "id", id, "err", err)
-		http.Error(w, msg, http.StatusBadRequest)
-		return peerID, false
-	}
-	return peerID, true
+	writeJSON(w, ingestRate, "Error marshaling telemetry data")
 }
 
 var healthCheckMH multihash.Multihash
@@ -676,187 +568,136 @@ func healthCheckValueStore(h *adminHandler) error {
 // ----- Metering routes -----
 
 func (h *adminHandler) meteringStats(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
 	// An empty provider list asks for totals only. The store does not read provider rows.
-	report, err := h.indexer.MeteringAllStats(r.Context(), []peer.ID{})
-	if errors.Is(err, indexer.ErrMeteringNotSupported) {
-		http.Error(w, err.Error(), http.StatusNotImplemented)
-		return
-	}
-	if err != nil {
-		log.Errorw("Error reading metering stats", "err", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if report == nil {
+	switch report, err := h.indexer.MeteringAllStats(r.Context(), []peer.ID{}); {
+	case err != nil:
+		writeMeteringErr(w, err, "Error reading metering stats")
+	case report == nil:
 		w.WriteHeader(http.StatusNoContent)
-		return
+	default:
+		writeJSON(w, report.CompletedScanStats, "Error marshaling metering stats")
 	}
-	data, err := json.Marshal(report.CompletedScanStats)
-	if err != nil {
-		log.Errorw("Error marshaling metering stats", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
 func (h *adminHandler) meteringProviders(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
-	report, err := h.indexer.MeteringAllStats(r.Context(), nil)
-	if errors.Is(err, indexer.ErrMeteringNotSupported) {
-		http.Error(w, err.Error(), http.StatusNotImplemented)
-		return
-	}
-	if err != nil {
-		log.Errorw("Error reading metering stats", "err", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if report == nil {
+	switch report, err := h.indexer.MeteringAllStats(r.Context(), nil); {
+	case err != nil:
+		writeMeteringErr(w, err, "Error reading metering stats")
+	case report == nil:
 		w.WriteHeader(http.StatusNoContent)
-		return
+	default:
+		writeJSON(w, report, "Error marshaling metering stats")
 	}
-	data, err := json.Marshal(report)
-	if err != nil {
-		log.Errorw("Error marshaling metering stats", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
 func (h *adminHandler) meteringProvider(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
-	providerID, ok := decodePeerID(path.Base(r.URL.Path), w)
+	providerID, ok := decodePeerID(r.PathValue("providerID"), w)
 	if !ok {
 		return
 	}
-	report, err := h.indexer.MeteringAllStats(r.Context(), []peer.ID{providerID})
-	if errors.Is(err, indexer.ErrMeteringNotSupported) {
-		http.Error(w, err.Error(), http.StatusNotImplemented)
-		return
-	}
-	if err != nil {
-		log.Errorw("Error reading metering stats", "err", err, "provider", providerID)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if report == nil || len(report.Providers) == 0 {
+
+	switch report, err := h.indexer.MeteringAllStats(r.Context(), []peer.ID{providerID}); {
+	case err != nil:
+		writeMeteringErr(w, err, "Error reading metering stats")
+	case report == nil || len(report.Providers) == 0:
 		w.WriteHeader(http.StatusNoContent)
-		return
+	default:
+		writeJSON(w, report.Providers[0], "Error marshaling metering stats")
 	}
-	data, err := json.Marshal(report.Providers[0])
-	if err != nil {
-		log.Errorw("Error marshaling metering stats", "err", err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
 func (h *adminHandler) meteringScan(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		status, err := h.indexer.MeteringScanStatus(r.Context(), nil)
-		if errors.Is(err, indexer.ErrMeteringNotSupported) {
-			http.Error(w, err.Error(), http.StatusNotImplemented)
-			return
-		}
-		if err != nil {
-			log.Errorw("Error reading metering scan status", "err", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		data, err := marshalMeteringScanStatus(status)
-		if err != nil {
-			log.Errorw("Error marshaling metering scan status", "err", err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-		httpserver.WriteJsonResponse(w, http.StatusOK, data)
-
-	case http.MethodPost:
-		err := h.indexer.MeteringTriggerScan(r.Context())
-		if errors.Is(err, indexer.ErrMeteringNotSupported) {
-			http.Error(w, err.Error(), http.StatusNotImplemented)
-			return
-		}
-		if errors.Is(err, indexer.ErrScanInProgress) {
-			http.Error(w, err.Error(), http.StatusConflict)
-			return
-		}
-		if err != nil {
-			log.Errorw("Error triggering metering scan", "err", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusAccepted)
-
-	case http.MethodDelete:
-		err := h.indexer.MeteringCancelScan(r.Context(), r.URL.Query().Get("reason"))
-		if errors.Is(err, indexer.ErrMeteringNotSupported) {
-			http.Error(w, err.Error(), http.StatusNotImplemented)
-			return
-		}
-		if errors.Is(err, indexer.ErrScanNotInProgress) {
-			http.Error(w, err.Error(), http.StatusConflict)
-			return
-		}
-		if err != nil {
-			log.Errorw("Error cancelling metering scan", "err", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusAccepted)
-
+	switch status, err := h.indexer.MeteringScanStatus(r.Context(), nil); {
+	case err != nil:
+		writeMeteringErr(w, err, "Error reading metering scan status")
 	default:
-		w.Header().Add("Allow", http.MethodGet+", "+http.MethodPost+", "+http.MethodDelete)
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		writeJSON(w, scanStatusBody(status), "Error marshaling metering scan status")
+	}
+}
+
+func (h *adminHandler) meteringTriggerScan(w http.ResponseWriter, r *http.Request) {
+	switch err := h.indexer.MeteringTriggerScan(r.Context()); {
+	case err != nil:
+		writeMeteringErr(w, err, "Error triggering metering scan")
+	default:
+		w.WriteHeader(http.StatusAccepted)
+	}
+}
+
+func (h *adminHandler) meteringCancelScan(w http.ResponseWriter, r *http.Request) {
+	reason := r.URL.Query().Get("reason")
+
+	switch err := h.indexer.MeteringCancelScan(r.Context(), reason); {
+	case err != nil:
+		writeMeteringErr(w, err, "Error cancelling metering scan")
+	default:
+		w.WriteHeader(http.StatusAccepted)
 	}
 }
 
 func (h *adminHandler) meteringProviderScan(w http.ResponseWriter, r *http.Request) {
-	if !httpserver.MethodOK(w, r, http.MethodGet) {
-		return
-	}
-	providerID, ok := decodePeerID(path.Base(r.URL.Path), w)
+	providerID, ok := decodePeerID(r.PathValue("providerID"), w)
 	if !ok {
 		return
 	}
-	status, err := h.indexer.MeteringScanStatus(r.Context(), []peer.ID{providerID})
-	if errors.Is(err, indexer.ErrMeteringNotSupported) {
+
+	switch status, err := h.indexer.MeteringScanStatus(r.Context(), []peer.ID{providerID}); {
+	case err != nil:
+		writeMeteringErr(w, err, "Error reading metering scan status")
+	default:
+		writeJSON(w, scanStatusBody(status), "Error marshaling metering scan status")
+	}
+}
+
+// writeMeteringErr writes the HTTP response for a failed metering call.
+// Unsupported metering is 501. A scan that is already running, or not running
+// when cancel is requested, is 409.
+func writeMeteringErr(w http.ResponseWriter, err error, msg string) {
+	switch {
+	case errors.Is(err, indexer.ErrMeteringNotSupported):
 		http.Error(w, err.Error(), http.StatusNotImplemented)
-		return
-	}
-	if err != nil {
-		log.Errorw("Error reading metering scan status", "err", err, "provider", providerID)
+	case errors.Is(err, indexer.ErrScanInProgress), errors.Is(err, indexer.ErrScanNotInProgress):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		log.Errorw(msg, "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
-	data, err := marshalMeteringScanStatus(status)
+}
+
+// ----- utility functions -----
+
+func decodePeerID(id string, w http.ResponseWriter) (peer.ID, bool) {
+	peerID, err := peer.Decode(id)
 	if err != nil {
-		log.Errorw("Error marshaling metering scan status", "err", err)
+		msg := "Cannot decode peer id"
+		log.Errorw(msg, "id", id, "err", err)
+		http.Error(w, msg, http.StatusBadRequest)
+		return peerID, false
+	}
+	return peerID, true
+}
+
+// writeJSON marshals body and writes it as JSON. A marshal failure is a 500
+// with an empty body.
+func writeJSON(w http.ResponseWriter, body any, msg string) {
+	data, err := json.Marshal(body)
+	if err != nil {
+		log.Errorw(msg, "err", err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
+
 	httpserver.WriteJsonResponse(w, http.StatusOK, data)
 }
 
-// marshalMeteringScanStatus encodes a scan that has not been recorded as
-// State "none". A running, finished, or failed scan is returned in full,
-// including the counters it produced.
-func marshalMeteringScanStatus(status *indexer.ScanStatus) ([]byte, error) {
+// scanStatusBody is the JSON body for a scan status. A scan that has not been
+// recorded is only State "none". A running, finished, or failed scan is the
+// full status, including the counters it produced.
+func scanStatusBody(status *indexer.ScanStatus) any {
 	if status == nil || status.State == "" || status.State == indexer.ScanStateNone {
-		return json.Marshal(struct {
+		return struct {
 			State indexer.ScanState
-		}{State: indexer.ScanStateNone})
+		}{State: indexer.ScanStateNone}
 	}
-	return json.Marshal(status)
+	return status
 }
