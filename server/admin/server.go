@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
@@ -61,37 +62,52 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 	}
 
 	// Admin routes
-	mux.HandleFunc("/removeprovider/", h.removeProvider)
-	mux.HandleFunc("/freeze", h.freeze)
-	mux.HandleFunc("/status", h.status)
-	mux.HandleFunc("/healthcheck", h.healthCheckHandler)
-	mux.HandleFunc("/importproviders", h.importProviders)
-	mux.HandleFunc("/reloadconfig", h.reloadConfig)
-	mux.HandleFunc("/markadprocessed/", h.markAdProcessed)
+	mux.HandleFunc("DELETE /removeprovider/", h.removeProvider)
+	mux.HandleFunc("PUT /freeze", h.freeze)
+	mux.HandleFunc("GET /status", h.status)
+	mux.HandleFunc("GET /healthcheck", h.healthCheckHandler)
+	mux.HandleFunc("POST /importproviders", h.importProviders)
+	mux.HandleFunc("POST /reloadconfig", h.reloadConfig)
+	mux.HandleFunc("PUT /markadprocessed/", h.markAdProcessed)
 
 	// Ingester routes
-	mux.HandleFunc("/ingest/allow/", h.allowPeer)
-	mux.HandleFunc("/ingest/block/", h.blockPeer)
-	mux.HandleFunc("/ingest/sync/", h.sync)
+	mux.HandleFunc("PUT /ingest/allow/", h.allowPeer)
+	mux.HandleFunc("PUT /ingest/block/", h.blockPeer)
+	mux.HandleFunc("POST /ingest/sync/", h.handlePostSyncs)
+	mux.HandleFunc("GET /ingest/sync/", h.handleGetSyncs)
 
 	// Assignment routes
-	mux.HandleFunc("/ingest/assign/", h.assignPeer)
-	mux.HandleFunc("/ingest/assigned", h.listAssignedPeers)
-	mux.HandleFunc("/ingest/handoff/", h.handoffPeer)
-	mux.HandleFunc("/ingest/unassign/", h.unassignPeer)
-	mux.HandleFunc("/ingest/preferred", h.listPreferredPeers)
+	mux.HandleFunc("POST /ingest/assign/", h.assignPeer)
+	mux.HandleFunc("GET /ingest/assigned", h.listAssignedPeers)
+	mux.HandleFunc("POST /ingest/handoff/", h.handoffPeer)
+	mux.HandleFunc("PUT /ingest/unassign/", h.unassignPeer)
+	mux.HandleFunc("GET /ingest/preferred", h.listPreferredPeers)
 
 	// Metrics routes
-	mux.Handle("/metrics/", metrics.Start(append(coremetrics.DefaultViews, coremetrics.PebbleViews...)))
+	mux.Handle("/metrics/", metrics.Start(slices.Concat(
+		coremetrics.DefaultViews,
+		coremetrics.PebbleViews,
+		coremetrics.MeteringViews,
+		coremetrics.MeteringProviderViews,
+	)))
 	mux.Handle("/debug/pprof/", pprof.WithProfile())
 
 	// Telemetry routes
-	mux.HandleFunc("/telemetry/providers", h.listTelemetry)
-	mux.HandleFunc("/telemetry/providers/", h.getTelemetry)
+	mux.HandleFunc("GET /telemetry/providers", h.listTelemetry)
+	mux.HandleFunc("GET /telemetry/providers/", h.getTelemetry)
+
+	// Metering routes
+	mux.HandleFunc("GET /metering", h.meteringStats)
+	mux.HandleFunc("GET /metering/providers", h.meteringProviders)
+	mux.HandleFunc("GET /metering/providers/{providerID}", h.meteringProvider)
+	mux.HandleFunc("GET /metering/scan", h.meteringScan)
+	mux.HandleFunc("POST /metering/scan", h.meteringTriggerScan)
+	mux.HandleFunc("DELETE /metering/scan", h.meteringCancelScan)
+	mux.HandleFunc("GET /metering/scan/{providerID}", h.meteringProviderScan)
 
 	// Config routes
-	mux.HandleFunc("/config/log/level", setLogLevel)
-	mux.HandleFunc("/config/log/subsystems", listLogSubSystems)
+	mux.HandleFunc("POST /config/log/level", setLogLevel)
+	mux.HandleFunc("GET /config/log/subsystems", listLogSubSystems)
 
 	return s, nil
 }

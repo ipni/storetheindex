@@ -17,7 +17,7 @@ import (
 
 func Test_ListLoggingSubsystems(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/config/log/subsystems", listLogSubSystems)
+	mux.HandleFunc("GET /config/log/subsystems", listLogSubSystems)
 
 	req, err := http.NewRequest(http.MethodGet, "/config/log/subsystems", nil)
 	require.NoError(t, err)
@@ -43,7 +43,7 @@ func Test_ListLoggingSubsystems(t *testing.T) {
 
 func Test_SetLogLevel_NoQueryParamsIsError(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/config/log/level", setLogLevel)
+	mux.HandleFunc("POST /config/log/level", setLogLevel)
 
 	req, err := http.NewRequest(http.MethodPost, "/config/log/level", nil)
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func Test_SetLogLevel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mux := http.NewServeMux()
-			mux.HandleFunc("/config/log/level", setLogLevel)
+			mux.HandleFunc("POST /config/log/level", setLogLevel)
 
 			req, err := http.NewRequest(http.MethodPost, "/config/log/level", nil)
 			require.NoError(t, err)

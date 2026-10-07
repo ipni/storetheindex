@@ -631,7 +631,16 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 		pebbleOpts.Cache = pbl.NewCache(int64(cfgIndexer.PebbleBlockCacheSize))
 		pebbleOpts.EnsureDefaults()
 
-		vs, err = pebble.New(dir, pebbleOpts)
+		var storeOpts []pebble.Option
+		if cfgIndexer.Metering != nil && cfgIndexer.Metering.Enabled {
+			storeOpts = append(storeOpts, pebble.WithMetering(pebble.MeteringConfig{
+				BatchSize:             cfgIndexer.Metering.ScanBatchSize,
+				Interval:              time.Duration(cfgIndexer.Metering.ScanInterval),
+				TimeFill:              cfgIndexer.Metering.TimeFill,
+				ExportProviderMetrics: cfgIndexer.Metering.ExportProviderMetrics,
+			}))
+		}
+		vs, err = pebble.New(dir, pebbleOpts, storeOpts...)
 	case vstoreRelayx:
 		if cfgIndexer.RelayX != nil {
 			vs, err = relayx.NewClient(relayx.WithServerAddr(cfgIndexer.RelayX.ServerAddr))
