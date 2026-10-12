@@ -638,6 +638,7 @@ func createValueStore(ctx context.Context, cfgIndexer config.Indexer) (indexer.I
 				Interval:              time.Duration(cfgIndexer.Metering.ScanInterval),
 				TimeFill:              cfgIndexer.Metering.TimeFill,
 				ExportProviderMetrics: cfgIndexer.Metering.ExportProviderMetrics,
+				Cleanup:               cfgIndexer.Metering.Cleanup,
 			}))
 		}
 		vs, err = pebble.New(dir, pebbleOpts, storeOpts...)
