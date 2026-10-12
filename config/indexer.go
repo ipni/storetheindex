@@ -92,6 +92,9 @@ type Metering struct {
 	// 1 runs the next unit immediately. 0 selects the default, 0.1. Values
 	// above 1 are treated as 1.
 	TimeFill float64
+	// Cleanup removes multihash slots whose value record is already gone.
+	// A newer advertisement of that slot is kept. Not reloadable.
+	Cleanup bool
 }
 
 type RelayX struct {
