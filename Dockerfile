@@ -6,6 +6,8 @@ RUN go mod download -x
 COPY . .
 
 RUN CGO_ENABLED=1 go build
+# CGO_ENABLED differs from the line above, so this step shares no build cache and recompiles the dependency graph.
+RUN CGO_ENABLED=0 go build -o cross-announce ./scripts/cross_announce
 
 FROM debian:bookworm-slim AS jemalloc
 RUN apt-get update \
@@ -16,9 +18,12 @@ RUN apt-get update \
 # distroless/cc includes libstdc++, which Debian jemalloc requires.
 FROM gcr.io/distroless/cc:debug-nonroot
 COPY --from=builder /storetheindex/storetheindex /usr/local/bin/
+COPY --from=builder /storetheindex/cross-announce /usr/local/bin/
 COPY --from=jemalloc \
     /usr/lib/x86_64-linux-gnu/libjemalloc.so.2 \
     /usr/lib/x86_64-linux-gnu/
+# LD_PRELOAD applies to every binary in the image, but cross-announce is built
+# CGO_ENABLED=0 and so is statically linked with no dynamic loader to honour it.
 ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 ENV MALLOC_CONF=background_thread:true,narenas:2,dirty_decay_ms:0,muzzy_decay_ms:0
 
@@ -30,5 +35,6 @@ ENV MALLOC_CONF=background_thread:true,narenas:2,dirty_decay_ms:0,muzzy_decay_ms
 # Note: exposed ports below will have no effect if the default config is overridden.
 EXPOSE 3000-3003
 
+# The image also contains /usr/local/bin/cross-announce. Run it by overriding the entrypoint or command.
 ENTRYPOINT ["/usr/local/bin/storetheindex"]
 CMD ["daemon"]
