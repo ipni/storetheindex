@@ -188,8 +188,8 @@ github.com/gammazero/deque v1.2.1 h1:9fnQVFCCZ9/NOc7ccTNqzoKd1tCWOqeI05/lPqFPMGQ
 github.com/gammazero/deque v1.2.1/go.mod h1:5nSFkzVm+afG9+gy0VIowlqVAW4N8zNcMne+CMQVD2g=
 github.com/gammazero/fsutil v0.3.0 h1:v2UvxJPXubrlp2vxoJEq8QkC98fXt2wlwvROnvTVrLw=
 github.com/gammazero/fsutil v0.3.0/go.mod h1:JnD8cGUH5CidMtJoyontWS0RO6TuHcoubqskc76Xq2I=
-github.com/gammazero/radixtree v0.4.1 h1:S7TCy80m2qkszdR7y5FWnhpcGUlvP3IU83Ej02zy3RA=
-github.com/gammazero/radixtree v0.4.1/go.mod h1:ASdWnk7E8ZsLUjJeJAb4H3YZ0lzlWMGhXGgo8Hw7PCI=
+github.com/gammazero/radixtree v0.5.0 h1:KlNe4kPF9iJ6jTwvA4iX7S2GAESI91I+0Qtulsvt524=
+github.com/gammazero/radixtree v0.5.0/go.mod h1:nVkCUyRn0MM4/Wxwbxs3TOI7I8glw862BnDOIS5tZYw=
 github.com/gammazero/targz v0.1.0 h1:VnkBeLiZMOFU0E3dqY5zSwNGYt/cuPdepIP/IBAcD6E=
 github.com/gammazero/targz v0.1.0/go.mod h1:bTGquXwagOIX1KpEns/EwSBF3cc7XgwaiIfAurW1GnE=
 github.com/getsentry/sentry-go v0.46.2 h1:1jhYwrKGa3sIpo/y5iDNXS5wDoT7I1KNzMHrnK6ojns=
@@ -347,12 +347,12 @@ github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20250821084354-a425e60cd7
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20250821084354-a425e60cd714/go.mod h1:ZEUdra3CoqRVRYgAX/jAJO9aZGz6SKtKEG628fHHktY=
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20260630010714-14607b97d32f h1:uFHgUQ/2+7UWDGj6V/kXG+VWD8uUVR2/aUr/epStugg=
 github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20260630010714-14607b97d32f/go.mod h1:/drhX2MCkUtWx5GZ4CcHHoUDbNn7tq7NNNBZ/C2uO9Q=
-github.com/ipni/go-indexer-core v0.9.8-0.20261020195834-a63ccbf089d8 h1:ogAtXzoMjUzpskscP3OPI7t2y9310Zz+Vc9xzALiFSQ=
-github.com/ipni/go-indexer-core v0.9.8-0.20261020195834-a63ccbf089d8/go.mod h1:/feyaZzmA6khW+/OmiEL+H9h6xv9j2nCPsBPAmJMQuE=
+github.com/ipni/go-indexer-core v0.9.8-0.20261022120555-d6a81612892f h1:E/b4uJDm3t7Yn04YfowVIOXs/thNMr+C9XyNWtDefiI=
+github.com/ipni/go-indexer-core v0.9.8-0.20261022120555-d6a81612892f/go.mod h1:Xru3fEQ5SvHANd1swV16ZLJfRXMDVNTVnkAQnh+KhTs=
 github.com/ipni/go-libipni v0.9.0 h1:NMSuXIjCH3IjxtGPJB4AlvT2zSzZN5xOb7B+AKjyJfE=
 github.com/ipni/go-libipni v0.9.0/go.mod h1:QzfnpT58Nz1Mt1Yitk1TzyqFcrB0br7Ypt/CildeNhk=
-github.com/ipni/relayx v1.0.7-0.20261022132001-a4042477987a h1:/hKuelSxPjCyZ30CYR5LiSsB4eoE+e445UF5rdqjjGY=
-github.com/ipni/relayx v1.0.7-0.20261022132001-a4042477987a/go.mod h1:URdyVrEvC+rUGIoyXMQ72GBZSc4u2eMTxANlvOB9OWE=
+github.com/ipni/relayx v1.0.7-0.20261022140242-c73c5c49034e h1:ia2wCzOW42jdbGD6sWsLHqmOgk9DEfbqUPXXKmTb6d0=
+github.com/ipni/relayx v1.0.7-0.20261022140242-c73c5c49034e/go.mod h1:9oW/bT8d76rV29oaruoY+U7FvqcQFlfSPFw/e5QtbUs=
 github.com/jackpal/go-nat-pmp v1.0.2 h1:KzKSgb7qkJvOUTqYl9/Hg/me3pWgBmERKrTGD7BdWus=
 github.com/jackpal/go-nat-pmp v1.0.2/go.mod h1:QPH045xvCAeXUZOxsnwmrtiCoxIr9eob+4orBN1SBKc=
 github.com/jbenet/go-temp-err-catcher v0.1.0 h1:zpb3ZH6wIE8Shj2sKS+khgRvf7T7RABoLk/+KKHggpk=
