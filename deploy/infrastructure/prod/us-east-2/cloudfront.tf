@@ -257,6 +257,20 @@ resource "aws_cloudfront_distribution" "cdn" {
     viewer_protocol_policy = "redirect-to-https"
   }
 
+  # Appended so existing ordered_cache_behavior indexes stay put. The metering
+  # report is read from sf's admin API, where sf's Traefik routes only this
+  # path. It changes once per metering scan, so the providers TTL is enough.
+  ordered_cache_behavior {
+    path_pattern     = "metering/providers"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = local.direct_sf_cid_contact_origin_id
+    cache_policy_id  = aws_cloudfront_cache_policy.providers.id
+
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
