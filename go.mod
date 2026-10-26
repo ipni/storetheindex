@@ -1,6 +1,6 @@
 module github.com/ipni/storetheindex
 
-go 1.26.0
+go 1.26.6
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
@@ -25,9 +25,9 @@ require (
 	github.com/ipld/go-ipld-prime v0.24.0
 	github.com/ipld/go-ipld-prime/storage/dsadapter v0.0.0-20260630010714-14607b97d32f
 	github.com/ipni/go-indexer-core v0.9.8-0.20261023102856-d7e6f931d32d
-	github.com/ipni/go-libipni v0.9.0
+	github.com/ipni/go-libipni v0.9.1-0.20261027192718-a2b7b22022a8
 	github.com/ipni/relayx v1.0.7-0.20261023103413-8fa72f40fc0a
-	github.com/libp2p/go-libp2p v0.50.0
+	github.com/libp2p/go-libp2p v0.51.0
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/multiformats/go-multicodec v0.10.0
 	github.com/multiformats/go-multihash v0.2.3
@@ -114,7 +114,7 @@ require (
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.3.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.4.1 // indirect
-	github.com/libp2p/go-libp2p-pubsub v0.17.0 // indirect
+	github.com/libp2p/go-libp2p-pubsub v0.19.0 // indirect
 	github.com/libp2p/go-msgio v0.3.0 // indirect
 	github.com/libp2p/go-netroute v0.4.0 // indirect
 	github.com/libp2p/go-reuseport v0.4.0 // indirect
@@ -163,7 +163,7 @@ require (
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/prometheus/statsd_exporter v0.30.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
-	github.com/quic-go/quic-go v0.62.0 // indirect
+	github.com/quic-go/quic-go v0.64.1 // indirect
 	github.com/quic-go/webtransport-go v0.13.0 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect

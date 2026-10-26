@@ -16,6 +16,7 @@ import (
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
+	car "github.com/ipld/go-car/v2"
 	"github.com/ipld/go-car/v2/storage"
 	ipld "github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -174,7 +175,9 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 	}
 	defer carFile.Close()
 
-	carStore, err := storage.NewWritable(carFile, roots)
+	// Identity blocks are stored like any other block, so that the CAR holds
+	// the whole entries chain.
+	carStore, err := storage.NewWritable(carFile, roots, car.StoreIdentityCIDs(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot open writable car storage: %w", err)
 	}

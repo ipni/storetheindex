@@ -21,6 +21,7 @@ import (
 	"github.com/ipld/go-ipld-prime/node/bindnode"
 	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-libipni/dagsync"
+	"github.com/ipni/go-libipni/dagsync/ipnisync"
 	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/carstore"
@@ -332,6 +333,12 @@ func (ing *Ingester) ingestAd(
 	if entriesCid == cid.Undef {
 		return false, adDataSourceNone, "", adIngestError{adIngestMalformedErr, errors.New("advertisement entries link is undefined")}
 	}
+	// dagsync applies the identity size limit when syncing from the publisher.
+	// Entries read from a CAR file are checked here and in
+	// ingestCarEntryStream.
+	if err = ipnisync.CheckIdentitySize(entriesCid); err != nil {
+		return false, adDataSourceNone, "", adIngestError{adIngestMalformedErr, fmt.Errorf("advertisement entries link: %w", err)}
+	}
 
 	log.Debug("Advertisement has entries to sync")
 
@@ -377,6 +384,13 @@ func (ing *Ingester) ingestAd(
 				switch adIngestErr.state {
 				case adIngestIndexerErr:
 					// Could not store multihashes in core, so stop trying to index ad.
+					return hasEnts, adDataSourceNone, "", err
+				case adIngestMalformedErr:
+					// A Next link in the CAR's entries chain is an identity
+					// CID over the size limit. The Entries link itself is
+					// checked before the mirror is read, so it never gets
+					// here. A sync from the publisher refuses the same link,
+					// so there is no fallback.
 					return hasEnts, adDataSourceNone, "", err
 				case adIngestContentNotFound:
 					// No entries data in CAR file. Entries data deleted later
@@ -427,11 +441,13 @@ func (ing *Ingester) ingestAd(
 }
 
 // entriesSyncError classifies an error from syncing entries from the
-// publisher. Missing content is not found; after any other error, a later
-// sync may succeed.
+// publisher. An identity CID over the size limit is malformed and missing
+// content is not found; after any other error, a later sync may succeed.
 func entriesSyncError(err error, msg string) adIngestError {
 	wrappedErr := fmt.Errorf("%s: %w", msg, err)
 	switch {
+	case errors.Is(err, ipnisync.ErrIdentityTooLarge):
+		return adIngestError{adIngestMalformedErr, wrappedErr}
 	case errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found"):
 		return adIngestError{adIngestContentNotFound, wrappedErr}
 	default:
@@ -722,6 +738,9 @@ func (ing *Ingester) ingestCarEntryStream(
 			expectedCid = cid.Undef
 		} else {
 			expectedCid = chunk.Next.(cidlink.Link).Cid
+			if err = ipnisync.CheckIdentitySize(expectedCid); err != nil {
+				return mhCount, adIngestError{adIngestMalformedErr, fmt.Errorf("entries next link: %w", err)}
+			}
 		}
 	}
 	if expectedCid != cid.Undef {

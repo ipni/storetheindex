@@ -272,6 +272,40 @@ graph TD
   (`SyncHAMTEntries`), then keys (multihashes) are iterated and indexed in
   batches of 4096. HAMT CIDs are deleted from the temp datastore afterward.
 
+### Identity CIDs
+
+Any link the indexer syncs - an ad's `Entries`, a chunk's `Next`, or an ad
+CID - may be an identity CID: its multihash digest is the encoded block, so a
+small block is embedded in the link. dagsync (`ipnisync.Syncer.fetchBlock`)
+takes such a block from the CID instead of requesting it from the publisher,
+and stores it through the same write opener as a fetched block. An identity
+advertisement is therefore signature-checked like any other, and identity
+entry chunks are stored in `dsTmp`, indexed, and written to the CAR mirror like
+hashed ones. The CAR writer creates files with go-car's `StoreIdentityCIDs`
+option, which stores identity blocks in the file, so a mirror CAR holds the
+whole entries chain and a resync can read it.
+
+An identity digest may be at most 128 bytes (`ipnisync.MaxIdentityDigestSize`,
+the default limit of boxo's `verifcid`); larger blocks must use a hashed CID.
+dagsync refuses an oversized identity CID with `ipnisync.ErrIdentityTooLarge`
+before the block is stored.
+
+- During an entries sync, `entriesSyncError` classifies that error as
+  `malformedErr`, so an oversized `Entries` or `Next` link skips the ad.
+  Multihashes from chunks before that link stay indexed.
+- Entries read from a CAR file do not pass through dagsync, so ingest applies
+  the same limit with `ipnisync.CheckIdentitySize`: `ingestAd` checks the
+  `Entries` link before reading the mirror or the publisher, and
+  `ingestCarEntryStream` checks each `Next` link. An oversized link skips the
+  ad as `malformedErr` without falling back to the publisher. An oversized
+  block in a CAR written by an indexer without the limit is refused the same
+  way as one from the publisher.
+- A signed advertisement is larger than 128 bytes, so an identity
+  advertisement, as the head or anywhere in the chain, fails the ad sync.
+
+In dag-json, the IPNI default codec, 128 bytes holds one sha2-256 multihash
+with no `Next` link; in dag-cbor it holds up to three.
+
 `indexAdMultihashes` filters out invalid/too-short multihashes
 (`MinimumKeyLength`) and calls the indexer core `Put` with the
 `indexer.Value{ProviderID, ContextID, MetadataBytes}`.
