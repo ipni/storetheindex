@@ -288,6 +288,12 @@ After a content ad is processed successfully:
 Errors are classified by `adIngestError` (`error.go`). Permanent errors
 (decoding, malformed, entry-chunk, content-not-found, and optionally a 500 on
 the first entry when `Skip500EntriesError` is set) are logged and skipped.
+A skipped ad is marked with `MarkAdSkipped` and is not written to the CAR
+mirror. If a writable mirror is configured, the ad's data in `dsTmp` is
+removed first (`cleanupAdData`), whether or not any of its entries were indexed,
+because marking the ad removes the ad block that lists its entries. The cleanup
+follows the entries chain up to the first block that was never stored, such as
+a `Next` link the publisher does not have.
 Non-permanent errors bail out of the chain (later/older ads are not processed),
 set the provider's last error, and record metrics.
 
@@ -413,9 +419,12 @@ short-lived and safe to discard.
   CAR mirror when one is writable).
 - **Phase 3 (entry ingestion), fetching from the publisher:** entry-chunk and
   HAMT node blocks fetched by `SyncOneEntry` / `SyncEntries` /
-  `SyncHAMTEntries` flow through the same write opener into `dsTmp`. These are
-  deleted as they are indexed (entry chunks in `ingestEntriesFromPublisher`,
-  HAMT nodes in `ingestHamtFromPublisher`'s deferred cleanup).
+  `SyncHAMTEntries` flow through the same write opener into `dsTmp`. HAMT nodes
+  are not mirrored, so `ingestHamtFromPublisher`'s deferred cleanup always
+  deletes them. Entry chunks are deleted as they are indexed in
+  `ingestEntriesFromPublisher` when no writable mirror is configured. With a
+  writable mirror they stay until the ad is written to the CAR mirror, which
+  removes them, or until `cleanupAdData` removes them for a skipped ad.
 - **Phase 3, reading from the CAR mirror:** when a readable CAR (Main first,
   then External) has a complete entries chain (`ingestEntriesFromCar`), entries
   are streamed from the CAR file and indexed directly, so entry blocks are

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"testing"
 
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-test/random"
 	car "github.com/ipld/go-car/v2"
@@ -318,6 +319,41 @@ func storeRandomIndexAndAd(t *testing.T, eChunkCount int, metadata []byte, prevL
 	require.NoError(t, err)
 
 	return advLnk, adv, mhs, p, priv
+}
+
+func TestCleanupAdDataPartialChain(t *testing.T) {
+	ctx := t.Context()
+	dstore := datastore.NewMapDatastore()
+	fileStore, err := filestore.NewLocal(t.TempDir())
+	require.NoError(t, err)
+	carw, err := carstore.NewWriter(dstore, fileStore)
+	require.NoError(t, err)
+
+	adLink, ad, _, _, _ := storeRandomIndexAndAd(t, testEntriesChunkCount, nil, nil, dstore)
+	adCid := adLink.(cidlink.Link).Cid
+
+	// Remove the last chunk, as when ingest stopped before syncing it
+	lsys := mkProvLinkSystem(dstore)
+	var chain []cid.Cid
+	for lnk := ad.Entries; lnk != nil; {
+		chain = append(chain, lnk.(cidlink.Link).Cid)
+		node, err := lsys.Load(ipld.LinkContext{Ctx: ctx}, lnk, schema.EntryChunkPrototype)
+		require.NoError(t, err)
+		chunk, err := schema.UnwrapEntryChunk(node)
+		require.NoError(t, err)
+		lnk = chunk.Next
+	}
+	require.Len(t, chain, testEntriesChunkCount)
+	last := chain[len(chain)-1]
+	require.NoError(t, dstore.Delete(ctx, datastore.NewKey(last.String())))
+
+	// The ad and the chunks that were stored are removed
+	require.NoError(t, carw.CleanupAdData(ctx, adCid, false))
+	for _, c := range append([]cid.Cid{adCid}, chain[:len(chain)-1]...) {
+		has, err := dstore.Has(ctx, datastore.NewKey(c.String()))
+		require.NoError(t, err)
+		require.False(t, has, c)
+	}
 }
 
 func TestNewWriterWriteCheckContext(t *testing.T) {

@@ -436,6 +436,11 @@ func (cw *CarWriter) removeAdData(delCids []cid.Cid) error {
 	for entriesCid != cid.Undef {
 		chunk, _, err := cw.loadEntryChunk(entriesCid)
 		if err != nil {
+			if errors.Is(err, datastore.ErrNotFound) {
+				// The rest of the chain was never stored, as when ingest
+				// stopped part way through it.
+				return nil
+			}
 			return fmt.Errorf("cannot load entries block: %w", err)
 		}
 		if chunk.Next == nil {
