@@ -401,11 +401,7 @@ func (ing *Ingester) ingestAd(
 	// configured max depth.
 	err = ing.sub.SyncOneEntry(ctx, publisher, entriesCid)
 	if err != nil {
-		wrappedErr := fmt.Errorf("failed to sync first entry while checking entries type: %w", err)
-		if errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found") {
-			return false, adDataSourceNone, "", adIngestError{adIngestContentNotFound, wrappedErr}
-		}
-		return false, adDataSourceNone, "", adIngestError{adIngestSyncEntriesErr, wrappedErr}
+		return false, adDataSourceNone, "", entriesSyncError(err, "failed to sync first entry while checking entries type")
 	}
 
 	node, err := ing.loadNode(entriesCid, basicnode.Prototype.Any)
@@ -428,6 +424,19 @@ func (ing *Ingester) ingestAd(
 	}
 
 	return mhCount != 0, adDataSourceProvider, "", err
+}
+
+// entriesSyncError classifies an error from syncing entries from the
+// publisher. Missing content is not found; after any other error, a later
+// sync may succeed.
+func entriesSyncError(err error, msg string) adIngestError {
+	wrappedErr := fmt.Errorf("%s: %w", msg, err)
+	switch {
+	case errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found"):
+		return adIngestError{adIngestContentNotFound, wrappedErr}
+	default:
+		return adIngestError{adIngestSyncEntriesErr, wrappedErr}
+	}
 }
 
 func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, entsCid cid.Cid, log *zap.SugaredLogger) (int, error) {
@@ -469,11 +478,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 			// datastore once finished processing.
 			err = ing.sub.SyncHAMTEntries(ctx, pubInfo, nodeCid, dagsync.ScopedBlockHook(gatherCids))
 			if err != nil {
-				wrappedErr := fmt.Errorf("failed to sync remaining HAMT: %w", err)
-				if errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found") {
-					return 0, adIngestError{adIngestContentNotFound, wrappedErr}
-				}
-				return 0, adIngestError{adIngestSyncEntriesErr, wrappedErr}
+				return 0, entriesSyncError(err, "failed to sync remaining HAMT")
 			}
 		}
 	}
@@ -599,11 +604,7 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 			if errors.As(err, &adIngestErr) {
 				return mhCount, err
 			}
-			wrappedErr := fmt.Errorf("failed to sync entries: %w", err)
-			if errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found") {
-				return mhCount, adIngestError{adIngestContentNotFound, wrappedErr}
-			}
-			return mhCount, adIngestError{adIngestSyncEntriesErr, wrappedErr}
+			return mhCount, entriesSyncError(err, "failed to sync entries")
 		}
 	}
 
