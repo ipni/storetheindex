@@ -272,6 +272,40 @@ graph TD
   (`SyncHAMTEntries`), then keys (multihashes) are iterated and indexed in
   batches of 4096. HAMT CIDs are deleted from the temp datastore afterward.
 
+### Identity CIDs
+
+Any link the indexer syncs - an ad's `Entries`, a chunk's `Next`, or an ad
+CID - may be an identity CID: its multihash digest is the encoded block, so a
+small block is embedded in the link. dagsync (`ipnisync.Syncer.fetchBlock`)
+takes such a block from the CID instead of requesting it from the publisher,
+and stores it through the same write opener as a fetched block. An identity
+advertisement is therefore signature-checked like any other, and identity
+entry chunks are stored in `dsTmp`, indexed, and written to the CAR mirror like
+hashed ones. The CAR writer creates files with go-car's `StoreIdentityCIDs`
+option, which stores identity blocks in the file, so a mirror CAR holds the
+whole entries chain and a resync can read it.
+
+An identity digest may be at most 128 bytes (`ipnisync.MaxIdentityDigestSize`,
+the default limit of boxo's `verifcid`); larger blocks must use a hashed CID.
+dagsync refuses an oversized identity CID with `ipnisync.ErrIdentityTooLarge`
+before the block is stored.
+
+- During an entries sync, `entriesSyncError` classifies that error as
+  `malformedErr`, so an oversized `Entries` or `Next` link skips the ad.
+  Multihashes from chunks before that link stay indexed.
+- Entries read from a CAR file do not pass through dagsync, so ingest applies
+  the same limit with `ipnisync.CheckIdentitySize`: `ingestAd` checks the
+  `Entries` link before reading the mirror or the publisher, and
+  `ingestCarEntryStream` checks each `Next` link. An oversized link skips the
+  ad as `malformedErr` without falling back to the publisher. An oversized
+  block in a CAR written by an indexer without the limit is refused the same
+  way as one from the publisher.
+- A signed advertisement is larger than 128 bytes, so an identity
+  advertisement, as the head or anywhere in the chain, fails the ad sync.
+
+In dag-json, the IPNI default codec, 128 bytes holds one sha2-256 multihash
+with no `Next` link; in dag-cbor it holds up to three.
+
 `indexAdMultihashes` filters out invalid/too-short multihashes
 (`MinimumKeyLength`) and calls the indexer core `Put` with the
 `indexer.Value{ProviderID, ContextID, MetadataBytes}`.
@@ -288,6 +322,12 @@ After a content ad is processed successfully:
 Errors are classified by `adIngestError` (`error.go`). Permanent errors
 (decoding, malformed, entry-chunk, content-not-found, and optionally a 500 on
 the first entry when `Skip500EntriesError` is set) are logged and skipped.
+A skipped ad is marked with `MarkAdSkipped` and is not written to the CAR
+mirror. If a writable mirror is configured, the ad's data in `dsTmp` is
+removed first (`cleanupAdData`), whether or not any of its entries were indexed,
+because marking the ad removes the ad block that lists its entries. The cleanup
+follows the entries chain up to the first block that was never stored, such as
+a `Next` link the publisher does not have.
 Non-permanent errors bail out of the chain (later/older ads are not processed),
 set the provider's last error, and record metrics.
 
@@ -413,9 +453,12 @@ short-lived and safe to discard.
   CAR mirror when one is writable).
 - **Phase 3 (entry ingestion), fetching from the publisher:** entry-chunk and
   HAMT node blocks fetched by `SyncOneEntry` / `SyncEntries` /
-  `SyncHAMTEntries` flow through the same write opener into `dsTmp`. These are
-  deleted as they are indexed (entry chunks in `ingestEntriesFromPublisher`,
-  HAMT nodes in `ingestHamtFromPublisher`'s deferred cleanup).
+  `SyncHAMTEntries` flow through the same write opener into `dsTmp`. HAMT nodes
+  are not mirrored, so `ingestHamtFromPublisher`'s deferred cleanup always
+  deletes them. Entry chunks are deleted as they are indexed in
+  `ingestEntriesFromPublisher` when no writable mirror is configured. With a
+  writable mirror they stay until the ad is written to the CAR mirror, which
+  removes them, or until `cleanupAdData` removes them for a skipped ad.
 - **Phase 3, reading from the CAR mirror:** when a readable CAR (Main first,
   then External) has a complete entries chain (`ingestEntriesFromCar`), entries
   are streamed from the CAR file and indexed directly, so entry blocks are

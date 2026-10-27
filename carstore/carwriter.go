@@ -16,6 +16,7 @@ import (
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
+	car "github.com/ipld/go-car/v2"
 	"github.com/ipld/go-car/v2/storage"
 	ipld "github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -174,7 +175,9 @@ func (cw *CarWriter) write(ctx context.Context, adCid cid.Cid, ad schema.Adverti
 	}
 	defer carFile.Close()
 
-	carStore, err := storage.NewWritable(carFile, roots)
+	// Identity blocks are stored like any other block, so that the CAR holds
+	// the whole entries chain.
+	carStore, err := storage.NewWritable(carFile, roots, car.StoreIdentityCIDs(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot open writable car storage: %w", err)
 	}
@@ -436,6 +439,11 @@ func (cw *CarWriter) removeAdData(delCids []cid.Cid) error {
 	for entriesCid != cid.Undef {
 		chunk, _, err := cw.loadEntryChunk(entriesCid)
 		if err != nil {
+			if errors.Is(err, datastore.ErrNotFound) {
+				// The rest of the chain was never stored, as when ingest
+				// stopped part way through it.
+				return nil
+			}
 			return fmt.Errorf("cannot load entries block: %w", err)
 		}
 		if chunk.Next == nil {

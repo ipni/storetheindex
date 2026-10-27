@@ -21,6 +21,7 @@ import (
 	"github.com/ipld/go-ipld-prime/node/bindnode"
 	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-libipni/dagsync"
+	"github.com/ipni/go-libipni/dagsync/ipnisync"
 	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/carstore"
@@ -332,6 +333,12 @@ func (ing *Ingester) ingestAd(
 	if entriesCid == cid.Undef {
 		return false, adDataSourceNone, "", adIngestError{adIngestMalformedErr, errors.New("advertisement entries link is undefined")}
 	}
+	// dagsync applies the identity size limit when syncing from the publisher.
+	// Entries read from a CAR file are checked here and in
+	// ingestCarEntryStream.
+	if err = ipnisync.CheckIdentitySize(entriesCid); err != nil {
+		return false, adDataSourceNone, "", adIngestError{adIngestMalformedErr, fmt.Errorf("advertisement entries link: %w", err)}
+	}
 
 	log.Debug("Advertisement has entries to sync")
 
@@ -371,12 +378,19 @@ func (ing *Ingester) ingestAd(
 			return hasEnts, adSource, adSourceLocation, nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
-			log.Errorw("Cannot get advertisement from CAR mirror", "err", err)
+			log.Warnw("Cannot get advertisement from CAR mirror", "err", err)
 			var adIngestErr adIngestError
 			if errors.As(err, &adIngestErr) {
 				switch adIngestErr.state {
 				case adIngestIndexerErr:
 					// Could not store multihashes in core, so stop trying to index ad.
+					return hasEnts, adDataSourceNone, "", err
+				case adIngestMalformedErr:
+					// A Next link in the CAR's entries chain is an identity
+					// CID over the size limit. The Entries link itself is
+					// checked before the mirror is read, so it never gets
+					// here. A sync from the publisher refuses the same link,
+					// so there is no fallback.
 					return hasEnts, adDataSourceNone, "", err
 				case adIngestContentNotFound:
 					// No entries data in CAR file. Entries data deleted later
@@ -401,11 +415,7 @@ func (ing *Ingester) ingestAd(
 	// configured max depth.
 	err = ing.sub.SyncOneEntry(ctx, publisher, entriesCid)
 	if err != nil {
-		wrappedErr := fmt.Errorf("failed to sync first entry while checking entries type: %w", err)
-		if errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found") {
-			return false, adDataSourceNone, "", adIngestError{adIngestContentNotFound, wrappedErr}
-		}
-		return false, adDataSourceNone, "", adIngestError{adIngestSyncEntriesErr, wrappedErr}
+		return false, adDataSourceNone, "", entriesSyncError(err, "failed to sync first entry while checking entries type")
 	}
 
 	node, err := ing.loadNode(entriesCid, basicnode.Prototype.Any)
@@ -428,6 +438,21 @@ func (ing *Ingester) ingestAd(
 	}
 
 	return mhCount != 0, adDataSourceProvider, "", err
+}
+
+// entriesSyncError classifies an error from syncing entries from the
+// publisher. An identity CID over the size limit is malformed and missing
+// content is not found; after any other error, a later sync may succeed.
+func entriesSyncError(err error, msg string) adIngestError {
+	wrappedErr := fmt.Errorf("%s: %w", msg, err)
+	switch {
+	case errors.Is(err, ipnisync.ErrIdentityTooLarge):
+		return adIngestError{adIngestMalformedErr, wrappedErr}
+	case errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found"):
+		return adIngestError{adIngestContentNotFound, wrappedErr}
+	default:
+		return adIngestError{adIngestSyncEntriesErr, wrappedErr}
+	}
 }
 
 func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Advertisement, publisherID, providerID peer.ID, entsCid cid.Cid, log *zap.SugaredLogger) (int, error) {
@@ -469,11 +494,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 			// datastore once finished processing.
 			err = ing.sub.SyncHAMTEntries(ctx, pubInfo, nodeCid, dagsync.ScopedBlockHook(gatherCids))
 			if err != nil {
-				wrappedErr := fmt.Errorf("failed to sync remaining HAMT: %w", err)
-				if errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found") {
-					return 0, adIngestError{adIngestContentNotFound, wrappedErr}
-				}
-				return 0, adIngestError{adIngestSyncEntriesErr, wrappedErr}
+				return 0, entriesSyncError(err, "failed to sync remaining HAMT")
 			}
 		}
 	}
@@ -599,11 +620,7 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 			if errors.As(err, &adIngestErr) {
 				return mhCount, err
 			}
-			wrappedErr := fmt.Errorf("failed to sync entries: %w", err)
-			if errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found") {
-				return mhCount, adIngestError{adIngestContentNotFound, wrappedErr}
-			}
-			return mhCount, adIngestError{adIngestSyncEntriesErr, wrappedErr}
+			return mhCount, entriesSyncError(err, "failed to sync entries")
 		}
 	}
 
@@ -721,6 +738,9 @@ func (ing *Ingester) ingestCarEntryStream(
 			expectedCid = cid.Undef
 		} else {
 			expectedCid = chunk.Next.(cidlink.Link).Cid
+			if err = ipnisync.CheckIdentitySize(expectedCid); err != nil {
+				return mhCount, adIngestError{adIngestMalformedErr, fmt.Errorf("entries next link: %w", err)}
+			}
 		}
 	}
 	if expectedCid != cid.Undef {

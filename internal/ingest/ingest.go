@@ -1459,6 +1459,16 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 
 		putMirror := hasEnts && ing.mirror.canWrite()
 		if skipReason != "" {
+			if ing.mirror.canWrite() {
+				// A skipped ad is not mirrored, so remove the entries already
+				// synced into the datastore, including chunks that held no
+				// multihashes. This runs before the ad is marked, because
+				// marking removes the ad that lists the entries.
+				if err = ing.mirror.cleanupAdData(ctx, ai.cid, false); err != nil {
+					log.Errorw("Cannot remove advertisement data from datastore", "err", err)
+				}
+				putMirror = false
+			}
 			if markErr := ing.MarkAdSkipped(publisher, ai.cid, skipReason, frozen); markErr != nil {
 				log.Errorw("Failed to mark ad as skipped", "err", markErr)
 			}
