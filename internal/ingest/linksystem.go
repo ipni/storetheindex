@@ -371,7 +371,7 @@ func (ing *Ingester) ingestAd(
 			return hasEnts, adSource, adSourceLocation, nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
-			log.Errorw("Cannot get advertisement from CAR mirror", "err", err)
+			log.Warnw("Cannot get advertisement from CAR mirror", "err", err)
 			var adIngestErr adIngestError
 			if errors.As(err, &adIngestErr) {
 				switch adIngestErr.state {
