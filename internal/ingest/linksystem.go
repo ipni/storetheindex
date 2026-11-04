@@ -40,12 +40,27 @@ import (
 )
 
 var (
-	errBadAdvert              = errors.New("bad advertisement")
-	errInvalidAdvertSignature = errors.New("invalid advertisement signature")
+	// errBadAdvert is returned by the link system for an advertisement that
+	// does not decode as one, fails validation, or names a provider that is
+	// not a valid peer ID.
+	errBadAdvert = fmt.Errorf("%w: bad advertisement", ipnisync.ErrMalformed)
+	// errInvalidAdvertSignature is returned by the link system for an
+	// advertisement whose signature, or the signature of one of its extended
+	// provider records, does not verify.
+	errInvalidAdvertSignature = fmt.Errorf("%w: invalid advertisement signature", ipnisync.ErrMalformed)
+	// errPublishNotAllowed is returned for an advertisement signed by a
+	// publisher that the policy does not allow to publish for its provider.
+	// On the advertisement chain the policy can be reloaded, so a later sync
+	// may accept the ad. An entries block that fails this way can never be an
+	// entry chunk or a HAMT node, so entriesSyncError treats it as malformed.
+	errPublishNotAllowed = errors.New("advertisement signer not allowed to publish for provider")
 	// errBadIPLDData is returned by the link system for a block that does not
 	// decode in the codec of its CID.
-	errBadIPLDData = errors.New("bad ipld data")
-	// errInternal is an error message that should not be shown to users.
+	errBadIPLDData = fmt.Errorf("%w: bad ipld data", ipnisync.ErrMalformed)
+	// errInternal is wrapped by errors from the indexer itself, such as a
+	// failure of its datastore or value store. Such an error may not happen
+	// again, so the ad is retried. Its details are not shown to users: the
+	// provider's last error holds only this error's text.
 	errInternal = errors.New("internal error")
 	// errNotInDatastore is returned by loadNode for a block that is not in
 	// the temporary datastore. The block may have been deleted by another
@@ -138,7 +153,7 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 	// publisher.
 	if signerID != provID && !reg.PublishAllowed(signerID, provID) {
 		log.Errorw("Advertisement not signed by provider or allowed publisher", "provider", ad.Provider, "signer", signerID)
-		return "", errInvalidAdvertSignature
+		return "", errPublishNotAllowed
 	}
 
 	return provID, nil
@@ -479,13 +494,20 @@ func (ing *Ingester) ingestAd(
 }
 
 // entriesSyncError classifies an error from syncing entries from the
-// publisher. An identity CID over the size limit or a block that does not
-// decode is malformed and missing content is not found; after any other
-// error, a later sync may succeed.
+// publisher. An error that wraps ipnisync.ErrMalformed comes from content that
+// no later sync can change, so the ad is skipped and the rest of the
+// publisher's chain is still ingested. dagsync returns such an error for a
+// block over its size limit or an identity CID over the digest limit, and the
+// link system for a block that does not decode or that it takes for an
+// advertisement that is not valid. errPublishNotAllowed is malformed too: a
+// block the link system takes for an advertisement cannot be an entry chunk or
+// a HAMT node, whether or not the policy later allows its signer. Missing
+// content is not found. After any other error a later sync may succeed.
 func entriesSyncError(err error, msg string) adIngestError {
 	wrappedErr := fmt.Errorf("%s: %w", msg, err)
 	switch {
-	case errors.Is(err, ipnisync.ErrIdentityTooLarge), errors.Is(err, errBadIPLDData):
+	case errors.Is(err, ipnisync.ErrMalformed),
+		errors.Is(err, errPublishNotAllowed):
 		return adIngestError{adIngestMalformedErr, wrappedErr}
 	case errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found"):
 		return adIngestError{adIngestContentNotFound, wrappedErr}

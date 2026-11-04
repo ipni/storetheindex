@@ -18,9 +18,11 @@ import (
 	"github.com/ipfs/go-test/random"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
+	"github.com/ipld/go-ipld-prime/fluent/qp"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipni/go-indexer-core/engine"
+	"github.com/ipni/go-libipni/dagsync/ipnisync"
 	headschema "github.com/ipni/go-libipni/dagsync/ipnisync/head"
 	"github.com/ipni/go-libipni/ingest/schema"
 	"github.com/ipni/go-libipni/maurl"
@@ -600,6 +602,29 @@ func (s *IngestTestSuite) TestEntriesBlockNotEntryChunk() {
 	require.Zero(t, s.tmpStore.blocksHeld())
 }
 
+// An entries block that is a valid advertisement signed for a provider the
+// publisher may not publish for skips the ad as malformed. The block can
+// never be an entry chunk, so a later change of policy cannot accept it.
+func (s *IngestTestSuite) TestEntriesBlockPublishNotAllowed() {
+	t := s.T()
+	_, providerID := s.newPeerKey(t)
+	signed := schema.Advertisement{
+		Provider:  providerID.String(),
+		Addresses: []string{testAdAddr},
+		Entries:   schema.NoEntries,
+		ContextID: []byte("inner"),
+		Metadata:  []byte("m"),
+	}
+	require.NoError(t, signed.Sign(s.pub.key))
+	node, err := signed.ToNode()
+	require.NoError(t, err)
+	adCid := s.publish(t, s.newAd(s.store(t, node)))
+	require.NoError(t, s.reg.SetPolicy(config.Policy{Allow: true, Publish: false}))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+}
+
 // An entry chunk that is gone from the temporary datastore when ingest loads
 // it, as when another worker that synced the same chunk has deleted it, leaves
 // the ad to be retried, and a later sync indexes it. An ad is processed first,
@@ -620,4 +645,49 @@ func (s *IngestTestSuite) TestEntryChunkMissingFromDatastore() {
 	require.NoError(t, s.sync(t.Context()))
 	require.True(t, s.adState(t, adCid).Processed)
 	s.requireIndexed(t, mhs)
+}
+
+// notAnAd returns a node that the link system takes for an advertisement,
+// since it has a Signature field, but that is not a valid advertisement.
+func (s *IngestTestSuite) notAnAd(t *testing.T) datamodel.Node {
+	n, err := qp.BuildMap(basicnode.Prototype.Any, 1, func(ma datamodel.MapAssembler) {
+		qp.MapEntry(ma, "Signature", qp.Bytes([]byte("not a signature")))
+	})
+	require.NoError(t, err)
+	return n
+}
+
+// An entries block that the link system takes for an advertisement but that
+// is not a valid one skips the ad as malformed.
+func (s *IngestTestSuite) TestEntriesBlockIsBadAd() {
+	t := s.T()
+	adCid := s.publish(t, s.newAd(s.store(t, s.notAnAd(t))))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+}
+
+// A Next block that the link system takes for an advertisement but that is
+// not a valid one skips the ad as malformed.
+func (s *IngestTestSuite) TestNextEntriesBlockIsBadAd() {
+	t := s.T()
+	adCid := s.publish(t, s.newAd(s.chunk(t, random.Multihashes(1), s.store(t, s.notAnAd(t)))))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+}
+
+// A Next block larger than the dagsync block size limit skips the ad as
+// malformed, and the multihashes of the chunk before it stay indexed. The
+// block is refused before it is stored.
+func (s *IngestTestSuite) TestNextEntriesBlockTooLarge() {
+	t := s.T()
+	mhs := random.Multihashes(1)
+	next := s.putRaw(multicodec.Raw, make([]byte, ipnisync.DefaultMaxBlockSize+1))
+	adCid := s.publish(t, s.newAd(s.chunk(t, mhs, next)))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+	s.requireIndexed(t, mhs)
+	require.Zero(t, s.tmpStore.blocksHeld())
 }

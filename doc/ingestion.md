@@ -277,18 +277,30 @@ graph TD
   usable Main hit is not rewritten.
 - **EntryChunk chain** (`ingestEntriesFromPublisher`): the first chunk is
   fetched via `SyncOneEntry` to detect the type, then the remaining chunks are
-  synced with `SyncEntries` using a scoped block hook that indexes each chunk's
-  multihashes (`indexAdMultihashes`) and deletes the chunk from the temp
-  datastore as it goes. An entries block that does not decode in the codec
-  of its CID is refused by the link system with `errBadIPLDData`,
-  which `entriesSyncError` classifies as `malformedErr`. A block that decodes
-  but is not an EntryChunk is an `ingestEntryChunkErr`. These skip the ad and
-  leave multihashes from earlier chunks indexed. That block is deleted from
-  the temp datastore, as a processed chunk is, when the mirror is not writing
-  it. A chunk that is gone from the temp datastore when it is loaded
-  (`errNotInDatastore`), as when another
-  worker that synced the same chunk deleted it, is an `indexerErr`, like a
-  datastore failure, and the ad is retried (`entryChunkLoadError`).
+  synced with `SyncEntries` using a scoped block hook that indexes each
+  chunk's multihashes (`indexAdMultihashes`) and deletes the chunk from the
+  temp datastore as it goes. An entries block that does not decode in the
+  codec of its CID is refused by the link system with `errBadIPLDData`, which
+  `entriesSyncError` classifies as `malformedErr`. So is an entries block
+  larger than the dagsync block size limit (`ipnisync.DefaultMaxBlockSize`,
+  4 MiB), which dagsync refuses with `ipnisync.ErrBlockTooLarge` before it is
+  stored, and an entries block that the link system takes for an ad, because
+  it has a `Signature` field, but that is not a valid signed ad
+  (`errBadAdvert`, `errInvalidAdvertSignature`). `entriesSyncError` takes any
+  error that wraps `ipnisync.ErrMalformed`, as all of these do, for
+  `malformedErr`. An ad whose signer the policy does not allow
+  (`errPublishNotAllowed`) is `malformedErr` too.
+  A block the link system takes for an ad cannot be an entry chunk or a HAMT
+  node, so a change of policy cannot make a later sync accept it. On the
+  advertisement chain itself, `errPublishNotAllowed` stays retryable, since
+  the policy can be reloaded. A block that decodes but is not an EntryChunk
+  is an `ingestEntryChunkErr`. These skip the ad and leave multihashes from
+  earlier chunks indexed. That block is deleted from the temp datastore, as a
+  processed chunk is, when the mirror is not writing it. A chunk
+  that is gone from the temp datastore when it is loaded
+  (`errNotInDatastore`), as when another worker that synced the same chunk
+  deleted it, is an `indexerErr`, like a datastore failure, and the ad is
+  retried (`entryChunkLoadError`).
 - **HAMT** (`ingestHamtFromPublisher`): the whole HAMT is synced
   (`SyncHAMTEntries`), then keys (multihashes) are iterated and indexed in
   batches of 4096. HAMT CIDs are deleted from the temp datastore afterward.
