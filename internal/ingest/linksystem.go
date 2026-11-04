@@ -137,6 +137,78 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 	return provID, nil
 }
 
+// adExtendedProviders returns the extended providers of ad for the registry,
+// or nil when the ad has none. It ignores what the IPNI specification says to
+// ignore: the extended providers of a removal ad, those with Override set on
+// an ad without a context ID, and a provider record with no valid address. A
+// record with an undecodable peer ID is ignored too. The record of the ad's
+// own provider may omit its addresses, which then come from the ad.
+func adExtendedProviders(ad schema.Advertisement, log *zap.SugaredLogger) *registry.ExtendedProviders {
+	switch {
+	case ad.ExtendedProvider == nil:
+		return nil
+	case ad.IsRm:
+		log.Warn("Ignoring extended providers on a removal advertisement")
+		return nil
+	case len(ad.ContextID) == 0 && ad.ExtendedProvider.Override:
+		log.Warn("Ignoring extended providers with override set on an advertisement without context id")
+		return nil
+	}
+
+	log.Debug("Advertisement has extended providers")
+	extendedProviders := &registry.ExtendedProviders{
+		ContextualProviders: make(map[string]registry.ContextualExtendedProviders),
+	}
+
+	// Creating ExtendedProviderInfo record for each of the providers.
+	// Keeping in mind that the provider from the outer ad doesn't need to be included into the extended providers list
+	eProvs := make([]registry.ExtendedProviderInfo, 0, len(ad.ExtendedProvider.Providers))
+	for _, ep := range ad.ExtendedProvider.Providers {
+		epID, err := peer.Decode(ep.ID)
+		if err != nil {
+			log.Warnw("Ignoring extended provider with invalid peer id", "err", err)
+			continue
+		}
+		// The IPNI specification says to ignore a provider record with no
+		// addresses. The record of the ad's own provider may omit them,
+		// and then has the ad's addresses.
+		addrs := stringsToMultiaddrs(ep.Addresses)
+		if len(addrs) == 0 && ep.ID == ad.Provider {
+			addrs = stringsToMultiaddrs(ad.Addresses)
+		}
+		if len(addrs) == 0 {
+			log.Warnw("Ignoring extended provider with no valid address", "extendedProvider", epID)
+			continue
+		}
+
+		eProvs = append(eProvs, registry.ExtendedProviderInfo{
+			PeerID:   epID,
+			Metadata: ep.Metadata,
+			Addrs:    addrs,
+		})
+	}
+
+	// An ad whose records are all ignored has extended providers as if it had
+	// none, so the registry keeps those it has. An empty list of records
+	// replaces them.
+	if len(eProvs) == 0 && len(ad.ExtendedProvider.Providers) != 0 {
+		log.Warn("Ignoring extended providers, since every record is ignored")
+		return nil
+	}
+
+	// If context ID is empty then it's a chain level record, otherwise it's specific to the context ID
+	if len(ad.ContextID) == 0 {
+		extendedProviders.Providers = eProvs
+	} else {
+		extendedProviders.ContextualProviders[string(ad.ContextID)] = registry.ContextualExtendedProviders{
+			ContextID: ad.ContextID,
+			Override:  ad.ExtendedProvider.Override,
+			Providers: eProvs,
+		}
+	}
+	return extendedProviders
+}
+
 // ingestAd fetches all the entries for a single advertisement and processes
 // them. This is called for each advertisement in a synced chain by an ingester
 // worker. The worker begins processing the synced advertisement chain when it
@@ -225,70 +297,7 @@ func (ing *Ingester) ingestAd(
 		}
 	}
 
-	// The IPNI specification says to ignore the extended providers of a removal
-	// ad, and those with Override set on an ad without a context ID. The rest
-	// of the ad is processed as usual.
-	var extendedProviders *registry.ExtendedProviders
-	switch {
-	case ad.ExtendedProvider == nil:
-	case ad.IsRm:
-		log.Warn("Ignoring extended providers on a removal advertisement")
-	case len(ad.ContextID) == 0 && ad.ExtendedProvider.Override:
-		log.Warn("Ignoring extended providers with override set on an advertisement without context id")
-	default:
-		log.Debug("Advertisement has extended providers")
-		extendedProviders = &registry.ExtendedProviders{
-			ContextualProviders: make(map[string]registry.ContextualExtendedProviders),
-		}
-
-		// Creating ExtendedProviderInfo record for each of the providers.
-		// Keeping in mind that the provider from the outer ad doesn't need to be included into the extended providers list
-		eProvs := make([]registry.ExtendedProviderInfo, 0, len(ad.ExtendedProvider.Providers))
-		for _, ep := range ad.ExtendedProvider.Providers {
-			epID, err := peer.Decode(ep.ID)
-			if err != nil {
-				log.Warnw("Ignoring extended provider with invalid peer id", "err", err)
-				continue
-			}
-			// The IPNI specification says to ignore a provider record with no
-			// addresses. The record of the ad's own provider may omit them,
-			// and then has the ad's addresses.
-			addrs := stringsToMultiaddrs(ep.Addresses)
-			if len(addrs) == 0 && ep.ID == ad.Provider {
-				addrs = stringsToMultiaddrs(ad.Addresses)
-			}
-			if len(addrs) == 0 {
-				log.Warnw("Ignoring extended provider with no valid address", "extendedProvider", epID)
-				continue
-			}
-
-			eProvs = append(eProvs, registry.ExtendedProviderInfo{
-				PeerID:   epID,
-				Metadata: ep.Metadata,
-				Addrs:    addrs,
-			})
-		}
-
-		// An ad whose records are all ignored has extended providers as if it had
-		// none, so the registry keeps those it has. An empty list of records
-		// replaces them.
-		if len(eProvs) == 0 && len(ad.ExtendedProvider.Providers) != 0 {
-			log.Warn("Ignoring extended providers, since every record is ignored")
-			extendedProviders = nil
-			break
-		}
-
-		// If context ID is empty then it's a chain level record, otherwise it's specific to the context ID
-		if len(ad.ContextID) == 0 {
-			extendedProviders.Providers = eProvs
-		} else {
-			extendedProviders.ContextualProviders[string(ad.ContextID)] = registry.ContextualExtendedProviders{
-				ContextID: ad.ContextID,
-				Override:  ad.ExtendedProvider.Override,
-				Providers: eProvs,
-			}
-		}
-	}
+	extendedProviders := adExtendedProviders(ad, log)
 
 	// If head ad does not have provider addresses, then update using addresses
 	// from the current advertisement.
