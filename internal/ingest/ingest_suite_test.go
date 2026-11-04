@@ -228,6 +228,24 @@ func (e *testIngestEnv) publish(t *testing.T, ad schema.Advertisement) cid.Cid {
 	return c
 }
 
+// signWithExtendedProviders signs the ad with the publisher's key. It signs
+// the extended provider records other than the publisher's own with keys,
+// in order.
+func (e *testIngestEnv) signWithExtendedProviders(
+	t *testing.T,
+	ad *schema.Advertisement,
+	keys ...crypto.PrivKey,
+) {
+	require.NoError(t, ad.SignWithExtendedProviders(
+		e.pub.key,
+		func(string) (crypto.PrivKey, error) {
+			key := keys[0]
+			keys = keys[1:]
+			return key, nil
+		},
+	))
+}
+
 // adState returns the ingestion state of the ad
 func (e *testIngestEnv) adState(t *testing.T, adCid cid.Cid) AdState {
 	state, err := e.ing.GetAdState(t.Context(), adCid)
@@ -249,6 +267,26 @@ func (e *testIngestEnv) requireNotIndexed(t *testing.T, mhs []multihash.Multihas
 	requireNotIndexed(t, e.core, e.pub.id, mhs)
 }
 
+// requireExtendedProviders requires that the registry holds exactly want as
+// the extended providers of the publisher's provider for the context, or
+// for the whole chain when contextID is empty.
+func (e *testIngestEnv) requireExtendedProviders(t *testing.T, contextID []byte, want ...peer.ID) {
+	t.Helper()
+	info, ok := e.reg.ProviderInfo(e.pub.id)
+	require.True(t, ok)
+	var got []peer.ID
+	if eps := info.ExtendedProviders; eps != nil {
+		infos := eps.Providers
+		if len(contextID) != 0 {
+			infos = eps.ContextualProviders[string(contextID)].Providers
+		}
+		for _, ep := range infos {
+			got = append(got, ep.PeerID)
+		}
+	}
+	require.ElementsMatch(t, want, got)
+}
+
 // IngestTestSuite tests what ingestion does with the content that a publisher
 // serves, valid or not. Each test publishes blocks and ads to a testPublisher
 // served over HTTP, syncs them, and checks the index, the state of each ad,
@@ -264,9 +302,17 @@ func TestIngestSuite(t *testing.T) {
 
 func (s *IngestTestSuite) SetupTest() {
 	t := s.T()
+	key, _ := s.newPeerKey(t)
+	s.testIngestEnv = newTestIngestEnv(t, defaultTestIngestConfig, key)
+}
+
+// newPeerKey returns a new key and its peer ID
+func (s *IngestTestSuite) newPeerKey(t *testing.T) (crypto.PrivKey, peer.ID) {
 	key, _, err := crypto.GenerateEd25519Key(nil)
 	require.NoError(t, err)
-	s.testIngestEnv = newTestIngestEnv(t, defaultTestIngestConfig, key)
+	id, err := peer.IDFromPrivateKey(key)
+	require.NoError(t, err)
+	return key, id
 }
 
 func (s *IngestTestSuite) TestEntryChunks() {
@@ -303,4 +349,121 @@ func (s *IngestTestSuite) TestRemoval() {
 	require.NoError(t, s.sync(t.Context()))
 	require.True(t, s.adState(t, rmCid).Processed)
 	s.requireNotIndexed(t, mhs)
+}
+
+// An extended provider record with no valid address is ignored, and the rest
+// of the ad is processed. The record of the ad's own provider takes the ad's
+// addresses.
+func (s *IngestTestSuite) TestExtendedProviderWithoutAddress() {
+	t := s.T()
+	mhs := random.Multihashes(1)
+	epKey, epID := s.newPeerKey(t)
+	ad := s.newAd(s.chunk(t, mhs, nil))
+	ad.ExtendedProvider = &schema.ExtendedProvider{Providers: []schema.Provider{
+		{ID: s.pub.id.String(), Metadata: []byte("md")},
+		{ID: epID.String(), Addresses: []string{"not an address"}, Metadata: []byte("md")},
+	}}
+	s.signWithExtendedProviders(t, &ad, epKey)
+	adCid := s.publish(t, ad)
+
+	require.NoError(t, s.sync(t.Context()))
+	require.True(t, s.adState(t, adCid).Processed)
+	s.requireIndexed(t, mhs)
+	s.requireExtendedProviders(t, ad.ContextID, s.pub.id)
+	info, _ := s.reg.ProviderInfo(s.pub.id)
+	ep := info.ExtendedProviders.ContextualProviders[string(ad.ContextID)].Providers[0]
+	require.Equal(t, testAdAddr, ep.Addrs[0].String())
+}
+
+// An extended provider record with an undecodable peer ID is ignored, and
+// the rest of the ad is processed.
+func (s *IngestTestSuite) TestExtendedProviderWithInvalidID() {
+	t := s.T()
+	mhs := random.Multihashes(1)
+	epKey, _ := s.newPeerKey(t)
+	ad := s.newAd(s.chunk(t, mhs, nil))
+	ad.ExtendedProvider = &schema.ExtendedProvider{Providers: []schema.Provider{
+		{ID: s.pub.id.String(), Metadata: []byte("md")},
+		{ID: "not a peer ID", Addresses: []string{testAdAddr}, Metadata: []byte("md")},
+	}}
+	s.signWithExtendedProviders(t, &ad, epKey)
+	adCid := s.publish(t, ad)
+
+	require.NoError(t, s.sync(t.Context()))
+	require.True(t, s.adState(t, adCid).Processed)
+	s.requireIndexed(t, mhs)
+	s.requireExtendedProviders(t, ad.ContextID, s.pub.id)
+}
+
+// An ad whose extended provider records are all ignored keeps the extended
+// providers registered by an earlier ad: the ad is processed as if it had
+// none.
+func (s *IngestTestSuite) TestExtendedProvidersAllIgnored() {
+	t := s.T()
+	epKey, epID := s.newPeerKey(t)
+	first := s.newAd(s.chunk(t, random.Multihashes(1), nil))
+	first.ContextID = nil
+	first.ExtendedProvider = &schema.ExtendedProvider{Providers: []schema.Provider{
+		{ID: s.pub.id.String()},
+		{ID: epID.String(), Addresses: []string{testAdAddr}},
+	}}
+	s.signWithExtendedProviders(t, &first, epKey)
+	s.publish(t, first)
+	// The ad has no addresses, so the record of its own provider, which
+	// omits them, is ignored too.
+	mhs := random.Multihashes(1)
+	ad := s.newAd(s.chunk(t, mhs, nil))
+	ad.ContextID = nil
+	ad.Addresses = nil
+	ad.ExtendedProvider = &schema.ExtendedProvider{Providers: []schema.Provider{
+		{ID: s.pub.id.String()},
+		{ID: epID.String(), Addresses: []string{"not an address"}},
+	}}
+	s.signWithExtendedProviders(t, &ad, epKey)
+	adCid := s.publish(t, ad)
+
+	require.NoError(t, s.sync(t.Context()))
+	require.True(t, s.adState(t, adCid).Processed)
+	s.requireIndexed(t, mhs)
+	s.requireExtendedProviders(t, nil, s.pub.id, epID)
+}
+
+// An ExtendedProvider on a removal ad is ignored, and the removal is
+// processed. The ExtendedProvider has no records, since a removal ad with
+// records cannot be signed.
+func (s *IngestTestSuite) TestExtendedProvidersOnRemoval() {
+	t := s.T()
+	mhs := random.Multihashes(1)
+	s.publish(t, s.newAd(s.chunk(t, mhs, nil)))
+	rm := s.newAd(schema.NoEntries)
+	rm.IsRm = true
+	rm.ExtendedProvider = &schema.ExtendedProvider{}
+	s.signWithExtendedProviders(t, &rm)
+	rmCid := s.publish(t, rm)
+
+	require.NoError(t, s.sync(t.Context()))
+	require.True(t, s.adState(t, rmCid).Processed)
+	s.requireNotIndexed(t, mhs)
+	s.requireExtendedProviders(t, rm.ContextID)
+}
+
+// Extended providers with Override set on an ad without a context ID are
+// ignored, and the rest of the ad is processed.
+func (s *IngestTestSuite) TestExtendedProvidersOverrideWithoutContextID() {
+	t := s.T()
+	mhs := random.Multihashes(1)
+	epKey, epID := s.newPeerKey(t)
+	ad := s.newAd(s.chunk(t, mhs, nil))
+	ad.ContextID = nil
+	ad.ExtendedProvider = &schema.ExtendedProvider{Override: true, Providers: []schema.Provider{
+		{ID: s.pub.id.String()},
+		{ID: epID.String(), Addresses: []string{testAdAddr}},
+	}}
+	s.signWithExtendedProviders(t, &ad, epKey)
+	adCid := s.publish(t, ad)
+
+	require.NoError(t, s.sync(t.Context()))
+	require.True(t, s.adState(t, adCid).Processed)
+	s.requireIndexed(t, mhs)
+	s.requireExtendedProviders(t, nil)
 }

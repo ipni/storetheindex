@@ -222,7 +222,19 @@ implies all older ads are processed. For each ad:
 - Skips ads already processed, or ads marked `skip` (deleted later in the
   chain) - the latter are still marked processed.
 - Updates sync status (`SetCurrentAd`).
-- Calls `ingestAd`, which classifies the ad (`linksystem.go`):
+- Calls `ingestAd`. It first reads the ad's extended providers and ignores
+  what the IPNI specification says to ignore: extended providers on a
+  removal ad, `Override` on an ad without a context ID, and a provider record
+  with no valid address. A record with an invalid peer ID is ignored too. The
+  record of the ad's own provider may omit its addresses, which then come
+  from the ad. The rest of the ad is processed as usual. An `ExtendedProvider`
+  whose records are all ignored is ignored as a whole, so the registry keeps
+  the extended providers it has. An `ExtendedProvider` with no records
+  replaces them: a contextual advertisement leaves one context that lists no
+  providers and clears the chain-level records and any other contexts, and an
+  advertisement with no context ID clears them. It then updates the provider
+  in the registry and classifies the ad
+  (`linksystem.go`):
   - **Removal** (`IsRm`): removes the provider context from the indexer core;
     no entries fetched.
   - **Metadata / address update only** (no entries, or indexer frozen): writes
