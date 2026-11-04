@@ -39,6 +39,11 @@ import (
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 )
 
+// maxDigestLength is the longest multihash digest that ingest indexes, as the
+// IPNI specification sets it. A multihash with a longer digest is ignored and
+// the rest of the ad is indexed.
+const maxDigestLength = 128
+
 var (
 	// errBadAdvert is returned by the link system for an advertisement that
 	// does not decode as one, fails validation, or names a provider that is
@@ -859,6 +864,11 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, providerID peer
 			badMultihash = true
 		} else if len(decoded.Digest) < ing.minKeyLen {
 			log.Warnw("Multihash digest too short, ignoring", "digestSize", len(decoded.Digest))
+			badMultihash = true
+		} else if len(decoded.Digest) > maxDigestLength {
+			if badMultihashCount == 0 {
+				log.Warnw("Multihash digest too long, ignoring", "digestSize", len(decoded.Digest), "maxDigestSize", maxDigestLength)
+			}
 			badMultihash = true
 		}
 		if badMultihash {

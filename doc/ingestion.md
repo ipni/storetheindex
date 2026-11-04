@@ -339,8 +339,10 @@ before the block is stored.
 In dag-json, the IPNI default codec, 128 bytes holds one sha2-256 multihash
 with no `Next` link; in dag-cbor it holds up to three.
 
-`indexAdMultihashes` filters out invalid/too-short multihashes
-(`MinimumKeyLength`) and calls the indexer core `Put` with the
+`indexAdMultihashes` filters out invalid multihashes, those whose digest is
+shorter than `MinimumKeyLength`, and those whose digest is longer than 128
+bytes, the limit that the IPNI specification sets (`maxDigestLength`). It
+calls the indexer core `Put` with the
 `indexer.Value{ProviderID, ContextID, MetadataBytes}`.
 
 After a content ad is processed successfully:

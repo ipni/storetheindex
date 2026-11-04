@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path"
+	"slices"
 	"sync"
 	"testing"
 
@@ -395,6 +396,18 @@ func (s *IngestTestSuite) SetupTest() {
 	s.testIngestEnv = newTestIngestEnv(t, defaultTestIngestConfig, key)
 }
 
+// digestMultihashes returns a sha2-256 multihash for each of the digest
+// lengths.
+func (s *IngestTestSuite) digestMultihashes(t *testing.T, lengths ...int) []multihash.Multihash {
+	mhs := make([]multihash.Multihash, len(lengths))
+	for i, n := range lengths {
+		var err error
+		mhs[i], err = multihash.Encode(bytes.Repeat([]byte{byte(i)}, n), multihash.SHA2_256)
+		require.NoError(t, err)
+	}
+	return mhs
+}
+
 // newPeerKey returns a new key and its peer ID
 func (s *IngestTestSuite) newPeerKey(t *testing.T) (crypto.PrivKey, peer.ID) {
 	key, _, err := crypto.GenerateEd25519Key(nil)
@@ -690,4 +703,18 @@ func (s *IngestTestSuite) TestNextEntriesBlockTooLarge() {
 	s.requireSkipped(t, adCid, adIngestMalformedErr)
 	s.requireIndexed(t, mhs)
 	require.Zero(t, s.tmpStore.blocksHeld())
+}
+
+// A multihash with a digest longer than maxDigestLength is not indexed. The
+// other multihashes of the ad are.
+func (s *IngestTestSuite) TestMultihashDigestTooLong() {
+	t := s.T()
+	indexed := s.digestMultihashes(t, 32, maxDigestLength)
+	tooLong := s.digestMultihashes(t, maxDigestLength+1, 1<<16)
+	adCid := s.publish(t, s.newAd(s.chunk(t, append(slices.Clone(indexed), tooLong...), nil)))
+
+	require.NoError(t, s.sync(t.Context()))
+	require.True(t, s.adState(t, adCid).Processed)
+	s.requireIndexed(t, indexed)
+	s.requireNotIndexed(t, tooLong)
 }
