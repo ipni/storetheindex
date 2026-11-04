@@ -32,6 +32,7 @@ import (
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/record"
 	"github.com/multiformats/go-multiaddr"
 	mc "github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
@@ -180,9 +181,11 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 // adExtendedProviders returns the extended providers of ad for the registry,
 // or nil when the ad has none. It ignores what the IPNI specification says to
 // ignore: the extended providers of a removal ad, those with Override set on
-// an ad without a context ID, and a provider record with no valid address. A
-// record with an undecodable peer ID is ignored too. The record of the ad's
-// own provider may omit its addresses, which then come from the ad.
+// an ad without a context ID, a provider record that is not signed by its
+// provider's own key, and a provider record with no valid address. A record
+// with an undecodable peer ID is ignored too. The record of the ad's own
+// provider may be signed by the ad's signer, and may omit its addresses,
+// which then come from the ad.
 func adExtendedProviders(ad schema.Advertisement, log *zap.SugaredLogger) *registry.ExtendedProviders {
 	switch {
 	case ad.ExtendedProvider == nil:
@@ -200,6 +203,10 @@ func adExtendedProviders(ad schema.Advertisement, log *zap.SugaredLogger) *regis
 		ContextualProviders: make(map[string]registry.ContextualExtendedProviders),
 	}
 
+	// VerifySignature has checked the advertisement and each extended
+	// provider record. Their signers can be read from the envelopes.
+	adSigner, _ := signatureSigner(ad.Signature)
+
 	// Creating ExtendedProviderInfo record for each of the providers.
 	// Keeping in mind that the provider from the outer ad doesn't need to be included into the extended providers list
 	eProvs := make([]registry.ExtendedProviderInfo, 0, len(ad.ExtendedProvider.Providers))
@@ -207,6 +214,15 @@ func adExtendedProviders(ad schema.Advertisement, log *zap.SugaredLogger) *regis
 		epID, err := peer.Decode(ep.ID)
 		if err != nil {
 			log.Warnw("Ignoring extended provider with invalid peer id", "err", err)
+			continue
+		}
+		// The IPNI specification says each record is signed by its
+		// provider's own key. The record of the ad's own provider may be
+		// signed by the ad's signer instead, as SignWithExtendedProviders
+		// does.
+		signer, err := signatureSigner(ep.Signature)
+		if err != nil || (signer != epID && (ep.ID != ad.Provider || signer != adSigner)) {
+			log.Warnw("Ignoring extended provider not signed by its own key", "extendedProvider", epID, "signer", signer)
 			continue
 		}
 		// The IPNI specification says to ignore a provider record with no
@@ -247,6 +263,16 @@ func adExtendedProviders(ad schema.Advertisement, log *zap.SugaredLogger) *regis
 		}
 	}
 	return extendedProviders
+}
+
+// signatureSigner returns the peer ID of the key that made a signature
+// envelope. It does not verify the signature.
+func signatureSigner(sig []byte) (peer.ID, error) {
+	envelope, err := record.UnmarshalEnvelope(sig)
+	if err != nil {
+		return "", err
+	}
+	return peer.IDFromPublicKey(envelope.PublicKey)
 }
 
 // ingestAd fetches all the entries for a single advertisement and processes

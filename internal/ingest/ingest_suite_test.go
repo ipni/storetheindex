@@ -1364,6 +1364,73 @@ func (s *IngestTestSuite) TestHamtNodesDeletedAsRead() {
 	require.Equal(t, 1, s.pub.blockConns())
 }
 
+// An extended provider record signed by its own key is registered
+func (s *IngestTestSuite) TestExtendedProviderSignedByOwnKey() {
+	t := s.T()
+	mhs := random.Multihashes(1)
+	epKey, epID := s.newPeerKey(t)
+	ad := s.newAd(s.chunk(t, mhs, nil))
+	ad.ExtendedProvider = &schema.ExtendedProvider{Providers: []schema.Provider{
+		{ID: s.pub.id.String()},
+		{ID: epID.String(), Addresses: []string{"/ip4/127.0.0.2/tcp/9999"}},
+	}}
+	s.signWithExtendedProviders(t, &ad, epKey)
+	s.publish(t, ad)
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireIndexed(t, mhs)
+	s.requireExtendedProviders(t, ad.ContextID, s.pub.id, epID)
+}
+
+// An extended provider record signed by a key other than the extended
+// provider's own is ignored, so that a publisher cannot name any peer as a
+// provider of its content. The rest of the ad is processed.
+func (s *IngestTestSuite) TestExtendedProviderSignedByOtherKey() {
+	t := s.T()
+	mhs := random.Multihashes(1)
+	_, epID := s.newPeerKey(t)
+	otherKey, _ := s.newPeerKey(t)
+	ad := s.newAd(s.chunk(t, mhs, nil))
+	ad.ExtendedProvider = &schema.ExtendedProvider{Providers: []schema.Provider{
+		{ID: s.pub.id.String()},
+		{ID: epID.String(), Addresses: []string{"/ip4/127.0.0.2/tcp/9999"}},
+	}}
+	s.signWithExtendedProviders(t, &ad, otherKey)
+	adCid := s.publish(t, ad)
+
+	require.NoError(t, s.sync(t.Context()))
+	require.True(t, s.adState(t, adCid).Processed)
+	s.requireIndexed(t, mhs)
+	s.requireExtendedProviders(t, ad.ContextID, s.pub.id)
+}
+
+// The record of the ad's own provider signed by a key that is neither the
+// provider's nor the ad signer's is ignored. Its signature comes from a copy
+// of the ad signed with another key, which is valid for the ad, since the
+// signature of a record does not cover the signatures in the ad.
+func (s *IngestTestSuite) TestOwnExtendedProviderSignedByOtherKey() {
+	t := s.T()
+	mhs := random.Multihashes(1)
+	epKey, epID := s.newPeerKey(t)
+	otherKey, _ := s.newPeerKey(t)
+	ad := s.newAd(s.chunk(t, mhs, nil))
+	ad.ExtendedProvider = &schema.ExtendedProvider{Providers: []schema.Provider{
+		{ID: s.pub.id.String()},
+		{ID: epID.String(), Addresses: []string{"/ip4/127.0.0.2/tcp/9999"}},
+	}}
+	other := ad
+	other.ExtendedProvider = &schema.ExtendedProvider{Providers: slices.Clone(ad.ExtendedProvider.Providers)}
+	require.NoError(t, other.SignWithExtendedProviders(otherKey, func(string) (crypto.PrivKey, error) { return epKey, nil }))
+	s.signWithExtendedProviders(t, &ad, epKey)
+	ad.ExtendedProvider.Providers[0].Signature = other.ExtendedProvider.Providers[0].Signature
+	adCid := s.publish(t, ad)
+
+	require.NoError(t, s.sync(t.Context()))
+	require.True(t, s.adState(t, adCid).Processed)
+	s.requireIndexed(t, mhs)
+	s.requireExtendedProviders(t, ad.ContextID, epID)
+}
+
 // limitedIndexer wraps an indexer. after is how many puts succeed before
 // fail makes the next Put return an error, or before cancel runs.
 type limitedIndexer struct {
