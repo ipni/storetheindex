@@ -329,8 +329,10 @@ graph TD
   before the failure stay indexed, as the chunks before a bad entry chunk do,
   and the batch in progress is not indexed. A node that is gone from the temp
   datastore when it is loaded (`errNotInDatastore`) is an `indexerErr`, like a
-  datastore failure, and the ad is retried (`hamtLoadError`). HAMT CIDs are
-  deleted from the temp datastore afterward.
+  datastore failure, and the ad is retried (`hamtLoadError`). Each node is
+  deleted from the temp datastore as soon as it is loaded, and the root when
+  the HAMT is done, so the temp datastore holds one node below the root at a
+  time.
 
 ### Identity CIDs
 
@@ -516,9 +518,11 @@ short-lived and safe to discard.
 - **Phase 3 (entry ingestion), fetching from the publisher:** entry-chunk and
   HAMT node blocks fetched by `SyncOneEntry` / `SyncEntries` flow through
   the same write opener into `dsTmp`. HAMT nodes
-  are not mirrored, so `ingestHamtFromPublisher`'s deferred cleanup always
-  deletes them. Entry chunks are deleted as they are indexed in
-  `ingestEntriesFromPublisher` when no writable mirror is configured. With a
+  are not mirrored: `hamtKeys` deletes each node below the root as soon as it
+  has loaded it, so `dsTmp` holds one of them at a time, and
+  `ingestHamtFromPublisher` deletes the root when it is done. Entry chunks
+  are deleted as they are indexed in `ingestEntriesFromPublisher` when no
+  writable mirror is configured. With a
   writable mirror they stay until the ad is written to the CAR mirror, which
   removes them, or until `cleanupAdData` removes them for a skipped ad.
 - **Phase 3, reading from the CAR mirror:** when a readable CAR (Main first,

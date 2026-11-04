@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -66,12 +67,17 @@ type testPublisher struct {
 	blocks  map[cid.Cid]http.HandlerFunc
 	head    cid.Cid
 	fetched []cid.Cid
+	// conns holds the connections that block requests arrived on
+	conns map[net.Conn]struct{}
 }
+
+// connKey is the request context key of the connection a request arrived on
+type connKey struct{}
 
 func newTestPublisher(t *testing.T, key crypto.PrivKey) *testPublisher {
 	id, err := peer.IDFromPrivateKey(key)
 	require.NoError(t, err)
-	p := &testPublisher{key: key, id: id, blocks: make(map[cid.Cid]http.HandlerFunc)}
+	p := &testPublisher{key: key, id: id, blocks: make(map[cid.Cid]http.HandlerFunc), conns: make(map[net.Conn]struct{})}
 	p.lsys = cidlink.DefaultLinkSystem()
 	p.lsys.StorageReadOpener = func(_ ipld.LinkContext, l ipld.Link) (io.Reader, error) {
 		h, ok := p.block(l.(cidlink.Link).Cid)
@@ -93,7 +99,11 @@ func newTestPublisher(t *testing.T, key crypto.PrivKey) *testPublisher {
 		}, nil
 	}
 
-	srv := httptest.NewServer(http.HandlerFunc(p.serve))
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(p.serve))
+	srv.Config.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
+		return context.WithValue(ctx, connKey{}, c)
+	}
+	srv.Start()
 	t.Cleanup(srv.Close)
 	u, err := url.Parse(srv.URL)
 	require.NoError(t, err)
@@ -134,6 +144,7 @@ func (p *testPublisher) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	p.mu.Lock()
 	p.fetched = append(p.fetched, c)
+	p.conns[r.Context().Value(connKey{}).(net.Conn)] = struct{}{}
 	p.mu.Unlock()
 	h(w, r)
 }
@@ -162,6 +173,13 @@ func (p *testPublisher) fetchedBlocks() []cid.Cid {
 	return slices.Clone(p.fetched)
 }
 
+// blockConns returns the number of connections that block requests arrived on
+func (p *testPublisher) blockConns() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.conns)
+}
+
 // setHead sets the CID that the publisher announces as its head
 func (p *testPublisher) setHead(c cid.Cid) {
 	p.mu.Lock()
@@ -169,13 +187,15 @@ func (p *testPublisher) setHead(c cid.Cid) {
 	p.head = c
 }
 
-// tmpDatastore is the temporary datastore of the ingester. A test can make it
-// delete a block right after the block is first read, as another worker that
-// synced the same block may do.
+// tmpDatastore is the temporary datastore of the ingester. It records the
+// largest number of blocks it held at once, and a test can make it delete a
+// block right after the block is first read, as another worker that synced
+// the same block may do.
 type tmpDatastore struct {
 	datastore.Batching
 	mu           sync.Mutex
 	held         map[datastore.Key]struct{}
+	peak         int
 	deleteOnRead map[datastore.Key]struct{}
 }
 
@@ -190,6 +210,7 @@ func newTmpDatastore() *tmpDatastore {
 func (ds *tmpDatastore) Put(ctx context.Context, key datastore.Key, value []byte) error {
 	ds.mu.Lock()
 	ds.held[key] = struct{}{}
+	ds.peak = max(ds.peak, len(ds.held))
 	ds.mu.Unlock()
 	return ds.Batching.Put(ctx, key, value)
 }
@@ -221,6 +242,13 @@ func (ds *tmpDatastore) blocksHeld() int {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	return len(ds.held)
+}
+
+// peakBlocks returns the largest number of blocks the datastore held at once
+func (ds *tmpDatastore) peakBlocks() int {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	return ds.peak
 }
 
 // deleteAfterRead makes the datastore delete block c right after the next
@@ -1314,6 +1342,26 @@ func (s *IngestTestSuite) TestHamtIdentityLinkedTwice() {
 	s.requireSkipped(t, adCid, adIngestMalformedErr)
 	// The ad and the HAMT root, and the n nodes below the root
 	require.LessOrEqual(t, len(s.pub.fetchedBlocks()), 2+n)
+}
+
+// The temporary datastore holds one HAMT node below the root at a time,
+// however many nodes the HAMT has: ingest deletes each node as soon as it
+// has loaded it. The node syncs share one connection with the publisher, so
+// a HAMT with many nodes does not use up local ports.
+func (s *IngestTestSuite) TestHamtNodesDeletedAsRead() {
+	t := s.T()
+	cfg := defaultTestIngestConfig
+	cfg.EntriesDepthLimit = 1000
+	s.withConfig(cfg)
+	entries := typehelpers.RandomHamtEntryBuilder{BitWidth: 3, BucketSize: 1, MultihashCount: 300}.Build(t, s.pub.lsys)
+	adCid := s.publish(t, s.newAd(entries))
+
+	require.NoError(t, s.sync(t.Context()))
+	require.True(t, s.adState(t, adCid).Processed)
+	s.requireIndexed(t, typehelpers.AllMultihashesFromAdLink(t, cidlink.Link{Cid: adCid}, s.pub.lsys))
+	// The ad, the HAMT root and one node
+	require.LessOrEqual(t, s.tmpStore.peakBlocks(), 3)
+	require.Equal(t, 1, s.pub.blockConns())
 }
 
 // limitedIndexer wraps an indexer. after is how many puts succeed before

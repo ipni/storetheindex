@@ -555,16 +555,12 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 
 	log = log.With("entriesKind", "hamt")
 	syncStatus := ing.SyncStatusFor(publisherID)
-	// Keep track of all CIDs in the HAMT to remove them later when the
-	// processing is done.
-	hamtCids := []cid.Cid{entsCid}
-	// HAMT entries do not get written to mirror, so delete them.
+	// HAMT entries do not get written to mirror, so delete them. hamtKeys
+	// deletes each node below the root as soon as it has loaded it. The
+	// delete must not fail because the sync was cancelled.
 	defer func() {
-		for _, c := range hamtCids {
-			err := ing.dsTmp.Delete(ctx, datastore.NewKey(c.String()))
-			if err != nil {
-				log.Errorw("Error deleting HAMT cid from datastore", "cid", c, "err", err)
-			}
+		if err := ing.dsTmp.Delete(context.WithoutCancel(ctx), datastore.NewKey(entsCid.String())); err != nil {
+			log.Errorw("Error deleting HAMT root from datastore", "cid", entsCid, "err", err)
 		}
 	}()
 
@@ -580,12 +576,9 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	// syncNode syncs one node of the HAMT, which hamtKeys calls when it
 	// reaches a link, so that a node is fetched only after the node that
 	// links to it is checked. The depth limit of 1 syncs that block alone:
-	// the entries selector would otherwise follow a Next field in it. The
-	// hook gathers the block's CID so that it is removed from the datastore
-	// once processing is finished.
+	// the entries selector would otherwise follow a Next field in it.
 	syncNode := func(c cid.Cid) error {
-		err := ing.sub.SyncEntries(ctx, pubInfo, c, dagsync.ScopedDepthLimit(1), dagsync.ScopedBlockHook(func(_ peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
-			hamtCids = append(hamtCids, c)
+		err := ing.sub.SyncEntries(ctx, pubInfo, c, dagsync.ScopedDepthLimit(1), dagsync.ScopedBlockHook(func(_ peer.ID, _ cid.Cid, actions dagsync.SegmentSyncActions) {
 			actions.SetNextSyncCid(cid.Undef)
 		}))
 		if err != nil {
@@ -605,7 +598,7 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	// indexed, as the chunks before a bad entry chunk do, and the multihashes
 	// of the batch in progress are not indexed.
 	mhs := make([]multihash.Multihash, 0, batchSize)
-	for key, err := range ing.hamtKeys(ctx, root, syncNode) {
+	for key, err := range ing.hamtKeys(ctx, root, syncNode, log) {
 		if err != nil {
 			if _, ok := errors.AsType[adIngestError](err); ok {
 				return mhCount, err
@@ -973,7 +966,8 @@ func hamtLoadError(err error, msg string) error {
 
 // hamtKeys returns the keys in the buckets of the HAMT at root, in the order
 // of the HAMT. It calls syncNode with the CID of each node below the root,
-// then loads the node from the temporary datastore. An error from syncNode is
+// then loads the node from the temporary datastore and deletes it there, so
+// that the datastore holds one node at a time. An error from syncNode is
 // yielded as it is.
 //
 // It checks the HAMT against the HAMT specification as it reads it: the
@@ -997,7 +991,7 @@ func hamtLoadError(err error, msg string) error {
 // The walk syncs at most entriesDepthLimit nodes below the root, as a sync of
 // an entry chunk chain stops after entriesDepthLimit chunks, and then stops
 // without an error.
-func (ing *Ingester) hamtKeys(ctx context.Context, root *hamt.HashMapRoot, syncNode func(cid.Cid) error) iter.Seq2[[]byte, error] {
+func (ing *Ingester) hamtKeys(ctx context.Context, root *hamt.HashMapRoot, syncNode func(cid.Cid) error, log *zap.SugaredLogger) iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
 		mapLen := len(root.Hamt.Map)
 		switch {
@@ -1105,12 +1099,21 @@ func (ing *Ingester) hamtKeys(ctx context.Context, root *hamt.HashMapRoot, syncN
 					return false, nil
 				}
 				synced[lnk.Cid] = struct{}{}
-				if err := syncNode(lnk.Cid); err != nil {
-					return false, err
+				err := syncNode(lnk.Cid)
+				var child *hamt.HashMapNode
+				if err == nil {
+					if child, err = ing.loadHamtNode(lnk.Cid); err != nil {
+						err = fmt.Errorf("cannot load HAMT node %s: %w", lnk.Cid, err)
+					}
 				}
-				child, err := ing.loadHamtNode(lnk.Cid)
+				// The walk holds the node in memory while it reads the node's
+				// subtree, so the datastore does not need the block any more.
+				// The delete must not fail because the sync was cancelled.
+				if delErr := ing.dsTmp.Delete(context.WithoutCancel(ctx), datastore.NewKey(lnk.Cid.String())); delErr != nil {
+					log.Errorw("Error deleting HAMT node from datastore", "cid", lnk.Cid, "err", delErr)
+				}
 				if err != nil {
-					return false, fmt.Errorf("cannot load HAMT node %s: %w", lnk.Cid, err)
+					return false, err
 				}
 				if ok, err := nodeKeysIter(child, subPath); !ok {
 					return false, err
