@@ -34,6 +34,9 @@ type Ingest struct {
 	// the provider for each chunk. These requests are done in groups
 	// (segments) of size set by SyncSegmentDepthLimit. EntriesDepthLimit sets
 	// the limit on the total number of entries chunks across all segments.
+	// For a HAMT, it limits the number of nodes below the root that are
+	// synced, as it does for entries chunks, and it is the deepest level of
+	// nodes below the root: an ad whose HAMT is deeper is skipped.
 	EntriesDepthLimit int
 	// FirstSyncDepth sets the advertisement chain depth to sync on the first
 	// sync with a new provider. To sync a new provider with only the most

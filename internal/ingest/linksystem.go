@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -557,9 +558,6 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	// Keep track of all CIDs in the HAMT to remove them later when the
 	// processing is done.
 	hamtCids := []cid.Cid{entsCid}
-	gatherCids := func(_ peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
-		hamtCids = append(hamtCids, c)
-	}
 	// HAMT entries do not get written to mirror, so delete them.
 	defer func() {
 		for _, c := range hamtCids {
@@ -579,22 +577,21 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	pubInfo := peer.AddrInfo{
 		ID: publisherID,
 	}
-	// Sync the nodes below the root, since so far only the root is synced.
-	// hamtKeys checks the HAMT as it reads it.
-	for _, elem := range root.Hamt.Data {
-		if elem.HashMapNode == nil {
-			continue
-		}
-		lnk, ok := (*elem.HashMapNode).(cidlink.Link)
-		if !ok {
-			continue
-		}
-		// Gather all the HAMT Cids so that we can remove them from datastore
-		// once finished processing.
-		err = ing.sub.SyncHAMTEntries(ctx, pubInfo, lnk.Cid, dagsync.ScopedBlockHook(gatherCids))
+	// syncNode syncs one node of the HAMT, which hamtKeys calls when it
+	// reaches a link, so that a node is fetched only after the node that
+	// links to it is checked. The depth limit of 1 syncs that block alone:
+	// the entries selector would otherwise follow a Next field in it. The
+	// hook gathers the block's CID so that it is removed from the datastore
+	// once processing is finished.
+	syncNode := func(c cid.Cid) error {
+		err := ing.sub.SyncEntries(ctx, pubInfo, c, dagsync.ScopedDepthLimit(1), dagsync.ScopedBlockHook(func(_ peer.ID, c cid.Cid, actions dagsync.SegmentSyncActions) {
+			hamtCids = append(hamtCids, c)
+			actions.SetNextSyncCid(cid.Undef)
+		}))
 		if err != nil {
-			return 0, entriesSyncError(err, "failed to sync remaining HAMT")
+			return entriesSyncError(err, "failed to sync HAMT node")
 		}
+		return nil
 	}
 
 	var mhCount int
@@ -608,8 +605,11 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	// indexed, as the chunks before a bad entry chunk do, and the multihashes
 	// of the batch in progress are not indexed.
 	mhs := make([]multihash.Multihash, 0, batchSize)
-	for key, err := range ing.hamtKeys(ctx, root) {
+	for key, err := range ing.hamtKeys(ctx, root, syncNode) {
 		if err != nil {
+			if _, ok := errors.AsType[adIngestError](err); ok {
+				return mhCount, err
+			}
 			return mhCount, hamtLoadError(err, "invalid HAMT")
 		}
 		mhs = append(mhs, multihash.Multihash(key))
@@ -972,7 +972,9 @@ func hamtLoadError(err error, msg string) error {
 }
 
 // hamtKeys returns the keys in the buckets of the HAMT at root, in the order
-// of the HAMT, loading child nodes from the temporary datastore.
+// of the HAMT. It calls syncNode with the CID of each node below the root,
+// then loads the node from the temporary datastore. An error from syncNode is
+// yielded as it is.
 //
 // It checks the HAMT against the HAMT specification as it reads it: the
 // root's hash algorithm is identity, sha2-256 or murmur3; its bucket size is
@@ -980,9 +982,22 @@ func hamtLoadError(err error, msg string) error {
 // of two of at most maxHamtMapLen bytes; the bitmap has one bit set for each
 // element; each element is either a link or a bucket of 1 to BucketSize
 // entries; and the hash of each key selects the slots on the path from the
-// root to the key's bucket, so a node can be reached by one path only. At the
-// first check that fails, it yields the error and stops.
-func (ing *Ingester) hamtKeys(ctx context.Context, root *hamt.HashMapRoot) iter.Seq2[[]byte, error] {
+// root to the key's bucket. A node deeper below the root than
+// entriesDepthLimit is malformed, and is not synced. A link that is too deep
+// for any key of a sha2-256 or murmur3 hash is malformed. With the identity
+// hash the hash is the key, and a key longer than the longest multihash that
+// is indexed cannot be indexed, so such a link is skipped and the walk
+// continues. At the first check that fails, it yields the error and stops.
+//
+// A valid HAMT links to each node from one place, so a link to a node that the
+// walk has already synced is malformed. The key check finds such a link only
+// at a key below it, and an identity HAMT whose deepest links are skipped
+// holds no keys there, so the walk keeps the CIDs of the nodes it has synced.
+//
+// The walk syncs at most entriesDepthLimit nodes below the root, as a sync of
+// an entry chunk chain stops after entriesDepthLimit chunks, and then stops
+// without an error.
+func (ing *Ingester) hamtKeys(ctx context.Context, root *hamt.HashMapRoot, syncNode func(cid.Cid) error) iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
 		mapLen := len(root.Hamt.Map)
 		switch {
@@ -997,15 +1012,30 @@ func (ing *Ingester) hamtKeys(ctx context.Context, root *hamt.HashMapRoot) iter.
 			return
 		}
 		bitWidth := bits.TrailingZeros(uint(mapLen)) + 3
+		// hashBits is the number of bits in the hash of a key. For identity,
+		// the hash is the key itself, and a key longer than a multihash with
+		// a digest of maxDigestLength bytes is not indexed, so no node needs
+		// to hold one.
+		var hashBits int
+		switch root.HashAlg {
+		case mc.Sha2_256:
+			hashBits = 8 * sha256.Size
+		case mc.Murmur3X64_64:
+			hashBits = 128
+		case mc.Identity:
+			hashBits = 8 * (maxDigestLength + 2*binary.MaxVarintLen64)
+		}
+
+		// synced holds the CIDs of the nodes below the root that the walk has
+		// synced. Its size is counted against entriesDepthLimit, as the
+		// chunks of an entry chunk chain are counted.
+		synced := make(map[cid.Cid]struct{})
 
 		var nodeKeysIter func(node *hamt.HashMapNode, path []int) (keepGoing bool, err error)
 		nodeKeysIter = func(node *hamt.HashMapNode, path []int) (keepGoing bool, err error) {
 			if len(node.Map) != mapLen {
 				return false, fmt.Errorf("%w: node bitmap length %d differs from root bitmap length %d", errMalformedHamt, len(node.Map), mapLen)
 			}
-			// A node below the root holds at least one element, so every
-			// subtree holds a key, and a node reached by a second path fails
-			// the check of the first key below it.
 			if len(path) != 0 && len(node.Data) == 0 {
 				return false, fmt.Errorf("%w: node below the root has no elements", errMalformedHamt)
 			}
@@ -1049,6 +1079,34 @@ func (ing *Ingester) hamtKeys(ctx context.Context, root *hamt.HashMapRoot) iter.
 				lnk, ok := (*elem.HashMapNode).(cidlink.Link)
 				if !ok {
 					return false, fmt.Errorf("%w: link is not a CID", errMalformedHamt)
+				}
+				if ing.entriesDepthLimit > 0 && len(subPath) > ing.entriesDepthLimit {
+					return false, fmt.Errorf("%w: node %s is deeper than the entries depth limit %d", errMalformedHamt, lnk.Cid, ing.entriesDepthLimit)
+				}
+				// The buckets of the child are one level below it, and a key
+				// in them needs bitWidth bits of its hash for each level.
+				// No indexable key can sit that deep. sha2-256 and murmur3
+				// have no longer keys, so the HAMT is malformed. The identity
+				// hash is the key itself, and indexing ignores a key longer
+				// than the longest multihash it accepts, so the link is
+				// skipped and the rest of the HAMT is walked.
+				if (len(subPath)+1)*bitWidth > hashBits {
+					if root.HashAlg == mc.Identity {
+						log.Debugw("Skipping identity HAMT link deeper than an indexable key", "cid", lnk.Cid, "depth", len(subPath))
+						continue
+					}
+					return false, fmt.Errorf("%w: node %s is deeper than the hash of a key allows", errMalformedHamt, lnk.Cid)
+				}
+				if _, ok := synced[lnk.Cid]; ok {
+					return false, fmt.Errorf("%w: node %s is linked from more than one place", errMalformedHamt, lnk.Cid)
+				}
+				if ing.entriesDepthLimit > 0 && len(synced) >= ing.entriesDepthLimit {
+					log.Warnw("HAMT has more nodes than the entries depth limit, indexing the nodes before it", "limit", ing.entriesDepthLimit)
+					return false, nil
+				}
+				synced[lnk.Cid] = struct{}{}
+				if err := syncNode(lnk.Cid); err != nil {
+					return false, err
 				}
 				child, err := ing.loadHamtNode(lnk.Cid)
 				if err != nil {

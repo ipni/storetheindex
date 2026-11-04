@@ -3,6 +3,7 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -60,9 +62,10 @@ type testPublisher struct {
 	// lsys stores IPLD nodes as blocks of the publisher, and reads them back
 	lsys ipld.LinkSystem
 
-	mu     sync.Mutex
-	blocks map[cid.Cid]http.HandlerFunc
-	head   cid.Cid
+	mu      sync.Mutex
+	blocks  map[cid.Cid]http.HandlerFunc
+	head    cid.Cid
+	fetched []cid.Cid
 }
 
 func newTestPublisher(t *testing.T, key crypto.PrivKey) *testPublisher {
@@ -129,6 +132,9 @@ func (p *testPublisher) serve(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	p.mu.Lock()
+	p.fetched = append(p.fetched, c)
+	p.mu.Unlock()
 	h(w, r)
 }
 
@@ -147,6 +153,13 @@ func (p *testPublisher) put(c cid.Cid, data []byte) {
 	p.blocks[c] = func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write(data)
 	}
+}
+
+// fetchedBlocks returns the CIDs of the blocks that were fetched, in order
+func (p *testPublisher) fetchedBlocks() []cid.Cid {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.fetched)
 }
 
 // setHead sets the CID that the publisher announces as its head
@@ -290,8 +303,20 @@ func (e *testIngestEnv) hamtNode(t *testing.T, n *hamt.HashMapNode) ipld.Link {
 // hamtRoot adds a HAMT root of sha2-256 hashes with the given bucket size,
 // in its type-level form, as hamt.Builder writes it.
 func (e *testIngestEnv) hamtRoot(t *testing.T, bucketSize int, n hamt.HashMapNode) ipld.Link {
-	root := &hamt.HashMapRoot{HashAlg: multicodec.Sha2_256, BucketSize: bucketSize, Hamt: n}
+	return e.hamtRootHash(t, multicodec.Sha2_256, bucketSize, n)
+}
+
+// hamtRootHash adds a HAMT root with the hash algorithm and bucket size, in
+// its type-level form, as hamt.Builder writes it.
+func (e *testIngestEnv) hamtRootHash(t *testing.T, hashAlg multicodec.Code, bucketSize int, n hamt.HashMapNode) ipld.Link {
+	root := &hamt.HashMapRoot{HashAlg: hashAlg, BucketSize: bucketSize, Hamt: n}
 	return e.store(t, bindnode.Wrap(root, hamt.HashMapRootPrototype.Type()))
+}
+
+// setHamtBit sets slot in a HAMT bitmap. Slot 0 is the most significant bit
+// of the first byte.
+func (s *IngestTestSuite) setHamtBit(bitmap []byte, slot int) {
+	bitmap[slot>>3] |= 0x80 >> (slot & 7)
 }
 
 // newAd returns an ad of the publisher, as the provider, over entries. It
@@ -407,9 +432,15 @@ func TestIngestSuite(t *testing.T) {
 }
 
 func (s *IngestTestSuite) SetupTest() {
+	s.withConfig(defaultTestIngestConfig)
+}
+
+// withConfig replaces the test's environment with one whose ingester has
+// the configuration cfg.
+func (s *IngestTestSuite) withConfig(cfg config.Ingest) {
 	t := s.T()
 	key, _ := s.newPeerKey(t)
-	s.testIngestEnv = newTestIngestEnv(t, defaultTestIngestConfig, key)
+	s.testIngestEnv = newTestIngestEnv(t, cfg, key)
 }
 
 // digestMultihashes returns a sha2-256 multihash for each of the digest
@@ -486,6 +517,11 @@ func (s *IngestTestSuite) TestEntryChunks() {
 
 func (s *IngestTestSuite) TestHamt() {
 	t := s.T()
+	// A random HAMT of 200 multihashes can have more nodes than the default
+	// test EntriesDepthLimit
+	cfg := defaultTestIngestConfig
+	cfg.EntriesDepthLimit = 1000
+	s.withConfig(cfg)
 	entries := typehelpers.RandomHamtEntryBuilder{BitWidth: 3, BucketSize: 1, MultihashCount: 200}.Build(t, s.pub.lsys)
 	adCid := s.publish(t, s.newAd(entries))
 
@@ -922,6 +958,220 @@ func (s *IngestTestSuite) TestHamtNodeMissingFromDatastore() {
 	s.requireIndexed(t, []multihash.Multihash{k00})
 }
 
+// A HAMT whose root links to a chain of 40 nodes that each link twice to
+// the node below is refused after a few fetches. Following every link would
+// fetch 2^40 nodes. No key can match a path of 42 slots, so the walk refuses
+// the HAMT at the first bucket it reaches.
+func (s *IngestTestSuite) TestHamtLinkedTwiceAtEachLevel() {
+	t := s.T()
+	mh := random.Multihashes(1)
+	node := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(mh...)}}
+	for range 40 {
+		below := s.hamtNode(t, &node)
+		node = hamt.HashMapNode{Map: []byte{0xc0}, Data: []hamt.Element{s.hamtLink(below), s.hamtLink(below)}}
+	}
+	root := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(s.hamtNode(t, &node))}}
+	adCid := s.publish(t, s.newAd(s.hamtRoot(t, 3, root)))
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, s.sync(ctx))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+	s.requireNotIndexed(t, mh)
+}
+
+// A HAMT node deeper below the root than EntriesDepthLimit skips the ad as
+// malformed. The HAMT is otherwise valid: its key selects the slots on its
+// path, so without the limit it would be indexed.
+func (s *IngestTestSuite) TestHamtTooDeep() {
+	t := s.T()
+	cfg := defaultTestIngestConfig
+	cfg.EntriesDepthLimit = 2
+	s.withConfig(cfg)
+	// Each node has its one element in slot 0, and the bucket is one level
+	// below the deepest node allowed.
+	key := s.hamtKey(make([]int, cfg.EntriesDepthLimit+2)...)
+	node := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(key)}}
+	for range cfg.EntriesDepthLimit + 1 {
+		node = hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(s.hamtNode(t, &node))}}
+	}
+	adCid := s.publish(t, s.newAd(s.hamtRoot(t, 3, node)))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+	s.requireNotIndexed(t, []multihash.Multihash{key})
+}
+
+// Ingest syncs at most EntriesDepthLimit nodes of a HAMT below the root, as
+// it syncs at most that many entry chunks. The keys of the nodes before the
+// limit are indexed and the ad is processed; a node past it is not fetched.
+func (s *IngestTestSuite) TestHamtNodeCountLimit() {
+	for _, tc := range []struct {
+		name  string
+		nodes int
+	}{
+		{name: "at limit", nodes: 2},
+		{name: "over limit", nodes: 3},
+	} {
+		s.Run(tc.name, func() {
+			t := s.T()
+			cfg := defaultTestIngestConfig
+			cfg.EntriesDepthLimit = 2
+			s.withConfig(cfg)
+			// The root links to one node in each of its first slots, and each
+			// node holds a key in its slot 0.
+			root := hamt.HashMapNode{Map: []byte{0}}
+			var keys []multihash.Multihash
+			var nodes []ipld.Link
+			for slot := range tc.nodes {
+				key := s.hamtKey(slot, 0)
+				keys = append(keys, key)
+				child := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(key)}}
+				s.setHamtBit(root.Map, slot)
+				nodes = append(nodes, s.hamtNode(t, &child))
+				root.Data = append(root.Data, s.hamtLink(nodes[slot]))
+			}
+			adCid := s.publish(t, s.newAd(s.hamtRoot(t, 3, root)))
+
+			require.NoError(t, s.sync(t.Context()))
+			require.True(t, s.adState(t, adCid).Processed)
+			require.False(t, s.adState(t, adCid).Skipped)
+			limit := min(tc.nodes, cfg.EntriesDepthLimit)
+			s.requireIndexed(t, keys[:limit])
+			s.requireNotIndexed(t, keys[limit:])
+			s.requireNotFetched(t, nodes[limit:]...)
+		})
+	}
+}
+
+// requireNotFetched requires that none of links was fetched from the
+// publisher.
+func (s *IngestTestSuite) requireNotFetched(t *testing.T, links ...ipld.Link) {
+	t.Helper()
+	fetched := s.pub.fetchedBlocks()
+	for _, l := range links {
+		require.NotContains(t, fetched, l.(cidlink.Link).Cid)
+	}
+}
+
+// Ingest syncs only the block that a HAMT node links to, also when that block
+// is an entry chunk whose Next links to more chunks and a sync would follow
+// them up to SyncSegmentDepthLimit.
+func (s *IngestTestSuite) TestHamtNodeSyncedAlone() {
+	t := s.T()
+	cfg := defaultTestIngestConfig
+	cfg.SyncSegmentDepthLimit = 2000
+	s.withConfig(cfg)
+	chain := make([]ipld.Link, 10)
+	var next ipld.Link
+	for i := range chain {
+		next = s.chunk(t, random.Multihashes(1), next)
+		chain[len(chain)-1-i] = next
+	}
+	root := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(chain[0])}}
+	adCid := s.publish(t, s.newAd(s.hamtRoot(t, 3, root)))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+	s.requireNotFetched(t, chain[1:]...)
+}
+
+// A HAMT node too deep for any key below it to have enough bits of its hash
+// to select its path skips the ad as malformed, and is not fetched. With a
+// bit width of 3, sha2-256 allows 256 bits and murmur3 128, so a bucket is at
+// most 85 or 42 levels deep.
+func (s *IngestTestSuite) TestHamtDeeperThanHash() {
+	for _, tc := range []struct {
+		alg      multicodec.Code
+		hashBits int
+	}{
+		{multicodec.Sha2_256, 256},
+		{multicodec.Murmur3X64_64, 128},
+	} {
+		s.Run(tc.alg.String(), func() {
+			t := s.T()
+			const bitWidth = 3
+			// The two deepest nodes are past the hash, so neither is fetched.
+			n := tc.hashBits/bitWidth + 1
+			node := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(random.Multihashes(1)...)}}
+			nodes := make([]ipld.Link, n)
+			for i := range nodes {
+				nodes[i] = s.hamtNode(t, &node)
+				node = hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(nodes[i])}}
+			}
+			adCid := s.publish(t, s.newAd(s.hamtRootHash(t, tc.alg, 3, node)))
+
+			require.NoError(t, s.sync(t.Context()))
+			s.requireSkipped(t, adCid, adIngestMalformedErr)
+			s.requireNotFetched(t, nodes[0], nodes[1])
+		})
+	}
+}
+
+// A HAMT whose root links to a chain of 40 nodes that each link twice to
+// the node below, with an empty node at the bottom, is refused after a few
+// fetches. Following every link would fetch 2^40 nodes.
+func (s *IngestTestSuite) TestHamtLinkedTwiceAboveEmptyNode() {
+	t := s.T()
+	node := hamt.HashMapNode{Map: []byte{0}}
+	for range 40 {
+		below := s.hamtNode(t, &node)
+		node = hamt.HashMapNode{Map: []byte{0xc0}, Data: []hamt.Element{s.hamtLink(below), s.hamtLink(below)}}
+	}
+	root := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(s.hamtNode(t, &node))}}
+	adCid := s.publish(t, s.newAd(s.hamtRoot(t, 3, root)))
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, s.sync(ctx))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+	require.Less(t, len(s.pub.fetchedBlocks()), 100)
+}
+
+// A HAMT node that the link system takes for an advertisement but that is not
+// a valid one skips the ad as malformed.
+func (s *IngestTestSuite) TestHamtChildIsBadAd() {
+	t := s.T()
+	root := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(s.store(t, s.notAnAd(t)))}}
+	adCid := s.publish(t, s.newAd(s.hamtRoot(t, 3, root)))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+}
+
+// A HAMT node that the publisher does not serve skips the ad as content not
+// found.
+func (s *IngestTestSuite) TestHamtChildNotServed() {
+	t := s.T()
+	missing := cidlink.Link{Cid: cid.NewCidV1(cid.DagJSON, random.Multihashes(1)[0])}
+	root := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(missing)}}
+	adCid := s.publish(t, s.newAd(s.hamtRoot(t, 3, root)))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestContentNotFound)
+}
+
+// A HAMT whose deepest node is EntriesDepthLimit levels below the root is
+// indexed.
+func (s *IngestTestSuite) TestHamtAtDepthLimit() {
+	t := s.T()
+	cfg := defaultTestIngestConfig
+	cfg.EntriesDepthLimit = 2
+	s.withConfig(cfg)
+	// Each node has its one element in slot 0, and the bucket is in the
+	// deepest node allowed.
+	key := s.hamtKey(make([]int, cfg.EntriesDepthLimit+1)...)
+	node := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(key)}}
+	for range cfg.EntriesDepthLimit {
+		node = hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(s.hamtNode(t, &node))}}
+	}
+	adCid := s.publish(t, s.newAd(s.hamtRoot(t, 3, node)))
+
+	require.NoError(t, s.sync(t.Context()))
+	require.False(t, s.adState(t, adCid).Skipped)
+	s.requireIndexed(t, []multihash.Multihash{key})
+}
+
 // A block with a "hamt" field that is not a HAMT root skips the ad as
 // malformed. isHAMT accepts the field, and loading the root then fails.
 func (s *IngestTestSuite) TestHamtFieldIsNotARoot() {
@@ -956,6 +1206,114 @@ func (s *IngestTestSuite) TestHamtIndexerPutFails() {
 	require.False(t, s.adState(t, adCid).Processed)
 	s.requireIndexed(t, keys[:batch])
 	s.requireNotIndexed(t, keys[batch:])
+}
+
+// Cancelling the worker after the first batch of a HAMT stops the walk at
+// the next link. The batch already indexed stays indexed, and the ad is left
+// to be retried. The walk uses the worker's context, so the cancel is the
+// ingester's, not the caller's.
+func (s *IngestTestSuite) TestHamtCancelAfterFirstBatch() {
+	t := s.T()
+	const batch = 4096
+	keys := make([]multihash.Multihash, batch)
+	for i := range keys {
+		keys[i] = s.hamtKey(0)
+	}
+	childKey := s.hamtKey(0)
+	child := s.hamtNode(t, &hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(childKey)}})
+	root := hamt.HashMapNode{Map: []byte{0xc0}, Data: []hamt.Element{s.hamtBucket(keys...), s.hamtLink(child)}}
+	adCid := s.publish(t, s.newAd(s.hamtRoot(t, batch, root)))
+	s.ing.indexer = &limitedIndexer{Interface: s.ing.indexer, after: 1, cancel: s.ing.cancelWorkers}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	require.ErrorIs(t, s.sync(ctx), context.Canceled)
+	require.False(t, s.adState(t, adCid).Processed)
+	s.requireIndexed(t, keys)
+	s.requireNotIndexed(t, []multihash.Multihash{childKey})
+	s.requireNotFetched(t, child)
+}
+
+// With the identity hash, a link too deep for any key that indexing would
+// accept is not synced, and the rest of the ad is indexed. The longest
+// indexable multihash is maxDigestLength bytes plus two varints.
+func (s *IngestTestSuite) TestHamtIdentityLinkTooDeep() {
+	t := s.T()
+	const bitWidth = 16
+	mapLen := 1 << (bitWidth - 3)
+	identityBits := 8 * (maxDigestLength + 2*binary.MaxVarintLen64)
+	// The two deepest nodes are past the hash, so neither is fetched.
+	n := identityBits/bitWidth + 1
+	node := hamt.HashMapNode{Map: make([]byte, mapLen)}
+	node.Map[0] = 0x80
+	nodes := make([]ipld.Link, n)
+	for i := range nodes {
+		nodes[i] = s.hamtNode(t, &node)
+		node = hamt.HashMapNode{Map: make([]byte, mapLen)}
+		node.Map[0] = 0x80
+		node.Data = []hamt.Element{s.hamtLink(nodes[i])}
+	}
+	key := random.Multihashes(1)[0]
+	keySlot := hashBits(key, 0, bitWidth)
+	chainSlot := 0
+	if keySlot == 0 {
+		chainSlot = 1
+	}
+	rootMap := make([]byte, mapLen)
+	s.setHamtBit(rootMap, keySlot)
+	s.setHamtBit(rootMap, chainSlot)
+	bucket := s.hamtBucket(key)
+	link := s.hamtLink(nodes[n-1])
+	data := []hamt.Element{link, bucket}
+	if keySlot < chainSlot {
+		data = []hamt.Element{bucket, link}
+	}
+	root := hamt.HashMapNode{Map: rootMap, Data: data}
+	adCid := s.publish(t, s.newAd(s.hamtRootHash(t, multicodec.Identity, 3, root)))
+
+	require.NoError(t, s.sync(t.Context()))
+	require.True(t, s.adState(t, adCid).Processed)
+	require.False(t, s.adState(t, adCid).Skipped)
+	s.requireIndexed(t, []multihash.Multihash{key})
+	s.requireNotFetched(t, nodes[0], nodes[1])
+}
+
+// In an identity HAMT whose deepest links are skipped, the nodes below a node
+// linked from two places hold no keys, so no key check finds the second path.
+// Here every node links twice to the node below it, so the number of paths
+// doubles with each level. The second link to a node that was synced skips the
+// ad as malformed, with no limit on the number of nodes synced, after each
+// node is fetched once.
+func (s *IngestTestSuite) TestHamtIdentityLinkedTwice() {
+	t := s.T()
+	cfg := defaultTestIngestConfig
+	cfg.EntriesDepthLimit = -1
+	s.withConfig(cfg)
+	const bitWidth = 16
+	mapLen := 1 << (bitWidth - 3)
+	identityBits := 8 * (maxDigestLength + 2*binary.MaxVarintLen64)
+	// A chain whose deepest link is past the hash, as in
+	// TestHamtIdentityLinkTooDeep, where each node links twice to the next.
+	n := identityBits/bitWidth + 1
+	node := hamt.HashMapNode{Map: make([]byte, mapLen)}
+	node.Map[0] = 0x80
+	for range n - 1 {
+		below := s.hamtNode(t, &node)
+		node = hamt.HashMapNode{Map: make([]byte, mapLen)}
+		node.Map[0] = 0xc0
+		node.Data = []hamt.Element{s.hamtLink(below), s.hamtLink(below)}
+	}
+	root := hamt.HashMapNode{Map: make([]byte, mapLen)}
+	root.Map[0] = 0x80
+	root.Data = []hamt.Element{s.hamtLink(s.hamtNode(t, &node))}
+	adCid := s.publish(t, s.newAd(s.hamtRootHash(t, multicodec.Identity, 3, root)))
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, s.sync(ctx))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+	// The ad and the HAMT root, and the n nodes below the root
+	require.LessOrEqual(t, len(s.pub.fetchedBlocks()), 2+n)
 }
 
 // limitedIndexer wraps an indexer. after is how many puts succeed before

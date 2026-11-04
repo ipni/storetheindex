@@ -301,20 +301,33 @@ graph TD
   (`errNotInDatastore`), as when another worker that synced the same chunk
   deleted it, is an `indexerErr`, like a datastore failure, and the ad is
   retried (`entryChunkLoadError`).
-- **HAMT** (`ingestHamtFromPublisher`): the nodes below each link of the root
-  are synced (`SyncHAMTEntries`), then `hamtKeys` reads the HAMT, checking
-  each node as it reaches it, and keys (multihashes) are indexed in batches of
-  4096. The root's hash algorithm is identity, sha2-256 or murmur3, and its
-  bucket size is at least 1; each node's bitmap has the root's length, a power
-  of two of at most 8 KiB; the bitmap has one bit set per element; each node
-  below the root has at least one element; each element is either a link or a
-  bucket of 1 to `bucketSize` entries; and the hash of each key selects the
-  slots on the path from the root to its bucket (`checkHamtKey`). Every
-  subtree then holds a key, and a key matches only one path, so a node linked
-  from two places fails the check at the first key below it. A HAMT that fails
-  a check skips the ad as `malformedErr`. The batches indexed before the
-  failure stay indexed, as the chunks before a bad entry chunk do, and the
-  batch in progress is not indexed. A node that is gone from the temp
+- **HAMT** (`ingestHamtFromPublisher`): `hamtKeys` walks down from the root,
+  checking each node as it reaches it, and keys (multihashes) are indexed in
+  batches of 4096. It syncs each linked node on its own with `SyncEntries` and
+  a depth limit of 1, so that a `Next` field in the block is not followed,
+  after it has checked the node that links to it. The root's hash algorithm is
+  identity, sha2-256 or murmur3, and its bucket size is at least 1; each
+  node's bitmap has the root's length, a power of two of at most 8 KiB; the
+  bitmap has one bit set per element; each node below the root has at least
+  one element; each element is either a link or a bucket of 1 to `bucketSize`
+  entries; the hash of each key selects the slots on the path from the root to
+  its bucket (`checkHamtKey`); and no node is deeper below the root than
+  `EntriesDepthLimit`. Ingest syncs at most
+  `EntriesDepthLimit` nodes below the root, as it syncs at most that many
+  entry chunks: the keys read before the limit are indexed, and the ad is
+  processed. For sha2-256 and murmur3, a link so deep that a key
+  below it would need more bits than the hash has (256 and 128) is malformed,
+  and the ad is skipped. For identity the hash is the key, and indexing
+  ignores a key longer than the longest multihash it accepts, so a link that
+  deep is not synced and the walk continues.
+  A valid HAMT links to each node from one place, so a link to a node that
+  the walk has already synced is malformed, and the ad is skipped. The walk
+  keeps the CIDs of the nodes it has synced to find such a link, since the key
+  check finds it only at a key below it, and in an identity HAMT whose
+  deepest links are skipped the nodes below may hold no keys.
+  A HAMT that fails a check skips the ad as `malformedErr`. The batches indexed
+  before the failure stay indexed, as the chunks before a bad entry chunk do,
+  and the batch in progress is not indexed. A node that is gone from the temp
   datastore when it is loaded (`errNotInDatastore`) is an `indexerErr`, like a
   datastore failure, and the ad is retried (`hamtLoadError`). HAMT CIDs are
   deleted from the temp datastore afterward.
@@ -501,8 +514,8 @@ short-lived and safe to discard.
   `dsTmp`). An ad's block is removed once the ad is processed (or moved to the
   CAR mirror when one is writable).
 - **Phase 3 (entry ingestion), fetching from the publisher:** entry-chunk and
-  HAMT node blocks fetched by `SyncOneEntry` / `SyncEntries` /
-  `SyncHAMTEntries` flow through the same write opener into `dsTmp`. HAMT nodes
+  HAMT node blocks fetched by `SyncOneEntry` / `SyncEntries` flow through
+  the same write opener into `dsTmp`. HAMT nodes
   are not mirrored, so `ingestHamtFromPublisher`'s deferred cleanup always
   deletes them. Entry chunks are deleted as they are indexed in
   `ingestEntriesFromPublisher` when no writable mirror is configured. With a
