@@ -643,6 +643,18 @@ Ingestion is configured by the `Ingest` section of the config file
 (`NewIngester`) and require a daemon restart to change. The reloadable subset is
 listed in [config.md](config.md).
 
+## Testing
+
+`IngestTestSuite`
+([`internal/ingest/ingest_suite_test.go`](../internal/ingest/ingest_suite_test.go))
+tests what ingestion does with the content that a publisher serves. Its
+publisher serves an ad chain over HTTP from memory and sends the bytes of
+each block exactly as the test put them, so a test can publish malformed
+blocks as easily as valid ones. A test builds blocks and ads with the
+suite's helpers, syncs, and checks what ingestion did with them. Each way
+that ingestion was found to fail on content from a publisher has a test
+there.
+
 ## File map
 
 | File | Responsibility |
@@ -652,6 +664,7 @@ listed in [config.md](config.md).
 | `internal/ingest/mirror.go` | CAR mirror read/write over the filestore. |
 | `internal/ingest/error.go` | `adIngestError` states and helpers. |
 | `internal/ingest/syncstatus.go` | Live per-publisher sync status tracker. |
+| `internal/ingest/ingest_suite_test.go` | `IngestTestSuite`, tests of ingestion against content served by a publisher. |
 | `server/ingest/server.go` | `/announce`, `/register`, `/sync/status`, `/sync/status/ad/<cid>` (single), and `POST /sync/status/ad` (batch) HTTP handlers. |
 | `internal/httpserver/announce.go` | Shared announce body decode (JSON or CBOR) used by ingest and assigner. |
 | `internal/registry/registry.go` | Provider registry, policy, freeze, auto-sync channel. |
