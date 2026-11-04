@@ -188,12 +188,14 @@ func (p *testPublisher) setHead(c cid.Cid) {
 }
 
 // tmpDatastore is the temporary datastore of the ingester. It records the
-// largest number of blocks it held at once, and a test can make it delete a
+// blocks put into it, which include each ad that the ingester accepts, and
+// the largest number of blocks it held at once. A test can make it delete a
 // block right after the block is first read, as another worker that synced
 // the same block may do.
 type tmpDatastore struct {
 	datastore.Batching
 	mu           sync.Mutex
+	puts         map[datastore.Key]struct{}
 	held         map[datastore.Key]struct{}
 	peak         int
 	deleteOnRead map[datastore.Key]struct{}
@@ -202,6 +204,7 @@ type tmpDatastore struct {
 func newTmpDatastore() *tmpDatastore {
 	return &tmpDatastore{
 		Batching:     dssync.MutexWrap(datastore.NewMapDatastore()),
+		puts:         make(map[datastore.Key]struct{}),
 		held:         make(map[datastore.Key]struct{}),
 		deleteOnRead: make(map[datastore.Key]struct{}),
 	}
@@ -209,6 +212,7 @@ func newTmpDatastore() *tmpDatastore {
 
 func (ds *tmpDatastore) Put(ctx context.Context, key datastore.Key, value []byte) error {
 	ds.mu.Lock()
+	ds.puts[key] = struct{}{}
 	ds.held[key] = struct{}{}
 	ds.peak = max(ds.peak, len(ds.held))
 	ds.mu.Unlock()
@@ -237,11 +241,12 @@ func (ds *tmpDatastore) Get(ctx context.Context, key datastore.Key) ([]byte, err
 	return value, err
 }
 
-// blocksHeld returns how many blocks the datastore holds now
-func (ds *tmpDatastore) blocksHeld() int {
+// wasPut reports whether block c was put into the datastore
+func (ds *tmpDatastore) wasPut(c cid.Cid) bool {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
-	return len(ds.held)
+	_, ok := ds.puts[datastore.NewKey(c.String())]
+	return ok
 }
 
 // peakBlocks returns the largest number of blocks the datastore held at once
@@ -249,6 +254,13 @@ func (ds *tmpDatastore) peakBlocks() int {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	return ds.peak
+}
+
+// blocksHeld returns how many blocks the datastore holds now
+func (ds *tmpDatastore) blocksHeld() int {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	return len(ds.held)
 }
 
 // deleteAfterRead makes the datastore delete block c right after the next
@@ -269,6 +281,9 @@ type testIngestEnv struct {
 	reg  *registry.Registry
 	// tmpStore is where ingestion stores the blocks it syncs
 	tmpStore *tmpDatastore
+	// stuck keeps the test cleanup from closing the ingester, which waits
+	// for ingestion that does not finish.
+	stuck bool
 }
 
 func newTestIngestEnv(t *testing.T, cfg config.Ingest, pubKey crypto.PrivKey) *testIngestEnv {
@@ -287,9 +302,11 @@ func newTestIngestEnv(t *testing.T, cfg config.Ingest, pubKey crypto.PrivKey) *t
 	e.ing, err = NewIngester(cfg, h, e.core, e.reg, dssync.MutexWrap(datastore.NewMapDatastore()), e.tmpStore)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = e.ing.Close()
-		e.reg.Close()
-		_ = e.core.Close()
+		if !e.stuck {
+			_ = e.ing.Close()
+			e.reg.Close()
+			_ = e.core.Close()
+		}
 		_ = h.Close()
 	})
 	return e

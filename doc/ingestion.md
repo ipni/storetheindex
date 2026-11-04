@@ -724,6 +724,59 @@ suite's helpers, syncs, and checks what ingestion did with them. Each way
 that ingestion was found to fail on content from a publisher has a test
 there.
 
+## Fuzzing
+
+`FuzzIngest`
+([`internal/ingest/fuzz_test.go`](../internal/ingest/fuzz_test.go)) ingests an
+ad chain built from the fuzz input and served by the publisher of
+`IngestTestSuite`. The input is a program that builds blocks of any bytes,
+entry chunks, HAMT nodes, lists of links and signed ads, with links between
+them, so it can describe malformed blocks, deep or wide DAGs, ad chains, and
+extended providers signed by the wrong key. Separate operations build blocks
+of up to 8 MiB and entry chunks of up to 65535 valid multihashes, so that
+inputs reach the limits on block size and entry count. The test checks
+invariants that hold for any input:
+
+- ingestion does not panic and finishes within a minute;
+- an accepted ad is processed (indexed or skipped), never retried when a
+  retry cannot succeed, except an ad that leaves a new provider with no valid
+  address;
+- every indexed value comes from an accepted, non-removal ad of the same
+  provider and context whose entries hold the multihash, and a removed
+  context has nothing indexed;
+- every multihash of an ad that is processed and not skipped is indexed,
+  unless the ad is a removal or a later ad removed its context, counting the
+  multihashes that decode, have a digest of at most 128 bytes, and are no
+  deeper below the ad's entries than `EntriesDepthLimit`;
+- every indexed multihash has a digest of at most 128 bytes
+  (`maxDigestLength`);
+- every extended provider in the registry signed for itself, or is the ad's
+  provider signed for by the ad's signer;
+- no block is fetched beyond `AdvertisementDepthLimit` in the ad chain or
+  `EntriesDepthLimit` below an ad's entries.
+
+`go test ./...` runs the seed inputs. This fuzzes for a given time:
+
+```sh
+go test ./internal/ingest -run '^$' -fuzz '^FuzzIngest$' -fuzztime 8h
+```
+
+A failing input is saved under `internal/ingest/testdata/fuzz/FuzzIngest/`,
+where it becomes part of the test's corpus. Fuzzing stops at the first
+failure, and each failure is fixed, in ingestion or in the test, before
+fuzzing goes on. A failure in ingestion also gets a test in `IngestTestSuite`,
+and the corpus keeps an input for each one that the fuzzer found. Ingestion
+that does not finish in time panics with the stacks of all goroutines, which
+show where it was stuck. An input whose ads hold more than about a million
+multihashes in total, counted once for each ad, is skipped: ingestion time
+grows with that count, and a publisher that serves many such ads only makes
+the indexer do work in proportion to what it serves.
+
+Inputs can make ingestion use a lot of memory and CPU, so run long fuzzing
+inside resource bounds, for example by prefixing the command with
+`systemd-run --user --scope -p MemoryMax=8G`, or in a container with memory
+and CPU limits.
+
 ## File map
 
 | File | Responsibility |
@@ -734,6 +787,7 @@ there.
 | `internal/ingest/error.go` | `adIngestError` states and helpers. |
 | `internal/ingest/syncstatus.go` | Live per-publisher sync status tracker. |
 | `internal/ingest/ingest_suite_test.go` | `IngestTestSuite`, tests of ingestion against content served by a publisher. |
+| `internal/ingest/fuzz_test.go` | `FuzzIngest`, the fuzz test of ad chain and entries ingestion. |
 | `server/ingest/server.go` | `/announce`, `/register`, `/sync/status`, `/sync/status/ad/<cid>` (single), and `POST /sync/status/ad` (batch) HTTP handlers. |
 | `internal/httpserver/announce.go` | Shared announce body decode (JSON or CBOR) used by ingest and assigner. |
 | `internal/registry/registry.go` | Provider registry, policy, freeze, auto-sync channel. |

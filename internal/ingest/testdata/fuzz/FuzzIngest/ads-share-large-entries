@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("0\x00\xe3\xdc\xff\x80\x00!\x01011\x17/ip4/110.0.1.0/tcp/0002A0A0&\x00\xfd0Y\xbc\xfb")
