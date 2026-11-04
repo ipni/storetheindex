@@ -19,6 +19,7 @@ import (
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipni/go-indexer-core/engine"
 	headschema "github.com/ipni/go-libipni/dagsync/ipnisync/head"
 	"github.com/ipni/go-libipni/ingest/schema"
@@ -30,6 +31,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -147,6 +149,68 @@ func (p *testPublisher) setHead(c cid.Cid) {
 	p.head = c
 }
 
+// tmpDatastore is the temporary datastore of the ingester. A test can make it
+// delete a block right after the block is first read, as another worker that
+// synced the same block may do.
+type tmpDatastore struct {
+	datastore.Batching
+	mu           sync.Mutex
+	held         map[datastore.Key]struct{}
+	deleteOnRead map[datastore.Key]struct{}
+}
+
+func newTmpDatastore() *tmpDatastore {
+	return &tmpDatastore{
+		Batching:     dssync.MutexWrap(datastore.NewMapDatastore()),
+		held:         make(map[datastore.Key]struct{}),
+		deleteOnRead: make(map[datastore.Key]struct{}),
+	}
+}
+
+func (ds *tmpDatastore) Put(ctx context.Context, key datastore.Key, value []byte) error {
+	ds.mu.Lock()
+	ds.held[key] = struct{}{}
+	ds.mu.Unlock()
+	return ds.Batching.Put(ctx, key, value)
+}
+
+func (ds *tmpDatastore) Delete(ctx context.Context, key datastore.Key) error {
+	ds.mu.Lock()
+	delete(ds.held, key)
+	ds.mu.Unlock()
+	return ds.Batching.Delete(ctx, key)
+}
+
+func (ds *tmpDatastore) Get(ctx context.Context, key datastore.Key) ([]byte, error) {
+	value, err := ds.Batching.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	ds.mu.Lock()
+	_, del := ds.deleteOnRead[key]
+	delete(ds.deleteOnRead, key)
+	ds.mu.Unlock()
+	if del {
+		err = ds.Delete(ctx, key)
+	}
+	return value, err
+}
+
+// blocksHeld returns how many blocks the datastore holds now
+func (ds *tmpDatastore) blocksHeld() int {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	return len(ds.held)
+}
+
+// deleteAfterRead makes the datastore delete block c right after the next
+// read that finds it.
+func (ds *tmpDatastore) deleteAfterRead(c cid.Cid) {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	ds.deleteOnRead[datastore.NewKey(c.String())] = struct{}{}
+}
+
 // testIngestEnv is an ingester that syncs from a testPublisher. The publisher
 // is also the provider of the ads that newAd builds.
 type testIngestEnv struct {
@@ -155,6 +219,8 @@ type testIngestEnv struct {
 	ing  *Ingester
 	core *engine.Engine
 	reg  *registry.Registry
+	// tmpStore is where ingestion stores the blocks it syncs
+	tmpStore *tmpDatastore
 }
 
 func newTestIngestEnv(t *testing.T, cfg config.Ingest, pubKey crypto.PrivKey) *testIngestEnv {
@@ -163,12 +229,14 @@ func newTestIngestEnv(t *testing.T, cfg config.Ingest, pubKey crypto.PrivKey) *t
 		pub:  newTestPublisher(t, pubKey),
 		core: mkIndexer(t, false),
 		reg:  mkRegistry(t),
+
+		tmpStore: newTmpDatastore(),
 	}
 	// The ingester host does not listen, so that many tests do not use up
 	// local ports.
 	h, err := libp2p.New(libp2p.NoListenAddrs)
 	require.NoError(t, err)
-	e.ing, err = NewIngester(cfg, h, e.core, e.reg, dssync.MutexWrap(datastore.NewMapDatastore()), dssync.MutexWrap(datastore.NewMapDatastore()))
+	e.ing, err = NewIngester(cfg, h, e.core, e.reg, dssync.MutexWrap(datastore.NewMapDatastore()), e.tmpStore)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = e.ing.Close()
@@ -184,6 +252,15 @@ func newTestIngestEnv(t *testing.T, cfg config.Ingest, pubKey crypto.PrivKey) *t
 func (e *testIngestEnv) sync(ctx context.Context) error {
 	_, err := e.ing.Sync(ctx, peer.AddrInfo{ID: e.pub.id, Addrs: []multiaddr.Multiaddr{e.pub.addr}}, 0, false, cid.Undef)
 	return err
+}
+
+// putRaw adds a block of data, whatever it holds, linked with a CID of the
+// codec.
+func (e *testIngestEnv) putRaw(codec multicodec.Code, data []byte) ipld.Link {
+	mh, _ := multihash.Sum(data, multihash.SHA2_256, -1)
+	c := cid.NewCidV1(uint64(codec), mh)
+	e.pub.put(c, data)
+	return cidlink.Link{Cid: c}
 }
 
 // store adds the node to the publisher, encoded in dag-json
@@ -285,6 +362,16 @@ func (e *testIngestEnv) requireExtendedProviders(t *testing.T, contextID []byte,
 		}
 	}
 	require.ElementsMatch(t, want, got)
+}
+
+// requireSkipped requires that the ad was processed and skipped for the
+// reason, an adIngestState.
+func (e *testIngestEnv) requireSkipped(t *testing.T, adCid cid.Cid, reason adIngestState) {
+	t.Helper()
+	state := e.adState(t, adCid)
+	require.True(t, state.Processed)
+	require.True(t, state.Skipped)
+	require.Contains(t, state.SkipReason, string(reason))
 }
 
 // IngestTestSuite tests what ingestion does with the content that a publisher
@@ -466,4 +553,71 @@ func (s *IngestTestSuite) TestExtendedProvidersOverrideWithoutContextID() {
 	require.True(t, s.adState(t, adCid).Processed)
 	s.requireIndexed(t, mhs)
 	s.requireExtendedProviders(t, nil)
+}
+
+// An entries block that does not decode skips the ad as malformed
+func (s *IngestTestSuite) TestEntriesBlockNotDecoding() {
+	t := s.T()
+	adCid := s.publish(t, s.newAd(s.putRaw(multicodec.DagJson, []byte("{not json"))))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+}
+
+// A Next block that does not decode skips the ad as malformed
+func (s *IngestTestSuite) TestNextEntriesBlockNotDecoding() {
+	t := s.T()
+	next := s.putRaw(multicodec.DagCbor, []byte{0xff})
+	adCid := s.publish(t, s.newAd(s.chunk(t, random.Multihashes(1), next)))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+}
+
+// A Next block that is not an entry chunk skips the ad, and the multihashes
+// of the chunk before it stay indexed.
+func (s *IngestTestSuite) TestNextBlockNotEntryChunk() {
+	t := s.T()
+	mhs := random.Multihashes(1)
+	next := s.store(t, basicnode.NewString("not an entry chunk"))
+	adCid := s.publish(t, s.newAd(s.chunk(t, mhs, next)))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestEntryChunkErr)
+	s.requireIndexed(t, mhs)
+	// The block that is not an entry chunk is not left in the datastore.
+	require.Zero(t, s.tmpStore.blocksHeld())
+}
+
+// An entries block that decodes but is not an entry chunk skips the ad, and
+// the block is not left in the temporary datastore.
+func (s *IngestTestSuite) TestEntriesBlockNotEntryChunk() {
+	t := s.T()
+	adCid := s.publish(t, s.newAd(s.store(t, basicnode.NewString("not an entry chunk"))))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestEntryChunkErr)
+	require.Zero(t, s.tmpStore.blocksHeld())
+}
+
+// An entry chunk that is gone from the temporary datastore when ingest loads
+// it, as when another worker that synced the same chunk has deleted it, leaves
+// the ad to be retried, and a later sync indexes it. An ad is processed first,
+// so that the retry starts from it.
+func (s *IngestTestSuite) TestEntryChunkMissingFromDatastore() {
+	t := s.T()
+	s.publish(t, s.newAd(s.chunk(t, random.Multihashes(1), nil)))
+	require.NoError(t, s.sync(t.Context()))
+
+	mhs := random.Multihashes(2)
+	next := s.chunk(t, mhs[1:], nil)
+	adCid := s.publish(t, s.newAd(s.chunk(t, mhs[:1], next)))
+
+	s.tmpStore.deleteAfterRead(next.(cidlink.Link).Cid)
+	require.ErrorContains(t, s.sync(t.Context()), string(adIngestIndexerErr))
+	require.False(t, s.adState(t, adCid).Processed)
+
+	require.NoError(t, s.sync(t.Context()))
+	require.True(t, s.adState(t, adCid).Processed)
+	s.requireIndexed(t, mhs)
 }

@@ -279,7 +279,16 @@ graph TD
   fetched via `SyncOneEntry` to detect the type, then the remaining chunks are
   synced with `SyncEntries` using a scoped block hook that indexes each chunk's
   multihashes (`indexAdMultihashes`) and deletes the chunk from the temp
-  datastore as it goes.
+  datastore as it goes. An entries block that does not decode in the codec
+  of its CID is refused by the link system with `errBadIPLDData`,
+  which `entriesSyncError` classifies as `malformedErr`. A block that decodes
+  but is not an EntryChunk is an `ingestEntryChunkErr`. These skip the ad and
+  leave multihashes from earlier chunks indexed. That block is deleted from
+  the temp datastore, as a processed chunk is, when the mirror is not writing
+  it. A chunk that is gone from the temp datastore when it is loaded
+  (`errNotInDatastore`), as when another
+  worker that synced the same chunk deleted it, is an `indexerErr`, like a
+  datastore failure, and the ad is retried (`entryChunkLoadError`).
 - **HAMT** (`ingestHamtFromPublisher`): the whole HAMT is synced
   (`SyncHAMTEntries`), then keys (multihashes) are iterated and indexed in
   batches of 4096. HAMT CIDs are deleted from the temp datastore afterward.

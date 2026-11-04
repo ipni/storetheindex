@@ -42,8 +42,15 @@ import (
 var (
 	errBadAdvert              = errors.New("bad advertisement")
 	errInvalidAdvertSignature = errors.New("invalid advertisement signature")
+	// errBadIPLDData is returned by the link system for a block that does not
+	// decode in the codec of its CID.
+	errBadIPLDData = errors.New("bad ipld data")
 	// errInternal is an error message that should not be shown to users.
 	errInternal = errors.New("internal error")
+	// errNotInDatastore is returned by loadNode for a block that is not in
+	// the temporary datastore. The block may have been deleted by another
+	// worker that synced the same block, so a later sync may find it.
+	errNotInDatastore = errors.New("node not present on indexer")
 )
 
 // syncStatusCtxKey is the context key used to carry a byte counter into the
@@ -76,7 +83,7 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 			n, err := decodeIPLDNode(codec, buf, basicnode.Prototype.Any)
 			if err != nil {
 				log.Errorw("Error decoding IPLD node in linksystem", "err", err)
-				return errors.New("bad ipld data")
+				return errBadIPLDData
 			}
 			// If it is an advertisement.
 			if isAdvertisement(n) {
@@ -472,17 +479,33 @@ func (ing *Ingester) ingestAd(
 }
 
 // entriesSyncError classifies an error from syncing entries from the
-// publisher. An identity CID over the size limit is malformed and missing
-// content is not found; after any other error, a later sync may succeed.
+// publisher. An identity CID over the size limit or a block that does not
+// decode is malformed and missing content is not found; after any other
+// error, a later sync may succeed.
 func entriesSyncError(err error, msg string) adIngestError {
 	wrappedErr := fmt.Errorf("%s: %w", msg, err)
 	switch {
-	case errors.Is(err, ipnisync.ErrIdentityTooLarge):
+	case errors.Is(err, ipnisync.ErrIdentityTooLarge), errors.Is(err, errBadIPLDData):
 		return adIngestError{adIngestMalformedErr, wrappedErr}
 	case errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found"):
 		return adIngestError{adIngestContentNotFound, wrappedErr}
 	default:
 		return adIngestError{adIngestSyncEntriesErr, wrappedErr}
+	}
+}
+
+// entryChunkLoadError classifies an error from loading an entry chunk that a
+// sync stored in dsTmp. The link system stored the block only after it
+// decoded, so loading it fails because reading dsTmp failed or the block is
+// gone from it, which a retry may fix, or because the block is not an
+// EntryChunk, which no retry fixes.
+func entryChunkLoadError(err error, msg string) adIngestError {
+	wrappedErr := fmt.Errorf("%s: %w", msg, err)
+	switch {
+	case errors.Is(err, errInternal), errors.Is(err, errNotInDatastore):
+		return adIngestError{adIngestIndexerErr, wrappedErr}
+	default:
+		return adIngestError{adIngestEntryChunkErr, wrappedErr}
 	}
 }
 
@@ -590,8 +613,11 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 	// the entries type, so process that first.
 	chunk, err := ing.loadEntryChunk(entsCid)
 	if err != nil {
-		// Node was loaded previously, so must be a permanent data error.
-		return 0, adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to load first entry chunk: %w", err)}
+		loadErr := entryChunkLoadError(err, "failed to load first entry chunk")
+		if loadErr.state == adIngestEntryChunkErr {
+			ing.deleteUnmirroredBlock(ctx, entsCid, log)
+		}
+		return 0, loadErr
 	}
 
 	err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
@@ -602,12 +628,8 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 	mhCount := len(chunk.Entries)
 	syncStatus.AddChunk(len(chunk.Entries))
 
-	if !ing.mirror.canWrite() {
-		// Done processing entries chunk, so remove from datastore.
-		if err = ing.dsTmp.Delete(ctx, datastore.NewKey(entsCid.String())); err != nil {
-			log.Errorw("Error deleting first entries chunk from datastore", "err", err)
-		}
-	}
+	// Done with the chunk. A writable mirror keeps it until the CAR is written.
+	ing.deleteUnmirroredBlock(ctx, entsCid, log)
 
 	// Sync all remaining entry chunks.
 	if chunk.Next != nil {
@@ -615,7 +637,11 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 			// Load CID as entry chunk.
 			chunk, err := ing.loadEntryChunk(c)
 			if err != nil {
-				actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entry chunk: %w", err)})
+				loadErr := entryChunkLoadError(err, "failed to load entry chunk")
+				if loadErr.state == adIngestEntryChunkErr {
+					ing.deleteUnmirroredBlock(ctx, c, log)
+				}
+				actions.FailSync(loadErr)
 				return
 			}
 			err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
@@ -626,12 +652,8 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 			mhCount += len(chunk.Entries)
 			syncStatus.AddChunk(len(chunk.Entries))
 
-			if !ing.mirror.canWrite() {
-				// Done processing entries chunk, so remove from datastore.
-				if err = ing.dsTmp.Delete(ctx, datastore.NewKey(c.String())); err != nil {
-					log.Errorw("Error deleting entries chunk from datastore", "err", err)
-				}
-			}
+			// Done with the chunk. A writable mirror keeps it until the CAR is written.
+			ing.deleteUnmirroredBlock(ctx, c, log)
 
 			if chunk.Next == nil {
 				actions.SetNextSyncCid(cid.Undef)
@@ -656,6 +678,18 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 	}
 
 	return mhCount, nil
+}
+
+// deleteUnmirroredBlock removes a block from the temporary datastore when
+// the mirror will not write it into a CAR. A writable mirror keeps the block
+// until the advertisement is written or cleaned up.
+func (ing *Ingester) deleteUnmirroredBlock(ctx context.Context, c cid.Cid, log *zap.SugaredLogger) {
+	if ing.mirror.canWrite() {
+		return
+	}
+	if err := ing.dsTmp.Delete(ctx, datastore.NewKey(c.String())); err != nil {
+		log.Errorw("Error deleting entries block from datastore", "cid", c, "err", err)
+	}
 }
 
 func (ing *Ingester) ingestEntriesFromCar(
@@ -880,7 +914,7 @@ func (ing *Ingester) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Nod
 	val, err := ing.dsTmp.Get(context.Background(), datastore.NewKey(c.String()))
 	if err != nil {
 		if errors.Is(err, datastore.ErrNotFound) {
-			return nil, errors.New("node not present on indexer")
+			return nil, errNotInDatastore
 		}
 		return nil, fmt.Errorf("%w: cannot fetch the node from datastore: %w", errInternal, err)
 	}
