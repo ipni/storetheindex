@@ -3,6 +3,7 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,11 +18,14 @@ import (
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipfs/go-test/random"
+	hamt "github.com/ipld/go-ipld-adl-hamt"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/fluent/qp"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
+	"github.com/ipld/go-ipld-prime/node/bindnode"
+	indexer "github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/engine"
 	"github.com/ipni/go-libipni/dagsync/ipnisync"
 	headschema "github.com/ipni/go-libipni/dagsync/ipnisync/head"
@@ -278,6 +282,18 @@ func (e *testIngestEnv) chunk(t *testing.T, mhs []multihash.Multihash, next ipld
 	return e.store(t, entryChunkNode(t, mhs, next))
 }
 
+// hamtNode adds a HAMT node below the root
+func (e *testIngestEnv) hamtNode(t *testing.T, n *hamt.HashMapNode) ipld.Link {
+	return e.store(t, bindnode.Wrap(n, hamt.HashMapNodePrototype.Type()).Representation())
+}
+
+// hamtRoot adds a HAMT root of sha2-256 hashes with the given bucket size,
+// in its type-level form, as hamt.Builder writes it.
+func (e *testIngestEnv) hamtRoot(t *testing.T, bucketSize int, n hamt.HashMapNode) ipld.Link {
+	root := &hamt.HashMapRoot{HashAlg: multicodec.Sha2_256, BucketSize: bucketSize, Hamt: n}
+	return e.store(t, bindnode.Wrap(root, hamt.HashMapRootPrototype.Type()))
+}
+
 // newAd returns an ad of the publisher, as the provider, over entries. It
 // links to the publisher's head. A test can change the ad before it
 // publishes it.
@@ -406,6 +422,46 @@ func (s *IngestTestSuite) digestMultihashes(t *testing.T, lengths ...int) []mult
 		require.NoError(t, err)
 	}
 	return mhs
+}
+
+// hamtBucket returns a HAMT element that is a bucket of the multihashes
+func (s *IngestTestSuite) hamtBucket(mhs ...multihash.Multihash) hamt.Element {
+	b := make(hamt.Bucket, len(mhs))
+	for i, m := range mhs {
+		b[i] = hamt.BucketEntry{Key: m, Value: basicnode.NewBool(true)}
+	}
+	return hamt.Element{Bucket: &b}
+}
+
+// hamtLink returns a HAMT element that links to a node
+func (s *IngestTestSuite) hamtLink(lnk ipld.Link) hamt.Element {
+	return hamt.Element{HashMapNode: &lnk}
+}
+
+// hamtKey returns a multihash whose sha2-256 hash selects slots, one slot of 3
+// bits for each depth from the root, as in a HAMT with a 1-byte bitmap.
+func (s *IngestTestSuite) hamtKey(slots ...int) multihash.Multihash {
+	for {
+		m := random.Multihashes(1)[0]
+		if checkHamtKey(multicodec.Sha2_256, m, slots, 3) == nil {
+			return m
+		}
+	}
+}
+
+// buildHamt adds a HAMT of mhs that hamt.Builder builds with the hash
+// algorithm, the bit width and a bucket size of 1.
+func (s *IngestTestSuite) buildHamt(t *testing.T, hashAlg multicodec.Code, bitWidth int, mhs []multihash.Multihash) ipld.Link {
+	b := hamt.NewBuilder(hamt.Prototype{BitWidth: bitWidth, BucketSize: 1}.WithHashAlg(hashAlg)).
+		WithLinking(s.pub.lsys, schema.Linkproto)
+	ma, err := b.BeginMap(int64(len(mhs)))
+	require.NoError(t, err)
+	for _, m := range mhs {
+		require.NoError(t, ma.AssembleKey().AssignBytes(m))
+		require.NoError(t, ma.AssembleValue().AssignBool(true))
+	}
+	require.NoError(t, ma.Finish())
+	return s.store(t, b.Build().(*hamt.Node).Substrate())
 }
 
 // newPeerKey returns a new key and its peer ID
@@ -717,4 +773,212 @@ func (s *IngestTestSuite) TestMultihashDigestTooLong() {
 	require.True(t, s.adState(t, adCid).Processed)
 	s.requireIndexed(t, indexed)
 	s.requireNotIndexed(t, tooLong)
+}
+
+// A HAMT whose structure does not match the HAMT specification skips the ad
+// as malformed. Each root below has a 1-byte bitmap, so a bit width of 3, and
+// a bucket size of 3. Each HAMT holds fewer multihashes than one indexing
+// batch, so none of them are indexed.
+func (s *IngestTestSuite) TestHamtMalformed() {
+	t := s.T()
+	// The key name gives the slots that its hash selects, from the root down
+	k0, k1, k00, k10 := s.hamtKey(0), s.hamtKey(1), s.hamtKey(0, 0), s.hamtKey(1, 0)
+	keys := []multihash.Multihash{k0, k1, k00, k10}
+	child := s.hamtNode(t, &hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(k00)}})
+	wideChild := s.hamtNode(t, &hamt.HashMapNode{Map: []byte{0x80, 0}, Data: []hamt.Element{s.hamtBucket(k00)}})
+	misplacedChild := s.hamtNode(t, &hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(k10)}})
+	notNode := s.store(t, basicnode.NewString("not a HAMT node"))
+	emptyChild := s.hamtNode(t, &hamt.HashMapNode{Map: []byte{0}})
+	roots := map[string]hamt.HashMapNode{
+		"bitmap has more bits than data":          {Map: []byte{0xc0}, Data: []hamt.Element{s.hamtBucket(k0)}},
+		"bitmap has bits but no data":             {Map: []byte{0xff}},
+		"data has more elements than bitmap bits": {Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(k0), s.hamtBucket(k1)}},
+		"empty bitmap":                            {Data: []hamt.Element{s.hamtBucket(k0)}},
+		"bitmap length not a power of two":        {Map: []byte{0x80, 0, 0}, Data: []hamt.Element{s.hamtBucket(k0)}},
+		"empty bucket":                            {Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket()}},
+		"bucket larger than bucket size":          {Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(k0, k0, k0, k0)}},
+		"child bitmap length differs from root":   {Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(wideChild)}},
+		"child linked twice":                      {Map: []byte{0xc0}, Data: []hamt.Element{s.hamtLink(child), s.hamtLink(child)}},
+		"child is not a HAMT node":                {Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(notNode)}},
+		"key in the wrong slot":                   {Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(k1)}},
+		"key in the wrong subtree":                {Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(misplacedChild)}},
+		"child with no elements":                  {Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(emptyChild)}},
+	}
+	for name, root := range roots {
+		s.Run(name, func() {
+			t := s.T()
+			adCid := s.publish(t, s.newAd(s.hamtRoot(t, 3, root)))
+			require.NoError(t, s.sync(t.Context()))
+			s.requireSkipped(t, adCid, adIngestMalformedErr)
+			s.requireNotIndexed(t, keys)
+		})
+	}
+}
+
+// A HAMT root with a hash algorithm that the HAMT specification does not
+// define skips the ad as malformed.
+func (s *IngestTestSuite) TestHamtUnsupportedHashAlgorithm() {
+	t := s.T()
+	k0 := s.hamtKey(0)
+	root := &hamt.HashMapRoot{
+		HashAlg:    multicodec.Sha2_512,
+		BucketSize: 3,
+		Hamt:       hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(k0)}},
+	}
+	adCid := s.publish(t, s.newAd(s.store(t, bindnode.Wrap(root, hamt.HashMapRootPrototype.Type()))))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+	s.requireNotIndexed(t, []multihash.Multihash{k0})
+}
+
+// A HAMT that hamt.Builder builds is indexed in full with each hash
+// algorithm that the HAMT specification defines, and with bit widths from the
+// smallest to one that needs a bitmap of more than a byte.
+func (s *IngestTestSuite) TestHamtHashAlgorithms() {
+	for _, hashAlg := range []multicodec.Code{multicodec.Identity, multicodec.Sha2_256, multicodec.Murmur3X64_64} {
+		for _, bitWidth := range []int{3, 5, 8, 16} {
+			s.Run(fmt.Sprintf("%s/bitwidth-%d", hashAlg, bitWidth), func() {
+				t := s.T()
+				mhs := random.Multihashes(100)
+				adCid := s.publish(t, s.newAd(s.buildHamt(t, hashAlg, bitWidth, mhs)))
+				require.NoError(t, s.sync(t.Context()))
+				require.True(t, s.adState(t, adCid).Processed)
+				require.False(t, s.adState(t, adCid).Skipped)
+				s.requireIndexed(t, mhs)
+			})
+		}
+	}
+}
+
+// A HAMT root with a bucket size of 0 skips the ad as malformed
+func (s *IngestTestSuite) TestHamtBucketSizeZero() {
+	t := s.T()
+	k0 := s.hamtKey(0)
+	root := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(k0)}}
+	adCid := s.publish(t, s.newAd(s.hamtRoot(t, 0, root)))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+	s.requireNotIndexed(t, []multihash.Multihash{k0})
+}
+
+// With the identity hash algorithm, a key shorter than the bits that its
+// depth needs skips the ad as malformed. The root's bitmap needs 3 bits of
+// the key's hash, and the key is empty.
+func (s *IngestTestSuite) TestHamtIdentityKeyTooShort() {
+	t := s.T()
+	root := &hamt.HashMapRoot{
+		HashAlg:    multicodec.Identity,
+		BucketSize: 3,
+		Hamt:       hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(multihash.Multihash{})}},
+	}
+	adCid := s.publish(t, s.newAd(s.store(t, bindnode.Wrap(root, hamt.HashMapRootPrototype.Type()))))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+}
+
+// A HAMT that fails a check after the first batch of 4096 multihashes skips
+// the ad as malformed, and the batch indexed before the failure stays
+// indexed. The rest of the multihashes read before the failure are not
+// indexed.
+func (s *IngestTestSuite) TestHamtFailureAfterFirstBatch() {
+	t := s.T()
+	keys := make([]multihash.Multihash, 4100)
+	for i := range keys {
+		keys[i] = s.hamtKey(0)
+	}
+	notNode := s.store(t, basicnode.NewString("not a HAMT node"))
+	root := hamt.HashMapNode{Map: []byte{0xc0}, Data: []hamt.Element{s.hamtBucket(keys...), s.hamtLink(notNode)}}
+	adCid := s.publish(t, s.newAd(s.hamtRoot(t, len(keys), root)))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+	s.requireIndexed(t, keys[:4096])
+	s.requireNotIndexed(t, keys[4096:])
+}
+
+// A HAMT node that is gone from the temporary datastore when ingest loads it,
+// as when another worker that synced the same node has deleted it, leaves
+// the ad to be retried, and a later sync indexes it. An ad is processed first,
+// so that the retry starts from it.
+func (s *IngestTestSuite) TestHamtNodeMissingFromDatastore() {
+	t := s.T()
+	s.publish(t, s.newAd(s.chunk(t, random.Multihashes(1), nil)))
+	require.NoError(t, s.sync(t.Context()))
+
+	k00 := s.hamtKey(0, 0)
+	child := s.hamtNode(t, &hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(k00)}})
+	root := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtLink(child)}}
+	adCid := s.publish(t, s.newAd(s.hamtRoot(t, 3, root)))
+
+	s.tmpStore.deleteAfterRead(child.(cidlink.Link).Cid)
+	require.ErrorContains(t, s.sync(t.Context()), string(adIngestIndexerErr))
+	require.False(t, s.adState(t, adCid).Processed)
+
+	require.NoError(t, s.sync(t.Context()))
+	require.True(t, s.adState(t, adCid).Processed)
+	s.requireIndexed(t, []multihash.Multihash{k00})
+}
+
+// A block with a "hamt" field that is not a HAMT root skips the ad as
+// malformed. isHAMT accepts the field, and loading the root then fails.
+func (s *IngestTestSuite) TestHamtFieldIsNotARoot() {
+	t := s.T()
+	n, err := qp.BuildMap(basicnode.Prototype.Any, 1, func(ma datamodel.MapAssembler) {
+		qp.MapEntry(ma, "hamt", qp.String("x"))
+	})
+	require.NoError(t, err)
+	adCid := s.publish(t, s.newAd(s.store(t, n)))
+
+	require.NoError(t, s.sync(t.Context()))
+	s.requireSkipped(t, adCid, adIngestMalformedErr)
+	require.Zero(t, s.tmpStore.blocksHeld())
+}
+
+// An indexer Put that fails after the first batch of a HAMT stops the walk.
+// The batch already indexed stays indexed, and the ad is left to be retried.
+func (s *IngestTestSuite) TestHamtIndexerPutFails() {
+	t := s.T()
+	const batch = 4096
+	// Two batches, and keys still unread when the second Put fails, so the
+	// walk stops before it has yielded every key.
+	keys := make([]multihash.Multihash, 2*batch+4)
+	for i := range keys {
+		keys[i] = s.hamtKey(0)
+	}
+	root := hamt.HashMapNode{Map: []byte{0x80}, Data: []hamt.Element{s.hamtBucket(keys...)}}
+	adCid := s.publish(t, s.newAd(s.hamtRoot(t, len(keys), root)))
+	s.ing.indexer = &limitedIndexer{Interface: s.ing.indexer, after: 1, fail: true}
+
+	require.ErrorContains(t, s.sync(t.Context()), string(adIngestIndexerErr))
+	require.False(t, s.adState(t, adCid).Processed)
+	s.requireIndexed(t, keys[:batch])
+	s.requireNotIndexed(t, keys[batch:])
+}
+
+// limitedIndexer wraps an indexer. after is how many puts succeed before
+// fail makes the next Put return an error, or before cancel runs.
+type limitedIndexer struct {
+	indexer.Interface
+	after  int
+	puts   int
+	fail   bool
+	cancel context.CancelFunc
+}
+
+func (l *limitedIndexer) Put(v indexer.Value, mhs ...multihash.Multihash) error {
+	if l.fail && l.puts >= l.after {
+		return errors.New("indexer put failed")
+	}
+	err := l.Interface.Put(v, mhs...)
+	if err != nil {
+		return err
+	}
+	l.puts++
+	if l.cancel != nil && l.puts >= l.after {
+		l.cancel()
+	}
+	return nil
 }

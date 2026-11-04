@@ -3,11 +3,14 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"iter"
+	"math/bits"
 	"strings"
 	"time"
 
@@ -29,7 +32,9 @@ import (
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	mc "github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
+	"github.com/twmb/murmur3"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"go.uber.org/zap"
@@ -59,6 +64,9 @@ var (
 	// may accept the ad. An entries block that fails this way can never be an
 	// entry chunk or a HAMT node, so entriesSyncError treats it as malformed.
 	errPublishNotAllowed = errors.New("advertisement signer not allowed to publish for provider")
+	// errMalformedHamt is wrapped by the errors of a HAMT whose structure does
+	// not match the HAMT specification.
+	errMalformedHamt = fmt.Errorf("%w: malformed HAMT", ipnisync.ErrMalformed)
 	// errBadIPLDData is returned by the link system for a block that does not
 	// decode in the codec of its CID.
 	errBadIPLDData = fmt.Errorf("%w: bad ipld data", ipnisync.ErrMalformed)
@@ -72,6 +80,10 @@ var (
 	// worker that synced the same block, so a later sync may find it.
 	errNotInDatastore = errors.New("node not present on indexer")
 )
+
+// maxHamtMapLen is the largest HAMT bitmap, in bytes, that ingest accepts. It
+// is the bitmap of a HAMT with a bit width of 16.
+const maxHamtMapLen = 1 << 13
 
 // syncStatusCtxKey is the context key used to carry a byte counter into the
 // link system's write opener, so that downloaded entry-block bytes can be
@@ -559,66 +571,57 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 	}()
 
 	// Load the CID as HAMT root node.
-	hn, err := ing.loadHamt(entsCid)
+	root, err := ing.loadHamtRoot(entsCid)
 	if err != nil {
-		return 0, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entries as HAMT root node: %w", err)}
+		return 0, hamtLoadError(err, "failed to load entries as HAMT root node")
 	}
 
 	pubInfo := peer.AddrInfo{
 		ID: publisherID,
 	}
-	// Sync all the links in the hamt, since so far we have only synced the root.
-	for _, e := range hn.Hamt.Data {
-		if e.HashMapNode != nil {
-			nodeCid := (*e.HashMapNode).(cidlink.Link).Cid
-			// Gather all the HAMT Cids so that we can remove them from
-			// datastore once finished processing.
-			err = ing.sub.SyncHAMTEntries(ctx, pubInfo, nodeCid, dagsync.ScopedBlockHook(gatherCids))
-			if err != nil {
-				return 0, entriesSyncError(err, "failed to sync remaining HAMT")
-			}
+	// Sync the nodes below the root, since so far only the root is synced.
+	// hamtKeys checks the HAMT as it reads it.
+	for _, elem := range root.Hamt.Data {
+		if elem.HashMapNode == nil {
+			continue
+		}
+		lnk, ok := (*elem.HashMapNode).(cidlink.Link)
+		if !ok {
+			continue
+		}
+		// Gather all the HAMT Cids so that we can remove them from datastore
+		// once finished processing.
+		err = ing.sub.SyncHAMTEntries(ctx, pubInfo, lnk.Cid, dagsync.ScopedBlockHook(gatherCids))
+		if err != nil {
+			return 0, entriesSyncError(err, "failed to sync remaining HAMT")
 		}
 	}
 
 	var mhCount int
 
-	// Start processing now that the entire HAMT is synced. HAMT is a map,
-	// and we are using the keys in the map to represent multihashes.
-	// Therefore, we only care about the keys.
+	// HAMT is a map, and we are using the keys in the map to represent
+	// multihashes. Therefore, we only care about the keys.
 	//
-	// Group the mutlihashes into batches and process as usual.
+	// The multihashes are indexed in batches, so that only one batch of
+	// multihashes from the HAMT is held in memory. hamtKeys checks each node
+	// as it reaches it. When a check fails, the batches already indexed stay
+	// indexed, as the chunks before a bad entry chunk do, and the multihashes
+	// of the batch in progress are not indexed.
 	mhs := make([]multihash.Multihash, 0, batchSize)
-	mi := hn.MapIterator()
-	for !mi.Done() {
-		k, _, err := mi.Next()
+	for key, err := range ing.hamtKeys(ctx, root) {
 		if err != nil {
-			return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("faild to iterate through HAMT: %w", err)}
+			return mhCount, hamtLoadError(err, "invalid HAMT")
 		}
-		ks, err := k.AsString()
-		if err != nil {
-			return mhCount, adIngestError{adIngestMalformedErr, fmt.Errorf("HAMT key must be of type string: %w", err)}
+		mhs = append(mhs, multihash.Multihash(key))
+		if len(mhs) < batchSize {
+			continue
 		}
-		mhs = append(mhs, multihash.Multihash(ks))
-		// The reason we need batching here is because here we are
-		// iterating over the _entire_ HAMT keys, whereas indexContentBlock
-		// is meant to be given multihashes in a single EntryChunk which
-		// could be far fewer multihashes.
-		//
-		// Batching here allows us to only load into memory one batch worth
-		// of multihashes from the HAMT, instead of loading all the
-		// multihashes in the HAMT then batch them later in
-		// indexContentBlock.
-		//
-		// TODO: See how we can refactor code to make batching logic more
-		// flexible in indexContentBlock.
-		if len(mhs) >= batchSize {
-			if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
-				return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
-			}
-			mhCount += len(mhs)
-			syncStatus.AddHamtMultihashes(len(mhs))
-			mhs = mhs[:0]
+		if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
+			return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
 		}
+		mhCount += len(mhs)
+		syncStatus.AddHamtMultihashes(len(mhs))
+		mhs = mhs[:0]
 	}
 	// Process any remaining multihashes from the batch cut-off.
 	if len(mhs) > 0 {
@@ -927,19 +930,181 @@ func (ing *Ingester) loadEntryChunk(c cid.Cid) (schema.EntryChunk, error) {
 	return *entChunk, nil
 }
 
-func (ing *Ingester) loadHamt(c cid.Cid) (*hamt.Node, error) {
+func (ing *Ingester) loadHamtRoot(c cid.Cid) (*hamt.HashMapRoot, error) {
 	node, err := ing.loadNode(c, hamt.HashMapRootPrototype)
 	if err != nil {
 		return nil, err
 	}
-	root := bindnode.Unwrap(node).(*hamt.HashMapRoot)
-	if root == nil {
-		return nil, errors.New("cannot unwrap node as hamt.HashMapRoot")
+	root, ok := bindnode.Unwrap(node).(*hamt.HashMapRoot)
+	if !ok || root == nil {
+		return nil, fmt.Errorf("%w: cannot unwrap node as HAMT root", errMalformedHamt)
 	}
-	hn := hamt.Node{
-		HashMapRoot: *root,
-	}.WithLinking(ing.lsys, schema.Linkproto)
+	return root, nil
+}
+
+func (ing *Ingester) loadHamtNode(c cid.Cid) (*hamt.HashMapNode, error) {
+	node, err := ing.loadNode(c, hamt.HashMapNodePrototype.Representation())
+	if err != nil {
+		return nil, err
+	}
+	hn, ok := bindnode.Unwrap(node).(*hamt.HashMapNode)
+	if !ok || hn == nil {
+		return nil, fmt.Errorf("%w: cannot unwrap node as HAMT node", errMalformedHamt)
+	}
 	return hn, nil
+}
+
+// hamtLoadError classifies an error from reading a HAMT held in the temporary
+// datastore. A datastore failure, or a node gone from the datastore because
+// another worker that synced the same node deleted it, is an indexer error,
+// and the ad can be retried. Any other error comes from the HAMT data and is
+// permanent.
+func hamtLoadError(err error, msg string) error {
+	wrappedErr := fmt.Errorf("%s: %w", msg, err)
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return err
+	case errors.Is(err, errInternal), errors.Is(err, errNotInDatastore):
+		return adIngestError{adIngestIndexerErr, wrappedErr}
+	default:
+		return adIngestError{adIngestMalformedErr, wrappedErr}
+	}
+}
+
+// hamtKeys returns the keys in the buckets of the HAMT at root, in the order
+// of the HAMT, loading child nodes from the temporary datastore.
+//
+// It checks the HAMT against the HAMT specification as it reads it: the
+// root's hash algorithm is identity, sha2-256 or murmur3; its bucket size is
+// at least 1; the bitmap of every node has the root's length, which is a power
+// of two of at most maxHamtMapLen bytes; the bitmap has one bit set for each
+// element; each element is either a link or a bucket of 1 to BucketSize
+// entries; and the hash of each key selects the slots on the path from the
+// root to the key's bucket, so a node can be reached by one path only. At the
+// first check that fails, it yields the error and stops.
+func (ing *Ingester) hamtKeys(ctx context.Context, root *hamt.HashMapRoot) iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
+		mapLen := len(root.Hamt.Map)
+		switch {
+		case root.HashAlg != mc.Identity && root.HashAlg != mc.Sha2_256 && root.HashAlg != mc.Murmur3X64_64:
+			yield(nil, fmt.Errorf("%w: unsupported hash algorithm %s", errMalformedHamt, root.HashAlg))
+			return
+		case mapLen == 0 || mapLen&(mapLen-1) != 0 || mapLen > maxHamtMapLen:
+			yield(nil, fmt.Errorf("%w: bitmap length %d is not a power of two up to %d", errMalformedHamt, mapLen, maxHamtMapLen))
+			return
+		case root.BucketSize < 1:
+			yield(nil, fmt.Errorf("%w: bucket size %d is less than 1", errMalformedHamt, root.BucketSize))
+			return
+		}
+		bitWidth := bits.TrailingZeros(uint(mapLen)) + 3
+
+		var nodeKeysIter func(node *hamt.HashMapNode, path []int) (keepGoing bool, err error)
+		nodeKeysIter = func(node *hamt.HashMapNode, path []int) (keepGoing bool, err error) {
+			if len(node.Map) != mapLen {
+				return false, fmt.Errorf("%w: node bitmap length %d differs from root bitmap length %d", errMalformedHamt, len(node.Map), mapLen)
+			}
+			// A node below the root holds at least one element, so every
+			// subtree holds a key, and a node reached by a second path fails
+			// the check of the first key below it.
+			if len(path) != 0 && len(node.Data) == 0 {
+				return false, fmt.Errorf("%w: node below the root has no elements", errMalformedHamt)
+			}
+			// Each bit set in the bitmap takes the next element of data, in
+			// order. The first bit is the most significant bit of the first
+			// byte.
+			data := node.Data
+			for slot := range 8 * mapLen {
+				if node.Map[slot>>3]&(0x80>>(slot&7)) == 0 {
+					continue
+				}
+
+				if len(data) == 0 {
+					return false, fmt.Errorf("%w: bitmap has more bits set than the node has elements", errMalformedHamt)
+				}
+				elem := data[0]
+				data = data[1:]
+				subPath := append(path, slot)
+
+				if (elem.Bucket == nil) == (elem.HashMapNode == nil) {
+					return false, fmt.Errorf("%w: element is not exactly one of link or bucket", errMalformedHamt)
+				}
+				if elem.Bucket != nil {
+					if len(*elem.Bucket) == 0 || len(*elem.Bucket) > root.BucketSize {
+						return false, fmt.Errorf("%w: bucket has %d entries, want 1 to %d", errMalformedHamt, len(*elem.Bucket), root.BucketSize)
+					}
+					for _, entry := range *elem.Bucket {
+						if err := checkHamtKey(root.HashAlg, entry.Key, subPath, bitWidth); err != nil {
+							return false, err
+						}
+						if !yield(entry.Key, nil) {
+							return false, nil
+						}
+					}
+					continue
+				}
+
+				if err := ctx.Err(); err != nil {
+					return false, err
+				}
+				lnk, ok := (*elem.HashMapNode).(cidlink.Link)
+				if !ok {
+					return false, fmt.Errorf("%w: link is not a CID", errMalformedHamt)
+				}
+				child, err := ing.loadHamtNode(lnk.Cid)
+				if err != nil {
+					return false, fmt.Errorf("cannot load HAMT node %s: %w", lnk.Cid, err)
+				}
+				if ok, err := nodeKeysIter(child, subPath); !ok {
+					return false, err
+				}
+			}
+			if len(data) != 0 {
+				return false, fmt.Errorf("%w: node has more elements than bits set in its bitmap", errMalformedHamt)
+			}
+			return true, nil
+		}
+		path := make([]int, 0, 256/bitWidth)
+		if _, err := nodeKeysIter(&root.Hamt, path); err != nil {
+			yield(nil, err)
+		}
+	}
+}
+
+// checkHamtKey checks that the hash of key selects the slots of path, as the
+// HAMT specification places a key: at depth d, the slot is the d-th group of
+// bitWidth bits of the hash, from its most significant bit.
+func checkHamtKey(hashAlg mc.Code, key []byte, path []int, bitWidth int) error {
+	var hash []byte
+	switch hashAlg {
+	case mc.Identity:
+		hash = key
+	case mc.Sha2_256:
+		sum := sha256.Sum256(key)
+		hash = sum[:]
+	case mc.Murmur3X64_64:
+		h := murmur3.New128()
+		h.Write(key)
+		hash = h.Sum(nil)
+	}
+	if len(path)*bitWidth > len(hash)*8 {
+		return fmt.Errorf("%w: key is at depth %d, deeper than its hash allows", errMalformedHamt, len(path))
+	}
+	for depth, slot := range path {
+		if hashBits(hash, depth*bitWidth, bitWidth) != slot {
+			return fmt.Errorf("%w: key is not in the slot that its hash selects", errMalformedHamt)
+		}
+	}
+	return nil
+}
+
+// hashBits returns n bits of hash starting at bit from, counted from the
+// most significant bit of the first byte.
+func hashBits(hash []byte, from, n int) int {
+	var v int
+	for i := from; i < from+n; i++ {
+		v = v<<1 | int(hash[i/8]>>(7-i%8)&1)
+	}
+	return v
 }
 
 func (ing *Ingester) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Node, error) {

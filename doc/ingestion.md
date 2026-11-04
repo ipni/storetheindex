@@ -301,9 +301,23 @@ graph TD
   (`errNotInDatastore`), as when another worker that synced the same chunk
   deleted it, is an `indexerErr`, like a datastore failure, and the ad is
   retried (`entryChunkLoadError`).
-- **HAMT** (`ingestHamtFromPublisher`): the whole HAMT is synced
-  (`SyncHAMTEntries`), then keys (multihashes) are iterated and indexed in
-  batches of 4096. HAMT CIDs are deleted from the temp datastore afterward.
+- **HAMT** (`ingestHamtFromPublisher`): the nodes below each link of the root
+  are synced (`SyncHAMTEntries`), then `hamtKeys` reads the HAMT, checking
+  each node as it reaches it, and keys (multihashes) are indexed in batches of
+  4096. The root's hash algorithm is identity, sha2-256 or murmur3, and its
+  bucket size is at least 1; each node's bitmap has the root's length, a power
+  of two of at most 8 KiB; the bitmap has one bit set per element; each node
+  below the root has at least one element; each element is either a link or a
+  bucket of 1 to `bucketSize` entries; and the hash of each key selects the
+  slots on the path from the root to its bucket (`checkHamtKey`). Every
+  subtree then holds a key, and a key matches only one path, so a node linked
+  from two places fails the check at the first key below it. A HAMT that fails
+  a check skips the ad as `malformedErr`. The batches indexed before the
+  failure stay indexed, as the chunks before a bad entry chunk do, and the
+  batch in progress is not indexed. A node that is gone from the temp
+  datastore when it is loaded (`errNotInDatastore`) is an `indexerErr`, like a
+  datastore failure, and the ad is retried (`hamtLoadError`). HAMT CIDs are
+  deleted from the temp datastore afterward.
 
 ### Identity CIDs
 
