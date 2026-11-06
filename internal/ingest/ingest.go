@@ -162,6 +162,11 @@ type Ingester struct {
 	// Multihash minimum length
 	minKeyLen int
 
+	// entriesDepthLimit is the deepest HAMT node, below the root, that is
+	// synced, and the number of nodes below the root of a HAMT after which
+	// the sync stops. A value less than 1 sets no limit.
+	entriesDepthLimit int
+
 	mirror        adMirror
 	mhsFromMirror atomic.Uint64
 
@@ -204,6 +209,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		syncInProgress: make(map[peer.ID]*dagsync.SyncFinished),
 
 		minKeyLen: cfg.MinimumKeyLength,
+
+		entriesDepthLimit: cfg.EntriesDepthLimit,
 
 		ingestRates: rate.NewMap(),
 	}

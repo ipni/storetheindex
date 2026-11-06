@@ -3,11 +3,15 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"iter"
+	"math/bits"
 	"strings"
 	"time"
 
@@ -28,8 +32,11 @@ import (
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/record"
 	"github.com/multiformats/go-multiaddr"
+	mc "github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
+	"github.com/twmb/murmur3"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"go.uber.org/zap"
@@ -39,12 +46,46 @@ import (
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 )
 
+// maxDigestLength is the longest multihash digest that ingest indexes, as the
+// IPNI specification sets it. A multihash with a longer digest is ignored and
+// the rest of the ad is indexed.
+const maxDigestLength = 128
+
 var (
-	errBadAdvert              = errors.New("bad advertisement")
-	errInvalidAdvertSignature = errors.New("invalid advertisement signature")
-	// errInternal is an error message that should not be shown to users.
+	// errBadAdvert is returned by the link system for an advertisement that
+	// does not decode as one, fails validation, or names a provider that is
+	// not a valid peer ID.
+	errBadAdvert = fmt.Errorf("%w: bad advertisement", ipnisync.ErrMalformed)
+	// errInvalidAdvertSignature is returned by the link system for an
+	// advertisement whose signature, or the signature of one of its extended
+	// provider records, does not verify.
+	errInvalidAdvertSignature = fmt.Errorf("%w: invalid advertisement signature", ipnisync.ErrMalformed)
+	// errPublishNotAllowed is returned for an advertisement signed by a
+	// publisher that the policy does not allow to publish for its provider.
+	// On the advertisement chain the policy can be reloaded, so a later sync
+	// may accept the ad. An entries block that fails this way can never be an
+	// entry chunk or a HAMT node, so entriesSyncError treats it as malformed.
+	errPublishNotAllowed = errors.New("advertisement signer not allowed to publish for provider")
+	// errMalformedHamt is wrapped by the errors of a HAMT whose structure does
+	// not match the HAMT specification.
+	errMalformedHamt = fmt.Errorf("%w: malformed HAMT", ipnisync.ErrMalformed)
+	// errBadIPLDData is returned by the link system for a block that does not
+	// decode in the codec of its CID.
+	errBadIPLDData = fmt.Errorf("%w: bad ipld data", ipnisync.ErrMalformed)
+	// errInternal is wrapped by errors from the indexer itself, such as a
+	// failure of its datastore or value store. Such an error may not happen
+	// again, so the ad is retried. Its details are not shown to users: the
+	// provider's last error holds only this error's text.
 	errInternal = errors.New("internal error")
+	// errNotInDatastore is returned by loadNode for a block that is not in
+	// the temporary datastore. The block may have been deleted by another
+	// worker that synced the same block, so a later sync may find it.
+	errNotInDatastore = errors.New("node not present on indexer")
 )
+
+// maxHamtMapLen is the largest HAMT bitmap, in bytes, that ingest accepts. It
+// is the bitmap of a HAMT with a bit width of 16.
+const maxHamtMapLen = 1 << 13
 
 // syncStatusCtxKey is the context key used to carry a byte counter into the
 // link system's write opener, so that downloaded entry-block bytes can be
@@ -76,7 +117,7 @@ func mkLinkSystem(ds datastore.Batching, reg *registry.Registry) ipld.LinkSystem
 			n, err := decodeIPLDNode(codec, buf, basicnode.Prototype.Any)
 			if err != nil {
 				log.Errorw("Error decoding IPLD node in linksystem", "err", err)
-				return errors.New("bad ipld data")
+				return errBadIPLDData
 			}
 			// If it is an advertisement.
 			if isAdvertisement(n) {
@@ -131,10 +172,107 @@ func verifyAdvertisement(n ipld.Node, reg *registry.Registry) (peer.ID, error) {
 	// publisher.
 	if signerID != provID && !reg.PublishAllowed(signerID, provID) {
 		log.Errorw("Advertisement not signed by provider or allowed publisher", "provider", ad.Provider, "signer", signerID)
-		return "", errInvalidAdvertSignature
+		return "", errPublishNotAllowed
 	}
 
 	return provID, nil
+}
+
+// adExtendedProviders returns the extended providers of ad for the registry,
+// or nil when the ad has none. It ignores what the IPNI specification says to
+// ignore: the extended providers of a removal ad, those with Override set on
+// an ad without a context ID, a provider record that is not signed by its
+// provider's own key, and a provider record with no valid address. A record
+// with an undecodable peer ID is ignored too. The record of the ad's own
+// provider may be signed by the ad's signer, and may omit its addresses,
+// which then come from the ad.
+func adExtendedProviders(ad schema.Advertisement, log *zap.SugaredLogger) *registry.ExtendedProviders {
+	switch {
+	case ad.ExtendedProvider == nil:
+		return nil
+	case ad.IsRm:
+		log.Warn("Ignoring extended providers on a removal advertisement")
+		return nil
+	case len(ad.ContextID) == 0 && ad.ExtendedProvider.Override:
+		log.Warn("Ignoring extended providers with override set on an advertisement without context id")
+		return nil
+	}
+
+	log.Debug("Advertisement has extended providers")
+	extendedProviders := &registry.ExtendedProviders{
+		ContextualProviders: make(map[string]registry.ContextualExtendedProviders),
+	}
+
+	// VerifySignature has checked the advertisement and each extended
+	// provider record. Their signers can be read from the envelopes.
+	adSigner, _ := signatureSigner(ad.Signature)
+
+	// Creating ExtendedProviderInfo record for each of the providers.
+	// Keeping in mind that the provider from the outer ad doesn't need to be included into the extended providers list
+	eProvs := make([]registry.ExtendedProviderInfo, 0, len(ad.ExtendedProvider.Providers))
+	for _, ep := range ad.ExtendedProvider.Providers {
+		epID, err := peer.Decode(ep.ID)
+		if err != nil {
+			log.Warnw("Ignoring extended provider with invalid peer id", "err", err)
+			continue
+		}
+		// The IPNI specification says each record is signed by its
+		// provider's own key. The record of the ad's own provider may be
+		// signed by the ad's signer instead, as SignWithExtendedProviders
+		// does.
+		signer, err := signatureSigner(ep.Signature)
+		if err != nil || (signer != epID && (ep.ID != ad.Provider || signer != adSigner)) {
+			log.Warnw("Ignoring extended provider not signed by its own key", "extendedProvider", epID, "signer", signer)
+			continue
+		}
+		// The IPNI specification says to ignore a provider record with no
+		// addresses. The record of the ad's own provider may omit them,
+		// and then has the ad's addresses.
+		addrs := stringsToMultiaddrs(ep.Addresses)
+		if len(addrs) == 0 && ep.ID == ad.Provider {
+			addrs = stringsToMultiaddrs(ad.Addresses)
+		}
+		if len(addrs) == 0 {
+			log.Warnw("Ignoring extended provider with no valid address", "extendedProvider", epID)
+			continue
+		}
+
+		eProvs = append(eProvs, registry.ExtendedProviderInfo{
+			PeerID:   epID,
+			Metadata: ep.Metadata,
+			Addrs:    addrs,
+		})
+	}
+
+	// An ad whose records are all ignored has extended providers as if it had
+	// none, so the registry keeps those it has. An empty list of records
+	// replaces them.
+	if len(eProvs) == 0 && len(ad.ExtendedProvider.Providers) != 0 {
+		log.Warn("Ignoring extended providers, since every record is ignored")
+		return nil
+	}
+
+	// If context ID is empty then it's a chain level record, otherwise it's specific to the context ID
+	if len(ad.ContextID) == 0 {
+		extendedProviders.Providers = eProvs
+	} else {
+		extendedProviders.ContextualProviders[string(ad.ContextID)] = registry.ContextualExtendedProviders{
+			ContextID: ad.ContextID,
+			Override:  ad.ExtendedProvider.Override,
+			Providers: eProvs,
+		}
+	}
+	return extendedProviders
+}
+
+// signatureSigner returns the peer ID of the key that made a signature
+// envelope. It does not verify the signature.
+func signatureSigner(sig []byte) (peer.ID, error) {
+	envelope, err := record.UnmarshalEnvelope(sig)
+	if err != nil {
+		return "", err
+	}
+	return peer.IDFromPublicKey(envelope.PublicKey)
 }
 
 // ingestAd fetches all the entries for a single advertisement and processes
@@ -225,48 +363,7 @@ func (ing *Ingester) ingestAd(
 		}
 	}
 
-	var extendedProviders *registry.ExtendedProviders
-	if ad.ExtendedProvider != nil {
-		log.Debug("Advertisement has extended providers")
-		if ad.IsRm {
-			return false, adDataSourceNone, "", adIngestError{adIngestIndexerErr, fmt.Errorf("rm ads can not have extended providers")}
-		}
-
-		if len(ad.ContextID) == 0 && ad.ExtendedProvider.Override {
-			return false, adDataSourceNone, "", adIngestError{adIngestIndexerErr, fmt.Errorf("override can not be set on extended provider without context id")}
-		}
-
-		extendedProviders = &registry.ExtendedProviders{
-			ContextualProviders: make(map[string]registry.ContextualExtendedProviders),
-		}
-
-		// Creating ExtendedProviderInfo record for each of the providers.
-		// Keeping in mind that the provider from the outer ad doesn't need to be included into the extended providers list
-		eProvs := make([]registry.ExtendedProviderInfo, 0, len(ad.ExtendedProvider.Providers))
-		for _, ep := range ad.ExtendedProvider.Providers {
-			epID, err := peer.Decode(ep.ID)
-			if err != nil {
-				return false, adDataSourceNone, "", adIngestError{adIngestRegisterProviderErr, fmt.Errorf("could not decode extended provider id: %w", err)}
-			}
-
-			eProvs = append(eProvs, registry.ExtendedProviderInfo{
-				PeerID:   epID,
-				Metadata: ep.Metadata,
-				Addrs:    stringsToMultiaddrs(ep.Addresses),
-			})
-		}
-
-		// If context ID is empty then it's a chain level record, otherwise it's specific to the context ID
-		if len(ad.ContextID) == 0 {
-			extendedProviders.Providers = eProvs
-		} else {
-			extendedProviders.ContextualProviders[string(ad.ContextID)] = registry.ContextualExtendedProviders{
-				ContextID: ad.ContextID,
-				Override:  ad.ExtendedProvider.Override,
-				Providers: eProvs,
-			}
-		}
-	}
+	extendedProviders := adExtendedProviders(ad, log)
 
 	// If head ad does not have provider addresses, then update using addresses
 	// from the current advertisement.
@@ -441,17 +538,40 @@ func (ing *Ingester) ingestAd(
 }
 
 // entriesSyncError classifies an error from syncing entries from the
-// publisher. An identity CID over the size limit is malformed and missing
-// content is not found; after any other error, a later sync may succeed.
+// publisher. An error that wraps ipnisync.ErrMalformed comes from content that
+// no later sync can change, so the ad is skipped and the rest of the
+// publisher's chain is still ingested. dagsync returns such an error for a
+// block over its size limit or an identity CID over the digest limit, and the
+// link system for a block that does not decode or that it takes for an
+// advertisement that is not valid. errPublishNotAllowed is malformed too: a
+// block the link system takes for an advertisement cannot be an entry chunk or
+// a HAMT node, whether or not the policy later allows its signer. Missing
+// content is not found. After any other error a later sync may succeed.
 func entriesSyncError(err error, msg string) adIngestError {
 	wrappedErr := fmt.Errorf("%s: %w", msg, err)
 	switch {
-	case errors.Is(err, ipnisync.ErrIdentityTooLarge):
+	case errors.Is(err, ipnisync.ErrMalformed),
+		errors.Is(err, errPublishNotAllowed):
 		return adIngestError{adIngestMalformedErr, wrappedErr}
 	case errors.Is(err, ipld.ErrNotExists{}) || strings.Contains(err.Error(), "content not found"):
 		return adIngestError{adIngestContentNotFound, wrappedErr}
 	default:
 		return adIngestError{adIngestSyncEntriesErr, wrappedErr}
+	}
+}
+
+// entryChunkLoadError classifies an error from loading an entry chunk that a
+// sync stored in dsTmp. The link system stored the block only after it
+// decoded, so loading it fails because reading dsTmp failed or the block is
+// gone from it, which a retry may fix, or because the block is not an
+// EntryChunk, which no retry fixes.
+func entryChunkLoadError(err error, msg string) adIngestError {
+	wrappedErr := fmt.Errorf("%s: %w", msg, err)
+	switch {
+	case errors.Is(err, errInternal), errors.Is(err, errNotInDatastore):
+		return adIngestError{adIngestIndexerErr, wrappedErr}
+	default:
+		return adIngestError{adIngestEntryChunkErr, wrappedErr}
 	}
 }
 
@@ -461,83 +581,66 @@ func (ing *Ingester) ingestHamtFromPublisher(ctx context.Context, ad schema.Adve
 
 	log = log.With("entriesKind", "hamt")
 	syncStatus := ing.SyncStatusFor(publisherID)
-	// Keep track of all CIDs in the HAMT to remove them later when the
-	// processing is done.
-	hamtCids := []cid.Cid{entsCid}
-	gatherCids := func(_ peer.ID, c cid.Cid, _ dagsync.SegmentSyncActions) {
-		hamtCids = append(hamtCids, c)
-	}
-	// HAMT entries do not get written to mirror, so delete them.
+	// HAMT entries do not get written to mirror, so delete them. hamtKeys
+	// deletes each node below the root as soon as it has loaded it. The
+	// delete must not fail because the sync was cancelled.
 	defer func() {
-		for _, c := range hamtCids {
-			err := ing.dsTmp.Delete(ctx, datastore.NewKey(c.String()))
-			if err != nil {
-				log.Errorw("Error deleting HAMT cid from datastore", "cid", c, "err", err)
-			}
+		if err := ing.dsTmp.Delete(context.WithoutCancel(ctx), datastore.NewKey(entsCid.String())); err != nil {
+			log.Errorw("Error deleting HAMT root from datastore", "cid", entsCid, "err", err)
 		}
 	}()
 
 	// Load the CID as HAMT root node.
-	hn, err := ing.loadHamt(entsCid)
+	root, err := ing.loadHamtRoot(entsCid)
 	if err != nil {
-		return 0, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entries as HAMT root node: %w", err)}
+		return 0, hamtLoadError(err, "failed to load entries as HAMT root node")
 	}
 
 	pubInfo := peer.AddrInfo{
 		ID: publisherID,
 	}
-	// Sync all the links in the hamt, since so far we have only synced the root.
-	for _, e := range hn.Hamt.Data {
-		if e.HashMapNode != nil {
-			nodeCid := (*e.HashMapNode).(cidlink.Link).Cid
-			// Gather all the HAMT Cids so that we can remove them from
-			// datastore once finished processing.
-			err = ing.sub.SyncHAMTEntries(ctx, pubInfo, nodeCid, dagsync.ScopedBlockHook(gatherCids))
-			if err != nil {
-				return 0, entriesSyncError(err, "failed to sync remaining HAMT")
-			}
+	// syncNode syncs one node of the HAMT, which hamtKeys calls when it
+	// reaches a link, so that a node is fetched only after the node that
+	// links to it is checked. The depth limit of 1 syncs that block alone:
+	// the entries selector would otherwise follow a Next field in it.
+	syncNode := func(c cid.Cid) error {
+		err := ing.sub.SyncEntries(ctx, pubInfo, c, dagsync.ScopedDepthLimit(1), dagsync.ScopedBlockHook(func(_ peer.ID, _ cid.Cid, actions dagsync.SegmentSyncActions) {
+			actions.SetNextSyncCid(cid.Undef)
+		}))
+		if err != nil {
+			return entriesSyncError(err, "failed to sync HAMT node")
 		}
+		return nil
 	}
 
 	var mhCount int
 
-	// Start processing now that the entire HAMT is synced. HAMT is a map,
-	// and we are using the keys in the map to represent multihashes.
-	// Therefore, we only care about the keys.
+	// HAMT is a map, and we are using the keys in the map to represent
+	// multihashes. Therefore, we only care about the keys.
 	//
-	// Group the mutlihashes into batches and process as usual.
+	// The multihashes are indexed in batches, so that only one batch of
+	// multihashes from the HAMT is held in memory. hamtKeys checks each node
+	// as it reaches it. When a check fails, the batches already indexed stay
+	// indexed, as the chunks before a bad entry chunk do, and the multihashes
+	// of the batch in progress are not indexed.
 	mhs := make([]multihash.Multihash, 0, batchSize)
-	mi := hn.MapIterator()
-	for !mi.Done() {
-		k, _, err := mi.Next()
+	for key, err := range ing.hamtKeys(ctx, root, syncNode, log) {
 		if err != nil {
-			return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("faild to iterate through HAMT: %w", err)}
-		}
-		ks, err := k.AsString()
-		if err != nil {
-			return mhCount, adIngestError{adIngestMalformedErr, fmt.Errorf("HAMT key must be of type string: %w", err)}
-		}
-		mhs = append(mhs, multihash.Multihash(ks))
-		// The reason we need batching here is because here we are
-		// iterating over the _entire_ HAMT keys, whereas indexContentBlock
-		// is meant to be given multihashes in a single EntryChunk which
-		// could be far fewer multihashes.
-		//
-		// Batching here allows us to only load into memory one batch worth
-		// of multihashes from the HAMT, instead of loading all the
-		// multihashes in the HAMT then batch them later in
-		// indexContentBlock.
-		//
-		// TODO: See how we can refactor code to make batching logic more
-		// flexible in indexContentBlock.
-		if len(mhs) >= batchSize {
-			if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
-				return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
+			if _, ok := errors.AsType[adIngestError](err); ok {
+				return mhCount, err
 			}
-			mhCount += len(mhs)
-			syncStatus.AddHamtMultihashes(len(mhs))
-			mhs = mhs[:0]
+			return mhCount, hamtLoadError(err, "invalid HAMT")
 		}
+		mhs = append(mhs, multihash.Multihash(key))
+		if len(mhs) < batchSize {
+			continue
+		}
+		if err = ing.indexAdMultihashes(ad, providerID, mhs, log); err != nil {
+			return mhCount, adIngestError{adIngestIndexerErr, fmt.Errorf("failed to index content from HAMT: %w", err)}
+		}
+		mhCount += len(mhs)
+		syncStatus.AddHamtMultihashes(len(mhs))
+		mhs = mhs[:0]
 	}
 	// Process any remaining multihashes from the batch cut-off.
 	if len(mhs) > 0 {
@@ -559,8 +662,11 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 	// the entries type, so process that first.
 	chunk, err := ing.loadEntryChunk(entsCid)
 	if err != nil {
-		// Node was loaded previously, so must be a permanent data error.
-		return 0, adIngestError{adIngestEntryChunkErr, fmt.Errorf("failed to load first entry chunk: %w", err)}
+		loadErr := entryChunkLoadError(err, "failed to load first entry chunk")
+		if loadErr.state == adIngestEntryChunkErr {
+			ing.deleteUnmirroredBlock(ctx, entsCid, log)
+		}
+		return 0, loadErr
 	}
 
 	err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
@@ -571,12 +677,8 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 	mhCount := len(chunk.Entries)
 	syncStatus.AddChunk(len(chunk.Entries))
 
-	if !ing.mirror.canWrite() {
-		// Done processing entries chunk, so remove from datastore.
-		if err = ing.dsTmp.Delete(ctx, datastore.NewKey(entsCid.String())); err != nil {
-			log.Errorw("Error deleting first entries chunk from datastore", "err", err)
-		}
-	}
+	// Done with the chunk. A writable mirror keeps it until the CAR is written.
+	ing.deleteUnmirroredBlock(ctx, entsCid, log)
 
 	// Sync all remaining entry chunks.
 	if chunk.Next != nil {
@@ -584,7 +686,11 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 			// Load CID as entry chunk.
 			chunk, err := ing.loadEntryChunk(c)
 			if err != nil {
-				actions.FailSync(adIngestError{adIngestIndexerErr, fmt.Errorf("failed to load entry chunk: %w", err)})
+				loadErr := entryChunkLoadError(err, "failed to load entry chunk")
+				if loadErr.state == adIngestEntryChunkErr {
+					ing.deleteUnmirroredBlock(ctx, c, log)
+				}
+				actions.FailSync(loadErr)
 				return
 			}
 			err = ing.indexAdMultihashes(ad, providerID, chunk.Entries, log)
@@ -595,12 +701,8 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 			mhCount += len(chunk.Entries)
 			syncStatus.AddChunk(len(chunk.Entries))
 
-			if !ing.mirror.canWrite() {
-				// Done processing entries chunk, so remove from datastore.
-				if err = ing.dsTmp.Delete(ctx, datastore.NewKey(c.String())); err != nil {
-					log.Errorw("Error deleting entries chunk from datastore", "err", err)
-				}
-			}
+			// Done with the chunk. A writable mirror keeps it until the CAR is written.
+			ing.deleteUnmirroredBlock(ctx, c, log)
 
 			if chunk.Next == nil {
 				actions.SetNextSyncCid(cid.Undef)
@@ -625,6 +727,18 @@ func (ing *Ingester) ingestEntriesFromPublisher(ctx context.Context, ad schema.A
 	}
 
 	return mhCount, nil
+}
+
+// deleteUnmirroredBlock removes a block from the temporary datastore when
+// the mirror will not write it into a CAR. A writable mirror keeps the block
+// until the advertisement is written or cleaned up.
+func (ing *Ingester) deleteUnmirroredBlock(ctx context.Context, c cid.Cid, log *zap.SugaredLogger) {
+	if ing.mirror.canWrite() {
+		return
+	}
+	if err := ing.dsTmp.Delete(ctx, datastore.NewKey(c.String())); err != nil {
+		log.Errorw("Error deleting entries block from datastore", "cid", c, "err", err)
+	}
 }
 
 func (ing *Ingester) ingestEntriesFromCar(
@@ -773,6 +887,11 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, providerID peer
 		} else if len(decoded.Digest) < ing.minKeyLen {
 			log.Warnw("Multihash digest too short, ignoring", "digestSize", len(decoded.Digest))
 			badMultihash = true
+		} else if len(decoded.Digest) > maxDigestLength {
+			if badMultihashCount == 0 {
+				log.Warnw("Multihash digest too long, ignoring", "digestSize", len(decoded.Digest), "maxDigestSize", maxDigestLength)
+			}
+			badMultihash = true
 		}
 		if badMultihash {
 			// Remove the bad multihash.
@@ -830,26 +949,256 @@ func (ing *Ingester) loadEntryChunk(c cid.Cid) (schema.EntryChunk, error) {
 	return *entChunk, nil
 }
 
-func (ing *Ingester) loadHamt(c cid.Cid) (*hamt.Node, error) {
+func (ing *Ingester) loadHamtRoot(c cid.Cid) (*hamt.HashMapRoot, error) {
 	node, err := ing.loadNode(c, hamt.HashMapRootPrototype)
 	if err != nil {
 		return nil, err
 	}
-	root := bindnode.Unwrap(node).(*hamt.HashMapRoot)
-	if root == nil {
-		return nil, errors.New("cannot unwrap node as hamt.HashMapRoot")
+	root, ok := bindnode.Unwrap(node).(*hamt.HashMapRoot)
+	if !ok || root == nil {
+		return nil, fmt.Errorf("%w: cannot unwrap node as HAMT root", errMalformedHamt)
 	}
-	hn := hamt.Node{
-		HashMapRoot: *root,
-	}.WithLinking(ing.lsys, schema.Linkproto)
+	return root, nil
+}
+
+func (ing *Ingester) loadHamtNode(c cid.Cid) (*hamt.HashMapNode, error) {
+	node, err := ing.loadNode(c, hamt.HashMapNodePrototype.Representation())
+	if err != nil {
+		return nil, err
+	}
+	hn, ok := bindnode.Unwrap(node).(*hamt.HashMapNode)
+	if !ok || hn == nil {
+		return nil, fmt.Errorf("%w: cannot unwrap node as HAMT node", errMalformedHamt)
+	}
 	return hn, nil
+}
+
+// hamtLoadError classifies an error from reading a HAMT held in the temporary
+// datastore. A datastore failure, or a node gone from the datastore because
+// another worker that synced the same node deleted it, is an indexer error,
+// and the ad can be retried. Any other error comes from the HAMT data and is
+// permanent.
+func hamtLoadError(err error, msg string) error {
+	wrappedErr := fmt.Errorf("%s: %w", msg, err)
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return err
+	case errors.Is(err, errInternal), errors.Is(err, errNotInDatastore):
+		return adIngestError{adIngestIndexerErr, wrappedErr}
+	default:
+		return adIngestError{adIngestMalformedErr, wrappedErr}
+	}
+}
+
+// hamtKeys returns the keys in the buckets of the HAMT at root, in the order
+// of the HAMT. It calls syncNode with the CID of each node below the root,
+// then loads the node from the temporary datastore and deletes it there, so
+// that the datastore holds one node at a time. An error from syncNode is
+// yielded as it is.
+//
+// It checks the HAMT against the HAMT specification as it reads it: the
+// root's hash algorithm is identity, sha2-256 or murmur3; its bucket size is
+// at least 1; the bitmap of every node has the root's length, which is a power
+// of two of at most maxHamtMapLen bytes; the bitmap has one bit set for each
+// element; each element is either a link or a bucket of 1 to BucketSize
+// entries; and the hash of each key selects the slots on the path from the
+// root to the key's bucket. A node deeper below the root than
+// entriesDepthLimit is malformed, and is not synced. A link that is too deep
+// for any key of a sha2-256 or murmur3 hash is malformed. With the identity
+// hash the hash is the key, and a key longer than the longest multihash that
+// is indexed cannot be indexed, so such a link is skipped and the walk
+// continues. At the first check that fails, it yields the error and stops.
+//
+// A valid HAMT links to each node from one place, so a link to a node that the
+// walk has already synced is malformed. The key check finds such a link only
+// at a key below it, and an identity HAMT whose deepest links are skipped
+// holds no keys there, so the walk keeps the CIDs of the nodes it has synced.
+//
+// The walk syncs at most entriesDepthLimit nodes below the root, as a sync of
+// an entry chunk chain stops after entriesDepthLimit chunks, and then stops
+// without an error.
+func (ing *Ingester) hamtKeys(ctx context.Context, root *hamt.HashMapRoot, syncNode func(cid.Cid) error, log *zap.SugaredLogger) iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
+		mapLen := len(root.Hamt.Map)
+		switch {
+		case root.HashAlg != mc.Identity && root.HashAlg != mc.Sha2_256 && root.HashAlg != mc.Murmur3X64_64:
+			yield(nil, fmt.Errorf("%w: unsupported hash algorithm %s", errMalformedHamt, root.HashAlg))
+			return
+		case mapLen == 0 || mapLen&(mapLen-1) != 0 || mapLen > maxHamtMapLen:
+			yield(nil, fmt.Errorf("%w: bitmap length %d is not a power of two up to %d", errMalformedHamt, mapLen, maxHamtMapLen))
+			return
+		case root.BucketSize < 1:
+			yield(nil, fmt.Errorf("%w: bucket size %d is less than 1", errMalformedHamt, root.BucketSize))
+			return
+		}
+		bitWidth := bits.TrailingZeros(uint(mapLen)) + 3
+		// hashBits is the number of bits in the hash of a key. For identity,
+		// the hash is the key itself, and a key longer than a multihash with
+		// a digest of maxDigestLength bytes is not indexed, so no node needs
+		// to hold one.
+		var hashBits int
+		switch root.HashAlg {
+		case mc.Sha2_256:
+			hashBits = 8 * sha256.Size
+		case mc.Murmur3X64_64:
+			hashBits = 128
+		case mc.Identity:
+			hashBits = 8 * (maxDigestLength + 2*binary.MaxVarintLen64)
+		}
+
+		// synced holds the CIDs of the nodes below the root that the walk has
+		// synced. Its size is counted against entriesDepthLimit, as the
+		// chunks of an entry chunk chain are counted.
+		synced := make(map[cid.Cid]struct{})
+
+		var nodeKeysIter func(node *hamt.HashMapNode, path []int) (keepGoing bool, err error)
+		nodeKeysIter = func(node *hamt.HashMapNode, path []int) (keepGoing bool, err error) {
+			if len(node.Map) != mapLen {
+				return false, fmt.Errorf("%w: node bitmap length %d differs from root bitmap length %d", errMalformedHamt, len(node.Map), mapLen)
+			}
+			if len(path) != 0 && len(node.Data) == 0 {
+				return false, fmt.Errorf("%w: node below the root has no elements", errMalformedHamt)
+			}
+			// Each bit set in the bitmap takes the next element of data, in
+			// order. The first bit is the most significant bit of the first
+			// byte.
+			data := node.Data
+			for slot := range 8 * mapLen {
+				if node.Map[slot>>3]&(0x80>>(slot&7)) == 0 {
+					continue
+				}
+
+				if len(data) == 0 {
+					return false, fmt.Errorf("%w: bitmap has more bits set than the node has elements", errMalformedHamt)
+				}
+				elem := data[0]
+				data = data[1:]
+				subPath := append(path, slot)
+
+				if (elem.Bucket == nil) == (elem.HashMapNode == nil) {
+					return false, fmt.Errorf("%w: element is not exactly one of link or bucket", errMalformedHamt)
+				}
+				if elem.Bucket != nil {
+					if len(*elem.Bucket) == 0 || len(*elem.Bucket) > root.BucketSize {
+						return false, fmt.Errorf("%w: bucket has %d entries, want 1 to %d", errMalformedHamt, len(*elem.Bucket), root.BucketSize)
+					}
+					for _, entry := range *elem.Bucket {
+						if err := checkHamtKey(root.HashAlg, entry.Key, subPath, bitWidth); err != nil {
+							return false, err
+						}
+						if !yield(entry.Key, nil) {
+							return false, nil
+						}
+					}
+					continue
+				}
+
+				if err := ctx.Err(); err != nil {
+					return false, err
+				}
+				lnk, ok := (*elem.HashMapNode).(cidlink.Link)
+				if !ok {
+					return false, fmt.Errorf("%w: link is not a CID", errMalformedHamt)
+				}
+				if ing.entriesDepthLimit > 0 && len(subPath) > ing.entriesDepthLimit {
+					return false, fmt.Errorf("%w: node %s is deeper than the entries depth limit %d", errMalformedHamt, lnk.Cid, ing.entriesDepthLimit)
+				}
+				// The buckets of the child are one level below it, and a key
+				// in them needs bitWidth bits of its hash for each level.
+				// No indexable key can sit that deep. sha2-256 and murmur3
+				// have no longer keys, so the HAMT is malformed. The identity
+				// hash is the key itself, and indexing ignores a key longer
+				// than the longest multihash it accepts, so the link is
+				// skipped and the rest of the HAMT is walked.
+				if (len(subPath)+1)*bitWidth > hashBits {
+					if root.HashAlg == mc.Identity {
+						log.Debugw("Skipping identity HAMT link deeper than an indexable key", "cid", lnk.Cid, "depth", len(subPath))
+						continue
+					}
+					return false, fmt.Errorf("%w: node %s is deeper than the hash of a key allows", errMalformedHamt, lnk.Cid)
+				}
+				if _, ok := synced[lnk.Cid]; ok {
+					return false, fmt.Errorf("%w: node %s is linked from more than one place", errMalformedHamt, lnk.Cid)
+				}
+				if ing.entriesDepthLimit > 0 && len(synced) >= ing.entriesDepthLimit {
+					log.Warnw("HAMT has more nodes than the entries depth limit, indexing the nodes before it", "limit", ing.entriesDepthLimit)
+					return false, nil
+				}
+				synced[lnk.Cid] = struct{}{}
+				err := syncNode(lnk.Cid)
+				var child *hamt.HashMapNode
+				if err == nil {
+					if child, err = ing.loadHamtNode(lnk.Cid); err != nil {
+						err = fmt.Errorf("cannot load HAMT node %s: %w", lnk.Cid, err)
+					}
+				}
+				// The walk holds the node in memory while it reads the node's
+				// subtree, so the datastore does not need the block any more.
+				// The delete must not fail because the sync was cancelled.
+				if delErr := ing.dsTmp.Delete(context.WithoutCancel(ctx), datastore.NewKey(lnk.Cid.String())); delErr != nil {
+					log.Errorw("Error deleting HAMT node from datastore", "cid", lnk.Cid, "err", delErr)
+				}
+				if err != nil {
+					return false, err
+				}
+				if ok, err := nodeKeysIter(child, subPath); !ok {
+					return false, err
+				}
+			}
+			if len(data) != 0 {
+				return false, fmt.Errorf("%w: node has more elements than bits set in its bitmap", errMalformedHamt)
+			}
+			return true, nil
+		}
+		path := make([]int, 0, 256/bitWidth)
+		if _, err := nodeKeysIter(&root.Hamt, path); err != nil {
+			yield(nil, err)
+		}
+	}
+}
+
+// checkHamtKey checks that the hash of key selects the slots of path, as the
+// HAMT specification places a key: at depth d, the slot is the d-th group of
+// bitWidth bits of the hash, from its most significant bit.
+func checkHamtKey(hashAlg mc.Code, key []byte, path []int, bitWidth int) error {
+	var hash []byte
+	switch hashAlg {
+	case mc.Identity:
+		hash = key
+	case mc.Sha2_256:
+		sum := sha256.Sum256(key)
+		hash = sum[:]
+	case mc.Murmur3X64_64:
+		h := murmur3.New128()
+		h.Write(key)
+		hash = h.Sum(nil)
+	}
+	if len(path)*bitWidth > len(hash)*8 {
+		return fmt.Errorf("%w: key is at depth %d, deeper than its hash allows", errMalformedHamt, len(path))
+	}
+	for depth, slot := range path {
+		if hashBits(hash, depth*bitWidth, bitWidth) != slot {
+			return fmt.Errorf("%w: key is not in the slot that its hash selects", errMalformedHamt)
+		}
+	}
+	return nil
+}
+
+// hashBits returns n bits of hash starting at bit from, counted from the
+// most significant bit of the first byte.
+func hashBits(hash []byte, from, n int) int {
+	var v int
+	for i := from; i < from+n; i++ {
+		v = v<<1 | int(hash[i/8]>>(7-i%8)&1)
+	}
+	return v
 }
 
 func (ing *Ingester) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Node, error) {
 	val, err := ing.dsTmp.Get(context.Background(), datastore.NewKey(c.String()))
 	if err != nil {
 		if errors.Is(err, datastore.ErrNotFound) {
-			return nil, errors.New("node not present on indexer")
+			return nil, errNotInDatastore
 		}
 		return nil, fmt.Errorf("%w: cannot fetch the node from datastore: %w", errInternal, err)
 	}

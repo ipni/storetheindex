@@ -222,7 +222,22 @@ implies all older ads are processed. For each ad:
 - Skips ads already processed, or ads marked `skip` (deleted later in the
   chain) - the latter are still marked processed.
 - Updates sync status (`SetCurrentAd`).
-- Calls `ingestAd`, which classifies the ad (`linksystem.go`):
+- Calls `ingestAd`. It first reads the ad's extended providers
+  (`adExtendedProviders`) and ignores what the IPNI specification says to
+  ignore: extended providers on a removal ad, `Override` on an ad without a
+  context ID, a provider record that is not signed by its provider's own key,
+  and a provider record with no valid address. A record with an invalid peer
+  ID is ignored too. The record of the ad's own provider may be signed by the
+  ad's signer, and may omit its addresses, which then come from the ad. The
+  rest of the ad is processed as usual. An `ExtendedProvider` whose records
+  are all ignored is ignored as a whole, so the registry keeps the extended
+  providers it has. An `ExtendedProvider` with no records replaces them: a
+  contextual advertisement leaves one context that lists no providers and
+  clears the chain-level records and any other contexts, and an advertisement
+  with no context ID clears them. Ingest then updates the provider in the
+  registry and classifies
+  the ad
+  (`linksystem.go`):
   - **Removal** (`IsRm`): removes the provider context from the indexer core;
     no entries fetched.
   - **Metadata / address update only** (no entries, or indexer frozen): writes
@@ -265,12 +280,62 @@ graph TD
   usable Main hit is not rewritten.
 - **EntryChunk chain** (`ingestEntriesFromPublisher`): the first chunk is
   fetched via `SyncOneEntry` to detect the type, then the remaining chunks are
-  synced with `SyncEntries` using a scoped block hook that indexes each chunk's
-  multihashes (`indexAdMultihashes`) and deletes the chunk from the temp
-  datastore as it goes.
-- **HAMT** (`ingestHamtFromPublisher`): the whole HAMT is synced
-  (`SyncHAMTEntries`), then keys (multihashes) are iterated and indexed in
-  batches of 4096. HAMT CIDs are deleted from the temp datastore afterward.
+  synced with `SyncEntries` using a scoped block hook that indexes each
+  chunk's multihashes (`indexAdMultihashes`) and deletes the chunk from the
+  temp datastore as it goes. An entries block that does not decode in the
+  codec of its CID is refused by the link system with `errBadIPLDData`, which
+  `entriesSyncError` classifies as `malformedErr`. So is an entries block
+  larger than the dagsync block size limit (`ipnisync.DefaultMaxBlockSize`,
+  4 MiB), which dagsync refuses with `ipnisync.ErrBlockTooLarge` before it is
+  stored, and an entries block that the link system takes for an ad, because
+  it has a `Signature` field, but that is not a valid signed ad
+  (`errBadAdvert`, `errInvalidAdvertSignature`). `entriesSyncError` takes any
+  error that wraps `ipnisync.ErrMalformed`, as all of these do, for
+  `malformedErr`. An ad whose signer the policy does not allow
+  (`errPublishNotAllowed`) is `malformedErr` too.
+  A block the link system takes for an ad cannot be an entry chunk or a HAMT
+  node, so a change of policy cannot make a later sync accept it. On the
+  advertisement chain itself, `errPublishNotAllowed` stays retryable, since
+  the policy can be reloaded. A block that decodes but is not an EntryChunk
+  is an `ingestEntryChunkErr`. These skip the ad and leave multihashes from
+  earlier chunks indexed. That block is deleted from the temp datastore, as a
+  processed chunk is, when the mirror is not writing it. A chunk
+  that is gone from the temp datastore when it is loaded
+  (`errNotInDatastore`), as when another worker that synced the same chunk
+  deleted it, is an `indexerErr`, like a datastore failure, and the ad is
+  retried (`entryChunkLoadError`).
+- **HAMT** (`ingestHamtFromPublisher`): `hamtKeys` walks down from the root,
+  checking each node as it reaches it, and keys (multihashes) are indexed in
+  batches of 4096. It syncs each linked node on its own with `SyncEntries` and
+  a depth limit of 1, so that a `Next` field in the block is not followed,
+  after it has checked the node that links to it. The root's hash algorithm is
+  identity, sha2-256 or murmur3, and its bucket size is at least 1; each
+  node's bitmap has the root's length, a power of two of at most 8 KiB; the
+  bitmap has one bit set per element; each node below the root has at least
+  one element; each element is either a link or a bucket of 1 to `bucketSize`
+  entries; the hash of each key selects the slots on the path from the root to
+  its bucket (`checkHamtKey`); and no node is deeper below the root than
+  `EntriesDepthLimit`. Ingest syncs at most
+  `EntriesDepthLimit` nodes below the root, as it syncs at most that many
+  entry chunks: the keys read before the limit are indexed, and the ad is
+  processed. For sha2-256 and murmur3, a link so deep that a key
+  below it would need more bits than the hash has (256 and 128) is malformed,
+  and the ad is skipped. For identity the hash is the key, and indexing
+  ignores a key longer than the longest multihash it accepts, so a link that
+  deep is not synced and the walk continues.
+  A valid HAMT links to each node from one place, so a link to a node that
+  the walk has already synced is malformed, and the ad is skipped. The walk
+  keeps the CIDs of the nodes it has synced to find such a link, since the key
+  check finds it only at a key below it, and in an identity HAMT whose
+  deepest links are skipped the nodes below may hold no keys.
+  A HAMT that fails a check skips the ad as `malformedErr`. The batches indexed
+  before the failure stay indexed, as the chunks before a bad entry chunk do,
+  and the batch in progress is not indexed. A node that is gone from the temp
+  datastore when it is loaded (`errNotInDatastore`) is an `indexerErr`, like a
+  datastore failure, and the ad is retried (`hamtLoadError`). Each node is
+  deleted from the temp datastore as soon as it is loaded, and the root when
+  the HAMT is done, so the temp datastore holds one node below the root at a
+  time.
 
 ### Identity CIDs
 
@@ -306,8 +371,10 @@ before the block is stored.
 In dag-json, the IPNI default codec, 128 bytes holds one sha2-256 multihash
 with no `Next` link; in dag-cbor it holds up to three.
 
-`indexAdMultihashes` filters out invalid/too-short multihashes
-(`MinimumKeyLength`) and calls the indexer core `Put` with the
+`indexAdMultihashes` filters out invalid multihashes, those whose digest is
+shorter than `MinimumKeyLength`, and those whose digest is longer than 128
+bytes, the limit that the IPNI specification sets (`maxDigestLength`). It
+calls the indexer core `Put` with the
 `indexer.Value{ProviderID, ContextID, MetadataBytes}`.
 
 After a content ad is processed successfully:
@@ -452,11 +519,13 @@ short-lived and safe to discard.
   `dsTmp`). An ad's block is removed once the ad is processed (or moved to the
   CAR mirror when one is writable).
 - **Phase 3 (entry ingestion), fetching from the publisher:** entry-chunk and
-  HAMT node blocks fetched by `SyncOneEntry` / `SyncEntries` /
-  `SyncHAMTEntries` flow through the same write opener into `dsTmp`. HAMT nodes
-  are not mirrored, so `ingestHamtFromPublisher`'s deferred cleanup always
-  deletes them. Entry chunks are deleted as they are indexed in
-  `ingestEntriesFromPublisher` when no writable mirror is configured. With a
+  HAMT node blocks fetched by `SyncOneEntry` / `SyncEntries` flow through
+  the same write opener into `dsTmp`. HAMT nodes
+  are not mirrored: `hamtKeys` deletes each node below the root as soon as it
+  has loaded it, so `dsTmp` holds one of them at a time, and
+  `ingestHamtFromPublisher` deletes the root when it is done. Entry chunks
+  are deleted as they are indexed in `ingestEntriesFromPublisher` when no
+  writable mirror is configured. With a
   writable mirror they stay until the ad is written to the CAR mirror, which
   removes them, or until `cleanupAdData` removes them for a skipped ad.
 - **Phase 3, reading from the CAR mirror:** when a readable CAR (Main first,
@@ -643,6 +712,71 @@ Ingestion is configured by the `Ingest` section of the config file
 (`NewIngester`) and require a daemon restart to change. The reloadable subset is
 listed in [config.md](config.md).
 
+## Testing
+
+`IngestTestSuite`
+([`internal/ingest/ingest_suite_test.go`](../internal/ingest/ingest_suite_test.go))
+tests what ingestion does with the content that a publisher serves. Its
+publisher serves an ad chain over HTTP from memory and sends the bytes of
+each block exactly as the test put them, so a test can publish malformed
+blocks as easily as valid ones. A test builds blocks and ads with the
+suite's helpers, syncs, and checks what ingestion did with them. Each way
+that ingestion was found to fail on content from a publisher has a test
+there.
+
+## Fuzzing
+
+`FuzzIngest`
+([`internal/ingest/fuzz_test.go`](../internal/ingest/fuzz_test.go)) ingests an
+ad chain built from the fuzz input and served by the publisher of
+`IngestTestSuite`. The input is a program that builds blocks of any bytes,
+entry chunks, HAMT nodes, lists of links and signed ads, with links between
+them, so it can describe malformed blocks, deep or wide DAGs, ad chains, and
+extended providers signed by the wrong key. Separate operations build blocks
+of up to 8 MiB and entry chunks of up to 65535 valid multihashes, so that
+inputs reach the limits on block size and entry count. The test checks
+invariants that hold for any input:
+
+- ingestion does not panic and finishes within a minute;
+- an accepted ad is processed (indexed or skipped), never retried when a
+  retry cannot succeed, except an ad that leaves a new provider with no valid
+  address;
+- every indexed value comes from an accepted, non-removal ad of the same
+  provider and context whose entries hold the multihash, and a removed
+  context has nothing indexed;
+- every multihash of an ad that is processed and not skipped is indexed,
+  unless the ad is a removal or a later ad removed its context, counting the
+  multihashes that decode, have a digest of at most 128 bytes, and are no
+  deeper below the ad's entries than `EntriesDepthLimit`;
+- every indexed multihash has a digest of at most 128 bytes
+  (`maxDigestLength`);
+- every extended provider in the registry signed for itself, or is the ad's
+  provider signed for by the ad's signer;
+- no block is fetched beyond `AdvertisementDepthLimit` in the ad chain or
+  `EntriesDepthLimit` below an ad's entries.
+
+`go test ./...` runs the seed inputs. This fuzzes for a given time:
+
+```sh
+go test ./internal/ingest -run '^$' -fuzz '^FuzzIngest$' -fuzztime 8h
+```
+
+A failing input is saved under `internal/ingest/testdata/fuzz/FuzzIngest/`,
+where it becomes part of the test's corpus. Fuzzing stops at the first
+failure, and each failure is fixed, in ingestion or in the test, before
+fuzzing goes on. A failure in ingestion also gets a test in `IngestTestSuite`,
+and the corpus keeps an input for each one that the fuzzer found. Ingestion
+that does not finish in time panics with the stacks of all goroutines, which
+show where it was stuck. An input whose ads hold more than about a million
+multihashes in total, counted once for each ad, is skipped: ingestion time
+grows with that count, and a publisher that serves many such ads only makes
+the indexer do work in proportion to what it serves.
+
+Inputs can make ingestion use a lot of memory and CPU, so run long fuzzing
+inside resource bounds, for example by prefixing the command with
+`systemd-run --user --scope -p MemoryMax=8G`, or in a container with memory
+and CPU limits.
+
 ## File map
 
 | File | Responsibility |
@@ -652,6 +786,8 @@ listed in [config.md](config.md).
 | `internal/ingest/mirror.go` | CAR mirror read/write over the filestore. |
 | `internal/ingest/error.go` | `adIngestError` states and helpers. |
 | `internal/ingest/syncstatus.go` | Live per-publisher sync status tracker. |
+| `internal/ingest/ingest_suite_test.go` | `IngestTestSuite`, tests of ingestion against content served by a publisher. |
+| `internal/ingest/fuzz_test.go` | `FuzzIngest`, the fuzz test of ad chain and entries ingestion. |
 | `server/ingest/server.go` | `/announce`, `/register`, `/sync/status`, `/sync/status/ad/<cid>` (single), and `POST /sync/status/ad` (batch) HTTP handlers. |
 | `internal/httpserver/announce.go` | Shared announce body decode (JSON or CBOR) used by ingest and assigner. |
 | `internal/registry/registry.go` | Provider registry, policy, freeze, auto-sync channel. |

@@ -12,7 +12,12 @@ import (
 
 func TestIngester_IngestsMixedEntriesTypeSuccessfully(t *testing.T) {
 	ctx := t.Context()
-	te := setupTestEnv(t, true)
+	// The HAMTs have more nodes than the default test EntriesDepthLimit
+	cfg := defaultTestIngestConfig
+	cfg.EntriesDepthLimit = 1000
+	te := setupTestEnv(t, true, func(o *testEnvOpts) {
+		o.ingestConfig = &cfg
+	})
 
 	// Generate an ad chain with mixed entries type and different shape HAMT.
 	headAd := typehelpers.RandomAdBuilder{

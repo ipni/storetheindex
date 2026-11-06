@@ -18,7 +18,9 @@ const (
 	adIngestRegisterProviderErr adIngestState = "registerErr"
 	adIngestSyncEntriesErr      adIngestState = "syncEntriesErr"
 	adIngestContentNotFound     adIngestState = "contentNotFound"
-	// Happens if there is an error during ingest of an entry chunk (rather than fetching it).
+	// adIngestEntryChunkErr is an entries block that was fetched from the
+	// publisher and stored, but does not load as an EntryChunk when ingest
+	// reads it back. The publisher serves the same block on every retry.
 	adIngestEntryChunkErr adIngestState = "ingestEntryChunkErr"
 )
 
