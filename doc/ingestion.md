@@ -205,9 +205,10 @@ one, and the active worker keeps draining until the slot is empty.
    guarantees all older ads are already processed).
 2. Groups ads by **provider** (`adsGroupedByProvider`). A single chain usually
    has one provider, but may contain several.
-3. Tracks removals: an ad with `IsRm` records its `ContextID`; earlier
-   (newer-in-walk) ads for a `ContextID` that is later removed are marked
-   `skip`.
+3. Tracks removals per provider: an ad with `IsRm` records its (provider,
+   `ContextID`), and ads older than it in the chain with the same provider and
+   `ContextID` are marked `skip`. A removal deletes only its own provider's
+   context, so ads of other providers with the same `ContextID` are ingested.
 4. Records remove/non-remove ad-count metrics.
 5. For each provider, ensures the provider is not already being ingested
    (`providersBusy`, to avoid double processing of the same provider from
