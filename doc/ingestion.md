@@ -226,8 +226,13 @@ one, and the active worker keeps draining until the slot is empty.
 1. `collectAdChain` walks the just-synced chain from head to older ads, loading
    each ad from the datastore. It stops when it reaches an already-processed ad
    (which guarantees all older ads are already processed).
-   - An ad that cannot be loaded ends the walk, and the ads collected so far
-     are ingested.
+   - An ad that is not in the datastore, or cannot be decoded, ends the walk,
+     and the ads collected so far are ingested. A depth-limited sync ends at
+     an ad whose previous ad was not fetched, and ads older than an
+     undecodable ad cannot be reached.
+   - A datastore error while reading an ad or its processed marker stops the
+     chain before any ad is ingested, so a later sync walks the whole chain
+     again.
    - An ad whose provider ID cannot be decoded is skipped and never marked.
      The ingester's link system already refuses such an ad when the sync
      stores it.
@@ -241,13 +246,29 @@ one, and the active worker keeps draining until the slot is empty.
    `headAdCid` set to the chain head and the chain's error, if any. On an error
    its `adCid` is the ad that failed. An explicit `Sync` waits for this event,
    so it returns even when no ad of the chain was ingested.
+6. When the chain stops on an error and was not canceled, records the error
+   (`recordChainError`) as the last error of every registered provider with
+   an ad the chain did not ingest: the failed ad and the newer ones. A
+   provider whose ads were all ingested before the failure keeps no error.
+   When none of those providers is registered, for example when the walk
+   failed before collecting any ad, the error goes to a registered provider
+   of the publisher (`ProviderByPublisher`). The error names the failed ad
+   and hides the details of an internal error. The poller syncs a provider
+   with a last error even after recent contact, and polling a provider syncs
+   its publisher, so the chain is synced again. A publisher with no
+   registered provider yet is synced again by its next announce or an
+   explicit `Sync`. A successful ad clears its provider's last error after
+   its marker is written.
 
 ## Phase 3: Processing ads and ingesting entries
 
 `ingestAdChain` processes the chain's ads **oldest to newest**, in chain order
 across all providers (iterating the slice backwards). It stops the whole chain
-at the first transient error, so an ad is never marked processed while an
-older ad of the same chain is not.
+at the first transient error, including a failed write of an ad's processed or
+skipped marker, so an ad is never marked processed while an older ad of the
+same chain that the walk reached is not. The walk ends early only at an ad
+that is not in the datastore, as at the end of a depth-limited sync, or that
+does not decode, and the older ads are then left unprocessed.
 
 Before the loop it marks each provider of the chain as seen (`reg.Saw`). A
 run of consecutive ads of one provider is ingested while that provider is
@@ -264,7 +285,10 @@ For each ad:
 - Skips ads already processed, or ads marked `skip` (deleted later in the
   chain) - the latter are still marked processed.
 - Updates sync status (`SetCurrentAd`).
-- Calls `ingestAd`. It first reads the ad's extended providers
+- Calls `ingestAd`. It loads the ad from the datastore again, and any failure
+  to load it is an `indexerErr`: the chain stops there and is ingested again
+  later. If another chain processed the ad meanwhile, the next walk finds it
+  marked processed. It then reads the ad's extended providers
   (`adExtendedProviders`) and ignores what the IPNI specification says to
   ignore: extended providers on a removal ad, `Override` on an ad without a
   context ID, a provider record that is not signed by its provider's own key,

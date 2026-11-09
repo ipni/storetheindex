@@ -1264,7 +1264,17 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 	log := log.With("publisher", publisher, "worker", wkrNum)
 	log.Infow("Advertisement chain synced", "length", syncFinished.Count)
 
-	chain := ing.collectAdChain(ctx, headAdCid, log)
+	chain, failedAd, chainErr := ing.collectAdChain(ctx, headAdCid, log)
+	if chainErr != nil {
+		log.Errorw("Cannot collect advertisement chain, not ingesting any of it", "adCid", failedAd, "err", chainErr)
+		providers := make(map[peer.ID]struct{})
+		for _, ai := range chain.ads {
+			providers[ai.provider] = struct{}{}
+		}
+		ing.recordChainError(ctx, publisher, providers, failedAd, chainErr)
+		return
+	}
+
 	log.Debugw("Collected ad chain", "ads", len(chain.ads), "rmCount", chain.rmCount)
 	stats.Record(ctx,
 		metrics.RemoveAdCount.M(ing.totalRmAds.Add(chain.rmCount)),
@@ -1277,10 +1287,50 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 	failedAd, chainErr = ing.ingestAdChain(ctx, publisher, headAdCid, chain, wkrNum, log)
 }
 
+// adLastError is the error recorded as a provider's last error when ingesting
+// the ad failed. The details of an internal error are not shown to users.
+func adLastError(adCid cid.Cid, err error) error {
+	errText := err.Error()
+	if errors.Is(err, errInternal) {
+		errText = errInternal.Error()
+	}
+	return fmt.Errorf("error while ingesting ad %s: %s", adCid, errText)
+}
+
+// recordChainError records the error of a chain that stopped at adCid as the
+// last error of the given providers, whose ads the chain did not ingest. A
+// provider with an error is polled even after recent contact, and polling it
+// syncs its publisher, so the chain is synced again. When none of the
+// providers is registered, the error goes to a registered provider of the
+// publisher instead. Nothing is recorded when the chain was canceled.
+func (ing *Ingester) recordChainError(ctx context.Context, publisher peer.ID, providers map[peer.ID]struct{}, adCid cid.Cid, err error) {
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+		return
+	}
+	lastErr := adLastError(adCid, err)
+	var recorded bool
+	for provider := range providers {
+		if ing.reg.IsRegistered(provider) {
+			ing.reg.SetLastError(provider, lastErr)
+			recorded = true
+		}
+	}
+	if !recorded {
+		if provider, ok := ing.reg.ProviderByPublisher(publisher); ok {
+			ing.reg.SetLastError(provider, lastErr)
+		}
+	}
+}
+
 // collectAdChain walks a synced chain from its head back to the first ad
-// already processed, and returns the unprocessed ads, newest first. An ad that
-// cannot be loaded ends the walk.
-func (ing *Ingester) collectAdChain(ctx context.Context, head cid.Cid, log *zap.SugaredLogger) adChain {
+// already processed, and returns the unprocessed ads, newest first.
+//
+// An ad that is not in the datastore, or cannot be decoded, ends the walk, and
+// the collected ads are ingested. A depth-limited sync stops at an ad whose
+// previous ad was not fetched, and the ads older than an undecodable ad cannot
+// be reached. A datastore read error is returned with the ad's CID, and nothing
+// of the chain is ingested, so a later sync walks the whole chain again.
+func (ing *Ingester) collectAdChain(ctx context.Context, head cid.Cid, log *zap.SugaredLogger) (adChain, cid.Cid, error) {
 	chain := adChain{
 		provAddrs: map[peer.ID][]string{},
 	}
@@ -1288,11 +1338,9 @@ func (ing *Ingester) collectAdChain(ctx context.Context, head cid.Cid, log *zap.
 
 	var nextAdCid cid.Cid
 	for c := head; c != cid.Undef; c = nextAdCid {
-		adState, stateErr := ing.adAlreadyProcessed(ctx, c)
-		if stateErr != nil {
-			log.Errorw("Failed to read advertisement processed state from datastore", "err", stateErr)
-			// Note: don't stop in case of an error in this place, the same
-			// check is done again when the ad is ingested.
+		adState, err := ing.adAlreadyProcessed(ctx, c)
+		if err != nil {
+			return chain, c, fmt.Errorf("%w: cannot read advertisement processed state: %w", errInternal, err)
 		}
 		if adState.Processed {
 			// This ad has been processed so all earlier ads already have been
@@ -1304,6 +1352,9 @@ func (ing *Ingester) collectAdChain(ctx context.Context, head cid.Cid, log *zap.
 		ad, err := ing.loadAd(c)
 		if err != nil {
 			stats.Record(context.Background(), metrics.AdLoadError.M(1))
+			if errors.Is(err, errInternal) {
+				return chain, c, fmt.Errorf("cannot load advertisement: %w", err)
+			}
 			log.Errorw("Failed to load advertisement CID, skipping all remaining", "cid", c, "err", err)
 			break
 		}
@@ -1341,7 +1392,7 @@ func (ing *Ingester) collectAdChain(ctx context.Context, head cid.Cid, log *zap.
 			ai.skip = true
 		}
 
-		if stateErr == nil && !adState.Known {
+		if !adState.Known {
 			if err := ing.markAdUnprocessed(c, false); err != nil {
 				log.Errorw("Failed to mark advertisement as unprocessed", "cid", c, "err", err)
 			}
@@ -1352,7 +1403,7 @@ func (ing *Ingester) collectAdChain(ctx context.Context, head cid.Cid, log *zap.
 			log.Debugf("Added %d ads to stack", len(chain.ads))
 		}
 	}
-	return chain
+	return chain, cid.Undef, nil
 }
 
 // writeMirrorHead removes the provider's head from heads and, when the mirror
@@ -1448,11 +1499,25 @@ func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headA
 		ing.EndProcessing(publisher, err)
 	}()
 
+	// An ad is removed from ads once it is done, so when the chain stops, ads
+	// holds the ads it did not ingest: the one that failed and the newer ones.
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		// Record the error on the providers whose ads were not ingested
+		providers := make(map[peer.ID]struct{})
+		for _, ai := range ads {
+			providers[ai.provider] = struct{}{}
+		}
+		ing.recordChainError(ctx, publisher, providers, failedAd, err)
+	}()
+
 	var count int
-	for i := len(ads) - 1; i >= 0; i-- {
-		// Note that iteration proceeds backwards here. Earliest to newest.
-		ai := ads[i]
-		ads[i] = adInfo{} // Clear the adInfo to free memory.
+	// The ads are newest first, so iterate from the end, oldest to newest.
+	for ; len(ads) != 0; ads = ads[:len(ads)-1] {
+		ai := ads[len(ads)-1]
 		count++
 
 		if ctx.Err() != nil {
@@ -1477,7 +1542,7 @@ func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headA
 		adState, err := ing.adAlreadyProcessed(ctx, ai.cid)
 		if err != nil {
 			log.Errorw("Failed to check if advertisement is processed. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err)
-			return ai.cid, err
+			return ai.cid, fmt.Errorf("%w: cannot read advertisement processed state: %w", errInternal, err)
 		}
 		if adState.Processed {
 			log.Infow("Skipping advertisement that has already been processed",
@@ -1494,8 +1559,9 @@ func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headA
 				"provider", ai.provider,
 				"progress", fmt.Sprintf("%d of %d", count, total))
 
-			if markErr := ing.markAdProcessed(publisher, ai.cid, frozen, false); markErr != nil {
-				log.Errorw("Failed to mark ad as processed", "err", markErr)
+			if err = ing.markAdProcessed(publisher, ai.cid, frozen, false); err != nil {
+				log.Errorw("Failed to mark ad as processed. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err)
+				return ai.cid, fmt.Errorf("%w: cannot mark advertisement processed: %w", errInternal, err)
 			}
 			// Do not write removed ads to mirror. They are not read during
 			// indexing, and those deleted in the future are removed by GC.
@@ -1552,14 +1618,7 @@ func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headA
 
 			// If err still not nil, then this is a non-permanent type of error.
 			if err != nil {
-				if !errors.Is(err, context.Canceled) {
-					errText := err.Error()
-					if errors.Is(err, errInternal) {
-						errText = errInternal.Error()
-					}
-					ing.reg.SetLastError(ai.provider, fmt.Errorf("error while ingesting ad %s: %s", ai.cid, errText))
-				}
-				log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err, "adsLeftToProcess", i+1)
+				log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err, "adsLeftToProcess", len(ads))
 				return ai.cid, err
 			}
 		} else {
@@ -1575,8 +1634,6 @@ func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headA
 			}
 		}
 
-		ing.reg.SetLastError(ai.provider, nil)
-
 		putMirror := hasEnts && ing.mirror.canWrite()
 		if skipReason != "" {
 			if ing.mirror.canWrite() {
@@ -1589,14 +1646,17 @@ func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headA
 				}
 				putMirror = false
 			}
-			if markErr := ing.MarkAdSkipped(publisher, ai.cid, skipReason, frozen); markErr != nil {
-				log.Errorw("Failed to mark ad as skipped", "err", markErr)
+			if err = ing.MarkAdSkipped(publisher, ai.cid, skipReason, frozen); err != nil {
+				log.Errorw("Failed to mark ad as skipped. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err)
+				return ai.cid, fmt.Errorf("%w: cannot mark advertisement skipped: %w", errInternal, err)
 			}
 		} else {
-			if markErr := ing.markAdProcessed(publisher, ai.cid, frozen, putMirror); markErr != nil {
-				log.Errorw("Failed to mark ad as processed", "err", markErr)
+			if err = ing.markAdProcessed(publisher, ai.cid, frozen, putMirror); err != nil {
+				log.Errorw("Failed to mark ad as processed. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err)
+				return ai.cid, fmt.Errorf("%w: cannot mark advertisement processed: %w", errInternal, err)
 			}
 		}
+		ing.reg.SetLastError(ai.provider, nil)
 
 		if putMirror {
 			if adDataSource == adDataSourceMain {

@@ -3,15 +3,21 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io"
 	"maps"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-test/random"
 	"github.com/ipld/go-ipld-prime"
+	"github.com/ipld/go-ipld-prime/datamodel"
+	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-libipni/dagsync"
@@ -270,6 +276,52 @@ func TestMixedChainBusyProviderFailsSync(t *testing.T) {
 	requireChainIngestedAfterNewAd(t, te, head, chain)
 }
 
+// failingDatastore replaces the result of Get for one key, after letting a
+// number of reads of the key through. By default it fails with an error that
+// is not datastore.ErrNotFound.
+type failingDatastore struct {
+	datastore.Batching
+	mu       sync.Mutex
+	failGet  datastore.Key
+	passGets int
+	getVal   []byte
+	getErr   error
+}
+
+func (ds *failingDatastore) setFailGet(k datastore.Key) {
+	ds.setGetResult(k, nil, errors.New("injected datastore read error"))
+}
+
+func (ds *failingDatastore) setGetResult(k datastore.Key, val []byte, err error) {
+	ds.setGetResultAfter(k, 0, val, err)
+}
+
+// setGetResultAfter lets the next passGets reads of k through, and replaces
+// the result of the reads after them.
+func (ds *failingDatastore) setGetResultAfter(k datastore.Key, passGets int, val []byte, err error) {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	ds.failGet = k
+	ds.passGets = passGets
+	ds.getVal = val
+	ds.getErr = err
+}
+
+func (ds *failingDatastore) Get(ctx context.Context, key datastore.Key) ([]byte, error) {
+	ds.mu.Lock()
+	fail := key == ds.failGet
+	if fail && ds.passGets > 0 {
+		ds.passGets--
+		fail = false
+	}
+	val, err := ds.getVal, ds.getErr
+	ds.mu.Unlock()
+	if fail {
+		return val, err
+	}
+	return ds.Batching.Get(ctx, key)
+}
+
 // runWorkersByHand stops the ingester from taking sync events from dagsync and
 // returns the queue its single worker reads them from instead.
 func runWorkersByHand(te *testEnv) chan<- dagsync.SyncFinished {
@@ -310,6 +362,316 @@ func waitChainEvent(t *testing.T, events <-chan adProcessedEvent, head cid.Cid) 
 			require.FailNow(t, "no terminal event for the chain")
 		}
 	}
+}
+
+// An ad that the walk loaded but that cannot be loaded again when it is
+// ingested must stop the chain there, whatever the error, and not be marked
+// processed. Once the ad can be read, the chain is ingested.
+func TestChainStopsAtAdLoadErrorWhenIngesting(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{name: "read error", err: errors.New("injected datastore read error")},
+		{name: "missing", err: datastore.ErrNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			te := setupTestEnv(t, true)
+			chainQueue := runWorkersByHand(te)
+			failDS := &failingDatastore{Batching: te.ingester.dsTmp}
+			te.ingester.dsTmp = failDS
+
+			chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
+				{key: te.publisherPriv, contextID: "a1"},
+				{key: te.publisherPriv, contextID: "a2"},
+			})
+			head := chain[len(chain)-1].cid
+			te.publisher.SetRoot(head)
+
+			syncFinished := syncChain(t, te)
+			events, cnclEvents := te.ingester.onAdProcessed(te.pubHost.ID())
+			defer cnclEvents()
+
+			// The walk reads the oldest ad once; its ingestion reads it again.
+			failDS.setGetResultAfter(datastore.NewKey(chain[0].cid.String()), 1, nil, tc.err)
+			chainQueue <- syncFinished
+			event := waitChainEvent(t, events, head)
+			require.ErrorContains(t, event.err, "cannot load advertisement")
+			require.Equal(t, chain[0].cid, event.adCid)
+			requireNoneProcessed(t, te.ingester, chain)
+
+			failDS.setGetResult(datastore.Key{}, nil, nil)
+			chainQueue <- syncFinished
+			require.NoError(t, waitChainEvent(t, events, head).err)
+			for _, ba := range chain {
+				requireAdIndexedEventually(t, te, ba)
+			}
+		})
+	}
+}
+
+// A datastore read error in the middle of the walk must stop the chain before
+// any ad is ingested. Ingesting the newer ads would mark them processed in front
+// of the older ads that were never read, and later syncs would stop there.
+func TestChainStopsAtDatastoreReadError(t *testing.T) {
+	te := setupTestEnv(t, true)
+
+	// Run the ingest loop by hand, to inject the read error after the sync.
+	chainQueue := runWorkersByHand(te)
+	failDS := &failingDatastore{Batching: te.ingester.dsTmp}
+	te.ingester.dsTmp = failDS
+
+	chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
+		{key: te.publisherPriv, contextID: "a1"},
+		{key: te.publisherPriv, contextID: "a2"},
+		{key: te.publisherPriv, contextID: "a3"},
+	})
+	head := chain[len(chain)-1].cid
+	te.publisher.SetRoot(head)
+
+	syncFinished := syncChain(t, te)
+	events, cnclEvents := te.ingester.onAdProcessed(te.pubHost.ID())
+	defer cnclEvents()
+
+	failDS.setFailGet(datastore.NewKey(chain[1].cid.String()))
+	chainQueue <- syncFinished
+	event := waitChainEvent(t, events, head)
+	require.Error(t, event.err)
+	require.Equal(t, chain[1].cid, event.adCid)
+	requireNoneProcessed(t, te.ingester, chain)
+
+	failDS.setFailGet(datastore.Key{})
+	chainQueue <- syncFinished
+	event = waitChainEvent(t, events, head)
+	require.NoError(t, event.err)
+	for _, ba := range chain {
+		requireAdIndexedEventually(t, te, ba)
+	}
+}
+
+// A failed read of an ad's processed state during the walk must stop the chain
+// before any ad is ingested.
+func TestChainStopsAtMarkerReadError(t *testing.T) {
+	te := setupTestEnv(t, true)
+	chainQueue := runWorkersByHand(te)
+	failDS := &failingDatastore{Batching: te.ingester.ds}
+	te.ingester.ds = failDS
+
+	chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
+		{key: te.publisherPriv, contextID: "a1"},
+		{key: te.publisherPriv, contextID: "a2"},
+		{key: te.publisherPriv, contextID: "a3"},
+	})
+	head := chain[len(chain)-1].cid
+	te.publisher.SetRoot(head)
+
+	syncFinished := syncChain(t, te)
+	events, cnclEvents := te.ingester.onAdProcessed(te.pubHost.ID())
+	defer cnclEvents()
+
+	failDS.setFailGet(datastore.NewKey(adProcessedPrefix + chain[1].cid.String()))
+	chainQueue <- syncFinished
+	event := waitChainEvent(t, events, head)
+	require.Error(t, event.err)
+	require.Equal(t, chain[1].cid, event.adCid)
+	failDS.setFailGet(datastore.Key{})
+	requireNoneProcessed(t, te.ingester, chain)
+}
+
+// A failed write of an ad's processed marker must stop the chain, so that no
+// newer ad is marked processed in front of the unmarked one.
+func TestChainStopsAtMarkerWriteError(t *testing.T) {
+	te := setupTestEnv(t, true)
+
+	chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
+		{key: te.publisherPriv, contextID: "a1"},
+		{key: te.publisherPriv, contextID: "a2"},
+	})
+	head := chain[len(chain)-1].cid
+	te.publisher.SetRoot(head)
+
+	// Fail only the processed marker of the oldest ad. Its unprocessed marker,
+	// written during the walk, goes through.
+	markerKey := datastore.NewKey(adProcessedPrefix + chain[0].cid.String())
+	te.ingester.ds = &markerWriteFailer{Batching: te.ingester.ds, key: markerKey, marker: adMarkerProcessed}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	_, err := te.ingester.Sync(ctx, publisherAddrInfo(te), 0, false, cid.Undef)
+	require.ErrorContains(t, err, "cannot mark advertisement processed")
+	requireNoneProcessed(t, te.ingester, chain)
+}
+
+// markerWriteFailer fails a Put of one key when the value is the given ad
+// marker, and lets every other write through.
+type markerWriteFailer struct {
+	datastore.Batching
+	mu     sync.Mutex
+	key    datastore.Key
+	marker byte
+}
+
+func (ds *markerWriteFailer) setKey(k datastore.Key) {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	ds.key = k
+}
+
+func (ds *markerWriteFailer) Put(ctx context.Context, key datastore.Key, value []byte) error {
+	ds.mu.Lock()
+	fail := key == ds.key && len(value) != 0 && value[0] == ds.marker
+	ds.mu.Unlock()
+	if fail {
+		return errors.New("injected marker write error")
+	}
+	return ds.Batching.Put(ctx, key, value)
+}
+
+// A chain that stops on an error records it as the last error of each
+// registered provider with an ad the chain did not ingest, so the poller syncs
+// the publisher again even after recent contact. A provider whose ads were
+// ingested before the failure keeps no error. When none of those providers is
+// registered, a registered provider of the publisher gets the error. A later
+// successful ad clears its provider's error.
+func TestChainErrorSetsProviderLastError(t *testing.T) {
+	const (
+		provA = 0 // the publisher's own provider
+		provB = 1
+	)
+	for _, tc := range []struct {
+		name string
+		// marker fails the processed marker write of the ad at failAt, and
+		// otherwise the walk's read of it fails.
+		marker bool
+		failAt int
+		// wantErr has the error after the failure, wantClean has none.
+		wantErr   int
+		wantClean int
+	}{
+		{name: "marker write error at B1", marker: true, failAt: 2, wantErr: provB, wantClean: provA},
+		{name: "marker write error at A1", marker: true, failAt: 1, wantErr: provA, wantClean: -1},
+		// B has no ingested ad yet, so is not registered, and the error goes
+		// to the publisher's provider.
+		{name: "walk read error at B1", failAt: 2, wantErr: provA, wantClean: -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			te := setupTestEnv(t, true)
+			chainQueue := runWorkersByHand(te)
+			// Install both failers, inactive, before any chain runs.
+			readFailer := &failingDatastore{Batching: te.ingester.dsTmp}
+			markerFailer := &markerWriteFailer{Batching: te.ingester.ds, marker: adMarkerProcessed}
+			te.ingester.dsTmp = readFailer
+			te.ingester.ds = markerFailer
+			events, cnclEvents := te.ingester.onAdProcessed(te.pubHost.ID())
+			defer cnclEvents()
+
+			keyB := randomPrivKey(t)
+			chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
+				{key: te.publisherPriv, contextID: "a0"},
+				{key: te.publisherPriv, contextID: "a1"},
+				{key: keyB, contextID: "b1"},
+				{key: keyB, contextID: "b2"},
+			})
+			providers := []peer.ID{chain[0].provider, chain[2].provider}
+			lastError := func(p int) (string, bool) {
+				info, ok := te.reg.ProviderInfo(providers[p])
+				if !ok {
+					return "", false
+				}
+				return info.LastError, true
+			}
+
+			// Ingest the first ad, so that provider A is registered.
+			te.publisher.SetRoot(chain[0].cid)
+			chainQueue <- syncChain(t, te)
+			require.NoError(t, waitChainEvent(t, events, chain[0].cid).err)
+
+			head := chain[len(chain)-1].cid
+			te.publisher.SetRoot(head)
+			syncFinished := syncChain(t, te)
+
+			failed := chain[tc.failAt].cid
+			if tc.marker {
+				markerFailer.setKey(datastore.NewKey(adProcessedPrefix + failed.String()))
+			} else {
+				readFailer.setFailGet(datastore.NewKey(failed.String()))
+			}
+			chainQueue <- syncFinished
+			require.Error(t, waitChainEvent(t, events, head).err)
+			requireNoneProcessed(t, te.ingester, chain[tc.failAt:])
+
+			// The last error names the failed ad, without the details of the
+			// internal error.
+			lastErr, ok := lastError(tc.wantErr)
+			require.True(t, ok)
+			require.Equal(t, adLastError(failed, errInternal).Error(), lastErr)
+			if tc.wantClean >= 0 {
+				lastErr, ok = lastError(tc.wantClean)
+				require.True(t, ok)
+				require.Empty(t, lastErr)
+			}
+
+			markerFailer.setKey(datastore.Key{})
+			readFailer.setFailGet(datastore.Key{})
+			chainQueue <- syncFinished
+			require.NoError(t, waitChainEvent(t, events, head).err)
+			// B's ads were ingested, so its error, if any, is cleared.
+			lastErr, ok = lastError(provB)
+			require.True(t, ok)
+			require.Empty(t, lastErr)
+		})
+	}
+}
+
+// A failed write of the marker of an ad skipped because a later ad removes its
+// context must stop the chain like any other marker write error.
+func TestChainStopsAtRemovedContextMarkerWriteError(t *testing.T) {
+	te := setupTestEnv(t, true)
+
+	chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
+		{key: te.publisherPriv, contextID: "a1"},
+		{key: te.publisherPriv, contextID: "a1", rm: true},
+	})
+	te.publisher.SetRoot(chain[len(chain)-1].cid)
+
+	markerKey := datastore.NewKey(adProcessedPrefix + chain[0].cid.String())
+	te.ingester.ds = &markerWriteFailer{Batching: te.ingester.ds, key: markerKey, marker: adMarkerProcessed}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	_, err := te.ingester.Sync(ctx, publisherAddrInfo(te), 0, false, cid.Undef)
+	require.ErrorContains(t, err, "cannot mark advertisement processed")
+	requireNoneProcessed(t, te.ingester, chain)
+}
+
+// A failed write of the marker of an ad skipped for a permanent error must stop
+// the chain like any other marker write error.
+func TestChainStopsAtSkippedMarkerWriteError(t *testing.T) {
+	// A read error from the publisher's link system fails the first entry
+	// with a 500, which skips the ad permanently when skip500EntsErr is set.
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(func(datamodel.Link, func(linking.LinkContext, datamodel.Link) (io.Reader, error)) (io.Reader, error) {
+		return nil, errors.New("entries not found")
+	})
+	te := setupTestEnv(t, true, blockableLsysOpt)
+	drainBlockedReads(t, hitBlockedRead)
+	te.ingester.skip500EntsErr.Store(true)
+
+	chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
+		{key: te.publisherPriv, contextID: "a1"},
+		{key: te.publisherPriv, contextID: "a2"},
+	})
+	te.publisher.SetRoot(chain[len(chain)-1].cid)
+	blockedReads.add(chain[0].ad.Entries.(cidlink.Link).Cid)
+
+	markerKey := datastore.NewKey(adProcessedPrefix + chain[0].cid.String())
+	te.ingester.ds = &markerWriteFailer{Batching: te.ingester.ds, key: markerKey, marker: adMarkerSkipped}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	_, err := te.ingester.Sync(ctx, publisherAddrInfo(te), 0, false, cid.Undef)
+	require.ErrorContains(t, err, "cannot mark advertisement skipped")
+	requireNoneProcessed(t, te.ingester, chain)
 }
 
 // A chain with nothing to ingest still sends its terminal event, so a waiting
