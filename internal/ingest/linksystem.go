@@ -307,10 +307,12 @@ func (ing *Ingester) ingestAd(
 	ad, err := ing.loadAd(adCid)
 	if err != nil {
 		stats.Record(context.Background(), metrics.AdLoadError.M(1))
-		log.Errorw("Failed to load advertisement, skipping", "err", err)
-		// The ad cannot be loaded, so we cannot process it. Return nil so that
-		// the ad is marked as processed and is removed from the datastore.
-		return false, adDataSourceNone, "", nil
+		log.Errorw("Failed to load advertisement", "err", err)
+		// The chain walk already loaded this ad, so a failure here is not a
+		// property of the ad. Fail the ad so the chain stops and is ingested
+		// again. If another chain processed the ad meanwhile, the next walk
+		// finds it marked processed.
+		return false, adDataSourceNone, "", adIngestError{adIngestIndexerErr, fmt.Errorf("cannot load advertisement: %w", err)}
 	}
 
 	stats.Record(ctx, metrics.IngestChange.M(1))
