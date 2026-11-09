@@ -133,6 +133,28 @@ When a sync starts, the subscriber walks the advertisement chain from the head
 toward the last-known-synced ad (the stop node), or until the configured depth
 limit is reached.
 
+dagsync sets the stop node to the head of a chain as soon as the chain is
+fetched, before it is processed. The ingester keeps it at the publisher's
+newest processed ad (`/sync/<publisherID>`), so that a chain whose head ad
+failed to process is fetched again:
+
+- Auto-sync and explicit sync (without `resync`) set the stop node before
+  they fetch (`Ingester.setSyncStop`).
+- After a chain whose head ad is not processed, the worker sets it again
+  (`Ingester.resetSyncStop`), before it releases the publisher's sync gate
+  (`UnblockSync`). This covers syncs started by announces. An announce that
+  dagsync reads while the chain is still being processed sees the chain's
+  head as its stop node and fetches nothing. The next poll or announce after
+  the reset fetches the chain again.
+- When no ad of the publisher is processed yet, dagsync's stop node is
+  removed, so the next sync is a first sync again, limited by
+  `FirstSyncDepth`.
+
+In a chain with ads of several providers, an older ad can fail while the head
+is processed. `/sync` then already points past the failed ad, so that ad is
+not fetched again (see
+[#2801](https://github.com/ipni/storetheindex/issues/2801)).
+
 The walk is **segmented**: `dagsync.SegmentDepthLimit(cfg.SyncSegmentDepthLimit)`
 (default 2000) splits the traversal into segments. For each block (ad) visited,
 the subscriber invokes storetheindex's block hook,
@@ -688,7 +710,8 @@ Ingestion is configured by the `Ingest` section of the config file
 
 - `AdvertisementDepthLimit` - max ads to sync across all segments (default large).
 - `EntriesDepthLimit` - max entry chunks to sync across all segments.
-- `FirstSyncDepth` - ad-chain depth on first sync with a new provider.
+- `FirstSyncDepth` - ad-chain depth to sync when no ad of the publisher is
+  processed yet (a new publisher, or one whose first chain failed).
 - `SyncSegmentDepthLimit` - segment size for segmented sync (default 2000; -1 disables).
 - `IngestWorkerCount` - number of ingest worker goroutines (reloadable).
 - `MaxAsyncConcurrency` - max concurrent async syncs (requires restart).

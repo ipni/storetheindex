@@ -483,13 +483,12 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 				ing.generalDagsyncBlockHook(i, c, actions)
 			}))
 	} else {
-		latest, err = ing.GetLatestSync(peerInfo.ID)
-		if err != nil {
-			return cid.Undef, fmt.Errorf("failed to get latest sync: %w", err)
-		}
 		// If explicitly syncing, then start from the last fully processed
 		// advertisement and not the last seen advertisement.
-		ing.sub.SetLatestSync(peerInfo.ID, latest)
+		latest, err = ing.setSyncStop(peerInfo.ID)
+		if err != nil {
+			return cid.Undef, fmt.Errorf("failed to set sync stop node: %w", err)
+		}
 	}
 
 	if depth != 0 {
@@ -999,8 +998,8 @@ func (ing *Ingester) autoSync() {
 
 			// Sync from the last fully processed advertisement and not the
 			// last seen advertisement.
-			if latest, ok := ing.getLastKnownSync(pubID); ok {
-				ing.sub.SetLatestSync(pubID, latest)
+			if _, err := ing.setSyncStop(pubID); err != nil {
+				log.Errorw("Cannot set the stop node of the sync", "err", err)
 			}
 			peerInfo := peer.AddrInfo{
 				ID:    pubID,
@@ -1030,6 +1029,38 @@ func (ing *Ingester) GetLatestSync(publisherID peer.ID) (cid.Cid, error) {
 	// Returns error if b is nil or empty.
 	_, c, err := cid.CidFromBytes(b)
 	return c, err
+}
+
+// setSyncStop sets the stop node of dagsync's next sync of the publisher to
+// the publisher's newest processed advertisement, and returns that CID, or
+// cid.Undef when none is processed.
+//
+// dagsync sets the stop node to the head of a chain when the chain is
+// fetched, before it is processed. When processing fails, a sync that stops
+// at that head fetches nothing. When no advertisement of the publisher is
+// processed, dagsync removes the stop node, and the next sync is a first
+// sync, limited by the first sync depth.
+func (ing *Ingester) setSyncStop(publisherID peer.ID) (cid.Cid, error) {
+	latest, err := ing.GetLatestSync(publisherID)
+	if err != nil {
+		return cid.Undef, err
+	}
+	return latest, ing.sub.SetLatestSync(publisherID, latest)
+}
+
+// resetSyncStop sets dagsync's stop node back to the newest processed
+// advertisement after a chain whose head was not processed, so that the
+// next sync fetches the unprocessed part again. That includes a sync started
+// by an announce, which does not set the stop node itself. A chain whose head
+// is processed keeps the head as the stop node.
+func (ing *Ingester) resetSyncStop(ctx context.Context, syncFinished dagsync.SyncFinished) {
+	state, err := ing.adAlreadyProcessed(ctx, syncFinished.Cid)
+	if err == nil && state.Processed {
+		return
+	}
+	if _, err = ing.setSyncStop(syncFinished.PeerID); err != nil {
+		log.Errorw("Cannot reset the stop node of the next sync", "err", err, "publisher", syncFinished.PeerID)
+	}
 }
 
 // getLastKnownSync returns the CID of the last fully processed advertisement
@@ -1123,6 +1154,7 @@ func (ing *Ingester) ingestWorkerWorkUnit(ctx context.Context, event dagsync.Syn
 		// practically impossible. This code is left here so that if the gate is ever removed, the code
 		// is still correct.
 		ing.processRawAdChain(ctx, *syncFin, wkrNum)
+		ing.resetSyncStop(ctx, *syncFin)
 		ing.sub.UnblockSync(pubID)
 	}
 
