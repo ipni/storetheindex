@@ -32,6 +32,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
+	"go.uber.org/zap"
 )
 
 var log = logging.Logger("indexer/ingest")
@@ -80,9 +81,10 @@ type adProcessedEvent struct {
 }
 
 type adInfo struct {
-	cid    cid.Cid
-	resync bool
-	skip   bool
+	cid      cid.Cid
+	provider peer.ID
+	resync   bool
+	skip     bool
 }
 
 // Ingester is a type that uses dagsync for the ingestion protocol.
@@ -1206,13 +1208,53 @@ type providerContext struct {
 	contextID string
 }
 
-// processRawAdChain processes a raw advertisement chain from a publisher to
-// create provider work assignments. When not workers are working on a work
-// assignment for a provider, then workers are given the next work assignment
-// for that provider.
+// adChain holds the unprocessed advertisements of a synced chain, newest
+// first, as collected by collectAdChain.
+type adChain struct {
+	ads []adInfo
+	// provAddrs holds, for each provider, the addresses of its newest ad
+	// that has addresses.
+	provAddrs map[peer.ID][]string
+	// total counts every ad walked, including ads skipped for an undecodable
+	// provider ID.
+	total   int64
+	rmCount int64
+}
+
+// processRawAdChain ingests the unprocessed advertisements of a synced chain.
+// It collects them from the head back to the first ad already processed, then
+// ingests them in chain order, oldest first, and stops the chain at the first
+// transient error. So an ad is never marked processed while an older ad of the
+// same chain that the walk reached is not, even when the chain carries ads of
+// several providers. The walk ends early only at an ad that is not in the
+// datastore, as at the end of a depth-limited sync, or that does not decode,
+// and the older ads are then left unprocessed.
+//
+// Each run of consecutive ads of one provider is ingested while that provider
+// is claimed, so no other chain ingests ads of the provider at the same time.
+// An ad another chain has processed in the meantime is skipped.
+//
+// One terminal adProcessedEvent, with headAdCid set to the chain head, is sent
+// on every return. On failure its adCid is the ad that failed, if there is one.
 func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync.SyncFinished, wkrNum int) {
 	publisher := syncFinished.PeerID
+	headAdCid := syncFinished.Cid
 	ing.EndScan(publisher, nil)
+
+	var failedAd cid.Cid
+	var chainErr error
+	defer func() {
+		event := adProcessedEvent{
+			publisher: publisher,
+			headAdCid: headAdCid,
+			adCid:     headAdCid,
+			err:       chainErr,
+		}
+		if chainErr != nil && failedAd != cid.Undef {
+			event.adCid = failedAd
+		}
+		ing.inEvents <- event
+	}()
 
 	if syncFinished.Count == 0 {
 		// Attempted sync, but already up to data. Nothing to do.
@@ -1222,37 +1264,35 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 	log := log.With("publisher", publisher, "worker", wkrNum)
 	log.Infow("Advertisement chain synced", "length", syncFinished.Count)
 
-	var rmCount int64
+	chain := ing.collectAdChain(ctx, headAdCid, log)
+	log.Debugw("Collected ad chain", "ads", len(chain.ads), "rmCount", chain.rmCount)
+	stats.Record(ctx,
+		metrics.RemoveAdCount.M(ing.totalRmAds.Add(chain.rmCount)),
+		metrics.NonRemoveAdCount.M(ing.totalNonRmAds.Add(chain.total-chain.rmCount)))
+
+	if len(chain.ads) == 0 {
+		return
+	}
+
+	failedAd, chainErr = ing.ingestAdChain(ctx, publisher, headAdCid, chain, wkrNum, log)
+}
+
+// collectAdChain walks a synced chain from its head back to the first ad
+// already processed, and returns the unprocessed ads, newest first. An ad that
+// cannot be loaded ends the walk.
+func (ing *Ingester) collectAdChain(ctx context.Context, head cid.Cid, log *zap.SugaredLogger) adChain {
+	chain := adChain{
+		provAddrs: map[peer.ID][]string{},
+	}
 	rmCtxIDs := make(map[providerContext]struct{})
 
-	// 1. Group the incoming CIDs by provider.
-	//
-	// Serializing on the provider prevents concurrent processing of ads for
-	// the same provider from different chains. This allows the indexer to do
-	// the following:
-	//
-	// - Detect and skip ads that have come from a different chain. Concurrent
-	// processing may result in double processing. That would cause unnecessary
-	// work and inaccuracy of metrics.
-	//
-	// - When an already-processed ad is seen, the indexer can abandon the
-	// remainder of the chain being processed, instead of skipping ads for
-	// specific providers on a mixed provider chain.
-	adsGroupedByProvider := map[peer.ID][]adInfo{}
-	provAddrs := map[peer.ID][]string{}
-	var totalAds int64
 	var nextAdCid cid.Cid
-
-	for c := syncFinished.Cid; c != cid.Undef; c = nextAdCid {
-		// Group the CIDs by the provider. Most of the time a publisher will
-		// only publish Ads for one provider, but it's possible that an ad
-		// chain can include multiple providers.
-
+	for c := head; c != cid.Undef; c = nextAdCid {
 		adState, stateErr := ing.adAlreadyProcessed(ctx, c)
 		if stateErr != nil {
 			log.Errorw("Failed to read advertisement processed state from datastore", "err", stateErr)
-			// Note: don't stop in case of an error in this place, the same check will be done
-			// later in a context of a specific provider.
+			// Note: don't stop in case of an error in this place, the same
+			// check is done again when the ad is ingested.
 		}
 		if adState.Processed {
 			// This ad has been processed so all earlier ads already have been
@@ -1272,7 +1312,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		} else {
 			nextAdCid = cid.Undef
 		}
-		totalAds++
+		chain.total++
 
 		providerID, err := peer.Decode(ad.Provider)
 		if err != nil {
@@ -1281,21 +1321,21 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 		}
 		// If this is the first ad for this provider, then save the provider
 		// addresses.
-		_, ok := provAddrs[providerID]
-		if !ok && len(ad.Addresses) != 0 {
-			provAddrs[providerID] = ad.Addresses
+		if _, ok := chain.provAddrs[providerID]; !ok && len(ad.Addresses) != 0 {
+			chain.provAddrs[providerID] = ad.Addresses
 			log.Debugw("New provider seen in ad stack", "provider", providerID)
 		}
 
 		ai := adInfo{
-			cid:    c,
-			resync: adState.Resync,
+			cid:      c,
+			provider: providerID,
+			resync:   adState.Resync,
 		}
 
 		key := providerContext{provider: providerID, contextID: string(ad.ContextID)}
 		if ad.IsRm {
 			rmCtxIDs[key] = struct{}{}
-			rmCount++
+			chain.rmCount++
 		} else if _, ok := rmCtxIDs[key]; ok {
 			// This ad was deleted by a later remove.
 			ai.skip = true
@@ -1307,103 +1347,137 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 			}
 		}
 
-		adsGroupedByProvider[providerID] = append(adsGroupedByProvider[providerID], ai)
-		if totalAds%1000 == 0 {
-			log.Debugf("Added %d ads to stack", totalAds)
+		chain.ads = append(chain.ads, ai)
+		if len(chain.ads)%1000 == 0 {
+			log.Debugf("Added %d ads to stack", len(chain.ads))
 		}
 	}
+	return chain
+}
 
-	nonRmCount := totalAds - rmCount
-
-	log.Debugw("Created ad stack", "providers", len(adsGroupedByProvider), "ads", totalAds, "rmCount", rmCount)
-
-	stats.Record(ctx,
-		metrics.RemoveAdCount.M(ing.totalRmAds.Add(rmCount)),
-		metrics.NonRemoveAdCount.M(ing.totalNonRmAds.Add(nonRmCount)))
-
-	// 2. For each provider put the ad stack to the worker msg channel. Each ad
-	// stack contains ads for a single provider, from a single publisher.
-	for providerID, adInfos := range adsGroupedByProvider {
-		ing.providersBusyMu.Lock()
-		if _, ok := ing.providersBusy[providerID]; ok {
-			ing.providersBusyMu.Unlock()
-			log.Errorw("Other worker already ingesting for same provider. Provider ad chain may by published at multiple locations.", "provider", providerID)
-			return
-		}
-		ing.providersBusy[providerID] = struct{}{}
-		ing.providersBusyMu.Unlock()
-
-		ing.reg.Saw(providerID, false)
-		ing.ingestWorkerLogic(ctx, providerID, publisher, provAddrs[providerID], adInfos, wkrNum)
-
-		ing.providersBusyMu.Lock()
-		delete(ing.providersBusy, providerID)
-		ing.providersBusyMu.Unlock()
+// writeMirrorHead removes the provider's head from heads and, when the mirror
+// is writable and the head ad is not a resync, writes it to the mirror. So each
+// provider's head is written at most once per chain.
+func (ing *Ingester) writeMirrorHead(ctx context.Context, heads map[peer.ID]adInfo, provider peer.ID, log *zap.SugaredLogger) {
+	head, ok := heads[provider]
+	if !ok {
+		return
+	}
+	delete(heads, provider)
+	if !ing.mirror.canWrite() || head.resync {
+		return
+	}
+	if _, err := ing.mirror.writeHead(ctx, head.cid, provider); err != nil {
+		log.Errorw("Cannot write publisher head", "provider", provider, "err", err)
 	}
 }
 
-func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher peer.ID, addresses []string, adInfos []adInfo, wkrNum int) {
-	log := log.With("publisher", publisher, "worker", wkrNum)
-	// Log provider ID if not the same as publisher ID.
-	if provider != publisher {
-		log = log.With("provider", provider)
-	}
-
-	headProvider := peer.AddrInfo{
-		ID:    provider,
-		Addrs: stringsToMultiaddrs(addresses),
-	}
-	headAdCid := adInfos[0].cid
-
-	if ing.mirror.canWrite() && !adInfos[0].resync {
-		_, err := ing.mirror.writeHead(ctx, headAdCid, provider)
-		if err != nil {
-			log.Errorw("Cannot write publisher head", "err", err)
+// providerClaimer returns a function that holds at most one provider claim at
+// a time. Called with a provider, it releases the provider claimed before, if
+// it is another one, and claims the given one. It returns false when another
+// chain is ingesting that provider, and then holds no claim. Called with an
+// empty ID, it releases the claim it holds.
+//
+// Claims in providersBusy are taken and released only through this function.
+func (ing *Ingester) providerClaimer() func(provider peer.ID) bool {
+	var claimed peer.ID
+	return func(provider peer.ID) bool {
+		if provider == claimed {
+			return true
 		}
+
+		ing.providersBusyMu.Lock()
+		defer ing.providersBusyMu.Unlock()
+
+		if claimed != "" {
+			delete(ing.providersBusy, claimed)
+			claimed = ""
+		}
+
+		if provider == "" {
+			return true
+		}
+
+		if _, busy := ing.providersBusy[provider]; busy {
+			return false
+		}
+
+		ing.providersBusy[provider] = struct{}{}
+		claimed = provider
+		return true
+	}
+}
+
+// ingestAdChain ingests the collected ads in chain order, oldest first. It
+// stops at the first transient error and returns it with the CID of the ad
+// that failed. Ads skipped for a permanent error are marked skipped and do not
+// stop the chain.
+//
+// The provider of each run of consecutive ads is claimed before the run, and
+// released before the next provider is claimed, so the chain never waits for a
+// provider while it holds another. A provider that another chain is ingesting
+// stops the chain at the first ad of its run.
+func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headAdCid cid.Cid, chain adChain, wkrNum int, log *zap.SugaredLogger) (failedAd cid.Cid, err error) {
+	ads := chain.ads
+	// A provider's head is its newest ad in this chain. The ads are newest
+	// first, so it is the first ad of the provider.
+	headProviders := make(map[peer.ID]peer.AddrInfo)
+	mirrorHeads := make(map[peer.ID]adInfo)
+	for _, ai := range ads {
+		if _, ok := headProviders[ai.provider]; ok {
+			continue
+		}
+		headProviders[ai.provider] = peer.AddrInfo{
+			ID:    ai.provider,
+			Addrs: stringsToMultiaddrs(chain.provAddrs[ai.provider]),
+		}
+		mirrorHeads[ai.provider] = ai
+		ing.reg.Saw(ai.provider, false)
 	}
 
-	frozen := ing.reg.Frozen()
+	claim := ing.providerClaimer()
+	defer claim("")
+
 	skip500EntsErr := ing.skip500EntsErr.Load()
 
-	total := len(adInfos)
-	log.Infow("Running worker on ad stack", "headAdCid", headAdCid, "numAdsToProcess", total)
+	total := len(ads)
+	log.Infow("Running worker on ad chain", "headAdCid", headAdCid, "numAdsToProcess", total)
 	syncStatus := ing.SyncStatusFor(publisher)
 	syncStatus.BeginProcessing(total)
-	var procErr error
 	defer func() {
-		ing.EndProcessing(publisher, procErr)
+		ing.EndProcessing(publisher, err)
 	}()
+
 	var count int
-	for i := len(adInfos) - 1; i >= 0; i-- {
+	for i := len(ads) - 1; i >= 0; i-- {
 		// Note that iteration proceeds backwards here. Earliest to newest.
-		ai := adInfos[i]
-		adInfos[i] = adInfo{} // Clear the adInfo to free memory.
+		ai := ads[i]
+		ads[i] = adInfo{} // Clear the adInfo to free memory.
 		count++
 
 		if ctx.Err() != nil {
 			log.Infow("Ingest worker canceled while processing ads", "err", ctx.Err())
-			ing.inEvents <- adProcessedEvent{
-				publisher: publisher,
-				headAdCid: headAdCid,
-				adCid:     ai.cid,
-				err:       ctx.Err(),
-			}
-			log.Debug("Sent ad processed event for canceled processing")
-			procErr = ctx.Err()
-			return
+			return ai.cid, ctx.Err()
 		}
+
+		if !claim(ai.provider) {
+			log.Errorw("Other worker already ingesting for same provider. Provider ad chain may by published at multiple locations.", "provider", ai.provider)
+			return ai.cid, fmt.Errorf("provider %s is busy ingesting another chain", ai.provider)
+		}
+		// The head is written under the claim, so a chain that stops before
+		// it ingests the provider's ads does not replace the provider's head
+		// written by the chain that ingests them.
+		ing.writeMirrorHead(ctx, mirrorHeads, ai.provider, log)
+
+		// Read for each ad, after the claim that may wait, so that a freeze
+		// applies from the next ad on. The ad's ingestion and its marker use
+		// the same value.
+		frozen := ing.reg.Frozen()
 
 		adState, err := ing.adAlreadyProcessed(ctx, ai.cid)
 		if err != nil {
 			log.Errorw("Failed to check if advertisement is processed. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err)
-			ing.inEvents <- adProcessedEvent{
-				publisher: publisher,
-				headAdCid: headAdCid,
-				adCid:     ai.cid,
-				err:       err,
-			}
-			procErr = err
-			return
+			return ai.cid, err
 		}
 		if adState.Processed {
 			log.Infow("Skipping advertisement that has already been processed",
@@ -1417,6 +1491,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		if ai.skip {
 			log.Infow("Skipping advertisement with deleted context",
 				"adCid", ai.cid,
+				"provider", ai.provider,
 				"progress", fmt.Sprintf("%d of %d", count, total))
 
 			if markErr := ing.markAdProcessed(publisher, ai.cid, frozen, false); markErr != nil {
@@ -1438,12 +1513,13 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		lag := total - count
 		log.Infow("Processing advertisement",
 			"adCid", ai.cid,
+			"provider", ai.provider,
 			"progress", fmt.Sprintf("%d of %d", count, total),
 			"lag", lag)
 
 		syncStatus.SetCurrentAd(ai.cid, count)
 
-		hasEnts, adDataSource, location, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProvider, wkrNum)
+		hasEnts, adDataSource, location, err := ing.ingestAd(ctx, publisher, ai.cid, ai.resync, frozen, lag, headProviders[ai.provider], wkrNum)
 		skipReason := ""
 		if err != nil {
 			syncStatus.IncError()
@@ -1481,20 +1557,10 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 					if errors.Is(err, errInternal) {
 						errText = errInternal.Error()
 					}
-					ing.reg.SetLastError(provider, fmt.Errorf("error while ingesting ad %s: %s", ai.cid, errText))
+					ing.reg.SetLastError(ai.provider, fmt.Errorf("error while ingesting ad %s: %s", ai.cid, errText))
 				}
 				log.Errorw("Error while ingesting ad. Bailing early, not ingesting later ads.", "adCid", ai.cid, "err", err, "adsLeftToProcess", i+1)
-				// Tell anyone waiting that the sync finished for this head because
-				// of error.  TODO(mm) would be better to propagate the error.
-				ing.inEvents <- adProcessedEvent{
-					publisher: publisher,
-					headAdCid: headAdCid,
-					adCid:     ai.cid,
-					err:       err,
-				}
-				log.Debug("Sent ad processed event with error")
-				procErr = err
-				return
+				return ai.cid, err
 			}
 		} else {
 			// No error at all, this ad was processed successfully.
@@ -1509,7 +1575,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 			}
 		}
 
-		ing.reg.SetLastError(provider, nil)
+		ing.reg.SetLastError(ai.provider, nil)
 
 		putMirror := hasEnts && ing.mirror.canWrite()
 		if skipReason != "" {
@@ -1575,6 +1641,7 @@ func (ing *Ingester) ingestWorkerLogic(ctx context.Context, provider, publisher 
 		}
 		log.Debug("Sent ad processed event")
 	}
+	return cid.Undef, nil
 }
 
 // GetExposableFilestore returns the filestore that can be exposed to other indexers for reading CAR files.
