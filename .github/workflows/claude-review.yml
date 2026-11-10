@@ -1,0 +1,31 @@
+# Claude code review. The logic lives in ipni/.github; this only wires up triggers.
+# Runs on new non-draft PRs from branches in this repo, and on any PR when someone
+# with write access comments `@claude review [sonnet|opus|fable] [low|medium|high|xhigh|max]`.
+name: Claude review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  claude-review:
+    if: >-
+      (github.event_name == 'pull_request'
+        && !github.event.pull_request.draft
+        && github.event.pull_request.head.repo.full_name == github.repository
+        && github.event.pull_request.user.type != 'Bot')
+      || (github.event_name == 'issue_comment'
+        && github.event.issue.pull_request
+        && github.event.comment.user.type != 'Bot'
+        && contains(github.event.comment.body, '@claude review'))
+    uses: ipni/.github/.github/workflows/claude-review.yml@main
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    secrets: inherit
