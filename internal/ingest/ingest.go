@@ -1159,6 +1159,13 @@ func (ing *Ingester) getNextSyncFin(pubID peer.ID) *dagsync.SyncFinished {
 	return syncFin
 }
 
+// providerContext identifies one context of one provider. A removal ad
+// removes only its own provider's context.
+type providerContext struct {
+	provider  peer.ID
+	contextID string
+}
+
 // processRawAdChain processes a raw advertisement chain from a publisher to
 // create provider work assignments. When not workers are working on a work
 // assignment for a provider, then workers are given the next work assignment
@@ -1176,7 +1183,7 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 	log.Infow("Advertisement chain synced", "length", syncFinished.Count)
 
 	var rmCount int64
-	rmCtxID := make(map[string]struct{})
+	rmCtxIDs := make(map[providerContext]struct{})
 
 	// 1. Group the incoming CIDs by provider.
 	//
@@ -1245,11 +1252,11 @@ func (ing *Ingester) processRawAdChain(ctx context.Context, syncFinished dagsync
 			resync: adState.Resync,
 		}
 
-		ctxIdStr := string(ad.ContextID)
+		key := providerContext{provider: providerID, contextID: string(ad.ContextID)}
 		if ad.IsRm {
-			rmCtxID[ctxIdStr] = struct{}{}
+			rmCtxIDs[key] = struct{}{}
 			rmCount++
-		} else if _, ok := rmCtxID[ctxIdStr]; ok {
+		} else if _, ok := rmCtxIDs[key]; ok {
 			// This ad was deleted by a later remove.
 			ai.skip = true
 		}
