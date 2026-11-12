@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"sync/atomic"
 	"testing"
 
 	"github.com/ipfs/go-cid"
@@ -105,4 +106,51 @@ func TestMixedChainRemovalSkipsOnlyOwnProvider(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, head, c)
 	requireAdIndexedEventually(t, te, chain[0])
+}
+
+// A removal skips the older ad of its own provider for the same context ID:
+// the ad is marked processed without its entries being fetched. Another
+// provider's ad for that context ID is still indexed.
+func TestMixedChainRemovalSkipsOwnOlderAd(t *testing.T) {
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(failBlockedRead)
+	// Count the reads of blocked blocks. The publisher sends each one on an
+	// unbuffered channel, so keep receiving until the test environment is
+	// closed: this cleanup is registered first, so it runs last.
+	var blockedReadCount atomic.Int32
+	stopCounting := make(chan struct{})
+	t.Cleanup(func() { close(stopCounting) })
+	go func() {
+		for {
+			select {
+			case <-hitBlockedRead:
+				blockedReadCount.Add(1)
+			case <-stopCounting:
+				return
+			}
+		}
+	}()
+	te := setupTestEnv(t, true, blockableLsysOpt)
+
+	keyB := randomPrivKey(t)
+	chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
+		{key: te.publisherPriv, contextID: "shared"},
+		{key: keyB, contextID: "shared"},
+		{key: keyB, contextID: "shared", rm: true},
+	})
+	// Fetching the entries of B's older ad, whose context the removal
+	// deletes, fails with a transient error, so the sync fails unless the ad
+	// is skipped.
+	blockedReads.add(chain[1].ad.Entries.(cidlink.Link).Cid)
+	head := chain[len(chain)-1].cid
+	te.publisher.SetRoot(head)
+
+	c, err := te.ingester.Sync(t.Context(), publisherAddrInfo(te), 0, false, cid.Undef)
+	require.NoError(t, err)
+	require.Equal(t, head, c)
+	requireAdIndexedEventually(t, te, chain[0])
+	state, err := te.ingester.GetAdState(t.Context(), chain[1].cid)
+	require.NoError(t, err)
+	require.True(t, state.Processed)
+	require.False(t, state.Skipped)
+	require.Zero(t, blockedReadCount.Load())
 }
