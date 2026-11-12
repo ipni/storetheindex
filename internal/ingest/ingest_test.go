@@ -573,6 +573,35 @@ func TestSyncStopResetAfterFailedChain(t *testing.T) {
 	requireStopEventually(ad1)
 }
 
+// Sync returns, rather than wait for an advertisement to be processed, when
+// there is nothing to process: the head is the stopAdCid where the sync
+// stops, or, without resync, the head is already processed.
+func TestSyncReturnsWhenNothingToProcess(t *testing.T) {
+	te := setupTestEnv(t, true)
+	peerInfo := peer.AddrInfo{ID: te.publisher.ID(), Addrs: te.publisher.Addrs()}
+	sync := func(resync bool, stopAdCid cid.Cid) cid.Cid {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		c, err := te.ingester.Sync(ctx, peerInfo, 0, resync, stopAdCid)
+		require.NoError(t, err, "resync=%v stopAdCid=%s", resync, stopAdCid)
+		return c
+	}
+
+	ad1, _, _, _ := publishRandomIndexAndAdv(t, te.publisher, te.publisherLinkSys, false, nil, cid.Undef)
+	require.Equal(t, ad1, sync(false, cid.Undef))
+
+	ad2, _, _, _ := publishRandomIndexAndAdv(t, te.publisher, te.publisherLinkSys, false, nil, ad1)
+	require.Equal(t, ad2, sync(false, ad2))
+	require.Equal(t, ad2, sync(true, ad2))
+	state, err := te.ingester.GetAdState(t.Context(), ad2)
+	require.NoError(t, err)
+	require.False(t, state.Processed)
+
+	require.Equal(t, ad2, sync(false, cid.Undef))
+	require.Equal(t, ad2, sync(false, ad1))
+}
+
 func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	// Use this to block the second ingest step from happening while we verify the above
 	afterBlockedRead := make(chan struct{})

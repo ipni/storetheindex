@@ -449,15 +449,16 @@ func removeProcessedFrozen(ctx context.Context, dstore datastore.Datastore) erro
 // will continue until either there are no more advertisements left or the
 // recursion depth limit is reached.
 //
-// The adCid argument, if not cid.Undef, specifies that the sync should only
-// include advertisements that are more recent than the ad identified by adCid.
+// The stopAdCid argument, if not cid.Undef, specifies that the sync should
+// only include advertisements that are more recent than the ad identified by
+// stopAdCid.
 //
 // The reference to the latest synced advertisement returned by GetLatestSync
 // is only updated if the given depth is zero and resync is set to false.
 //
 // The Context argument controls the lifetime of the sync. Canceling it cancels
 // the sync and causes the multihash channel to close without any data.
-func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int, resync bool, adCid cid.Cid) (cid.Cid, error) {
+func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int, resync bool, stopAdCid cid.Cid) (cid.Cid, error) {
 	err := peerInfo.ID.Validate()
 	if err != nil {
 		return cid.Undef, errors.New("invalid provider id")
@@ -495,8 +496,8 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 		opts = append(opts, dagsync.ScopedDepthLimit(int64(depth)))
 	}
 
-	if adCid != cid.Undef {
-		opts = append(opts, dagsync.WithStopAdCid(adCid))
+	if stopAdCid != cid.Undef {
+		opts = append(opts, dagsync.WithStopAdCid(stopAdCid))
 	}
 
 	syncDone, cancel := ing.onAdProcessed(peerInfo.ID)
@@ -520,6 +521,13 @@ func (ing *Ingester) Sync(ctx context.Context, peerInfo peer.AddrInfo, depth int
 	}
 	// Do not persist the latest sync here, because that is done after
 	// processing the ad.
+
+	// If the head is the ad where the sync stops, then dagsync fetches nothing
+	// and sends no SyncFinished event, so do not wait for syncDone.
+	if c == stopAdCid {
+		log.Infow("Latest advertisement is where the sync stops", "adCid", c)
+		return c, nil
+	}
 
 	// If latest head had already finished syncing, then do not wait for
 	// syncDone since it will never happen.
