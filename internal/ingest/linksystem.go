@@ -80,7 +80,20 @@ var (
 	// errNotInDatastore is returned by loadNode for a block that is not in
 	// the temporary datastore. The block may have been deleted by another
 	// worker that synced the same block, so a later sync may find it.
-	errNotInDatastore = errors.New("node not present on indexer")
+	errNotInDatastore = fmt.Errorf("%w: node not present on indexer", errUnusableBlock)
+	// errUndecodable is wrapped by errors from loadNode and loadAd for a
+	// block that is in the temporary datastore, matches its CID, and does not
+	// decode as the requested node. The block is what the publisher sent, so
+	// loading it again gives the same error.
+	errUndecodable = fmt.Errorf("%w: cannot decode block", errUnusableBlock)
+	// errCorruptBlock is wrapped by errors from loadNode and loadAd for a
+	// block in the temporary datastore whose bytes do not match its CID. The
+	// block is deleted, so the next sync fetches it from the publisher again.
+	errCorruptBlock = fmt.Errorf("%w: block does not match its CID", errInternal)
+	// errUnusableBlock is the base of errNotInDatastore and errUndecodable:
+	// the datastore worked, but it does not hold a usable block for the CID.
+	// Any other load error comes from a failure of the indexer itself.
+	errUnusableBlock = errors.New("unusable block")
 )
 
 // maxHamtMapLen is the largest HAMT bitmap, in bytes, that ingest accepts. It
@@ -927,13 +940,16 @@ func (ing *Ingester) indexAdMultihashes(ad schema.Advertisement, providerID peer
 }
 
 func (ing *Ingester) loadAd(c cid.Cid) (schema.Advertisement, error) {
-	adn, err := ing.loadNode(c, schema.AdvertisementPrototype)
+	// An ad is checked against its CID on every load: ad blocks are small,
+	// and a changed ad that still decodes would be ingested with the wrong
+	// content.
+	adn, err := ing.loadBlock(c, schema.AdvertisementPrototype, true)
 	if err != nil {
 		return schema.Advertisement{}, err
 	}
 	ad, err := schema.UnwrapAdvertisement(adn)
 	if err != nil {
-		return schema.Advertisement{}, fmt.Errorf("cannot decode advertisement: %w", err)
+		return schema.Advertisement{}, fmt.Errorf("%w: cannot decode advertisement: %w", errUndecodable, err)
 	}
 
 	return *ad, nil
@@ -1196,20 +1212,59 @@ func hashBits(hash []byte, from, n int) int {
 	return v
 }
 
+// loadNode loads the block of c from the temporary datastore and decodes it
+// as prototype. The block is checked against c only when it does not decode.
 func (ing *Ingester) loadNode(c cid.Cid, prototype ipld.NodePrototype) (ipld.Node, error) {
-	val, err := ing.dsTmp.Get(context.Background(), datastore.NewKey(c.String()))
+	return ing.loadBlock(c, prototype, false)
+}
+
+// loadBlock loads the block of c from the temporary datastore and decodes it
+// as prototype. It checks the block against c when checkCid is set, and
+// always when the block does not decode, so that a block changed after it was
+// stored is told apart from one the publisher sent that is not of this kind.
+// A changed block is deleted and errCorruptBlock is returned.
+func (ing *Ingester) loadBlock(c cid.Cid, prototype ipld.NodePrototype, checkCid bool) (ipld.Node, error) {
+	key := datastore.NewKey(c.String())
+	val, err := ing.dsTmp.Get(context.Background(), key)
 	if err != nil {
 		if errors.Is(err, datastore.ErrNotFound) {
 			return nil, errNotInDatastore
 		}
 		return nil, fmt.Errorf("%w: cannot fetch the node from datastore: %w", errInternal, err)
 	}
+	if checkCid {
+		if err = ing.checkBlock(c, key, val); err != nil {
+			return nil, err
+		}
+	}
 	node, err := decodeIPLDNode(c.Prefix().Codec, bytes.NewBuffer(val), prototype)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode ipldNode: %w", err)
+		if !checkCid {
+			if cerr := ing.checkBlock(c, key, val); cerr != nil {
+				return nil, cerr
+			}
+		}
+		return nil, fmt.Errorf("%w: failed to decode ipldNode: %w", errUndecodable, err)
 	}
 	return node, nil
+}
 
+// checkBlock returns errCorruptBlock, and deletes the block from the
+// temporary datastore, when val does not hash to c. A block whose hash
+// function is not available cannot be checked and passes.
+func (ing *Ingester) checkBlock(c cid.Cid, key datastore.Key, val []byte) error {
+	sum, err := c.Prefix().Sum(val)
+	if err != nil {
+		log.Warnw("Cannot check block against its CID", "cid", c, "err", err)
+		return nil
+	}
+	if sum.Equals(c) {
+		return nil
+	}
+	if err := ing.dsTmp.Delete(context.Background(), key); err != nil {
+		log.Errorw("Cannot delete corrupt block from datastore", "cid", c, "err", err)
+	}
+	return fmt.Errorf("%w: %s", errCorruptBlock, c)
 }
 
 // decodeIPLDNode decodes an ipld.Node from bytes read from an io.Reader.
