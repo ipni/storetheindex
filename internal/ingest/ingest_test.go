@@ -468,6 +468,140 @@ func TestFailDuringSync(t *testing.T) {
 	requireIndexedEventually(t, te.ingester.indexer, te.pubHost.ID(), allMhs)
 }
 
+// When ingesting a publisher's first chain fails before any ad is processed,
+// dagsync still keeps the chain head as its latest sync. The next Sync must
+// fetch and ingest the chain again rather than stop at that head and wait.
+func TestSyncAfterFirstChainFails(t *testing.T) {
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(failBlockedRead)
+	te := setupTestEnv(t, true, blockableLsysOpt)
+	go func() {
+		for {
+			select {
+			case <-hitBlockedRead:
+			case <-t.Context().Done():
+				return
+			}
+		}
+	}()
+
+	adCid, mhs, providerID, _ := publishRandomIndexAndAdv(t, te.publisher, te.publisherLinkSys, false, nil, cid.Undef)
+	adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cidlink.Link{Cid: adCid}, schema.AdvertisementPrototype)
+	require.NoError(t, err)
+	ad, err := schema.UnwrapAdvertisement(adNode)
+	require.NoError(t, err)
+	entries := ad.Entries.(cidlink.Link).Cid
+	blockedReads.add(entries)
+
+	peerInfo := peer.AddrInfo{
+		ID:    te.publisher.ID(),
+		Addrs: te.publisher.Addrs(),
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false, cid.Undef)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, context.DeadlineExceeded)
+	state, err := te.ingester.GetAdState(ctx, adCid)
+	require.NoError(t, err)
+	require.False(t, state.Processed)
+
+	blockedReads.rm(entries)
+	c, err := te.ingester.Sync(ctx, peerInfo, 0, false, cid.Undef)
+	require.NoError(t, err)
+	require.Equal(t, adCid, c)
+	requireIndexedEventually(t, te.ingester.indexer, providerID, mhs)
+}
+
+// After a chain whose head is not processed, dagsync's stop node goes back to
+// the newest processed ad, or is removed when none is processed. A dagsync
+// sync that does not set the stop node itself, as one started by an
+// announce, then fetches the chain again.
+func TestSyncStopResetAfterFailedChain(t *testing.T) {
+	blockableLsysOpt, blockedReads, hitBlockedRead := blockableLinkSys(failBlockedRead)
+	te := setupTestEnv(t, true, blockableLsysOpt)
+	go func() {
+		for {
+			select {
+			case <-hitBlockedRead:
+			case <-t.Context().Done():
+				return
+			}
+		}
+	}()
+	pubID := te.publisher.ID()
+	peerInfo := peer.AddrInfo{ID: pubID, Addrs: te.publisher.Addrs()}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	entriesOf := func(adCid cid.Cid) cid.Cid {
+		adNode, err := te.publisherLinkSys.Load(linking.LinkContext{}, cidlink.Link{Cid: adCid}, schema.AdvertisementPrototype)
+		require.NoError(t, err)
+		ad, err := schema.UnwrapAdvertisement(adNode)
+		require.NoError(t, err)
+		return ad.Entries.(cidlink.Link).Cid
+	}
+	// requireStopEventually waits until the stop node is want, or until there
+	// is none when want is cid.Undef.
+	requireStopEventually := func(want cid.Cid) {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			got := te.ingester.sub.GetLatestSync(pubID)
+			if want == cid.Undef {
+				return got == nil
+			}
+			return got == cidlink.Link{Cid: want}
+		}, 5*time.Second, 10*time.Millisecond)
+	}
+
+	ad1, mhs1, prov1, _ := publishRandomIndexAndAdv(t, te.publisher, te.publisherLinkSys, false, nil, cid.Undef)
+	blockedReads.add(entriesOf(ad1))
+	_, err := te.ingester.Sync(ctx, peerInfo, 0, false, cid.Undef)
+	require.ErrorContains(t, err, "failed to sync first entry")
+	requireStopEventually(cid.Undef)
+
+	blockedReads.rm(entriesOf(ad1))
+	c, err := te.ingester.sub.SyncAdChain(ctx, peerInfo)
+	require.NoError(t, err)
+	require.Equal(t, ad1, c)
+	requireIndexedEventually(t, te.ingester.indexer, prov1, mhs1)
+	requireStopEventually(ad1)
+
+	ad2, _, _, _ := publishRandomIndexAndAdv(t, te.publisher, te.publisherLinkSys, false, nil, ad1)
+	blockedReads.add(entriesOf(ad2))
+	_, err = te.ingester.Sync(ctx, peerInfo, 0, false, cid.Undef)
+	require.ErrorContains(t, err, "failed to sync first entry")
+	requireStopEventually(ad1)
+}
+
+// Sync returns, rather than wait for an advertisement to be processed, when
+// there is nothing to process: the head is the stopAdCid where the sync
+// stops, or, without resync, the head is already processed.
+func TestSyncReturnsWhenNothingToProcess(t *testing.T) {
+	te := setupTestEnv(t, true)
+	peerInfo := peer.AddrInfo{ID: te.publisher.ID(), Addrs: te.publisher.Addrs()}
+	sync := func(resync bool, stopAdCid cid.Cid) cid.Cid {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		c, err := te.ingester.Sync(ctx, peerInfo, 0, resync, stopAdCid)
+		require.NoError(t, err, "resync=%v stopAdCid=%s", resync, stopAdCid)
+		return c
+	}
+
+	ad1, _, _, _ := publishRandomIndexAndAdv(t, te.publisher, te.publisherLinkSys, false, nil, cid.Undef)
+	require.Equal(t, ad1, sync(false, cid.Undef))
+
+	ad2, _, _, _ := publishRandomIndexAndAdv(t, te.publisher, te.publisherLinkSys, false, nil, ad1)
+	require.Equal(t, ad2, sync(false, ad2))
+	require.Equal(t, ad2, sync(true, ad2))
+	state, err := te.ingester.GetAdState(t.Context(), ad2)
+	require.NoError(t, err)
+	require.False(t, state.Processed)
+
+	require.Equal(t, ad2, sync(false, cid.Undef))
+	require.Equal(t, ad2, sync(false, ad1))
+}
+
 func TestIngestDoesNotSkipAdIfFirstTryFailed(t *testing.T) {
 	// Use this to block the second ingest step from happening while we verify the above
 	afterBlockedRead := make(chan struct{})
@@ -884,7 +1018,7 @@ func TestSyncInternalError(t *testing.T) {
 	pub, lsys := mkMockPublisher(t, pubHost, h, srcStore)
 	connectHosts(t, h, pubHost)
 
-	c1, _, providerID, _ := publishRandomIndexAndAdv(t, pub, lsys, false, nil, cid.Undef)
+	_, _, providerID, _ := publishRandomIndexAndAdv(t, pub, lsys, false, nil, cid.Undef)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -904,10 +1038,14 @@ func TestSyncInternalError(t *testing.T) {
 	require.ErrorContains(t, err, errVS.err.Error())
 	t.Log("Sync error:", err)
 
-	// Check that subscriber did ot record latest sync.
-	lnk := ing.sub.GetLatestSync(pubHost.ID())
-	lcid := lnk.(cidlink.Link).Cid
-	require.Equal(t, c1, lcid)
+	// The failed chain is not kept as the subscriber's stop node, so the next
+	// sync fetches the ad again.
+	require.Eventually(t, func() bool {
+		return ing.sub.GetLatestSync(pubHost.ID()) == nil
+	}, 5*time.Second, 10*time.Millisecond)
+	latest, err := ing.GetLatestSync(pubHost.ID())
+	require.NoError(t, err)
+	require.Equal(t, cid.Undef, latest)
 
 	provs := reg.AllProviderInfo()
 	require.NotZero(t, len(provs))

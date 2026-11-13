@@ -38,10 +38,11 @@ type Ingest struct {
 	// synced, as it does for entries chunks, and it is the deepest level of
 	// nodes below the root: an ad whose HAMT is deeper is skipped.
 	EntriesDepthLimit int
-	// FirstSyncDepth sets the advertisement chain depth to sync on the first
-	// sync with a new provider. To sync a new provider with only the most
-	// recent advertisement, set this to 1. A value of 0, the default, means
-	// unlimited depth.
+	// FirstSyncDepth sets the advertisement chain depth to sync when no
+	// advertisement of the publisher is processed yet: a new publisher, or one
+	// whose first chain failed to process. To sync only the most recent
+	// advertisement, set this to 1. A value of 0, the default, means unlimited
+	// depth.
 	FirstSyncDepth int
 	// HttpSyncRetryMax sets the maximum number of times HTTP sync requests
 	// should be retried. A value of zero, the default, means no retry.

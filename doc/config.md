@@ -261,7 +261,7 @@ How advertisement chains and entry data are fetched and indexed.
 | `MaxAsyncConcurrency` | `32` | How many announce-triggered syncs may run at once. `-1` means unlimited. Changing this requires a restart. |
 | `AdvertisementDepthLimit` | `33554432` | Maximum number of advertisements to walk in a chain (across sync segments). `-1` means no limit. |
 | `EntriesDepthLimit` | `65536` | Maximum number of entry chunks, or of HAMT nodes below the root, to walk. Entries past the limit are not indexed. For HAMT entries it is also the deepest level below the root: an ad whose HAMT is deeper is skipped. `-1` means no limit. |
-| `FirstSyncDepth` | `0` | On first contact with a new provider, how deep to sync. `0` means unlimited; `1` means only the latest advertisement. |
+| `FirstSyncDepth` | `0` | When no advertisement of the publisher is processed yet (a new publisher, or one whose first chain failed to process), how deep to sync. `0` means unlimited; `1` means only the latest advertisement. |
 | `SyncSegmentDepthLimit` | `2000` | How much of a chain is requested in one sync segment. `-1` syncs the whole chain in one go. |
 | `SyncTimeout` | `2h` | Maximum time allowed for one advertisement-chain or entries sync. |
 | `HttpSyncTimeout` | `10s` | Timeout for individual HTTP sync requests. |
