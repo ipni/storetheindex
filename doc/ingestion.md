@@ -226,13 +226,18 @@ one, and the active worker keeps draining until the slot is empty.
 1. `collectAdChain` walks the just-synced chain from head to older ads, loading
    each ad from the datastore. It stops when it reaches an already-processed ad
    (which guarantees all older ads are already processed).
-   - An ad that is not in the datastore, or cannot be decoded, ends the walk,
-     and the ads collected so far are ingested. A depth-limited sync ends at
-     an ad whose previous ad was not fetched, and ads older than an
-     undecodable ad cannot be reached.
-   - A datastore error while reading an ad or its processed marker stops the
-     chain before any ad is ingested, so a later sync walks the whole chain
-     again.
+   - An ad that is not in the datastore ends the walk, and the ads collected
+     so far are ingested: a depth-limited sync ends at an ad whose previous ad
+     was not fetched. An ad that matches its CID but does not decode as an ad
+     ends the walk too, though the sync's block hook already refuses such a
+     block when it is fetched.
+   - Every ad is checked against its CID when it is loaded. An ad changed in
+     the datastore after it was stored, whether it still decodes or not, is
+     deleted and fails the chain (`errCorruptBlock`), so the next sync fetches
+     it from the publisher again.
+   - Any other error while reading an ad, such as a datastore error, and an
+     error while reading an ad's processed marker stop the chain before any ad
+     is ingested, so a later sync walks the whole chain again.
    - An ad whose provider ID cannot be decoded is skipped and never marked.
      The ingester's link system already refuses such an ad when the sync
      stores it.

@@ -449,6 +449,98 @@ func TestChainStopsAtDatastoreReadError(t *testing.T) {
 	}
 }
 
+// An ad that is not in the datastore ends the walk, as at the end of a
+// depth-limited sync, and the newer ads collected before it are ingested. The
+// ad and the older ones are not.
+func TestChainWalkEndsAtMissingAd(t *testing.T) {
+	te := setupTestEnv(t, true)
+	chainQueue := runWorkersByHand(te)
+	failDS := &failingDatastore{Batching: te.ingester.dsTmp}
+	te.ingester.dsTmp = failDS
+
+	chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
+		{key: te.publisherPriv, contextID: "a1"},
+		{key: te.publisherPriv, contextID: "a2"},
+		{key: te.publisherPriv, contextID: "a3"},
+	})
+	head := chain[len(chain)-1].cid
+	te.publisher.SetRoot(head)
+
+	syncFinished := syncChain(t, te)
+	events, cnclEvents := te.ingester.onAdProcessed(te.pubHost.ID())
+	defer cnclEvents()
+
+	failDS.setGetResult(datastore.NewKey(chain[1].cid.String()), nil, datastore.ErrNotFound)
+	chainQueue <- syncFinished
+	require.NoError(t, waitChainEvent(t, events, head).err)
+	requireAdIndexedEventually(t, te, chain[2])
+	requireNoneProcessed(t, te.ingester, chain[:2])
+}
+
+// An ad whose block in the temporary datastore no longer matches its CID,
+// whether it still decodes or not, fails the chain without ingesting anything
+// and is deleted. The next sync fetches it from the publisher again, and the
+// chain is ingested.
+func TestChainRefetchesCorruptAd(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		// corrupt returns the bytes stored in place of the ad of chain[1].
+		corrupt func(t *testing.T, te *testEnv, chain []builtAd) []byte
+	}{
+		{
+			name: "decodes",
+			corrupt: func(t *testing.T, te *testEnv, chain []builtAd) []byte {
+				// A valid ad, but another one.
+				val, err := te.ingester.dsTmp.Get(t.Context(), datastore.NewKey(chain[0].cid.String()))
+				require.NoError(t, err)
+				return val
+			},
+		},
+		{
+			name: "does not decode",
+			corrupt: func(*testing.T, *testEnv, []builtAd) []byte {
+				return []byte("not an advertisement")
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			te := setupTestEnv(t, true)
+			chainQueue := runWorkersByHand(te)
+
+			chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
+				{key: te.publisherPriv, contextID: "a1"},
+				{key: te.publisherPriv, contextID: "a2"},
+				{key: te.publisherPriv, contextID: "a3"},
+			})
+			head := chain[len(chain)-1].cid
+			te.publisher.SetRoot(head)
+
+			syncFinished := syncChain(t, te)
+			events, cnclEvents := te.ingester.onAdProcessed(te.pubHost.ID())
+			defer cnclEvents()
+
+			key := datastore.NewKey(chain[1].cid.String())
+			require.NoError(t, te.ingester.dsTmp.Put(t.Context(), key, tc.corrupt(t, te, chain)))
+			chainQueue <- syncFinished
+			event := waitChainEvent(t, events, head)
+			require.ErrorIs(t, event.err, errCorruptBlock)
+			require.Equal(t, chain[1].cid, event.adCid)
+			requireNoneProcessed(t, te.ingester, chain)
+			has, err := te.ingester.dsTmp.Has(t.Context(), key)
+			require.NoError(t, err)
+			require.False(t, has)
+
+			// The worker set the stop node back, so this sync fetches the
+			// deleted ad again.
+			chainQueue <- syncChain(t, te)
+			require.NoError(t, waitChainEvent(t, events, head).err)
+			for _, ba := range chain {
+				requireAdIndexedEventually(t, te, ba)
+			}
+		})
+	}
+}
+
 // A failed read of an ad's processed state during the walk must stop the chain
 // before any ad is ingested.
 func TestChainStopsAtMarkerReadError(t *testing.T) {
@@ -844,4 +936,43 @@ func TestMirrorHeadWrittenOnlyForClaimedProviders(t *testing.T) {
 	headB, err := te.ingester.mirror.mainCarReader.ReadHead(t.Context(), provB)
 	require.NoError(t, err)
 	require.Equal(t, otherHead, headB)
+}
+
+// An entry chunk changed in the temporary datastore after it was stored fails
+// the ad as a transient error, not as a permanent one, so the ad is not
+// skipped. The chunk is deleted, and the next attempt fetches it again from
+// the publisher and indexes the ad.
+func TestCorruptEntryChunkIsRefetched(t *testing.T) {
+	te := setupTestEnv(t, true)
+	chainQueue := runWorkersByHand(te)
+	failDS := &failingDatastore{Batching: te.ingester.dsTmp}
+	te.ingester.dsTmp = failDS
+
+	chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
+		{key: te.publisherPriv, contextID: "a1"},
+	})
+	head := chain[0].cid
+	te.publisher.SetRoot(head)
+	syncFinished := syncChain(t, te)
+	events, cnclEvents := te.ingester.onAdProcessed(te.pubHost.ID())
+	defer cnclEvents()
+
+	// Reads of the chunk return changed bytes, as if it changed after the
+	// entries sync stored it.
+	chunkKey := datastore.NewKey(chain[0].ad.Entries.(cidlink.Link).Cid.String())
+	failDS.setGetResult(chunkKey, []byte("not an entry chunk"), nil)
+	chainQueue <- syncFinished
+	require.ErrorIs(t, waitChainEvent(t, events, head).err, errCorruptBlock)
+	state, err := te.ingester.GetAdState(t.Context(), head)
+	require.NoError(t, err)
+	require.False(t, state.Processed)
+	require.False(t, state.Skipped)
+	has, err := te.ingester.dsTmp.Has(t.Context(), chunkKey)
+	require.NoError(t, err)
+	require.False(t, has)
+
+	failDS.setGetResult(datastore.Key{}, nil, nil)
+	chainQueue <- syncChain(t, te)
+	require.NoError(t, waitChainEvent(t, events, head).err)
+	requireAdIndexedEventually(t, te, chain[0])
 }

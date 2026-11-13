@@ -1325,10 +1325,13 @@ func (ing *Ingester) recordChainError(ctx context.Context, publisher peer.ID, pr
 // collectAdChain walks a synced chain from its head back to the first ad
 // already processed, and returns the unprocessed ads, newest first.
 //
-// An ad that is not in the datastore, or cannot be decoded, ends the walk, and
-// the collected ads are ingested. A depth-limited sync stops at an ad whose
-// previous ad was not fetched, and the ads older than an undecodable ad cannot
-// be reached. A datastore read error is returned with the ad's CID, and nothing
+// An ad that is not in the datastore ends the walk, and the collected ads are
+// ingested: a depth-limited sync stops at an ad whose previous ad was not
+// fetched. An ad that matches its CID but does not decode ends the walk too,
+// since the ads older than it cannot be reached, though the sync's block hook
+// already refuses such a block. Any other load error, such as a datastore read
+// error or an ad changed after it was stored (errCorruptBlock), and a failed
+// read of an ad's processed state are returned with the ad's CID, and nothing
 // of the chain is ingested, so a later sync walks the whole chain again.
 func (ing *Ingester) collectAdChain(ctx context.Context, head cid.Cid, log *zap.SugaredLogger) (adChain, cid.Cid, error) {
 	chain := adChain{
@@ -1352,7 +1355,10 @@ func (ing *Ingester) collectAdChain(ctx context.Context, head cid.Cid, log *zap.
 		ad, err := ing.loadAd(c)
 		if err != nil {
 			stats.Record(context.Background(), metrics.AdLoadError.M(1))
-			if errors.Is(err, errInternal) {
+			// Only a missing or undecodable ad ends the walk, with the newer
+			// ads still ingested. Any other error fails the chain, so that no
+			// newer ad is marked processed in front of an older ad not read.
+			if !errors.Is(err, errUnusableBlock) {
 				return chain, c, fmt.Errorf("cannot load advertisement: %w", err)
 			}
 			log.Errorw("Failed to load advertisement CID, skipping all remaining", "cid", c, "err", err)
