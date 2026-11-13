@@ -1,6 +1,6 @@
 BIN := storetheindex
 
-.PHONY: all build clean test
+.PHONY: all build clean test cross-announce
 
 all: vet test build
 
@@ -24,3 +24,7 @@ vet:
 
 clean:
 	go clean
+	rm -f cross-announce
+
+cross-announce:
+	go build -o cross-announce ./scripts/cross_announce
