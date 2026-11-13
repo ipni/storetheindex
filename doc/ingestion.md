@@ -191,7 +191,7 @@ Advertisement blocks are stored via the link system write opener
 When the walk completes, the subscriber emits a `dagsync.SyncFinished` event
 carrying the head CID, publisher peer ID, and the count of ads synced.
 
-## Phase 2: Worker dispatch and grouping
+## Phase 2: Worker dispatch and chain collection
 
 `SyncFinished` events are delivered on the channel returned by
 `sub.OnSyncFinished()`. A pool of `ingestWorker` goroutines
@@ -202,17 +202,18 @@ sequenceDiagram
   participant Sub as dagsync.Subscriber
   participant W as ingestWorker
   participant P as processRawAdChain
-  participant WL as ingestWorkerLogic
+  participant WL as ingestAdChain
   participant Core as indexer core
 
   Sub->>W: SyncFinished{head, publisher, count}
   W->>W: putNextSyncFin (dedupe per publisher)
   W->>P: for each queued syncFin
-  P->>P: walk chain head->old, group ads by provider
-  P->>WL: per provider ad stack (mark provider busy)
-  WL->>WL: iterate ads oldest->newest
+  P->>P: collectAdChain: walk chain head->old
+  P->>WL: unprocessed ads of the chain
+  WL->>WL: iterate ads oldest->newest, claim each run's provider, stop at first transient error
   WL->>Core: ingestAd -> index multihashes
   WL-->>Sub: adProcessedEvent (per ad)
+  P-->>Sub: terminal adProcessedEvent (chain head, error if any)
 ```
 
 Per publisher, only one chain is processed at a time. `putNextSyncFin` /
@@ -222,30 +223,78 @@ one, and the active worker keeps draining until the slot is empty.
 
 `processRawAdChain` (`ingest.go`):
 
-1. Walks the just-synced chain from head to older ads, loading each ad from the
-   datastore. It stops early when it reaches an already-processed ad (which
-   guarantees all older ads are already processed).
-2. Groups ads by **provider** (`adsGroupedByProvider`). A single chain usually
-   has one provider, but may contain several.
-3. Tracks removals per provider: an ad with `IsRm` records its (provider,
+1. `collectAdChain` walks the just-synced chain from head to older ads, loading
+   each ad from the datastore. It stops when it reaches an already-processed ad
+   (which guarantees all older ads are already processed).
+   - An ad that is not in the datastore ends the walk, and the ads collected
+     so far are ingested: a depth-limited sync ends at an ad whose previous ad
+     was not fetched. An ad that matches its CID but does not decode as an ad
+     ends the walk too, though the sync's block hook already refuses such a
+     block when it is fetched.
+   - Every ad is checked against its CID when it is loaded. An ad changed in
+     the datastore after it was stored, whether it still decodes or not, is
+     deleted and fails the chain (`errCorruptBlock`), so the next sync fetches
+     it from the publisher again.
+   - Any other error while reading an ad, such as a datastore error, and an
+     error while reading an ad's processed marker stop the chain before any ad
+     is ingested, so a later sync walks the whole chain again.
+   - An ad whose provider ID cannot be decoded is skipped and never marked.
+     The ingester's link system already refuses such an ad when the sync
+     stores it.
+2. Tracks removals per provider: an ad with `IsRm` records its (provider,
    `ContextID`), and ads older than it in the chain with the same provider and
    `ContextID` are marked `skip`. A removal deletes only its own provider's
    context, so ads of other providers with the same `ContextID` are ingested.
-4. Records remove/non-remove ad-count metrics.
-5. For each provider, ensures the provider is not already being ingested
-   (`providersBusy`, to avoid double processing of the same provider from
-   different publishers), marks it busy, and calls `ingestWorkerLogic`.
+3. Records remove/non-remove ad-count metrics.
+4. Calls `ingestAdChain` with all the unprocessed ads.
+5. Sends exactly one terminal `adProcessedEvent` on every return, with
+   `headAdCid` set to the chain head and the chain's error, if any. On an error
+   its `adCid` is the ad that failed. An explicit `Sync` waits for this event,
+   so it returns even when no ad of the chain was ingested.
+6. When the chain stops on an error and was not canceled, records the error
+   (`recordChainError`) as the last error of every registered provider with
+   an ad the chain did not ingest: the failed ad and the newer ones. A
+   provider whose ads were all ingested before the failure keeps no error.
+   When none of those providers is registered, for example when the walk
+   failed before collecting any ad, the error goes to a registered provider
+   of the publisher (`ProviderByPublisher`). The error names the failed ad
+   and hides the details of an internal error. The poller syncs a provider
+   with a last error even after recent contact, and polling a provider syncs
+   its publisher, so the chain is synced again. A publisher with no
+   registered provider yet is synced again by its next announce or an
+   explicit `Sync`. A successful ad clears its provider's last error after
+   its marker is written.
 
 ## Phase 3: Processing ads and ingesting entries
 
-`ingestWorkerLogic` processes a provider's ad stack **oldest to newest**
-(iterating the slice backwards) to preserve the invariant that processing an ad
-implies all older ads are processed. For each ad:
+`ingestAdChain` processes the chain's ads **oldest to newest**, in chain order
+across all providers (iterating the slice backwards). It stops the whole chain
+at the first transient error, including a failed write of an ad's processed or
+skipped marker, so an ad is never marked processed while an older ad of the
+same chain that the walk reached is not. The walk ends early only at an ad
+that is not in the datastore, as at the end of a depth-limited sync, or that
+does not decode, and the older ads are then left unprocessed.
+
+Before the loop it marks each provider of the chain as seen (`reg.Saw`). A
+run of consecutive ads of one provider is ingested while that provider is
+claimed in `providersBusy`. The chain releases the provider before it claims
+the next one, so it never waits for a provider while it holds another. When
+it first claims a provider and the mirror is writable, it writes that
+provider's head: its newest ad in the chain. If the provider is busy
+ingesting another chain (the same provider published by another publisher),
+the chain waits at the first ad of that run, holding no claim, until the
+other chain releases the provider, for up to 10 minutes. If the wait ends
+first, the chain stops there, and the ads before it stay processed.
+
+For each ad:
 
 - Skips ads already processed, or ads marked `skip` (deleted later in the
   chain) - the latter are still marked processed.
 - Updates sync status (`SetCurrentAd`).
-- Calls `ingestAd`. It first reads the ad's extended providers
+- Calls `ingestAd`. It loads the ad from the datastore again, and any failure
+  to load it is an `indexerErr`: the chain stops there and is ingested again
+  later. If another chain processed the ad meanwhile, the next walk finds it
+  marked processed. It then reads the ad's extended providers
   (`adExtendedProviders`) and ignores what the IPNI specification says to
   ignore: extended providers on a removal ad, `Override` on an ad without a
   context ID, a provider record that is not signed by its provider's own key,
@@ -571,7 +620,10 @@ case, or from an External CAR when re-mirroring onto a writable Main.
 - Per publisher: at most one chain is processed at a time (`syncInProgress`).
 - Per provider: at most one ingestion at a time across all workers
   (`providersBusy`) - protects against the same provider being published from
-  multiple chains.
+  multiple chains. A chain claims one provider at a time, for each run of
+  consecutive ads of that provider, and waits for a busy provider without
+  holding a claim, so two chains sharing providers cannot deadlock. Each ad's processed marker is checked after the claim, so a chain
+  skips the ads another chain with the same ads has already processed.
 - `MaxAsyncConcurrency` bounds concurrent async syncs started by announces
   (enforced inside dagsync).
 - **Scan/process sequencing:** after a successful ad-chain sync, dagsync blocks
@@ -591,7 +643,8 @@ continues to process advertisements to keep provider/metadata state current,
 but **does not fetch or index entries**. Content ads are treated as
 metadata-only updates and ads are additionally recorded under
 `adProcessedFrozenPrefix` so ingestion can resume from the right point if the
-indexer is later unfrozen.
+indexer is later unfrozen. `ingestAdChain` checks for frozen mode before each
+ad, so a freeze while a chain is being ingested applies from the next ad.
 
 ## Sync status tracking
 
@@ -611,8 +664,8 @@ so history remains visible until pruned by newer runs.
 - **Processing** - applying advertisements. Fields include `AdsProcessed`,
   `AdsTotal`, `AdsLeft`, `CurrentAd`, `ErrorCount`, timing fields, and `Error`
   when processing bailed early. Started by `BeginProcessing` in
-  `ingestWorkerLogic`. Ended by `EndProcessing` when the worker finishes (with
-  an error on cancel or bail-early).
+  `ingestAdChain`, once per chain. Ended by `EndProcessing` when the chain
+  finishes (with an error on cancel or bail-early).
 - **Download** - entry data fetch for the current processing run. Fields include
   `BytesDownloaded`, `EntryChunkCount`, `ChunkMultihashCount`,
   `HamtMultihashCount`, `MultihashCount`, timing fields, and `Error` when
@@ -805,7 +858,7 @@ and CPU limits.
 
 | File | Responsibility |
 | --- | --- |
-| `internal/ingest/ingest.go` | Ingester, worker pool, announce/sync entry points, ad-chain grouping and processing, datastore markers, auto-sync, frozen unfreeze. |
+| `internal/ingest/ingest.go` | Ingester, worker pool, announce/sync entry points, ad-chain collection and processing in chain order, datastore markers, auto-sync, frozen unfreeze. |
 | `internal/ingest/linksystem.go` | Link system (verify + store), `ingestAd`, entry/HAMT/CAR ingestion, `indexAdMultihashes`, node decoding helpers. |
 | `internal/ingest/mirror.go` | CAR mirror read/write over the filestore. |
 | `internal/ingest/error.go` | `adIngestError` states and helpers. |
