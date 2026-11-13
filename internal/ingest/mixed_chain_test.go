@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -29,6 +30,9 @@ import (
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // mixedAd describes one advertisement of a chain built by buildMixedChain.
@@ -240,11 +244,15 @@ func TestMixedChainStopsAtTransientError(t *testing.T) {
 	requireChainIngestedAfterNewAd(t, te, head, chain)
 }
 
-// A chain stops at the first ad of a provider that another chain is ingesting,
-// and reports the failure to Sync. The ads before that run stay processed, and
-// the chain holds no provider after it stops.
+// A chain stops at the first ad of a provider that another chain is ingesting
+// for longer than the chain waits, and reports the failure to Sync and as the
+// last error of the chain's providers. The ads before that run stay processed,
+// and the chain holds no provider after it stops.
 func TestMixedChainBusyProviderFailsSync(t *testing.T) {
 	te := setupTestEnv(t, true)
+	// The wait itself is tested in a synctest bubble by TestProviderClaimer*.
+	// Here the chain gives up at once.
+	te.ingester.providerBusyWait = 0
 
 	provB := randomPrivKey(t)
 	chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
@@ -256,8 +264,8 @@ func TestMixedChainBusyProviderFailsSync(t *testing.T) {
 	te.publisher.SetRoot(head)
 
 	// Another chain holds provider B.
-	otherChain := te.ingester.providerClaimer()
-	require.True(t, otherChain(chain[1].provider))
+	otherChain, releaseOther := te.ingester.providerClaimer(t.Context(), &log.SugaredLogger)
+	require.NoError(t, otherChain(chain[1].provider))
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
@@ -267,13 +275,18 @@ func TestMixedChainBusyProviderFailsSync(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, state.Processed)
 	requireNoneProcessed(t, te.ingester, chain[1:])
+	// Provider A is registered by its ingested ad. Provider B is not
+	// registered yet, so its last error is not recorded.
+	info, ok := te.reg.ProviderInfo(chain[0].provider)
+	require.True(t, ok)
+	require.Contains(t, info.LastError, "busy")
 
 	// The chain released provider A when it reached B's run.
-	check := te.ingester.providerClaimer()
-	require.True(t, check(chain[0].provider))
-	require.True(t, check(""))
+	check, releaseCheck := te.ingester.providerClaimer(t.Context(), &log.SugaredLogger)
+	require.NoError(t, check(chain[0].provider))
+	releaseCheck()
 
-	require.True(t, otherChain(""))
+	releaseOther()
 	requireChainIngestedAfterNewAd(t, te, head, chain)
 }
 
@@ -862,41 +875,122 @@ func TestTerminalEventForChainWithNothingToIngest(t *testing.T) {
 	}
 }
 
-func TestProviderClaimer(t *testing.T) {
-	ing := &Ingester{providersBusy: make(map[peer.ID]struct{})}
-	a, b, c := peer.ID("a"), peer.ID("b"), peer.ID("c")
-	busy := func() []peer.ID {
-		return slices.Sorted(maps.Keys(ing.providersBusy))
+func newClaimTestIngester() *Ingester {
+	return &Ingester{
+		providersBusy:    make(map[peer.ID]chan struct{}),
+		providerBusyWait: time.Minute,
 	}
-	claim := ing.providerClaimer()
-	other := ing.providerClaimer()
+}
 
-	require.True(t, claim(a))
-	require.True(t, claim(a))
-	require.Equal(t, []peer.ID{a}, busy())
-	require.False(t, other(a))
+func busyProviders(ing *Ingester) []peer.ID {
+	ing.providersBusyMu.Lock()
+	defer ing.providersBusyMu.Unlock()
+	return slices.Sorted(maps.Keys(ing.providersBusy))
+}
 
-	// Moving to another provider releases the one held.
-	require.True(t, claim(b))
-	require.Equal(t, []peer.ID{b}, busy())
-	require.True(t, other(a))
-	require.Equal(t, []peer.ID{a, b}, busy())
+func TestProviderClaimer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ing := newClaimTestIngester()
+		a, b, c := peer.ID("a"), peer.ID("b"), peer.ID("c")
+		claim, release := ing.providerClaimer(t.Context(), &log.SugaredLogger)
+		other, releaseOther := ing.providerClaimer(t.Context(), &log.SugaredLogger)
 
-	// A busy provider fails the claim, and the one held is released.
-	require.True(t, other(c))
-	require.False(t, claim(c))
-	require.Equal(t, []peer.ID{c}, busy())
+		require.NoError(t, claim(a))
+		require.NoError(t, claim(a))
+		require.Equal(t, []peer.ID{a}, busyProviders(ing))
+		require.ErrorIs(t, other(a), errProviderBusy)
 
-	// After a failed claim, nothing is held, so the empty ID releases nothing.
-	require.True(t, claim(""))
-	require.Equal(t, []peer.ID{c}, busy())
+		// Moving to another provider releases the one held.
+		require.NoError(t, claim(b))
+		require.Equal(t, []peer.ID{b}, busyProviders(ing))
+		require.NoError(t, other(a))
+		require.Equal(t, []peer.ID{a, b}, busyProviders(ing))
 
-	require.True(t, claim(a))
-	require.True(t, claim(""))
-	require.Equal(t, []peer.ID{c}, busy())
+		// A busy provider fails the claim after the wait, and the one held is
+		// released before the wait.
+		require.NoError(t, other(c))
+		require.ErrorIs(t, claim(c), errProviderBusy)
+		require.Equal(t, []peer.ID{c}, busyProviders(ing))
 
-	require.True(t, other(""))
-	require.Empty(t, busy())
+		// After a failed claim, nothing is held, so release releases nothing.
+		release()
+		require.Equal(t, []peer.ID{c}, busyProviders(ing))
+
+		require.NoError(t, claim(a))
+		release()
+		require.Equal(t, []peer.ID{c}, busyProviders(ing))
+
+		releaseOther()
+		require.Empty(t, busyProviders(ing))
+	})
+}
+
+// A claim of a busy provider waits until the provider is released, holding no
+// claim while it waits, and then claims it. The wait is logged to the chain's
+// logger, with the chain's fields.
+func TestProviderClaimerWaitsForRelease(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ing := newClaimTestIngester()
+		a, b, c := peer.ID("a"), peer.ID("b"), peer.ID("c")
+		other, releaseOther := ing.providerClaimer(t.Context(), &log.SugaredLogger)
+		require.NoError(t, other(b))
+		third, releaseThird := ing.providerClaimer(t.Context(), &log.SugaredLogger)
+		require.NoError(t, third(c))
+
+		core, logs := observer.New(zapcore.InfoLevel)
+		chainLog := zap.New(core).Sugar().With("publisher", "pub", "worker", 3)
+		claim, release := ing.providerClaimer(t.Context(), chainLog)
+		require.NoError(t, claim(a))
+		done := make(chan error, 1)
+		go func() {
+			done <- claim(b)
+		}()
+		synctest.Wait()
+		require.Empty(t, done)
+		require.Equal(t, []peer.ID{b, c}, busyProviders(ing), "a released while waiting")
+
+		waits := logs.FilterMessage("Waiting for a provider that another chain is ingesting").AllUntimed()
+		require.Len(t, waits, 1)
+		require.Equal(t, map[string]any{"publisher": "pub", "worker": int64(3), "provider": b.String()},
+			waits[0].ContextMap())
+
+		// Another provider released does not end the wait.
+		releaseThird()
+		synctest.Wait()
+		require.Empty(t, done)
+
+		start := time.Now()
+		time.Sleep(time.Second)
+		releaseOther()
+		require.NoError(t, <-done)
+		require.Equal(t, time.Second, time.Since(start))
+		require.Equal(t, []peer.ID{b}, busyProviders(ing))
+		release()
+	})
+}
+
+// A claim of a busy provider gives up after providerBusyWait, or when its
+// context ends.
+func TestProviderClaimerGivesUp(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ing := newClaimTestIngester()
+		a := peer.ID("a")
+		other, _ := ing.providerClaimer(t.Context(), &log.SugaredLogger)
+		require.NoError(t, other(a))
+
+		start := time.Now()
+		claim, _ := ing.providerClaimer(t.Context(), &log.SugaredLogger)
+		require.ErrorIs(t, claim(a), errProviderBusy)
+		require.Equal(t, ing.providerBusyWait, time.Since(start))
+
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		start = time.Now()
+		claim, _ = ing.providerClaimer(ctx, &log.SugaredLogger)
+		require.ErrorIs(t, claim(a), context.DeadlineExceeded)
+		require.Equal(t, time.Second, time.Since(start))
+		require.Equal(t, []peer.ID{a}, busyProviders(ing))
+	})
 }
 
 // freezeAfterPut freezes the indexer right after the multihashes of one ad are
@@ -959,6 +1053,8 @@ func TestChainFreezeAppliesFromNextAd(t *testing.T) {
 // not replace the head written by the chain that ingests that provider.
 func TestMirrorHeadWrittenOnlyForClaimedProviders(t *testing.T) {
 	te, _ := setupMirrorTestEnv(t)
+	// The chain gives up at once on the busy provider.
+	te.ingester.providerBusyWait = 0
 
 	chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
 		{key: te.publisherPriv, contextID: "a1"},
@@ -969,9 +1065,9 @@ func TestMirrorHeadWrittenOnlyForClaimedProviders(t *testing.T) {
 	te.publisher.SetRoot(head)
 
 	// Another chain holds provider B and wrote B's head.
-	otherChain := te.ingester.providerClaimer()
-	require.True(t, otherChain(provB))
-	defer otherChain("")
+	otherChain, releaseOther := te.ingester.providerClaimer(t.Context(), &log.SugaredLogger)
+	require.NoError(t, otherChain(provB))
+	defer releaseOther()
 	otherHead := random.Cids(1)[0]
 	_, err := te.ingester.mirror.writeHead(t.Context(), otherHead, provB)
 	require.NoError(t, err)
@@ -979,7 +1075,7 @@ func TestMirrorHeadWrittenOnlyForClaimedProviders(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	_, err = te.ingester.Sync(ctx, publisherAddrInfo(te), 0, false, cid.Undef)
-	require.ErrorContains(t, err, "busy")
+	require.ErrorIs(t, err, errProviderBusy)
 
 	headA, err := te.ingester.mirror.mainCarReader.ReadHead(t.Context(), provA)
 	require.NoError(t, err)
