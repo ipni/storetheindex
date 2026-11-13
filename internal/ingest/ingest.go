@@ -1527,7 +1527,12 @@ func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headA
 	// first, so it is the first ad of the provider.
 	headProviders := make(map[peer.ID]peer.AddrInfo)
 	mirrorHeads := make(map[peer.ID]adInfo)
+	// adsLeft counts each provider's ads not yet taken by the loop below. A
+	// provider's lag is its own ads left after the ad being ingested, so its
+	// newest ad in the chain has lag 0.
+	adsLeft := make(map[peer.ID]int)
 	for _, ai := range ads {
+		adsLeft[ai.provider]++
 		if _, ok := headProviders[ai.provider]; ok {
 			continue
 		}
@@ -1572,6 +1577,7 @@ func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headA
 	for ; len(ads) != 0; ads = ads[:len(ads)-1] {
 		ai := ads[len(ads)-1]
 		count++
+		adsLeft[ai.provider]--
 
 		if ctx.Err() != nil {
 			log.Infow("Ingest worker canceled while processing ads", "err", ctx.Err())
@@ -1629,7 +1635,7 @@ func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headA
 			continue
 		}
 
-		lag := total - count
+		lag := adsLeft[ai.provider]
 		log.Infow("Processing advertisement",
 			"adCid", ai.cid,
 			"provider", ai.provider,

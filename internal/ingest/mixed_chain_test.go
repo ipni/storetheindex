@@ -1061,3 +1061,33 @@ func TestCorruptEntryChunkIsRefetched(t *testing.T) {
 	require.NoError(t, waitChainEvent(t, events, head).err)
 	requireAdIndexedEventually(t, te, chain[0])
 }
+
+// A provider's lag counts only its own ads left in the chain, so after a mixed
+// chain is ingested, each provider's newest ad leaves it with lag 0, also when
+// that ad is not the chain head.
+func TestMixedChainProviderLag(t *testing.T) {
+	te := setupTestEnv(t, true)
+
+	keyB := randomPrivKey(t)
+	chain := buildMixedChain(t, te.publisherLinkSys, []mixedAd{
+		{key: te.publisherPriv, contextID: "a1"},
+		{key: keyB, contextID: "b1"},
+		{key: keyB, contextID: "b2"},
+		{key: keyB, contextID: "b3"},
+	})
+	head := chain[len(chain)-1].cid
+	te.publisher.SetRoot(head)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	c, err := te.ingester.Sync(ctx, publisherAddrInfo(te), 0, false, cid.Undef)
+	require.NoError(t, err)
+	require.Equal(t, head, c)
+
+	for _, ba := range []builtAd{chain[0], chain[3]} {
+		info, ok := te.reg.ProviderInfo(ba.provider)
+		require.True(t, ok)
+		require.Equal(t, ba.cid, info.LastAdvertisement)
+		require.Zero(t, info.Lag)
+	}
+}
