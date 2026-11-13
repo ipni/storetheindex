@@ -37,6 +37,10 @@ import (
 
 var log = logging.Logger("indexer/ingest")
 
+// errProviderBusy is returned by a provider claim that waited
+// providerBusyWait while another chain was ingesting the provider.
+var errProviderBusy = errors.New("provider is busy ingesting another chain")
+
 // prefix used to track latest sync in datastore.
 const (
 	// syncPrefix identifies the latest sync for each provider.
@@ -68,6 +72,9 @@ const (
 	metricsUpdateInterval = time.Minute
 	// adsScannedLogInterval is how often to log ad-chain scanning progress.
 	adsScannedLogInterval = 10000
+	// providerBusyWait is how long a chain waits to claim a provider that
+	// another chain is ingesting.
+	providerBusyWait = 10 * time.Minute
 )
 
 type adProcessedEvent struct {
@@ -139,9 +146,12 @@ type Ingester struct {
 	overwriteMirrorOnResync bool
 
 	// A map of providers currently being processed. Used to detect if multiple
-	// publishers are supplying ads for the same provide at the same time.
-	providersBusy   map[peer.ID]struct{}
+	// publishers are supplying ads for the same provide at the same time. The
+	// channel of a provider is closed when the provider is released.
+	providersBusy   map[peer.ID]chan struct{}
 	providersBusyMu sync.Mutex
+	// providerBusyWait is how long a chain waits to claim a busy provider.
+	providerBusyWait time.Duration
 
 	// Used to stop watching for sync finished events from dagsync.
 	cancelOnSyncFinished context.CancelFunc
@@ -205,7 +215,8 @@ func NewIngester(cfg config.Ingest, h host.Host, idxr indexer.Interface, reg *re
 		closePendingSyncs: make(chan struct{}),
 
 		overwriteMirrorOnResync: cfg.OverwriteMirrorOnResync,
-		providersBusy:           make(map[peer.ID]struct{}),
+		providersBusy:           make(map[peer.ID]chan struct{}),
+		providerBusyWait:        providerBusyWait,
 		stopWorker:              make(chan struct{}),
 
 		syncInProgress: make(map[peer.ID]*dagsync.SyncFinished),
@@ -1429,40 +1440,75 @@ func (ing *Ingester) writeMirrorHead(ctx context.Context, heads map[peer.ID]adIn
 	}
 }
 
-// providerClaimer returns a function that holds at most one provider claim at
-// a time. Called with a provider, it releases the provider claimed before, if
-// it is another one, and claims the given one. It returns false when another
-// chain is ingesting that provider, and then holds no claim. Called with an
-// empty ID, it releases the claim it holds.
+// providerClaimer returns a pair of functions that hold at most one provider
+// claim at a time. claim releases the provider claimed before, if it is
+// another one, and claims the given one. While another chain is ingesting that
+// provider, claim waits for it to be released, for up to providerBusyWait or
+// until ctx ends, and then returns an error and holds no claim. It never waits
+// while it holds a claim, so chains cannot deadlock. release releases the
+// claim held, if any.
 //
 // Claims in providersBusy are taken and released only through this function.
-func (ing *Ingester) providerClaimer() func(provider peer.ID) bool {
+func (ing *Ingester) providerClaimer(ctx context.Context) (claim func(provider peer.ID) error, release func()) {
 	var claimed peer.ID
-	return func(provider peer.ID) bool {
-		if provider == claimed {
-			return true
-		}
 
+	// switchClaim releases the claim held and tries to claim provider. When
+	// another chain holds provider, it returns the channel that is closed
+	// when that chain releases it.
+	switchClaim := func(provider peer.ID) <-chan struct{} {
 		ing.providersBusyMu.Lock()
 		defer ing.providersBusyMu.Unlock()
 
 		if claimed != "" {
+			close(ing.providersBusy[claimed])
 			delete(ing.providersBusy, claimed)
 			claimed = ""
 		}
 
 		if provider == "" {
-			return true
+			return nil
 		}
 
-		if _, busy := ing.providersBusy[provider]; busy {
-			return false
+		if released, busy := ing.providersBusy[provider]; busy {
+			return released
 		}
 
-		ing.providersBusy[provider] = struct{}{}
+		ing.providersBusy[provider] = make(chan struct{})
 		claimed = provider
-		return true
+		return nil
 	}
+
+	claim = func(provider peer.ID) error {
+		if provider == claimed {
+			return nil
+		}
+
+		waitCtx, cancel := context.WithTimeoutCause(
+			ctx,
+			ing.providerBusyWait,
+			fmt.Errorf("%w: %s", errProviderBusy, provider),
+		)
+		defer cancel()
+
+		for {
+			released := switchClaim(provider)
+			if released == nil {
+				return nil
+			}
+			log.Infow("Waiting for a provider that another chain is ingesting", "provider", provider)
+			select {
+			case <-released:
+				// The provider was released; try to claim it again
+			case <-waitCtx.Done():
+				return context.Cause(waitCtx)
+			}
+		}
+	}
+	release = func() {
+		// Releasing never fails
+		_ = switchClaim("")
+	}
+	return claim, release
 }
 
 // ingestAdChain ingests the collected ads in chain order, oldest first. It
@@ -1472,8 +1518,9 @@ func (ing *Ingester) providerClaimer() func(provider peer.ID) bool {
 //
 // The provider of each run of consecutive ads is claimed before the run, and
 // released before the next provider is claimed, so the chain never waits for a
-// provider while it holds another. A provider that another chain is ingesting
-// stops the chain at the first ad of its run.
+// provider while it holds another. When another chain is ingesting a provider,
+// the chain waits for it at the first ad of its run, for up to
+// providerBusyWait, and then stops there.
 func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headAdCid cid.Cid, chain adChain, wkrNum int, log *zap.SugaredLogger) (failedAd cid.Cid, err error) {
 	ads := chain.ads
 	// A provider's head is its newest ad in this chain. The ads are newest
@@ -1492,8 +1539,8 @@ func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headA
 		ing.reg.Saw(ai.provider, false)
 	}
 
-	claim := ing.providerClaimer()
-	defer claim("")
+	claim, release := ing.providerClaimer(ctx)
+	defer release()
 
 	skip500EntsErr := ing.skip500EntsErr.Load()
 
@@ -1531,9 +1578,9 @@ func (ing *Ingester) ingestAdChain(ctx context.Context, publisher peer.ID, headA
 			return ai.cid, ctx.Err()
 		}
 
-		if !claim(ai.provider) {
-			log.Errorw("Other worker already ingesting for same provider. Provider ad chain may by published at multiple locations.", "provider", ai.provider)
-			return ai.cid, fmt.Errorf("provider %s is busy ingesting another chain", ai.provider)
+		if err = claim(ai.provider); err != nil {
+			log.Errorw("Cannot claim provider. Bailing early, not ingesting later ads.", "provider", ai.provider, "err", err)
+			return ai.cid, err
 		}
 		// The head is written under the claim, so a chain that stops before
 		// it ingests the provider's ads does not replace the provider's head

@@ -282,8 +282,9 @@ the next one, so it never waits for a provider while it holds another. When
 it first claims a provider and the mirror is writable, it writes that
 provider's head: its newest ad in the chain. If the provider is busy
 ingesting another chain (the same provider published by another publisher),
-the chain stops at the first ad of that run. The ads before it stay
-processed.
+the chain waits at the first ad of that run, holding no claim, until the
+other chain releases the provider, for up to 10 minutes. If the wait ends
+first, the chain stops there, and the ads before it stay processed.
 
 For each ad:
 
@@ -620,8 +621,8 @@ case, or from an External CAR when re-mirroring onto a writable Main.
 - Per provider: at most one ingestion at a time across all workers
   (`providersBusy`) - protects against the same provider being published from
   multiple chains. A chain claims one provider at a time, for each run of
-  consecutive ads of that provider, so two chains sharing providers cannot
-  deadlock. Each ad's processed marker is checked after the claim, so a chain
+  consecutive ads of that provider, and waits for a busy provider without
+  holding a claim, so two chains sharing providers cannot deadlock. Each ad's processed marker is checked after the claim, so a chain
   skips the ads another chain with the same ads has already processed.
 - `MaxAsyncConcurrency` bounds concurrent async syncs started by announces
   (enforced inside dagsync).
