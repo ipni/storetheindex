@@ -9,12 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ipfs/go-datastore"
-	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipfs/go-test/random"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
-	"github.com/ipld/go-ipld-prime/storage/dsadapter"
 	"github.com/ipni/go-libipni/announce"
 	"github.com/ipni/go-libipni/announce/p2psender"
 	"github.com/ipni/go-libipni/dagsync"
@@ -118,10 +115,7 @@ func startProviderLoadGen(config Config, indexerHttpAddr string, addressMapping 
 
 func newProviderLoadGen(c Config, indexerHttpAddr string, addressMapping map[string]string) *providerLoadGen {
 	lsys := cidlink.DefaultLinkSystem()
-	ds := dssync.MutexWrap(datastore.NewMapDatastore())
-	store := &dsadapter.Adapter{
-		Wrapped: ds,
-	}
+	store := newLockedStore()
 	lsys.SetReadStorage(store)
 	lsys.SetWriteStorage(store)
 
