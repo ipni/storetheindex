@@ -22,6 +22,7 @@ import (
 	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/go-libipni/mautil"
 	"github.com/ipni/storetheindex/config"
+	"github.com/ipni/storetheindex/internal/dskey"
 	"github.com/ipni/storetheindex/internal/freeze"
 	"github.com/ipni/storetheindex/internal/fsutil/disk"
 	"github.com/ipni/storetheindex/internal/metrics"
@@ -33,8 +34,8 @@ import (
 
 const (
 	// providerKeyPath is where provider info is stored in to indexer repo.
-	providerKeyPath       = "/registry/pinfo"
-	assignmentsKeyPath    = "/assignments-v2"
+	providerKeyPath       = dskey.ProviderInfoPath
+	assignmentsKeyPath    = "/assignments-v2" // TODO: let's move those keys as well - let's keep them in a single place
 	oldAssignmentsKeyPath = "/assignments-v1"
 )
 

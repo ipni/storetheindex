@@ -9,6 +9,7 @@ import (
 
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/ipni/storetheindex/internal/dskey"
 	"github.com/ipni/storetheindex/internal/fsutil/disk"
 )
 
@@ -17,7 +18,7 @@ var log = logging.Logger("indexer/freezer")
 const (
 	defaultFreezeAtPercent = 99.0
 
-	frozenKey = "/freeze/frozen"
+	frozenKey = dskey.Frozen
 
 	maxCheckInterval = time.Hour
 	minCheckInterval = 30 * time.Second

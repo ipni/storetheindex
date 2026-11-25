@@ -24,6 +24,7 @@ import (
 	"github.com/ipni/go-libipni/dagsync"
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/filestore"
+	"github.com/ipni/storetheindex/internal/dskey"
 	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/rate"
@@ -44,27 +45,19 @@ var errProviderBusy = errors.New("provider is busy ingesting another chain")
 // prefix used to track latest sync in datastore.
 const (
 	// syncPrefix identifies the latest sync for each provider.
-	syncPrefix = "/sync/"
+	syncPrefix = dskey.SyncPrefix
 	// adProcessedPrefix identifies all processed advertisements.
-	adProcessedPrefix = "/adProcessed/"
+	adProcessedPrefix = dskey.AdProcessedPrefix
 	// adProcessedFrozenPrefix identifies all advertisements processed while in
 	// frozen mode. Used for unfreezing.
 	adProcessedFrozenPrefix = "/adF/"
 	// adSkipReasonPrefix identifies the skip reason for permanently skipped ads.
-	adSkipReasonPrefix = "/adSkipReason/"
-	// Marker byte values for /adProcessed/<cid>.
-	// Explicit values; these are a persisted on-disk format.
-	//
-	// The stored value is the marker byte, optionally followed by 8
-	// bytes holding little-endian microseconds since the Unix epoch
-	// recording when the marker was last written. Legacy records are
-	// marker-only (1 byte); current writes of processed and skipped
-	// markers are 9 bytes. Readers accept trailing bytes after the
-	// timestamp.
-	adMarkerUnprocessed byte = 0 // unprocessed
-	adMarkerProcessed   byte = 1 // processed successfully
-	adMarkerResync      byte = 2 // marked for resync
-	adMarkerSkipped     byte = 3 // processed but permanently skipped
+	adSkipReasonPrefix = dskey.AdSkipReasonPrefix
+	// Marker byte values for /adProcessed/<cid>; see dskey.
+	adMarkerUnprocessed = dskey.AdMarkerUnprocessed
+	adMarkerProcessed   = dskey.AdMarkerProcessed
+	adMarkerResync      = dskey.AdMarkerResync
+	adMarkerSkipped     = dskey.AdMarkerSkipped
 	// adProcessedMarkerTimeLen is the size of the optional unix-microseconds
 	// suffix stored after the marker byte.
 	adProcessedMarkerTimeLen = 8
