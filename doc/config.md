@@ -345,7 +345,8 @@ An optional HTTP server, the import sender, that lets another indexer copy
 this indexer's datastore: the processed and skipped advertisements, the
 skip reasons, the latest advertisement synced from each publisher, and the
 provider records. The importing indexer reads it in parts, many at once.
-The sender is off unless `ListenAddr` is set.
+The sender is off unless `ListenAddr` is set. See
+[migration.md](migration.md) for how an import runs.
 
 Every request must carry `Authorization: Bearer <token>`, with the token
 from `TokenFile`. Keep the port off the public internet anyway, and put TLS

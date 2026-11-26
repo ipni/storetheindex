@@ -31,6 +31,7 @@ import (
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/fsutil"
 	"github.com/ipni/storetheindex/internal/ingest"
+	"github.com/ipni/storetheindex/internal/migrate"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/internal/revision"
 	httpadmin "github.com/ipni/storetheindex/server/admin"
@@ -87,6 +88,10 @@ var daemonFlags = []cli.Flag{
 	listenP2PFlag,
 	listenCarMirrorFlag,
 	&cli.BoolFlag{
+		Name:  "force-incomplete-migration",
+		Usage: "Start even when an import into this indexer (migrate-in) started and is not done. Its data is then incomplete.",
+	},
+	&cli.BoolFlag{
 		Name:     "watch-config",
 		Usage:    "Watch for changes to config file and automatically reload",
 		EnvVars:  []string{"STORETHEINDEX_WATCH_CONFIG"},
@@ -112,6 +117,12 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	revision.Log(log, cctx.App.Version)
+
+	// Before any store opens, so that nothing writes to stores that hold
+	// part of an import
+	if err = checkMigration(cctx.Context, cfg.Datastore, cctx.Bool("force-incomplete-migration")); err != nil {
+		return err
+	}
 
 	var freezeDirs []string
 
@@ -818,4 +829,20 @@ func newImportSender(cfg config.Import, dstore datastore.Batching) (*importhttp.
 		return nil, fmt.Errorf("the import sender needs a LevelDB datastore, not %T", dstore)
 	}
 	return importsender.New(listen, ds, token, cfg.PartBytes)
+}
+
+// checkMigration refuses an indexer whose datastore holds an import that
+// started and is not done, unless force is set
+func checkMigration(ctx context.Context, cfg config.Datastore, force bool) error {
+	ds, _, err := createDatastore(ctx, cfg.Dir, cfg.Type, false)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = ds.Close() }()
+	err = migrate.CheckFinished(ctx, ds)
+	if errors.Is(err, migrate.ErrUnfinished) && force {
+		log.Warnw("Starting on an import that is not done; its data is incomplete", "err", err)
+		return nil
+	}
+	return err
 }

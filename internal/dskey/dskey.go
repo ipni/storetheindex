@@ -19,6 +19,9 @@ const (
 	ProviderInfoPath = "/registry/pinfo"
 	// Frozen is the key that is present when the indexer is frozen
 	Frozen = "/freeze/frozen"
+	// MigrateState is the key of the state of an import into this indexer
+	// (see internal/migrate)
+	MigrateState = "/migrate/state"
 )
 
 // Marker byte values of an /adProcessed/<cid> key.
