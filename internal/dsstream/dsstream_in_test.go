@@ -55,7 +55,7 @@ func TestDatastoreToDatastore(t *testing.T) {
 	dstDir := filepath.Join(t.TempDir(), "dst")
 	dstDS := openTestDatastore(t, dstDir)
 	dst := NewTarget(dstDS)
-	for _, kind := range testKinds {
+	for _, kind := range Kinds {
 		importertest.Copy(t, rng, src, dst, kind, 16<<10, 4)
 	}
 	require.NoError(t, dstDS.Close())

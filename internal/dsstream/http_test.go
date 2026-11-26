@@ -86,7 +86,7 @@ func TestImportOverHTTP(t *testing.T) {
 	srcValueSource := srcValues.(importer.Source)
 
 	dsSources := make(map[importer.Kind]importer.Source)
-	for _, kind := range testKinds {
+	for _, kind := range Kinds {
 		dsSources[kind] = NewSource(srcDS)
 	}
 	valueSources := make(map[importer.Kind]importer.Source)
@@ -105,7 +105,7 @@ func TestImportOverHTTP(t *testing.T) {
 			mux.Handle(importhttp.PartPath+string(kind), proxy)
 		}
 	}
-	route(testKinds, dsURL)
+	route(Kinds, dsURL)
 	route(testValueKinds, valuesURL)
 	proxy := httptest.NewServer(mux)
 	defer proxy.Close()
@@ -118,7 +118,7 @@ func TestImportOverHTTP(t *testing.T) {
 	dstValues := openTestValueStore(t, t.TempDir())
 	dstValueTarget := dstValues.(importer.Target)
 
-	for _, kind := range testKinds {
+	for _, kind := range Kinds {
 		parts := importertest.Copy(t, rng, remote, dstDSTarget, kind, 0, 4)
 		require.Positive(t, parts)
 		if kind == importer.KindAdProcessed {
@@ -137,7 +137,7 @@ func TestImportOverHTTP(t *testing.T) {
 
 	// The destination serves the same entries as the source, read directly
 	dstDSSource := NewSource(dstDS)
-	for _, kind := range testKinds {
+	for _, kind := range Kinds {
 		want := testKindEntries(t, dsSources[kind], kind)
 		require.NotEmpty(t, want, kind)
 		require.Equal(t, want, testKindEntries(t, dstDSSource, kind), kind)

@@ -52,6 +52,15 @@ func kindPrefix(kind importer.Kind) (string, error) {
 // not be copied.
 var errFrozen = importer.PermanentError(errors.New("the source indexer is frozen"))
 
+// Kinds are the kinds of an indexer's datastore, which its Source serves and
+// its Target writes
+var Kinds = []importer.Kind{
+	importer.KindAdProcessed,
+	importer.KindAdSkipReason,
+	importer.KindSync,
+	importer.KindProviders,
+}
+
 // NewSource returns the import source of an indexer's datastore. It reads
 // the datastore's LevelDB directly, since a part is a range of keys from a
 // cursor. It picks the end of an open part with storeutil.PlanPart, which

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,11 +15,14 @@ import (
 	"github.com/cockroachdb/pebble/v2/bloom"
 	"github.com/ipfs/boxo/bootstrap"
 	"github.com/ipfs/boxo/peering"
+	"github.com/ipfs/go-datastore"
+	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/cache"
 	"github.com/ipni/go-indexer-core/cache/radixcache"
 	"github.com/ipni/go-indexer-core/engine"
+	"github.com/ipni/go-indexer-core/importer/importhttp"
 	"github.com/ipni/go-indexer-core/store/dhstore"
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
@@ -32,6 +36,7 @@ import (
 	httpadmin "github.com/ipni/storetheindex/server/admin"
 	"github.com/ipni/storetheindex/server/carmirror"
 	httpfind "github.com/ipni/storetheindex/server/find"
+	"github.com/ipni/storetheindex/server/importsender"
 	httpingest "github.com/ipni/storetheindex/server/ingest"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -338,6 +343,15 @@ func daemonAction(cctx *cli.Context) error {
 		}
 	}
 
+	// Create the import sender, which serves the datastore to an indexer
+	// that imports it
+	var importSvr *importhttp.Server
+	if cfg.Import.Enabled() {
+		if importSvr, err = newImportSender(cfg.Import, dstore); err != nil {
+			return err
+		}
+	}
+
 	reloadErrsChan := make(chan chan error, 1)
 
 	// Create admin HTTP server
@@ -357,7 +371,7 @@ func daemonAction(cctx *cli.Context) error {
 		}
 	}
 
-	svrErrChan := make(chan error, 4)
+	svrErrChan := make(chan error, 5)
 
 	log.Info("Starting http servers")
 	if findSvr != nil {
@@ -391,6 +405,14 @@ func daemonAction(cctx *cli.Context) error {
 		fmt.Println("CAR mirror server:\t", cfg.Addresses.CarMirror)
 	} else {
 		fmt.Println("CAR mirror server:\t disabled")
+	}
+	if importSvr != nil {
+		go func() {
+			svrErrChan <- importSvr.Serve()
+		}()
+		fmt.Println("Import sender:\t", cfg.Import.ListenAddr)
+	} else {
+		fmt.Println("Import sender:\t disabled")
 	}
 
 	reloadSig := make(chan os.Signal, 1)
@@ -514,6 +536,13 @@ func daemonAction(cctx *cli.Context) error {
 	if carMirrorSvr != nil {
 		if err = carMirrorSvr.Close(); err != nil {
 			log.Errorw("Error shutting down car mirror server", "err", err)
+			finalErr = ErrDaemonStop
+		}
+	}
+
+	if importSvr != nil {
+		if err = importSvr.Close(); err != nil {
+			log.Errorw("Error shutting down import sender", "err", err)
 			finalErr = ErrDaemonStop
 		}
 	}
@@ -767,4 +796,26 @@ func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p
 	}
 
 	return peeringService, nil
+}
+
+// newImportSender returns the import sender of cfg for dstore, which must
+// be a LevelDB datastore. cfg.ListenAddr is a multiaddr or a "host:port".
+func newImportSender(cfg config.Import, dstore datastore.Batching) (*importhttp.Server, error) {
+	listen := cfg.ListenAddr
+	if strings.HasPrefix(listen, "/") {
+		netAddr, err := mautil.MultiaddrStringToNetAddr(listen)
+		if err != nil {
+			return nil, fmt.Errorf("bad import listen address %s: %w", listen, err)
+		}
+		listen = netAddr.String()
+	}
+	token, err := cfg.ReadToken()
+	if err != nil {
+		return nil, err
+	}
+	ds, ok := dstore.(*leveldb.Datastore)
+	if !ok {
+		return nil, fmt.Errorf("the import sender needs a LevelDB datastore, not %T", dstore)
+	}
+	return importsender.New(listen, ds, token, cfg.PartBytes)
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -25,7 +26,27 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
-var testKinds = []importer.Kind{importer.KindAdProcessed, importer.KindAdSkipReason, importer.KindSync, importer.KindProviders}
+// TestKinds checks that Kinds lists each kind that kindPrefix knows, among
+// all the importer's kinds, once, and that their prefixes do not overlap
+func TestKinds(t *testing.T) {
+	for _, kind := range importer.AllKinds {
+		prefix, err := kindPrefix(kind)
+		require.Equal(t, err == nil, slices.Contains(Kinds, kind), "kindPrefix and Kinds differ on %s", kind)
+		if err != nil {
+			require.True(t, importer.IsPermanent(err), kind)
+			continue
+		}
+		require.NotEmpty(t, prefix, kind)
+		for _, other := range Kinds {
+			otherPrefix, err := kindPrefix(other)
+			require.NoError(t, err, other)
+			if other != kind {
+				require.False(t, strings.HasPrefix(otherPrefix, prefix), "the keys of %s and %s overlap", kind, other)
+			}
+		}
+	}
+	require.Len(t, Kinds, len(slices.Compact(slices.Sorted(slices.Values(Kinds)))), "a kind repeats")
+}
 
 func openTestDatastore(t *testing.T, dir string) *leveldb.Datastore {
 	t.Helper()
@@ -152,7 +173,7 @@ func TestSourceParts(t *testing.T) {
 	want := fillTestDatastore(t, ds)
 	src := NewSource(ds)
 
-	for _, kind := range testKinds {
+	for _, kind := range Kinds {
 		parts := importertest.ReadParts(t, rng, src, kind, 16<<10)
 		require.Equal(t, want[kind], importertest.Entries(parts), kind)
 		requireTestPartSizes(t, parts)
@@ -191,7 +212,7 @@ func TestSourceFrozen(t *testing.T) {
 	require.Less(t, n, 20, "a frozen source sent the whole part")
 
 	// Frozen when a part is opened
-	for _, kind := range testKinds {
+	for _, kind := range Kinds {
 		_, _, err = src.OpenStream(ctx, kind, nil, nil, 0)
 		require.ErrorIs(t, err, errFrozen)
 		require.True(t, importer.IsPermanent(err))
