@@ -23,7 +23,7 @@ require (
 	github.com/ipld/go-car/v2 v2.17.0
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20260222154722-ce9668eed83c
 	github.com/ipld/go-ipld-prime v0.24.0
-	github.com/ipni/go-indexer-core v0.9.8-0.20261023102856-d7e6f931d32d
+	github.com/ipni/go-indexer-core v0.9.8-0.20261126204736-af91fb625bbd
 	github.com/ipni/go-libipni v0.9.1-0.20261112204532-29218c8ea47e
 	github.com/ipni/relayx v1.0.7-0.20261023103413-8fa72f40fc0a
 	github.com/libp2p/go-libp2p v0.51.0
@@ -34,6 +34,7 @@ require (
 	github.com/orlangure/gnomock v0.32.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/stretchr/testify v1.12.1
+	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/twmb/murmur3 v1.2.2
 	github.com/urfave/cli/v2 v2.27.7
 	go.opencensus.io v0.24.0
@@ -168,7 +169,6 @@ require (
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
 	github.com/whyrusleeping/cbor v0.0.0-20171005072247-63513f603b11 // indirect
 	github.com/whyrusleeping/cbor-gen v0.3.1 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect

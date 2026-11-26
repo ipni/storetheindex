@@ -22,6 +22,7 @@ type Config struct {
 	Indexer        Indexer        // indexer code configuration
 	ReverseIndexer ReverseIndexer // reverse indexer configuration
 	Ingest         Ingest         // ingestion related configuration.
+	Import         Import         // import sender configuration.
 	Logging        Logging        // logging configuration.
 	Peering        Peering        // peering service configuration.
 }

@@ -58,6 +58,7 @@ allowed enum values, and so on) are noted in that field’s section.
 | `Indexer` | The multihash value store, disk freeze behavior, optional RelayX. |
 | `ReverseIndexer` | Optional reverse index. |
 | `Ingest` | How advertisements are ingested, plus optional CAR mirrors. |
+| `Import` | Optional sender that serves this indexer's datastore to an indexer that imports it. |
 | `Logging` | Log levels. |
 | `Peering` | Peers to keep permanently connected. |
 
@@ -335,6 +336,34 @@ Older config files may still use legacy mirror fields (`Read` / `Write`,
 `Storage` / `Retrieval`, top-level `Compress`). On startup those are converted
 to `MainMode` / `Main` / `External`. Do not mix legacy and new fields in the
 same file.
+
+---
+
+## `Import`
+
+An optional HTTP server, the import sender, that lets another indexer copy
+this indexer's datastore: the processed and skipped advertisements, the
+skip reasons, the latest advertisement synced from each publisher, and the
+provider records. The importing indexer reads it in parts, many at once.
+The sender is off unless `ListenAddr` is set. See
+[migration.md](migration.md) for how an import runs.
+
+Every request must carry `Authorization: Bearer <token>`, with the token
+from `TokenFile`. Keep the port off the public internet anyway, and put TLS
+in front of it when it crosses networks.
+
+The sender has no request limit of its own: the importing indexer decides
+how many parts it reads at once. Stopping the daemon cancels the parts in
+flight; the importing indexer requests them again.
+
+A frozen indexer refuses to send. None of these settings reload without a
+restart.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `ListenAddr` | `""` (off) | Listen address, a multiaddr such as `/ip4/0.0.0.0/tcp/3006` or a `host:port`. `""` or `"none"` leaves the sender off. |
+| `TokenFile` | — | Path of a file holding the token. Required when the sender is on; the daemon does not start without it. Whitespace around the token is ignored. |
+| `PartBytes` | `0` | Roughly how many bytes of keys and values each part holds. `0` uses the default of 128 MiB. |
 
 ---
 

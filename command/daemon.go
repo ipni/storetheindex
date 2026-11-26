@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,11 +15,14 @@ import (
 	"github.com/cockroachdb/pebble/v2/bloom"
 	"github.com/ipfs/boxo/bootstrap"
 	"github.com/ipfs/boxo/peering"
+	"github.com/ipfs/go-datastore"
+	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/cache"
 	"github.com/ipni/go-indexer-core/cache/radixcache"
 	"github.com/ipni/go-indexer-core/engine"
+	"github.com/ipni/go-indexer-core/importer/importhttp"
 	"github.com/ipni/go-indexer-core/store/dhstore"
 	"github.com/ipni/go-indexer-core/store/memory"
 	"github.com/ipni/go-indexer-core/store/pebble"
@@ -27,11 +31,13 @@ import (
 	"github.com/ipni/storetheindex/config"
 	"github.com/ipni/storetheindex/internal/fsutil"
 	"github.com/ipni/storetheindex/internal/ingest"
+	"github.com/ipni/storetheindex/internal/migrate"
 	"github.com/ipni/storetheindex/internal/registry"
 	"github.com/ipni/storetheindex/internal/revision"
 	httpadmin "github.com/ipni/storetheindex/server/admin"
 	"github.com/ipni/storetheindex/server/carmirror"
 	httpfind "github.com/ipni/storetheindex/server/find"
+	"github.com/ipni/storetheindex/server/importsender"
 	httpingest "github.com/ipni/storetheindex/server/ingest"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -82,6 +88,10 @@ var daemonFlags = []cli.Flag{
 	listenP2PFlag,
 	listenCarMirrorFlag,
 	&cli.BoolFlag{
+		Name:  "force-incomplete-migration",
+		Usage: "Start even when an import into this indexer (migrate-in) started and is not done. Its data is then incomplete.",
+	},
+	&cli.BoolFlag{
 		Name:     "watch-config",
 		Usage:    "Watch for changes to config file and automatically reload",
 		EnvVars:  []string{"STORETHEINDEX_WATCH_CONFIG"},
@@ -107,6 +117,12 @@ func daemonAction(cctx *cli.Context) error {
 	}
 
 	revision.Log(log, cctx.App.Version)
+
+	// Before any store opens, so that nothing writes to stores that hold
+	// part of an import
+	if err = checkMigration(cctx.Context, cfg.Datastore, cctx.Bool("force-incomplete-migration")); err != nil {
+		return err
+	}
 
 	var freezeDirs []string
 
@@ -338,6 +354,15 @@ func daemonAction(cctx *cli.Context) error {
 		}
 	}
 
+	// Create the import sender, which serves the datastore to an indexer
+	// that imports it
+	var importSvr *importhttp.Server
+	if cfg.Import.Enabled() {
+		if importSvr, err = newImportSender(cfg.Import, dstore); err != nil {
+			return err
+		}
+	}
+
 	reloadErrsChan := make(chan chan error, 1)
 
 	// Create admin HTTP server
@@ -357,7 +382,7 @@ func daemonAction(cctx *cli.Context) error {
 		}
 	}
 
-	svrErrChan := make(chan error, 4)
+	svrErrChan := make(chan error, 5)
 
 	log.Info("Starting http servers")
 	if findSvr != nil {
@@ -391,6 +416,14 @@ func daemonAction(cctx *cli.Context) error {
 		fmt.Println("CAR mirror server:\t", cfg.Addresses.CarMirror)
 	} else {
 		fmt.Println("CAR mirror server:\t disabled")
+	}
+	if importSvr != nil {
+		go func() {
+			svrErrChan <- importSvr.Serve()
+		}()
+		fmt.Println("Import sender:\t", cfg.Import.ListenAddr)
+	} else {
+		fmt.Println("Import sender:\t disabled")
 	}
 
 	reloadSig := make(chan os.Signal, 1)
@@ -514,6 +547,13 @@ func daemonAction(cctx *cli.Context) error {
 	if carMirrorSvr != nil {
 		if err = carMirrorSvr.Close(); err != nil {
 			log.Errorw("Error shutting down car mirror server", "err", err)
+			finalErr = ErrDaemonStop
+		}
+	}
+
+	if importSvr != nil {
+		if err = importSvr.Close(); err != nil {
+			log.Errorw("Error shutting down import sender", "err", err)
 			finalErr = ErrDaemonStop
 		}
 	}
@@ -767,4 +807,42 @@ func reloadPeering(cfg config.Peering, peeringService *peering.PeeringService, p
 	}
 
 	return peeringService, nil
+}
+
+// newImportSender returns the import sender of cfg for dstore, which must
+// be a LevelDB datastore. cfg.ListenAddr is a multiaddr or a "host:port".
+func newImportSender(cfg config.Import, dstore datastore.Batching) (*importhttp.Server, error) {
+	listen := cfg.ListenAddr
+	if strings.HasPrefix(listen, "/") {
+		netAddr, err := mautil.MultiaddrStringToNetAddr(listen)
+		if err != nil {
+			return nil, fmt.Errorf("bad import listen address %s: %w", listen, err)
+		}
+		listen = netAddr.String()
+	}
+	token, err := cfg.ReadToken()
+	if err != nil {
+		return nil, err
+	}
+	ds, ok := dstore.(*leveldb.Datastore)
+	if !ok {
+		return nil, fmt.Errorf("the import sender needs a LevelDB datastore, not %T", dstore)
+	}
+	return importsender.New(listen, ds, token, cfg.PartBytes)
+}
+
+// checkMigration refuses an indexer whose datastore holds an import that
+// started and is not done, unless force is set
+func checkMigration(ctx context.Context, cfg config.Datastore, force bool) error {
+	ds, _, err := createDatastore(ctx, cfg.Dir, cfg.Type, false)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = ds.Close() }()
+	err = migrate.CheckFinished(ctx, ds)
+	if errors.Is(err, migrate.ErrUnfinished) && force {
+		log.Warnw("Starting on an import that is not done; its data is incomplete", "err", err)
+		return nil
+	}
+	return err
 }

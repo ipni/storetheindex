@@ -89,6 +89,7 @@ func New(listen string, id peer.ID, indexer indexer.Interface, ingester *ingest.
 		coremetrics.PebbleViews,
 		coremetrics.MeteringViews,
 		coremetrics.MeteringProviderViews,
+		coremetrics.ImportViews,
 	)))
 	mux.Handle("/debug/pprof/", pprof.WithProfile())
 
