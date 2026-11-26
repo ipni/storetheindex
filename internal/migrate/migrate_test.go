@@ -163,14 +163,15 @@ func (s *testFailingSource) OpenStream(ctx context.Context, kind importer.Kind, 
 
 func TestRun(t *testing.T) {
 	s := newTestStores(t)
-	require.NoError(t, Run(t.Context(), s.dstDS, s.source, s.dstVals.(importer.Target),
+	require.NoError(t, Run(t.Context(), s.dstDS, s.source, s.dstVals.(importer.Target), true,
 		importer.WithWorkers(4), importer.WithStagger(0)))
 	s.requireImported(t)
 
 	st, err := LoadState(t.Context(), s.dstDS)
 	require.NoError(t, err)
 	require.False(t, st.Started.IsZero())
-	for _, step := range []Step{st.AdProcessed, st.AdSkipReason, st.Sync, st.Providers, st.Records, st.ContextMap, st.Multihashes} {
+	require.True(t, st.Done())
+	for _, step := range []Step{st.AdProcessed, st.AdSkipReason, st.Sync, st.Providers, st.SyncRecheck, st.Records, st.ContextMap, st.Validate, st.Multihashes} {
 		require.Equal(t, Step{Done: true}, step)
 	}
 }
@@ -181,7 +182,7 @@ func TestRun(t *testing.T) {
 func TestRunResumes(t *testing.T) {
 	s := newTestStores(t)
 	failing := &testFailingSource{Source: s.source, kind: importer.KindAdProcessed, after: 3}
-	err := Run(t.Context(), s.dstDS, failing, s.dstVals.(importer.Target), importer.WithWorkers(1), importer.WithStagger(0))
+	err := Run(t.Context(), s.dstDS, failing, s.dstVals.(importer.Target), true, importer.WithWorkers(1), importer.WithStagger(0))
 	require.ErrorContains(t, err, "stopped")
 	st, err := LoadState(t.Context(), s.dstDS)
 	require.NoError(t, err)
@@ -191,13 +192,13 @@ func TestRunResumes(t *testing.T) {
 
 	// The kind resumes from its progress: its first open starts there
 	resumed := &testFirstStart{Source: s.source}
-	require.NoError(t, Run(t.Context(), s.dstDS, resumed, s.dstVals.(importer.Target), importer.WithWorkers(4), importer.WithStagger(0)))
+	require.NoError(t, Run(t.Context(), s.dstDS, resumed, s.dstVals.(importer.Target), true, importer.WithWorkers(4), importer.WithStagger(0)))
 	require.Equal(t, progress, resumed.first)
 	s.requireImported(t)
 
 	// A done import opens nothing
 	none := &testFailingSource{Source: s.source, kind: importer.KindAdProcessed}
-	require.NoError(t, Run(t.Context(), s.dstDS, none, s.dstVals.(importer.Target)))
+	require.NoError(t, Run(t.Context(), s.dstDS, none, s.dstVals.(importer.Target), true))
 }
 
 // testFirstStart records the start of the first part opened
@@ -263,27 +264,27 @@ func TestRunErrors(t *testing.T) {
 	t.Run("state does not decode", func(t *testing.T) {
 		ds := testDatastore(t)
 		require.NoError(t, ds.Put(ctx, datastore.NewKey(dskey.MigrateState), []byte("not json")))
-		require.ErrorContains(t, Run(ctx, ds, s.source, s.dstVals.(importer.Target), opts...), "decode")
+		require.ErrorContains(t, Run(ctx, ds, s.source, s.dstVals.(importer.Target), true, opts...), "decode")
 	})
 	t.Run("state cannot be read", func(t *testing.T) {
 		ds := testStateFailing{Datastore: testDatastore(t), getErr: errors.New("disk read")}
-		require.ErrorContains(t, Run(ctx, ds, s.source, s.dstVals.(importer.Target), opts...), "disk read")
+		require.ErrorContains(t, Run(ctx, ds, s.source, s.dstVals.(importer.Target), true, opts...), "disk read")
 	})
 	t.Run("state cannot be stored", func(t *testing.T) {
 		ds := testStateFailing{Datastore: testDatastore(t), putErr: errors.New("disk full")}
-		require.ErrorContains(t, Run(ctx, ds, s.source, s.dstVals.(importer.Target), opts...), "disk full")
+		require.ErrorContains(t, Run(ctx, ds, s.source, s.dstVals.(importer.Target), true, opts...), "disk full")
 	})
 	t.Run("target sync fails at a progress", func(t *testing.T) {
 		// Records and the context map are one part each here, synced at
 		// their end; the multihashes report progress after their first
 		// part
 		dst := &testSyncFailing{Target: testValueStore(t).(importer.Target), ok: 2}
-		require.ErrorContains(t, Run(ctx, testDatastore(t), s.source, dst, opts...), "sync failed")
+		require.ErrorContains(t, Run(ctx, testDatastore(t), s.source, dst, true, opts...), "sync failed")
 	})
 	t.Run("target sync fails at the end of a kind", func(t *testing.T) {
 		// An empty kind is one part, with no progress before its end
 		dst := &testSyncFailing{Target: testValueStore(t).(importer.Target)}
-		require.ErrorContains(t, Run(ctx, testDatastore(t), testSourceClient(t, s.srcDS, testValueStore(t)), dst, opts...), "sync failed")
+		require.ErrorContains(t, Run(ctx, testDatastore(t), testSourceClient(t, s.srcDS, testValueStore(t)), dst, true, opts...), "sync failed")
 	})
 }
 
@@ -293,10 +294,10 @@ func TestCheckFinished(t *testing.T) {
 	require.NoError(t, CheckFinished(ctx, s.dstDS), "no import has started")
 
 	failing := &testFailingSource{Source: s.source, kind: importer.KindRecords}
-	require.Error(t, Run(ctx, s.dstDS, failing, s.dstVals.(importer.Target), importer.WithStagger(0)))
+	require.Error(t, Run(ctx, s.dstDS, failing, s.dstVals.(importer.Target), true, importer.WithStagger(0)))
 	require.ErrorIs(t, CheckFinished(ctx, s.dstDS), ErrUnfinished)
 
-	require.NoError(t, Run(ctx, s.dstDS, s.source, s.dstVals.(importer.Target), importer.WithStagger(0)))
+	require.NoError(t, Run(ctx, s.dstDS, s.source, s.dstVals.(importer.Target), true, importer.WithStagger(0)))
 	require.NoError(t, CheckFinished(ctx, s.dstDS))
 
 	bad := testDatastore(t)

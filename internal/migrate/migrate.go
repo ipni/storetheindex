@@ -1,8 +1,9 @@
 // Package migrate imports another indexer's data into this one: its
 // datastore's kinds and its value store's kinds, one kind after another,
-// each copied in parallel parts (see importer.KindManager). The import's
-// state is kept in the destination's datastore, so that a run that stops
-// resumes where it stopped.
+// each copied in parallel parts (see importer.KindManager), with local
+// steps between and after them. The import's state is kept in the
+// destination's datastore, so that a run that stops resumes where it
+// stopped.
 package migrate
 
 import (
@@ -20,17 +21,23 @@ import (
 )
 
 // State is the state of an import, stored under dskey.MigrateState. It has
-// one step per kind, which run in the order of its fields. A zero State is
-// an import that has not started.
+// one step per kind and per local step, which run in the order of its
+// fields. A zero State is an import that has not started.
 type State struct {
 	Started      time.Time `json:"started,omitzero"`
 	AdProcessed  Step      `json:"adProcessed"`
 	AdSkipReason Step      `json:"adSkipReason"`
 	Sync         Step      `json:"sync"`
 	Providers    Step      `json:"providers"`
-	Records      Step      `json:"records"`
-	ContextMap   Step      `json:"contextMap"`
-	Multihashes  Step      `json:"multihashes"`
+	// SyncRecheck drops the copied /sync entries whose ad the source has
+	// since marked for resync (see run.recheckSync)
+	SyncRecheck Step `json:"syncRecheck"`
+	Records     Step `json:"records"`
+	ContextMap  Step `json:"contextMap"`
+	// Validate deletes the copied records that the copied context map does
+	// not lead to (see run.validateRecords)
+	Validate    Step `json:"validate"`
+	Multihashes Step `json:"multihashes"`
 }
 
 // Step is the state of one step of an import
@@ -43,7 +50,17 @@ type Step struct {
 
 // Done reports whether every step of the import is done
 func (s State) Done() bool {
-	for _, step := range []Step{s.AdProcessed, s.AdSkipReason, s.Sync, s.Providers, s.Records, s.ContextMap, s.Multihashes} {
+	for _, step := range []Step{
+		s.AdProcessed,
+		s.AdSkipReason,
+		s.Sync,
+		s.Providers,
+		s.SyncRecheck,
+		s.Records,
+		s.ContextMap,
+		s.Validate,
+		s.Multihashes,
+	} {
 		if !step.Done {
 			return false
 		}
@@ -87,15 +104,16 @@ func LoadState(ctx context.Context, ds datastore.Datastore) (State, error) {
 }
 
 // Run imports every kind of src: the datastore kinds into ds, and the value
-// store kinds into valueStore, and returns nil once every kind is
-// done. It resumes from the state in ds: a kind that is done is skipped,
-// and the kind that was running resumes from its progress. opts apply to
-// the manager of every kind.
+// store kinds into valueStore, and returns nil once the import is done. It
+// resumes from the state in ds: a step that is done is skipped, and the
+// step that was running resumes from its progress. opts apply to the
+// manager of every kind. Without validate, the records that the copied
+// context map does not lead to are not deleted (see run.validateRecords).
 //
 // ds must sync its writes, as go-ds-leveldb does by default: the state is
 // stored with a Put, after the target of the kind has synced the parts
 // before its progress.
-func Run(ctx context.Context, ds datastore.Batching, src importer.Source, valueStore importer.Target, opts ...importer.ManagerOption) error {
+func Run(ctx context.Context, ds datastore.Batching, src importer.Source, valueStore importer.Target, validate bool, opts ...importer.ManagerOption) error {
 	st, err := LoadState(ctx, ds)
 	if err != nil {
 		return err
@@ -112,28 +130,41 @@ func Run(ctx context.Context, ds datastore.Batching, src importer.Source, valueS
 	for _, k := range []struct {
 		step *Step
 		kind importer.Kind
-		dst  importer.Target
 	}{
-		{&r.state.AdProcessed, importer.KindAdProcessed, dsTarget},
-		{&r.state.AdSkipReason, importer.KindAdSkipReason, dsTarget},
-		{&r.state.Sync, importer.KindSync, dsTarget},
-		{&r.state.Providers, importer.KindProviders, dsTarget},
-		{&r.state.Records, importer.KindRecords, valueStore},
-		{&r.state.ContextMap, importer.KindContextMap, valueStore},
-		{&r.state.Multihashes, importer.KindMultihashes, valueStore},
+		{&r.state.AdProcessed, importer.KindAdProcessed},
+		{&r.state.AdSkipReason, importer.KindAdSkipReason},
+		{&r.state.Sync, importer.KindSync},
+		{&r.state.Providers, importer.KindProviders},
 	} {
-		if err := r.copyKind(ctx, k.step, k.kind, src, k.dst); err != nil {
+		if err := r.copyKind(ctx, k.step, k.kind, src, dsTarget); err != nil {
 			return err
 		}
 	}
-	return nil
+	if err := r.recheckSync(ctx, src); err != nil {
+		return err
+	}
+	for _, k := range []struct {
+		step *Step
+		kind importer.Kind
+	}{
+		{&r.state.Records, importer.KindRecords},
+		{&r.state.ContextMap, importer.KindContextMap},
+	} {
+		if err := r.copyKind(ctx, k.step, k.kind, src, valueStore); err != nil {
+			return err
+		}
+	}
+	if err := r.validateRecords(ctx, valueStore, validate); err != nil {
+		return err
+	}
+	return r.copyKind(ctx, &r.state.Multihashes, importer.KindMultihashes, src, valueStore)
 }
 
 // run is one run of an import. Its kinds run one after another, and a
 // kind's progress reports are serialized and end before its Run returns, so
 // nothing changes the state concurrently.
 type run struct {
-	ds    datastore.Datastore
+	ds    datastore.Batching
 	opts  []importer.ManagerOption
 	state State
 }

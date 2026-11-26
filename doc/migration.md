@@ -71,6 +71,7 @@ storetheindex migrate-in \
 | `--valuestore-type` | `pebble` | Type of the new indexer's value store. |
 | `--valuestore-dir` | — | Directory of the new indexer's value store. |
 | `--valuestore-options` | — | Options file that the value store is opened with, so that the import writes it the same way. For pebble, its options file. |
+| `--validate-records` | `true` | After copying, delete the records left behind by data that changed on the existing indexer during the import. It reads every record and can take hours on a large store. With `--validate-records=false` those records stay until a later cleanup; turning it off on a run that resumes part way through the check skips the rest of it. |
 | `--workers` | `16` | Parts read at once. More use more of the network, and load the existing indexer more. |
 | `--worker-stagger` | `300ms` | Time between the starts of new workers. |
 | `--retry-window` | `30m` | How long a part may keep failing, for example while the existing indexer restarts, before the import stops. |

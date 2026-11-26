@@ -64,6 +64,13 @@ var MigrateInCmd = &cli.Command{
 			Name:  "valuestore-options",
 			Usage: "Options file that the value store is opened with, so it is written with the same options: for pebble, its options file",
 		},
+		&cli.BoolFlag{
+			Name: "validate-records",
+			Usage: "Delete the records left behind by data that changed on the source during the import. " +
+				"It reads every record and can take hours on a large store; without it, those records " +
+				"stay until a later cleanup. Turning it off part way through skips the rest of it.",
+			Value: true,
+		},
 		&cli.IntFlag{
 			Name:  "workers",
 			Usage: "Number of parts copied at once",
@@ -120,7 +127,7 @@ func migrateInAction(cctx *cli.Context) error {
 	defer func() { _ = vs.Close() }()
 
 	log.Infow("Importing", "source", cctx.String("source-url"))
-	err = migrate.Run(cctx.Context, ds, src, vs.(importer.Target),
+	err = migrate.Run(cctx.Context, ds, src, vs.(importer.Target), cctx.Bool("validate-records"),
 		importer.WithWorkers(cctx.Int("workers")),
 		importer.WithStagger(cctx.Duration("worker-stagger")),
 		importer.WithRetryWindow(cctx.Duration("retry-window")))
