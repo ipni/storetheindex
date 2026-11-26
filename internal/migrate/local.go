@@ -46,7 +46,7 @@ var log = logging.Logger("indexer/migrate")
 // and keeps their keys in memory. It writes no progress: run again, it
 // starts over, and a drop that is done stays done.
 func (r *run) recheckSync(ctx context.Context, src importer.Source) error {
-	if r.state.SyncRecheck.Done {
+	if r.state.step(stepSyncRecheck).Done {
 		return nil
 	}
 	current := &keySet{keys: make(map[string]struct{})}
@@ -82,7 +82,7 @@ func (r *run) recheckSync(ctx context.Context, src importer.Source) error {
 	}
 	log.Infow("Rechecked the copied /sync entries", "dropped", dropped)
 
-	r.state.SyncRecheck.Done = true
+	r.state.step(stepSyncRecheck).Done = true
 	return r.save(ctx)
 }
 
@@ -112,7 +112,8 @@ const validateBatch = 10_000
 // records stay until a later cleanup; a check stopped part way is not
 // resumed.
 func (r *run) validateRecords(ctx context.Context, valueStore importer.Target, validate bool) error {
-	if r.state.Validate.Done {
+	step := r.state.step(stepValidate)
+	if step.Done {
 		return nil
 	}
 	v, ok := valueStore.(recordValidator)
@@ -122,22 +123,22 @@ func (r *run) validateRecords(ctx context.Context, valueStore importer.Target, v
 			reason = "the value store cannot validate its records"
 		}
 		log.Warnw("Skipping the validation of the copied records; the records of contexts that changed during the import stay", "reason", reason)
-		r.state.Validate.Done, r.state.Validate.Progress = true, nil
+		step.Done, step.Progress = true, nil
 		return r.save(ctx)
 	}
 	var deleted int
 	for {
-		next, done, n, err := v.ValidateRecords(ctx, r.state.Validate.Progress, validateBatch)
+		next, done, n, err := v.ValidateRecords(ctx, step.Progress, validateBatch)
 		if err != nil {
 			return fmt.Errorf("cannot validate the copied records: %w", err)
 		}
 		deleted += n
 		if done {
 			log.Infow("Validated the copied records", "deleted", deleted)
-			r.state.Validate.Done, r.state.Validate.Progress = true, nil
+			step.Done, step.Progress = true, nil
 			return r.save(ctx)
 		}
-		r.state.Validate.Progress = next
+		step.Progress = next
 		if err := r.save(ctx); err != nil {
 			return err
 		}

@@ -43,7 +43,9 @@ func TestCheckMigration(t *testing.T) {
 
 	ds, err := leveldb.NewDatastore(dir, nil)
 	require.NoError(t, err)
-	require.NoError(t, ds.Put(ctx, datastore.NewKey(dskey.MigrateState), []byte(`{"started":"2026-11-26T10:00:00Z","adProcessed":{"done":true}}`)))
+	require.NoError(t, ds.Put(ctx, datastore.NewKey(dskey.MigrateState), []byte(`{"started":"2026-11-26T10:00:00Z","steps":[
+		{"name":"adProcessed","done":true},{"name":"adSkipReason"},{"name":"sync"},{"name":"providers"},{"name":"syncRecheck"},
+		{"name":"records"},{"name":"contextMap"},{"name":"validate"},{"name":"multihashes"}]}`)))
 	require.NoError(t, ds.Close())
 
 	require.ErrorIs(t, checkMigration(ctx, cfg, false), migrate.ErrUnfinished)

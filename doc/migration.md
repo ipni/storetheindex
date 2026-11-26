@@ -72,6 +72,8 @@ storetheindex migrate-in \
 | `--valuestore-dir` | — | Directory of the new indexer's value store. |
 | `--valuestore-options` | — | Options file that the value store is opened with, so that the import writes it the same way. For pebble, its options file. |
 | `--validate-records` | `true` | After copying, delete the records left behind by data that changed on the existing indexer during the import. It reads every record and can take hours on a large store. With `--validate-records=false` those records stay until a later cleanup; turning it off on a run that resumes part way through the check skips the rest of it. |
+| `--status-listen` | `127.0.0.1:3010` | Address of the import's status port (see below). Empty turns it off. |
+| `--console-interval` | `30s` | Time between two lines of progress in the log. `0` turns them off. |
 | `--workers` | `16` | Parts read at once. More use more of the network, and load the existing indexer more. |
 | `--worker-stagger` | `300ms` | Time between the starts of new workers. |
 | `--retry-window` | `30m` | How long a part may keep failing, for example while the existing indexer restarts, before the import stops. |
@@ -79,6 +81,23 @@ storetheindex migrate-in \
 The command exits with an error when the import stops. Run it again with
 the same flags to resume. It exits with no error once the import is done;
 running it again then does nothing.
+
+## Watching and steering the import
+
+The status port answers:
+
+- `GET /migrate/v1/status`: each step of the import and whether it is
+  pending, running or done, and for the running step its workers, parts
+  written and in flight, entries and bytes written, and retries.
+- `PUT /migrate/v1/workers` with `{"n": 32}`: the number of parts read at
+  once, from `0`, which pauses the import between parts, to `1024`. It
+  applies to the running step and the steps after it, until the command
+  exits.
+- `GET /metrics`: Prometheus metrics, among them the state of each step
+  (`migrate_step_state`: 0 pending, 1 running, 2 done), the number of
+  workers, and the requests, bytes and entries received.
+
+The log shows a line of the same progress every `--console-interval`.
 
 ## Starting the new indexer
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -47,9 +48,9 @@ func TestRecheckSync(t *testing.T) {
 	for _, kind := range dsstream.Kinds {
 		sources[kind] = dsstream.NewSource(src)
 	}
-	r := &run{ds: dst, opts: []importer.ManagerOption{importer.WithStagger(0)}}
+	r := &run{ds: dst, state: newState(), opts: []importer.ManagerOption{importer.WithStagger(0)}}
 	require.NoError(t, r.recheckSync(ctx, testClient(t, sources)))
-	require.True(t, r.state.SyncRecheck.Done)
+	require.True(t, r.state.step(stepSyncRecheck).Done)
 
 	for publisher, want := range map[string][]byte{"p0": ads[0].Bytes(), "p1": nil, "p2": ads[2].Bytes(), "p3": nil} {
 		got, err := dst.Get(ctx, datastore.NewKey(dskey.SyncPrefix+publisher))
@@ -62,14 +63,14 @@ func TestRecheckSync(t *testing.T) {
 	}
 	st, err := LoadState(ctx, dst)
 	require.NoError(t, err)
-	require.True(t, st.SyncRecheck.Done, "the step is stored done")
+	require.True(t, st.step(stepSyncRecheck).Done, "the step is stored done")
 
 	// A done re-check reads nothing
 	none := &testFailingSource{Source: testClient(t, sources), kind: importer.KindSync}
 	require.NoError(t, r.recheckSync(ctx, none))
 
 	// A source that cannot be read stops the step
-	r.state.SyncRecheck.Done = false
+	r.state.step(stepSyncRecheck).Done = false
 	require.ErrorContains(t, r.recheckSync(ctx, none), "again")
 }
 
@@ -77,30 +78,20 @@ func TestRecheckSync(t *testing.T) {
 // steps is, and that CheckFinished refuses it until then
 func TestStateDone(t *testing.T) {
 	ctx := t.Context()
-	steps := []func(*State) *Step{
-		func(s *State) *Step { return &s.AdProcessed },
-		func(s *State) *Step { return &s.AdSkipReason },
-		func(s *State) *Step { return &s.Sync },
-		func(s *State) *Step { return &s.Providers },
-		func(s *State) *Step { return &s.SyncRecheck },
-		func(s *State) *Step { return &s.Records },
-		func(s *State) *Step { return &s.ContextMap },
-		func(s *State) *Step { return &s.Validate },
-		func(s *State) *Step { return &s.Multihashes },
-	}
-	all := State{Started: time.Now()}
-	for _, step := range steps {
-		step(&all).Done = true
+	all := newState()
+	all.Started = time.Now()
+	for i := range all.Steps {
+		all.Steps[i].Done = true
 	}
 	require.True(t, all.Done())
-	for i, step := range steps {
-		st := all
-		step(&st).Done = false
-		require.False(t, st.Done(), "step %d", i)
+	for _, name := range stepNames {
+		st := State{Started: all.Started, Steps: slices.Clone(all.Steps)}
+		st.step(name).Done = false
+		require.False(t, st.Done(), name)
 
 		ds := testDatastore(t)
 		require.NoError(t, (&run{ds: ds, state: st}).save(ctx))
-		require.ErrorIs(t, CheckFinished(ctx, ds), ErrUnfinished, "step %d", i)
+		require.ErrorIs(t, CheckFinished(ctx, ds), ErrUnfinished, name)
 	}
 	ds := testDatastore(t)
 	require.NoError(t, (&run{ds: ds, state: all}).save(ctx))
@@ -180,9 +171,9 @@ func TestRecheckSyncErrors(t *testing.T) {
 			ds.Datastore = testDatastore(t)
 			// A copied entry that the source does not send, so it is dropped
 			require.NoError(t, ds.Put(ctx, datastore.NewKey(dskey.SyncPrefix+"p0"), []byte("ad")))
-			r := &run{ds: ds, opts: []importer.ManagerOption{importer.WithStagger(0)}}
+			r := &run{ds: ds, state: newState(), opts: []importer.ManagerOption{importer.WithStagger(0)}}
 			require.ErrorIs(t, r.recheckSync(ctx, client), fail)
-			require.False(t, r.state.SyncRecheck.Done)
+			require.False(t, r.state.step(stepSyncRecheck).Done)
 		})
 	}
 }
@@ -191,12 +182,15 @@ func TestRecheckSyncErrors(t *testing.T) {
 func TestRunRecheckFails(t *testing.T) {
 	ctx := t.Context()
 	ds := testDatastore(t)
-	done := Step{Done: true}
-	r := &run{ds: ds, state: State{Started: time.Now(), AdProcessed: done, AdSkipReason: done, Sync: done, Providers: done}}
+	r := &run{ds: ds, state: newState()}
+	r.state.Started = time.Now()
+	for _, name := range []string{stepAdProcessed, stepAdSkipReason, stepSync, stepProviders} {
+		r.state.step(name).Done = true
+	}
 	require.NoError(t, r.save(ctx))
 	s := newTestStores(t)
 	failing := &testFailingSource{Source: s.source, kind: importer.KindSync}
-	require.ErrorContains(t, Run(ctx, ds, failing, s.dstVals.(importer.Target), true, importer.WithStagger(0)), "again")
+	require.ErrorContains(t, New(ds, failing, s.dstVals.(importer.Target), true, importer.WithStagger(0)).Run(ctx), "again")
 }
 
 func TestKeySet(t *testing.T) {
@@ -241,7 +235,7 @@ func (v *testValidator) ValidateRecords(_ context.Context, from []byte, limit in
 func TestValidateRecordsStep(t *testing.T) {
 	ctx := t.Context()
 	ds := testDatastore(t)
-	r := &run{ds: ds}
+	r := &run{ds: ds, state: newState()}
 
 	// A failure part way keeps the position stored before it
 	v := &testValidator{failAt: "3"}
@@ -249,7 +243,7 @@ func TestValidateRecordsStep(t *testing.T) {
 	require.Equal(t, []string{"", "1", "2", "3"}, v.froms)
 	st, err := LoadState(ctx, ds)
 	require.NoError(t, err)
-	require.Equal(t, Step{Progress: []byte("3")}, st.Validate)
+	require.Equal(t, Step{Name: stepValidate, Progress: []byte("3")}, *st.step(stepValidate))
 
 	// The next run resumes from the stored position
 	r = &run{ds: ds, state: st}
@@ -258,30 +252,31 @@ func TestValidateRecordsStep(t *testing.T) {
 	require.Equal(t, []string{"3", "4"}, v.froms)
 	st, err = LoadState(ctx, ds)
 	require.NoError(t, err)
-	require.Equal(t, Step{Done: true}, st.Validate)
+	require.Equal(t, Step{Name: stepValidate, Done: true}, *st.step(stepValidate))
 
 	// A done step validates nothing
 	require.NoError(t, r.validateRecords(ctx, v, true))
 	require.Len(t, v.froms, 2)
 
 	// A value store that cannot validate is imported without the check
-	r = &run{ds: testDatastore(t)}
+	r = &run{ds: testDatastore(t), state: newState()}
 	require.NoError(t, r.validateRecords(ctx, &keySet{keys: make(map[string]struct{})}, true))
-	require.True(t, r.state.Validate.Done)
+	require.True(t, r.state.step(stepValidate).Done)
 
 	// A check that is turned off part way is done without resuming
 	ds = testDatastore(t)
-	r = &run{ds: ds, state: State{Validate: Step{Progress: []byte("2")}}}
+	r = &run{ds: ds, state: newState()}
+	r.state.step(stepValidate).Progress = []byte("2")
 	v = &testValidator{failAt: "never"}
 	require.NoError(t, r.validateRecords(ctx, v, false))
 	require.Empty(t, v.froms)
 	st, err = LoadState(ctx, ds)
 	require.NoError(t, err)
-	require.Equal(t, Step{Done: true}, st.Validate)
+	require.Equal(t, Step{Name: stepValidate, Done: true}, *st.step(stepValidate))
 
 	// A failure to store the position stops the step
 	failing := testStateFailing{Datastore: testDatastore(t), putErr: errors.New("disk full")}
-	r = &run{ds: failing}
+	r = &run{ds: failing, state: newState()}
 	require.ErrorContains(t, r.validateRecords(ctx, &testValidator{failAt: "never"}, true), "disk full")
 }
 
@@ -292,12 +287,12 @@ func TestRunValidateFails(t *testing.T) {
 	ctx := t.Context()
 	ds := testDatastore(t)
 	v := &testValidator{Target: s.dstVals.(importer.Target), failAt: ""}
-	require.ErrorContains(t, Run(ctx, ds, s.source, v, true, importer.WithStagger(0)), "disk read")
+	require.ErrorContains(t, New(ds, s.source, v, true, importer.WithStagger(0)).Run(ctx), "disk read")
 	st, err := LoadState(ctx, ds)
 	require.NoError(t, err)
-	require.True(t, st.ContextMap.Done)
-	require.False(t, st.Validate.Done)
-	require.False(t, st.Multihashes.Done)
+	require.True(t, st.step(stepContextMap).Done)
+	require.False(t, st.step(stepValidate).Done)
+	require.False(t, st.step(stepMultihashes).Done)
 }
 
 // TestRunWithoutValidate checks that an import without validation copies
@@ -307,7 +302,7 @@ func TestRunWithoutValidate(t *testing.T) {
 	ctx := t.Context()
 	ds := testDatastore(t)
 	v := &testValidator{Target: s.dstVals.(importer.Target), failAt: ""}
-	require.NoError(t, Run(ctx, ds, s.source, v, false, importer.WithStagger(0)))
+	require.NoError(t, New(ds, s.source, v, false, importer.WithStagger(0)).Run(ctx))
 	require.Empty(t, v.froms)
 	require.NoError(t, CheckFinished(ctx, ds))
 }

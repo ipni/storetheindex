@@ -1,6 +1,7 @@
 package command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	leveldb "github.com/ipfs/go-ds-leveldb"
@@ -22,6 +24,7 @@ import (
 	"github.com/ipni/go-indexer-core/store/pebble"
 	"github.com/ipni/storetheindex/internal/dskey"
 	"github.com/ipni/storetheindex/internal/dsstream"
+	"github.com/ipni/storetheindex/internal/migrate"
 	"github.com/ipni/storetheindex/server/importsender"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
@@ -96,6 +99,8 @@ func TestMigrateIn(t *testing.T) {
 		"--valuestore-dir", dstPebbleDir,
 		"--workers", "4",
 		"--worker-stagger", "0",
+		"--status-listen", "127.0.0.1:0",
+		"--console-interval", "1ms",
 	}
 	require.NoError(t, testMigrateIn(t, args...))
 	// A done import does nothing again
@@ -141,6 +146,8 @@ func TestMigrateInArgs(t *testing.T) {
 		args[slices.Index(args, flag)+1] = token
 		require.ErrorContains(t, testMigrateIn(t, append(args, "--token-file", token)...), "cannot open")
 	}
+	// A status port that cannot listen
+	require.ErrorContains(t, testMigrateIn(t, append(base, "--token-file", token, "--status-listen", "256.0.0.1:1")...), "status")
 	// A sender that does not answer stops the import after the retry
 	// window
 	err := testMigrateIn(t, append(base, "--token-file", token, "--retry-window", "1ms", "--worker-stagger", "0")...)
@@ -208,4 +215,41 @@ func TestImportHTTPClient(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = resp2.Body.Close() }()
 	require.Equal(t, 2, resp2.ProtoMajor)
+}
+
+func TestMigrateStatusHandler(t *testing.T) {
+	ds, err := leveldb.NewDatastore(t.TempDir(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ds.Close() })
+	srv := httptest.NewServer(newMigrateStatusHandler(migrate.New(ds, nil, nil, true)))
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Get(srv.URL + migrateStatusPath + "status")
+	require.NoError(t, err)
+	var st migrate.Status
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&st))
+	require.NoError(t, resp.Body.Close())
+	require.Len(t, st.Steps, 9)
+	require.Equal(t, "pending", st.Steps[0].State)
+
+	put := func(body string) int {
+		req, err := http.NewRequest(http.MethodPut, srv.URL+migrateStatusPath+"workers", strings.NewReader(body))
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		return resp.StatusCode
+	}
+	require.Equal(t, http.StatusNoContent, put(`{"n": 4}`))
+	for _, body := range []string{`{}`, `not json`, `{"n": -1}`} {
+		require.Equal(t, http.StatusBadRequest, put(body), body)
+	}
+
+	resp, err = http.Get(srv.URL + "/metrics")
+	require.NoError(t, err)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode, string(body))
+	require.Contains(t, string(body), "migrate_workers")
 }

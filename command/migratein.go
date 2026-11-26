@@ -1,11 +1,16 @@
 package command
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	pbl "github.com/cockroachdb/pebble/v2"
@@ -15,7 +20,9 @@ import (
 	"github.com/ipni/go-indexer-core"
 	"github.com/ipni/go-indexer-core/importer"
 	"github.com/ipni/go-indexer-core/importer/importhttp"
+	coremetrics "github.com/ipni/go-indexer-core/metrics"
 	"github.com/ipni/go-indexer-core/store/pebble"
+	"github.com/ipni/storetheindex/internal/metrics"
 	"github.com/ipni/storetheindex/internal/migrate"
 	"github.com/urfave/cli/v2"
 )
@@ -70,6 +77,16 @@ var MigrateInCmd = &cli.Command{
 				"It reads every record and can take hours on a large store; without it, those records " +
 				"stay until a later cleanup. Turning it off part way through skips the rest of it.",
 			Value: true,
+		},
+		&cli.StringFlag{
+			Name:  "status-listen",
+			Usage: "host:port of the import's status port: GET /migrate/v1/status, PUT /migrate/v1/workers {\"n\": 16}, GET /metrics. Empty turns it off.",
+			Value: "127.0.0.1:3010",
+		},
+		&cli.DurationFlag{
+			Name:  "console-interval",
+			Usage: "Time between two lines of the import's progress in the log. 0 turns them off.",
+			Value: 30 * time.Second,
 		},
 		&cli.IntFlag{
 			Name:  "workers",
@@ -126,11 +143,28 @@ func migrateInAction(cctx *cli.Context) error {
 	}
 	defer func() { _ = vs.Close() }()
 
-	log.Infow("Importing", "source", cctx.String("source-url"))
-	err = migrate.Run(cctx.Context, ds, src, vs.(importer.Target), cctx.Bool("validate-records"),
+	im := migrate.New(ds, src, vs.(importer.Target), cctx.Bool("validate-records"),
 		importer.WithWorkers(cctx.Int("workers")),
 		importer.WithStagger(cctx.Duration("worker-stagger")),
 		importer.WithRetryWindow(cctx.Duration("retry-window")))
+	if addr := cctx.String("status-listen"); addr != "" {
+		l, err := net.Listen("tcp", addr)
+		if err != nil {
+			return fmt.Errorf("cannot listen for the import's status: %w", err)
+		}
+		srv := &http.Server{Handler: newMigrateStatusHandler(im), ReadHeaderTimeout: time.Minute}
+		go func() { _ = srv.Serve(l) }()
+		defer func() { _ = srv.Close() }()
+		log.Infow("Import status listening", "addr", l.Addr())
+	}
+	if interval := cctx.Duration("console-interval"); interval > 0 {
+		ctx, cancel := context.WithCancel(cctx.Context)
+		defer cancel()
+		go logMigrateStatus(ctx, im, interval)
+	}
+
+	log.Infow("Importing", "source", cctx.String("source-url"))
+	err = im.Run(cctx.Context)
 	if err != nil {
 		return fmt.Errorf("the import stopped; run it again to resume: %w", err)
 	}
@@ -153,6 +187,72 @@ func newImportHTTPClient(workers int) *http.Client {
 		MaxIdleConnsPerHost:   workers,
 		Protocols:             &protocols,
 	}}
+}
+
+// migrateStatusPath is the path prefix of an import's status and control on
+// its status port
+const migrateStatusPath = "/migrate/v1/"
+
+// newMigrateStatusHandler returns the handler of an import's status port:
+// GET /migrate/v1/status returns im's status as JSON, PUT
+// /migrate/v1/workers with {"n": n} sets its number of workers, and
+// /metrics serves the import's metrics
+func newMigrateStatusHandler(im *migrate.Import) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET "+migrateStatusPath+"status", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(im.Status())
+	})
+	mux.HandleFunc("PUT "+migrateStatusPath+"workers", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			N *int `json:"n"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&req); err != nil || req.N == nil {
+			http.Error(w, `the body must be {"n": <number of workers>}`, http.StatusBadRequest)
+			return
+		}
+		if err := im.SetWorkers(*req.N); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.Handle("/metrics", migrateMetricsHandler())
+	return mux
+}
+
+// migrateMetricsHandler serves the import's metrics. It is made once per
+// process: each metrics.Start adds an exporter of the same metrics to the
+// default Prometheus registry, and two would fail every scrape.
+var migrateMetricsHandler = sync.OnceValue(func() http.Handler {
+	return metrics.Start(slices.Concat(coremetrics.ImportViews, migrate.Views))
+})
+
+// logMigrateStatus logs a line of im's progress every interval until ctx
+// ends
+func logMigrateStatus(ctx context.Context, im *migrate.Import, interval time.Duration) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(interval):
+		}
+		st := im.Status()
+		var step string
+		for _, s := range st.Steps {
+			if s.State == "running" {
+				step = s.Name
+			}
+		}
+		if st.Running == nil {
+			log.Infow("Import progress", "step", step)
+			continue
+		}
+		r := st.Running
+		log.Infow("Import progress", "step", step, "entries", r.Entries, "bytes", r.Bytes,
+			"partsWritten", r.PartsWritten, "partsInFlight", r.PartsInFlight, "retries", r.Retries,
+			"workers", r.Workers, "workersRunning", r.WorkersRunning)
+	}
 }
 
 // openMigrateDatastore opens the datastore of type dsType at dir, which an
